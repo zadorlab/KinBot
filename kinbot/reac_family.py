@@ -5,6 +5,7 @@ import logging
 from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
+from kinbot.profiled_qc import l1_runtime_parameters
 from kinbot.reactions.reac_abstraction import abstraction_align
 from kinbot.utils import get_unique_list_of_lists, plain_symbols, plain_geometry
 
@@ -14,12 +15,6 @@ logger = logging.getLogger('KinBot')
 def _finite_geometry(geom, natom):
     values = np.asarray(geom, dtype=float)
     return values.shape == (natom, 3) and np.isfinite(values).all()
-
-
-def _reaction_parameters(rxn):
-    """Return the actual L1 backend settings used by a reaction worker."""
-    backend = getattr(rxn.qc, 'l1', None)
-    return getattr(backend, 'par', rxn.par)
 
 
 def carry_out_reaction(rxn, step, command, bimol=0):
@@ -36,7 +31,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         if status != 'normal' and status != 'error':
             return step
   
-    runtime_par = _reaction_parameters(rxn)
+    runtime_par = l1_runtime_parameters(rxn.qc, rxn.par)
     command = runtime_par.get('qc_command', command)
     kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, 
                                      rxn.species.nel, ts=ts, step=step, 

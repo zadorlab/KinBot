@@ -22,6 +22,7 @@ from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fairchem_utils import load_predictor
+from kinbot.irc import IRC
 from kinbot.theory import TheoryProfile
 from kinbot.reactions.reac_h2_elim import H2Elim
 from kinbot import reac_family
@@ -236,6 +237,50 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertNotIn("load_predictor('', 'cpu')", generated)
         self.assertIn('Recovered constrained path point from finite input '
                       'geometry', generated)
+
+    def test_profiled_irc_workers_use_resolved_fairchem_context(self):
+        parameters = self.parameters(composite_method='ANL0-F12')
+        qc = QuantumChemistry(parameters.par)
+        species = StationaryPoint('acetaldehyde', 0, 1, smiles='CC=O')
+        species.characterize()
+        reaction = H2Elim(
+            species, qc, parameters.par, [3, 0, 1, 6],
+            'acetaldehyde_h2_elim_4_7')
+        with patch.object(qc, 'get_qc_geom',
+                          return_value=(0, species.geom.copy())), \
+                patch.object(qc.l1, 'submit_qc', return_value=1) as submit:
+            self.assertEqual(
+                IRC(reaction, parameters.par).do_irc_calculations(), 0)
+        self.assertEqual(submit.call_count, 2)
+        for direction in ('F', 'R'):
+            generated = Path(
+                f'acetaldehyde_h2_elim_4_7_IRC_{direction}.py').read_text()
+            compile(generated, f'profiled_irc_{direction}.py', 'exec')
+            self.assertIn("load_predictor('uma-s-1p2', 'cpu')", generated)
+            self.assertNotIn("load_predictor('', 'cpu')", generated)
+            self.assertIn('IRC produced no distinct finite endpoint', generated)
+
+    def test_profiled_sella_irc_template_rejects_unchanged_endpoint(self):
+        parameters = self.parameters(
+            theory_preset='uma-b2plyp-anl',
+            l1_profile={'calculator': 'gaussian', 'method': 'B3LYP',
+                        'basis': '6-31G', 'optimizer': 'sella'})
+        qc = QuantumChemistry(parameters.par)
+        species = StationaryPoint('acetaldehyde', 0, 1, smiles='CC=O')
+        species.characterize()
+        reaction = H2Elim(
+            species, qc, parameters.par, [3, 0, 1, 6],
+            'acetaldehyde_h2_elim_4_7')
+        with patch.object(qc, 'get_qc_geom',
+                          return_value=(0, species.geom.copy())), \
+                patch.object(qc.l1, 'submit_qc', return_value=1):
+            IRC(reaction, parameters.par).do_irc_calculations()
+        generated = Path(
+            'acetaldehyde_h2_elim_4_7_IRC_F.py').read_text()
+        compile(generated, 'profiled_sella_irc.py', 'exec')
+        self.assertIn('np.linalg.norm(mol.positions - initial_positions)',
+                      generated)
+        self.assertIn("data={'status': 'error'}", generated)
 
     def test_reaction_worker_refuses_nonfinite_input_before_submission(self):
         parameters = self.parameters(composite_method='ANL0-F12')

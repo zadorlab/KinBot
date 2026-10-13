@@ -89,6 +89,18 @@ def _backend_parameters(par, profile):
     return values
 
 
+def l1_runtime_parameters(qc, fallback):
+    """Return the concrete settings used by an L1 worker.
+
+    Most job writers are methods on the routed backend and therefore see its
+    parameters directly.  Reaction-path and IRC writers live outside that
+    class, so they must resolve the L1 backend explicitly instead of reading
+    the profile container's legacy top-level placeholders.
+    """
+    backend = getattr(qc, 'l1', qc)
+    return getattr(backend, 'par', fallback)
+
+
 class ProfiledQuantumChemistry:
     """Route the existing QuantumChemistry surface by calculation level."""
 

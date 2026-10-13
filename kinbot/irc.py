@@ -5,6 +5,7 @@ from shutil import copyfile
 
 from kinbot.utils import plain_symbols, plain_geometry
 from kinbot import kb_path
+from kinbot.profiled_qc import l1_runtime_parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import require_supported_identity, identity_matches
 
@@ -103,6 +104,10 @@ class IRC:
 
     def problem_in_geom(self, geom):
         # check if interatomic distances are closer than 0.3 Angstrom
+        values = np.asarray(geom, dtype=float)
+        if (values.ndim != 2 or values.shape[1:] != (3,)
+                or not np.isfinite(values).all()):
+            return 1
         for i in range(len(geom)):
             for j in range(i + 1, len(geom)):
                 dist = np.linalg.norm(geom[i] - geom[j])
@@ -126,6 +131,10 @@ class IRC:
         instance_name = self.rxn.instance_name
         err, geom = self.rxn.qc.get_qc_geom(instance_name,
                                             self.rxn.species.natom)
+        if self.problem_in_geom(geom):
+            raise ValueError(f'{instance_name}: cannot start IRC from an '
+                             'invalid or nonfinite transition-state geometry.')
+        runtime_par = l1_runtime_parameters(self.rxn.qc, self.par)
         directions = ['Forward', 'Reverse']
         for direction in directions:
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
@@ -192,16 +201,16 @@ class IRC:
                                        atom=plain_symbols(self.rxn.species.atom),
                                        geom=plain_geometry(geom),
                                        ppn=min(self.rxn.species.nel, self.rxn.qc.ppn),
-                                       qc_command=self.par['qc_command'],
+                                       qc_command=runtime_par['qc_command'],
                                        working_dir=os.getcwd(),
                                        code=code,
                                        Code=Code,
-                                       sella_kwargs=self.par['sella_kwargs'],  # Sella
-                                       fmax=self.par['sella_fmax'],
-                                       steps=self.par['sella_steps'],
-                                       fc_model_path=self.par['fc_model_path'],
-                                       fc_task_name=self.par['fc_task_name'],
-                                       fc_device=self.par['fc_device'],
+                                       sella_kwargs=runtime_par['sella_kwargs'],  # Sella
+                                       fmax=runtime_par['sella_fmax'],
+                                       steps=runtime_par['sella_steps'],
+                                       fc_model_path=runtime_par['fc_model_path'],
+                                       fc_task_name=runtime_par['fc_task_name'],
+                                       fc_device=runtime_par['fc_device'],
                                        )
 
             with open('{}.py'.format(irc_name), 'w') as f:

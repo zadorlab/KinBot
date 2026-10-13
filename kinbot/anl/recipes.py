@@ -21,6 +21,18 @@ ANL0_NATIVE_REFERENCE_BASES = (
 )
 
 
+# These are independent additive corrections to the mandatory reference CBS
+# energy.  Automatic production may omit a whole family after a real task
+# failure, but it must never keep only one side of a difference.  The strict
+# published recipes remain the default.
+ANL_REDUCIBLE_FAMILIES = (
+    'higher_order',
+    'dboc',
+    'scalar_relativistic',
+    'core_valence',
+)
+
+
 def _required(key, quantity, method, basis, role='l3',
               backends=('composite',), **settings):
     return ComponentRequirement(key, quantity, method, basis, role,
@@ -32,6 +44,7 @@ def recipe(name: str, *, vpt2_method: str | None = None,
            atomic: bool = False,
            rank_exact_higher_order: bool = False,
            harmonic_only: bool = False,
+           omitted_families: tuple[str, ...] = (),
            fallback_geometry_method: str | None = None,
            fallback_harmonic_method: str | None = None,
            fallback_basis: str = 'cc-pVTZ') -> CompositeRecipe:
@@ -58,6 +71,11 @@ def recipe(name: str, *, vpt2_method: str | None = None,
         raise ValueError('rank_exact_higher_order must be boolean.')
     if not isinstance(harmonic_only, bool):
         raise ValueError('harmonic_only must be boolean.')
+    if (not isinstance(omitted_families, tuple)
+            or len(omitted_families) != len(set(omitted_families))
+            or any(item not in ANL_REDUCIBLE_FAMILIES
+                   for item in omitted_families)):
+        raise ValueError('Invalid omitted ANL component families.')
     geometry_fallback = fallback_geometry_method is not None
     harmonic_fallback = fallback_harmonic_method is not None
     if ((geometry_fallback and not fallback_geometry_method)
@@ -81,6 +99,11 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     if harmonic_fallback:
         variants.append(
             f'{fallback_harmonic_method}/{fallback_basis}-ZPE')
+    if omitted_families:
+        ordered_omissions = tuple(
+            item for item in ANL_REDUCIBLE_FAMILIES
+            if item in omitted_families)
+        variants.append('reduced[without=' + '+'.join(ordered_omissions) + ']')
     label = (f'profiled:{name}:' + ':'.join(variants)) if variants else name
 
     if name == 'ANL0-F12':
@@ -216,5 +239,17 @@ def recipe(name: str, *, vpt2_method: str | None = None,
                   if harmonic_only else
                   (ExpressionTerm('harmonic_zpe'),
                    ExpressionTerm('vpt2_correction')))
-    return CompositeRecipe(label, 1, tuple(common + higher),
-                           electronic, zero_point)
+    family_keys = {
+        'higher_order': {item.key for item in higher},
+        'core_valence': {'core_valence_cbs'},
+        'scalar_relativistic': {'scalar_relativistic'},
+        'dboc': {'dboc'},
+    }
+    omitted_keys = set().union(*(
+        family_keys[family] for family in omitted_families)) \
+        if omitted_families else set()
+    requirements = tuple(
+        item for item in common + higher if item.key not in omitted_keys)
+    electronic = tuple(
+        item for item in electronic if item.component not in omitted_keys)
+    return CompositeRecipe(label, 1, requirements, electronic, zero_point)

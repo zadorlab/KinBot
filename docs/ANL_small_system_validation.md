@@ -172,11 +172,28 @@ Every assigned state retains the ordered fallback chain
 All structurally valid CBH reactions from CBH-3 down through CBH-0 and all
 their lower-rung reference states are planned before licensed calculations
 start. Assembly considers the highest structural rung first and requires one
-exact completed method label for every species in that reaction. It lowers
-the electronic tier within that rung before trying the next lower structural
-rung. A lower-rung reference reaction independently selects its own best
-common tier. Only the terminal CBH-0 boundary reads pinned ATcT formation
-enthalpies.
+exact completed method label for every species in that reaction.
+
+At one electronic tier, the strict recipe is considered first. If an optional
+additive family is unavailable, automatic assembly constructs explicitly
+labeled reduced expressions from the common completed families before it
+lowers the electronic tier. The mandatory reference CBS energy and ZPE are
+never removed. The reducible ANL0 families are the complete higher-order
+difference, DBOC, complete scalar-relativistic difference, and complete
+core-valence CBS difference. Both sides of a difference are retained or
+removed together. Profiles with fewer omissions sort first; equal-size
+omissions drop the higher-order increment before DBOC, scalar relativistic,
+and core-valence corrections. Every omission and the terminal task statuses
+are written into the composite JSON.
+
+Every completed species also exposes compatible subsets of its components.
+Consequently, a species that completed more work can share the best common
+reduced expression with one whose optional task failed without rerunning or
+discarding the completed calculations. If no common expression is available,
+selection lowers the electronic tier within that rung and then tries the next
+lower structural rung. A lower-rung reference reaction independently selects
+its own best common tier. Only the terminal CBH-0 boundary reads pinned ATcT
+formation enthalpies.
 
 If L3 geometry fails, only its dependent L3 harmonic calculation is removed;
 independent single points use the accepted L2 geometry. Rejected or failed
@@ -208,8 +225,8 @@ module.
   the accepted L2 geometry.
 - A component that exhausts its declared restart/resource policy is marked
   unavailable.  Unstarted tasks in the same correction family are skipped,
-  and recipe selection falls to the best complete level shared within that
-  one CBH reaction.
+  and recipe selection first forms the best common reduced expression at the
+  same tier, then follows the electronic and structural rung fallbacks above.
 - Different CBH ladder nodes may use different best available composite
   levels.  Every species within one evaluated CBH reaction must use the same
   selected level.

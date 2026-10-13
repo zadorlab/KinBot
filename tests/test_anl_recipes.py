@@ -77,6 +77,28 @@ def test_complete_anl0_expressions_include_zpe_once(name):
             'aug-cc-pV5Z,h=cc-pV5Z')
 
 
+def test_reduced_recipe_omits_whole_additive_families_with_explicit_label():
+    equation = recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        omitted_families=('higher_order', 'dboc'))
+    keys = {item.key for item in equation.requirements}
+    assert not keys & {'hoe_high', 'hoe_low', 'dboc'}
+    assert {'reference_cbs', 'core_valence_cbs', 'scalar_relativistic',
+            'spin_orbit', 'harmonic_zpe', 'vpt2_correction'} <= keys
+    assert equation.name.endswith(
+        'reduced[without=higher_order+dboc]')
+    result = evaluate(equation, components_for(equation))
+    assert result.electronic_hartree == pytest.approx(-100.025)
+    assert result.zero_k_hartree == pytest.approx(-99.935)
+
+
+def test_reduced_recipe_rejects_unknown_or_duplicate_families():
+    with pytest.raises(ValueError, match='omitted'):
+        recipe('ANL0', omitted_families=('invented',))
+    with pytest.raises(ValueError, match='omitted'):
+        recipe('ANL0', omitted_families=('dboc', 'dboc'))
+
+
 def test_anl1_cross_program_higher_order_pairs_and_profiled_label():
     equation = recipe('ANL1', vpt2_method='B2PLYP-D3BJ')
     components = components_for(equation)

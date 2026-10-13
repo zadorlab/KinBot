@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from collections import Counter
 import hashlib
+from itertools import combinations
 import json
 import math
 import os
@@ -36,6 +37,7 @@ from kinbot.anl.dispatch import (_file_hash, _geometry_hash, _load, advance,
                                  preflight, prepare, _verify_execution,
                                  _verify_stage_files)
 from kinbot.anl.model import ComponentResult, IncompleteRecipeError
+from kinbot.anl.recipes import ANL_REDUCIBLE_FAMILIES
 from kinbot.anl.validation import (assemble_profiled_anl0,
                                    assemble_profiled_anl0_f12,
                                    automatic_composite_spec)
@@ -607,6 +609,29 @@ def _simple_composite(recipe_name, molecule, components, electronic_keys,
     }
 
 
+def _component_family_omissions(availability):
+    """Return every common-component fallback, best expression first."""
+    if (not isinstance(availability, dict)
+            or set(availability) != set(ANL_REDUCIBLE_FAMILIES)
+            or any(not isinstance(value, bool)
+                   for value in availability.values())):
+        raise ValueError('ANL component-family availability is invalid.')
+    missing = {
+        family for family in ANL_REDUCIBLE_FAMILIES
+        if not availability[family]}
+    available = tuple(
+        family for family in ANL_REDUCIBLE_FAMILIES
+        if availability[family])
+    result = []
+    for count in range(len(available) + 1):
+        for extra in combinations(available, count):
+            omitted = missing | set(extra)
+            result.append(tuple(
+                family for family in ANL_REDUCIBLE_FAMILIES
+                if family in omitted))
+    return tuple(result)
+
+
 def assemble_available_profiles(run_dir, source_record, destination, *,
                                 state_id, stationary_point='minimum'):
     """Assemble every complete tier without converting bad data to fallback."""
@@ -655,15 +680,22 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
         value=source_record['energy_hartree'], method=l2_method,
         basis=theory['basis'], state_id=state_id)
 
-    full_required = {'cfour_dboc', 'rel_dkh', 'rel_nonrel'}
-    if electrons > 2:
-        full_required.update(('ccsdt_dz', 'ccsdtq_dz'))
-    if any(symbol not in ('H', 'He') for symbol in molecule['symbols']):
-        full_required.update(('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz'))
+    family_tasks = {
+        'higher_order': (() if electrons <= 2
+                         else ('ccsdt_dz', 'ccsdtq_dz')),
+        'dboc': ('cfour_dboc',),
+        'scalar_relativistic': ('rel_dkh', 'rel_nonrel'),
+        'core_valence': (() if all(
+            symbol in ('H', 'He') for symbol in molecule['symbols']) else
+            ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz')),
+    }
+    family_available = {
+        family: all(task in declared and statuses[task] == 'complete'
+                    for task in tasks)
+        for family, tasks in family_tasks.items()
+    }
     l3_status = statuses.get('l3_geometry')
-    if (full_required <= declared
-            and all(statuses[key] == 'complete' for key in full_required)
-            and l3_status in ('complete', 'unavailable', 'skipped')):
+    if l3_status in ('complete', 'unavailable', 'skipped'):
         common = dict(
             state_id=state_id, spin_orbit_hartree=0.,
             spin_orbit_source=(
@@ -679,17 +711,46 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
             if not (set(reference_ids) <= declared and all(
                     statuses[key] == 'complete' for key in reference_ids)):
                 continue
-            harmonic = assembler(
-                run_dir, run_dir, run_dir, harmonic_only=True,
-                l2_geometry_fallback=source_harmonic, **common)
-            save('barrier', harmonic['recipe'], harmonic,
-                 f'{stem}_harmonic.json')
-            if stationary_point == 'minimum' and vpt2 is not None:
-                thermal = assembler(
-                    run_dir, run_dir, run_dir, harmonic_only=False,
-                    l2_geometry_fallback=source_harmonic, **common)
-                save('thermochemistry', thermal['recipe'], thermal,
-                     f'{stem}.json')
+            # Emit every scientifically valid subset of complete additive
+            # families.  The CBH solver can then choose the best *common*
+            # expression across a reaction without rerunning a species that
+            # completed more corrections than another member.  Missing
+            # paired corrections are always omitted atomically.
+            omission_sets = _component_family_omissions(family_available)
+            for index, omitted in enumerate(omission_sets):
+                omission_statuses = {
+                    item: {task: statuses.get(task, 'not_declared')
+                           for task in family_tasks[item]}
+                    for item in omitted
+                }
+
+                def annotate(record):
+                    if omitted:
+                        record['reduced_recipe'].update({
+                            'reason': (
+                                'automatic common-component fallback; no '
+                                'partial correction differences are used'),
+                            'omitted_family_task_statuses': omission_statuses,
+                        })
+                    return record
+
+                suffix = '' if not omitted else f'_reduced_{index:02d}'
+                # Build the barrier expression without the VPT2 term. The
+                # separate label prevents thermochemical and barrier records
+                # from ever being confused.
+                harmonic = annotate(assembler(
+                    run_dir, run_dir, run_dir, harmonic_only=True,
+                    omitted_families=omitted,
+                    l2_geometry_fallback=source_harmonic, **common))
+                save('barrier', harmonic['recipe'], harmonic,
+                     f'{stem}{suffix}_harmonic.json')
+                if stationary_point == 'minimum' and vpt2 is not None:
+                    thermal = annotate(assembler(
+                        run_dir, run_dir, run_dir, harmonic_only=False,
+                        omitted_families=omitted,
+                        l2_geometry_fallback=source_harmonic, **common))
+                    save('thermochemistry', thermal['recipe'], thermal,
+                         f'{stem}{suffix}.json')
 
     if statuses.get('l3_geometry') == 'complete' and \
             statuses.get('harmonic') == 'complete':
@@ -1310,16 +1371,30 @@ def _ordered_methods(energies):
         if label.startswith('profiled:ANL0-F12'):
             tier = 0
         elif label.startswith('profiled:ANL0') or label == 'ANL0':
-            tier = 2
+            tier = 1
         elif label.startswith('L3:') and '//CCSD(T)/cc-pVTZ' in label:
-            tier = 4
+            tier = 2
         elif label.startswith('L3:'):
-            tier = 6
+            tier = 3
         elif label.startswith('L2:'):
-            tier = 8
+            tier = 4
         else:
-            tier = 10
-        return tier + harmonic, label
+            tier = 5
+        marker = 'reduced[without='
+        if marker in label:
+            body = label.split(marker, 1)[1].split(']', 1)[0]
+            omitted = tuple(body.split('+'))
+        else:
+            omitted = ()
+        family_order = {name: index for index, name in enumerate(
+            ANL_REDUCIBLE_FAMILIES)}
+        omission_order = tuple(family_order[item] for item in omitted)
+        # Preserve the requested electronic tier first. Within it, retain as
+        # many additive families as possible; for equal counts, the declared
+        # family order drops higher-order increments before larger baseline
+        # corrections. Harmonic ZPE follows the same electronic expression's
+        # accepted anharmonic profile.
+        return tier, len(omitted), omission_order, harmonic, label
 
     return tuple(sorted(labels, key=rank))
 

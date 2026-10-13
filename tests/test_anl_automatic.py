@@ -10,6 +10,7 @@ import pytest
 from ase.build import molecule
 
 from kinbot.anl.automatic import (DEFAULT_SIZE_POLICY, _model_record,
+                                  _component_family_omissions,
                                   _ordered_methods, _reference_input,
                                   _reference_thermochemistry_models,
                                   _vpt2_zpe_components,
@@ -369,3 +370,29 @@ def test_exact_profile_order_preserves_harmonic_fallback_without_ambiguity():
     assert ordered[2].startswith('profiled:ANL0:')
     assert '//CCSD(T)/cc-pVTZ' in ordered[3]
     assert ordered[-1].startswith('L2:')
+
+
+def test_reduced_profiles_precede_lower_tiers_and_are_common_subset_complete():
+    full = 'profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ'
+    reduced_hoe = full + ':reduced[without=higher_order]'
+    reduced_dboc = full + ':reduced[without=dboc]'
+    reduced_two = full + ':reduced[without=higher_order+dboc]'
+    conventional = 'profiled:ANL0:B2PLYP-D3BJ'
+    ordered = _ordered_methods({'species': {
+        conventional: None, reduced_two: None, reduced_dboc: None,
+        reduced_hoe: None, full: None}})
+    assert ordered == (
+        full, reduced_hoe, reduced_dboc, reduced_two, conventional)
+
+    omissions = _component_family_omissions({
+        'higher_order': False,
+        'dboc': True,
+        'scalar_relativistic': True,
+        'core_valence': False,
+    })
+    assert len(omissions) == 4
+    assert omissions[0] == ('higher_order', 'core_valence')
+    assert all('higher_order' in item and 'core_valence' in item
+               for item in omissions)
+    assert ('higher_order', 'dboc', 'scalar_relativistic',
+            'core_valence') in omissions

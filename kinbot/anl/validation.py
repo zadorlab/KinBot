@@ -1289,7 +1289,8 @@ def _assemble_profiled_anl0(
         recipe_name, interface_run, higher_order_run, corrections_run, *, state_id,
         spin_orbit_hartree, spin_orbit_source, spin_orbit_backend='manual',
         vpt2_review=None, base_run=None, harmonic_only=False,
-        vpt2_method='B2PLYP-D3BJ', l2_geometry_fallback=None):
+        vpt2_method='B2PLYP-D3BJ', l2_geometry_fallback=None,
+        omitted_families=()):
     """Assemble one provenance-checked ANL0 or ANL0-F12 0 K energy.
 
     Every geometry-dependent term must trace to the accepted L2 geometry in
@@ -1381,6 +1382,7 @@ def _assemble_profiled_anl0(
         multiplicity=multiplicity, atomic=atomic,
         rank_exact_higher_order=rank_exact,
         harmonic_only=harmonic_only,
+        omitted_families=tuple(omitted_families),
         fallback_geometry_method=fallback_geometry_method,
         fallback_harmonic_method=(l2_geometry_fallback.method
                                   if harmonic_fallback else None),
@@ -1397,9 +1399,10 @@ def _assemble_profiled_anl0(
             base_run, *reference_tasks,
             requirement=required['reference_cbs'], state_id=state_id,
             lower_basis=reference_bases[0], upper_basis=reference_bases[1]),
-        'dboc': task_component(
-            base_run, 'cfour_dboc', key='dboc', state_id=state_id),
     }
+    if 'dboc' in required:
+        components['dboc'] = task_component(
+            base_run, 'cfour_dboc', key='dboc', state_id=state_id)
     if atomic:
         components['harmonic_zpe'] = atomic_zero_vibrational_component(
             molecule, required['harmonic_zpe'], state_id=state_id,
@@ -1421,12 +1424,12 @@ def _assemble_profiled_anl0(
             components['vpt2_correction'] = task_component(
                 interface_run, 'gaussian_vpt2', key='vpt2_correction',
                 state_id=state_id)
-    if rank_exact:
+    if rank_exact and 'higher_order_correction' in required:
         components['higher_order_correction'] = \
             rank_exact_higher_order_correction(
                 molecule, required['higher_order_correction'],
                 state_id=state_id, geometry_sha256=l3_hash)
-    else:
+    elif 'hoe_low' in required:
         components['hoe_low'] = task_component(
             higher_order_run, 'ccsdt_dz', key='hoe_low', state_id=state_id)
         components['hoe_high'] = task_component(
@@ -1442,19 +1445,21 @@ def _assemble_profiled_anl0(
     else:
         components['vpt2_correction'] = _apply_quality_review(
             components['vpt2_correction'], 'gaussian_vpt2', vpt2_review)
-    components['core_valence_cbs'] = (
-        rank_exact_core_valence_component(
-            molecule, required['core_valence_cbs'], state_id=state_id,
-            geometry_sha256=l3_hash)
-        if _rank_exact_core_valence(molecule) else
-        core_valence_task_component(
-            corrections_run, all_electron_lower='cv_ae_tz',
-            all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
-            frozen_core_upper='cv_fc_qz',
-            requirement=required['core_valence_cbs'], state_id=state_id))
-    components['scalar_relativistic'] = scalar_relativistic_task_component(
-        corrections_run, 'rel_dkh', 'rel_nonrel',
-        requirement=required['scalar_relativistic'], state_id=state_id)
+    if 'core_valence_cbs' in required:
+        components['core_valence_cbs'] = (
+            rank_exact_core_valence_component(
+                molecule, required['core_valence_cbs'], state_id=state_id,
+                geometry_sha256=l3_hash)
+            if _rank_exact_core_valence(molecule) else
+            core_valence_task_component(
+                corrections_run, all_electron_lower='cv_ae_tz',
+                all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
+                frozen_core_upper='cv_fc_qz',
+                requirement=required['core_valence_cbs'], state_id=state_id))
+    if 'scalar_relativistic' in required:
+        components['scalar_relativistic'] = scalar_relativistic_task_component(
+            corrections_run, 'rel_dkh', 'rel_nonrel',
+            requirement=required['scalar_relativistic'], state_id=state_id)
     components['spin_orbit'] = state_correction_component(
         requirement=required['spin_orbit'], value_hartree=spin_orbit_hartree,
         state_id=state_id, charge=charge, multiplicity=multiplicity,
@@ -1463,7 +1468,7 @@ def _assemble_profiled_anl0(
         components, state_id=state_id, charge=charge,
         multiplicity=multiplicity,
         geometry_hashes={'l2': l2_hash, 'l3': l3_hash})
-    return {
+    record = {
         'schema': 1, 'status': 'complete', 'state_id': state_id,
         'charge': charge, 'multiplicity': multiplicity,
         'recipe': result.recipe, 'recipe_version': result.recipe_version,
@@ -1484,6 +1489,22 @@ def _assemble_profiled_anl0(
         'electronic_terms': [asdict(term) for term in result.electronic_terms],
         'zero_point_terms': [asdict(term) for term in result.zero_point_terms],
     }
+    if omitted_families:
+        record['reduced_recipe'] = {
+            'parent_recipe': recipe(
+                recipe_name, vpt2_method=vpt2_method,
+                multiplicity=multiplicity, atomic=atomic,
+                rank_exact_higher_order=rank_exact,
+                harmonic_only=harmonic_only,
+                fallback_geometry_method=fallback_geometry_method,
+                fallback_harmonic_method=(
+                    l2_geometry_fallback.method if harmonic_fallback else None),
+                fallback_basis=((l2_geometry_fallback.basis
+                                 if harmonic_fallback else fallback_basis)
+                                or 'cc-pVTZ')).name,
+            'omitted_families': list(omitted_families),
+        }
+    return record
 
 
 def assemble_profiled_anl0_f12(

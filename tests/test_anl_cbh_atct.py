@@ -344,6 +344,53 @@ def test_ladder_uses_highest_complete_common_tier_for_available_rung():
     assert any('ANL0' in reason for reason in selected.skipped)
 
 
+def test_ladder_prefers_exact_reduced_recipe_before_lower_tier_or_rung():
+    _, table = _table()
+    species = SimpleNamespace(smiles='CCC', charge=0, mult=1, wellorts=0,
+                              atom=['C'] * 3 + ['H'] * 8)
+    full = 'profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ'
+    reduced = full + ':reduced[without=higher_order]'
+    profiles = {
+        smiles: {
+            reduced: ZeroKEnergy(smiles, value, reduced, smiles + '-reduced'),
+            'L3': ZeroKEnergy(smiles, value + .2, 'L3', smiles + '-l3'),
+        }
+        for smiles, value in [('CCC', -118.), ('CC', -79.), ('C', -40.),
+                              ('[H][H]', -1.)]
+    }
+    # A complete target profile is reusable, but the CBH-1 reaction cannot
+    # use it unless every participant has that exact expression.
+    profiles['CCC'][full] = ZeroKEnergy('CCC', -118.1, full, 'propane-full')
+    selected = select_cbh_ladder(
+        species, profiles, table, max_rung=1,
+        method_ladder=(full, reduced, 'L3'))
+    assert selected.reaction.rung == 1
+    assert selected.formation.method == reduced
+    assert selected.formation.references['CC'].method == reduced
+    assert any(full in reason for reason in selected.skipped)
+
+
+def test_ladder_descends_rung_when_no_common_profile_exists_at_higher_rung():
+    _, table = _table()
+    species = SimpleNamespace(smiles='CCC', charge=0, mult=1, wellorts=0,
+                              atom=['C'] * 3 + ['H'] * 8)
+    method = 'profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ'
+    profiles = {
+        smiles: {method: ZeroKEnergy(smiles, value, method, smiles + '-full')}
+        for smiles, value in [('CCC', -118.), ('C', -40.), ('[H][H]', -1.)]
+    }
+    # Ethane is needed only by CBH-1. Its incompatible profile makes that
+    # rung infeasible while every completed CBH-0 value remains reusable.
+    profiles['CC'] = {
+        'L2': ZeroKEnergy('CC', -79., 'L2', 'ethane-l2')}
+    selected = select_cbh_ladder(
+        species, profiles, table, max_rung=1,
+        method_ladder=(method, 'L2'))
+    assert selected.reaction.rung == 0
+    assert selected.formation.method == method
+    assert any('CBH-1' in reason for reason in selected.skipped)
+
+
 def test_higher_rung_uses_computed_lower_rung_formation_from_its_own_tier():
     _, table = _table()
     species = SimpleNamespace(smiles='CCC', charge=0, mult=1, wellorts=0,

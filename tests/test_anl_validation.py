@@ -694,8 +694,12 @@ def test_profiled_anl0_assemblers_use_all_required_components(
     ('anl-composite-validation', False),
     ('anl1-f12-non-mrcc-interface-validation', True),
 ])
+@pytest.mark.parametrize('omitted_families', [
+    (),
+    ('higher_order', 'dboc', 'scalar_relativistic', 'core_valence'),
+])
 def test_profiled_anl0_f12_assembler_accepts_one_full_run(
-        monkeypatch, workflow_name, explicit_base):
+        monkeypatch, workflow_name, explicit_base, omitted_families):
     run = Path('/synthetic/composite').resolve()
     spec = {'name': workflow_name,
             'molecule': _molecule(), 'tasks': []}
@@ -717,7 +721,9 @@ def test_profiled_anl0_f12_assembler_accepts_one_full_run(
         validation_module, '_same_imported_geometry', unexpected_import)
     monkeypatch.setattr(
         validation_module, '_same_imported_l3_geometry', unexpected_import)
-    equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ')
+    equation = recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        omitted_families=omitted_families)
     components = {}
     for index, item in enumerate(equation.requirements, 1):
         if item.key == 'spin_orbit':
@@ -747,9 +753,15 @@ def test_profiled_anl0_f12_assembler_accepts_one_full_run(
         run, run, run, state_id='methane-singlet',
         spin_orbit_hartree=0., spin_orbit_source='closed-shell test',
         spin_orbit_backend='known_zero',
-        base_run=run if explicit_base else None)
+        base_run=run if explicit_base else None,
+        omitted_families=omitted_families)
     assert result['status'] == 'complete'
     assert result['geometry_sha256'] == {'l2': l2_hash, 'l3': l3_hash}
+    assert set(result['components']) == {
+        item.key for item in equation.requirements}
+    if omitted_families:
+        assert result['reduced_recipe']['omitted_families'] == \
+            list(omitted_families)
 
 
 def test_profiled_anl0_keeps_all_single_points_when_l3_geometry_fails(

@@ -702,8 +702,7 @@ def solve_cbh_network(reaction: CBHReaction,
             return [forced] if forced in common else []
         ordered = []
         for tier in method_ladder:
-            matched = sorted(label for label in common
-                             if label == tier or _method_family(label) == tier)
+            matched = _matching_methods(common, tier)
             if len(matched) > 1:
                 raise ValueError(
                     f'CBH-{node.rung}: multiple accepted {tier} profiles; '
@@ -845,6 +844,19 @@ def _method_family(label: str) -> str:
     return label
 
 
+def _matching_methods(labels, tier):
+    """Resolve an exact profile before accepting a bare family request."""
+    labels = set(labels)
+    if tier in labels:
+        return [tier]
+    # An absent exact profile must not silently select another reduced
+    # expression in the same family. Bare family entries in the public
+    # method ladder retain the historical family matching behavior.
+    if _method_family(tier) != tier:
+        return []
+    return sorted(label for label in labels if _method_family(label) == tier)
+
+
 def select_cbh_ladder(
     species, energies_by_smiles: Mapping[str, Mapping[str, ZeroKEnergy]],
     atct: ATcTTable, *, max_rung: int = 3,
@@ -868,10 +880,8 @@ def select_cbh_ladder(
             skipped.append(f'CBH-{rung}: self-referential or unavailable graph fragments')
             continue
         for tier in method_ladder:
-            candidates = sorted(
-                label for label in energies_by_smiles.get(
-                    reaction.target_smiles, {})
-                                if label == tier or _method_family(label) == tier)
+            candidates = _matching_methods(
+                energies_by_smiles.get(reaction.target_smiles, {}), tier)
             if len(candidates) > 1:
                 raise ValueError(f'CBH-{rung}: multiple accepted {tier} profiles; '
                                  'select one exact method label.')

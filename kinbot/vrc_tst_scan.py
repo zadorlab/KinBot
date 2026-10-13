@@ -75,6 +75,12 @@ class VTS:
         """
         The main driver for scanning the potential.
         """
+        # Automatic homolytic-channel selection happens after KinBot's
+        # initial ``make_dirs`` call.  VRC execution must therefore own its
+        # directory precondition instead of relying on the input mapping to
+        # have been populated during startup.
+        for directory in ('vrctst/molpro', 'perm/vrctst/molpro'):
+            Path(directory).mkdir(parents=True, exist_ok=True)
         if self.par.get('rotdpy_run'):
             from kinbot.rotdpy import ensure_available
             ensure_available()

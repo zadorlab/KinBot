@@ -1,5 +1,6 @@
 import copy
 import json
+from pathlib import Path
 from unittest.mock import Mock
 import numpy as np
 from kinbot.parameters import Parameters
@@ -73,6 +74,8 @@ def test_vrc_scan_overrides_agree_before_qc_and_pes_export(tmp_path, monkeypatch
                                'find_equiv', 'do_scan', 'energies'):
                     setattr(scanner, method, Mock())
                 scanner.calculate_correction_potentials()
+                assert Path('vrctst/molpro').is_dir()
+                assert Path('perm/vrctst/molpro').is_dir()
                 if expected:
                     scanner.opt_products.assert_called_once_with(expected)
                     scanner.do_scan.assert_called_once_with(expected, noscan=option == 'vrc_tst_noscan')

@@ -61,7 +61,7 @@ class TestSchedulerJobs(unittest.TestCase):
                 self.assertEqual(result, 1)
                 self.assertEqual(submit.call_args.args[0], ['qsub', 'test_job.pbs'])
 
-    def test_legacy_slurm_keeps_qos_directive_and_submitting_python(self):
+    def test_default_slurm_uses_requested_partition_and_submitting_python(self):
         qc = SimpleNamespace(
             check_qc=lambda job: 0, queue_job_limit=0,
             par={'queue_template': ''}, queuing='slurm', qc='fc',
@@ -72,7 +72,8 @@ class TestSchedulerJobs(unittest.TestCase):
         with patch('kinbot.qc.subprocess.Popen', return_value=process):
             QuantumChemistry.submit_qc(qc, 'test_job', 8)
         script = Path('test_job.sbatch').read_text()
-        self.assertIn('#SBATCH -q day-long-cpu', script)
+        self.assertIn('#SBATCH --partition=day-long-cpu', script)
+        self.assertNotIn('#SBATCH -q ', script)
         self.assertIn(f'{shlex.quote(sys.executable)} test_job.py', script)
 
     def test_site_can_select_bundled_slurm_partition_template(self):

@@ -172,6 +172,41 @@ class TestConformerWeights(unittest.TestCase):
 
 
 class TestHighLevelConformerPolling(unittest.TestCase):
+    def test_high_only_vdw_uses_the_submitted_irc_product_name(self):
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = SimpleNamespace(
+            name='reaction_IRC_R_prod', wellorts=0)
+        optimization.name = 'chemical_identity'
+        optimization.just_high = True
+
+        self.assertEqual(
+            optimization.log_name(1),
+            'reaction_IRC_R_prod_high')
+
+    def test_orphaned_high_level_job_is_terminal(self):
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = SimpleNamespace(
+            conformer_index=[], wellorts=0, freq=[], dihed=[])
+        optimization.name = 'fixture'
+        optimization.par = {
+            'conformer_search': 0, 'high_level': 1,
+            'rotation_restart': 0, 'rotor_scan': 0,
+            'multi_conf_tst': 0, 'L3_calc': 0,
+        }
+        optimization.sconf = 1
+        optimization.shigh = 0
+        optimization.shir = -1
+        optimization.restart = 0
+        optimization.wait = 0
+        optimization.just_high = False
+        optimization.qc = SimpleNamespace(check_qc=Mock(return_value=0))
+
+        with self.assertLogs('KinBot', level='WARNING') as logs:
+            optimization.do_optimization()
+
+        self.assertEqual(optimization.shigh, -999)
+        self.assertIn('no result or active scheduler job', '\n'.join(logs.output))
+
     def test_failed_conformer_is_terminal_while_another_is_running(self):
         optimization = Optimize.__new__(Optimize)
         optimization.species = SimpleNamespace(

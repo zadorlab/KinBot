@@ -377,6 +377,17 @@ class Optimize:
                                 self.shigh = -999
                             elif status == 'normal':
                                 self.compare_structures(job=job)  # accepts the explicitly requested result
+                            elif status == 0:
+                                # Active scheduler work is reported as
+                                # ``running``, including the bounded filesystem
+                                # grace period after it leaves the queue. Zero
+                                # therefore means no result and no managed job.
+                                # Leaving shigh at zero made reaction stage 4
+                                # poll such an orphan forever.
+                                logger.warning(
+                                    'High level optimization %s has no result or '
+                                    'active scheduler job.', job)
+                                self.shigh = -999
                         if self.shigh == 0.5:  # the top one was tested already and was ok
                             stati = [0] * len(self.species.conformer_index)
                             for ci, conindx in enumerate(self.species.conformer_index):
@@ -649,7 +660,11 @@ class Optimize:
         if conf >= 0:
             return f'conf/{self.name}_{str(conf).zfill(4)}'
 
-        name = str(self.name)
+        # A high-only vdW optimization is submitted by qc_opt(do_vdW=True)
+        # under the IRC product's literal name.  Its routing/chemical identity
+        # can differ from that name, so polling the routed name leaves the
+        # completed calculation invisible and stage 4 running forever.
+        name = str(self.species.name if self.just_high else self.name)
         if not self.species.wellorts and not self.just_high:
             name += '_well'
         if high:

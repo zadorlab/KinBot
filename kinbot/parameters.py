@@ -335,6 +335,12 @@ class Parameters:
             'sella_fmax': 0.005,
             # steps for Sella
             'sella_steps': 250,
+            # Continue a Sella HIR point from its last finite geometry when
+            # the constrained optimization exhausts its step budget.  The
+            # original calculation remains immutable evidence; recovery uses
+            # a distinct job name and a larger step budget.
+            'hir_recovery_attempts': 1,
+            'hir_recovery_step_multiplier': 2,
             # calc_kwargs
             'calc_kwargs': {},
             # Threshold to accept negative frequencies for floppy structures, this is a positive number

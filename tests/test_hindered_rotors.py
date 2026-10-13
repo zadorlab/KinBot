@@ -157,6 +157,53 @@ class TestHIRFits(unittest.TestCase):
                 self.assertTrue(hir.is_valid_rotor(0))
                 self.assertEqual(len(hir.hir_fourier[0]), 12)
 
+    def test_new_scan_with_more_than_two_failures_is_not_exportable(self):
+        hir = completed_hir([[0, 1] * 6, [0] * 12])
+        hir.hir_energies[0] = [
+            -100. if state == 0 else -1. for state in hir.hir_status[0]]
+        with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'):
+            self.assertEqual(hir.check_hir(), 1)
+        self.assertFalse(hir.is_valid_rotor(0))
+        self.assertIsNone(hir.hir_fourier[0])
+        self.assertEqual(hir.hir_fit_diagnostics[0]['measured_points'], 6)
+
+    def test_exhausted_sella_point_continues_from_last_finite_geometry(self):
+        from ase import Atoms
+        from ase.io import write
+        with TemporaryDirectory() as directory:
+            previous = Path.cwd()
+            try:
+                os.chdir(directory)
+                hir = completed_hir()
+                hir.qc = Mock()
+                hir.rigid_scan = False
+                hir.hir_status[0][0] = -1
+                hir.hir_energies[0][0] = -1.
+                hir.scan_jobs = [
+                    ['hir/failed'] + [f'hir/point_{i}' for i in range(1, 12)],
+                    [f'hir/other_{i}' for i in range(12)]]
+                hir.scan_definitions = [
+                    [[1, 2, 3, 4]] * 12, [[1, 2, 3, 4]] * 12]
+                Path('hir').mkdir()
+                Path('hir/failed.exitcode').write_text('0\n')
+                Path('hir/failed_sella.log').write_text(
+                    'Sella stopped at the step limit\ndone\n')
+                last = np.asarray(hir.species.geom) + .01
+                write('hir/failed.traj', Atoms(hir.species.atom, positions=last))
+                hir.qc.get_qc_geom.return_value = (-1, None)
+                hir.qc.qc_hir.return_value = 'hir/failed_recovery_1'
+
+                hir.test_hir()
+
+                self.assertEqual(hir.hir_status[0][0], -1)
+                self.assertEqual(hir.point_job(0, 0), 'hir/failed_recovery_1')
+                args = hir.qc.qc_hir.call_args
+                np.testing.assert_allclose(args.args[1], last)
+                self.assertEqual(args.kwargs,
+                                 {'recovery_attempt': 1, 'steps': 500})
+            finally:
+                os.chdir(previous)
+
     def test_free_rotor_output_keeps_internal_symmetry(self):
         from kinbot import symmetry
 

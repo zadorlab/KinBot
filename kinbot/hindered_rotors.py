@@ -211,6 +211,22 @@ class HIR:
         self.hir_geoms = []
         self.scan_reference = None
         self.point_observations = []
+        # Definitions and continuation counts are part of the scan state so a
+        # restart can retain completed points and resume only an optimization
+        # that exhausted its Sella step budget.
+        self.scan_definitions = []
+        self.point_recovery_attempts = []
+        attempts = par.get('hir_recovery_attempts', 1)
+        multiplier = par.get('hir_recovery_step_multiplier', 2)
+        if (not isinstance(attempts, int) or isinstance(attempts, bool)
+                or attempts < 0):
+            raise ValueError('hir_recovery_attempts must be a nonnegative integer.')
+        if (not isinstance(multiplier, int) or isinstance(multiplier, bool)
+                or multiplier < 1):
+            raise ValueError('hir_recovery_step_multiplier must be a positive integer.')
+        self.hir_recovery_attempts = attempts
+        self.hir_recovery_step_multiplier = multiplier
+        self.sella_steps = int(par.get('sella_steps', 250))
         self.demotion_reason = None
         self.statuses_before_demotion = None
         self.scan_input_errors = {}
@@ -230,9 +246,11 @@ class HIR:
             'scan_jobs': lambda: [None] * self.nrotation,
             'hir_geoms': lambda: [[] for _ in range(self.nrotation)],
             'point_observations': lambda: [None] * self.nrotation,
+            'scan_definitions': lambda: [None] * self.nrotation,
+            'point_recovery_attempts': lambda: [0] * self.nrotation,
         }
         for field, empty in fields.items():
-            old = getattr(self, field)
+            old = getattr(self, field, [])
             setattr(self, field, [empty() if i in selected or i >= len(old) else old[i]
                                  for i in range(len(self.species.dihed))])
         for rotor in selected:
@@ -285,6 +303,7 @@ class HIR:
         return 0
 
     def _submit_point(self, geom, rotor, point, dihedral, rigid):
+        self.scan_definitions[rotor][point] = list(map(int, dihedral))
         try:
             self.scan_jobs[rotor][point] = self.qc.qc_hir(
                 self.species, geom, rotor, point, [dihedral], rigid)
@@ -297,6 +316,105 @@ class HIR:
                 'qc_geometry_status': 'not_requested', 'qc_energy_status': 'not_requested',
                 'geometry_angstrom': None, 'electronic_energy_hartree': None,
             }
+
+    @staticmethod
+    def _last_finite_geometry(job, natom):
+        """Return the last finite constrained-optimization geometry."""
+        from ase.io import read
+        for suffix in ('.traj', '.xyz'):
+            try:
+                frames = read(job + suffix, index=':')
+            except (FileNotFoundError, OSError, ValueError, EOFError):
+                continue
+            if not isinstance(frames, list):
+                frames = [frames]
+            for frame in reversed(frames):
+                positions = np.asarray(frame.positions, dtype=float)
+                if positions.shape == (natom, 3) and np.all(np.isfinite(positions)):
+                    return positions
+        return None
+
+    @staticmethod
+    def _saved_dihedral(job):
+        """Read the literal constrained dihedral without executing a worker."""
+        import ast
+        from pathlib import Path
+        try:
+            nodes = ast.parse(Path(job + '.py').read_text()).body
+        except (FileNotFoundError, OSError, SyntaxError):
+            return None
+        for node in nodes:
+            if not isinstance(node, ast.Assign):
+                continue
+            names = [target.id for target in node.targets
+                     if isinstance(target, ast.Name)]
+            if 'base_0_fix' not in names or not isinstance(node.value, ast.ListComp):
+                continue
+            try:
+                return list(map(int, ast.literal_eval(
+                    node.value.generators[0].iter)))
+            except (ValueError, TypeError, AttributeError):
+                return None
+        return None
+
+    def _continue_failed_point(self, rotor, point, job):
+        """Continue one exhausted Sella scan, preserving the original result."""
+        from pathlib import Path
+        while len(self.point_recovery_attempts) <= rotor:
+            self.point_recovery_attempts.append([0] * self.nrotation)
+        attempts = self.point_recovery_attempts[rotor][point]
+        limit = getattr(self, 'hir_recovery_attempts', 1)
+        if attempts >= limit:
+            return False
+
+        # A clean worker exit, terminal Sella handoff, and finite trajectory
+        # identify step exhaustion.  Program, scheduler, and malformed-output
+        # failures follow their existing recovery paths instead.
+        try:
+            log_text = Path(job + '_sella.log').read_text()
+        except OSError:
+            return False
+        try:
+            exit_text = Path(job + '.exitcode').read_text().strip()
+        except OSError:
+            # Local execution does not necessarily use the scheduler wrapper.
+            exit_text = ''
+        clean_exit = exit_text in ('', '0')
+        terminal = (log_text.rstrip().endswith('done')
+                    and 'Constrained optimization failed:' not in log_text)
+        geom = self._last_finite_geometry(job, self.species.natom)
+        if not clean_exit or not terminal or geom is None:
+            return False
+
+        while len(self.scan_definitions) <= rotor:
+            self.scan_definitions.append([None] * self.nrotation)
+        dihedral = self.scan_definitions[rotor][point]
+        if dihedral is None:
+            dihedral = self._saved_dihedral(job)
+        if dihedral is None:
+            return False
+
+        attempt = attempts + 1
+        multiplier = getattr(self, 'hir_recovery_step_multiplier', 2)
+        base_steps = getattr(self, 'sella_steps', 250)
+        steps = int(base_steps * multiplier ** attempt)
+        try:
+            replacement = self.qc.qc_hir(
+                self.species, geom, rotor, point, [dihedral],
+                bool(getattr(self, 'rigid_scan', False)),
+                recovery_attempt=attempt, steps=steps)
+        except (ValueError, OSError, RuntimeError) as error:
+            logger.warning('%s could not be continued from its last geometry: %s',
+                           job, error)
+            self.point_recovery_attempts[rotor][point] = attempt
+            return False
+        self.point_recovery_attempts[rotor][point] = attempt
+        self.scan_definitions[rotor][point] = list(map(int, dihedral))
+        self.scan_jobs[rotor][point] = replacement
+        logger.warning('%s exhausted its constrained optimization; continuing '
+                       'as %s from the last finite geometry for up to %s steps.',
+                       job, replacement, steps)
+        return True
 
     def point_job(self, rotor, point):
         """Use the calculation actually submitted, including replacement scans."""
@@ -322,6 +440,8 @@ class HIR:
                     if err == 1:  # still running
                         continue
                     elif err == -1:  # failed
+                        if self._continue_failed_point(rotor, ai, job):
+                            continue
                         success = -1
                         reason = 'QC geometry failed'
                     else:
@@ -529,6 +649,28 @@ class HIR:
                     angles = [i * 2 * np.pi / float(self.nrotation) for i in range(self.nrotation)]
                     # write profile to file
                     self.write_profile(rotor, job)
+                    if self.hir_status[rotor].count(0) < self.nrotation - 2:
+                        # Keep legacy fitted evidence readable, while refusing
+                        # to create a new torsional model from a scan whose
+                        # measured profile is this incomplete.
+                        while len(self.hir_fourier) <= rotor:
+                            self.hir_fourier.append(None)
+                        while len(self.hir_fit_diagnostics) <= rotor:
+                            self.hir_fit_diagnostics.append(None)
+                        while len(self.hir_raw_energies) <= rotor:
+                            self.hir_raw_energies.append(None)
+                        self.hir_fourier[rotor] = None
+                        self.hir_raw_energies[rotor] = list(
+                            self.hir_energies[rotor])
+                        self.hir_fit_diagnostics[rotor] = {
+                            'accepted': False,
+                            'reason': 'more than two scan points are unavailable',
+                            'measured_points': self.hir_status[rotor].count(0),
+                            'required_points': self.nrotation - 2,
+                        }
+                        logger.warning('HIR fit unavailable for %s: %s', job,
+                                       self.invalid_rotor_reason(rotor))
+                        continue
                     # Check to see if HIR failed, job will continue if failed, but warning will be generated
                     a = self.fourier_fit(job, angles, rotor)
                     if a == 0:

@@ -566,7 +566,8 @@ class QuantumChemistry:
 
         return kwargs
 
-    def qc_hir(self, species, geom, rot_index, ang_index, fix, rigid):
+    def qc_hir(self, species, geom, rot_index, ang_index, fix, rigid,
+               recovery_attempt=0, steps=None):
         '''Creates a constrained geometry optimization input and runs it.
         wellorts: 0 for wells and 1 for saddle points
         rot_index: index of the rotor in the molecule
@@ -578,6 +579,17 @@ class QuantumChemistry:
             job = 'hir/' + species.name + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
         else:
             job = 'hir/' + routing_name(species) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
+
+        if (not isinstance(recovery_attempt, int)
+                or isinstance(recovery_attempt, bool)
+                or recovery_attempt < 0):
+            raise ValueError('recovery_attempt must be a nonnegative integer.')
+        if recovery_attempt:
+            job += f'_recovery_{recovery_attempt}'
+        if steps is None:
+            steps = self.par['sella_steps']
+        if (not isinstance(steps, int) or isinstance(steps, bool) or steps < 1):
+            raise ValueError('HIR optimization steps must be a positive integer.')
 
         self._prepare_stereochemistry(species)
         try:
@@ -655,7 +667,7 @@ class QuantumChemistry:
                                    order=species.wellorts,  # Sella
                                    sella_kwargs=self.par['sella_kwargs'],  # Sella
                                    fmax=self.par['sella_fmax'],
-                                   steps=self.par['sella_steps'],
+                                   steps=steps,
                                    fc_model_path=self.par['fc_model_path'],
                                    fc_task_name=self.par['fc_task_name'],
                                    fc_device=self.par['fc_device'],

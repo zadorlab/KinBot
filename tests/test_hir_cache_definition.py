@@ -53,3 +53,34 @@ def test_qc_hir_checks_definition_before_rewriting_or_reusing(tmp_path, monkeypa
     qc.submit_qc.reset_mock()
     assert qc.qc_hir(point, point.geom, 0, 0, [[5,1,2,4]], False) == replacement
     qc.submit_qc.assert_not_called()  # A failed replacement is terminal.
+
+
+def test_qc_hir_recovery_has_distinct_name_and_expanded_step_budget(
+        tmp_path, monkeypatch):
+    import json
+    from unittest.mock import Mock
+    from ase.build import molecule
+    from kinbot.parameters import Parameters
+    from kinbot.stationary_pt import StationaryPoint
+    monkeypatch.chdir(tmp_path)
+    ensure_current_run(create=True)
+    Path('hir').mkdir()
+    Path('input.json').write_text(json.dumps(dict(barrier_threshold=100,
+        smiles='CO', rotor_scan=0, conformer_search=0, queuing='local',
+        use_sella=True)))
+    qc = QuantumChemistry(Parameters('input.json', show_warnings=False).par)
+    qc.check_qc = Mock(return_value='not found')
+    qc.submit_qc = Mock()
+    atoms = molecule('CH3OH')
+    point = StationaryPoint('ts', 0, 1, atom=atoms.get_chemical_symbols(),
+                            geom=atoms.positions)
+    point.characterize()
+    point.wellorts = 1
+
+    job = qc.qc_hir(point, point.geom, 0, 3, [[4, 1, 2, 3]], False,
+                    recovery_attempt=1, steps=500)
+
+    assert job == 'hir/ts_hir_0_03_recovery_1'
+    script = Path(job + '.py').read_text()
+    assert 'steps=500' in script
+    qc.submit_qc.assert_called_once()

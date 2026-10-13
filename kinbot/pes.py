@@ -111,11 +111,17 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
     if str(par.get('queuing', '')).casefold() != 'slurm':
         raise ValueError('rotdPy execution currently requires queuing="slurm".')
     partition = str(par.get('queue_name', '')).strip()
-    walltime = str(par.get('rotdpy_walltime', '24:00:00')).strip()
+    walltime = str(par.get('rotdpy_walltime', 'partition_max')).strip()
     if partition and not re.fullmatch(r'[A-Za-z0-9_.-]+', partition):
         raise ValueError('rotdPy Slurm partition contains unsupported characters.')
-    if not re.fullmatch(r'(?:\d+-)?\d{1,2}:\d{2}:\d{2}', walltime):
-        raise ValueError('rotdpy_walltime must be D-HH:MM:SS or HH:MM:SS.')
+    if walltime == 'partition_max':
+        from kinbot.qc import _ordinary_slurm_walltime
+        walltime_directive = _ordinary_slurm_walltime(par, partition)
+    elif re.fullmatch(r'(?:\d+-)?\d{1,2}:\d{2}:\d{2}', walltime):
+        walltime_directive = f'#SBATCH --time={walltime}'
+    else:
+        raise ValueError('rotdpy_walltime must be partition_max, '
+                         'D-HH:MM:SS, or HH:MM:SS.')
     folder = Path(folder).resolve()
     site_setup = folder / 'site_setup.sh'
     site_setup.write_text(render_site_setup({'molpro': {'molpro'}}))
@@ -124,7 +130,7 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
     rendered = (template
                 .replace('@PYTHON@', shlex.quote(sys.executable))
                 .replace('@SITE_SETUP@', shlex.quote(str(site_setup)))
-                .replace('@WALLTIME@', walltime)
+                .replace('@WALLTIME_DIRECTIVE@', walltime_directive)
                 .replace('@PARTITION_DIRECTIVE@',
                          f'#SBATCH --partition={partition}' if partition else '')
                 .replace('@EXCLUSIVE_DIRECTIVE@',

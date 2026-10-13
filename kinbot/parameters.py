@@ -363,7 +363,10 @@ class Parameters:
             'rotdpy_max_jobs': 2000,
             'rotdpy_max_retries': 2,
             'rotdpy_poll_interval': 10,
-            'rotdpy_walltime': '24:00:00',
+            # ``partition_max`` follows the selected Slurm partition. This
+            # lets a deliberately short validation partition exercise the
+            # same recorded timeout/retry behavior as the ANL dispatcher.
+            'rotdpy_walltime': 'partition_max',
             # Optional for sites that require a whole node for VRC samples.
             # ANL L3 jobs remain exclusive independently of this setting.
             'rotdpy_exclusive': 0,

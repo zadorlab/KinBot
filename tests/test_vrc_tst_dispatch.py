@@ -208,6 +208,8 @@ def test_molpro_dispatch_normalizes_numpy_charge_and_multiplicity():
             molecule = captured['spec']['molecule']
             assert type(molecule['charge']) is int
             assert type(molecule['multiplicity']) is int
+            assert captured['spec']['intent'][
+                'cap_walltime_to_explicit_partition'] is True
             assert Path('vrctst/molpro/r.out').read_text() == \
                 'Molpro calculation terminated\n'
         finally:

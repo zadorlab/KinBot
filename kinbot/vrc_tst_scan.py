@@ -653,6 +653,12 @@ class VTS:
             'molecule': molecule,
             'limits': {'max_nodes': self.par['vrc_tst_max_nodes']},
             'tasks': tasks,
+            'intent': {
+                # Keep an explicitly selected short validation partition.
+                # Its finite limit is part of the execution policy rather
+                # than a reason to route work to another partition.
+                'cap_walltime_to_explicit_partition': True,
+            },
         }
         base_dir = Path('vrctst/molpro').resolve()
         run_dir = base_dir / 'dispatch'

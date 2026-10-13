@@ -16,7 +16,9 @@ from unittest.mock import patch
 import pytest
 
 from kinbot.parameters import Parameters
-from kinbot.pes import _rotdpy_correction_block, create_rotdpy_inputs
+from kinbot.pes import (_rotdpy_correction_block,
+                        _write_rotdpy_slurm_template,
+                        create_rotdpy_inputs)
 from kinbot.rotdpy import (_controller_lock, ensure_available, main,
                            number_of_states_file, read_result, run,
                            sampling_progress,
@@ -91,6 +93,24 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
             assert str(Path(sys.executable)) in scheduler
         finally:
             os.chdir(previous)
+
+
+def test_rotdpy_partition_max_uses_discovered_partition_limit(tmp_path):
+    with patch('kinbot.qc._ordinary_slurm_walltime',
+               return_value='#SBATCH --time=01:00:00') as discover:
+        path = _write_rotdpy_slurm_template({
+            'queuing': 'slurm',
+            'queue_name': 'short-cpu',
+            'queue_walltime': 'partition_max',
+            'rotdpy_walltime': 'partition_max',
+            'rotdpy_exclusive': 0,
+        }, tmp_path)
+
+    text = Path(path).read_text()
+    discover.assert_called_once()
+    assert '#SBATCH --partition=short-cpu' in text
+    assert '#SBATCH --time=01:00:00' in text
+    assert '@WALLTIME' not in text
 
 
 def test_multipoint_vrc_scan_retains_cubic_correction_contract():

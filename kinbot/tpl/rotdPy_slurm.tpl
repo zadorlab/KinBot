@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks={procs}
 #SBATCH --mem={mem}M
-#SBATCH --time=@WALLTIME@
+@WALLTIME_DIRECTIVE@
 @PARTITION_DIRECTIVE@
 @EXCLUSIVE_DIRECTIVE@
 #SBATCH --output=surf{surf_id}_face{face_id}_samp{samp_id}.stdout

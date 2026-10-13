@@ -6,6 +6,8 @@ import time
 import logging
 import copy
 import itertools
+import json
+from pathlib import Path
 
 import numpy as np
 
@@ -42,6 +44,88 @@ class ReactionGenerator:
         self.par = par
         self.inp = input_file
         self.qc = qc
+
+    @staticmethod
+    def _optimizer_snapshot(label, optimization):
+        """Return the small, serializable state needed to diagnose stage 4."""
+        snapshot = {
+            'label': label,
+            'name': str(getattr(optimization, 'name', label)),
+            'just_high': bool(getattr(optimization, 'just_high', False)),
+        }
+        for field in ('scycconf', 'ssemi_empconf', 'sconf', 'shigh', 'shir',
+                      'restart'):
+            if hasattr(optimization, field):
+                snapshot[field] = getattr(optimization, field)
+        hir = getattr(getattr(optimization, 'species', None), 'hir', None)
+        statuses = getattr(hir, 'hir_status', None)
+        if statuses is not None:
+            flat = [int(value) for rotor in statuses for value in rotor]
+            snapshot['hir_points'] = {
+                'pending': sum(value < 0 for value in flat),
+                'complete': sum(value == 0 for value in flat),
+                'failed': sum(value == 1 for value in flat),
+                'skipped': sum(value == 2 for value in flat),
+            }
+        return snapshot
+
+    @staticmethod
+    def _optimizer_complete(optimization):
+        """Test terminal success after polling, including high-only vdW work."""
+        if getattr(optimization, 'just_high', False):
+            return optimization.shigh == 1
+        return optimization.shigh == 1 and optimization.shir == 1
+
+    def _poll_stage_four(self, reaction_index, reaction):
+        """Poll every optimization once and classify its post-poll state."""
+        optimizers = []
+        if self.species.reac_type[reaction_index] != 'hom_sci':
+            optimizers.append(('transition_state', reaction.ts_opt, True))
+            if reaction.do_vdW:
+                optimizers.append(('vdw_product', reaction.irc_prod_opt, False))
+
+        seen = set()
+        for product_index, optimization in enumerate(reaction.prod_opt):
+            if id(optimization) in seen:
+                continue
+            seen.add(id(optimization))
+            optimizers.append((f'product_{product_index}', optimization, True))
+
+        for _, optimization, _ in optimizers:
+            if (not self._optimizer_complete(optimization)
+                    and optimization.shigh != -999):
+                optimization.do_optimization()
+
+        failures = []
+        pending = []
+        snapshots = []
+        for label, optimization, required in optimizers:
+            snapshot = self._optimizer_snapshot(label, optimization)
+            snapshots.append(snapshot)
+            if optimization.shigh == -999:
+                if required:
+                    failures.append(label)
+                else:
+                    logger.warning(
+                        'High level vdW well optimization of %s failed; '
+                        'continuing without that optional well.',
+                        reaction.irc_prod.name)
+                    reaction.do_vdW = False
+            elif not self._optimizer_complete(optimization):
+                pending.append(label)
+
+        return failures, pending, snapshots
+
+    @staticmethod
+    def _write_optimization_monitor(reactions):
+        """Atomically publish detailed optimization lifecycle state."""
+        target = Path('kinbot_optimization_monitor.json')
+        temporary = target.with_suffix(target.suffix + '.tmp')
+        temporary.write_text(json.dumps({
+            'schema': 1,
+            'reactions': reactions,
+        }, indent=2, sort_keys=True) + '\n')
+        temporary.replace(target)
 
     def _existing_product_optimizer(self, reaction_index, product,
                                     current_optimizers):
@@ -143,6 +227,7 @@ class ReactionGenerator:
         frag_unique = []
 
         while alldone:
+            optimization_monitor = []
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
                 try:
@@ -633,40 +718,21 @@ class ReactionGenerator:
                             self.species.reac_ts_done[index] = 4
 
                     elif self.species.reac_ts_done[index] == 4:
-                        # check up on the TS and product optimizations
-                        opts_done = 1
-                        fails = 0
-                        # check if ts and vdW are done
-                        if self.species.reac_type[index] != 'hom_sci':
-                            if not obj.ts_opt.shir == 1:  # last stage in optimize
-                                opts_done = 0
-                                obj.ts_opt.do_optimization()
-                            if obj.ts_opt.shigh == -999:
-                                logger.warning('Reaction {} ts_opt_shigh failure'.format(obj.instance_name))
-                                fails = 1
-                            if obj.do_vdW:
-                                if obj.irc_prod_opt.shigh == -999:
-                                    logger.warning('High level vdW well optimization of {} failed'.format(obj.irc_prod.name))
-                                    obj.do_vdW = False
-                                if not obj.irc_prod_opt.shigh == 1:
-                                    opts_done = 0
-                                    obj.irc_prod_opt.do_optimization()
-                        seen_optimizers = set()
-                        for pr_opt in obj.prod_opt:
-                            if id(pr_opt) in seen_optimizers:
-                                continue
-                            seen_optimizers.add(id(pr_opt))
-                            if not pr_opt.shir == 1:
-                                opts_done = 0
-                                pr_opt.do_optimization()
-                            if pr_opt.shigh == -999:
-                                logger.warning('Reaction {} pr_opt_shigh failure'.format(obj.instance_name))
-                                fails = 1
-                            continue
-
-                        if fails:
+                        failures, pending, snapshots = self._poll_stage_four(
+                            index, obj)
+                        optimization_monitor.append({
+                            'reaction': obj.instance_name,
+                            'state': 4,
+                            'failures': failures,
+                            'pending': pending,
+                            'optimizers': snapshots,
+                        })
+                        if failures:
+                            logger.warning(
+                                'Reaction %s optimization failed: %s',
+                                obj.instance_name, ', '.join(failures))
                             self.species.reac_ts_done[index] = -999
-                        elif opts_done:
+                        elif not pending:
                             self.species.reac_ts_done[index] = 5
 
                     elif self.species.reac_ts_done[index] == 5:
@@ -781,6 +847,7 @@ class ReactionGenerator:
                         f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
                                                           self.species.reac_step[index], 
                                                           self.species.reac_obj[index].instance_name))
+            self._write_optimization_monitor(optimization_monitor)
             time.sleep(1)
 
         # Create molpro file for the BLS products

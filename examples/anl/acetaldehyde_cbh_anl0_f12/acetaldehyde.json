@@ -36,7 +36,7 @@
   "epsilon_unit": "K",
   "sigma": 4.5,
   "queuing": "slurm",
-  "queue_name": "short-cpu",
+  "queue_name": "day-long-cpu",
   "ppn": 8,
   "queue_job_limit": 8
 }

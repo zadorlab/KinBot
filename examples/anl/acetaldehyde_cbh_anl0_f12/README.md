@@ -16,12 +16,13 @@ discoverable through the loaded environment and `site_setup.sh`; one
 `queue_job_limit` caps all automatic calculation pools unless an expert
 explicitly overrides a subsystem.
 
-This validation deliberately selects `short-cpu`. Bundled Slurm templates,
-including ROTD_py sample jobs and VRC correction dispatchers, discover and
-request that partition's maximum wall time. A timeout is therefore recorded
-by the normal retry and recipe fallback machinery; work is not silently
-routed to a longer partition. Existing custom scheduler templates retain
-their own directives.
+This validation selects `day-long-cpu`, which gives the B2PLYP L2 saddle and
+frequency calculations their intended 24-hour execution window. Bundled Slurm
+templates, including ROTD_py sample jobs and VRC correction dispatchers,
+discover and request the selected partition's maximum wall time. A timeout is
+recorded by the normal retry and recipe fallback machinery; work is not
+silently routed to a different partition. Existing custom scheduler templates
+retain their own directives.
 
 If an optional ANL component exhausts its execution policy, KinBot preserves
 the completed reference and corrections, omits only whole additive families,

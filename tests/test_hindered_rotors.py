@@ -215,6 +215,41 @@ class TestHIRFits(unittest.TestCase):
 
 
 class TestHIRStatus(unittest.TestCase):
+    def test_zero_rotor_stationary_point_finishes_without_empty_hir(self):
+        atoms = molecule('H2')
+        species = StationaryPoint('hydrogen', 0, 1,
+                                  atom=atoms.get_chemical_symbols(),
+                                  geom=atoms.positions)
+        species.characterize()
+        species.dihed = []
+        species.freq = [4400.]
+        species.kinbot_freqs = [4400.]
+        species.reduced_freqs = [4400.]
+        optimization = Optimize.__new__(Optimize)
+        optimization.species, optimization.name = species, species.name
+        optimization.par = {
+            'conformer_search': 0, 'rotation_restart': 1, 'high_level': 0,
+            'rotor_scan': 1, 'multi_conf_tst': 0, 'calc_aie': 0,
+            'L3_calc': 0, 'rigid_hir': 0, 'imagfreq_threshold': 50.,
+        }
+        optimization.qc = SimpleNamespace()
+        optimization.shigh, optimization.shir = 1, -1
+        optimization.restart = 0
+        optimization.just_high = False
+        optimization.wait = 0
+        with patch.object(optimization, '_ensure_selected_hessian') as ensure, \
+                patch('kinbot.optimize.HIR') as constructor, \
+                patch('kinbot.optimize.recover_hir_model', return_value=True), \
+                patch('kinbot.optimize.symmetry.calculate_symmetry'), \
+                patch('kinbot.optimize.publish_optimization_result') as publish:
+            optimization.do_optimization()
+        self.assertEqual(optimization.shir, 1)
+        self.assertEqual(species.kinbot_freqs, [4400.])
+        self.assertEqual(species.reduced_freqs, [4400.])
+        ensure.assert_not_called()
+        constructor.assert_not_called()
+        publish.assert_called_once_with(optimization)
+
     def test_l1_hir_restart_refines_the_new_geometry_before_rescanning(self):
         hir = completed_hir()
         hir.species.wellorts = 1

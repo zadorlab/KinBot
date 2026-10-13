@@ -409,15 +409,23 @@ class Optimize:
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par['rotor_scan'] == 1 and self.par['multi_conf_tst'] != 1:
-                            if (not self.just_high
-                                    and not self._ensure_selected_hessian()):
-                                break
-                            if self.shir == -1:
-                                # hir not stated yet
-                                logger.info('\tStarting hindered rotor calculations of {}'.format(self.name))
-                                self.species.hir = HIR(self.species, self.qc, self.par)
-                                self.species.hir.generate_hir_geoms(copy.deepcopy(self.species.geom), self.par['rigid_hir'])
-                                self.shir = 0
+                            # A stationary point without a torsional degree of
+                            # freedom has no HIR calculation or projection to
+                            # perform.  Making this terminal explicitly avoids
+                            # constructing an empty HIR object whose lifecycle
+                            # can leave a reaction in optimization state 4.
+                            if not self.species.dihed:
+                                self.shir = 1
+                            else:
+                                if (not self.just_high
+                                        and not self._ensure_selected_hessian()):
+                                    break
+                                if self.shir == -1:
+                                    # hir not stated yet
+                                    logger.info('\tStarting hindered rotor calculations of {}'.format(self.name))
+                                    self.species.hir = HIR(self.species, self.qc, self.par)
+                                    self.species.hir.generate_hir_geoms(copy.deepcopy(self.species.geom), self.par['rigid_hir'])
+                                    self.shir = 0
                             if self.shir == 0:
                                 # hir is running
                                 # check if it is done:

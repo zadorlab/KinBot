@@ -204,6 +204,75 @@ class TestHIRFits(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
+    def test_caught_sella_exception_continues_from_finite_trajectory(self):
+        from ase import Atoms
+        from ase.io import write
+        with TemporaryDirectory() as directory:
+            previous = Path.cwd()
+            try:
+                os.chdir(directory)
+                hir = completed_hir()
+                hir.qc = Mock()
+                hir.rigid_scan = False
+                hir.hir_status[0][1] = -1
+                hir.hir_energies[0][1] = -1.
+                hir.scan_jobs = [
+                    [f'hir/point_{i}' for i in range(12)],
+                    [f'hir/other_{i}' for i in range(12)]]
+                hir.scan_definitions = [
+                    [[1, 2, 3, 4]] * 12, [[1, 2, 3, 4]] * 12]
+                Path('hir').mkdir()
+                job = 'hir/point_1'
+                Path(job + '.exitcode').write_text('0\n')
+                Path(job + '_sella.log').write_text(
+                    'Constrained optimization failed: RuntimeError: Gaussian failed\n'
+                    'done\n')
+                last = np.asarray(hir.species.geom) + .02
+                write(job + '.traj', Atoms(hir.species.atom, positions=last))
+                hir.qc.get_qc_geom.return_value = (-1, None)
+                hir.qc.qc_hir.return_value = job + '_recovery_1'
+
+                hir.test_hir()
+
+                self.assertEqual(hir.hir_status[0][1], -1)
+                self.assertEqual(hir.point_job(0, 1), job + '_recovery_1')
+                np.testing.assert_allclose(
+                    hir.qc.qc_hir.call_args.args[1], last)
+            finally:
+                os.chdir(previous)
+
+    def test_saved_qc_failure_is_resumed_after_controller_restart(self):
+        hir = completed_hir()
+        hir.hir_status[0][3] = 1
+        hir.hir_energies[0][3] = -1.
+        hir.hir_geoms[0][3] = []
+        hir.scan_jobs = [
+            [f'hir/point_{i}' for i in range(12)],
+            [f'hir/other_{i}' for i in range(12)]]
+        hir.point_observations = [[None] * 12, [None] * 12]
+        hir.point_observations[0][3] = {
+            'source_job': 'hir/point_3',
+            'rejection_reason': 'QC geometry failed',
+        }
+        with patch.object(hir, '_continue_failed_point', return_value=True):
+            hir.test_hir()
+        self.assertEqual(hir.hir_status[0][3], -1)
+        self.assertIsNone(hir.point_observations[0][3])
+
+    def test_legacy_hir_can_initialize_recovery_state(self):
+        hir = completed_hir()
+        del hir.point_recovery_attempts
+        del hir.scan_definitions
+        hir.qc = Mock()
+        hir.qc.qc_hir.return_value = 'hir/point_2_recovery_1'
+        with patch.object(hir, '_last_finite_geometry',
+                          return_value=np.asarray(hir.species.geom)), \
+                patch.object(hir, '_saved_dihedral', return_value=[1, 2, 3, 4]), \
+                patch('pathlib.Path.read_text', side_effect=['done\n', '0\n']):
+            self.assertTrue(hir._continue_failed_point(0, 2, 'hir/point_2'))
+        self.assertEqual(hir.point_recovery_attempts[0][2], 1)
+        self.assertEqual(hir.scan_definitions[0][2], [1, 2, 3, 4])
+
     def test_free_rotor_output_keeps_internal_symmetry(self):
         from kinbot import symmetry
 

@@ -358,18 +358,31 @@ class HIR:
         return None
 
     def _continue_failed_point(self, rotor, point, job):
-        """Continue one exhausted Sella scan, preserving the original result."""
+        """Continue one incomplete Sella scan, preserving the original result.
+
+        The Sella worker deliberately catches calculator/optimizer exceptions
+        so it can publish an error record and its finite trajectory.  Such a
+        record is just as useful a continuation point as ordinary step
+        exhaustion.  Retry either case under a distinct job name; malformed
+        output and scheduler jobs that never completed remain terminal here
+        and are handled by the scheduler recovery layer.
+        """
         from pathlib import Path
+        if not hasattr(self, 'point_recovery_attempts'):
+            self.point_recovery_attempts = []
         while len(self.point_recovery_attempts) <= rotor:
             self.point_recovery_attempts.append([0] * self.nrotation)
+        while len(self.point_recovery_attempts[rotor]) < self.nrotation:
+            self.point_recovery_attempts[rotor].append(0)
         attempts = self.point_recovery_attempts[rotor][point]
         limit = getattr(self, 'hir_recovery_attempts', 1)
         if attempts >= limit:
             return False
 
         # A clean worker exit, terminal Sella handoff, and finite trajectory
-        # identify step exhaustion.  Program, scheduler, and malformed-output
-        # failures follow their existing recovery paths instead.
+        # identify a completed worker whose constrained optimization can be
+        # continued.  This includes both step exhaustion and a caught
+        # calculator/optimizer exception after one or more finite steps.
         try:
             log_text = Path(job + '_sella.log').read_text()
         except OSError:
@@ -380,14 +393,17 @@ class HIR:
             # Local execution does not necessarily use the scheduler wrapper.
             exit_text = ''
         clean_exit = exit_text in ('', '0')
-        terminal = (log_text.rstrip().endswith('done')
-                    and 'Constrained optimization failed:' not in log_text)
+        terminal = log_text.rstrip().endswith('done')
         geom = self._last_finite_geometry(job, self.species.natom)
         if not clean_exit or not terminal or geom is None:
             return False
 
+        if not hasattr(self, 'scan_definitions'):
+            self.scan_definitions = []
         while len(self.scan_definitions) <= rotor:
             self.scan_definitions.append([None] * self.nrotation)
+        while len(self.scan_definitions[rotor]) < self.nrotation:
+            self.scan_definitions[rotor].append(None)
         dihedral = self.scan_definitions[rotor][point]
         if dihedral is None:
             dihedral = self._saved_dihedral(job)
@@ -410,10 +426,42 @@ class HIR:
             return False
         self.point_recovery_attempts[rotor][point] = attempt
         self.scan_definitions[rotor][point] = list(map(int, dihedral))
+        if not hasattr(self, 'scan_jobs'):
+            self.scan_jobs = []
+        while len(self.scan_jobs) <= rotor:
+            self.scan_jobs.append([None] * self.nrotation)
+        while len(self.scan_jobs[rotor]) < self.nrotation:
+            self.scan_jobs[rotor].append(None)
         self.scan_jobs[rotor][point] = replacement
-        logger.warning('%s exhausted its constrained optimization; continuing '
-                       'as %s from the last finite geometry for up to %s steps.',
-                       job, replacement, steps)
+        failure_lines = [line.strip() for line in log_text.splitlines()
+                         if line.startswith('Constrained optimization failed:')]
+        cause = (failure_lines[-1] if failure_lines
+                 else 'constrained optimization did not converge')
+        logger.warning('%s did not complete (%s); continuing as %s from the '
+                       'last finite geometry for up to %s steps.',
+                       job, cause, replacement, steps)
+        return True
+
+    def _resume_saved_failure(self, rotor, point):
+        """Reconsider a saved recoverable point after a controller restart."""
+        if self.hir_status[rotor][point] != 1:
+            return False
+        observations = getattr(self, 'point_observations', [])
+        observation = (observations[rotor][point]
+                       if rotor < len(observations)
+                       and point < len(observations[rotor]) else None)
+        recoverable = ('QC geometry failed',
+                       'QC energy unavailable or nonfinite')
+        if (not observation
+                or observation.get('rejection_reason') not in recoverable):
+            return False
+        job = observation.get('source_job') or self.point_job(rotor, point)
+        if not self._continue_failed_point(rotor, point, job):
+            return False
+        self.hir_status[rotor][point] = -1
+        self.hir_energies[rotor][point] = -1
+        self.hir_geoms[rotor][point] = []
+        self.point_observations[rotor][point] = None
         return True
 
     def point_job(self, rotor, point):
@@ -427,6 +475,8 @@ class HIR:
     def test_hir(self):
         for rotor in range(len(self.species.dihed)):
             for ai in range(self.nrotation):
+                if self._resume_saved_failure(rotor, ai):
+                    continue
                 if ai and self.hir_status[rotor][0] == -1:
                     # A completed point cannot be screened against an unknown
                     # reference energy. Revisit it after point zero finishes.
@@ -498,7 +548,8 @@ class HIR:
                     self.hir_energies[rotor][ai] = energy
                     self.hir_geoms[rotor][ai] = geom
                 elif success == -1:
-                    logger.warning("Hindered rotor optimization not successful for {}".format(job))
+                    logger.warning('Hindered rotor optimization not successful '
+                                   'for %s: %s', job, reason)
                     self.hir_status[rotor][ai] = 1
                     self.hir_energies[rotor][ai] = -1
                     self.hir_geoms[rotor][ai] = geom

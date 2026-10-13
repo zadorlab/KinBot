@@ -822,6 +822,11 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         'tasks': tasks,
         'intent': {
             'claim': 'automatic-cbh-anl-production',
+            # A user may deliberately choose a short partition. Native jobs
+            # then request that partition's limit, so scheduler timeouts are
+            # observable execution failures and optional recipe components
+            # can follow the normal recorded fallback ladder.
+            'cap_walltime_to_explicit_partition': True,
             'highest_tier': highest_tier,
             'fallback_ladder': list(allowed[allowed.index(highest_tier):]),
             'stationary_point': stationary_point,

@@ -128,6 +128,7 @@ class TestTheoryProfiles(unittest.TestCase):
     def test_active_profiles_route_l1_and_l2_without_loading_optional_codes(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',
                                      fc_model_path='/site/uma.pt')
+        self.assertEqual(parameters.par['sella_kwargs']['internal'], True)
         qc = QuantumChemistry(parameters.par)
         self.assertEqual(qc.qc, 'fc')
         self.assertEqual(qc.l1.qc, 'fc')

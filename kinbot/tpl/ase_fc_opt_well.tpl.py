@@ -55,6 +55,7 @@ if len(mol) == 1:
 
 # sella
 sella_kwargs = {sella_kwargs}
+sella_kwargs.setdefault('internal', True)
 fmax = {fmax}
 steps = {steps}
 if len(mol.symbols) > 2:

@@ -693,7 +693,12 @@ class Parameters:
         if self.par['qc'] == 'fc' and not self.par['fc_model_path']:
             err = 'fc_model_path must be set when using qc = "fc".'
 
-        if (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
+        profiled_sella = any(
+            profile.optimizer == 'sella'
+            or profile.calculator in ('fairchem', 'orca')
+            for profile in self.theory_profiles.values())
+        if (self.par['use_sella'] == 1 or self.par['qc'] in ('fc', 'orca')
+                or profiled_sella):
             if 'internal' not in self.par['sella_kwargs']:
                 self.par['sella_kwargs']['internal'] = True
                 logger.warning('Automatically turning on internal coordiantes for Sella.')

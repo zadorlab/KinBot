@@ -42,6 +42,7 @@ if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
 sella_kwargs = {sella_kwargs}
+sella_kwargs.setdefault('internal', True)
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
     sella_kwargs['internal'] = False
 opt = Sella(mol, 

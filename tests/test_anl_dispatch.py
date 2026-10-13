@@ -1728,3 +1728,32 @@ def test_prepare_selects_fitting_slurm_partition_and_keeps_explicit_choice():
             with pytest.raises(RuntimeError, match='no available Slurm partition'):
                 prepare(_write_spec(root, spec), root / 'impossible')
         assert not (root / 'impossible').exists()
+
+
+def test_automatic_graph_caps_jobs_to_an_explicit_short_partition():
+    display = 'short-cpu*|96|126000|30:00|up\n'
+    spec = dispatch_spec(auto_resources=True)
+    spec['intent'] = {'cap_walltime_to_explicit_partition': True}
+    for task in spec['tasks']:
+        task['resources']['partition'] = 'short-cpu'
+    actual_which = shutil.which
+
+    def which(program):
+        return '/usr/bin/sinfo' if program == 'sinfo' else actual_which(program)
+
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        with patch('kinbot.anl.site.shutil.which', side_effect=which), \
+                patch('kinbot.anl.site.subprocess.run', return_value=
+                      subprocess.CompletedProcess([], 0, display, '')):
+            run_dir = prepare(_write_spec(root, spec), root / 'run')
+        prepared = json.loads((run_dir / 'workflow.json').read_text())
+        for task in prepared['tasks']:
+            resources = task['resources']
+            assert resources['partition'] == 'short-cpu'
+            assert resources['walltime'] == '00:30:00'
+            assert resources['requested_walltime'] != resources['walltime']
+            assert resources['walltime_capped_to_partition'] == 'short-cpu'
+            script = run_dir / 'tasks' / task['id'] / 'job.slurm'
+            if script.is_file():
+                assert '#SBATCH --time=00:30:00\n' in script.read_text()

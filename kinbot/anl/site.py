@@ -44,6 +44,16 @@ def _duration_seconds(value):
     return ((days * 24 + hours) * 60 + minutes) * 60 + seconds
 
 
+def _slurm_duration(seconds):
+    """Format a finite partition limit for an ``#SBATCH --time`` value."""
+    seconds = int(seconds)
+    days, remainder = divmod(seconds, 24 * 60 * 60)
+    hours, remainder = divmod(remainder, 60 * 60)
+    minutes, seconds = divmod(remainder, 60)
+    clock = f'{hours:02d}:{minutes:02d}:{seconds:02d}'
+    return f'{days}-{clock}' if days else clock
+
+
 def _partitions():
     """Return available partition/node groups; no Slurm means no discovery."""
     if not shutil.which('sinfo'):
@@ -147,10 +157,27 @@ def assign_partitions(spec):
                                or not isinstance(limits[name], int)
                                or limits[name] < 1):
             raise ValueError(f'{name} must be a positive integer.')
+    cap_walltime = bool(spec.get('intent', {}).get(
+        'cap_walltime_to_explicit_partition'))
     for task, auto_cores, auto_memory in pending:
         resources = task['resources']
         needed = _duration_seconds(resources['walltime'])
         selected = resources.get('partition')
+        if selected and cap_walltime:
+            capacity_fits = [entry for entry in entries
+                             if entry['name'] == selected
+                             and (auto_cores
+                                  or entry['cores'] >= resources['cores'])
+                             and (auto_memory
+                                  or entry['memory_mb'] >= resources['memory_mb'])]
+            if capacity_fits:
+                limit = min(entry['seconds'] for entry in capacity_fits)
+                if limit != float('inf') and needed > limit:
+                    requested = resources['walltime']
+                    resources['walltime'] = _slurm_duration(limit)
+                    resources['requested_walltime'] = requested
+                    resources['walltime_capped_to_partition'] = selected
+                    needed = limit
         fits = [entry for entry in entries
                 if (not selected or entry['name'] == selected)
                 and (auto_cores or entry['cores'] >= resources['cores'])

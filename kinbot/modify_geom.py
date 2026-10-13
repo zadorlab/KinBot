@@ -139,11 +139,17 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
     if write_files:
         f_out = open(fname, 'w')
 
-    new_geom = copy.deepcopy(geom)
+    new_geom = np.asarray(copy.deepcopy(geom), dtype=float)
+    if (new_geom.shape != (species.natom, 3)
+            or not np.isfinite(new_geom).all()):
+        logger.error('%s: cannot modify a nonfinite or malformed geometry.',
+                     name)
+        return 0, new_geom
     step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
 
     # change dihedrals, if necessary
     for ci in changes:
+        finite_input = new_geom.copy()
         if len(ci) == 5:
             zmat_atom, zmat_ref, zmat, zmatorder = zmatrix.make_zmat_from_cart(species, ci[:-1], new_geom, 2)
             # write_zmat(zmat_atom, zmat_ref, zmat, new_geom, species.atom)
@@ -157,8 +163,15 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
                 if zmat_ref[i][2] == 1:
                     zmat[i][2] += dih_diff
             new_geom = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, species.natom, species.atom, zmatorder, err=err)
-            if new_geom == -1:
-                return -1, None 
+            if (np.isscalar(new_geom) and new_geom == -1):
+                return 0, finite_input
+            new_geom = np.asarray(new_geom, dtype=float)
+            if (new_geom.shape != (species.natom, 3)
+                    or not np.isfinite(new_geom).all()):
+                logger.warning('%s: dihedral modification produced invalid '
+                               'coordinates; retaining the last finite path '
+                               'point for constrained optimization.', name)
+                return 0, finite_input
             # write_zmat(zmat_atom, zmat_ref, zmat, new_geom, species.atom)
             step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
         # change angles, if necessary
@@ -169,6 +182,12 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
 
             v1 = new_geom[ci[0]] - new_geom[ci[1]]
             v2 = new_geom[ci[2]] - new_geom[ci[1]]
+            if (np.linalg.norm(v1) <= 1e-12
+                    or np.linalg.norm(v2) <= 1e-12):
+                logger.warning('%s: angle modification encountered '
+                               'coincident atoms; retaining the last finite '
+                               'path point for constrained optimization.', name)
+                return 0, finite_input
             rot_ax = [0., 0., 0.]
 
             # create a vector perpendicular to v1 and v2
@@ -211,6 +230,11 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
         x_opt, x_i, g_i = opt.optimize(cost_fct, x0)
 
         new_geom = np.reshape(x_opt, (species.natom, 3))
+        if not np.isfinite(new_geom).all():
+            logger.warning('%s: coordinate fitting produced invalid '
+                           'coordinates; retaining the last finite path point '
+                           'for constrained optimization.', name)
+            return 0, finite_input
         for i, xi in enumerate(x_i):
             geomi = np.reshape(xi, (species.natom, 3))
             gradi = np.reshape(g_i[i], (species.natom, 3))

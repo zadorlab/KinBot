@@ -11,10 +11,12 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 import numpy as np
+from ase import Atoms
 
 from kinbot.qc import QuantumChemistry
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.utils import too_far
 
 
 class TestSchedulerJobs(unittest.TestCase):
@@ -103,6 +105,19 @@ class TestSchedulerJobs(unittest.TestCase):
                 self.assertLogs('KinBot', 'ERROR'):
             self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'running')
             self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'error')
+
+    def test_nonfinite_geometry_is_never_a_normal_qc_result(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'local'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [np.nan] * 3])
+        qc.db.write(atoms, name='bad',
+                    data={'energy': np.nan, 'status': 'normal'})
+        Path('bad.log').write_text('done\n')
+        with self.assertLogs('KinBot', 'ERROR'):
+            self.assertEqual(qc._check_qc('bad'), 'error')
+        self.assertEqual(too_far(atoms.positions), -1)
 
 
 class TestVRCJobs(unittest.TestCase):

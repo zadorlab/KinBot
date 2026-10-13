@@ -20,8 +20,11 @@ from kinbot.ase_modules.calculators.factory import (
 )
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
+from kinbot.stationary_pt import StationaryPoint
 from kinbot.fairchem_utils import load_predictor
 from kinbot.theory import TheoryProfile
+from kinbot.reactions.reac_h2_elim import H2Elim
+from kinbot import reac_family
 
 
 class TestTheoryProfiles(unittest.TestCase):
@@ -211,6 +214,43 @@ class TestTheoryProfiles(unittest.TestCase):
             f"logfile='hir/{rotor.chemid}_hir_0_00_sella.log'",
             generated_hir)
         self.assertIn('Constrained optimization failed:', generated_hir)
+
+    def test_profiled_reaction_worker_uses_resolved_fairchem_context(self):
+        parameters = self.parameters(composite_method='ANL0-F12')
+        qc = QuantumChemistry(parameters.par)
+        species = StationaryPoint('acetaldehyde', 0, 1, smiles='CC=O')
+        species.characterize()
+        reaction = H2Elim(
+            species, qc, parameters.par, [3, 0, 1, 6],
+            'acetaldehyde_h2_elim_4_7')
+        with patch.object(
+                reac_family.modify_geom, 'modify_coordinates',
+                return_value=(1, species.geom.copy())), \
+                patch.object(qc.l1, 'submit_qc', return_value=1) as submit:
+            self.assertEqual(
+                reac_family.carry_out_reaction(reaction, 0, ''), 1)
+        submit.assert_called_once()
+        generated = Path('acetaldehyde_h2_elim_4_7.py').read_text()
+        compile(generated, 'acetaldehyde_h2_elim_4_7.py', 'exec')
+        self.assertIn("load_predictor('uma-s-1p2', 'cpu')", generated)
+        self.assertNotIn("load_predictor('', 'cpu')", generated)
+        self.assertIn('Recovered constrained path point from finite input '
+                      'geometry', generated)
+
+    def test_reaction_worker_refuses_nonfinite_input_before_submission(self):
+        parameters = self.parameters(composite_method='ANL0-F12')
+        qc = QuantumChemistry(parameters.par)
+        species = StationaryPoint('acetaldehyde', 0, 1, smiles='CC=O')
+        species.characterize()
+        species.geom[:] = np.nan
+        reaction = H2Elim(
+            species, qc, parameters.par, [3, 0, 1, 6],
+            'invalid_h2_elim')
+        with patch.object(qc.l1, 'submit_qc', return_value=1) as submit:
+            self.assertEqual(
+                reac_family.carry_out_reaction(reaction, 0, ''), -1)
+        submit.assert_not_called()
+        self.assertFalse(Path('invalid_h2_elim.py').exists())
 
     def test_profiled_job_routes_and_scheduler_ids_survive_restart(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',

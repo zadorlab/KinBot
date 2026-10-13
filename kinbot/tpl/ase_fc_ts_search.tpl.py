@@ -16,8 +16,12 @@ if os.path.isfile('{label}.pkl'):
     os.remove('{label}.pkl')
 
 # molecule
+input_geom = np.asarray({geom}, dtype=float)
+if (input_geom.shape != (len({atom}), 3)
+        or not np.isfinite(input_geom).all()):
+    raise ValueError('Reaction path input geometry is nonfinite or malformed.')
 mol = Atoms(symbols={atom},
-            positions={geom})
+            positions=input_geom.copy())
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
 mol.calc = FAIRChemCalculator(load_predictor('{fc_model_path}', '{fc_device}'), task_name='{fc_task_name}')
@@ -51,18 +55,39 @@ opt = Sella(mol,
             **sella_kwargs)
 
 # run
+recovery_reason = None
 try:
     converged = opt.run(fmax=fmax, steps=steps)
-except:
+except Exception as error:
     converged = False
-traj = read('{label}.traj', index=':')
-write('{label}.xyz', traj, format='xyz')
-e = mol.get_potential_energy()
-del mol.calc.results['forces']
+    recovery_reason = f'{{type(error).__name__}}: {{error}}'
 
-if not mol.positions.any() or too_far(mol.positions):  # If all coordinates are 0 or too far
-    mol.positions = {geom}   # Reset to the original geometry
+# These are path-building optimizations, not the final saddle search.  A
+# singular constrained Sella step may be recovered from the already modified,
+# finite input point; the final TS still has to pass optimization, frequencies,
+# and IRC validation later in the ordinary workflow.
+if (not np.isfinite(mol.positions).all() or too_far(mol.positions)):
+    recovery_reason = recovery_reason or 'optimizer returned invalid coordinates'
+if recovery_reason is not None:
+    mol.positions = input_geom.copy()
+    mol.calc.results.clear()
+    with open('{label}_sella.log', 'a') as f:
+        f.write('Recovered constrained path point from finite input geometry: '
+                + recovery_reason + '\n')
+
+try:
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
+except (FileNotFoundError, IndexError, ValueError):
+    pass
+e = mol.get_potential_energy()
+if not np.isfinite(e) or not np.isfinite(mol.positions).all():
+    raise RuntimeError('Reaction path recovery did not produce a finite result.')
+mol.calc.results.pop('forces', None)
+
 data = {{'energy': e, 'status': 'normal'}}
+if recovery_reason is not None:
+    data['path_point_recovery'] = recovery_reason
 
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,

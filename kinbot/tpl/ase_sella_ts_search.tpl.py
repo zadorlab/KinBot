@@ -7,10 +7,15 @@ from ase.db import connect
 from sella import Sella, Constraints
 
 from kinbot.ase_modules.calculators.{code} import {Code}
+from kinbot.utils import too_far
 
 db = connect('{working_dir}/kinbot.db')
+input_geom = np.asarray({geom}, dtype=float)
+if (input_geom.shape != (len({atom}), 3)
+        or not np.isfinite(input_geom).all()):
+    raise ValueError('Reaction path input geometry is nonfinite or malformed.')
 mol = Atoms(symbols={atom}, 
-            positions={geom})
+            positions=input_geom.copy())
 
 const = Constraints(mol)
 base_0_fix = [[idx - 1 for idx in fix] for fix in {fix}]
@@ -47,13 +52,31 @@ opt = Sella(mol,
             logfile='{label}_sella.log',
             **sella_kwargs)
 
-# intermediate steps don't need to fully converge
-converged = opt.run(fmax=0.1, steps=100)
+# Intermediate steps don't need to fully converge.  If a constrained
+# optimizer becomes singular, retain the finite coordinate-modified input;
+# the final saddle must still pass its independent TS checks.
+recovery_reason = None
+try:
+    converged = opt.run(fmax=0.1, steps=100)
+except Exception as error:
+    converged = False
+    recovery_reason = f'{{type(error).__name__}}: {{error}}'
+if (not np.isfinite(mol.positions).all() or too_far(mol.positions)):
+    recovery_reason = recovery_reason or 'optimizer returned invalid coordinates'
+if recovery_reason is not None:
+    mol.positions = input_geom.copy()
+    mol.calc.results.clear()
+    with open('{label}_sella.log', 'a') as f:
+        f.write('Recovered constrained path point from finite input geometry: '
+                + recovery_reason + '\n')
 e = mol.get_potential_energy()
+if not np.isfinite(e) or not np.isfinite(mol.positions).all():
+    raise RuntimeError('Reaction path recovery did not produce a finite result.')
 
-if not mol.positions.any():  # If all coordinates are 0
-    mol.positions = {geom}   # Reset to the original geometry
-db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
+data = {{'energy': e, 'status': 'normal'}}
+if recovery_reason is not None:
+    data['path_point_recovery'] = recovery_reason
+db.write(mol, name='{label}', data=data)
 
 if os.path.isdir('{label}'):
     shutil.rmtree('{label}')

@@ -10,6 +10,18 @@ from kinbot.utils import get_unique_list_of_lists, plain_symbols, plain_geometry
 
 logger = logging.getLogger('KinBot')
 
+
+def _finite_geometry(geom, natom):
+    values = np.asarray(geom, dtype=float)
+    return values.shape == (natom, 3) and np.isfinite(values).all()
+
+
+def _reaction_parameters(rxn):
+    """Return the actual L1 backend settings used by a reaction worker."""
+    backend = getattr(rxn.qc, 'l1', None)
+    return getattr(backend, 'par', rxn.par)
+
+
 def carry_out_reaction(rxn, step, command, bimol=0):
     """
     Verify what has been done and what needs to be done
@@ -24,6 +36,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         if status != 'normal' and status != 'error':
             return step
   
+    runtime_par = _reaction_parameters(rxn)
+    command = runtime_par.get('qc_command', command)
     kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, 
                                      rxn.species.nel, ts=ts, step=step, 
                                      max_step=rxn.max_step, scan=rxn.scan)
@@ -58,6 +72,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 # gives the reactant and product geometry guesses
                 _, geom_prod, geom_ts = abstraction_align(geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
+    if not _finite_geometry(geom, rxn.species.natom):
+        logger.error('%s: refusing to continue a reaction path from a '
+                     'nonfinite geometry.', rxn.instance_name)
+        return -1
+
     step, fix, change, release = rxn.get_constraints(step, geom)
     logger.debug(f'status of constraints step {step} fix {fix} chage {change} release {release}')
 
@@ -81,6 +100,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                                        change_starting_zero,
                                                        rxn.species.bond,
                                                        write_files=0)
+        if not _finite_geometry(geom, rxn.species.natom):
+            logger.error('%s: coordinate modification produced a nonfinite '
+                         'geometry.', rxn.instance_name)
+            return -1
         for c in change:
             fix.append(c[:-1])
         change = []
@@ -164,7 +187,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         else:
             template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
-        skw = rxn.par['sella_kwargs'].copy()
+        skw = runtime_par['sella_kwargs'].copy()
         skw['internal'] = False
         template = template.format(label=rxn.instance_name,
                                 kwargs=kwargs,
@@ -179,11 +202,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 Code=Code,  # Sella
                                 fix=get_unique_list_of_lists(fix),  # Sella
                                 sella_kwargs=skw,
-                                fmax=rxn.par['sella_fmax'],
-                                steps=rxn.par['sella_steps'],
-                                fc_model_path=rxn.par['fc_model_path'],
-                                fc_task_name=rxn.par['fc_task_name'],
-                                fc_device=rxn.par['fc_device'],
+                                fmax=runtime_par['sella_fmax'],
+                                steps=runtime_par['sella_steps'],
+                                fc_model_path=runtime_par['fc_model_path'],
+                                fc_task_name=runtime_par['fc_task_name'],
+                                fc_device=runtime_par['fc_device'],
                                 )
     else:
         if rxn.par['calc_kwargs']:
@@ -205,12 +228,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
                                    Code=Code,  # Sella
-                                   sella_kwargs=rxn.par['sella_kwargs'],  # Sella
-                                   fmax=rxn.par['sella_fmax'],
-                                   steps=rxn.par['sella_steps'],
-                                   fc_model_path=rxn.par['fc_model_path'],
-                                   fc_task_name=rxn.par['fc_task_name'],
-                                   fc_device=rxn.par['fc_device'],
+                                   sella_kwargs=runtime_par['sella_kwargs'],  # Sella
+                                   fmax=runtime_par['sella_fmax'],
+                                   steps=runtime_par['sella_steps'],
+                                   fc_model_path=runtime_par['fc_model_path'],
+                                   fc_task_name=runtime_par['fc_task_name'],
+                                   fc_device=runtime_par['fc_device'],
                                    )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:

@@ -1332,25 +1332,25 @@ class QuantumChemistry:
                         return -1, geom
 
         # open the database
-        rows = self.db.select(name=job)
-
-        found_entry = 0
-        # take the last entry
-        for row in rows:
-            if found_entry:
-                prev_geom = geom  # saves the previous 
+        finite_entries = []
+        for row in self.db.select(name=job):
             mol = row.toatoms()
-            geom = mol.positions
-            atoms = mol.symbols
-            found_entry = 1
+            candidate = np.asarray(mol.positions, dtype=float)
+            if (candidate.shape == (natom, 3)
+                    and np.isfinite(candidate).all()):
+                finite_entries.append((candidate, mol.symbols))
+            else:
+                logger.warning('%s: ignoring a database row with a nonfinite '
+                               'or malformed geometry.', job)
 
-        if found_entry and previous == 0:
+        if finite_entries and previous == 0:
+            geom, atoms = finite_entries[-1]
             if reorder:
                 return status, geom, atoms
             else:
                 return status, geom
-        elif found_entry and previous == 1:
-            return status, prev_geom
+        elif len(finite_entries) >= 2 and previous == 1:
+            return status, finite_entries[-2][0]
         else:
             if reorder:
                 return -1, geom, atoms
@@ -1794,14 +1794,32 @@ class QuantumChemistry:
                 # open the database
                 rows = self.db.select(name=job)
                 data = None
+                last_row = None
                 # take the last entry
                 for row in rows:
                     if hasattr(row, 'data'):
                         data = row.data
+                        last_row = row
                 if data is None:
                     logger.debug('Data is not in database...')
                     return 0
                 else:
+                    if data.get('status') == 'normal':
+                        positions = np.asarray(
+                            last_row.toatoms().positions, dtype=float)
+                        energy = data.get('energy')
+                        try:
+                            finite_energy = (energy is None
+                                             or np.isfinite(float(energy)))
+                        except (TypeError, ValueError):
+                            finite_energy = False
+                        if (positions.ndim != 2 or positions.shape[1:] != (3,)
+                                or not np.isfinite(positions).all()
+                                or not finite_energy):
+                            logger.error('%s: rejecting a nominally normal '
+                                         'database result with nonfinite '
+                                         'geometry or energy.', job)
+                            return 'error'
                     logger.debug('Returning status {}'.format(data['status']))
                     return data['status']
 

@@ -338,9 +338,18 @@ def too_far(geom):
     """
     Detect if fragments are just way-way too far form each other.
     Simply taking the max of the coordinate differences in each dimension.
+
+    A nonfinite coordinate cannot be distinguished from a usable geometry by
+    ordinary comparisons: both ``max([nan, ...])`` and the resulting span can
+    silently be ``nan``.  Treat it as invalid here so every worker using this
+    legacy guard rejects it consistently.
     """
+    values = np.asarray(geom, dtype=float)
+    if (values.ndim != 2 or values.shape[1:] != (3,)
+            or not np.isfinite(values).all()):
+        return -1
     for i in range(3):
-        coo = [g[i] for g in geom]
+        coo = values[:, i]
         if max(coo) - min(coo) > 20.:
             return -1
     return 0

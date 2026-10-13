@@ -70,6 +70,36 @@ def test_network_request_generates_recursive_cbh_states_without_user_species():
                for entry in request['cbh']['calculated_states'])
 
 
+def test_public_reaction_identity_controls_barrierless_classification():
+    acetaldehyde = _species(
+        'acetaldehyde', 'CC=O', ['C', 'C', 'O', 'H', 'H', 'H', 'H'],
+        energy=-153.)
+    methyl = _species('methyl', '[CH3]', ['C', 'H', 'H', 'H'], 2,
+                      energy=-39.)
+    formyl = _species('formyl', '[CH]=O', ['C', 'O', 'H'], 2,
+                      energy=-113.)
+    reaction = SimpleNamespace(
+        instance_name='acetaldehyde_hom_sci_1_2', family_name='hs',
+        instance=[0, 1], products=[methyl, formyl])
+    acetaldehyde.reac_obj = [reaction]
+    acetaldehyde.reac_inst = [[0, 1]]
+    acetaldehyde.reac_ts_done = [-1]
+    acetaldehyde.reac_type = ['hom_sci']
+
+    request = build_network_request(acetaldehyde, {
+        'composite_method': 'ANL0-F12',
+        'selected_reactions': {'acetaldehyde': {'hom_sci': [[0, 1]]}},
+        'anl_size_policy': DEFAULT_SIZE_POLICY,
+        'queue_name': 'day-long-cpu', 'ppn': 8, 'queue_job_limit': 8,
+        'atct_version': '1.220',
+    })
+
+    record = request['network']['reactions'][0]
+    assert record['family'] == 'hom_sci'
+    assert record['barrierless'] is True
+    assert record['transition_state'] is None
+
+
 def test_tight_transition_state_uses_explicit_reactant_energy_identity():
     acetaldehyde = _species(
         'acetaldehyde', 'CC=O', ['C', 'C', 'O', 'H', 'H', 'H', 'H'],
@@ -109,7 +139,7 @@ def test_selected_reaction_failure_blocks_automatic_network_planning():
     acetaldehyde.short_name = 'w1'
     reaction = SimpleNamespace(
         instance_name='acetaldehyde_h2_elim_4_7',
-        family_name='h2_elim', instance=[3, 0, 1, 6], products=[])
+        family_name='h2elim', instance=[3, 6], products=[])
     acetaldehyde.reac_obj = [reaction]
     acetaldehyde.reac_inst = [[3, 0, 1, 6]]
     acetaldehyde.reac_ts_done = [-999]

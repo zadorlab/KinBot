@@ -296,6 +296,25 @@ def _highest_reaction(smiles, rung, charge, multiplicity):
     return None
 
 
+def _reaction_identity(root, index, reaction):
+    """Return the public family and original motif recorded by discovery.
+
+    Reaction classes use compact internal ``family_name`` values (for example
+    ``hs`` and ``h2elim``) and some classes may transform ``instance`` while
+    constructing constraints.  ``reac_type`` and ``reac_inst`` are the
+    authoritative public identifiers created by ``ReactionFinder`` before the
+    reaction object is constructed.  They are also the identifiers accepted
+    by ``selected_reactions``.
+    """
+    families = getattr(root, 'reac_type', ())
+    instances = getattr(root, 'reac_inst', ())
+    family = (families[index] if index < len(families)
+              else getattr(reaction, 'family_name', 'unknown'))
+    motif = (instances[index] if index < len(instances)
+             else getattr(reaction, 'instance', None))
+    return str(family), motif
+
+
 def build_network_request(root, parameters):
     """Freeze one completed KinBot reaction network and expand its CBH trees."""
     requested = str(parameters.get('composite_method', '')).upper()
@@ -323,17 +342,12 @@ def build_network_request(root, parameters):
     if selected:
         accepted = {}
         statuses = getattr(root, 'reac_ts_done', ())
-        instances = getattr(root, 'reac_inst', ())
         for index, reaction in enumerate(getattr(root, 'reac_obj', ())):
             if index >= len(statuses) or statuses[index] != -1:
                 continue
-            family = getattr(reaction, 'family_name', None) or getattr(
-                root, 'reac_type', ['unknown'])[index]
-            motif = getattr(reaction, 'instance', None)
-            if motif is None and index < len(instances):
-                motif = instances[index]
+            family, motif = _reaction_identity(root, index, reaction)
             if motif is not None:
-                accepted.setdefault(str(family), set()).add(
+                accepted.setdefault(family, set()).add(
                     tuple(map(int, motif)))
         missing = {
             family: [list(motif) for motif in map(tuple, motifs)
@@ -390,8 +404,7 @@ def build_network_request(root, parameters):
         for product in reaction.products:
             add_stable(product, 'reaction_product')
             products.append(routing_name(product))
-        family = getattr(reaction, 'family_name', None) or getattr(
-            root, 'reac_type', ['unknown'])[index]
+        family, _ = _reaction_identity(root, index, reaction)
         barrierless = family == 'hom_sci'
         ts_name = None
         if not barrierless:

@@ -214,6 +214,9 @@ module.
 
 ## Resource boundary
 
+- Ordinary KinBot jobs written with the bundled Slurm template explicitly
+  request the selected partition's discovered maximum wall time. Custom queue
+  templates retain full control of this directive.
 - Every individual Slurm job has a maximum wall time of 24 hours.
 - The global live-job limit is eight.
 - L1 uses the configured FairChem model.

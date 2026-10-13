@@ -1982,6 +1982,7 @@ class MESS:
         write a pbs or slurm file for the me/all.inp mess input file
         """
         from kinbot.mess_execution import mess_command
+        from kinbot.qc import _ordinary_slurm_walltime
 
         if self.par['queue_template'] == '':
             q_file = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
@@ -1996,16 +1997,19 @@ class MESS:
 
         mess_iter = f"{uq_iter:04d}" if isinstance(uq_iter, int) else uq_iter
         tpl = tpl.format(n=mess_iter, command=shlex.join(mess_command(self.par)))
+        walltime_directive = (_ordinary_slurm_walltime(
+            self.par, self.par['queue_name'])
+            if '{walltime_directive}' in tpl_head else '')
         with open(submitscript, 'w') as f:
             if self.par['queue_template'] == '':
                 if self.par['queuing'] == 'pbs':
                     f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me'))
                     f.write(tpl)
                 elif self.par['queuing'] == 'slurm':
-                    f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
+                    f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature'], walltime_directive=walltime_directive))
                     f.write(tpl)
             else:
-                f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
+                f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature'], walltime_directive=walltime_directive))
                 f.write(tpl)
         return 0
 

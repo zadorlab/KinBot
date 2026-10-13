@@ -7,5 +7,6 @@
 #SBATCH -e {errdir}/{name}.err
 #SBATCH --mem=10gb
 {slurm_feature}
+{walltime_directive}
 
 export OMP_NUM_THREADS={ppn}

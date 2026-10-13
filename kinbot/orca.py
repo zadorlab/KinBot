@@ -77,6 +77,10 @@ class Orca:
             orca_head = self.par['queue_template'] 
         with open(orca_head) as f:
             tpl_head = f.read()
+        from kinbot.qc import _ordinary_slurm_walltime
+        walltime_directive = (_ordinary_slurm_walltime(
+            self.par, self.par['queue_name'])
+            if '{walltime_directive}' in tpl_head else '')
         orca_tpl = f'{kb_path}/tpl/{self.par["queuing"]}_orca.tpl'
         with open(orca_tpl) as f:
             tpl = f.read()
@@ -96,7 +100,8 @@ class Orca:
                         queue_name=self.par['queue_name'],
                         errdir='orca',
                         command=self.par['single_point_command'],
-                        slurm_feature=self.par['slurm_feature']))
+                        slurm_feature=self.par['slurm_feature'],
+                        walltime_directive=walltime_directive))
 
         return 0
 

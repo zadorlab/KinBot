@@ -259,6 +259,7 @@ class TestTheoryProfiles(unittest.TestCase):
             self.assertIn("load_predictor('uma-s-1p2', 'cpu')", generated)
             self.assertNotIn("load_predictor('', 'cpu')", generated)
             self.assertIn('IRC produced no distinct finite endpoint', generated)
+            self.assertNotIn('calc_vibrations', generated)
 
     def test_profiled_sella_irc_template_rejects_unchanged_endpoint(self):
         parameters = self.parameters(

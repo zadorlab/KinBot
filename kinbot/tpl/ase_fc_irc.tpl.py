@@ -10,7 +10,6 @@ from sella import Sella, IRC
 
 from fairchem.core import FAIRChemCalculator
 from kinbot.fairchem_utils import load_predictor
-from kinbot.frequencies import calc_vibrations
 
 
 def finite_geometry(atoms):
@@ -122,15 +121,11 @@ if data['status'] == 'normal':
         try:
             e = mol.get_potential_energy()
             mol.calc.results.pop('forces', None)
-            freqs, zpe, hessian = calc_vibrations(mol, '{label}_prod')
-            # Product optimizations may reach the endpoint without satisfying
-            # every optimizer threshold.  A finite geometry and evaluable
-            # Hessian are the quantities required for endpoint identity.
-            data = {{'energy': e,
-                    'frequencies': freqs,
-                    'zpe': zpe,
-                    'hess': hessian,
-                    'status': 'normal'}}
+            # IRC endpoint identification only reads this optimized geometry.
+            # Product frequencies are calculated later for the accepted
+            # product at its requested level, so a numerical L1 Hessian here
+            # is redundant and can dominate a short scheduler allocation.
+            data = {{'energy': e, 'status': 'normal'}}
         except Exception as exc:
             data = {{'status': 'error', 'error': str(exc)}}
     else:

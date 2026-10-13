@@ -27,6 +27,76 @@ from kinbot.theory import profiled_requested
 logger = logging.getLogger('KinBot')
 
 
+_SLURM_PARTITION = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\Z')
+_SLURM_TIME = re.compile(r'(?:(\d+)-)?(\d{1,2}):(\d{2}):(\d{2})\Z')
+_SLURM_WALLTIME_CACHE = {}
+
+
+def _slurm_seconds(value):
+    """Return seconds for a finite Slurm maximum-time display."""
+    if value.lower() in ('infinite', 'unlimited'):
+        return None
+    match = _SLURM_TIME.fullmatch(value)
+    if not match:
+        # ``sinfo %l`` may omit hours for short limits.
+        fields = value.split(':')
+        if len(fields) == 2 and all(field.isdigit() for field in fields):
+            return int(fields[0]) * 60 + int(fields[1])
+        return None
+    days, hours, minutes, seconds = (
+        int(field or 0) for field in match.groups())
+    return ((days * 24 + hours) * 60 + minutes) * 60 + seconds
+
+
+def _slurm_time(seconds):
+    days, remainder = divmod(int(seconds), 24 * 60 * 60)
+    hours, remainder = divmod(remainder, 60 * 60)
+    minutes, seconds = divmod(remainder, 60)
+    clock = f'{hours:02d}:{minutes:02d}:{seconds:02d}'
+    return f'{days}-{clock}' if days else clock
+
+
+def _ordinary_slurm_walltime(par, queue_name=None):
+    """Resolve the explicit wall time used by bundled Slurm templates."""
+    requested = str(par.get('queue_walltime', 'partition_max')).strip()
+    if not requested or requested.lower() in ('default', 'none'):
+        return ''
+    if requested != 'partition_max':
+        if _slurm_seconds(requested) is None:
+            raise ValueError('queue_walltime must be partition_max or a finite '
+                             'Slurm D-HH:MM:SS/HH:MM:SS value.')
+        return f'#SBATCH --time={requested}'
+    partition = str(queue_name or par.get('queue_name', '')).strip()
+    if not _SLURM_PARTITION.fullmatch(partition):
+        raise ValueError('queue_name is not a valid Slurm partition name.')
+    if partition in _SLURM_WALLTIME_CACHE:
+        return _SLURM_WALLTIME_CACHE[partition]
+    try:
+        result = subprocess.run(
+            ['sinfo', '-h', '-p', partition, '-o', '%l'],
+            capture_output=True, text=True, check=False, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        directive = ''
+    else:
+        displays = [line.strip() for line in result.stdout.splitlines()
+                    if line.strip()]
+        limits = [_slurm_seconds(value) for value in displays]
+        finite = [limit for limit in limits if limit is not None]
+        if result.returncode == 0 and finite:
+            directive = f'#SBATCH --time={_slurm_time(min(finite))}'
+        elif (result.returncode == 0 and displays
+              and all(value.lower() in ('infinite', 'unlimited')
+                      for value in displays)):
+            directive = '#SBATCH --time=0'
+        else:
+            directive = ''
+    if not directive:
+        logger.warning('Could not discover the maximum wall time for Slurm '
+                       'partition %s; its site default will apply.', partition)
+    _SLURM_WALLTIME_CACHE[partition] = directive
+    return directive
+
+
 class QuantumChemistry:
     '''
     This class provides the link between KinBot and the qc code
@@ -1244,9 +1314,16 @@ class QuantumChemistry:
                                                errdir='perm', python_file=python_file, arguments='',
                                                python_executable=shlex.quote(sys.executable))
         elif self.queuing == 'slurm':
+            # Existing custom templates keep complete control of scheduler
+            # directives. Bundled templates and opted-in custom templates
+            # expose this placeholder.
+            walltime_directive = (_ordinary_slurm_walltime(
+                self.par, self.queue_name)
+                if '{walltime_directive}' in job_template else '')
             job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name, errdir='perm',
                                                slurm_feature=self.slurm_feature, python_file=python_file, arguments='',
-                                               python_executable=shlex.quote(sys.executable))
+                                               python_executable=shlex.quote(sys.executable),
+                                               walltime_directive=walltime_directive)
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logger.error('Exiting')

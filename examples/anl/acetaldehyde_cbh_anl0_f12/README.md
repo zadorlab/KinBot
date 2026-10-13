@@ -16,6 +16,10 @@ discoverable through the loaded environment and `site_setup.sh`; one
 `queue_job_limit` caps all automatic calculation pools unless an expert
 explicitly overrides a subsystem.
 
+Bundled Slurm templates discover and request the selected partition's maximum
+wall time. This avoids a shorter site default silently killing a reaction-path
+worker; existing custom scheduler templates retain their own directives.
+
 If an optional ANL component exhausts its execution policy, KinBot preserves
 the completed reference and corrections, omits only whole additive families,
 and records the reduced expression explicitly. It tries that common reduced

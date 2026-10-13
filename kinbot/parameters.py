@@ -458,6 +458,10 @@ class Parameters:
             'q_temp_l3': None,
             # Name of the queue
             'queue_name': 'medium',
+            # Wall time for ordinary QC jobs. ``partition_max`` discovers the
+            # selected Slurm partition's maximum, avoiding an often much
+            # shorter site default without adding a required user setting.
+            'queue_walltime': 'partition_max',
             # E.g. the type of node or anything that comes with -C in SLURM
             'slurm_feature': '',
             # Number of cores to run the L0-L2 qc jobs on

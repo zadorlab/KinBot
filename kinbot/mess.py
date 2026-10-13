@@ -1982,7 +1982,7 @@ class MESS:
         write a pbs or slurm file for the me/all.inp mess input file
         """
         from kinbot.mess_execution import mess_command
-        from kinbot.qc import _ordinary_slurm_walltime
+        from kinbot.qc import _ordinary_slurm_walltime, _slurm_exclude_directive
 
         if self.par['queue_template'] == '':
             q_file = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
@@ -2000,16 +2000,17 @@ class MESS:
         walltime_directive = (_ordinary_slurm_walltime(
             self.par, self.par['queue_name'])
             if '{walltime_directive}' in tpl_head else '')
+        slurm_exclude_directive = _slurm_exclude_directive(self.par)
         with open(submitscript, 'w') as f:
             if self.par['queue_template'] == '':
                 if self.par['queuing'] == 'pbs':
                     f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me'))
                     f.write(tpl)
                 elif self.par['queuing'] == 'slurm':
-                    f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature'], walltime_directive=walltime_directive))
+                    f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature'], slurm_exclude_directive=slurm_exclude_directive, walltime_directive=walltime_directive))
                     f.write(tpl)
             else:
-                f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature'], walltime_directive=walltime_directive))
+                f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature'], slurm_exclude_directive=slurm_exclude_directive, walltime_directive=walltime_directive))
                 f.write(tpl)
         return 0
 

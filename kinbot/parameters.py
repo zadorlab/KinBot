@@ -467,6 +467,10 @@ class Parameters:
             'queue_walltime': 'partition_max',
             # E.g. the type of node or anything that comes with -C in SLURM
             'slurm_feature': '',
+            # Optional site-level exclusions. KinBot also records a node here
+            # for the current run when Slurm reports an I/O launch failure
+            # (exit signal 53) before the batch script starts.
+            'slurm_exclude_nodes': [],
             # Number of cores to run the L0-L2 qc jobs on
             'ppn': 1,
             # Number of cores to run the L3 qc jobs on

@@ -393,10 +393,11 @@ class Molpro:
             molpro_head = self.par['q_temp_l3']
         with open(molpro_head) as f:
             tpl_head = f.read()
-        from kinbot.qc import _ordinary_slurm_walltime
+        from kinbot.qc import _ordinary_slurm_walltime, _slurm_exclude_directive
         walltime_directive = (_ordinary_slurm_walltime(
             self.par, self.par['queue_name'])
             if '{walltime_directive}' in tpl_head else '')
+        slurm_exclude_directive = _slurm_exclude_directive(self.par)
         molpro_tpl = f'{kb_path}/tpl/{self.par["queuing"]}_molpro.tpl'
         with open(molpro_tpl) as f:
             tpl = f.read()
@@ -421,6 +422,7 @@ class Molpro:
                         errdir='.',
                         command=self.par['single_point_command'],
                         slurm_feature=self.par['slurm_feature'],
+                        slurm_exclude_directive=slurm_exclude_directive,
                         walltime_directive=walltime_directive))
         return 0
 

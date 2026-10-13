@@ -326,10 +326,11 @@ class MESMER:
             q_file = self.par['queue_template']
         with open(q_file) as f:
             tpl_head = f.read()
-        from kinbot.qc import _ordinary_slurm_walltime
+        from kinbot.qc import _ordinary_slurm_walltime, _slurm_exclude_directive
         walltime_directive = (_ordinary_slurm_walltime(
             self.par, self.par['queue_name'])
             if '{walltime_directive}' in tpl_head else '')
+        slurm_exclude_directive = _slurm_exclude_directive(self.par)
         q_file = f'{kb_path}/tpl/{self.par["queuing"]}_mesmer.tpl'
         with open(q_file) as f:
             tpl = f.read()
@@ -343,6 +344,7 @@ class MESMER:
                         name='mesmer', ppn=self.par['ppn'],
                         queue_name=self.par['queue_name'], dir='me',
                         errdir='me', slurm_feature=self.par['slurm_feature'],
+                        slurm_exclude_directive=slurm_exclude_directive,
                         walltime_directive=walltime_directive))
             else:
                 qu.write(tpl_head)

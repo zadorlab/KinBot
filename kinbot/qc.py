@@ -6,6 +6,7 @@ import logging
 import re
 import shlex
 import time
+import json
 from datetime import datetime
 import copy
 import pickle
@@ -30,6 +31,100 @@ logger = logging.getLogger('KinBot')
 _SLURM_PARTITION = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\Z')
 _SLURM_TIME = re.compile(r'(?:(\d+)-)?(\d{1,2}):(\d{2}):(\d{2})\Z')
 _SLURM_WALLTIME_CACHE = {}
+_SLURM_NODE_STATE = '.kinbot_slurm_nodes.json'
+_SLURM_TERMINAL_STATES = {
+    'BOOT_FAIL', 'CANCELLED', 'COMPLETED', 'DEADLINE', 'FAILED',
+    'NODE_FAIL', 'OUT_OF_MEMORY', 'PREEMPTED', 'TIMEOUT',
+}
+
+
+def _slurm_node_names(values):
+    """Validate explicit single-node names used in ``--exclude``."""
+    if values in (None, ''):
+        return set()
+    if not isinstance(values, (list, tuple, set)):
+        raise ValueError('slurm_exclude_nodes must be a list of node names.')
+    names = {str(value).strip() for value in values}
+    if '' in names or any(not _SLURM_PARTITION.fullmatch(name)
+                          for name in names):
+        raise ValueError('slurm_exclude_nodes contains an invalid node name.')
+    return names
+
+
+def _load_slurm_node_state(parameters=None):
+    """Read run-local node exclusions, preserving explicit site settings."""
+    names = _slurm_node_names((parameters or {}).get('slurm_exclude_nodes', []))
+    try:
+        payload = json.loads(open(_SLURM_NODE_STATE).read())
+    except FileNotFoundError:
+        return names
+    except (OSError, ValueError, TypeError) as error:
+        logger.warning('Ignoring invalid %s: %s', _SLURM_NODE_STATE, error)
+        return names
+    recorded = payload.get('excluded_nodes', []) if isinstance(payload, dict) else []
+    try:
+        return names | _slurm_node_names(recorded)
+    except ValueError as error:
+        logger.warning('Ignoring invalid node exclusions in %s: %s',
+                       _SLURM_NODE_STATE, error)
+        return names
+
+
+def _slurm_exclude_directive(parameters=None, nodes=None):
+    """Render explicitly configured and run-local node exclusions."""
+    selected = (_load_slurm_node_state(parameters)
+                if nodes is None else _slurm_node_names(nodes))
+    return ('#SBATCH --exclude=' + ','.join(sorted(selected))
+            if selected else '')
+
+
+def _save_slurm_node_failure(owner, node, job, job_id, record):
+    """Exclude a node after Slurm kills a batch before its script can run."""
+    if not node or node in ('(null)', 'None') or not _SLURM_PARTITION.fullmatch(node):
+        return
+    names = set(getattr(owner, '_slurm_excluded_nodes', set()))
+    names.add(node)
+    owner._slurm_excluded_nodes = names
+    payload = {
+        'schema': 1,
+        'excluded_nodes': sorted(names),
+        'last_failure': {
+            'job': job,
+            'job_id': str(job_id),
+            'node': node,
+            'state': record.get('JobState'),
+            'reason': record.get('Reason'),
+            'exit_code': record.get('ExitCode'),
+        },
+    }
+    temporary = f'{_SLURM_NODE_STATE}.tmp.{os.getpid()}'
+    try:
+        with open(temporary, 'w') as stream:
+            json.dump(payload, stream, indent=2, sort_keys=True)
+            stream.write('\n')
+        os.replace(temporary, _SLURM_NODE_STATE)
+    except OSError as error:
+        logger.warning('Could not record failed Slurm node %s: %s', node, error)
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+
+
+def _slurm_job_record(job_id):
+    """Return the retained one-line Slurm record for a completed job."""
+    try:
+        result = subprocess.run(
+            ['scontrol', 'show', 'job', '-o', str(job_id)],
+            capture_output=True, text=True, check=False, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if result.returncode or not result.stdout.strip():
+        return {}
+    return {
+        match.group(1): match.group(2)
+        for match in re.finditer(r'(\w+)=([^\s]+)', result.stdout)
+    }
 
 
 def _slurm_seconds(value):
@@ -140,6 +235,7 @@ class QuantumChemistry:
         self.zf = par['zf']
         self.db = connect('kinbot.db')
         self.job_ids = {}
+        self._slurm_excluded_nodes = _load_slurm_node_state(par)
         self.irc_maxpoints = par['irc_maxpoints']
         self.irc_stepsize = par['irc_stepsize']
         self.irc_maxcycle = par['irc_maxcycle']
@@ -1304,6 +1400,22 @@ class QuantumChemistry:
         else:
             python_file = f'{job}.py'
         job_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
+        excluded_nodes = getattr(self, '_slurm_excluded_nodes', None)
+        if excluded_nodes is None:
+            excluded_nodes = _load_slurm_node_state(getattr(self, 'par', {}))
+        excluded_nodes = sorted(excluded_nodes)
+        slurm_exclude_directive = _slurm_exclude_directive(
+            getattr(self, 'par', {}), excluded_nodes)
+        if (self.queuing == 'slurm' and slurm_exclude_directive
+                and '{slurm_exclude_directive}' not in job_template):
+            # Preserve custom templates while keeping scheduler directives in
+            # the header, before the first executable shell statement.
+            lines = job_template.splitlines(keepends=True)
+            indices = [index for index, line in enumerate(lines)
+                       if line.startswith('#SBATCH')]
+            insert_at = max(indices) + 1 if indices else 1
+            lines.insert(insert_at, slurm_exclude_directive + '\n')
+            job_template = ''.join(lines)
         if self.qc == 'orca': 
             if 'hir' not in job: 
                 job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
@@ -1324,6 +1436,7 @@ class QuantumChemistry:
             job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name, errdir='perm',
                                                slurm_feature=self.slurm_feature, python_file=python_file, arguments='',
                                                python_executable=shlex.quote(sys.executable),
+                                               slurm_exclude_directive=slurm_exclude_directive,
                                                walltime_directive=walltime_directive)
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
@@ -1333,6 +1446,29 @@ class QuantumChemistry:
         qu_file = '{}{}'.format(job, constants.qext[self.queuing])
         with open(qu_file, 'w') as f_out_qu:
             f_out_qu.write(job_template)
+
+        if self.queuing == 'slurm':
+            # Slurm signal 53 occurs before the script starts when it cannot
+            # open stdout/stderr. Catch missing directories, permissions,
+            # quota, and inode exhaustion before consuming a scheduler job.
+            output_directory = os.path.join('perm', os.path.dirname(job))
+            os.makedirs(output_directory, exist_ok=True)
+            probe = os.path.join(
+                output_directory, f'.kinbot-write-probe-{os.getpid()}')
+            try:
+                with open(probe, 'w') as stream:
+                    stream.write('KinBot scheduler output probe\n')
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            except OSError as error:
+                raise RuntimeError(
+                    f'Cannot write Slurm output directory {output_directory}: '
+                    f'{error}. Check storage quota, inode quota, and permissions.') from error
+            finally:
+                try:
+                    os.unlink(probe)
+                except OSError:
+                    pass
 
         command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1724,6 +1860,32 @@ class QuantumChemistry:
             return status
         if status != 0:
             return status
+
+        record = (_slurm_job_record(self.job_ids[job])
+                  if self.queuing == 'slurm' else {})
+        scheduler_state = record.get('JobState', '').split('+', 1)[0]
+        if scheduler_state in _SLURM_TERMINAL_STATES - {'COMPLETED'}:
+            exit_code = record.get('ExitCode', 'unknown')
+            reason = record.get('Reason', 'unknown')
+            node = record.get('NodeList', '')
+            if exit_code.endswith(':53'):
+                _save_slurm_node_failure(
+                    self, node, job, self.job_ids[job], record)
+                logger.error(
+                    '%s: Slurm could not initialize batch stdout/stderr on %s '
+                    '(job %s, state %s, reason %s, exit %s). The batch script '
+                    'never started. Check storage quota and compute-node '
+                    'filesystem access; %s is excluded from later submissions '
+                    'in this run.', job, node or 'an unknown node',
+                    self.job_ids[job], scheduler_state, reason, exit_code,
+                    node or 'the failed node')
+            else:
+                logger.error(
+                    '%s: Slurm job %s ended before publishing a calculation '
+                    'result (state %s, reason %s, exit %s, node %s).',
+                    job, self.job_ids[job], scheduler_state, reason,
+                    exit_code, node or 'unknown')
+            return 'error'
 
         now = time.monotonic()
         if key not in self._completion_deadlines:

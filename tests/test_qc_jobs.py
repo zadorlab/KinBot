@@ -134,6 +134,35 @@ class TestSchedulerJobs(unittest.TestCase):
                    side_effect=AssertionError('Slurm must not be queried')):
             self.assertEqual(qc.check_qc(job), 'normal')
 
+    def test_completed_worker_accepts_database_row_without_legacy_done_marker(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'fc'
+        job = 'restored_high'
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [.74, 0., 0.]])
+        qc.db.write(atoms, name=job,
+                    data={'energy': -1., 'status': 'normal'})
+        Path(job + '.exitcode').write_text('0\n')
+        # Restored routes can deliberately have no historical scheduler id.
+        # The exit marker still proves that the worker/database handoff ended.
+        with patch('kinbot.qc.subprocess.run',
+                   side_effect=AssertionError('Slurm must not be queried')):
+            self.assertEqual(qc.check_qc(job), 'normal')
+
+    def test_completed_worker_without_database_result_is_terminal_error(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'fc'
+        Path('empty.exitcode').write_text('0\n')
+        with self.assertLogs('KinBot', 'ERROR') as messages:
+            self.assertEqual(qc.check_qc('empty'), 'error')
+        self.assertIn('did not publish a calculation result',
+                      '\n'.join(messages.output))
+
     def test_slurm_status_query_is_targeted_and_bounded(self):
         result = Mock(returncode=0, stdout='123\n', stderr='')
         with patch('kinbot.qc.subprocess.run', return_value=result) as run:

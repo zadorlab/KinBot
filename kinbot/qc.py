@@ -1992,8 +1992,16 @@ class QuantumChemistry:
                              'publish a calculation result.')
         return 'error'
 
-    def _database_qc_status(self, job):
-        """Return a complete native result status, or ``None`` if incomplete."""
+    def _database_qc_status(self, job, worker_finished=False):
+        """Return a complete result status, or ``None`` if incomplete.
+
+        The scheduler wrapper writes ``.exitcode`` only after the worker has
+        returned.  A zero exit status therefore makes the last database row a
+        finalized handoff even when an older/reused calculation lacks the
+        backend's legacy trailing ``done`` marker.  Before that boundary the
+        marker remains necessary so a partly visible network-filesystem write
+        cannot be accepted as complete.
+        """
         logger.debug('Checking for job %s in db', job)
         if not self.is_in_database(job):
             logger.debug('job %s is not in database', job)
@@ -2016,7 +2024,7 @@ class QuantumChemistry:
         else:
             raise ValueError('Unknown code')
 
-        if log_file is not None:
+        if log_file is not None and not worker_finished:
             if not os.path.exists(log_file):
                 if (self.queuing == 'local'
                         and not self.par['error_missing_local']):
@@ -2112,7 +2120,8 @@ class QuantumChemistry:
                 return 'error'
             worker_finished = True
 
-        database_status = QuantumChemistry._database_qc_status(self, job)
+        database_status = QuantumChemistry._database_qc_status(
+            self, job, worker_finished=worker_finished)
         if database_status is not None:
             return database_status
 
@@ -2169,6 +2178,14 @@ class QuantumChemistry:
                 logger.error('Exiting')
                 sys.exit()
 
+        if worker_finished:
+            # No scheduler transition can repair a worker that has already
+            # exited without publishing a database result.  Returning zero
+            # here made Optimize poll such jobs forever, especially after a
+            # restart where the historical Slurm id is intentionally absent.
+            logger.error('%s: worker exited successfully but did not publish '
+                         'a calculation result.', job)
+            return 'error'
         if self.queuing == 'local' and not self.par['error_missing_local']:
             logger.debug('local qu error')
             return 'error'

@@ -507,6 +507,40 @@ class TestHIRStatus(unittest.TestCase):
         self.assertEqual(optimization.restart, 0)
         self.assertEqual(optimization.shir, 1)
 
+    def test_demoted_partial_rotor_does_not_restart_from_its_reference(self):
+        """A usable point 00 remains the restart baseline after rotor demotion."""
+        hir = completed_hir()
+        hir.species.dihed = hir.species.dihed[:1]
+        hir.hir_status = [[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]]
+        hir.hir_energies = [[-100., -1., -99.999, -1., -99.998, -1.,
+                             -99.997, -1., -99.998, -1., -99.999, -1.]]
+        hir.hir_geoms = hir.hir_geoms[:1]
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = hir.species
+        optimization.name = hir.species.name
+        optimization.qc = SimpleNamespace(
+            get_qc_geom=Mock(side_effect=AssertionError(
+                'Unexpected zero-difference conformer restart')),
+            read_qc_hess=lambda *args: np.eye(3 * hir.species.natom),
+            hessian_is_massweighted=lambda: False,
+        )
+        optimization.par = {
+            'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,
+            'rotor_scan': 1, 'multi_conf_tst': 0, 'L3_calc': 0,
+        }
+        optimization.shigh, optimization.shir = 1, 0
+        optimization.restart = 0
+        optimization.just_high = False
+        optimization.defer_hir = False
+        optimization.wait = 0
+        optimization.log_name = lambda *args, **kwargs: 'test'
+        with patch.object(hir, 'check_hir', return_value=1), \
+                patch('kinbot.optimize.recover_hir_model', return_value=False):
+            optimization.do_optimization()
+        self.assertEqual(optimization.restart, 0)
+        self.assertEqual(optimization.shir, 1)
+        optimization.qc.get_qc_geom.assert_not_called()
+
     def test_low_point_on_a_failed_rotor_still_triggers_a_restart(self):
         """A failed reference does not hide a genuine minimum found on that rotor."""
         atoms = molecule('CH3OH')

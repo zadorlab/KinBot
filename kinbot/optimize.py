@@ -433,31 +433,45 @@ class Optimize:
                                 if status:  # Finished correctly
                                     if len(self.species.hir.hir_energies) > 0:
                                         # check if along the hir potential a structure was found with a lower energy
-                                        # Preserve the original first-rotor reference
-                                        # unless that scan failed or was skipped.
-                                        min_en = next((
-                                            self.species.hir.hir_energies[rotor][0]
-                                            for rotor in range(len(self.species.dihed))
-                                            if self.species.hir.is_valid_rotor(rotor)),
-                                            np.inf)
+                                        # Preserve the first successful scan reference.
+                                        # A partial scan may be unsuitable for a MESS
+                                        # rotor while its reference point is still a
+                                        # valid energy.  Requiring a fully valid rotor
+                                        # here leaves the reference at infinity and
+                                        # falsely identifies point 00 as a lower
+                                        # conformer with a zero energy difference.
+                                        reference_en = next((
+                                            energies[0]
+                                            for statuses, energies in zip(
+                                                self.species.hir.hir_status,
+                                                self.species.hir.hir_energies)
+                                            if (statuses and energies
+                                                and statuses[0] == 0
+                                                and np.isfinite(energies[0]))),
+                                            None)
+                                        min_en = reference_en
                                         min_rotor = -1
                                         min_ai = -1
                                         # Search every converged point, including those on
                                         # rotors whose own reference failed: they passed the
                                         # geometry check, and a low point is a real conformer.
-                                        for rotor in range(len(self.species.dihed)):
-                                            for ai in range(self.species.hir.nrotation):
+                                        for rotor, (statuses, energies) in enumerate(zip(
+                                                self.species.hir.hir_status,
+                                                self.species.hir.hir_energies)):
+                                            for ai, (point_status, energy) in enumerate(zip(
+                                                    statuses, energies)):
                                                 # use a 0.1 kcal/mol cutoff for numerical noise
-                                                if self.species.hir.hir_status[rotor][ai] == 0:  # do not test for fails
-                                                    if self.species.hir.hir_energies[rotor][ai] < min_en - 1.6E-4:
-                                                        min_en = self.species.hir.hir_energies[rotor][ai]
+                                                if point_status == 0:  # do not test for fails
+                                                    if (reference_en is not None
+                                                            and np.isfinite(energy)
+                                                            and energy < min_en - 1.6E-4):
+                                                        min_en = energy
                                                         min_rotor = rotor
                                                         min_ai = ai
                                         if min_rotor > -1:
                                             self.restart += 1
                                             job = self.species.hir.point_job(min_rotor, min_ai)
-                                            diff = (self.species.hir.hir_energies[min_rotor][0] - 
-                                                    self.species.hir.hir_energies[min_rotor][min_ai]) * constants.AUtoKCAL 
+                                            diff = (reference_en - min_en) * constants.AUtoKCAL
                                             if self.restart < self.par['rotation_restart']:
                                                 # lower energy structure found
                                                 logger.warning(f'Lower energy conformer during HIR: {job}, diff = {np.round(diff, 2)} kcal/mol. Restart #{self.restart}')

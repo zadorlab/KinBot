@@ -1,4 +1,6 @@
 from kinbot.species_routing import routing_name, apply_input_reference, matches_name
+from contextlib import contextmanager
+import fcntl
 import sys
 import datetime
 import copy
@@ -23,12 +25,28 @@ from kinbot.stereo_routing import StereoRoutingError
 from kinbot.theory import automatic_cbh_anl_requested
 
 
+@contextmanager
+def _driver_lock():
+    """Allow only one KinBot controller in a calculation directory."""
+    ensure_current_run(create=True)
+    from kinbot.run_format import MARKER
+    with open(MARKER, 'r', encoding='utf-8') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeError(
+                'Another KinBot driver is already managing this calculation '
+                'directory.') from error
+        yield
+
+
 def main():
-    try:
-        return _main()
-    except (StereoRoutingError, UnsupportedStereochemistry) as error:
-        logging.getLogger('KinBot').error('KinBot stopped: %s', error)
-        raise SystemExit(1) from None
+    with _driver_lock():
+        try:
+            return _main()
+        except (StereoRoutingError, UnsupportedStereochemistry) as error:
+            logging.getLogger('KinBot').error('KinBot stopped: %s', error)
+            raise SystemExit(1) from None
 
 
 def _main():

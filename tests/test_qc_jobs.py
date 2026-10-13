@@ -134,11 +134,29 @@ class TestSchedulerJobs(unittest.TestCase):
         clean_files(qc='fc')
         self.assertTrue(Path('driver.log').is_file())
         self.assertFalse(Path('reaction_sella.log').exists())
-        self.assertFalse(Path('pending.pkl').exists())
+        self.assertTrue(Path('pending.pkl').exists())
 
         Path('diagnostic.pkl').write_bytes(b'pending')
         clean_files(qc='fc', diagnostic=True)
         self.assertTrue(Path('diagnostic.pkl').is_file())
+
+    def test_replacement_submission_removes_only_its_stale_handoff(self):
+        Path('replacement.pkl').write_bytes(b'stale')
+        Path('unrelated.pkl').write_bytes(b'pending')
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            par={'queue_template': ''}, queuing='slurm', qc='fc',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={},
+        )
+        process = Mock()
+        process.communicate.return_value = (b'Submitted batch job 123\n', b'')
+        discovery = Mock(returncode=0, stdout='1-00:00:00\n', stderr='')
+        with patch('kinbot.qc.subprocess.Popen', return_value=process), \
+                patch('kinbot.qc.subprocess.run', return_value=discovery), \
+                patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
+            QuantumChemistry.submit_qc(qc, 'replacement', 1)
+        self.assertFalse(Path('replacement.pkl').exists())
+        self.assertTrue(Path('unrelated.pkl').exists())
 
 
 class TestVRCJobs(unittest.TestCase):

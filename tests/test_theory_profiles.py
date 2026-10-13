@@ -213,6 +213,8 @@ class TestTheoryProfiles(unittest.TestCase):
             f"logfile='hir/{rotor.chemid}_hir_0_00_sella.log'",
             generated_hir)
         self.assertIn('Constrained optimization failed:', generated_hir)
+        self.assertNotIn("connect('", generated_hir)
+        self.assertIn('os.replace(temporary, pkl_file)', generated_hir)
 
     def test_profiled_reaction_worker_uses_resolved_fairchem_context(self):
         parameters = self.parameters(composite_method='ANL0-F12')

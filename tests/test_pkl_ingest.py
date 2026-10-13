@@ -92,6 +92,23 @@ class TestPklIngest(unittest.TestCase):
         self.assertEqual(rows[0].data['energy'], -1.0)
         self.assertFalse(Path(f'{JOB}.pkl').exists())
 
+    def test_restart_cleanup_preserves_nested_completed_handoff(self):
+        from kinbot.utils import clean_files
+
+        Path('conf').mkdir()
+        nested = f'conf/{JOB}'
+        payload = dict(PAYLOAD, name=nested)
+        with open(f'{nested}.pkl', 'wb') as stream:
+            pickle.dump(payload, stream)
+        clean_files(qc='fc')
+        self.assertTrue(Path(f'{nested}.pkl').is_file())
+
+        db = connect('kinbot.db')
+        QuantumChemistry.check_qc(self.qc(db), nested)
+        rows = list(db.select(name=nested))
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(Path(f'{nested}.pkl').exists())
+
     def test_row_visibility_wait_requeries_the_db(self):
         # with the old exhausted-generator loop this hangs forever
         self.write_pkl()

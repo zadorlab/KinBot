@@ -145,12 +145,12 @@ def clean_files(diagnostic=False, qc=None):
         if qc == 'fc':
             if len(ff) > 9 and ff[-9:] == 'sella.log':
                 log.append(ff)
-            elif ff.endswith('.pkl'):
-                if not diagnostic:
-                    os.remove(ff)
-                    logger.info(f'Stale FairChem handoff {ff} is deleted.')
-                else:
-                    logger.info(f'Stale FairChem handoff: {ff}.')
+            elif ff.endswith('.pkl') and diagnostic:
+                # A completed worker can publish immediately before a
+                # restarted controller begins. Startup cleanup cannot know
+                # that this is stale. submit_qc removes the exact handoff only
+                # after deciding to launch a replacement for that same job.
+                logger.info(f'Pending worker handoff: {ff}.')
         else:
             if len(ff) > 4 and ff[-4:] == '.log':
                 log.append(ff)

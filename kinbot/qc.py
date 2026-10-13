@@ -1263,10 +1263,11 @@ class QuantumChemistry:
 
         # A status file belongs to one scheduler submission.  Never let a
         # previous attempt prove success or failure for a replacement job.
-        try:
-            os.remove(f'{job}.exitcode')
-        except FileNotFoundError:
-            pass
+        for suffix in ('.exitcode', '.pkl'):
+            try:
+                os.remove(f'{job}{suffix}')
+            except FileNotFoundError:
+                pass
 
         try:
             if jobtype == 'am1' and self.par['q_temp_am1']:

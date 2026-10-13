@@ -54,6 +54,35 @@ DEFAULT_SIZE_POLICY = DEFAULT_ANL_SIZE_POLICY
 _TIERS = ('ANL0-F12', 'ANL0', 'L3', 'L3-SP@L2', 'L2')
 
 
+def _resolve_user_executable(command):
+    """Resolve a command without requiring a login-shell PATH mutation.
+
+    User-managed scientific programs are commonly installed into isolated
+    prefixes below ``~/.local``.  Search only their conventional ``bin``
+    directories and accept the result only when it is unambiguous.
+    """
+    executable = shutil.which(command)
+    if executable is not None:
+        return executable
+    if os.path.basename(command) != command:
+        return None
+    local = Path.home() / '.local'
+    candidates = [local / 'bin' / command]
+    if local.is_dir():
+        candidates.extend(sorted(local.glob(f'*/bin/{command}')))
+    matches = []
+    for candidate in candidates:
+        if (candidate.is_file() and os.access(candidate, os.X_OK)
+                and candidate not in matches):
+            matches.append(candidate)
+    if len(matches) > 1:
+        raise FileNotFoundError(
+            f'Executable {command!r} has multiple user installations: '
+            + ', '.join(str(path) for path in matches)
+            + '. Select one with its command parameter or environment variable.')
+    return str(matches[0].resolve()) if matches else None
+
+
 def automatic_requested(parameters):
     """Whether this ordinary KinBot input requests a new automatic solve."""
     return automatic_cbh_anl_requested(parameters)
@@ -82,11 +111,13 @@ def validate_automatic_environment(parameters):
             raise ValueError(f'Invalid {key}: {error}') from error
         if not command:
             raise ValueError(f'{key} must name an executable.')
-        executable = shutil.which(command[0])
+        executable = _resolve_user_executable(command[0])
         if executable is None:
             raise FileNotFoundError(
                 f'{key} executable {command[0]!r} is unavailable; configure '
                 'it before starting automatic CBH/ANL work.')
+        command[0] = executable
+        parameters[key] = shlex.join(command)
         checked[key] = executable
 
     require_command('messpf_command', bool(parameters.get('run_messpf')))

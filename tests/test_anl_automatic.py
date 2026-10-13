@@ -179,6 +179,30 @@ def test_automatic_environment_honors_solver_environment(monkeypatch):
         'atct_client': 'available'}
 
 
+def test_automatic_environment_finds_unambiguous_user_prefix(
+        monkeypatch, tmp_path):
+    prefix = tmp_path / '.local' / 'kinbot-mess' / 'bin'
+    prefix.mkdir(parents=True)
+    for name in ('mess', 'messpf'):
+        executable = prefix / name
+        executable.write_text('#!/bin/sh\n')
+        executable.chmod(0o755)
+    monkeypatch.setenv('HOME', str(tmp_path))
+    monkeypatch.delenv('KINBOT_MESS_COMMAND', raising=False)
+    monkeypatch.delenv('KINBOT_MESSPF_COMMAND', raising=False)
+    monkeypatch.setattr(
+        'kinbot.anl.automatic.shutil.which', lambda value: None)
+    parameters = {
+        'composite_method': 'ANL0-F12', 'me': 1, 'run_me': 1,
+        'run_messpf': 1, 'mess_command': 'mess',
+        'messpf_command': 'messpf', 'queuing': 'local'}
+    checked = validate_automatic_environment(parameters)
+    assert checked['mess_command'] == str((prefix / 'mess').resolve())
+    assert checked['messpf_command'] == str((prefix / 'messpf').resolve())
+    assert parameters['mess_command'] == str((prefix / 'mess').resolve())
+    assert parameters['messpf_command'] == str((prefix / 'messpf').resolve())
+
+
 def test_automatic_environment_checks_rotdpy_before_qc(monkeypatch):
     provenance = {'git_revision': 'pinned'}
     monkeypatch.setattr(

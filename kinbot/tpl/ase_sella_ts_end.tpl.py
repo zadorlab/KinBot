@@ -61,12 +61,11 @@ if converged:
             # Sella owns the TS optimization. Evaluate the native Gaussian
             # Hessian once at the fixed, optimized saddle geometry.
             from kinbot import reader_gauss
+            from kinbot.ase_modules.calculators.gaussian import \
+                fixed_frequency_parameters
             from kinbot.utils import iowait
 
-            frequency_kwargs = dict(kwargs)
-            frequency_kwargs.pop('force', None)
-            frequency_kwargs.pop('opt', None)
-            frequency_kwargs['freq'] = ''
+            frequency_kwargs = fixed_frequency_parameters(kwargs)
             frequency_kwargs['label'] = '{label}'
             frequency_kwargs['chk'] = os.path.basename('{label}')
             mol.calc = Gaussian(**frequency_kwargs)

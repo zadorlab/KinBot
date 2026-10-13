@@ -13,6 +13,25 @@ from ase.calculators.calculator import FileIOCalculator
 from kinbot.ase_modules.io.formats import read, write
 
 
+def fixed_frequency_parameters(parameters):
+    """Return Gaussian options for a fixed-geometry Hessian calculation.
+
+    External Cartesian optimizers use NoSymm so gradients retain a stable
+    frame.  Gaussian's vibrational analysis still needs its symmetry
+    machinery, especially for linear rotors, so use a C1 point-group cap for
+    the separate frequency calculation.
+    """
+    result = dict(parameters)
+    result.pop('force', None)
+    result.pop('opt', None)
+    for key in tuple(result):
+        if key.lower() in ('symm', 'symmetry'):
+            result.pop(key)
+    result['symmetry'] = 'PG=C1'
+    result['freq'] = ''
+    return result
+
+
 @contextmanager
 def gaussian_scratch_environment():
     """Give one Gaussian invocation a writable, collision-free scratch.

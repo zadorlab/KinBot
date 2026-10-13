@@ -3,7 +3,26 @@
 import os
 from pathlib import Path
 
-from kinbot.ase_modules.calculators.gaussian import gaussian_scratch_environment
+from kinbot.ase_modules.calculators.gaussian import (
+    fixed_frequency_parameters,
+    gaussian_scratch_environment,
+)
+
+
+def test_fixed_frequency_uses_c1_symmetry_bookkeeping():
+    original = {
+        'method': 'B2PLYP', 'force': '', 'opt': 'Tight',
+        'Symm': 'None', 'guess': 'Read',
+    }
+    result = fixed_frequency_parameters(original)
+
+    assert original['Symm'] == 'None'
+    assert 'force' not in result
+    assert 'opt' not in result
+    assert 'Symm' not in result
+    assert result['symmetry'] == 'PG=C1'
+    assert result['freq'] == ''
+    assert result['guess'] == 'Read'
 
 
 def test_invalid_gaussian_scratch_falls_back_to_site_scratch(tmp_path,

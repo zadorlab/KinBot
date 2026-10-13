@@ -159,8 +159,7 @@ class TestTheoryProfiles(unittest.TestCase):
         generated = Path(f'{species.chemid}_well_high.py').read_text()
         compile(generated, f'{species.chemid}_well_high.py', 'exec')
         self.assertIn("frequency_mode = 'native_hessian'", generated)
-        self.assertIn("frequency_kwargs['freq'] = ''", generated)
-        self.assertIn("frequency_kwargs.pop('opt', None)", generated)
+        self.assertIn('fixed_frequency_parameters(kwargs)', generated)
 
         Path('conf').mkdir()
         with patch.object(qc.l1, 'submit_qc', return_value=1):
@@ -194,8 +193,7 @@ class TestTheoryProfiles(unittest.TestCase):
         generated_ts = Path('h2_saddle_high.py').read_text()
         compile(generated_ts, 'h2_saddle_high.py', 'exec')
         self.assertIn("frequency_mode = 'native_hessian'", generated_ts)
-        self.assertIn("frequency_kwargs['freq'] = ''", generated_ts)
-        self.assertIn("frequency_kwargs.pop('opt', None)", generated_ts)
+        self.assertIn('fixed_frequency_parameters(kwargs)', generated_ts)
 
         Path('hir').mkdir()
         rotor = SimpleNamespace(

@@ -125,13 +125,13 @@ def _main():
         logger.debug(f'Initial well freq error {err}, frequencies are {well0.freq}.')
         if err < 0:
             logger.error('Error with initial structure optimization.')
-            return
+            return 1
         if well0.freq[0] <= 0:
             logger.warning(f'First frequency is {well0.freq[0]} for initial structure.')
             well0.freq[0] *= -1.
         if well0.freq[1] <= 0:
             logger.error(f'Second frequency is {well0.freq[1]} for initial structure.')
-            return
+            return 1
 
         # characterize again and look for differences
         initial_frequencies = list(well0.freq)
@@ -158,7 +158,7 @@ def _main():
         well0.name = routing_name(well0)
         if well0.name != start_name and not par['cluster']:
             logger.error('The first well optimized to a structure different from the input.')
-            return
+            return 1
 
         # do an MP2 optimization of the reactant,
         # to compare some scan barrier heigths to
@@ -207,7 +207,7 @@ def _main():
         well_opt.do_optimization()
         if well_opt.shigh == -999:
             logger.error('Error with high level optimization of initial structure.')
-            return
+            return 1
 
         if par['reaction_search'] == 1:
             if par.get('profiled_l1_reuse_only'):
@@ -285,7 +285,7 @@ def _main():
                                             frag.natom, wait=1)
             if err < 0:
                 logger.error(f'Error with initial structure optimization of {frag.name}.')
-                return
+                return 1
             err, frag.freq = qc.get_qc_freq(routing_name(frag) + '_well',
                                             frag.natom, wait=1)
             if frag.freq and frag.freq[0] <= 0. and frag.freq[0] >= -20.:
@@ -293,15 +293,15 @@ def _main():
                 frag.freq[0] *= -1.
             elif frag.freq and frag.freq[0] < -20.:
                 logger.error(f'Found imaginary frequency {frag.freq[0]} for {frag.name}.')
-                return
+                return 1
             if len(frag.freq) > 1 and frag.freq[1] <= 0:
                 logger.error(f'Found two imaginary frequencies {frag.freq[1]} for {frag.name}.')
-                return
+                return 1
             # characterize again and look for differences
             frag.characterize()
             if frag.name != routing_name(frag):
                 logger.error(f'Reactant {frag} optimized to a structure different from the input.')
-                return
+                return 1
 
         well0.energy = 0.
         well0.zpe = 0.
@@ -318,7 +318,7 @@ def _main():
             frag_opt.do_optimization()
             if frag_opt.shigh == -999:
                 logger.error(f'Error with high level optimization for {frag.name}.')
-                return
+                return 1
 
         well0.fragA = fragments['frag_a']  # update
         well0.fragB = fragments['frag_b']  # update
@@ -388,4 +388,4 @@ def _main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

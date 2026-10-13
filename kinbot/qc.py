@@ -78,6 +78,27 @@ def _slurm_exclude_directive(parameters=None, nodes=None):
             if selected else '')
 
 
+def _export_slurm_excluded_nodes(nodes):
+    """Propagate run exclusions to nested Slurm submitters.
+
+    Automatic ANL dispatchers and ROTD_py launch their own ``sbatch``
+    processes after the ordinary KinBot search.  Slurm's ``SBATCH_EXCLUDE``
+    environment setting lets those subprocesses inherit the same site
+    recovery decision without adding a cluster-specific node to molecular
+    input or to generated workflow schemas.
+    """
+    selected = sorted(_slurm_node_names(nodes))
+    if not selected:
+        return
+    inherited = [item.strip() for item in
+                 os.environ.get('SBATCH_EXCLUDE', '').split(',')
+                 if item.strip()]
+    for node in selected:
+        if node not in inherited:
+            inherited.append(node)
+    os.environ['SBATCH_EXCLUDE'] = ','.join(inherited)
+
+
 def _save_slurm_node_failure(owner, node, job, job_id, record):
     """Exclude a node after Slurm kills a batch before its script can run."""
     if not node or node in ('(null)', 'None') or not _SLURM_PARTITION.fullmatch(node):
@@ -85,6 +106,7 @@ def _save_slurm_node_failure(owner, node, job, job_id, record):
     names = set(getattr(owner, '_slurm_excluded_nodes', set()))
     names.add(node)
     owner._slurm_excluded_nodes = names
+    _export_slurm_excluded_nodes(names)
     payload = {
         'schema': 1,
         'excluded_nodes': sorted(names),
@@ -236,6 +258,8 @@ class QuantumChemistry:
         self.db = connect('kinbot.db')
         self.job_ids = {}
         self._slurm_excluded_nodes = _load_slurm_node_state(par)
+        if self.queuing == 'slurm':
+            _export_slurm_excluded_nodes(self._slurm_excluded_nodes)
         self.irc_maxpoints = par['irc_maxpoints']
         self.irc_stepsize = par['irc_stepsize']
         self.irc_maxcycle = par['irc_maxcycle']

@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 from ase import Atoms
 
-from kinbot.qc import QuantumChemistry
+from kinbot.qc import QuantumChemistry, _export_slurm_excluded_nodes
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.utils import clean_files, too_far
@@ -126,12 +126,19 @@ class TestSchedulerJobs(unittest.TestCase):
         }
         with patch.object(QuantumChemistry, '_check_qc', return_value=0), \
                 patch('kinbot.qc._slurm_job_record', return_value=record), \
+                patch.dict(os.environ, {}, clear=True), \
                 self.assertLogs('KinBot', 'ERROR') as messages:
             self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'error')
+            self.assertEqual(os.environ['SBATCH_EXCLUDE'], 'node16')
         self.assertIn('never started', '\n'.join(messages.output))
         self.assertEqual(qc._slurm_excluded_nodes, {'node16'})
         saved = json.loads(Path('.kinbot_slurm_nodes.json').read_text())
         self.assertEqual(saved['excluded_nodes'], ['node16'])
+
+    def test_slurm_node_exclusion_preserves_and_reaches_nested_submitters(self):
+        with patch.dict(os.environ, {'SBATCH_EXCLUDE': 'node15'}, clear=True):
+            _export_slurm_excluded_nodes({'node16', 'node15'})
+            self.assertEqual(os.environ['SBATCH_EXCLUDE'], 'node15,node16')
 
     def test_recorded_slurm_node_is_excluded_from_later_jobs(self):
         qc = SimpleNamespace(

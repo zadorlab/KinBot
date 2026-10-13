@@ -1661,6 +1661,29 @@ class QuantumChemistry:
 
         return 1
 
+    def read_imag_mode(self, job, natom):
+        """Read a TS mode from the artifact produced by this backend.
+
+        Sella force-difference Hessians publish ``*_vib.xyz``. A Sella
+        geometry optimization followed by a native Gaussian or Q-Chem
+        Hessian publishes the program's native frequency output instead.
+        Treating every Sella-optimized job as an ASE vibration calculation
+        therefore asks for an artifact that native-Hessian workers neither
+        need nor create.
+        """
+        if (self.qc == 'fc'
+                or (self.use_sella
+                    and self.frequency_mode != 'native_hessian')):
+            from kinbot import reader_sella
+            return reader_sella.read_imag_mode(job, natom)
+        if self.qc == 'gauss':
+            from kinbot import reader_gauss
+            return reader_gauss.read_imag_mode(job, natom)
+        if self.qc == 'qchem':
+            from kinbot import reader_qchem
+            return reader_qchem.read_imag_mode(job, natom)
+        raise ValueError(f'Imaginary-mode reader is unavailable for {self.qc}.')
+
     def ingest_pkl(self, job, max_wait=60):
         '''
         Loads the {job}.pkl handoff written by a finished compute job.

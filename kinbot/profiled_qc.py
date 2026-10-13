@@ -298,6 +298,10 @@ class ProfiledQuantumChemistry:
     def get_qc_zpe(self, job, *args, **kwargs):
         return self._backend_for(job).get_qc_zpe(job, *args, **kwargs)
 
+    def read_imag_mode(self, job, natom):
+        """Use the artifact contract of the backend that ran this job."""
+        return self._backend_for(job).read_imag_mode(job, natom)
+
     def read_qc_hess(self, job, *args, **kwargs):
         return self._backend_for(job).read_qc_hess(job, *args, **kwargs)
 

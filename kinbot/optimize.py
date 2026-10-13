@@ -668,7 +668,14 @@ class Optimize:
             else:
                 l1_file = 'conf/{}_low'.format(self.log_name(0))
             l2_file = job
-            if self.qc.qc == 'fc' or self.qc.use_sella:
+            if hasattr(self.qc, 'read_imag_mode'):
+                # Profiled runs may mix an ASE/FairChem L1 mode with a native
+                # Gaussian L2 Hessian. Resolve each artifact independently.
+                imagmode = self.qc.read_imag_mode(
+                    l1_file, self.species.natom)
+                imagmode_high = self.qc.read_imag_mode(
+                    l2_file, self.species.natom)
+            elif self.qc.qc == 'fc' or self.qc.use_sella:
                 imagmode = reader_sella.read_imag_mode(l1_file, self.species.natom)
                 imagmode_high = reader_sella.read_imag_mode(l2_file, self.species.natom)
             elif self.qc.qc == 'gauss':

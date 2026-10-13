@@ -146,6 +146,27 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual(qc.l2.frequency_mode, 'native_hessian')
         self.assertFalse(Path('kinbot.db').exists())
 
+    def test_profiled_ts_modes_follow_each_jobs_frequency_artifact(self):
+        parameters = self.parameters(
+            theory_preset='uma-b2plyp-anl', fc_model_path='/site/uma.pt')
+        qc = QuantumChemistry(parameters.par)
+        qc._record('search_ts', 'l1')
+        qc._record('search_ts_high', 'l2')
+        lower = np.ones((3, 3))
+        higher = np.full((3, 3), 2.)
+
+        with patch('kinbot.reader_sella.read_imag_mode',
+                   return_value=lower) as sella, \
+                patch('kinbot.reader_gauss.read_imag_mode',
+                      return_value=higher) as gaussian:
+            np.testing.assert_array_equal(
+                qc.read_imag_mode('search_ts', 3), lower)
+            np.testing.assert_array_equal(
+                qc.read_imag_mode('search_ts_high', 3), higher)
+
+        sella.assert_called_once_with('search_ts', 3)
+        gaussian.assert_called_once_with('search_ts_high', 3)
+
     def test_profiled_gaussian_sella_job_uses_one_native_frequency(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',
                                      fc_model_path='/site/uma.pt')

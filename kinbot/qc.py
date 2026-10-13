@@ -142,7 +142,9 @@ class QuantumChemistry:
                 'basis': self.basis,
                 'nprocshared': min(nel, self.ppn),
                 'mem': '700MW',
-                'chk': job,
+                # ASE runs Gaussian in the label's directory (e.g. conf/).
+                # Generated checkpoint paths refer to the calculation root.
+                'chk': os.path.abspath(job),
                 'label': job,
                 'Symm': 'None',
                 'mult': mult,
@@ -761,7 +763,7 @@ class QuantumChemistry:
                     kwargs['guess'] = ','.join(options)
                 else:
                     kwargs.pop('guess', None)
-            kwargs.update(freq='', chk=job, label=job)
+            kwargs.update(freq='', chk=os.path.abspath(job), label=job)
             template_file = f'{kb_path}/tpl/ase_gauss_opt_well.tpl.py'
         else:
             kwargs.update(jobtype='freq', vibman_print='4', xc_grid='3',

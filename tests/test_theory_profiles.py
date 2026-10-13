@@ -605,9 +605,11 @@ def test_hessian_weighting_follows_source_job_backend(workspace):
 
 
 def test_frequency_recovery_uses_source_profile_despite_caller_flag(workspace):
+    from kinbot.ase_modules.calculators.gaussian import Gaussian
+
     qc = QuantumChemistry(profile_parameters())
     point = methanol()
-    source = 'selected_with_nonstandard_name'
+    source = 'conf/selected_with_nonstandard_name'
     qc.l2.submit_qc(source, 4)
     qc.l2.db.write(molecule('CH3OH'), name=source, data={'status': 'normal'})
     job = qc.qc_freq(point, source, high_level=0)
@@ -615,6 +617,10 @@ def test_frequency_recovery_uses_source_profile_despite_caller_flag(workspace):
     assert kwargs['method'] == 'M062X'
     assert kwargs['basis'] == '6-31G(d)'
     assert 'opt' not in kwargs
+    calc = Gaussian(**kwargs)
+    calc.write_input(molecule('CH3OH'), properties=['energy'])
+    assert (Path(calc.directory) / kwargs['chk']).resolve() == Path(job).resolve()
+    assert f"%chk={kwargs['chk']}" in Path(job + '.com').read_text()
     assert qc.for_job(job) is qc.l2
 
 
@@ -767,17 +773,23 @@ def test_profiled_sella_conformer_handoff_preserves_logs_modes_and_checkpoint(wo
     point = methanol(wellorts=1, name='methanol_ts')
     qc.qc_conf(point, point.geom, 0)
     job = 'conf/methanol_ts_0000'
-    assert Path(literal(script(job), 'kwargs')['chk']).resolve() == Path(job).resolve()
+    kwargs = literal(script(job), 'kwargs')
+    calc = gaussian_module.Gaussian(**kwargs)
+    assert (Path(calc.directory) / kwargs['chk']).resolve() == Path(job).resolve()
+    initial_guesses = []
 
     class FakeGaussian(Calculator):
         implemented_properties = ['energy', 'forces']
 
         def calculate(self, atoms=None, properties=None, system_changes=all_changes):
             super().calculate(atoms, properties, system_changes)
+            initial_guesses.append(self.parameters.get('guess'))
             self.results = {'energy': -10., 'forces': np.zeros((len(atoms), 3))}
 
     class FakeSella:
         def __init__(self, mol, trajectory, logfile, **kwargs):
+            assert initial_guesses == [None]
+            assert mol.calc.parameters['guess'] == 'Read'
             self.mol, self.trajectory, self.logfile = mol, trajectory, logfile
 
         def run(self, **kwargs):
@@ -800,3 +812,83 @@ def test_profiled_sella_conformer_handoff_preserves_logs_modes_and_checkpoint(wo
     assert Path(job + '_vib.xyz').is_file()
     np.testing.assert_array_equal(qc.read_imag_mode(job, point.natom), [[1, 2, 3]] * point.natom)
     assert qc.check_qc(job) == 'normal'
+
+
+@pytest.mark.parametrize('profiled_sella, semi_emp, multi_conf_tst', [
+    (True, 1, 0), (True, 0, 0), (False, 0, 1), (False, 1, 0)])
+def test_gaussian_conformer_checkpoint_matches_execution_directory(
+        workspace, profiled_sella, semi_emp, multi_conf_tst):
+    from kinbot.ase_modules.calculators.gaussian import Gaussian
+
+    if profiled_sella:
+        profile = dict(calculator='gaussian', method='AM1', basis='',
+                       command='/never/executed', optimizer='sella',
+                       frequency_mode='ase_forces')
+        par = profile_parameters(l0_profile=profile, l1_profile=profile)
+    else:
+        par = parameters(use_sella=0, multi_conf_tst=multi_conf_tst,
+                         conformer_search=1)
+    qc = QuantumChemistry(par)
+    point = methanol()
+    qc.qc_conf(point, point.geom, 0, semi_emp=semi_emp)
+    suffix = 'semi_emp_0000' if semi_emp else '0000'
+    job = f'conf/{routing_name(point)}_{suffix}'
+    kwargs = literal(script(job), 'kwargs')
+    calc = Gaussian(**kwargs)
+    calc.write_input(molecule('CH3OH'), properties=['energy'])
+    assert Path(calc.directory).resolve() == workspace / 'conf'
+    text = Path(job + '.com').read_text()
+    if profiled_sella or multi_conf_tst:
+        checkpoint = (Path(calc.directory) / kwargs['chk']).resolve()
+        assert checkpoint == workspace / job
+        assert checkpoint.parent.is_dir()
+        assert f"%chk={kwargs['chk']}" in text
+    else:
+        assert 'chk' not in kwargs
+        assert '%chk' not in text
+
+
+@pytest.mark.parametrize('formula', ['H2CO', 'CO', 'H2', 'H'])
+def test_gaussian_startup_failure_finishes_profiled_conformer_as_error(
+        workspace, monkeypatch, capsys, formula):
+    import runpy
+    import sella
+    from ase import optimize
+    from kinbot import frequencies
+    from kinbot.ase_modules.calculators.gaussian import Gaussian
+
+    profile = dict(calculator='gaussian', method='AM1', basis='',
+                   command='/never/executed', optimizer='sella',
+                   frequency_mode='ase_forces')
+    qc = QuantumChemistry(profile_parameters(l0_profile=profile))
+    atoms = molecule(formula)
+    point = StationaryPoint(formula, 0, 2 if formula == 'H' else 1,
+                            atom=atoms.get_chemical_symbols(), geom=atoms.positions)
+    point.characterize()
+    qc.qc_conf(point, point.geom, 0, semi_emp=1)
+    job = f'conf/{routing_name(point)}_semi_emp_0000'
+    calculate = Mock(side_effect=RuntimeError('Gaussian startup failed'))
+    optimizer = Mock(side_effect=AssertionError('must not optimize after startup failure'))
+    vibrate = Mock(side_effect=AssertionError('must not evaluate frequencies after startup failure'))
+    monkeypatch.setattr(Gaussian, 'calculate', calculate)
+    monkeypatch.setattr(sella, 'Sella', optimizer)
+    monkeypatch.setattr(optimize, 'BFGS', optimizer)
+    monkeypatch.setattr(frequencies, 'profile_vibrations', vibrate)
+
+    runpy.run_path(job + '.py')
+
+    calculate.assert_called_once()
+    optimizer.assert_not_called()
+    vibrate.assert_not_called()
+    rows = list(qc.l0.db.select(name=job))
+    assert len(rows) == 1 and rows[0].data.status == 'error'
+    assert 'energy' not in rows[0].data
+    assert Path(job + '_sella.log').read_text().endswith('done\n')
+    assert 'Gaussian startup failed' in capsys.readouterr().err
+    # Simulate a finished Slurm job; missing files would start the grace wait.
+    import kinbot.qc as qc_module
+    process = Mock()
+    process.communicate.return_value = (b'JOBID NAME\n', b'')
+    monkeypatch.setattr(qc_module.subprocess, 'Popen', Mock(return_value=process))
+    qc.l0.queuing = 'slurm'
+    assert qc.check_qc(job) == 'error'

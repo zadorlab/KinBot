@@ -27,10 +27,6 @@ if '{Code}' == 'ORCA':
     kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
 
 mol.calc = {Code}(**kwargs)
-if '{Code}' == 'Gaussian':
-    mol.get_potential_energy()
-    kwargs['guess'] = 'Read'
-    mol.calc = {Code}(**kwargs)
 
 basename = os.path.basename('{label}')
 output_label = '{label}' if {profiled} else basename
@@ -40,10 +36,14 @@ if os.path.isfile(f'{{output_label}}_sella.log'):
 
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
-    e = mol.get_potential_energy()
-    db.write(mol, name='{label}',
-             data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
-                    'hess': np.zeros([3, 3]), 'status': 'normal'}})
+    try:
+        e = mol.get_potential_energy()
+        data = {{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
+                 'hess': np.zeros([3, 3]), 'status': 'normal'}}
+    except Exception as error:
+        print(f'{label}: initial energy calculation failed: {{error}}', file=sys.stderr)
+        data = {{'status': 'error'}}
+    db.write(mol, name='{label}', data=data)
 
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
@@ -56,24 +56,29 @@ else:
     if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
         sella_kwargs['internal'] = False
 
-    if len(mol.symbols) > 2 and not ('{optimizer}' == 'bfgs' and order == 0):
-        opt = Sella(mol, 
-                    order=order, 
-                    trajectory=f'{{output_label}}.traj',
-                    logfile=f'{{output_label}}_sella.log',
-                    **sella_kwargs)
-    else:
-        opt = BFGS(mol,
-                   trajectory=f'{{output_label}}.traj',
-                   logfile=f'{{output_label}}_sella.log')
     freqs = []
     mol.calc.label = '{label}'
     converged = False
     try:
+        if '{Code}' == 'Gaussian':
+            mol.get_potential_energy()
+            kwargs['guess'] = 'Read'
+            mol.calc = {Code}(**kwargs)
+        if len(mol.symbols) > 2 and not ('{optimizer}' == 'bfgs' and order == 0):
+            opt = Sella(mol,
+                        order=order,
+                        trajectory=f'{{output_label}}.traj',
+                        logfile=f'{{output_label}}_sella.log',
+                        **sella_kwargs)
+        else:
+            opt = BFGS(mol,
+                       trajectory=f'{{output_label}}.traj',
+                       logfile=f'{{output_label}}_sella.log')
         converged = opt.run(fmax={fmax}, steps={steps})
         traj = read(f'{{output_label}}.traj', index=':')
         write(f'{{output_label}}.xyz', traj, format='xyz')
-    except:
+    except Exception as error:
+        print(f'{label}: energy calculation or optimization failed: {{error}}', file=sys.stderr)
         converged = False
     if converged:
         try:

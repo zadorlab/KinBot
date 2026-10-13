@@ -233,6 +233,14 @@ def test_scheduler_outage_and_submission_failure_raise(monkeypatch):
         with pytest.raises(execution.MESSExecutionError, match='Cannot query.*temporarily unavailable'):
             execution._active(queue, '123')
 
+    def submit_timeout(command, **kwargs):
+        assert kwargs['timeout'] == 30.
+        raise subprocess.TimeoutExpired(command, kwargs['timeout'])
+    monkeypatch.setattr(execution, '_run', submit_timeout)
+    with pytest.raises(execution.MESSExecutionError,
+                       match='submission timed out'):
+        execution._submit('slurm', 'script')
+
 
 def test_submission_failure_still_drains_existing_jobs(tmp_path, monkeypatch):
     obj = writer(tmp_path, monkeypatch, count=3, limit=2)

@@ -19,7 +19,7 @@ import pytest
 from tests.anl_fixture import dispatch_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
-    _geometry_hash, _mark_preflight_unavailable, _molpro_stack_mw,
+    _geometry_hash, _job_active, _mark_preflight_unavailable, _molpro_stack_mw,
     _molpro_total_mw, _runtime_profile, advance, main, prepare,
     recover_gaussian_vpt2_symmetry,
     migrate_cfour_vcc_keyword, preflight, refresh_status, reparse_failed,
@@ -1442,6 +1442,17 @@ def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():
         assert (archive / 'execution.json').is_file()
         assert (run_dir / 'tasks' / 'l2_geometry' / 'job.slurm').is_file()
         assert json.loads(state_file.read_text())['tasks']['l2_geometry']['status'] == 'staged'
+
+
+def test_scheduler_query_timeout_is_bounded():
+    error = subprocess.TimeoutExpired(['squeue'], 30)
+    with patch('kinbot.anl.dispatch.subprocess.run', side_effect=error) as run, \
+            patch('kinbot.anl.dispatch.time.sleep') as sleep:
+        with pytest.raises(RuntimeError, match='timed out 3 times'):
+            _job_active('123')
+    assert run.call_count == 3
+    assert sleep.call_count == 2
+    assert all(call.kwargs['timeout'] == 30 for call in run.call_args_list)
 
 
 def test_status_refreshes_finished_job_without_submitting(capsys):

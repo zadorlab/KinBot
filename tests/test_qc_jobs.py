@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -13,7 +14,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 from ase import Atoms
 
-from kinbot.qc import QuantumChemistry, _export_slurm_excluded_nodes
+from kinbot.qc import (QuantumChemistry, _export_slurm_excluded_nodes,
+                       _slurm_job_active)
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.utils import clean_files, too_far
@@ -114,6 +116,64 @@ class TestSchedulerJobs(unittest.TestCase):
                 self.assertLogs('KinBot', 'ERROR'):
             self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'running')
             self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'error')
+
+    def test_completed_worker_reads_result_without_contacting_slurm(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'fc'
+        job = 'cached_ts'
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [.74, 0., 0.]])
+        qc.db.write(atoms, name=job,
+                    data={'energy': -1., 'status': 'normal'})
+        Path(job + '_sella.log').write_text('done\n')
+        Path(job + '.exitcode').write_text('0\n')
+        qc.job_ids[job] = '123'
+        with patch('kinbot.qc.subprocess.run',
+                   side_effect=AssertionError('Slurm must not be queried')):
+            self.assertEqual(qc.check_qc(job), 'normal')
+
+    def test_slurm_status_query_is_targeted_and_bounded(self):
+        result = Mock(returncode=0, stdout='123\n', stderr='')
+        with patch('kinbot.qc.subprocess.run', return_value=result) as run:
+            self.assertTrue(_slurm_job_active('123'))
+        self.assertEqual(
+            run.call_args.args[0], ['squeue', '-h', '-j', '123', '-o', '%i'])
+        self.assertEqual(run.call_args.kwargs['timeout'], 15)
+
+    def test_slurm_status_timeout_remains_running(self):
+        qc = SimpleNamespace(
+            queuing='slurm', job_ids={'pending': '123'},
+            ingest_pkl=lambda job: None,
+            is_in_database=lambda job: False)
+        with patch('kinbot.qc._slurm_job_active', return_value=None), \
+                self.assertLogs('KinBot', 'WARNING') as messages:
+            self.assertEqual(
+                QuantumChemistry._check_qc(qc, 'pending'), 'running')
+            self.assertEqual(
+                QuantumChemistry._check_qc(qc, 'pending'), 'running')
+        self.assertEqual(sum('Slurm status query is unavailable' in message
+                             for message in messages.output), 1)
+
+    def test_scheduler_submission_timeout_is_bounded(self):
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            par={'queue_template': ''}, queuing='slurm', qc='fc',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={},
+        )
+        process = Mock()
+        process.communicate.side_effect = [
+            subprocess.TimeoutExpired(['sbatch'], 30), (b'', b'')]
+        process.kill = Mock()
+        discovery = Mock(returncode=0, stdout='1-00:00:00\n', stderr='')
+        with patch('kinbot.qc.subprocess.Popen', return_value=process), \
+                patch('kinbot.qc.subprocess.run', return_value=discovery), \
+                patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError,
+                                        'submission timed out'):
+                QuantumChemistry.submit_qc(qc, 'timeout_job', 1)
+        process.kill.assert_called_once_with()
 
     def test_slurm_io_launch_failure_is_immediate_and_excludes_node(self):
         qc = SimpleNamespace(queuing='slurm', job_ids={'lost': '123'},

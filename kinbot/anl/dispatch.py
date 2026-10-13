@@ -43,6 +43,8 @@ _INPUT_TOKENS = {'CARTESIAN', 'XYZ', 'MRCC_XYZ', 'NATOMS', 'CHARGE',
                  'WORK_MEMORY_MB'}
 _RESERVED_FILES = {'geometry.xyz', 'task.json', 'job.slurm', 'execution.json',
                    'slurm.stdout', 'slurm.stderr', 'drive.lock'}
+_SCHEDULER_TIMEOUT = 30
+_SCHEDULER_QUERY_ATTEMPTS = 3
 
 
 class CalculationUnavailableError(RuntimeError):
@@ -1227,8 +1229,19 @@ def _complete_monatomic_geometry(run_dir, spec, task, entry, previous=None):
 
 
 def _job_active(job_id):
-    result = subprocess.run(['squeue', '-h', '-j', str(job_id), '-o', '%i'],
-                            capture_output=True, text=True, check=False)
+    for attempt in range(_SCHEDULER_QUERY_ATTEMPTS):
+        try:
+            result = subprocess.run(
+                ['squeue', '-h', '-j', str(job_id), '-o', '%i'],
+                capture_output=True, text=True, check=False,
+                timeout=_SCHEDULER_TIMEOUT)
+            break
+        except subprocess.TimeoutExpired as error:
+            if attempt + 1 == _SCHEDULER_QUERY_ATTEMPTS:
+                raise RuntimeError(
+                    f'squeue timed out {_SCHEDULER_QUERY_ATTEMPTS} times '
+                    f'while checking job {job_id}.') from error
+            time.sleep(5)
     if result.returncode:
         # A completed job can disappear from slurmctld before its execution
         # record is reconciled. Some Slurm versions return an error rather
@@ -1440,9 +1453,10 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
         entry = state['tasks'].get(task['id'])
         if not entry or entry['status'] != 'staged':
             continue
-        result = subprocess.run(['sbatch', '--test-only', 'job.slurm'],
-                                cwd=run_dir / 'tasks' / task['id'],
-                                capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            ['sbatch', '--test-only', 'job.slurm'],
+            cwd=run_dir / 'tasks' / task['id'], capture_output=True,
+            text=True, check=False, timeout=_SCHEDULER_TIMEOUT)
         if result.returncode:
             detail = result.stderr.strip() or result.stdout.strip()
             if (skip_optional
@@ -2072,9 +2086,15 @@ def advance(run_dir, submit=False, submit_only=None):
             _atomic_json(run_dir / 'state.json', state)
             directory = run_dir / 'tasks' / ident
             try:
-                response = subprocess.run(['sbatch', '--parsable', 'job.slurm'],
-                                          cwd=directory, capture_output=True,
-                                          text=True, check=False)
+                response = subprocess.run(
+                    ['sbatch', '--parsable', 'job.slurm'], cwd=directory,
+                    capture_output=True, text=True, check=False,
+                    timeout=_SCHEDULER_TIMEOUT)
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError(
+                    f'{ident}: sbatch timed out; submission outcome is '
+                    'uncertain and state remains submitting for manual '
+                    'reconciliation.') from error
             except OSError:
                 entry['status'] = 'staged'
                 _atomic_json(run_dir / 'state.json', state)

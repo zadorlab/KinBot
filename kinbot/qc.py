@@ -32,6 +32,8 @@ _SLURM_PARTITION = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\Z')
 _SLURM_TIME = re.compile(r'(?:(\d+)-)?(\d{1,2}):(\d{2}):(\d{2})\Z')
 _SLURM_WALLTIME_CACHE = {}
 _SLURM_NODE_STATE = '.kinbot_slurm_nodes.json'
+_SCHEDULER_QUERY_TIMEOUT = 15
+_SCHEDULER_SUBMIT_TIMEOUT = 30
 _SLURM_TERMINAL_STATES = {
     'BOOT_FAIL', 'CANCELLED', 'COMPLETED', 'DEADLINE', 'FAILED',
     'NODE_FAIL', 'OUT_OF_MEMORY', 'PREEMPTED', 'TIMEOUT',
@@ -138,7 +140,8 @@ def _slurm_job_record(job_id):
     try:
         result = subprocess.run(
             ['scontrol', 'show', 'job', '-o', str(job_id)],
-            capture_output=True, text=True, check=False, timeout=15)
+            capture_output=True, text=True, check=False,
+            timeout=_SCHEDULER_QUERY_TIMEOUT)
     except (OSError, subprocess.TimeoutExpired):
         return {}
     if result.returncode or not result.stdout.strip():
@@ -147,6 +150,30 @@ def _slurm_job_record(job_id):
         match.group(1): match.group(2)
         for match in re.finditer(r'(\w+)=([^\s]+)', result.stdout)
     }
+
+
+def _slurm_job_active(job_id):
+    """Return whether a job is in Slurm, or ``None`` if Slurm is unavailable.
+
+    A targeted, headerless query keeps the response small on busy clusters.
+    Most importantly, the timeout prevents a stalled Slurm controller from
+    freezing the KinBot controller. An unknown result is deliberately
+    distinct from an absent job; callers must not interpret a scheduler
+    outage as successful completion.
+    """
+    if job_id in (None, '', '-1'):
+        return False
+    try:
+        result = subprocess.run(
+            ['squeue', '-h', '-j', str(job_id), '-o', '%i'],
+            capture_output=True, text=True, check=False,
+            timeout=_SCHEDULER_QUERY_TIMEOUT)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode:
+        return None
+    return any(line.split()[0] == str(job_id)
+               for line in result.stdout.splitlines() if line.split())
 
 
 def _slurm_seconds(value):
@@ -1508,7 +1535,14 @@ class QuantumChemistry:
 
         command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = process.communicate()
+        try:
+            out, err = process.communicate(timeout=_SCHEDULER_SUBMIT_TIMEOUT)
+        except subprocess.TimeoutExpired as error:
+            process.kill()
+            process.communicate()
+            raise RuntimeError(
+                f'Scheduler submission timed out for {job}; check the queue '
+                'before retrying because the submission outcome is unknown.') from error
         out = out.decode()
         err = err.decode()
         try:
@@ -1958,6 +1992,77 @@ class QuantumChemistry:
                              'publish a calculation result.')
         return 'error'
 
+    def _database_qc_status(self, job):
+        """Return a complete native result status, or ``None`` if incomplete."""
+        logger.debug('Checking for job %s in db', job)
+        if not self.is_in_database(job):
+            logger.debug('job %s is not in database', job)
+            return None
+
+        logger.debug('%s is in db', job)
+        if (getattr(self, 'use_sella', False)
+                and self.qc != 'nn_pes'
+                and '_freq_recovery_' not in job
+                and not job.startswith('vrctst/')):
+            log_file = job + '_sella.log'
+        elif self.qc == 'gauss':
+            log_file = job + '.log'
+        elif self.qc in ('nwchem', 'qchem'):
+            log_file = job + '.out'
+        elif self.qc in ('orca', 'fc'):
+            log_file = job + '_sella.log'
+        elif self.qc == 'nn_pes':
+            log_file = None
+        else:
+            raise ValueError('Unknown code')
+
+        if log_file is not None:
+            if not os.path.exists(log_file):
+                if (self.queuing == 'local'
+                        and not self.par['error_missing_local']):
+                    return None
+                # A database row and its filesystem artifacts can become
+                # visible at slightly different times on network storage.
+                time.sleep(1)
+                if not os.path.exists(log_file):
+                    logger.debug('Log file %s is not present.', log_file)
+                    return None
+            with open(log_file) as stream:
+                lines = stream.readlines()
+            if not lines:
+                logger.debug('Log file %s is present, but it is empty.',
+                             log_file)
+                return None
+            if 'done' not in lines[-1]:
+                logger.debug('Log file %s is present, but has no "done" '
+                             'stamp.', log_file)
+                return None
+
+        data = None
+        last_row = None
+        for row in self.db.select(name=job):
+            if hasattr(row, 'data'):
+                data = row.data
+                last_row = row
+        if data is None or data.get('status') not in ('normal', 'error'):
+            logger.debug('Complete data is not in database for %s.', job)
+            return None
+        if data['status'] == 'normal':
+            positions = np.asarray(last_row.toatoms().positions, dtype=float)
+            energy = data.get('energy')
+            try:
+                finite_energy = (energy is None or np.isfinite(float(energy)))
+            except (TypeError, ValueError):
+                finite_energy = False
+            if (positions.ndim != 2 or positions.shape[1:] != (3,)
+                    or not np.isfinite(positions).all()
+                    or not finite_energy):
+                logger.error('%s: rejecting a nominally normal database '
+                             'result with nonfinite geometry or energy.', job)
+                return 'error'
+        logger.debug('Returning status %s', data['status'])
+        return data['status']
+
     def _check_qc(self, job):
         '''
         Checks the status of the qc job.
@@ -1994,38 +2099,8 @@ class QuantumChemistry:
                 pass
 
         logger.debug('Checking job {}'.format(job))
-        devnull = open(os.devnull, 'w')
-        if self.queuing == 'pbs':
-            command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
-            if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-                logger.debug('Job is running')
-                return 'running'
-        elif self.queuing == 'slurm':
-            # command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
-            command = 'squeue'
-            process = subprocess.Popen(command,
-                                       shell=True,
-                                       stdout=subprocess.PIPE,
-                                       stdin=subprocess.PIPE,
-                                       stderr=subprocess.PIPE)
-            out, err = process.communicate()
-            out = out.decode().split('\n')[1:]
-            for line in out:
-                if len(line) > 0:
-                    pid = line.split()[0]
-                    if pid == self.job_ids.get(job, '-1'):
-                        logger.debug('Job is running')
-                        return 'running'
-        elif self.queuing == 'local':
-            pass
-        else:
-            logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
-            logger.error('Exiting')
-            sys.exit()
-        # if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-        #     return 'running'
-
         exit_file = f'{job}.exitcode'
+        worker_finished = False
         if os.path.isfile(exit_file):
             try:
                 exit_code = int(open(exit_file).read().strip())
@@ -2035,101 +2110,69 @@ class QuantumChemistry:
             if exit_code:
                 logger.error(f'{job} exited with worker status {exit_code}.')
                 return 'error'
+            worker_finished = True
 
-        logger.debug('Checking for job {}'.format(job) + ' in db')
-        if self.is_in_database(job):
-            logger.debug('{} is in db'.format(job))
-            for i in range(1):
-                if (getattr(self, 'use_sella', False)
-                        and self.qc != 'nn_pes'
-                        and '_freq_recovery_' not in job
-                        and not job.startswith('vrctst/')):
-                    log_file = job + '_sella.log'
-                elif self.qc == 'gauss':
-                    log_file = job + '.log'
-                elif self.qc == 'nwchem':
-                    log_file = job + '.out'
-                elif self.qc == 'qchem':
-                    log_file = job + '.out'
-                elif self.qc == 'orca':
-                    log_file = job + '_sella.log'
-                elif self.qc == 'fc':
-                    log_file = job + '_sella.log'
-                elif self.qc == 'nn_pes':
-                    log_file_exists = False
-                else:
-                    raise ValueError('Unknown code')
-                if self.qc != 'nn_pes':
-                    log_file_exists = os.path.exists(log_file)
-                if log_file_exists:
-                    with open(log_file, 'r') as f:
-                        try:
-                            last_line = f.readlines()[-1]
-                            if 'done' not in last_line:
-                                if self.queuing == 'local' and not self.par['error_missing_local']:
-                                    return 'error'
-                                logger.debug(f'Log file {log_file} is present, '
-                                             'but has no "done" stamp.')
-                                return 0
-                        except IndexError:
-                            logger.debug(f'Log file {log_file} is present, but it is empty.')
-                            if self.queuing == 'local' and not self.par['error_missing_local']:
-                                return 'error'
-                            return 0
-                    logger.debug('Log file is present after {} iterations'.format(i))
-                elif self.qc == 'nn_pes':
-                    pass
-                else:
-                    if self.queuing == 'local' and not self.par['error_missing_local']:
-                        return 'error'
-                    logger.debug('Checking againg for log file')
-                    time.sleep(1)
-                    log_file_exists = os.path.exists(log_file)
-                    if not log_file_exists:
-                        logger.debug(f'Log file {log_file} is not present.')
-                        return 0
-            
-                # by deleting a log file, you allow restarting a job
-                # open the database
-                rows = self.db.select(name=job)
-                data = None
-                last_row = None
-                # take the last entry
-                for row in rows:
-                    if hasattr(row, 'data'):
-                        data = row.data
-                        last_row = row
-                if data is None:
-                    logger.debug('Data is not in database...')
-                    return 0
-                else:
-                    if data.get('status') == 'normal':
-                        positions = np.asarray(
-                            last_row.toatoms().positions, dtype=float)
-                        energy = data.get('energy')
-                        try:
-                            finite_energy = (energy is None
-                                             or np.isfinite(float(energy)))
-                        except (TypeError, ValueError):
-                            finite_energy = False
-                        if (positions.ndim != 2 or positions.shape[1:] != (3,)
-                                or not np.isfinite(positions).all()
-                                or not finite_energy):
-                            logger.error('%s: rejecting a nominally normal '
-                                         'database result with nonfinite '
-                                         'geometry or energy.', job)
-                            return 'error'
-                    logger.debug('Returning status {}'.format(data['status']))
-                    return data['status']
+        database_status = QuantumChemistry._database_qc_status(self, job)
+        if database_status is not None:
+            return database_status
 
-            logger.debug('log file {} does not exist'.format(log_file))
-            return 0
-        else:
-            logger.debug('job {} is not in database'.format(job))
-            if self.queuing == 'local' and not self.par['error_missing_local']:
-                logger.debug('local qu error')
-                return 'error'
-            return 0
+        # The batch wrapper publishes the exit file only after the worker has
+        # returned. Once it says zero, read the native result directly: a
+        # scheduler query cannot add useful information and may itself stall.
+        if not worker_finished:
+            if self.queuing == 'pbs':
+                job_id = self.job_ids.get(job)
+                if job_id:
+                    try:
+                        result = subprocess.run(
+                            ['qstat', '-f', str(job_id)], capture_output=True,
+                            text=True, check=False,
+                            timeout=_SCHEDULER_QUERY_TIMEOUT)
+                    except (OSError, subprocess.TimeoutExpired):
+                        result = None
+                    if result is None:
+                        warned = getattr(
+                            self, '_scheduler_query_warnings', set())
+                        key = ('pbs', str(job_id))
+                        if key not in warned:
+                            logger.warning(
+                                '%s: PBS status query is unavailable; '
+                                'retaining the submitted job state.', job)
+                            warned.add(key)
+                            self._scheduler_query_warnings = warned
+                        return 'running'
+                    if result.returncode == 0:
+                        logger.debug('Job is running')
+                        return 'running'
+            elif self.queuing == 'slurm':
+                job_id = self.job_ids.get(job)
+                if job_id:
+                    active = _slurm_job_active(job_id)
+                    if active is None:
+                        warned = getattr(
+                            self, '_scheduler_query_warnings', set())
+                        key = ('slurm', str(job_id))
+                        if key not in warned:
+                            logger.warning(
+                                '%s: Slurm status query is unavailable; '
+                                'retaining the submitted job state.', job)
+                            warned.add(key)
+                            self._scheduler_query_warnings = warned
+                        return 'running'
+                    if active:
+                        logger.debug('Job is running')
+                        return 'running'
+            elif self.queuing == 'local':
+                pass
+            else:
+                logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
+                logger.error('Exiting')
+                sys.exit()
+
+        if self.queuing == 'local' and not self.par['error_missing_local']:
+            logger.debug('local qu error')
+            return 'error'
+        return 0
 
     def limit_jobs(self):
         '''
@@ -2137,6 +2180,7 @@ class QuantumChemistry:
         then wait for resources to free up.
         '''
 
+        warned = False
         while 1:
             if self.queuing == 'slurm':
                 command = ['squeue', '-h', '-u', '{}'.format(self.username)]
@@ -2144,9 +2188,28 @@ class QuantumChemistry:
                 command = ['qselect', '-u', '{}'.format(self.username)]
             elif self.queuing == 'local':
                 command = command = ['echo', '']
-            jobs = subprocess.check_output(command)
-
-            if len(jobs.split(b'\n')) < self.queue_job_limit:
+            try:
+                result = subprocess.run(
+                    command, capture_output=True, text=True, check=False,
+                    timeout=_SCHEDULER_QUERY_TIMEOUT)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                if not warned:
+                    logger.warning('Scheduler queue query is unavailable; '
+                                   'waiting before job submission: %s', error)
+                    warned = True
+                time.sleep(5)
+                continue
+            if result.returncode:
+                if not warned:
+                    logger.warning('Scheduler queue query failed; waiting '
+                                   'before job submission: %s',
+                                   result.stderr.strip() or result.returncode)
+                    warned = True
+                time.sleep(5)
+                continue
+            warned = False
+            jobs = [line for line in result.stdout.splitlines() if line.strip()]
+            if len(jobs) < self.queue_job_limit:
                 return 0
             time.sleep(1)
 

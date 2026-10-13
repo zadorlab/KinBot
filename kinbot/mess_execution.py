@@ -46,7 +46,16 @@ def _run(command, *, timeout=None):
 
 
 def _submit(queue, script):
-    result = _run([constants.qsubmit[queue], str(script)])
+    try:
+        result = _run([constants.qsubmit[queue], str(script)],
+                      timeout=_QUERY_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as error:
+        raise MESSExecutionError(
+            'MESS scheduler submission timed out; inspect the queue before '
+            'retrying because the submission outcome is unknown.') from error
+    except OSError as error:
+        raise MESSExecutionError(
+            f'MESS scheduler submission could not start: {error}') from error
     if result.returncode:
         raise MESSExecutionError(f'MESS submission failed: {result.stderr.strip()}')
     if queue == 'slurm':

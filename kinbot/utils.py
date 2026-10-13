@@ -146,7 +146,11 @@ def clean_files(diagnostic=False, qc=None):
             if len(ff) > 9 and ff[-9:] == 'sella.log':
                 log.append(ff)
             elif ff.endswith('.pkl'):
-                os.remove(ff)
+                if not diagnostic:
+                    os.remove(ff)
+                    logger.info(f'Stale FairChem handoff {ff} is deleted.')
+                else:
+                    logger.info(f'Stale FairChem handoff: {ff}.')
         else:
             if len(ff) > 4 and ff[-4:] == '.log':
                 log.append(ff)

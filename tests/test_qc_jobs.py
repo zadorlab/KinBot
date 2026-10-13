@@ -16,7 +16,7 @@ from ase import Atoms
 from kinbot.qc import QuantumChemistry
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.utils import too_far
+from kinbot.utils import clean_files, too_far
 
 
 class TestSchedulerJobs(unittest.TestCase):
@@ -118,6 +118,19 @@ class TestSchedulerJobs(unittest.TestCase):
         with self.assertLogs('KinBot', 'ERROR'):
             self.assertEqual(qc._check_qc('bad'), 'error')
         self.assertEqual(too_far(atoms.positions), -1)
+
+    def test_fairchem_cleanup_preserves_unrelated_driver_log(self):
+        Path('driver.log').write_text('')
+        Path('reaction_sella.log').write_text('')
+        Path('pending.pkl').write_bytes(b'pending')
+        clean_files(qc='fc')
+        self.assertTrue(Path('driver.log').is_file())
+        self.assertFalse(Path('reaction_sella.log').exists())
+        self.assertFalse(Path('pending.pkl').exists())
+
+        Path('diagnostic.pkl').write_bytes(b'pending')
+        clean_files(qc='fc', diagnostic=True)
+        self.assertTrue(Path('diagnostic.pkl').is_file())
 
 
 class TestVRCJobs(unittest.TestCase):

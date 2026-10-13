@@ -112,7 +112,11 @@ def _main():
         # initialize the qc instance
         qc = QuantumChemistry(par)
         if par['do_clean']:
-            clean_files(qc=par['qc'])
+            # Profiled theory can route L1 through a backend different from
+            # the legacy top-level ``qc`` default.  Cleanup must follow the
+            # backend that actually created the files; otherwise an L1
+            # FairChem run can apply Gaussian rules to unrelated *.log files.
+            clean_files(qc=qc.qc)
 
         # start the initial optimization of the reactant
         logger.info('Starting optimization of initial well...')
@@ -378,7 +382,7 @@ def _main():
         report = finalize_automatic_run(automatic, par)
         logger.info('Wrote automatic CBH/ANL final report to %s', report)
 
-    clean_files(diagnostic=True, qc=par['qc'])
+    clean_files(diagnostic=True, qc=qc.qc)
     logger.info('KinBot finished.')
     try:
         print("Done!")

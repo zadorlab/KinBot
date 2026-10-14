@@ -4,9 +4,7 @@ import fcntl
 import sys
 import datetime
 import copy
-import json
 import logging
-import os
 from pathlib import Path
 from queue import Queue
 import threading
@@ -24,6 +22,7 @@ from kinbot.vrc_tst_scan import VTS
 from kinbot.qc import QuantumChemistry
 from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
+from kinbot.execution import atomic_json as _atomic_json
 from kinbot.run_format import ensure_current_run
 from kinbot.stereo_identity import require_supported_identity, log_input_stereochemistry, UnsupportedStereochemistry
 from kinbot.stereo_routing import StereoRoutingError
@@ -81,14 +80,6 @@ def _check_initial_minimum_frequencies(frequencies, species_name):
                      frequencies[1], species_name)
         return False
     return True
-
-
-def _atomic_json(path, payload):
-    """Publish one controller-owned state record without partial reads."""
-    path = Path(path)
-    temporary = path.with_suffix(path.suffix + '.tmp')
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n')
-    os.replace(temporary, path)
 
 
 def _execute_vrc_branch(well, parameters, qc):

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
-import hashlib
 import json
 import math
 from pathlib import Path
 import re
+
+from kinbot.execution import file_sha256 as _sha256
 
 
 METHYL_RECOMBINATION_SOURCE = {
@@ -169,14 +170,6 @@ def methyl_recombination_legacy_fit(temperature_k):
     if not math.isfinite(temperature) or temperature <= 0.:
         raise ValueError('Temperature must be finite and positive.')
     return 8.78e-11 * math.exp(-temperature / 723.)
-
-
-def _sha256(path):
-    digest = hashlib.sha256()
-    with Path(path).open('rb') as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=1.5):

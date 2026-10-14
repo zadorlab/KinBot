@@ -1,5 +1,4 @@
 """Submit MESS calculations and distinguish completion from solver success."""
-import hashlib
 import json
 import logging
 import os
@@ -10,22 +9,14 @@ import subprocess
 import time
 
 from kinbot import constants
+from kinbot.execution import (atomic_json as _atomic_json,
+                              file_sha256 as _sha256,
+                              scheduler_unavailable as _scheduler_unavailable)
 
 logger = logging.getLogger('KinBot')
 _RESULT_GRACE_SECONDS = 60.
 _QUERY_TIMEOUT_SECONDS = 30.
 _MAX_QUERY_FAILURES = 3
-_SCHEDULER_UNAVAILABLE = re.compile(
-    r'(?:unable to contact (?:slurm )?controller|'
-    r'unable to establish controller connection|'
-    r'(?:scheduler )?controller unavailable|'
-    r'slurm_load_jobs error|socket timed out|connection refused|'
-    r'resource temporarily unavailable|network is unreachable|'
-    r'host is down|no route to host|'
-    r'communication connection failure|controller not responding|'
-    r'scheduler query timed out)', re.IGNORECASE)
-
-
 class MESSExecutionError(RuntimeError):
     """MESS did not produce a successful rate calculation."""
 
@@ -36,18 +27,6 @@ class _ResultPending(MESSExecutionError):
 
 class _SubmissionUncertain(MESSExecutionError):
     """A scheduler call may have accepted a job without returning its ID."""
-
-
-def _scheduler_unavailable(error):
-    return bool(_SCHEDULER_UNAVAILABLE.search(str(error)))
-
-
-def _atomic_json(path, payload):
-    path = Path(path)
-    temporary = path.with_suffix(path.suffix + '.tmp')
-    temporary.write_text(json.dumps(
-        payload, indent=2, sort_keys=True) + '\n')
-    os.replace(temporary, path)
 
 
 def mess_command(parameters):
@@ -130,14 +109,6 @@ def _stamp(path):
     except FileNotFoundError:
         return None
     return stat.st_mtime_ns, stat.st_size
-
-
-def _sha256(path):
-    digest = hashlib.sha256()
-    with Path(path).open('rb') as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _verify(index, previous_output, exit_code=None):

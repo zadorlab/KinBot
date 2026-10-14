@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from hashlib import sha256
 import json
 import math
 from pathlib import Path
@@ -14,18 +13,9 @@ from kinbot.anl.cbh import (CBHReaction, formation_from_dict,
                             zero_k_from_composite_record)
 from kinbot.anl.workflow import attach_task_vpt2_frequencies
 from kinbot.energy import attach_formation_enthalpy
+from kinbot.execution import (file_sha256 as _digest,
+                              resolve_path as _path)
 from kinbot.species_routing import routing_name
-
-
-def _digest(path):
-    return sha256(Path(path).read_bytes()).hexdigest()
-
-
-def _path(base, value, label):
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f'{label} must be a nonempty path.')
-    path = Path(value).expanduser()
-    return (path if path.is_absolute() else base / path).resolve()
 
 
 def _network_species(root):

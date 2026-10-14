@@ -11,9 +11,9 @@ from __future__ import annotations
 from copy import deepcopy
 import hashlib
 import json
-import os
 from pathlib import Path
 
+from kinbot.execution import atomic_json
 from kinbot.theory import resolve_profiles
 
 
@@ -190,9 +190,7 @@ class ProfiledQuantumChemistry:
                                 for key, value in self.profiles.items()},
                    'jobs': self._routes}
         self.route_file.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.route_file.with_suffix(self.route_file.suffix + '.tmp')
-        temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n')
-        os.replace(temporary, self.route_file)
+        atomic_json(self.route_file, payload)
 
     def _record(self, job, level, job_id=None):
         previous = self._routes.get(job, {})

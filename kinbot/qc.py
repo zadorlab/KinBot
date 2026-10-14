@@ -26,6 +26,7 @@ from kinbot import kb_path
 from kinbot import constants
 from kinbot import geometry
 from kinbot import exceptions
+from kinbot.execution import scheduler_unavailable as _scheduler_unavailable
 from kinbot.theory import profiled_requested
 
 logger = logging.getLogger('KinBot')
@@ -49,21 +50,6 @@ _QC_SITE_BACKENDS = {
     'orca': ('orca', 'orca'),
     'qchem': ('qchem', 'qchem'),
 }
-_SCHEDULER_UNAVAILABLE = re.compile(
-    r'(?:unable to contact (?:slurm )?controller|'
-    r'unable to establish controller connection|'
-    r'(?:scheduler )?controller unavailable|'
-    r'slurm_load_jobs error|socket timed out|connection refused|'
-    r'resource temporarily unavailable|network is unreachable|'
-    r'host is down|no route to host|'
-    r'communication connection failure|controller not responding)',
-    re.IGNORECASE)
-
-
-def _scheduler_unavailable(detail):
-    return bool(_SCHEDULER_UNAVAILABLE.search(str(detail or '')))
-
-
 def _worker_exit_status(path, expected_job_id=None):
     """Read one atomic worker-completion marker.
 

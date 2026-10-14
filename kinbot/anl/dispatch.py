@@ -32,6 +32,9 @@ from kinbot.anl.cfour import normalize_cfour_zmat
 from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
 from kinbot.anl.site import assign_partitions, render_site_setup
 from kinbot.anl.tasks import mrcc_task
+from kinbot.execution import (atomic_json as _atomic_json,
+                              file_sha256 as _file_hash,
+                              scheduler_unavailable as _scheduler_unavailable)
 from kinbot.theory import TheoryProfile
 
 
@@ -45,17 +48,6 @@ _RESERVED_FILES = {'geometry.xyz', 'task.json', 'job.slurm', 'execution.json',
                    'slurm.stdout', 'slurm.stderr', 'drive.lock'}
 _SCHEDULER_TIMEOUT = 30
 _SCHEDULER_QUERY_ATTEMPTS = 3
-
-
-_SCHEDULER_UNAVAILABLE = re.compile(
-    r'(?:unable to contact (?:slurm )?controller|'
-    r'unable to establish controller connection|'
-    r'(?:scheduler )?controller unavailable|'
-    r'slurm_load_jobs error|socket timed out|connection refused|'
-    r'resource temporarily unavailable|network is unreachable|'
-    r'host is down|no route to host|'
-    r'communication connection failure|controller not responding)',
-    re.IGNORECASE)
 
 
 class CalculationUnavailableError(RuntimeError):
@@ -75,11 +67,6 @@ class SchedulerUnavailableError(RuntimeError):
     Treating a Slurm controller outage as an absent job can otherwise turn a
     healthy calculation into a false scientific failure.
     """
-
-
-def _scheduler_unavailable(detail):
-    """Recognize failures that prove Slurm did not answer the request."""
-    return bool(_SCHEDULER_UNAVAILABLE.search(str(detail or '')))
 
 
 def preflight_until_scheduler_ready(run_dir, *, skip_optional=False,
@@ -161,10 +148,6 @@ def _geometry_hash(atoms):
                           'positions': atoms.positions.tolist()},
                          sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(payload.encode()).hexdigest()
-
-
-def _file_hash(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def _validate_task(task, ids, limits, *, allow_obsolete=False):
@@ -530,12 +513,6 @@ def validate_spec(spec, *, allow_obsolete=False):
     for ident in ids:
         visit(ident)
     return spec
-
-
-def _atomic_json(path, data):
-    temp = path.with_name(path.name + '.tmp')
-    temp.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
-    temp.replace(path)
 
 
 def _load(run_dir):

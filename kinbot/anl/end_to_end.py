@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
-import hashlib
 import json
 import math
 import os
@@ -35,6 +34,9 @@ from kinbot.anl.validation import (assemble_profiled_anl0_f12,
                                    molecule_from_completed_run)
 from kinbot.anl.workflow import (_verified_task_result,
                                  attach_task_vpt2_frequencies)
+from kinbot.execution import (atomic_json as _write_json,
+                              file_sha256 as _sha256,
+                              resolve_path as _path)
 from kinbot.rotdpy import number_of_states_file, read_result
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.symmetry import calculate_symmetry
@@ -51,28 +53,6 @@ def _read_json(path, label):
     if not isinstance(value, dict):
         raise ValueError(f'{label} must contain a JSON object.')
     return value
-
-
-def _write_json(path, value):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
-    return path
-
-
-def _sha256(path):
-    digest = hashlib.sha256()
-    with Path(path).open('rb') as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def _path(base, value, label):
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f'{label} must be a nonempty path.')
-    path = Path(value).expanduser()
-    return (path if path.is_absolute() else base / path).resolve()
 
 
 def _optional_path(base, value, label):

@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import asdict, dataclass
 import argparse
-import hashlib
 import json
 import math
 from pathlib import Path
@@ -13,6 +12,7 @@ import re
 import numpy as np
 
 from kinbot.energy import formation_enthalpy_0k_kj_mol
+from kinbot.execution import atomic_json, file_sha256 as _sha256
 
 
 R_KJ_MOL_K = 0.00831446261815324
@@ -326,16 +326,8 @@ def write_thermochemistry_record(species, output, destination, heat_contents,
                                  temperature_k=298.15):
     record = messpf_thermochemistry_record(
         species, output, heat_contents, temperature_k)
-    Path(destination).write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
+    atomic_json(destination, record)
     return record
-
-
-def _sha256(path):
-    digest = hashlib.sha256()
-    with Path(path).open('rb') as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def audit_messpf_run(run_dir):

@@ -43,6 +43,7 @@ from kinbot.anl.validation import (assemble_profiled_anl0,
                                    assemble_profiled_anl0_f12,
                                    automatic_composite_spec)
 from kinbot.anl.workflow import _verified_task_result, task_component
+from kinbot.execution import atomic_json
 from kinbot.species_routing import (configured_reaction_selection,
                                     routing_name)
 from kinbot.theory import (DEFAULT_ANL_SIZE_POLICY,
@@ -631,10 +632,8 @@ def routing_name_from_record(record):
 
 def write_network_request(root, parameters, path='anl_network_request.json'):
     """Write the immutable automatic plan beside the KinBot calculation."""
-    result = build_network_request(root, parameters)
     destination = Path(path).expanduser().resolve()
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+    atomic_json(destination, build_network_request(root, parameters))
     return destination
 
 

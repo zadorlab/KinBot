@@ -1,7 +1,7 @@
-import os
-import re
 import numpy as np
 import copy
+from pathlib import Path
+import subprocess
 from kinbot import constants
 
 """
@@ -271,11 +271,13 @@ def read_hess(job, natom):
     # initialize Hessian
     hess = np.zeros((3*natom, 3*natom))
     
-    fchk = str(job) + '.fchk'
-    chk = str(job) + '.chk'
-    if os.path.exists(chk):
+    fchk = Path(f'{job}.fchk')
+    chk = Path(f'{job}.chk')
+    if chk.exists():
         # create the fchk file using formchk
-        os.system('formchk ' + job + '.chk > /dev/null')
+        subprocess.run(
+            ['formchk', str(chk), str(fchk)], check=True,
+            stdout=subprocess.DEVNULL)
     
     with open(fchk) as f:
         lines = f.read().split('\n')
@@ -283,7 +285,7 @@ def read_hess(job, natom):
     nvals = 3 * natom * (3 * natom + 1) / 2
 
     for index, line in enumerate(reversed(lines)):
-        if re.search('Cartesian Force Constants', line) != None:
+        if 'Cartesian Force Constants' in line:
             hess_flat = []
             n = 0
             while len(hess_flat) < nvals:

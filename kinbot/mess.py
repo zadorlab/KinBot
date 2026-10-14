@@ -21,6 +21,7 @@ from kinbot.product_complex import reassess_product_complex
 from kinbot.energy import (KJ_PER_KCAL, formation_enthalpy_0k_kj_mol,
                            reaction_barrier_0k_kj_mol,
                            species_zero_k_hartree)
+from kinbot.execution import file_sha256
 from kinbot.uncertaintyAnalysis import UQ
 
 from kinbot.mess_mirrors import annotate_population, annotate_endpoints, complete_mirror_channels
@@ -624,7 +625,7 @@ class MESS:
         if (not isinstance(data, dict) or data.get('schema') != 1
                 or not isinstance(models, dict)):
             raise ValueError('CBH thermochemistry model library needs schema 1.')
-        return models, {'path': str(source), 'sha256': self._sha256(source)}
+        return models, {'path': str(source), 'sha256': file_sha256(source)}
 
     def write_partition_function_inputs(self):
         """Stage all stable species for RRHO+1DHR thermochemistry."""
@@ -730,14 +731,6 @@ class MESS:
         runner.chmod(runner.stat().st_mode | 0o111)
         return manifest
 
-    @staticmethod
-    def _sha256(path):
-        digest = hashlib.sha256()
-        with Path(path).open('rb') as stream:
-            for block in iter(lambda: stream.read(1024 * 1024), b''):
-                digest.update(block)
-        return digest.hexdigest()
-
     def run_partition_functions(self):
         """Run every staged MESSPF input and verify its native table.
 
@@ -813,13 +806,13 @@ class MESS:
                 'command': [*command, input_path.name],
                 'returncode': result.returncode,
                 'input': input_path.name,
-                'input_sha256': self._sha256(input_path),
+                'input_sha256': file_sha256(input_path),
                 'output': output_path.name,
-                'output_sha256': self._sha256(output_path),
+                'output_sha256': file_sha256(output_path),
                 'stdout': stdout_path.name,
-                'stdout_sha256': self._sha256(stdout_path),
+                'stdout_sha256': file_sha256(stdout_path),
                 'stderr': stderr_path.name,
-                'stderr_sha256': self._sha256(stderr_path),
+                'stderr_sha256': file_sha256(stderr_path),
             }
         record = {
             'schema': 1, 'program': 'messpf',

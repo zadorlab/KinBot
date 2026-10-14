@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import fcntl
-import hashlib
 import importlib.util
 from importlib import metadata
 import json
@@ -19,6 +18,8 @@ import sqlite3
 import subprocess
 import sys
 import time
+
+from kinbot.execution import file_sha256 as _sha256
 
 
 SUPPORTED_REVISION = 'f3352c8eea9d51d26f631d3238e24e304b5be7de'
@@ -92,14 +93,6 @@ def _run_controller(command: list[str], directory: Path):
     finally:
         for signum, handler in previous_handlers.items():
             signal.signal(signum, handler)
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open('rb') as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def result_path(input_file: str | Path) -> Path:

@@ -326,7 +326,8 @@ def _main():
     par = masterpar.par
     input_file = masterpar.input_file
     automatic_run_requested = automatic_cbh_anl_requested(par)
-    _configure_automatic_queue_admission(par, automatic_run_requested)
+    automatic_queue_root = _configure_automatic_queue_admission(
+        par, automatic_run_requested)
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', level='debug')
@@ -338,6 +339,10 @@ def _main():
     logger.info(par_str)
     # time stamp of the KinBot start
     logger.info('Starting KinBot')
+    if automatic_queue_root is not None:
+        logger.info(
+            'Automatic scheduler admission: at most %s live jobs under %s.',
+            par['queue_job_limit'], automatic_queue_root)
 
     make_dirs(par)
 

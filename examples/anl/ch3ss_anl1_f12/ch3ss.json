@@ -9,6 +9,7 @@
   "rotor_scan": 1,
   "theory_preset": "uma-b2plyp-anl",
   "composite_method": "ANL1-F12",
+  "anl_f12_augmented": 1,
   "vrc_tst_scan_method": "caspt2-f12b(9,7)",
   "vrc_tst_scan_basis": "avtz-f12",
   "vrc_tst_scan_gradient": "numerical",

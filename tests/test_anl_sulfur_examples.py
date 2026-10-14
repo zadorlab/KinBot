@@ -25,6 +25,7 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert par['smiles'] == smiles
     assert par['mult'] == 2
     assert par['composite_method'] == 'ANL1-F12'
+    assert par['anl_f12_augmented'] == 1
     assert par['cbh_rung'] == 'auto'
     assert par['families'] == ['all']
     assert par['selected_reactions'] == {}
@@ -47,4 +48,3 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     species.characterize()
     assert species.mult == 2
     assert 'S' in species.atom
-

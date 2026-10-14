@@ -228,6 +228,10 @@ class Parameters:
             # exact thresholds, rather than backend-specific exponents.
             'anl_scf_convergence': 1.e-10,
             'anl_cc_convergence': 1.e-8,
+            # Optional full augmentation of the F12 reference branch.
+            # Conventional ANL reference bases are always fully augmented,
+            # including hydrogen.
+            'anl_f12_augmented': 0,
             # Automatic CBH planning chooses the highest structurally valid
             # rung (up to CBH-3), then falls down by rung and common ANL tier
             # as required.  An integer remains accepted for reproducible
@@ -695,6 +699,9 @@ class Parameters:
             self.par['anl_scf_convergence'], 'anl_scf_convergence')
         convergence_exponent(
             self.par['anl_cc_convergence'], 'anl_cc_convergence')
+        if (isinstance(self.par['anl_f12_augmented'], bool)
+                or self.par['anl_f12_augmented'] not in (0, 1)):
+            raise ValueError('anl_f12_augmented must be 0 or 1.')
         if (not isinstance(self.par['atct_version'], str)
                 or not self.par['atct_version'].strip()):
             raise ValueError('atct_version must be a nonempty string.')

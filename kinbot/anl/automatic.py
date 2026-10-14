@@ -628,6 +628,8 @@ def build_network_request(root, parameters):
                 'anl_scf_convergence', 1.e-10)),
             'cc_convergence': float(parameters.get(
                 'anl_cc_convergence', 1.e-8)),
+            'f12_augmented': bool(parameters.get(
+                'anl_f12_augmented', 0)),
         },
         'size_policy': policy,
         'network': {
@@ -855,7 +857,9 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
                 'balanced-CBH gauge zero; composition-balanced reaction '
                 'energies are invariant to this per-species convention'),
             spin_orbit_backend='known_zero', base_run=run_dir,
-            vpt2_method=l2_method)
+            vpt2_method=l2_method,
+            f12_augmented=bool(spec.get('intent', {}).get(
+                'f12_augmented', False)))
         high_graph = 'l3_geometry_tz' in declared
         recipe_configs = ((
             ('ANL1-F12', assemble_profiled_anl1_f12,
@@ -864,7 +868,7 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
              ('anl1_5z', 'anl1_6z'), 'anl1'),
         ) if high_graph else (
             ('ANL0-F12', assemble_profiled_anl0_f12,
-             ('f12_qz', 'f12_5z', 'anl1_5z', 'anl1_6z'), 'anl0_f12'),
+             ('f12_tz', 'f12_qz', 'anl0_qz', 'anl0_5z'), 'anl0_f12'),
             ('ANL0', assemble_profiled_anl0,
              ('anl0_qz', 'anl0_5z'), 'anl0'),
         ))
@@ -1269,7 +1273,9 @@ def _prepare_graphs(plan, sources, root):
                 vpt2_basis=plan['l2_theory']['basis'],
                 vpt2_dispersion=plan['l2_theory']['dispersion'],
                 scf_convergence=plan['resources']['scf_convergence'],
-                cc_convergence=plan['resources']['cc_convergence'])
+                cc_convergence=plan['resources']['cc_convergence'],
+                f12_augmented=plan['resources'].get(
+                    'f12_augmented', False))
             prepare(specification, graph)
         preflight_until_scheduler_ready(
             graph, skip_optional=True, interval=20.)
@@ -1290,7 +1296,9 @@ def _prepare_graphs(plan, sources, root):
                 vpt2_basis=plan['l2_theory']['basis'],
                 vpt2_dispersion=plan['l2_theory']['dispersion'],
                 scf_convergence=plan['resources']['scf_convergence'],
-                cc_convergence=plan['resources']['cc_convergence'])
+                cc_convergence=plan['resources']['cc_convergence'],
+                f12_augmented=plan['resources'].get(
+                    'f12_augmented', False))
             prepare(specification, graph)
         preflight_until_scheduler_ready(
             graph, skip_optional=True, interval=20.)

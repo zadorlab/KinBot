@@ -352,6 +352,15 @@ def test_automatic_anl1_f12_graph_reuses_qz_without_anl0_duplicates():
             cores=4, memory_mb=64000, partition='test')
     validate_spec(resolved)
 
+    augmented = automatic_composite_spec(
+        molecule, highest_tier='ANL1-F12', max_nodes=8,
+        partition='day-long-cpu', f12_augmented=True)
+    augmented_tasks = {task['id']: task for task in augmented['tasks']}
+    assert augmented_tasks['f12_qz']['result_parser']['basis'] == \
+        'aug-cc-pVQZ-F12'
+    assert augmented_tasks['f12_5z']['result_parser']['basis'] == \
+        'aug-cc-pV5Z-F12'
+
 
 def test_frequency_only_vpt2_rejects_mismatched_imported_l2_profile():
     molecule = deepcopy(_molecule())

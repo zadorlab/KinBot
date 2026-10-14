@@ -25,10 +25,28 @@ ANL1_NATIVE_REFERENCE_BASES = (
     'aug-cc-pV6Z',
 )
 
+ANL0_F12_NATIVE_REFERENCE_BASES = (
+    'cc-pVTZ-F12',
+    'cc-pVQZ-F12',
+)
+
 ANL1_F12_NATIVE_REFERENCE_BASES = (
     'cc-pVQZ-F12',
     'cc-pV5Z-F12',
 )
+
+
+def f12_reference_bases(name: str, augmented: bool = False) -> tuple[str, str]:
+    """Return the recipe-specific F12 pair, optionally fully augmented."""
+    if name == 'ANL0-F12':
+        bases = ANL0_F12_NATIVE_REFERENCE_BASES
+    elif name == 'ANL1-F12':
+        bases = ANL1_F12_NATIVE_REFERENCE_BASES
+    else:
+        raise ValueError('F12 reference bases require ANL0-F12 or ANL1-F12.')
+    if not isinstance(augmented, bool):
+        raise ValueError('f12_augmented must be boolean.')
+    return tuple(('aug-' + basis) if augmented else basis for basis in bases)
 
 
 # These are independent additive corrections to the mandatory reference CBS
@@ -52,6 +70,7 @@ def _required(key, quantity, method, basis, role='l3',
 def recipe(name: str, *, vpt2_method: str | None = None,
            vpt2_cbs: bool = False, multiplicity: int = 1,
            atomic: bool = False,
+           f12_augmented: bool = False,
            rank_exact_higher_order: bool = False,
            harmonic_only: bool = False,
            omitted_families: tuple[str, ...] = (),
@@ -78,6 +97,8 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     state_reference = 'RHF' if multiplicity == 1 else 'ROHF'
     if not isinstance(atomic, bool):
         raise ValueError('atomic must be boolean.')
+    if not isinstance(f12_augmented, bool):
+        raise ValueError('f12_augmented must be boolean.')
     if not isinstance(rank_exact_higher_order, bool):
         raise ValueError('rank_exact_higher_order must be boolean.')
     if not isinstance(harmonic_only, bool):
@@ -99,6 +120,8 @@ def recipe(name: str, *, vpt2_method: str | None = None,
         # The 2017 article names F12b but does not specify SCALE_TRIP.
         # Our explicit SCALE_TRIP=1 must not be labeled an exact reproduction.
         variants.append('scaled-triples')
+        if f12_augmented:
+            variants.append('augmented-F12')
     if name == 'ANL0-F12':
         variants.append('dual-CBS-high-reference')
     if name == 'ANL1-F12':
@@ -122,25 +145,25 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     label = (f'profiled:{name}:' + ':'.join(variants)) if variants else name
 
     if name == 'ANL0-F12':
-        # User-selected profiled extension: use the same dual-CBS reference
-        # construction as ANL1-F12, but retain the ANL0 geometry, harmonic,
-        # and higher-order components.
+        # ANL0-F12 averages the tier-matched TZ/QZ F12 and fully augmented
+        # QZ/5Z conventional limits on the ANL0 geometry.
+        f12_bases = f12_reference_bases(name, f12_augmented)
         reference = _required(
                               'reference_cbs', 'electronic',
                               'mean[CCSD(T)-F12b,CCSD(T)]',
-                              ('mean[CBS(QZ-F12,5Z-F12),'
-                               'CBS(aug-5Z,aug-6Z)]'),
+                              (f'mean[CBS({f12_bases[0]},{f12_bases[1]}),'
+                               'CBS(aug-QZ,aug-5Z)]'),
                               scale_trip=1,
                               correlation='unrestricted',
                               reference=state_reference,
                               reference_convention='RHF/ROHF-UCC',
                               f12_native_basis_pair=
-                                  ANL1_F12_NATIVE_REFERENCE_BASES,
-                              f12_upper_cardinal=5,
+                                  f12_bases,
+                              f12_upper_cardinal=4,
                               f12_extrapolation_power=ORIGINAL_ANL_POWER,
                               conventional_native_basis_pair=
-                                  ANL1_NATIVE_REFERENCE_BASES,
-                              conventional_upper_cardinal=6,
+                                  ANL0_NATIVE_REFERENCE_BASES,
+                              conventional_upper_cardinal=5,
                               conventional_extrapolation_power=
                                   ORIGINAL_ANL_POWER,
                               component_weights=(0.5, 0.5),
@@ -154,17 +177,18 @@ def recipe(name: str, *, vpt2_method: str | None = None,
         # Ram et al.: average the QZ-F12/5Z-F12 and conventional 5Z/6Z
         # CBS estimates.  KinBot deliberately retains the ANL inverse-l^3.7
         # total-energy extrapolation for both estimates.
+        f12_bases = f12_reference_bases(name, f12_augmented)
         reference = _required(
                               'reference_cbs', 'electronic',
                               'mean[CCSD(T)-F12b,CCSD(T)]',
-                              ('mean[CBS(QZ-F12,5Z-F12),'
+                              (f'mean[CBS({f12_bases[0]},{f12_bases[1]}),'
                                'CBS(aug-5Z,aug-6Z)]'),
                               scale_trip=1,
                               correlation='unrestricted',
                               reference=state_reference,
                               reference_convention='RHF/ROHF-UCC',
                               f12_native_basis_pair=
-                                  ANL1_F12_NATIVE_REFERENCE_BASES,
+                                  f12_bases,
                               f12_upper_cardinal=5,
                               f12_extrapolation_power=ORIGINAL_ANL_POWER,
                               conventional_native_basis_pair=

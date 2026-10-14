@@ -121,7 +121,7 @@ def test_anl1_f12_uses_ram_high_reference_with_anl_power_extrapolation():
     reference = requirements['reference_cbs']
     assert reference.method == 'mean[CCSD(T)-F12b,CCSD(T)]'
     assert reference.basis == \
-        'mean[CBS(QZ-F12,5Z-F12),CBS(aug-5Z,aug-6Z)]'
+        'mean[CBS(cc-pVQZ-F12,cc-pV5Z-F12),CBS(aug-5Z,aug-6Z)]'
     assert reference.settings['component_weights'] == (0.5, 0.5)
     assert reference.settings['f12_extrapolation_power'] == 3.7
     assert reference.settings['conventional_extrapolation_power'] == 3.7
@@ -132,6 +132,35 @@ def test_anl1_f12_uses_ram_high_reference_with_anl_power_extrapolation():
     assert evaluate(equation, components_for(equation)).recipe == (
         'profiled:ANL1-F12:scaled-triples:'
         'Ram-2025-high-reference:B2PLYP-D3BJ')
+
+
+def test_anl0_f12_uses_tier_matched_dual_cbs_reference():
+    reference = next(item for item in recipe('ANL0-F12').requirements
+                     if item.key == 'reference_cbs')
+    assert reference.basis == (
+        'mean[CBS(cc-pVTZ-F12,cc-pVQZ-F12),CBS(aug-QZ,aug-5Z)]')
+    assert reference.settings['f12_native_basis_pair'] == (
+        'cc-pVTZ-F12', 'cc-pVQZ-F12')
+    assert reference.settings['conventional_native_basis_pair'] == (
+        'aug-cc-pVQZ', 'aug-cc-pV5Z')
+    assert reference.settings['f12_upper_cardinal'] == 4
+    assert reference.settings['conventional_upper_cardinal'] == 5
+
+
+@pytest.mark.parametrize('name,expected', [
+    ('ANL0-F12', ('aug-cc-pVTZ-F12', 'aug-cc-pVQZ-F12')),
+    ('ANL1-F12', ('aug-cc-pVQZ-F12', 'aug-cc-pV5Z-F12')),
+])
+def test_f12_reference_can_be_fully_augmented(name, expected):
+    equation = recipe(name, f12_augmented=True)
+    reference = next(item for item in equation.requirements
+                     if item.key == 'reference_cbs')
+    assert reference.settings['f12_native_basis_pair'] == expected
+    assert ':augmented-F12:' in equation.name
+
+
+def test_f12_augmentation_option_does_not_change_conventional_recipe():
+    assert recipe('ANL0', f12_augmented=True) == recipe('ANL0')
 
 
 def test_rank_exact_higher_order_backend_is_narrowly_allowed():

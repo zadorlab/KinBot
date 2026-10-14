@@ -110,8 +110,8 @@ ANL0 = CBS_3.7[CCSD(T)/aug-QZ,aug-5Z] // CCSD(T)/TZ
      + DBOC[HF/TZ]
      + SO
 
-ANL0-F12 = 0.5 CBS_3.7[CCSD(T)-F12b/QZ-F12,5Z-F12]
-           + 0.5 CBS_3.7[CCSD(T)/aug-5Z,aug-6Z]
+ANL0-F12 = 0.5 CBS_3.7[CCSD(T)-F12b/TZ-F12,QZ-F12]
+           + 0.5 CBS_3.7[CCSD(T)/aug-QZ,aug-5Z]
            all on the CCSD(T)/TZ geometry
            + ZPE_har[CCSD(T)/TZ]
            + delta_anh[L2/TZ]
@@ -147,11 +147,12 @@ ANL1-F12 = 0.5 CBS_3.7[CCSD(T)-F12b/QZ-F12,5Z-F12]
 `aug-nZ` denotes aug-cc-pVnZ on every atom, including hydrogen; `cVnZ` is
 cc-pCVnZ; and `acVTZ-DK` is aug-cc-pCVTZ-DK.  The ANL0, ANL0-F12, and ANL1
 names retain their correction hierarchy, but these production profiles use
-full hydrogen augmentation.  ANL0-F12 and ANL1-F12 are explicitly labeled
-KinBot profiled extensions: both average QZ-F12/5Z-F12 and fully augmented
-5Z/6Z CBS limits.  The ANL0-F12 extension keeps the ANL0 geometry, harmonic,
-and higher-order terms; ANL1-F12 keeps the ANL1 terms.  Every CBS term uses
-the 3.7 power above.
+full hydrogen augmentation.  ANL0-F12 averages its TZ/QZ-F12 branch with the
+fully augmented conventional QZ/5Z limit; ANL1-F12 averages QZ/5Z-F12 with
+the fully augmented conventional 5Z/6Z limit.  Setting
+`anl_f12_augmented` to `1` replaces the F12 branch with the corresponding
+fully augmented `aug-cc-pVnZ-F12` pair and records that choice in the recipe
+label and workflow intent.  Every CBS term uses the 3.7 power above.
 
 The published anharmonic term is B3LYP/cc-pVTZ.  Automatic production for
 all four ANL heads defaults to B2PLYP-D3(BJ)/cc-pVTZ and records that choice

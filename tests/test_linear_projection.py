@@ -240,6 +240,7 @@ class TestReverseMismatch(unittest.TestCase):
         r = np.linalg.norm(atoms.positions[1] - atoms.positions[0])
         expected = frequencies.ROTATIONAL_CONSTANT_FACTOR / (2 * 15.994915 * r ** 2)
         b = frequencies.rotational_constants(atoms.positions, symbols)
+        self.assertTrue(np.isinf(b[0]))
         self.assertAlmostEqual(b[1], expected, places=4)
         self.assertAlmostEqual(b[2], expected, places=4)
         self.assertAlmostEqual(b[1], 0.379, places=2)   # 0.390 cm-1 experimentally, at r = 1.162 A

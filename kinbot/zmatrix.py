@@ -902,28 +902,32 @@ def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder, err=F
 
                 # D is placed parallel to the B-C axis, relative to A (the origin)
                 # B->C vector
-                bc = [cart[c][j] - cart[b][j] for j in range(3)]
-                if err == True and np.linalg.norm(bc) == 0:
+                bc = np.asarray(cart[c] - cart[b], dtype=float)
+                bc_norm = np.linalg.norm(bc)
+                if bc_norm <= 1.e-12:
                     return -1
-                bc = bc / np.linalg.norm(bc)
-                # y/x = p
-                # z/x = q
-                # x^2 + y^2 + z^2 = r^2
-                # therefore x = sqrt(r ^ 2 / (p ^ 2 + q ^ 2 + 1))
-                p = bc[1] / bc[0]
-                q = bc[2] / bc[0]
+                bc = bc / bc_norm
                 r = zm[i][0]
-                if cart[c][0] > cart[b][0]:
-                    x = np.sqrt(r * r / (p * p + q * q + 1))
-                else:
-                    x = -np.sqrt(r * r / (p * p + q * q + 1))
-                cart[i] = [x, x * p, x * q]
+                cart[i] = r * bc
 
                 # A->B vector
-                ab = [cart[b][j] - cart[a][j] for j in range(3)]
+                ab = np.asarray(cart[b] - cart[a], dtype=float)
 
                 # |AB x BC|
-                n = np.cross(ab, bc) / np.linalg.norm(np.cross(ab, bc))
+                n = np.cross(ab, bc)
+                n_norm = np.linalg.norm(n)
+                if n_norm <= 1.e-12:
+                    # A linear reference triple has no unique dihedral
+                    # plane.  Pick the Cartesian axis least aligned with BC
+                    # to obtain a deterministic, finite plane; subsequent
+                    # internal-coordinate constraints define the chemistry.
+                    axis = np.zeros(3)
+                    axis[np.argmin(np.abs(bc))] = 1.
+                    n = np.cross(axis, bc)
+                    n_norm = np.linalg.norm(n)
+                if n_norm <= 1.e-12:
+                    return -1
+                n = n / n_norm
 
                 # rotation around the normal to ABC by the angle
                 th = zm[i][1] - np.pi

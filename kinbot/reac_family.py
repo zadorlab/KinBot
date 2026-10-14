@@ -99,6 +99,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             logger.error('%s: coordinate modification produced a nonfinite '
                          'geometry.', rxn.instance_name)
             return -1
+        if not success:
+            logger.error('%s: coordinate modification did not reach the '
+                         'requested reaction-path constraints; refusing to '
+                         'submit an unchanged or chemically invalid step.',
+                         rxn.instance_name)
+            return -1
         for c in change:
             fix.append(c[:-1])
         change = []

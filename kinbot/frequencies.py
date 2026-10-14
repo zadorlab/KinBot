@@ -65,7 +65,11 @@ def moment_ratio(geom, atom):
 def rotational_constants(geom, atom):
     """Rotational constants in cm-1 from the principal moments (amu Angstrom^2)."""
     moments = geometry.get_moments_of_inertia(np.asarray(geom, dtype=float), atom)[0]
-    return [ROTATIONAL_CONSTANT_FACTOR / moment for moment in moments]
+    # The rotational constant about the molecular axis of an exactly linear
+    # point-mass geometry is mathematically infinite.  Represent it explicitly
+    # instead of relying on a floating-point divide-by-zero warning.
+    return [np.inf if abs(moment) <= np.finfo(float).eps
+            else ROTATIONAL_CONSTANT_FACTOR / moment for moment in moments]
 
 
 def linearize(geom, atom):

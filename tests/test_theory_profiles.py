@@ -319,6 +319,23 @@ class TestTheoryProfiles(unittest.TestCase):
         submit.assert_not_called()
         self.assertFalse(Path('invalid_h2_elim.py').exists())
 
+    def test_reaction_worker_refuses_unreached_coordinate_targets(self):
+        parameters = self.parameters(composite_method='ANL0-F12')
+        qc = QuantumChemistry(parameters.par)
+        species = StationaryPoint('acetaldehyde', 0, 1, smiles='CC=O')
+        species.characterize()
+        reaction = H2Elim(
+            species, qc, parameters.par, [3, 0, 1, 6],
+            'unreached_h2_elim')
+        with patch.object(
+                reac_family.modify_geom, 'modify_coordinates',
+                return_value=(0, species.geom.copy())), \
+                patch.object(qc.l1, 'submit_qc', return_value=1) as submit:
+            self.assertEqual(
+                reac_family.carry_out_reaction(reaction, 0, ''), -1)
+        submit.assert_not_called()
+        self.assertFalse(Path('unreached_h2_elim.py').exists())
+
     def test_profiled_job_routes_and_scheduler_ids_survive_restart(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',
                                      fc_model_path='uma-s-1p2')

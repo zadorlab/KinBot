@@ -18,7 +18,6 @@ from ase.calculators.emt import EMT
 from ase.constraints import FixInternals
 from ase.data import atomic_numbers, covalent_radii
 
-from kinbot import bfgs
 from kinbot import constants
 from kinbot import find_motif
 from kinbot import geometry
@@ -31,63 +30,115 @@ class cost_function():
     def __init__(self, coords):
         self.coords = coords
 
-    def eval(self, x):
+    def residuals_and_jacobian(self, x):
+        """Return distance residuals and their Cartesian Jacobian.
+
+        The historical BFGS fit updates an inverse Hessian through divisions
+        by a curvature scalar.  Nearly redundant distance coordinates make
+        that scalar vanish for otherwise ordinary reaction-path geometries,
+        which can send the fit to NaN.  The damped least-squares fit below
+        uses these residuals directly and is well defined for redundant and
+        rank-deficient coordinate sets.
         """
-        x is a vector of length 3N with N the number of atoms
-        containing the cartesian coordinates [x1, y1, z1, x2, ..., xN, yN, zN]
-        """
-        e = 0
-        for coord in self.coords:
-            i = coord[0]
-            j = coord[1]
-            d = coord[2]
-            weight = coord[3]
-            dc = (x[3 * i] - x[3 * j]) ** 2 + (x[3 * i + 1] - x[3 * j + 1]) ** 2 + (x[3 * i + 2] - x[3 * j + 2]) ** 2
-            if len(coord) == 5:
-                if dc < d:
-                    # add the one-sided potential
-                    e += ((dc - d) * weight) ** 2
-            else:
-                e += ((dc - d) * weight) ** 2
-        return e
+        residuals = np.zeros(len(self.coords))
+        jacobian = np.zeros((len(self.coords), len(x)))
+        for row, coord in enumerate(self.coords):
+            i, j, target, weight = coord[:4]
+            delta = x[3 * i:3 * i + 3] - x[3 * j:3 * j + 3]
+            distance_squared = np.dot(delta, delta)
+            if len(coord) == 5 and distance_squared >= target:
+                continue
+            residuals[row] = (distance_squared - target) * weight
+            derivative = 2. * weight * delta
+            jacobian[row, 3 * i:3 * i + 3] = derivative
+            jacobian[row, 3 * j:3 * j + 3] = -derivative
+        return residuals, jacobian
 
-    def gradient(self, x):
-        grad = np.zeros(len(x))
-        for coord in self.coords:
-            i = coord[0] #atom1
-            j = coord[1] #atom2
-            d = coord[2] #value^2
-            weight = coord[3]
-            dc = (x[3 * i] - x[3 * j]) ** 2 + (x[3 * i + 1] - x[3 * j + 1]) ** 2 + (x[3 * i + 2] - x[3 * j + 2]) ** 2 #current dist between i and j
-            if len(coord) == 5:
-                if dc < d:
-                    grad[3 * i] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j])
-                    grad[3 * i + 1] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 1] - x[3 * j + 1])
-                    grad[3 * i + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2])
 
-                    grad[3 * j] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j]) * -1
-                    grad[3 * j + 1] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 1] - x[3 * j + 1]) * -1
-                    grad[3 * j + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2]) * -1
-            else:
-                grad[3 * i] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j])
-                grad[3 * i + 1] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 1] - x[3 * j + 1])
-                grad[3 * i + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2])
+def _fit_distance_coordinates(cost, x0, max_steps=250):
+    """Fit redundant distance coordinates without singular BFGS updates."""
+    x = np.asarray(x0, dtype=float).copy()
+    if not np.isfinite(x).all():
+        return x, [x.copy()], [np.full_like(x, np.nan)]
 
-                grad[3 * j] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j]) * -1
-                grad[3 * j + 1] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 1] - x[3 * j + 1]) * -1
-                grad[3 * j + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2]) * -1
+    history = [x.copy()]
+    gradients = []
+    damping = 1.e-4
+    best_x = x.copy()
+    residuals, jacobian = cost.residuals_and_jacobian(x)
+    best_value = float(np.dot(residuals, residuals))
+    gradients.append(2. * jacobian.T @ residuals)
 
-        return grad
-    
-    def hessian(self, atoms):
-        x = np.reshape(atoms.positions, 3 * len(atoms.positions))
-        hess = np.zeros((len(x),len(x)))
-        grad = self.gradient(x)
-        for x1 in range(len(x)):
-            for x2 in range(len(x)):
-                hess[x1][x2] = grad[x1] * grad[x2]
+    for _ in range(max_steps):
+        residuals, jacobian = cost.residuals_and_jacobian(x)
+        gradient = jacobian.T @ residuals
+        if (not np.isfinite(residuals).all()
+                or not np.isfinite(jacobian).all()
+                or not np.isfinite(gradient).all()):
+            break
+        if np.linalg.norm(gradient, ord=np.inf) < 1.e-10:
+            break
 
-        return hess
+        normal = jacobian.T @ jacobian
+        scale = np.maximum(np.diag(normal), 1.)
+        lhs = normal + damping * np.diag(scale)
+        try:
+            displacement = np.linalg.solve(lhs, -gradient)
+        except np.linalg.LinAlgError:
+            displacement = np.linalg.lstsq(lhs, -gradient, rcond=None)[0]
+        if not np.isfinite(displacement).all():
+            damping *= 10.
+            continue
+
+        # Pair distances contain no translational information.  Removing the
+        # translation keeps the fitted structure in the input coordinate
+        # frame and the step cap keeps early path points chemically local.
+        cartesian_step = displacement.reshape((-1, 3))
+        cartesian_step -= cartesian_step.mean(axis=0)
+        largest_step = np.linalg.norm(cartesian_step, axis=1).max(initial=0.)
+        if largest_step > 0.20:
+            cartesian_step *= 0.20 / largest_step
+        trial = x + cartesian_step.ravel()
+        trial_residuals, _ = cost.residuals_and_jacobian(trial)
+        trial_value = float(np.dot(trial_residuals, trial_residuals))
+
+        if np.isfinite(trial_value) and trial_value < best_value:
+            x = trial
+            best_x = trial.copy()
+            best_value = trial_value
+            history.append(trial.copy())
+            gradients.append(2. * jacobian.T @ residuals)
+            damping = max(damping / 3., 1.e-12)
+            if np.linalg.norm(cartesian_step) < 1.e-10:
+                break
+        else:
+            damping *= 10.
+            if damping > 1.e12:
+                break
+
+    return best_x, history, gradients
+
+
+def _align_cartesian_frame(candidate, reference):
+    """Rigidly align *candidate* with *reference* without changing internals.
+
+    Rebuilding Cartesian coordinates from a Z matrix chooses an arbitrary
+    origin and orientation.  Keeping the previous path point's frame avoids
+    presenting the optimizer with a large, chemically meaningless rigid-body
+    displacement.
+    """
+    candidate = np.asarray(candidate, dtype=float)
+    reference = np.asarray(reference, dtype=float)
+    if candidate.shape != reference.shape:
+        raise ValueError('Cartesian frames must have matching shapes.')
+    candidate_centered = candidate - candidate.mean(axis=0)
+    reference_centered = reference - reference.mean(axis=0)
+    left, _, right = np.linalg.svd(candidate_centered.T @ reference_centered)
+    rotation = left @ right
+    if np.linalg.det(rotation) < 0.:
+        left[:, -1] *= -1.
+        rotation = left @ right
+    return candidate_centered @ rotation + reference.mean(axis=0)
 
 
 def append_geom(natom, step, new_e, atom, x_new, grad, atoms_list, f_out=None):
@@ -169,9 +220,10 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
             if (new_geom.shape != (species.natom, 3)
                     or not np.isfinite(new_geom).all()):
                 logger.warning('%s: dihedral modification produced invalid '
-                               'coordinates; retaining the last finite path '
-                               'point for constrained optimization.', name)
+                               'coordinates; rejecting this reaction-path '
+                               'point.', name)
                 return 0, finite_input
+            new_geom = _align_cartesian_frame(new_geom, finite_input)
             # write_zmat(zmat_atom, zmat_ref, zmat, new_geom, species.atom)
             step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
         # change angles, if necessary
@@ -185,8 +237,8 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
             if (np.linalg.norm(v1) <= 1e-12
                     or np.linalg.norm(v2) <= 1e-12):
                 logger.warning('%s: angle modification encountered '
-                               'coincident atoms; retaining the last finite '
-                               'path point for constrained optimization.', name)
+                               'coincident atoms; rejecting this '
+                               'reaction-path point.', name)
                 return 0, finite_input
             rot_ax = [0., 0., 0.]
 
@@ -216,7 +268,7 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
         # optimize the geometry to meet the coords list
         x0 = np.reshape(new_geom, 3 * species.natom)
         cost_fct = cost_function(coords)
-        logger.debug('Starting BFGS')
+        logger.debug('Starting damped least-squares coordinate fit')
         gs = ''  # initial geomtry string
         for i, at in enumerate(species.atom):
             x, y, z = new_geom[i]
@@ -226,14 +278,13 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
         # step_tol=1E-7, grad_tol=1E-7, line_tol=1E-10,
         # inhess=None, max_step=100, max_lin_step=1000,
         # use_grad_tol=1, use_step_tol=1
-        opt = bfgs.BFGS(step_tol=1E-12, grad_tol=1E-12)
-        x_opt, x_i, g_i = opt.optimize(cost_fct, x0)
+        x_opt, x_i, g_i = _fit_distance_coordinates(cost_fct, x0)
 
         new_geom = np.reshape(x_opt, (species.natom, 3))
         if not np.isfinite(new_geom).all():
             logger.warning('%s: coordinate fitting produced invalid '
-                           'coordinates; retaining the last finite path point '
-                           'for constrained optimization.', name)
+                           'coordinates; rejecting this reaction-path point.',
+                           name)
             return 0, finite_input
         for i, xi in enumerate(x_i):
             geomi = np.reshape(xi, (species.natom, 3))
@@ -289,16 +340,29 @@ def control_changes(species, name, geom, new_geom, changes, bond):
                 logger.debug("For the following initial geometry:\n" + gs)
                 logger.debug("And the following change list:\n" + cs)
                 success = 0
+        elif len(ci) == 5:
+            dihedral = geometry.calc_dihedral(
+                new_geom[ci[0]], new_geom[ci[1]],
+                new_geom[ci[2]], new_geom[ci[3]])[0]
+            difference = (dihedral - ci[4] + 180.) % 360. - 180.
+            if abs(difference) > 0.05 * 180. / np.pi:
+                logger.debug("The modified dihedral is not correct")
+                logger.debug("Expected {}, got {}".format(ci[4], dihedral))
+                logger.debug("Species name: " + name)
+                logger.debug("For the following initial geometry:\n" + gs)
+                logger.debug("And the following change list:\n" + cs)
+                success = 0
 
     # check if the bond lengths are good:
     for i in range(species.natom - 1):
         for j in range(i + 1, species.natom):
             if bond[i][j] > 0:
-                is_change = 0
-                for ci in changes:
-                    if i in ci and j in ci:
-                        is_change = 1
-                        break
+                # Only a two-atom distance target permits a reactant bond to
+                # change length.  Merely appearing in an angle or dihedral
+                # definition does not exempt that bond from validation.
+                is_change = any(
+                    len(ci) == 3 and [i, j] == sorted(ci[:2])
+                    for ci in changes)
                 if not is_change:
                     new_bond = np.linalg.norm(new_geom[i] - new_geom[j])
                     orig_bond = np.linalg.norm(geom[i] - geom[j])
@@ -314,6 +378,13 @@ def control_changes(species, name, geom, new_geom, changes, bond):
     for i in range(species.natom - 1):
         for j in range(i + 1, species.natom):
             if bond[i][j] == 0:
+                # A reaction coordinate may intentionally form a bond
+                # between atoms that are nonbonded in the reactant (H--H in
+                # H2 elimination, for example).  Its explicit target must
+                # take precedence over the generic reactant clash check.
+                if any([i, j] == sorted([ci[0], ci[-2]])
+                       for ci in changes):
+                    continue
                 dist = np.linalg.norm(new_geom[i] - new_geom[j])
                 try:
                     minb = constants.st_bond[''.join(sorted([species.atom[i], species.atom[j]]))]

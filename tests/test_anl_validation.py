@@ -280,8 +280,14 @@ def test_composite_graph_keeps_l2_fallbacks_independent_of_l3_barrier():
 def test_automatic_post_l2_graph_never_repeats_l2_and_prunes_by_tier():
     molecule = deepcopy(_molecule())
     molecule['source'] = {
-        'geometry_sha256': '1' * 64, 'record_sha256': '2' * 64,
+        'geometry_sha256': _geometry_hash(Atoms(
+            molecule['symbols'], positions=molecule['positions'])),
+        'record_sha256': '2' * 64,
         'energy_hartree': -40.0,
+        'l2_theory': {
+            'calculator': 'gaussian', 'method': 'B2PLYP',
+            'basis': 'cc-pVTZ', 'dispersion': 'GD3BJ',
+        },
     }
     full = automatic_composite_spec(
         molecule, highest_tier='ANL0-F12', max_nodes=8,
@@ -302,6 +308,51 @@ def test_automatic_post_l2_graph_never_repeats_l2_and_prunes_by_tier():
     reduced = automatic_composite_spec(molecule, highest_tier='L3-SP@L2')
     assert {task['id'] for task in reduced['tasks']} == {
         'l3_sp_l2', 'gaussian_vpt2'}
+
+    resolved = deepcopy(full)
+    for task in resolved['tasks']:
+        task['resources'].update(
+            cores=1, memory_mb=64000, partition='test')
+    validate_spec(resolved)
+
+
+def test_frequency_only_vpt2_rejects_mismatched_imported_l2_profile():
+    molecule = deepcopy(_molecule())
+    molecule['source'] = {
+        'geometry_sha256': _geometry_hash(Atoms(
+            molecule['symbols'], positions=molecule['positions'])),
+        'record_sha256': '2' * 64,
+        'energy_hartree': -40.0,
+        'l2_theory': {
+            'calculator': 'gaussian', 'method': 'B3LYP',
+            'basis': 'cc-pVTZ', 'dispersion': '',
+        },
+    }
+    spec = automatic_composite_spec(molecule, highest_tier='L2')
+    for task in spec['tasks']:
+        task['resources'].update(
+            cores=1, memory_mb=64000, partition='test')
+    with pytest.raises(ValueError, match='matching Gaussian geometry source'):
+        validate_spec(spec)
+
+
+def test_frequency_only_vpt2_rejects_imported_geometry_hash_mismatch():
+    molecule = deepcopy(_molecule())
+    molecule['source'] = {
+        'geometry_sha256': '1' * 64, 'record_sha256': '2' * 64,
+        'energy_hartree': -40.0,
+        'l2_theory': {
+            'calculator': 'gaussian', 'method': 'B2PLYP',
+            'basis': 'cc-pVTZ', 'dispersion': 'GD3BJ',
+        },
+    }
+    specification = automatic_composite_spec(
+        molecule, highest_tier='L2')
+    for task in specification['tasks']:
+        task['resources'].update(
+            cores=1, memory_mb=64000, partition='test')
+    with pytest.raises(ValueError, match='matching Gaussian geometry source'):
+        validate_spec(specification)
 
 
 def test_atomic_composite_omits_fictitious_vibrational_jobs():

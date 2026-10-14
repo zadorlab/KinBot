@@ -8,11 +8,13 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from ase import Atoms
 from ase.build import molecule
 
 from kinbot.anl.automatic import (DEFAULT_SIZE_POLICY, _model_record,
                                   _component_family_omissions,
-                                  _ordered_methods, _reference_input,
+                                  _drive_graphs, _ordered_methods,
+                                  _reference_input,
                                   _run_reference_l2,
                                   _reference_thermochemistry_models,
                                   _vpt2_zpe_components,
@@ -20,7 +22,10 @@ from kinbot.anl.automatic import (DEFAULT_SIZE_POLICY, _model_record,
                                   build_network_request,
                                   finalize_automatic_run, highest_tier,
                                   validate_automatic_environment)
-from kinbot.anl.validation import automatic_composite_spec
+from kinbot.anl.validation import (automatic_composite_spec,
+                                   molecule_from_smiles)
+from kinbot.anl.dispatch import (_geometry_hash, SchedulerUnavailableError,
+                                 validate_spec)
 
 
 def _mock_scientific_runtime(monkeypatch, tmp_path, found):
@@ -121,6 +126,83 @@ def test_public_reaction_identity_controls_barrierless_classification():
     assert record['family'] == 'hom_sci'
     assert record['barrierless'] is True
     assert record['transition_state'] is None
+
+
+def test_every_generated_acetaldehyde_composite_graph_validates():
+    root = _species(
+        'acetaldehyde', 'CC=O', ['C', 'C', 'O', 'H', 'H', 'H', 'H'],
+        energy=-153.)
+    methyl = _species('methyl', '[CH3]', ['C', 'H', 'H', 'H'], 2,
+                      energy=-39.)
+    formyl = _species('formyl', '[CH]=O', ['C', 'O', 'H'], 2,
+                      energy=-113.)
+    methane = _species('methane', 'C', ['C', 'H', 'H', 'H', 'H'],
+                       energy=-40.)
+    carbon_monoxide = _species('carbon_monoxide', '[C-]#[O+]', ['C', 'O'],
+                               energy=-113.)
+    ketene = _species('ketene', 'C=C=O',
+                      ['C', 'C', 'O', 'H', 'H'], energy=-152.)
+    hydrogen = _species('hydrogen', '[H][H]', ['H', 'H'], energy=-1.)
+    insertion = SimpleNamespace(
+        instance_name='acetaldehyde_r12_insertion_R_7_2_1',
+        family_name='r12_insertion_R', products=[methane, carbon_monoxide],
+        ts=_species('insertion_ts', '', root.atom, energy=-152.8))
+    elimination = SimpleNamespace(
+        instance_name='acetaldehyde_h2_elim_4_7', family_name='h2_elim',
+        products=[ketene, hydrogen],
+        ts=_species('elimination_ts', '', root.atom, energy=-152.7))
+    scission = SimpleNamespace(
+        instance_name='acetaldehyde_hom_sci_1_2', family_name='hom_sci',
+        products=[methyl, formyl])
+    root.reac_obj = [insertion, elimination, scission]
+    root.reac_ts_done = [-1, -1, -1]
+    root.reac_type = ['r12_insertion_R', 'h2_elim', 'hom_sci']
+    plan = build_network_request(root, {
+        'composite_method': 'ANL0-F12',
+        'anl_size_policy': DEFAULT_SIZE_POLICY,
+        'queue_name': 'day-long-cpu', 'ppn': 8, 'queue_job_limit': 8,
+        'atct_version': '1.220',
+    })
+
+    def imported_molecule(entry):
+        record = entry.get('network_record')
+        if record is not None:
+            return record['molecule']
+        value = molecule_from_smiles(
+            entry['smiles'], charge=entry['charge'],
+            multiplicity=entry['multiplicity'])
+        value['source'] = {
+            'geometry_sha256': _geometry_hash(Atoms(
+                value['symbols'], positions=value['positions'])),
+            'record_sha256': hashlib.sha256(
+                entry['smiles'].encode()).hexdigest(),
+            'energy_hartree': -1.,
+            'l2_theory': dict(plan['l2_theory']),
+        }
+        return value
+
+    generated = []
+    for entry in plan['cbh']['calculated_states']:
+        generated.append(automatic_composite_spec(
+            imported_molecule(entry), highest_tier=entry['highest_tier'],
+            max_nodes=4, partition='day-long-cpu',
+            vpt2_method=plan['l2_theory']['method'],
+            vpt2_basis=plan['l2_theory']['basis'],
+            vpt2_dispersion=plan['l2_theory']['dispersion']))
+    for entry in plan['network']['transition_states'].values():
+        generated.append(automatic_composite_spec(
+            entry['molecule'], highest_tier=entry['highest_tier'],
+            max_nodes=4, partition='day-long-cpu',
+            stationary_point='transition_state',
+            vpt2_method=plan['l2_theory']['method'],
+            vpt2_basis=plan['l2_theory']['basis'],
+            vpt2_dispersion=plan['l2_theory']['dispersion']))
+    assert generated
+    for specification in generated:
+        for task in specification['tasks']:
+            task['resources'].update(
+                cores=1, memory_mb=64000, partition='test')
+        validate_spec(specification)
 
 
 def test_tight_transition_state_uses_explicit_reactant_energy_identity():
@@ -544,6 +626,109 @@ def test_automatic_final_report_is_self_contained_and_idempotent(tmp_path):
     assert report['network']['stable_species'] == ['root']
 
 
+def test_automatic_report_resolves_and_verifies_mess_paths_from_run_root(
+        tmp_path):
+    automatic_dir = tmp_path / 'anl_automatic'
+    automatic_dir.mkdir()
+    me = tmp_path / 'me'
+    me.mkdir()
+    plan = automatic_dir / 'network_request.json'
+    plan.write_text(json.dumps({
+        'schema': 1, 'requested_method': 'ANL0-F12',
+        'requested_cbh_rung': 1,
+        'network': {'initial': 'root', 'reactions': [],
+                    'stable_species': [{'routing_name': 'root'}],
+                    'transition_states': {}},
+    }))
+    handoff = automatic_dir / 'handoff.json'
+    handoff.write_text(json.dumps({'schema': 1, 'mode': 'cbh-anl'}))
+    handoff_hash = hashlib.sha256(handoff.read_bytes()).hexdigest()
+    (me / 'anl_handoff.json').write_text(json.dumps({
+        'schema': 1, 'status': 'complete',
+        'manifest_sha256': handoff_hash,
+    }))
+    mess_input = me / 'mess_0000.inp'
+    mess_output = me / 'mess_0000.out'
+    mess_input.write_text('MESS input\n')
+    mess_output.write_text('MESS output\n')
+    mess_record = me / 'mess_execution.json'
+    mess_record.write_text(json.dumps({
+        'schema': 1, 'status': 'complete', 'queue': 'slurm',
+        'command': ['mess'],
+        'jobs': {'mess_0000': {
+            'input': 'me/mess_0000.inp',
+            'input_sha256': hashlib.sha256(
+                mess_input.read_bytes()).hexdigest(),
+            'output': 'me/mess_0000.out',
+            'output_sha256': hashlib.sha256(
+                mess_output.read_bytes()).hexdigest(),
+            'output_bytes': mess_output.stat().st_size,
+        }},
+    }))
+    execution = automatic_dir / 'execution.json'
+    execution.write_text(json.dumps({
+        'schema': 1, 'status': 'complete', 'plan': str(plan),
+        'handoff_manifest': str(handoff), 'graphs': {}, 'formations': {},
+    }))
+    automatic = {
+        'status': 'complete', 'plan': str(plan),
+        'execution_record': str(execution),
+    }
+    result = finalize_automatic_run(
+        automatic, {'me': 1, 'run_me': 1, 'run_messpf': 0,
+                    'rotdpy_run': 0}, run_dir=tmp_path)
+    report = json.loads(Path(result).read_text())
+    assert report['mess']['status'] == 'complete'
+
+    mess_input.write_text('changed\n')
+    with pytest.raises(ValueError, match='MESS native input hash differs'):
+        finalize_automatic_run(
+            automatic, {'me': 1, 'run_me': 1, 'run_messpf': 0,
+                        'rotdpy_run': 0}, run_dir=tmp_path)
+
+
+def test_automatic_report_accepts_verified_network_with_no_reactions(
+        tmp_path):
+    automatic_dir = tmp_path / 'anl_automatic'
+    automatic_dir.mkdir()
+    me = tmp_path / 'me'
+    me.mkdir()
+    plan = automatic_dir / 'network_request.json'
+    plan.write_text(json.dumps({
+        'schema': 1, 'requested_method': 'ANL0-F12',
+        'requested_cbh_rung': 1,
+        'network': {'initial': 'root', 'reactions': [],
+                    'stable_species': [{'routing_name': 'root'}],
+                    'transition_states': {}},
+    }))
+    handoff = automatic_dir / 'handoff.json'
+    handoff.write_text(json.dumps({'schema': 1, 'mode': 'cbh-anl'}))
+    (me / 'anl_handoff.json').write_text(json.dumps({
+        'schema': 1, 'status': 'complete',
+        'manifest_sha256': hashlib.sha256(
+            handoff.read_bytes()).hexdigest(),
+    }))
+    (me / 'mess_networks.json').write_text(json.dumps([{
+        'stem': 'mess_0000', 'status': 'no_reactions',
+    }]))
+    (me / 'mess_execution.json').write_text(json.dumps({
+        'schema': 1, 'status': 'complete', 'queue': 'slurm',
+        'command': ['mess'], 'jobs': {},
+    }))
+    execution_record = automatic_dir / 'execution.json'
+    execution_record.write_text(json.dumps({
+        'schema': 1, 'status': 'complete', 'plan': str(plan),
+        'handoff_manifest': str(handoff), 'graphs': {}, 'formations': {},
+    }))
+    result = finalize_automatic_run({
+        'status': 'complete', 'plan': str(plan),
+        'execution_record': str(execution_record),
+    }, {'me': 1, 'run_me': 1, 'run_messpf': 0, 'rotdpy_run': 0},
+       run_dir=tmp_path)
+    report = json.loads(Path(result).read_text())
+    assert report['mess']['status'] == 'no_reactions'
+
+
 def test_exact_profile_order_preserves_harmonic_fallback_without_ambiguity():
     labels = {
         'L2:B2PLYP-D3BJ/cc-pVTZ:harmonic-ZPE': None,
@@ -585,3 +770,25 @@ def test_reduced_profiles_precede_lower_tiers_and_are_common_subset_complete():
                for item in omissions)
     assert ('higher_order', 'dboc', 'scalar_relativistic',
             'core_valence') in omissions
+
+
+def test_multi_graph_driver_waits_for_scheduler_recovery(monkeypatch):
+    responses = iter([
+        SchedulerUnavailableError('slurmctld unavailable'),
+        {'tasks': {'energy': {'status': 'complete'}}},
+    ])
+
+    def advance(*args, **kwargs):
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr('kinbot.anl.automatic.advance', advance)
+    sleeps = []
+    monkeypatch.setattr(
+        'kinbot.anl.automatic.time.sleep', lambda value: sleeps.append(value))
+    result = _drive_graphs({'state': Path('/graph')}, 1, interval=7.)
+    assert result == {'state': {'tasks': {
+        'energy': {'status': 'complete'}}}}
+    assert sleeps == [7.]

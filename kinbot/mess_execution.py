@@ -15,6 +15,15 @@ logger = logging.getLogger('KinBot')
 _RESULT_GRACE_SECONDS = 60.
 _QUERY_TIMEOUT_SECONDS = 30.
 _MAX_QUERY_FAILURES = 3
+_SCHEDULER_UNAVAILABLE = re.compile(
+    r'(?:unable to contact (?:slurm )?controller|'
+    r'unable to establish controller connection|'
+    r'(?:scheduler )?controller unavailable|'
+    r'slurm_load_jobs error|socket timed out|connection refused|'
+    r'resource temporarily unavailable|network is unreachable|'
+    r'host is down|no route to host|'
+    r'communication connection failure|controller not responding|'
+    r'scheduler query timed out)', re.IGNORECASE)
 
 
 class MESSExecutionError(RuntimeError):
@@ -23,6 +32,22 @@ class MESSExecutionError(RuntimeError):
 
 class _ResultPending(MESSExecutionError):
     """A completed queued job's result files are not yet visible."""
+
+
+class _SubmissionUncertain(MESSExecutionError):
+    """A scheduler call may have accepted a job without returning its ID."""
+
+
+def _scheduler_unavailable(error):
+    return bool(_SCHEDULER_UNAVAILABLE.search(str(error)))
+
+
+def _atomic_json(path, payload):
+    path = Path(path)
+    temporary = path.with_suffix(path.suffix + '.tmp')
+    temporary.write_text(json.dumps(
+        payload, indent=2, sort_keys=True) + '\n')
+    os.replace(temporary, path)
 
 
 def mess_command(parameters):
@@ -50,7 +75,7 @@ def _submit(queue, script):
         result = _run([constants.qsubmit[queue], str(script)],
                       timeout=_QUERY_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired as error:
-        raise MESSExecutionError(
+        raise _SubmissionUncertain(
             'MESS scheduler submission timed out; inspect the queue before '
             'retrying because the submission outcome is unknown.') from error
     except OSError as error:
@@ -63,7 +88,10 @@ def _submit(queue, script):
     else:
         match = re.fullmatch(r'\s*(\d+(?:\.[\w.-]+)?)\s*', result.stdout)
     if not match:
-        raise MESSExecutionError(f'Cannot read MESS job ID from {result.stdout!r}.')
+        raise _SubmissionUncertain(
+            f'Cannot read MESS job ID from {result.stdout!r}; inspect the '
+            'queue before retrying because the submission outcome is '
+            'unknown.')
     return match.group(1)
 
 
@@ -176,12 +204,127 @@ def run_mess(writer):
     if not writer.par['run_me']:
         return 0
 
+    automatic = bool(writer.par.get('anl_handoff_manifest'))
+    destination = Path('me/mess_execution.json')
+    expected_jobs = {f'mess_{index}' for index in indices}
+    input_hashes = {
+        index: _sha256(Path('me') / f'mess_{index}.inp')
+        for index in indices
+    }
+    if destination.is_file():
+        try:
+            existing = json.loads(destination.read_text())
+            jobs = existing['jobs']
+            reusable = (
+                existing.get('schema') == 1
+                and existing.get('status') == 'complete'
+                and existing.get('queue') == queue
+                and existing.get('command') == solver
+                and set(jobs) == expected_jobs)
+            for name, details in jobs.items():
+                output = Path(details['output'])
+                input_path = Path(details['input'])
+                reusable &= (
+                    output.is_file()
+                    and _sha256(output) == details['output_sha256']
+                    and input_path.is_file()
+                    and _sha256(input_path) == details['input_sha256'])
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            reusable = False
+        if reusable:
+            logger.info('Reusing verified completed MESS execution record.')
+            return 0
+
+    progress_path = Path('me/mess_execution.running.json')
     active = {}
+    completed = {}
+    submitting = None
+    if progress_path.is_file():
+        try:
+            progress = json.loads(progress_path.read_text())
+            identity_matches = (
+                progress.get('schema') == 1
+                and progress.get('queue') == queue
+                and progress.get('command') == solver
+                and progress.get('indices') == indices
+                and progress.get('input_sha256') == input_hashes)
+            if not identity_matches:
+                if progress.get('status') != 'failed':
+                    raise ValueError(
+                        'saved running MESS execution identity changed')
+                os.replace(
+                    progress_path,
+                    progress_path.with_name(
+                        progress_path.name + '.previous-failure'))
+                progress = None
+            if progress is None:
+                pass
+            elif progress.get('status') == 'failed':
+                uncertain = progress.get('submitting')
+                if uncertain is not None:
+                    raise _SubmissionUncertain(
+                        'MESS submission outcome is uncertain for '
+                        f'{uncertain.get("index", "unknown")}; inspect the '
+                        'scheduler before clearing the saved progress record.')
+                raise MESSExecutionError(
+                    'Previous MESS execution failed: ' +
+                    ' | '.join(progress.get('failures', ())))
+            else:
+                submitting = progress.get('submitting')
+                if submitting is not None:
+                    raise MESSExecutionError(
+                        'MESS submission outcome is uncertain for '
+                        f'{submitting.get("index", "unknown")}; inspect the '
+                        'scheduler before clearing the saved progress record.')
+                completed = dict(progress.get('completed', {}))
+                if not set(completed).issubset(indices):
+                    raise ValueError(
+                        'saved MESS completed job set is invalid')
+                restored_indices = []
+                for pid, value in progress.get('active', {}).items():
+                    previous = value.get('previous_output')
+                    if value['index'] not in indices:
+                        raise ValueError(
+                            'saved active MESS job is not requested')
+                    restored_indices.append(value['index'])
+                    active[str(pid)] = (
+                        value['index'], tuple(previous) if previous else None)
+                if (len(restored_indices) != len(set(restored_indices))
+                        or set(restored_indices) & set(completed)):
+                    raise ValueError(
+                        'saved MESS jobs contain duplicate execution state')
+        except MESSExecutionError:
+            raise
+        except (OSError, AttributeError, KeyError, TypeError, ValueError,
+                json.JSONDecodeError) as error:
+            raise MESSExecutionError(
+                f'Invalid saved MESS execution state at {progress_path}: '
+                f'{error}') from error
+
     ended = {}
     query_failures = {}
     failures = []
-    completed = {}
     limit = max(1, int(writer.par['uq_max_runs']))
+
+    def save_progress(status='running'):
+        _atomic_json(progress_path, {
+            'schema': 1, 'status': status, 'queue': queue,
+            'command': solver, 'indices': indices,
+            'input_sha256': input_hashes,
+            'active': {
+                str(pid): {
+                    'index': index,
+                    'previous_output': list(previous)
+                    if previous is not None else None,
+                }
+                for pid, (index, previous) in active.items()
+            },
+            'completed': completed,
+            'submitting': submitting,
+            'failures': failures,
+        })
+
+    save_progress()
 
     def poll():
         time.sleep(5)
@@ -195,6 +338,13 @@ def run_mess(writer):
                     if count < _MAX_QUERY_FAILURES:
                         logger.warning('%s Retrying scheduler query (%s/%s).',
                                        error, count, _MAX_QUERY_FAILURES)
+                        continue
+                    if automatic and _scheduler_unavailable(error):
+                        if count == _MAX_QUERY_FAILURES:
+                            logger.warning(
+                                '%s Automatic MESS execution retains job %s '
+                                'and will keep waiting for scheduler recovery.',
+                                error, pid)
                         continue
                     raise MESSExecutionError(
                         f'{error} Monitoring stopped after {count} consecutive query failures; '
@@ -214,8 +364,12 @@ def run_mess(writer):
                 failures.append(str(error))
             del active[pid]
             ended.pop(pid, None)
+            save_progress()
 
+    scheduled = {index for index, _ in active.values()}
     for index, script in zip(indices, scripts):
+        if index in completed or index in scheduled:
+            continue
         output = Path('me') / f'mess_{index}.out'
         previous = _stamp(output)
         if queue == 'local':
@@ -225,26 +379,67 @@ def run_mess(writer):
                     result = subprocess.run(solver + [f'mess_{index}.inp'], cwd='me',
                                             stdout=stdout, stderr=stderr, check=False)
                 except OSError as error:
-                    raise MESSExecutionError(
+                    failures.append(
                         f'Cannot start MESS calculation {index} with {solver[0]!r}: {error}. '
-                        'Check mess_command and the executable in the local environment.') from error
-            completed[index] = _verify(index, previous, result.returncode)
+                        'Check mess_command and the executable in the local environment.')
+                    break
+            try:
+                completed[index] = _verify(
+                    index, previous, result.returncode)
+            except MESSExecutionError as error:
+                failures.append(str(error))
+                break
+            save_progress()
         else:
             while len(active) >= limit:
                 poll()
             if failures:
                 break
             (Path('me') / f'mess_{index}.exitcode').unlink(missing_ok=True)
-            try:
-                pid = _submit(queue, script)
-            except MESSExecutionError as error:
-                failures.append(str(error))
+            while True:
+                submitting = {'index': index, 'script': str(script)}
+                save_progress()
+                try:
+                    pid = _submit(queue, script)
+                    break
+                except MESSExecutionError as error:
+                    if isinstance(error, _SubmissionUncertain):
+                        failures.append(str(error))
+                        break
+                    submitting = None
+                    save_progress()
+                    if automatic and _scheduler_unavailable(error):
+                        logger.warning(
+                            '%s No MESS job was accepted; retrying after '
+                            'scheduler recovery.', error)
+                        time.sleep(5)
+                        continue
+                    failures.append(str(error))
+                    break
+            if failures:
                 break
+            submitting = None
             active[pid] = (index, previous)
+            scheduled.add(index)
+            save_progress()
     while active:
         poll()
     if failures:
+        save_progress(status='failed')
         raise MESSExecutionError('\n'.join(failures))
+    if set(completed) != set(indices):
+        raise MESSExecutionError(
+            'MESS execution ended without every requested job result.')
+    for index, details in completed.items():
+        input_path = Path('me') / f'mess_{index}.inp'
+        output_path = Path(details['output'])
+        if (not output_path.is_file()
+                or _sha256(output_path) != details['output_sha256']):
+            raise MESSExecutionError(
+                f'MESS calculation {index}: saved output changed before '
+                'the completion record was published.')
+        details['input'] = str(input_path)
+        details['input_sha256'] = input_hashes[index]
     record = {
         'schema': 1, 'status': 'complete', 'queue': queue,
         'command': solver,
@@ -257,6 +452,6 @@ def run_mess(writer):
     if networks.is_file():
         record['network_manifest'] = str(networks)
         record['network_manifest_sha256'] = _sha256(networks)
-    destination = Path('me/mess_execution.json')
-    destination.write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
+    _atomic_json(destination, record)
+    progress_path.unlink(missing_ok=True)
     return 0

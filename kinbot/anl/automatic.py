@@ -34,7 +34,8 @@ from kinbot.anl.cbh import (cbh_network_requirements, cbh_network_states,
                             generate_cbh_reaction, select_cbh_ladder,
                             zero_k_from_composite_record)
 from kinbot.anl.dispatch import (_file_hash, _geometry_hash, _load, advance,
-                                 preflight, prepare, _verify_execution,
+                                 preflight_until_scheduler_ready, prepare,
+                                 SchedulerUnavailableError, _verify_execution,
                                  _verify_stage_files)
 from kinbot.anl.model import ComponentResult, IncompleteRecipeError
 from kinbot.anl.recipes import ANL_REDUCIBLE_FAMILIES
@@ -1229,7 +1230,8 @@ def _prepare_graphs(plan, sources, root):
                 vpt2_basis=plan['l2_theory']['basis'],
                 vpt2_dispersion=plan['l2_theory']['dispersion'])
             prepare(specification, graph)
-        preflight(graph, skip_optional=True)
+        preflight_until_scheduler_ready(
+            graph, skip_optional=True, interval=20.)
         graphs['stable:' + key] = graph
     for name, entry in plan['network']['transition_states'].items():
         molecule = entry['molecule']
@@ -1247,7 +1249,8 @@ def _prepare_graphs(plan, sources, root):
                 vpt2_basis=plan['l2_theory']['basis'],
                 vpt2_dispersion=plan['l2_theory']['dispersion'])
             prepare(specification, graph)
-        preflight(graph, skip_optional=True)
+        preflight_until_scheduler_ready(
+            graph, skip_optional=True, interval=20.)
         graphs['ts:' + name] = graph
     return graphs
 
@@ -1256,36 +1259,56 @@ def _drive_graphs(graphs, max_jobs, interval=20.):
     """Advance many dispatcher DAGs under one global live-job cap."""
     names = sorted(graphs)
     cursor = 0
+    scheduler_error = None
     while True:
-        states = {name: advance(graphs[name], submit=False) for name in names}
-        hard = []
-        active = 0
-        complete = True
-        for name, state in states.items():
-            for task, entry in state['tasks'].items():
-                status = entry['status']
-                active += status == 'submitted'
-                complete &= status in ('complete', 'unavailable', 'skipped')
-                if status in ('failed', 'blocked', 'submitting'):
-                    hard.append(f'{name}/{task}={status}')
-        if hard:
-            raise RuntimeError('Automatic composite graph failed: ' +
-                               ', '.join(hard))
-        if complete:
-            return states
-        slots = max_jobs - active
-        for offset in range(len(names)):
-            if slots <= 0:
-                break
-            name = names[(cursor + offset) % len(names)]
-            state = states[name]
-            staged = next((task for task, entry in state['tasks'].items()
-                           if entry['status'] == 'staged'), None)
-            if staged is None:
-                continue
-            states[name] = advance(
-                graphs[name], submit=True, submit_only=[staged])
-            slots -= 1
+        try:
+            states = {
+                name: advance(graphs[name], submit=False) for name in names}
+            hard = []
+            active = 0
+            complete = True
+            for name, state in states.items():
+                for task, entry in state['tasks'].items():
+                    status = entry['status']
+                    active += status == 'submitted'
+                    complete &= status in (
+                        'complete', 'unavailable', 'skipped')
+                    if status in ('failed', 'blocked', 'submitting'):
+                        hard.append(f'{name}/{task}={status}')
+            if hard:
+                raise RuntimeError('Automatic composite graph failed: ' +
+                                   ', '.join(hard))
+            if complete:
+                return states
+            slots = max_jobs - active
+            for offset in range(len(names)):
+                if slots <= 0:
+                    break
+                name = names[(cursor + offset) % len(names)]
+                state = states[name]
+                staged = next(
+                    (task for task, entry in state['tasks'].items()
+                     if entry['status'] == 'staged'), None)
+                if staged is None:
+                    continue
+                states[name] = advance(
+                    graphs[name], submit=True, submit_only=[staged])
+                slots -= 1
+        except SchedulerUnavailableError as error:
+            message = str(error)
+            if message != scheduler_error:
+                print(
+                    'Automatic composite scheduler access is unavailable; '
+                    f'retaining graph state and retrying: {message}',
+                    file=sys.stderr, flush=True)
+                scheduler_error = message
+            time.sleep(float(interval))
+            continue
+        if scheduler_error is not None:
+            print(
+                'Automatic composite scheduler access recovered; resuming.',
+                file=sys.stderr, flush=True)
+            scheduler_error = None
         cursor = (cursor + 1) % max(len(names), 1)
         time.sleep(float(interval))
 
@@ -1455,14 +1478,45 @@ def finalize_automatic_run(automatic, parameters, *, run_dir='.'):
         if parameters.get('run_me'):
             record_path = run_dir / 'me' / 'mess_execution.json'
             record = _read_json(record_path, 'MESS execution')
-            if record.get('status') != 'complete' or not record.get('jobs'):
+            if record.get('status') != 'complete' or not isinstance(
+                    record.get('jobs'), dict):
                 raise ValueError('MESS execution record is incomplete.')
             for name, job in record['jobs'].items():
-                output = Path(job.get('output', '')).expanduser().resolve()
+                output = Path(job.get('output', '')).expanduser()
+                if not output.is_absolute():
+                    output = run_dir / output
+                output = output.resolve()
                 if (not output.is_file()
                         or _file_hash(output) != job.get('output_sha256')):
                     raise ValueError(f'{name}: MESS native output hash differs.')
-            mess.update(status='complete', execution=_artifact(
+                if 'input' in job or 'input_sha256' in job:
+                    input_path = Path(job.get('input', '')).expanduser()
+                    if not input_path.is_absolute():
+                        input_path = run_dir / input_path
+                    input_path = input_path.resolve()
+                    if (not input_path.is_file()
+                            or _file_hash(input_path)
+                            != job.get('input_sha256')):
+                        raise ValueError(
+                            f'{name}: MESS native input hash differs.')
+            status = 'complete'
+            if not record['jobs']:
+                network_path = run_dir / 'me' / 'mess_networks.json'
+                try:
+                    networks = json.loads(network_path.read_text())
+                except (OSError, json.JSONDecodeError) as error:
+                    raise ValueError(
+                        f'MESS network manifest is not valid JSON: '
+                        f'{network_path}') from error
+                if (not isinstance(networks, list)
+                        or any(not isinstance(entry, dict)
+                               or entry.get('status') != 'no_reactions'
+                               for entry in networks)):
+                    raise ValueError(
+                        'MESS execution has no jobs although a network is '
+                        'ready for rate calculation.')
+                status = 'no_reactions'
+            mess.update(status=status, execution=_artifact(
                 record_path, 'MESS execution'), jobs=record['jobs'])
 
     rotdpy = {}

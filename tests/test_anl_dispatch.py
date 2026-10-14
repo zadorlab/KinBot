@@ -23,7 +23,8 @@ from kinbot.anl.dispatch import (
     _molpro_total_mw, _runtime_profile, advance, main, prepare,
     SchedulerUnavailableError, drive_run,
     recover_gaussian_vpt2_symmetry,
-    migrate_cfour_vcc_keyword, preflight, refresh_status, reparse_failed,
+    migrate_cfour_vcc_keyword, preflight,
+    preflight_until_scheduler_ready, refresh_status, reparse_failed,
     reroute_cfour_higher_order_to_mrcc,
     resume_mrcc_failed,
     retry_failed, run_task,
@@ -1457,6 +1458,17 @@ def test_scheduler_query_timeout_is_bounded():
     assert all(call.kwargs['timeout'] == 30 for call in run.call_args_list)
 
 
+def test_scheduler_query_launch_error_is_bounded():
+    error = OSError(11, 'Resource temporarily unavailable')
+    with patch('kinbot.anl.dispatch.subprocess.run', side_effect=error) as run, \
+            patch('kinbot.anl.dispatch.time.sleep') as sleep:
+        with pytest.raises(SchedulerUnavailableError,
+                           match='could not start 3 times'):
+            _job_active('123')
+    assert run.call_count == 3
+    assert sleep.call_count == 2
+
+
 def test_in_process_driver_waits_for_scheduler_recovery():
     state = {'tasks': {'probe': {'status': 'complete'}}}
     spec = {'tasks': [{'id': 'probe'}]}
@@ -1474,6 +1486,73 @@ def test_in_process_driver_waits_for_scheduler_recovery():
     assert summary == {'probe': 'complete'}
     assert advance_mock.call_count == 2
     sleep.assert_called_once_with(7.)
+
+
+def test_automatic_preflight_waits_only_for_scheduler_recovery():
+    expected = {'slurm_scripts_tested': 1}
+    with patch('kinbot.anl.dispatch.preflight', side_effect=[
+            SchedulerUnavailableError('controller unavailable'), expected
+    ]) as check, patch('kinbot.anl.dispatch.time.sleep') as sleep:
+        result = preflight_until_scheduler_ready(
+            '/graph', skip_optional=True, interval=7.)
+    assert result == expected
+    assert check.call_count == 2
+    sleep.assert_called_once_with(7.)
+
+
+def test_preflight_classifies_slurm_test_timeout_as_unavailable():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
+
+        def execute(command, **kwargs):
+            if command[0] == 'bash':
+                return subprocess.CompletedProcess(command, 0, '', '')
+            if command[:2] == ['sbatch', '--test-only']:
+                raise subprocess.TimeoutExpired(command, 30)
+            raise AssertionError(command)
+
+        with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/x'), \
+                patch('kinbot.anl.dispatch.subprocess.run',
+                      side_effect=execute):
+            with pytest.raises(SchedulerUnavailableError,
+                               match='test-only submission timed out'):
+                preflight(run_dir)
+
+
+def test_preflight_classifies_transient_slurm_launch_as_unavailable():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
+
+        def execute(command, **kwargs):
+            if command[0] == 'bash':
+                return subprocess.CompletedProcess(command, 0, '', '')
+            if command[:2] == ['sbatch', '--test-only']:
+                raise OSError(11, 'Resource temporarily unavailable')
+            raise AssertionError(command)
+
+        with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/x'), \
+                patch('kinbot.anl.dispatch.subprocess.run',
+                      side_effect=execute):
+            with pytest.raises(SchedulerUnavailableError,
+                               match='could not start'):
+                preflight(run_dir)
+
+
+def test_submission_controller_failure_restages_without_uncertain_state():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
+        unavailable = subprocess.CompletedProcess(
+            [], 1, '', 'sbatch: error: Unable to contact slurm controller')
+        with patch('kinbot.anl.dispatch.subprocess.run',
+                   return_value=unavailable):
+            with pytest.raises(SchedulerUnavailableError,
+                               match='sbatch is unavailable'):
+                advance(run_dir, submit=True, submit_only=['l2_geometry'])
+        state = json.loads((run_dir / 'state.json').read_text())
+        assert state['tasks']['l2_geometry']['status'] == 'staged'
 
 
 def test_status_refreshes_finished_job_without_submitting(capsys):

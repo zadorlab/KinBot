@@ -7,6 +7,8 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+import threading
+import time
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -143,6 +145,21 @@ class TestSchedulerJobs(unittest.TestCase):
             run.call_args.args[0],
             ['squeue', '-h', '-u', 'tester', '-o', '%Z'])
 
+    def test_automatic_queue_admission_survives_long_controller_outage(self):
+        root = str((Path.cwd() / 'anl_automatic').resolve())
+        qc = SimpleNamespace(
+            queuing='slurm', username='tester', queue_job_limit=2,
+            queue_job_root=root, queue_job_root_recursive=True)
+        failed = Mock(returncode=1, stdout='',
+                      stderr='Unable to contact slurm controller')
+        recovered = Mock(returncode=0, stdout='', stderr='')
+        with patch('kinbot.qc.subprocess.run', side_effect=[
+                failed, failed, recovered]), \
+                patch('kinbot.qc.time.monotonic', side_effect=[0., 120.]), \
+                patch('kinbot.qc.time.sleep') as sleep:
+            self.assertEqual(QuantumChemistry.limit_jobs(qc), 0)
+        self.assertEqual(sleep.call_count, 2)
+
     def test_automatic_reference_submission_uses_cross_process_lock(self):
         qc = SimpleNamespace()
         with patch.object(QuantumChemistry, '_submit_qc', return_value=1) as submit, \
@@ -152,6 +169,32 @@ class TestSchedulerJobs(unittest.TestCase):
                 QuantumChemistry.submit_qc(qc, 'job', 8), 1)
         submit.assert_called_once_with(qc, 'job', 8, 1, None)
         self.assertTrue(Path('shared.lock').is_file())
+
+    def test_concurrent_legacy_threads_have_atomic_queue_admission(self):
+        active = 0
+        maximum = 0
+        guard = threading.Lock()
+
+        def submit(*args):
+            nonlocal active, maximum
+            with guard:
+                active += 1
+                maximum = max(maximum, active)
+            time.sleep(.01)
+            with guard:
+                active -= 1
+            return 1
+
+        qc = SimpleNamespace()
+        with patch.object(QuantumChemistry, '_submit_qc', side_effect=submit):
+            workers = [threading.Thread(
+                target=QuantumChemistry.submit_qc,
+                args=(qc, f'job_{index}', 1)) for index in range(8)]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join()
+        self.assertEqual(maximum, 1)
 
     def test_completed_worker_reads_result_after_current_slurm_generation(self):
         Path('input.json').write_text(json.dumps({
@@ -317,6 +360,13 @@ class TestSchedulerJobs(unittest.TestCase):
             run.call_args.args[0], ['squeue', '-h', '-j', '123', '-o', '%i'])
         self.assertEqual(run.call_args.kwargs['timeout'], 15)
 
+    def test_slurm_invalid_job_id_is_terminal_not_an_outage(self):
+        result = Mock(
+            returncode=1, stdout='',
+            stderr='slurm_load_jobs error: Invalid job id specified')
+        with patch('kinbot.qc.subprocess.run', return_value=result):
+            self.assertFalse(_slurm_job_active('52906599'))
+
     def test_slurm_status_timeout_remains_running(self):
         qc = SimpleNamespace(
             queuing='slurm', job_ids={'pending': '123'},
@@ -349,6 +399,68 @@ class TestSchedulerJobs(unittest.TestCase):
                                         'submission timed out'):
                 QuantumChemistry.submit_qc(qc, 'timeout_job', 1)
         process.kill.assert_called_once_with()
+
+    def test_automatic_submission_retries_explicit_controller_failure(self):
+        root = str((Path.cwd() / 'anl_automatic').resolve())
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            queue_job_root=root,
+            par={'queue_template': ''}, queuing='slurm', qc='fc',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={})
+        unavailable = Mock(returncode=1)
+        unavailable.communicate.return_value = (
+            b'', b'sbatch: error: Unable to contact slurm controller')
+        accepted = Mock(returncode=0)
+        accepted.communicate.return_value = (
+            b'Submitted batch job 123\n', b'')
+        discovery = Mock(returncode=0, stdout='1-00:00:00\n', stderr='')
+        with patch('kinbot.qc.subprocess.Popen',
+                   side_effect=[unavailable, accepted]) as submit, \
+                patch('kinbot.qc.subprocess.run', return_value=discovery), \
+                patch('kinbot.qc.time.sleep') as sleep, \
+                patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
+            self.assertEqual(
+                QuantumChemistry.submit_qc(qc, 'retry_job', 1), 1)
+        self.assertEqual(submit.call_count, 2)
+        sleep.assert_called_once_with(5)
+        self.assertEqual(qc.job_ids['retry_job'], '123')
+
+    def test_automatic_submission_retries_transient_process_launch(self):
+        root = str((Path.cwd() / 'anl_automatic').resolve())
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            queue_job_root=root,
+            par={'queue_template': ''}, queuing='slurm', qc='fc',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={})
+        accepted = Mock(returncode=0)
+        accepted.communicate.return_value = (
+            b'Submitted batch job 123\n', b'')
+        discovery = Mock(returncode=0, stdout='1-00:00:00\n', stderr='')
+        with patch('kinbot.qc.subprocess.Popen', side_effect=[
+                OSError(11, 'Resource temporarily unavailable'),
+                accepted]) as submit, \
+                patch('kinbot.qc.subprocess.run', return_value=discovery), \
+                patch('kinbot.qc.time.sleep') as sleep, \
+                patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
+            self.assertEqual(
+                QuantumChemistry.submit_qc(qc, 'retry_launch', 1), 1)
+        self.assertEqual(submit.call_count, 2)
+        sleep.assert_called_once_with(5)
+
+    def test_unrecognized_scheduler_success_output_is_hard_error(self):
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            par={'queue_template': ''}, queuing='slurm', qc='fc',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={})
+        process = Mock(returncode=0)
+        process.communicate.return_value = (b'unexpected success\n', b'')
+        discovery = Mock(returncode=0, stdout='1-00:00:00\n', stderr='')
+        with patch('kinbot.qc.subprocess.Popen', return_value=process), \
+                patch('kinbot.qc.subprocess.run', return_value=discovery), \
+                patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True), \
+                self.assertRaisesRegex(RuntimeError,
+                                       'Cannot parse scheduler job id'):
+            QuantumChemistry.submit_qc(qc, 'bad_output', 1)
 
     def test_slurm_io_launch_failure_is_immediate_and_excludes_node(self):
         qc = SimpleNamespace(queuing='slurm', job_ids={'lost': '123'},

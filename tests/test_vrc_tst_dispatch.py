@@ -12,7 +12,7 @@ from ase.db import connect
 import numpy as np
 import pytest
 
-from kinbot.vrc_tst_scan import VTS
+from kinbot.vrc_tst_scan import VTS, _drive_vrc_dispatch
 from kinbot.fragments import Fragment
 
 
@@ -393,3 +393,62 @@ def test_molpro_dispatch_surfaces_native_task_failure():
                     vts._dispatch_molpro_corrections({'r': species})
         finally:
             os.chdir(previous)
+
+
+def test_vrc_dispatch_retries_one_execution_failure_and_preserves_archive(
+        tmp_path):
+    failed = {
+        'tasks': {'relaxed_scan': {
+            'status': 'failed', 'attempt': 1,
+            'failure_phase': 'execution'}}}
+    complete = {'tasks': {'relaxed_scan': {'status': 'complete'}}}
+    archive = tmp_path / 'attempts' / 'relaxed_scan' / '1'
+    archive.mkdir(parents=True)
+    with patch('kinbot.anl.dispatch.drive_run', side_effect=[
+            (1, {'relaxed_scan': 'failed'}),
+            (0, {'relaxed_scan': 'complete'})]), \
+            patch('kinbot.anl.dispatch._load', return_value=(
+                tmp_path, {}, failed)), \
+            patch('kinbot.anl.dispatch.retry_failed',
+                  return_value=archive) as retry, \
+            patch('kinbot.anl.dispatch.preflight_until_scheduler_ready') \
+            as preflight:
+        result = _drive_vrc_dispatch(
+            tmp_path, ('relaxed_scan',), interval=0.)
+    assert result == (0, {'relaxed_scan': 'complete'})
+    retry.assert_called_once_with(tmp_path, 'relaxed_scan')
+    preflight.assert_called_once_with(tmp_path, interval=0.)
+
+
+def test_vrc_dispatch_does_not_retry_validation_failure(tmp_path):
+    task = tmp_path / 'tasks' / 'relaxed_scan'
+    task.mkdir(parents=True)
+    (task / 'execution.json').write_text(json.dumps({
+        'status': 'failed', 'failure_phase': 'validation',
+        'error': 'constraint was lost'}))
+    failed = {'tasks': {'relaxed_scan': {
+        'status': 'failed', 'attempt': 1}}}
+    with patch('kinbot.anl.dispatch.drive_run', return_value=(
+            1, {'relaxed_scan': 'failed'})), \
+            patch('kinbot.anl.dispatch._load', return_value=(
+                tmp_path, {}, failed)), \
+            patch('kinbot.anl.dispatch.retry_failed') as retry:
+        result = _drive_vrc_dispatch(
+            tmp_path, ('relaxed_scan',), interval=0.)
+    assert result == (1, {'relaxed_scan': 'failed'})
+    retry.assert_not_called()
+
+
+def test_vrc_dispatch_retries_each_task_at_most_once(tmp_path):
+    failed = {'tasks': {'relaxed_scan': {
+        'status': 'failed', 'attempt': 2,
+        'failure_phase': 'scheduler'}}}
+    with patch('kinbot.anl.dispatch.drive_run', return_value=(
+            1, {'relaxed_scan': 'failed'})), \
+            patch('kinbot.anl.dispatch._load', return_value=(
+                tmp_path, {}, failed)), \
+            patch('kinbot.anl.dispatch.retry_failed') as retry:
+        result = _drive_vrc_dispatch(
+            tmp_path, ('relaxed_scan',), interval=0.)
+    assert result == (1, {'relaxed_scan': 'failed'})
+    retry.assert_not_called()

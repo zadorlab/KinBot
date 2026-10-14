@@ -57,6 +57,58 @@ def _native_state_integer(value, label):
     return int(numeric)
 
 
+def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
+    """Drive VRC tasks and retry one transient native/scheduler failure.
+
+    A failed process launch, node loss, or scheduler disappearance is safe to
+    resubmit because the dispatcher archives the complete prior task directory
+    and binds the replacement to the same immutable input. Parser, provenance,
+    constraint, and result-validation failures are never retried here.
+    """
+    from kinbot.anl.dispatch import (
+        SchedulerUnavailableError, _load, drive_run,
+        preflight_until_scheduler_ready, retry_failed)
+
+    task_ids = tuple(task_ids)
+    while True:
+        returncode, summary = drive_run(run_dir, interval=interval)
+        if not returncode:
+            return returncode, summary
+        _, _, state = _load(run_dir)
+        retry = []
+        for task_id in task_ids:
+            entry = state['tasks'].get(task_id, {})
+            if entry.get('status') != 'failed':
+                continue
+            execution_path = Path(run_dir) / 'tasks' / task_id / 'execution.json'
+            try:
+                execution = json.loads(execution_path.read_text())
+            except (OSError, json.JSONDecodeError):
+                execution = {}
+            phase = entry.get('failure_phase') or execution.get(
+                'failure_phase')
+            attempt = int(entry.get('attempt', 1))
+            if phase in ('execution', 'scheduler') and attempt < max_attempts:
+                retry.append((task_id, phase, attempt))
+        if not retry:
+            return returncode, summary
+        for task_id, phase, attempt in retry:
+            while True:
+                try:
+                    archive = retry_failed(run_dir, task_id)
+                    break
+                except SchedulerUnavailableError as error:
+                    logger.warning(
+                        '%s: scheduler unavailable while preparing transient '
+                        'retry; retaining failed attempt: %s', task_id, error)
+                    time.sleep(float(interval))
+            logger.warning(
+                '%s: archived transient %s failure from attempt %d at %s; '
+                'retrying once with the same input.',
+                task_id, phase, attempt, archive)
+        preflight_until_scheduler_ready(run_dir, interval=interval)
+
+
 class VTS:
     """
     Class to run the scans for VRC-TST to
@@ -502,7 +554,8 @@ class VTS:
     def _molpro_multireference_scan_task(
             self, reaction, geom, distance, logical_name):
         """Run one constrained Molpro multireference scan point."""
-        from kinbot.anl.dispatch import _load, drive_run, preflight, prepare
+        from kinbot.anl.dispatch import (
+            _load, preflight_until_scheduler_ready, prepare)
 
         constraints = {'fixed_bonds': [list(map(int, reaction.scan_coo))],
                        'minimum_bonds': []}
@@ -572,10 +625,11 @@ class VTS:
                     'vrc_scan_fingerprint') != fingerprint:
                 raise RuntimeError(
                     f'VRC scan provenance collision at {run_dir}.')
-        preflight(run_dir)
+        preflight_until_scheduler_ready(run_dir, interval=20.)
         _, _, state = _load(run_dir)
         if state['tasks']['relaxed_scan']['status'] != 'complete':
-            returncode, _ = drive_run(run_dir, interval=20.)
+            returncode, _ = _drive_vrc_dispatch(
+                run_dir, ('relaxed_scan',), interval=20.)
             if returncode:
                 _, _, state = _load(run_dir)
                 error = state['tasks']['relaxed_scan'].get(
@@ -927,7 +981,8 @@ class VTS:
 
     def _dispatch_molpro_corrections(self, pending):
         """Execute missing VRC correction points with the ANL dispatcher."""
-        from kinbot.anl.dispatch import _load, drive_run, preflight, prepare
+        from kinbot.anl.dispatch import (
+            _load, preflight_until_scheduler_ready, prepare)
 
         first = next(iter(pending.values()))
         molecule = {
@@ -994,8 +1049,9 @@ class VTS:
         (base_dir / 'current_dispatch.json').write_text(json.dumps({
             'schema': 1, 'run_dir': str(run_dir),
         }, indent=2) + '\n')
-        preflight(run_dir)
-        returncode, _ = drive_run(run_dir, interval=20.)
+        preflight_until_scheduler_ready(run_dir, interval=20.)
+        returncode, _ = _drive_vrc_dispatch(
+            run_dir, pending, interval=20.)
         if returncode:
             _, _, state = _load(run_dir)
             failures = []

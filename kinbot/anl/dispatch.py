@@ -47,6 +47,17 @@ _SCHEDULER_TIMEOUT = 30
 _SCHEDULER_QUERY_ATTEMPTS = 3
 
 
+_SCHEDULER_UNAVAILABLE = re.compile(
+    r'(?:unable to contact (?:slurm )?controller|'
+    r'unable to establish controller connection|'
+    r'(?:scheduler )?controller unavailable|'
+    r'slurm_load_jobs error|socket timed out|connection refused|'
+    r'resource temporarily unavailable|network is unreachable|'
+    r'host is down|no route to host|'
+    r'communication connection failure|controller not responding)',
+    re.IGNORECASE)
+
+
 class CalculationUnavailableError(RuntimeError):
     """A native calculation could not be completed with its resources.
 
@@ -64,6 +75,34 @@ class SchedulerUnavailableError(RuntimeError):
     Treating a Slurm controller outage as an absent job can otherwise turn a
     healthy calculation into a false scientific failure.
     """
+
+
+def _scheduler_unavailable(detail):
+    """Recognize failures that prove Slurm did not answer the request."""
+    return bool(_SCHEDULER_UNAVAILABLE.search(str(detail or '')))
+
+
+def preflight_until_scheduler_ready(run_dir, *, skip_optional=False,
+                                    interval=20.):
+    """Retry only scheduler availability failures during preflight.
+
+    Executable, input, resource, and scientific validation failures remain
+    immediate hard errors. This wrapper is for long-lived automatic drivers
+    whose prepared work must survive a temporary slurmctld outage.
+    """
+    previous = None
+    while True:
+        try:
+            return preflight(run_dir, skip_optional=skip_optional)
+        except SchedulerUnavailableError as error:
+            message = str(error)
+            if message != previous:
+                print(
+                    'Scheduler preflight is unavailable; retaining staged '
+                    f'tasks and retrying: {message}',
+                    file=sys.stderr, flush=True)
+                previous = message
+            time.sleep(float(interval))
 
 
 def _basename(value, label):
@@ -369,7 +408,7 @@ def validate_spec(spec, *, allow_obsolete=False):
     if not isinstance(spec, dict) or spec.get('schema') != 1:
         raise ValueError('Workflow must be a schema 1 object.')
     _basename(spec.get('name'), 'Workflow name')
-    _atoms(spec.get('molecule'))
+    atoms = _atoms(spec.get('molecule'))
     limits = spec.get('limits')
     if not isinstance(limits, dict):
         raise ValueError('limits must be an object.')
@@ -435,14 +474,40 @@ def validate_spec(spec, *, allow_obsolete=False):
             source_task = by_id.get(source)
             profile = (source_task or {}).get('profile', {})
             keywords = profile.get('calculator_kwargs', {}) if isinstance(profile, dict) else {}
-            if (source_task is None or source_task.get('kind') != 'ase_optimize'
-                    or not isinstance(profile, dict)
-                    or not isinstance(keywords, dict)
-                    or profile.get('calculator', '').lower() not in ('gaussian', 'gauss')
-                    or profile.get('method', '').casefold() != parser['method'].casefold()
-                    or profile.get('basis', '').casefold() != parser['basis'].casefold()
-                    or keywords.get('EmpiricalDispersion', '').casefold()
-                    != parser.get('dispersion', '').casefold()):
+            task_source_matches = (
+                source_task is not None
+                and source_task.get('kind') == 'ase_optimize'
+                and isinstance(profile, dict)
+                and isinstance(keywords, dict)
+                and profile.get('calculator', '').lower()
+                in ('gaussian', 'gauss')
+                and profile.get('method', '').casefold()
+                == parser['method'].casefold()
+                and profile.get('basis', '').casefold()
+                == parser['basis'].casefold()
+                and keywords.get('EmpiricalDispersion', '').casefold()
+                == parser.get('dispersion', '').casefold())
+            imported_source = spec.get('molecule', {}).get('source', {})
+            imported_profile = (imported_source.get('l2_theory', {})
+                                if isinstance(imported_source, dict) else {})
+            imported_source_matches = (
+                source == 'initial'
+                and isinstance(imported_profile, dict)
+                and re.fullmatch(r'[0-9a-f]{64}', str(
+                    imported_source.get('geometry_sha256', '')))
+                and re.fullmatch(r'[0-9a-f]{64}', str(
+                    imported_source.get('record_sha256', '')))
+                and imported_source.get('geometry_sha256')
+                == _geometry_hash(atoms)
+                and imported_profile.get('calculator', '').lower()
+                in ('gaussian', 'gauss')
+                and imported_profile.get('method', '').casefold()
+                == parser['method'].casefold()
+                and imported_profile.get('basis', '').casefold()
+                == parser['basis'].casefold()
+                and imported_profile.get('dispersion', '').casefold()
+                == parser.get('dispersion', '').casefold())
+            if not (task_source_matches or imported_source_matches):
                 raise ValueError(f"{task['id']}: frequency-only VPT2 must use "
                                  'a matching Gaussian geometry source.')
     visiting, visited = set(), set()
@@ -1290,6 +1355,14 @@ def _job_active(job_id):
                     f'squeue timed out {_SCHEDULER_QUERY_ATTEMPTS} times '
                     f'while checking job {job_id}.') from error
             time.sleep(5)
+        except FileNotFoundError as error:
+            raise RuntimeError('squeue is unavailable on PATH.') from error
+        except OSError as error:
+            if attempt + 1 == _SCHEDULER_QUERY_ATTEMPTS:
+                raise SchedulerUnavailableError(
+                    f'squeue could not start {_SCHEDULER_QUERY_ATTEMPTS} '
+                    f'times while checking job {job_id}: {error}') from error
+            time.sleep(5)
     if result.returncode:
         # A completed job can disappear from slurmctld before its execution
         # record is reconciled. Some Slurm versions return an error rather
@@ -1502,12 +1575,28 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
         entry = state['tasks'].get(task['id'])
         if not entry or entry['status'] != 'staged':
             continue
-        result = subprocess.run(
-            ['sbatch', '--test-only', 'job.slurm'],
-            cwd=run_dir / 'tasks' / task['id'], capture_output=True,
-            text=True, check=False, timeout=_SCHEDULER_TIMEOUT)
+        try:
+            result = subprocess.run(
+                ['sbatch', '--test-only', 'job.slurm'],
+                cwd=run_dir / 'tasks' / task['id'], capture_output=True,
+                text=True, check=False, timeout=_SCHEDULER_TIMEOUT)
+        except subprocess.TimeoutExpired as error:
+            raise SchedulerUnavailableError(
+                f'{task["id"]}: Slurm test-only submission timed out; no '
+                'job was created.') from error
+        except FileNotFoundError as error:
+            raise RuntimeError(
+                'Preflight: sbatch is unavailable on PATH.') from error
+        except OSError as error:
+            raise SchedulerUnavailableError(
+                f'{task["id"]}: Slurm test-only submission could not start: '
+                f'{error}') from error
         if result.returncode:
             detail = result.stderr.strip() or result.stdout.strip()
+            if _scheduler_unavailable(detail):
+                raise SchedulerUnavailableError(
+                    f'{task["id"]}: Slurm test-only submission is '
+                    f'unavailable: {detail}')
             if (skip_optional
                     and task.get('failure_policy') == 'skip_component'):
                 _mark_preflight_unavailable(
@@ -2144,13 +2233,22 @@ def advance(run_dir, submit=False, submit_only=None):
                     f'{ident}: sbatch timed out; submission outcome is '
                     'uncertain and state remains submitting for manual '
                     'reconciliation.') from error
-            except OSError:
+            except FileNotFoundError as error:
                 entry['status'] = 'staged'
                 _atomic_json(run_dir / 'state.json', state)
                 raise
+            except OSError as error:
+                entry['status'] = 'staged'
+                _atomic_json(run_dir / 'state.json', state)
+                raise SchedulerUnavailableError(
+                    f'{ident}: sbatch could not start: {error}') from error
             if response.returncode:
                 entry['status'] = 'staged'
                 _atomic_json(run_dir / 'state.json', state)
+                detail = response.stderr.strip() or response.stdout.strip()
+                if _scheduler_unavailable(detail):
+                    raise SchedulerUnavailableError(
+                        f'{ident}: sbatch is unavailable: {detail}')
                 raise RuntimeError(f'{ident}: sbatch failed: {response.stderr.strip()}')
             job_id = response.stdout.strip().split(';', 1)[0]
             if not job_id.isdecimal():

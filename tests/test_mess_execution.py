@@ -60,6 +60,9 @@ def test_pes_writes_all_uq_inputs_before_starting_mess(tmp_path, monkeypatch):
 def writer(tmp_path, monkeypatch, queue='slurm', count=1, limit=2, run=True):
     monkeypatch.chdir(tmp_path)
     Path('me').mkdir()
+    for index in range(count):
+        Path(f'me/mess_{index:04d}.inp').write_text(
+            f'! MESS input {index:04d}\n')
     return SimpleNamespace(par=dict(queuing=queue, uq_n=count, uq_max_runs=limit,
                                     run_me=run),
                            write_submitscript=lambda path, index: Path(path).write_text('script'))
@@ -195,6 +198,184 @@ def test_scheduler_query_retries_are_bounded_and_do_not_resubmit(
     assert 'Retrying scheduler query' in caplog.text
 
 
+def test_automatic_mess_waits_through_controller_outage_without_resubmit(
+        tmp_path, monkeypatch, clock, caplog):
+    obj = writer(tmp_path, monkeypatch, limit=1)
+    obj.par['anl_handoff_manifest'] = 'anl_handoff.json'
+    submitted = []
+    queries = 0
+
+    def submit(*args):
+        submitted.append(args)
+        return '52906599'
+
+    def active(*args):
+        nonlocal queries
+        queries += 1
+        if queries <= 5:
+            raise execution.MESSExecutionError(
+                'scheduler controller unavailable')
+        complete(0)
+        return False
+
+    monkeypatch.setattr(execution, '_submit', submit)
+    monkeypatch.setattr(execution, '_active', active)
+    assert execution.run_mess(obj) == 0
+    assert len(submitted) == 1
+    assert queries == 6
+    assert clock.now == 30.
+    assert caplog.text.count('will keep waiting for scheduler recovery') == 1
+
+
+def test_automatic_mess_retries_known_unaccepted_submission(
+        tmp_path, monkeypatch):
+    obj = writer(tmp_path, monkeypatch, limit=1)
+    obj.par['anl_handoff_manifest'] = 'anl_handoff.json'
+    submissions = 0
+
+    def submit(*args):
+        nonlocal submissions
+        submissions += 1
+        if submissions < 3:
+            raise execution.MESSExecutionError(
+                'MESS submission failed: scheduler controller unavailable')
+        return '52906599'
+
+    def active(*args):
+        complete(0)
+        return False
+
+    monkeypatch.setattr(execution, '_submit', submit)
+    monkeypatch.setattr(execution, '_active', active)
+    assert execution.run_mess(obj) == 0
+    assert submissions == 3
+
+
+def test_uncertain_submission_is_persisted_and_never_duplicated(
+        tmp_path, monkeypatch):
+    obj = writer(tmp_path, monkeypatch)
+    submissions = 0
+
+    def submit(*args):
+        nonlocal submissions
+        submissions += 1
+        raise execution._SubmissionUncertain('submission outcome unknown')
+
+    monkeypatch.setattr(execution, '_submit', submit)
+    with pytest.raises(execution.MESSExecutionError,
+                       match='submission outcome unknown'):
+        execution.run_mess(obj)
+    progress = json.loads(
+        Path('me/mess_execution.running.json').read_text())
+    assert progress['status'] == 'failed'
+    assert progress['submitting']['index'] == '0000'
+
+    monkeypatch.setattr(
+        execution, '_submit',
+        lambda *args: pytest.fail('uncertain submission must not repeat'))
+    with pytest.raises(execution.MESSExecutionError,
+                       match='submission outcome is uncertain'):
+        execution.run_mess(obj)
+    assert submissions == 1
+
+
+def test_mess_restart_attaches_to_saved_job_without_resubmitting(
+        tmp_path, monkeypatch):
+    obj = writer(tmp_path, monkeypatch, limit=1)
+    Path('me/mess_execution.running.json').write_text(json.dumps({
+        'schema': 1,
+        'status': 'running',
+        'queue': 'slurm',
+        'command': ['mess'],
+        'indices': ['0000'],
+        'input_sha256': {
+            '0000': execution._sha256(Path('me/mess_0000.inp')),
+        },
+        'active': {
+            '52906599': {
+                'index': '0000',
+                'previous_output': None,
+            },
+        },
+        'completed': {},
+        'failures': [],
+    }))
+    monkeypatch.setattr(
+        execution, '_submit',
+        lambda *args: pytest.fail('saved scheduler job must not be resubmitted'))
+
+    def active(*args):
+        complete(0)
+        return False
+
+    monkeypatch.setattr(execution, '_active', active)
+    assert execution.run_mess(obj) == 0
+    assert not Path('me/mess_execution.running.json').exists()
+    record = json.loads(Path('me/mess_execution.json').read_text())
+    assert record['jobs']['mess_0000']['input_sha256']
+    assert record['jobs']['mess_0000']['output_sha256']
+
+
+def test_mess_restart_rejects_changed_input_before_touching_scheduler(
+        tmp_path, monkeypatch):
+    obj = writer(tmp_path, monkeypatch, limit=1)
+    original_hash = execution._sha256(Path('me/mess_0000.inp'))
+    Path('me/mess_execution.running.json').write_text(json.dumps({
+        'schema': 1,
+        'status': 'running',
+        'queue': 'slurm',
+        'command': ['mess'],
+        'indices': ['0000'],
+        'input_sha256': {'0000': original_hash},
+        'active': {
+            '52906599': {
+                'index': '0000',
+                'previous_output': None,
+            },
+        },
+        'completed': {},
+        'submitting': None,
+        'failures': [],
+    }))
+    Path('me/mess_0000.inp').write_text('changed MESS input\n')
+    monkeypatch.setattr(
+        execution, '_submit',
+        lambda *args: pytest.fail('changed input must not submit'))
+    monkeypatch.setattr(
+        execution, '_active',
+        lambda *args: pytest.fail('changed input must not poll old job'))
+    with pytest.raises(execution.MESSExecutionError,
+                       match='saved running MESS execution identity changed'):
+        execution.run_mess(obj)
+
+
+def test_verified_mess_record_is_reused_without_resubmitting(
+        tmp_path, monkeypatch):
+    obj = writer(tmp_path, monkeypatch)
+    submissions = []
+
+    def submit(*args):
+        submissions.append(args)
+        return '12'
+
+    def active(*args):
+        complete(0)
+        return False
+
+    monkeypatch.setattr(execution, '_submit', submit)
+    monkeypatch.setattr(execution, '_active', active)
+    assert execution.run_mess(obj) == 0
+    assert len(submissions) == 1
+
+    monkeypatch.setattr(
+        execution, '_submit',
+        lambda *args: pytest.fail('verified MESS result must be reused'))
+    monkeypatch.setattr(
+        execution, '_active',
+        lambda *args: pytest.fail('verified MESS result needs no polling'))
+    assert execution.run_mess(obj) == 0
+
+
 @pytest.mark.parametrize('queue,command', [('pbs', 'qsub'), ('slurm', 'sbatch'), ('local', 'sh')])
 def test_input_only_writes_correct_manual_commands(tmp_path, monkeypatch, queue, command):
     obj = writer(tmp_path, monkeypatch, queue=queue, run=False)
@@ -321,6 +502,8 @@ def test_grouped_jobs_use_their_own_files_and_detect_extra_failure(
     obj.write_submitscript = lambda path, index: MESS.write_submitscript(obj, path, index)
     obj.mess_jobs = [dict(stem='mess_0000', status='ready'),
                      dict(stem='mess_0000_group_0002', status='ready')]
+    Path('me/mess_0000_group_0002.inp').write_text(
+        '! grouped MESS input\n')
     binary = tmp_path / 'mess'
     binary.write_text('#!/bin/sh\nout="${1%.inp}.out"\n'
         'printf "rates\\n" > "$out"\npwd > "${1%.inp}.micro"\n'

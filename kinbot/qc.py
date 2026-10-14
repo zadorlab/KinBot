@@ -8,6 +8,7 @@ import re
 import shlex
 import time
 import json
+import threading
 from datetime import datetime
 import copy
 import pickle
@@ -40,6 +41,20 @@ _SLURM_TERMINAL_STATES = {
     'BOOT_FAIL', 'CANCELLED', 'COMPLETED', 'DEADLINE', 'FAILED',
     'NODE_FAIL', 'OUT_OF_MEMORY', 'PREEMPTED', 'TIMEOUT',
 }
+_SUBMISSION_LOCK = threading.RLock()
+_SCHEDULER_UNAVAILABLE = re.compile(
+    r'(?:unable to contact (?:slurm )?controller|'
+    r'unable to establish controller connection|'
+    r'(?:scheduler )?controller unavailable|'
+    r'slurm_load_jobs error|socket timed out|connection refused|'
+    r'resource temporarily unavailable|network is unreachable|'
+    r'host is down|no route to host|'
+    r'communication connection failure|controller not responding)',
+    re.IGNORECASE)
+
+
+def _scheduler_unavailable(detail):
+    return bool(_SCHEDULER_UNAVAILABLE.search(str(detail or '')))
 
 
 def _worker_exit_status(path, expected_job_id=None):
@@ -219,6 +234,9 @@ def _slurm_job_active(job_id):
     except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode:
+        if re.search(r'\binvalid job id specified\b', result.stderr,
+                     re.IGNORECASE):
+            return False
         return None
     return any(line.split()[0] == str(job_id)
                for line in result.stdout.splitlines() if line.split())
@@ -1472,19 +1490,20 @@ class QuantumChemistry:
         standalone inputs do not set the environment variable and preserve
         their historical behavior.
         """
-        lock_path = os.environ.get('KINBOT_QUEUE_LOCK', '').strip()
-        if not lock_path:
-            return QuantumChemistry._submit_qc(
-                self, job, nproc, singlejob, jobtype)
-        lock_path = os.path.abspath(os.path.expanduser(lock_path))
-        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
-        with open(lock_path, 'a') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            try:
+        with _SUBMISSION_LOCK:
+            lock_path = os.environ.get('KINBOT_QUEUE_LOCK', '').strip()
+            if not lock_path:
                 return QuantumChemistry._submit_qc(
                     self, job, nproc, singlejob, jobtype)
-            finally:
-                fcntl.flock(lock, fcntl.LOCK_UN)
+            lock_path = os.path.abspath(os.path.expanduser(lock_path))
+            os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+            with open(lock_path, 'a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                try:
+                    return QuantumChemistry._submit_qc(
+                        self, job, nproc, singlejob, jobtype)
+                finally:
+                    fcntl.flock(lock, fcntl.LOCK_UN)
 
     def _submit_qc(self, job, nproc, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:
@@ -1624,29 +1643,73 @@ class QuantumChemistry:
                 except OSError:
                     pass
 
-        command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
-        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        try:
-            out, err = process.communicate(timeout=_SCHEDULER_SUBMIT_TIMEOUT)
-        except subprocess.TimeoutExpired as error:
-            process.kill()
-            process.communicate()
+        command = [constants.qsubmit[self.queuing],
+                   job + constants.qext[self.queuing]]
+        failure_started = None
+        warned = False
+        while True:
+            try:
+                process = subprocess.Popen(
+                    command, shell=False, stdout=subprocess.PIPE,
+                    stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            except FileNotFoundError as error:
+                raise RuntimeError(
+                    f'Scheduler submission executable {command[0]!r} is '
+                    'unavailable.') from error
+            except OSError as error:
+                out, err = '', str(error)
+                returncode = 'launch_error'
+                failed = True
+            else:
+                try:
+                    raw_out, raw_err = process.communicate(
+                        timeout=_SCHEDULER_SUBMIT_TIMEOUT)
+                except subprocess.TimeoutExpired as error:
+                    process.kill()
+                    process.communicate()
+                    raise RuntimeError(
+                        f'Scheduler submission timed out for {job}; check '
+                        'the queue before retrying because the submission '
+                        'outcome is unknown.') from error
+                out = raw_out.decode(errors='replace')
+                err = raw_err.decode(errors='replace')
+                returncode = getattr(process, 'returncode', 0)
+                failed = isinstance(returncode, int) and returncode != 0
+            detail = str(err).strip() or str(out).strip()
+            if not failed:
+                break
+            if not _scheduler_unavailable(detail):
+                raise RuntimeError(
+                    f'Scheduler rejected {job} with status {returncode}: '
+                    f'{detail or "no diagnostic"}')
+            now = time.monotonic()
+            if failure_started is None:
+                failure_started = now
+            if not warned:
+                logger.warning(
+                    'Scheduler submission is unavailable for %s; no job was '
+                    'created and submission will be retried: %s', job, detail)
+                warned = True
+            automatic = bool(getattr(self, 'queue_job_root', None))
+            if (not automatic and
+                    now - failure_started >= _SCHEDULER_QUERY_FAILURE_TIMEOUT):
+                raise RuntimeError(
+                    f'Scheduler submission remained unavailable for 60 '
+                    f'seconds; no {job} job was submitted.')
+            time.sleep(5)
+        if self.queuing == 'pbs':
+            pid = out.split('\n', 1)[0].split('.', 1)[0].strip()
+        elif self.queuing == 'slurm':
+            match = re.search(r'\bSubmitted batch job\s+(\d+)\b', out)
+            if match is None:
+                raise RuntimeError(
+                    f'Cannot parse scheduler job id for {job}. stdout: '
+                    f'{out!r}; stderr: {err!r}')
+            pid = match.group(1)
+        if not pid or not str(pid).isdigit():
             raise RuntimeError(
-                f'Scheduler submission timed out for {job}; check the queue '
-                'before retrying because the submission outcome is unknown.') from error
-        out = out.decode()
-        err = err.decode()
-        try:
-            if self.queuing == 'pbs':
-                pid = out.split('\n')[0].split('.')[0]
-            elif self.queuing == 'slurm':
-                pid = out.split('\n')[0].split()[3]
-        except:
-            msg = 'Something went wrong when submitting a job'
-            msg += 'This is the standard output:\n' + out
-            msg += '\nThis is the standard error:\n' + err
-            logger.error(msg)
-            sys.exit()
+                f'Cannot parse scheduler job id for {job}. stdout: {out!r}; '
+                f'stderr: {err!r}')
         self.job_ids[job] = pid
         generations = getattr(self, 'job_generation_tagged', None)
         if generations is None:
@@ -2398,7 +2461,9 @@ class QuantumChemistry:
                     logger.warning('Scheduler queue query is unavailable; '
                                    'waiting before job submission: %s', error)
                     warned = True
-                if now - failure_started >= _SCHEDULER_QUERY_FAILURE_TIMEOUT:
+                if (not getattr(self, 'queue_job_root', None)
+                        and now - failure_started
+                        >= _SCHEDULER_QUERY_FAILURE_TIMEOUT):
                     raise RuntimeError(
                         'Scheduler queue query remained unavailable for 60 '
                         'seconds; no job was submitted.') from error
@@ -2408,16 +2473,21 @@ class QuantumChemistry:
                 now = time.monotonic()
                 if failure_started is None:
                     failure_started = now
+                detail = result.stderr.strip() or str(result.returncode)
                 if not warned:
                     logger.warning('Scheduler queue query failed; waiting '
                                    'before job submission: %s',
-                                   result.stderr.strip() or result.returncode)
+                                   detail)
                     warned = True
-                if now - failure_started >= _SCHEDULER_QUERY_FAILURE_TIMEOUT:
+                automatic_outage = (
+                    bool(getattr(self, 'queue_job_root', None))
+                    and _scheduler_unavailable(detail))
+                if (not automatic_outage and now - failure_started
+                        >= _SCHEDULER_QUERY_FAILURE_TIMEOUT):
                     raise RuntimeError(
                         'Scheduler queue query failed continuously for 60 '
                         'seconds; no job was submitted. Last error: ' +
-                        (result.stderr.strip() or str(result.returncode)))
+                        detail)
                 time.sleep(5)
                 continue
             warned = False

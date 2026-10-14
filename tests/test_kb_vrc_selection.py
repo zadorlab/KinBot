@@ -105,6 +105,37 @@ def test_vrc_and_composite_branches_run_concurrently_with_disjoint_slots(
     assert state['branches']['cbh_anl']['status'] == 'complete'
 
 
+def test_branch_restart_replaces_stale_failure_and_rejoins_completed_work(
+        monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    Path('.kinbot_post_reaction_branches.json').write_text(json.dumps({
+        'schema': 1, 'status': 'failed', 'mess_gate': 'blocked',
+        'branches': {
+            'vrc_tst': {'status': 'failed', 'error': 'old outage'},
+            'cbh_anl': {'status': 'failed', 'error': 'old validator'},
+        },
+    }))
+    monkeypatch.setattr(
+        automatic, 'prepare_automatic_cbh_anl',
+        lambda *args, **kwargs: {'schema': 1, 'status': 'planned'})
+    monkeypatch.setattr(
+        kb, '_execute_vrc_branch', lambda *args: {'status': 'complete'})
+    monkeypatch.setattr(
+        kb, '_execute_automatic_branch', lambda *args: {
+            'status': 'complete', 'handoff_manifest': 'handoff.json',
+            'thermochemistry_models': 'models.json'})
+
+    result = _post_reaction_branches(
+        object(), _branch_parameters(tmp_path), object(), 'input.json', True)
+    state = json.loads(Path(
+        '.kinbot_post_reaction_branches.json').read_text())
+    assert result['status'] == 'complete'
+    assert state['status'] == 'complete'
+    assert state['mess_gate'] == 'ready'
+    assert 'error' not in state['branches']['vrc_tst']
+    assert 'error' not in state['branches']['cbh_anl']
+
+
 def test_mess_gate_stays_blocked_until_both_independent_branches_succeed(
         monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)

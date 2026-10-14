@@ -4,6 +4,7 @@ import numpy as np
 import copy
 
 from kinbot import geometry
+from kinbot.find_motif import start_motif
 
 logger = logging.getLogger('KinBot')
 
@@ -742,7 +743,7 @@ def get_minimum_pathway(bond, r1, r2, natom, atom):
                 return 0, [a1, a2]
 
     # no bonds, check for the shortest pathway
-    for i in range(3, natom):
+    for i in range(3, natom + 1):
         motif = ['X' for j in range(i)]
         instances = start_motif(motif, natom, bond, atom, -1, [[k] for k in range(natom)])
         for ins in instances:
@@ -750,7 +751,7 @@ def get_minimum_pathway(bond, r1, r2, natom, atom):
                 return i - 2, ins
             if ins[0] in r2 and ins[-1] in r1:
                 ins.reverse()
-                return i, ins
+                return i - 2, ins
 
 
 def estoktp_zmat(species, fname):
@@ -791,7 +792,8 @@ def estoktp_zmat(species, fname):
                 zmat_copy = copy.deepcopy(zmat)
                 zmat_copy[j][2] += float(k * 10)
                 cart = make_cart_from_zmat(zmat_copy, zmat_atom, zmat_ref, natom, atom, zmatorder)
-                cart = translate_and_rotate(cart, rotor[1], rotor[2])
+                cart = geometry.translate_and_rotate(
+                    cart, rotor[1], rotor[2])
 
                 f.write(write_cart(cart, atom))
 

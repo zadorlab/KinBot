@@ -434,7 +434,7 @@ class Fragment(StationaryPoint):
                     # rest_z goes from 0 to ysize-1
                     rest_z = rest_y % ysize
                     indexes_in_line: NDArray[Any] = np.arange(rest_z*6, rest_z*6+6)
-                    is_in_box: NDArray[bool_] = np.isin(
+                    is_in_box: NDArray[np.bool_] = np.isin(
                         indexes_in_line,
                         np.arange(search_origin[2], search_end[2]))
                     zidx_in_box = (

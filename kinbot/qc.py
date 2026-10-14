@@ -405,12 +405,17 @@ class QuantumChemistry:
             command = shlex.split(str(getattr(self, 'qc_command', '') or ''))
         except ValueError as error:
             raise ValueError('qc_command is not valid shell syntax.') from error
-        program = Path(command[0]).name if command else default_program
+        program = command[0] if command else default_program
         cache = getattr(self, '_worker_site_setup_cache', {})
         key = (backend, program)
         path = cache.get(key)
         if path is None:
-            from kinbot.anl.site import render_site_setup
+            from kinbot.anl.site import _executable, render_site_setup
+            if _executable(program, backend) is None:
+                raise FileNotFoundError(
+                    f'Required {backend} executable {program!r} is unavailable; '
+                    'configure its command, installation root, or environment '
+                    'module before submitting this calculation.')
             path = Path(f'.kinbot_site_setup_{backend}.sh').resolve()
             content = render_site_setup({backend: {program}})
             with _SUBMISSION_LOCK:

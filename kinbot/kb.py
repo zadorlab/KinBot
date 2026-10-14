@@ -227,7 +227,7 @@ def _post_reaction_branches(well, parameters, qc, input_file,
             state['branches'][name]['status'] = 'complete'
         _atomic_json(state_path, state)
 
-    if concurrent:
+    if concurrent and preparation_error is None:
         # Keep VRC in the main thread. Its ROTD_py wrapper installs signal
         # forwarding handlers so termination reaches its process group; Python
         # permits that only in the main thread. The immutable composite branch

@@ -2,6 +2,8 @@
 Functions to read QChem output files.
 """
 import logging
+import os
+import re
 
 import numpy as np
 from ase import Atoms

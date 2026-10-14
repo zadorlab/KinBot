@@ -5,6 +5,7 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -1819,6 +1820,53 @@ def test_unloaded_environment_module_is_discovered_and_recorded():
             check=True)
         assert result.stdout.splitlines() == [str(install / name)
                                               for name in ('dmrcc', 'scf', 'mrcc')]
+
+
+def test_generated_site_setup_is_valid_for_every_scientific_backend():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary) / 'software installs'
+        programs = {
+            'cfour': {'xcfour'},
+            'gaussian': {'g16'},
+            'molpro': {'molpro'},
+            'mrcc': {'dmrcc', 'scf', 'mrcc'},
+            'nwchem': {'nwchem'},
+            'orca': {'orca'},
+            'qchem': {'qchem'},
+        }
+        environment = {'PATH': '/usr/bin:/bin', 'LOADEDMODULES': '',
+                       'HOME': str(Path(temporary) / 'home')}
+        expected = {}
+        for backend, names in programs.items():
+            directory = root / backend / 'bin'
+            directory.mkdir(parents=True)
+            for name in names:
+                executable = directory / name
+                executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+                executable.chmod(0o755)
+                environment[
+                    f'KINBOT_{name.upper()}_EXECUTABLE'] = shlex.quote(
+                        str(executable))
+                expected[(backend, name)] = executable
+        with patch.dict(os.environ, environment, clear=True), \
+                patch('kinbot.anl.site._automatic_install_bases',
+                      return_value=[]), \
+                patch('kinbot.anl.site._module_system_available',
+                      return_value=False):
+            setup = render_site_setup(programs)
+        setup_path = Path(temporary) / 'site setup.sh'
+        setup_path.write_text(setup)
+        subprocess.run(['bash', '-n', setup_path], check=True)
+        for backend, names in programs.items():
+            result = subprocess.run(
+                ['bash', '-c',
+                 f'export KINBOT_BACKEND={backend}; '
+                 f'source {shlex.quote(str(setup_path))}; '
+                 'for name in "$@"; do command -v -- "$name"; done',
+                 'kinbot-site-test', *sorted(names)],
+                env=environment, capture_output=True, text=True, check=True)
+            assert result.stdout.splitlines() == [
+                str(expected[(backend, name)]) for name in sorted(names)]
 
 
 def test_preflight_refreshes_a_stale_generated_mrcc_site_setup():

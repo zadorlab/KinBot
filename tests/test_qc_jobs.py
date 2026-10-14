@@ -87,10 +87,16 @@ class TestSchedulerJobs(unittest.TestCase):
         self.assertIn(f'{shlex.quote(sys.executable)} test_job.py', script)
 
     def test_ordinary_slurm_worker_sources_automatic_backend_setup(self):
+        install = Path('private gaussian/bin').resolve()
+        install.mkdir(parents=True)
+        executable = install / 'g16'
+        executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+        executable.chmod(0o755)
         qc = SimpleNamespace(
             check_qc=lambda job: 0, queue_job_limit=0,
             par={'queue_template': ''}, queuing='slurm', qc='gauss',
-            qc_command='g16', queue_name='day-long-cpu', slurm_feature='',
+            qc_command=shlex.quote(str(executable)),
+            queue_name='day-long-cpu', slurm_feature='',
             job_ids={},
         )
         qc._worker_site_setup = QuantumChemistry._worker_site_setup.__get__(qc)
@@ -99,17 +105,42 @@ class TestSchedulerJobs(unittest.TestCase):
         discovery = Mock(returncode=0, stdout='04:00:00\n', stderr='')
         with patch('kinbot.qc.subprocess.Popen', return_value=process), \
                 patch('kinbot.qc.subprocess.run', return_value=discovery), \
-                patch('kinbot.anl.site.render_site_setup',
-                      return_value='# resolved Gaussian setup\n'), \
                 patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
             QuantumChemistry.submit_qc(qc, 'automatic_site_job', 8)
         script = Path('automatic_site_job.sbatch').read_text()
         setup = Path('.kinbot_site_setup_gaussian.sh').resolve()
-        assert setup.read_text() == '# resolved Gaussian setup\n'
+        assert str(install) in setup.read_text()
         assert 'export KINBOT_BACKEND=gaussian' in script
         assert f'source {setup}' in script
         assert script.index(f'source {setup}') < script.index(
             f'{shlex.quote(sys.executable)} automatic_site_job.py')
+        subprocess.run(['bash', '-n', setup], check=True)
+        subprocess.run(['bash', '-n', 'automatic_site_job.sbatch'], check=True)
+        resolved = subprocess.run(
+            ['bash', '-c',
+             f'export KINBOT_BACKEND=gaussian; source {shlex.quote(str(setup))}; '
+             'command -v g16'],
+            capture_output=True, text=True, check=True)
+        assert resolved.stdout.strip() == str(executable)
+
+    def test_ordinary_slurm_worker_rejects_missing_backend_before_sbatch(self):
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            par={'queue_template': ''}, queuing='slurm', qc='gauss',
+            qc_command='definitely-missing-g16',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={},
+        )
+        qc._worker_site_setup = QuantumChemistry._worker_site_setup.__get__(qc)
+        with patch('kinbot.qc.subprocess.Popen') as submit, \
+                patch('kinbot.anl.site._automatic_install_bases',
+                      return_value=[]), \
+                patch('kinbot.anl.site._module_system_available',
+                      return_value=False), \
+                patch('kinbot.anl.site.shutil.which', return_value=None):
+            with self.assertRaisesRegex(
+                    FileNotFoundError, 'definitely-missing-g16'):
+                QuantumChemistry.submit_qc(qc, 'missing_site_job', 8)
+        submit.assert_not_called()
 
     def test_site_can_select_bundled_slurm_partition_template(self):
         import kinbot

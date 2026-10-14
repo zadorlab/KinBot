@@ -252,7 +252,7 @@ def queue_command(qu):
         ext = ''
         pass
     else:
-        raise ValueError(f'Unexpected value for queueing: {par["queuing"]}')
+        raise ValueError(f'Unexpected value for queueing: {qu}')
     return cmd, ext
 
 

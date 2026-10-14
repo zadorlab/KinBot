@@ -194,3 +194,33 @@ def test_missing_mess_does_not_prevent_either_independent_branch(
     assert state['branches']['cbh_anl']['status'] == 'complete'
     assert state['final_solver']['status'] == 'failed'
     assert state['mess_gate'] == 'blocked'
+
+
+def test_automatic_preparation_failure_does_not_launch_unprepared_branch(
+        monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    completed = []
+
+    def fail_prepare(*args, **kwargs):
+        raise RuntimeError('planning failed')
+
+    monkeypatch.setattr(
+        automatic, 'prepare_automatic_cbh_anl', fail_prepare)
+    monkeypatch.setattr(
+        kb, '_execute_vrc_branch',
+        lambda *args: completed.append('vrc') or {'status': 'complete'})
+    monkeypatch.setattr(
+        kb, '_execute_automatic_branch',
+        lambda *args: pytest.fail('unprepared composite branch was launched'))
+
+    with pytest.raises(RuntimeError, match='MESS was not started'):
+        _post_reaction_branches(
+            object(), _branch_parameters(tmp_path), object(), 'input.json', True)
+
+    assert completed == ['vrc']
+    state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+    assert state['status'] == 'failed'
+    assert state['mess_gate'] == 'blocked'
+    assert state['branches']['vrc_tst']['status'] == 'complete'
+    assert state['branches']['cbh_anl']['status'] == 'failed'
+    assert state['branches']['cbh_anl']['error'] == 'planning failed'

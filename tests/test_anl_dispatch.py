@@ -21,6 +21,7 @@ from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
     _geometry_hash, _job_active, _mark_preflight_unavailable, _molpro_stack_mw,
     _molpro_total_mw, _runtime_profile, advance, main, prepare,
+    SchedulerUnavailableError, drive_run,
     recover_gaussian_vpt2_symmetry,
     migrate_cfour_vcc_keyword, preflight, refresh_status, reparse_failed,
     reroute_cfour_higher_order_to_mrcc,
@@ -1448,11 +1449,31 @@ def test_scheduler_query_timeout_is_bounded():
     error = subprocess.TimeoutExpired(['squeue'], 30)
     with patch('kinbot.anl.dispatch.subprocess.run', side_effect=error) as run, \
             patch('kinbot.anl.dispatch.time.sleep') as sleep:
-        with pytest.raises(RuntimeError, match='timed out 3 times'):
+        with pytest.raises(SchedulerUnavailableError,
+                           match='timed out 3 times'):
             _job_active('123')
     assert run.call_count == 3
     assert sleep.call_count == 2
     assert all(call.kwargs['timeout'] == 30 for call in run.call_args_list)
+
+
+def test_in_process_driver_waits_for_scheduler_recovery():
+    state = {'tasks': {'probe': {'status': 'complete'}}}
+    spec = {'tasks': [{'id': 'probe'}]}
+    with TemporaryDirectory() as temporary:
+        run_dir = Path(temporary)
+        (run_dir / 'drive.lock').touch()
+        with patch('kinbot.anl.dispatch.advance', side_effect=[
+                SchedulerUnavailableError('squeue unavailable'), state
+        ]) as advance_mock, \
+                patch('kinbot.anl.dispatch._load',
+                      return_value=(run_dir, spec, state)), \
+                patch('kinbot.anl.dispatch.time.sleep') as sleep:
+            returncode, summary = drive_run(run_dir, interval=7.)
+    assert returncode == 0
+    assert summary == {'probe': 'complete'}
+    assert advance_mock.call_count == 2
+    sleep.assert_called_once_with(7.)
 
 
 def test_status_refreshes_finished_job_without_submitting(capsys):

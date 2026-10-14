@@ -57,6 +57,15 @@ class CalculationUnavailableError(RuntimeError):
     """
 
 
+class SchedulerUnavailableError(RuntimeError):
+    """A scheduler status query failed without proving a job has ended.
+
+    Automatic drivers must retain submitted state and retry this condition.
+    Treating a Slurm controller outage as an absent job can otherwise turn a
+    healthy calculation into a false scientific failure.
+    """
+
+
 def _basename(value, label):
     if not isinstance(value, str) or not _SAFE_NAME.fullmatch(value):
         raise ValueError(f'{label} must be a safe basename.')
@@ -1277,7 +1286,7 @@ def _job_active(job_id):
             break
         except subprocess.TimeoutExpired as error:
             if attempt + 1 == _SCHEDULER_QUERY_ATTEMPTS:
-                raise RuntimeError(
+                raise SchedulerUnavailableError(
                     f'squeue timed out {_SCHEDULER_QUERY_ATTEMPTS} times '
                     f'while checking job {job_id}.') from error
             time.sleep(5)
@@ -1287,7 +1296,8 @@ def _job_active(job_id):
         # than an empty queue for this specific case.
         if re.search(r'\binvalid job id specified\b', result.stderr, re.I):
             return False
-        raise RuntimeError(f'squeue failed: {result.stderr.strip()}')
+        raise SchedulerUnavailableError(
+            f'squeue failed: {result.stderr.strip()}')
     return str(job_id) in result.stdout.split()
 
 
@@ -2184,8 +2194,30 @@ def drive_run(run_dir, *, interval=20., submit_only=None):
         except BlockingIOError as exc:
             raise RuntimeError(
                 'Another driver is already managing this run.') from exc
+        scheduler_error = None
         while True:
-            state = advance(run_dir, submit=True, submit_only=submit_only)
+            try:
+                state = advance(
+                    run_dir, submit=True, submit_only=submit_only)
+            except SchedulerUnavailableError as error:
+                # A status-query failure says nothing about the submitted
+                # job.  Preserve the atomic state and wait for Slurm rather
+                # than failing the task or the scientific branch that owns
+                # this in-process driver.
+                message = str(error)
+                if message != scheduler_error:
+                    print(
+                        'Scheduler status is unavailable; retaining submitted '
+                        f'tasks and retrying: {message}',
+                        file=sys.stderr, flush=True)
+                    scheduler_error = message
+                time.sleep(float(interval))
+                continue
+            if scheduler_error is not None:
+                print(
+                    'Scheduler status query recovered; resuming dispatcher.',
+                    file=sys.stderr, flush=True)
+                scheduler_error = None
             _, spec, _ = _load(run_dir)
             summary = _summary(spec, state)
             terminal = {

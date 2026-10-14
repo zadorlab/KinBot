@@ -21,7 +21,7 @@ from tests.anl_fixture import dispatch_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
     _geometry_hash, _job_active, _mark_preflight_unavailable, _molpro_stack_mw,
-    _molpro_total_mw, _runtime_profile, advance, main, prepare,
+    _molpro_total_mw, _runtime_profile, _slurm_script, advance, main, prepare,
     SchedulerUnavailableError, drive_run,
     recover_gaussian_vpt2_symmetry,
     migrate_cfour_vcc_keyword, preflight,
@@ -34,6 +34,13 @@ from kinbot.anl.dispatch import (
 from kinbot.anl.site import render_site_setup
 from kinbot.anl.tasks import cfour_energy_task, mrcc_task
 from kinbot.anl.validation import interface_validation_spec
+
+
+def test_anl_slurm_script_imports_site_node_exclusion(tmp_path):
+    task = validate_spec(dispatch_spec())['tasks'][0]
+    with patch.dict(os.environ, {'SBATCH_EXCLUDE': 'node16'}, clear=True):
+        script = _slurm_script(task, tmp_path, sys.executable)
+    assert '#SBATCH --exclude=node16\n' in script
 
 
 def _write_spec(directory, spec):

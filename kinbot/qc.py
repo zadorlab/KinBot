@@ -112,6 +112,10 @@ def _slurm_node_names(values):
 def _load_slurm_node_state(parameters=None):
     """Read run-local node exclusions, preserving explicit site settings."""
     names = _slurm_node_names((parameters or {}).get('slurm_exclude_nodes', []))
+    inherited = [item.strip() for item in
+                 os.environ.get('SBATCH_EXCLUDE', '').split(',')
+                 if item.strip()]
+    names.update(_slurm_node_names(inherited))
     try:
         payload = json.loads(open(_SLURM_NODE_STATE).read())
     except FileNotFoundError:

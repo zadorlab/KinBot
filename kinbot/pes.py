@@ -127,12 +127,15 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
     site_setup.write_text(render_site_setup({'molpro': {'molpro'}}))
     site_setup.chmod(site_setup.stat().st_mode | stat.S_IXUSR)
     template = Path(f'{kb_path}/tpl/rotdPy_slurm.tpl').read_text()
+    from kinbot.qc import _slurm_exclude_directive
+    exclude_directive = _slurm_exclude_directive(par)
     rendered = (template
                 .replace('@PYTHON@', shlex.quote(sys.executable))
                 .replace('@SITE_SETUP@', shlex.quote(str(site_setup)))
                 .replace('@WALLTIME_DIRECTIVE@', walltime_directive)
                 .replace('@PARTITION_DIRECTIVE@',
                          f'#SBATCH --partition={partition}' if partition else '')
+                .replace('@EXCLUDE_DIRECTIVE@', exclude_directive)
                 .replace('@EXCLUSIVE_DIRECTIVE@',
                          '#SBATCH --exclusive'
                          if par.get('rotdpy_exclusive') else ''))

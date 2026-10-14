@@ -97,7 +97,8 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
 
 def test_rotdpy_partition_max_uses_discovered_partition_limit(tmp_path):
     with patch('kinbot.qc._ordinary_slurm_walltime',
-               return_value='#SBATCH --time=01:00:00') as discover:
+               return_value='#SBATCH --time=01:00:00') as discover, \
+            patch.dict(os.environ, {'SBATCH_EXCLUDE': 'node16'}, clear=True):
         path = _write_rotdpy_slurm_template({
             'queuing': 'slurm',
             'queue_name': 'short-cpu',
@@ -110,6 +111,7 @@ def test_rotdpy_partition_max_uses_discovered_partition_limit(tmp_path):
     discover.assert_called_once()
     assert '#SBATCH --partition=short-cpu' in text
     assert '#SBATCH --time=01:00:00' in text
+    assert '#SBATCH --exclude=node16' in text
     assert '@WALLTIME' not in text
 
 

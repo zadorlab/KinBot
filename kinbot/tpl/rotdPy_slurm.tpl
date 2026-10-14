@@ -5,6 +5,7 @@
 #SBATCH --mem={mem}M
 @WALLTIME_DIRECTIVE@
 @PARTITION_DIRECTIVE@
+@EXCLUDE_DIRECTIVE@
 @EXCLUSIVE_DIRECTIVE@
 #SBATCH --output=surf{surf_id}_face{face_id}_samp{samp_id}.stdout
 #SBATCH --error=surf{surf_id}_face{face_id}_samp{samp_id}.err

@@ -632,6 +632,8 @@ def _omp_threads(task):
 
 
 def _slurm_script(task, directory, python):
+    from kinbot.qc import _slurm_exclude_directive
+
     resources = task['resources']
     mpi_ranks = resources['cores'] if _backend(task) == 'molpro' else 1
     cpus_per_rank = 1 if _backend(task) == 'molpro' else resources['cores']
@@ -650,6 +652,9 @@ def _slurm_script(task, directory, python):
     ]
     if resources.get('partition'):
         lines.append(f"#SBATCH --partition={resources['partition']}")
+    exclusion = _slurm_exclude_directive()
+    if exclusion:
+        lines.append(exclusion)
     lines += ['', 'set -euo pipefail', f'cd {shlex.quote(str(directory))}',
               f"export OMP_NUM_THREADS={_omp_threads(task)}",
               f"export KINBOT_BACKEND={shlex.quote(_backend(task))}",

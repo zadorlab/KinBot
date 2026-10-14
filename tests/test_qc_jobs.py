@@ -17,7 +17,8 @@ import numpy as np
 from ase import Atoms
 
 from kinbot.qc import (QuantumChemistry, _export_slurm_excluded_nodes,
-                       _slurm_job_active, _worker_exit_status)
+                       _load_slurm_node_state, _slurm_job_active,
+                       _worker_exit_status)
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.utils import clean_files, too_far
@@ -543,6 +544,10 @@ class TestSchedulerJobs(unittest.TestCase):
             _export_slurm_excluded_nodes({'node16', 'node15'})
             self.assertEqual(os.environ['SBATCH_EXCLUDE'], 'node15,node16')
 
+    def test_slurm_node_exclusion_imports_site_environment(self):
+        with patch.dict(os.environ, {'SBATCH_EXCLUDE': 'node16'}, clear=True):
+            self.assertEqual(_load_slurm_node_state({}), {'node16'})
+
     def test_recorded_slurm_node_is_excluded_from_later_jobs(self):
         qc = SimpleNamespace(
             check_qc=lambda job: 0, queue_job_limit=0,
@@ -558,6 +563,23 @@ class TestSchedulerJobs(unittest.TestCase):
                 patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
             QuantumChemistry.submit_qc(qc, 'replacement', 8)
         script = Path('replacement.sbatch').read_text()
+        self.assertIn('#SBATCH --exclude=node16', script)
+
+    def test_site_environment_exclusion_is_written_to_first_slurm_job(self):
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            par={'queue_template': ''}, queuing='slurm', qc='fc',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={},
+        )
+        process = Mock()
+        process.communicate.return_value = (b'Submitted batch job 125\n', b'')
+        discovery = Mock(returncode=0, stdout='1-00:00:00\n', stderr='')
+        with patch('kinbot.qc.subprocess.Popen', return_value=process), \
+                patch('kinbot.qc.subprocess.run', return_value=discovery), \
+                patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True), \
+                patch.dict(os.environ, {'SBATCH_EXCLUDE': 'node16'}, clear=True):
+            QuantumChemistry.submit_qc(qc, 'first_job', 8)
+        script = Path('first_job.sbatch').read_text()
         self.assertIn('#SBATCH --exclude=node16', script)
 
     def test_nonfinite_geometry_is_never_a_normal_qc_result(self):

@@ -93,20 +93,22 @@ class TestSchedulerJobs(unittest.TestCase):
             qc_command='g16', queue_name='day-long-cpu', slurm_feature='',
             job_ids={},
         )
-        qc._worker_site_setup = lambda: (
-            'export KINBOT_BACKEND=gaussian\n'
-            'source /resolved/.kinbot_site_setup_gaussian.sh\n')
+        qc._worker_site_setup = QuantumChemistry._worker_site_setup.__get__(qc)
         process = Mock()
         process.communicate.return_value = (b'Submitted batch job 123\n', b'')
         discovery = Mock(returncode=0, stdout='04:00:00\n', stderr='')
         with patch('kinbot.qc.subprocess.Popen', return_value=process), \
                 patch('kinbot.qc.subprocess.run', return_value=discovery), \
+                patch('kinbot.anl.site.render_site_setup',
+                      return_value='# resolved Gaussian setup\n'), \
                 patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
             QuantumChemistry.submit_qc(qc, 'automatic_site_job', 8)
         script = Path('automatic_site_job.sbatch').read_text()
+        setup = Path('.kinbot_site_setup_gaussian.sh').resolve()
+        assert setup.read_text() == '# resolved Gaussian setup\n'
         assert 'export KINBOT_BACKEND=gaussian' in script
-        assert 'source /resolved/.kinbot_site_setup_gaussian.sh' in script
-        assert script.index('source /resolved') < script.index(
+        assert f'source {setup}' in script
+        assert script.index(f'source {setup}') < script.index(
             f'{shlex.quote(sys.executable)} automatic_site_job.py')
 
     def test_site_can_select_bundled_slurm_partition_template(self):

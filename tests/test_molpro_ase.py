@@ -17,7 +17,8 @@ import pytest
 from tests.anl_fixture import dispatch_spec
 from kinbot.anl.dispatch import advance, prepare, run_task
 from kinbot.ase_modules.calculators.molpro import (
-    Molpro, check_process_count, parse_numerical_gradient, parse_output, render_input,
+    Molpro, check_process_count, parse_numerical_gradient, parse_output,
+    parse_xyzgrad, render_input,
 )
 
 
@@ -116,6 +117,95 @@ def test_documented_molpro_force_input_and_parser_contract():
                           ' Molpro calculation terminated\n')
         with pytest.raises(ValueError, match=r'native \(T\) contribution'):
             parse_output(output)
+
+
+def test_caspt2_analytic_gradient_input_and_xyzgrad_contract():
+    atoms = Atoms('CH2', positions=[[0., 0., 0.], [0., 0., 1.],
+                                    [0., 1., 0.]])
+    deck = render_input(
+        atoms, basis='aug-cc-pVTZ', geometry_name='step.xyz',
+        gradient_name='step.xyzgrad', method='CASPT2(2,2)')
+    lowered = deck.lower()
+    assert 'basis=aug-cc-pvtz' in lowered
+    assert ('{multi,\nocc,5\nclosed,3\nwf,8,1,0\nmaxit,50;}'
+            in lowered)
+    assert '{rs2,shift=0.3}' in lowered
+    assert 'forces\nput,xyzgrad,step.xyzgrad' in lowered
+    assert 'forces,numerical' not in lowered
+    with TemporaryDirectory() as temporary:
+        gradient = Path(temporary) / 'step.xyzgrad'
+        gradient.write_text(
+            '3\nMolpro XYZGRAD\n'
+            'H 0 1 0 0 -0.4 -0.5 -0.6\n'
+            'C 0 0 0 0 1 2 3\n'
+            'H 0 0 1 0 -0.1 -0.2 -0.3\n')
+        np.testing.assert_allclose(
+            parse_xyzgrad(gradient, atoms),
+            [[1., 2., 3.], [-.1, -.2, -.3], [-.4, -.5, -.6]])
+        output = Path(temporary) / 'step.out'
+        output.write_text(
+            ' PROGRAM * RS2 (MULTIREFERENCE RS PERTURBATION THEORY)\n'
+            ' SETTING KB_GEOM_ENERGY = -39.123456789 AU\n'
+            ' Molpro calculation terminated\n')
+        assert parse_output(output, method='CASPT2(2,2)') == pytest.approx(
+            -39.123456789 * Hartree)
+
+
+def test_caspt2_active_space_rejects_wrong_electron_parity():
+    atoms = Atoms('CH3', positions=np.zeros((4, 3)))
+    with pytest.raises(ValueError, match='inactive electron count'):
+        render_input(
+            atoms, basis='aug-cc-pVTZ', geometry_name='step.xyz',
+            gradient_name='step.xyzgrad', method='CASPT2(2,2)', mult=2)
+
+
+@pytest.mark.parametrize(
+    'method,program,variable', [
+        ('CASPT2-F12(2,2)', 'rs2-f12', 'energy(2)'),
+        ('MRCI+Q(2,2)', 'mrci', 'energd'),
+        ('MRCI-F12+Q(2,2)', 'mrci-f12', 'energd(2)'),
+    ])
+def test_multireference_numerical_gradient_uses_selected_native_energy(
+        method, program, variable):
+    atoms = Atoms('CH2', positions=[[0., 0., 0.], [0., 0., 1.],
+                                    [0., 1., 0.]])
+    deck = render_input(
+        atoms, basis='aug-cc-pVTZ', geometry_name='step.xyz', method=method)
+    lowered = deck.lower()
+    assert program in lowered
+    assert f'kbvrcsel={variable}' in lowered
+    assert f'kb_geom_energy=kbvrcsel' in lowered
+    assert (f'forces,numerical,variable={variable},startcmd=multi'
+            in lowered)
+    assert 'put,xyzgrad' not in lowered
+
+
+@pytest.mark.parametrize(
+    'method,program', [
+        ('MRCI+Q(2,2)', ' PROGRAM * CI '
+         '(Multireference internally contracted CI)\n'),
+        ('MRCI-F12B+Q(2,2)', ' PROGRAM * MRCI-F12 '
+         '(EXPLICITLY CORRELATED MRCI)\n'),
+    ])
+def test_mrci_output_accepts_its_native_program_marker(method, program):
+    with TemporaryDirectory() as temporary:
+        output = Path(temporary) / 'step.out'
+        output.write_text(
+            program + ' SETTING KB_GEOM_ENERGY = -39.123456789 AU\n'
+            ' Molpro calculation terminated\n')
+        assert parse_output(output, method=method) == pytest.approx(
+            -39.123456789 * Hartree)
+
+
+def test_conventional_mrci_output_cannot_satisfy_f12_request():
+    with TemporaryDirectory() as temporary:
+        output = Path(temporary) / 'step.out'
+        output.write_text(
+            ' PROGRAM * CI (Multireference internally contracted CI)\n'
+            ' SETTING KB_GEOM_ENERGY = -39.123456789 AU\n'
+            ' Molpro calculation terminated\n')
+        with pytest.raises(ValueError, match='MRCI-F12B'):
+            parse_output(output, method='MRCI-F12B+Q(2,2)')
 
 
 def test_molpro_launcher_process_count_must_fit_allocation():

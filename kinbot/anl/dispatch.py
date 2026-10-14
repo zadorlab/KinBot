@@ -208,7 +208,8 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
             raise ValueError(f'{ident}: selected ASE calculator has no force capability.')
         options = task.get('optimizer', {})
         if (not isinstance(options, dict) or
-                set(options) - {'fmax', 'steps', 'sella_kwargs', 'order'}):
+                set(options) - {'fmax', 'steps', 'sella_kwargs', 'order',
+                                'constraints'}):
             raise ValueError(f'{ident}: invalid optimizer options.')
         if ('sella_kwargs' in options and not isinstance(options['sella_kwargs'], dict)):
             raise ValueError(f'{ident}: sella_kwargs must be an object.')
@@ -224,6 +225,29 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
             raise ValueError(f'{ident}: optimizer order must be 0 or 1.')
         if options.get('order', 0) and profile.optimizer != 'sella':
             raise ValueError(f'{ident}: a saddle optimization requires Sella.')
+        constraints = options.get('constraints', {})
+        if not isinstance(constraints, dict) or set(constraints) - {
+                'fixed_bonds', 'minimum_bonds'}:
+            raise ValueError(f'{ident}: invalid optimizer constraints.')
+        fixed = constraints.get('fixed_bonds', [])
+        minimum = constraints.get('minimum_bonds', [])
+        if (not isinstance(fixed, list)
+                or any(not isinstance(pair, list) or len(pair) != 2
+                       or any(isinstance(index, bool) or not isinstance(index, int)
+                              or index < 0 for index in pair)
+                       or pair[0] == pair[1] for pair in fixed)):
+            raise ValueError(f'{ident}: fixed_bonds must contain atom-index pairs.')
+        if (not isinstance(minimum, list)
+                or any(not isinstance(item, list) or len(item) != 3
+                       or any(isinstance(index, bool) or not isinstance(index, int)
+                              or index < 0 for index in item[:2])
+                       or item[0] == item[1]
+                       or isinstance(item[2], bool)
+                       or not isinstance(item[2], (int, float))
+                       or not np.isfinite(item[2]) or item[2] <= 0
+                       for item in minimum)):
+            raise ValueError(
+                f'{ident}: minimum_bonds must contain [atom, atom, angstrom].')
     else:
         _basename(task.get('backend'), f'{ident} backend')
         _basename(task.get('input_name'), f'{ident} input_name')
@@ -1086,7 +1110,7 @@ def _run_ase_optimize(directory, record):
             'generated_files': [],
         }
     from ase.optimize import BFGS
-    from sella import Sella
+    from sella import Sella, Constraints
     from kinbot.ase_modules.calculators.factory import build_calculator
 
     # UMA/OMol reads these from Atoms.info; XYZ does not preserve them.
@@ -1100,8 +1124,23 @@ def _run_ase_optimize(directory, record):
     common = {'trajectory': str(directory / 'optimization.traj'),
               'logfile': str(directory / 'optimization.log')}
     if len(atoms) > 2 and profile.optimizer == 'sella':
-        optimizer = Sella(atoms, order=options.get('order', 0),
-                          **common, **options.get('sella_kwargs', {}))
+        specification = options.get('constraints', {})
+        constraints = None
+        if specification:
+            constraints = Constraints(atoms)
+            for pair in specification.get('fixed_bonds', ()):
+                if max(pair) >= len(atoms):
+                    raise ValueError('Fixed-bond atom index is out of range.')
+                constraints.fix_bond(tuple(pair))
+            for first, second, distance in specification.get(
+                    'minimum_bonds', ()):
+                if max(first, second) >= len(atoms):
+                    raise ValueError('Minimum-bond atom index is out of range.')
+                constraints.fix_bond(
+                    (first, second), target=float(distance), comparator='gt')
+        optimizer = Sella(
+            atoms, order=options.get('order', 0), constraints=constraints,
+            **common, **options.get('sella_kwargs', {}))
     else:
         optimizer = BFGS(atoms, **common)
     converged = optimizer.run(fmax=options.get('fmax', 0.03),

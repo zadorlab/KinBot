@@ -1,8 +1,10 @@
-"""ASE energy/force calculator for a Molpro CCSD(T) geometry step.
+"""ASE energy/force calculator for Molpro geometry steps.
 
 Molpro evaluates one geometry per invocation. ASE/Sella, never Molpro OPTG,
-chooses the next geometry. Each step preserves its native input and output and
-validates the requested unrestricted coupled-cluster result before reuse.
+chooses the next geometry. Each step preserves its native input and output.
+Conventional CCSD(T) uses numerical gradients.  A VRC relaxed path can use
+an analytic RS2-CASPT2 gradient or a numerical gradient of an explicitly
+selected CASPT2-F12 or Davidson-corrected MRCI energy.
 """
 
 from pathlib import Path
@@ -16,6 +18,9 @@ import numpy as np
 
 from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
 from kinbot.anl.results import validate_molpro_triples
+from kinbot.molpro import (
+    _vrc_multireference_method, vrc_multireference_energy_contract,
+)
 
 
 _ENERGY = re.compile(
@@ -26,6 +31,7 @@ _ENERGY = re.compile(
 _SAFE_BASIS = re.compile(r'[A-Za-z0-9_+./*()-]+\Z')
 _PROCESS_COUNT = re.compile(r'Distribution of processes:\s*nprocs\(total\)=\s*(\d+)',
                             re.IGNORECASE)
+_CASPT2 = re.compile(r'caspt2\((\d+),(\d+)\)\Z', re.IGNORECASE)
 
 
 def check_process_count(output_path, allocated_ranks):
@@ -41,9 +47,26 @@ def check_process_count(output_path, allocated_ranks):
     return count
 
 
-def render_input(atoms, *, basis, geometry_name, charge=0, mult=1,
-                 effective_method=None):
-    """Render a restricted-reference, unrestricted-CCSD(T) gradient.
+def _caspt2_space(method, electron_count):
+    match = _CASPT2.fullmatch(str(method).strip())
+    if match is None:
+        return None
+    active_electrons, active_orbitals = map(int, match.groups())
+    if active_electrons < 1 or active_orbitals < 1:
+        raise ValueError('CASPT2 active electrons and orbitals must be positive.')
+    inactive_electrons = electron_count - active_electrons
+    if inactive_electrons < 0 or inactive_electrons % 2:
+        raise ValueError(
+            f'{method} is incompatible with {electron_count} electrons: the '
+            'inactive electron count must be nonnegative and even.')
+    closed = inactive_electrons // 2
+    return active_electrons, active_orbitals, closed, closed + active_orbitals
+
+
+def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
+                 mult=1, method='CCSD(T)', effective_method=None,
+                 caspt2_shift=0.3):
+    """Render a CCSD(T), CASPT2, or Davidson-corrected MRCI gradient.
 
     Molpro's RHF step supplies RHF or ROHF orbitals according to multiplicity.
     Bare ``UCCSD(T)`` then uses the restricted-reference unrestricted-CC
@@ -59,19 +82,78 @@ def render_input(atoms, *, basis, geometry_name, charge=0, mult=1,
         raise ValueError('Molpro charge must be an integer.')
     if isinstance(mult, bool) or not isinstance(mult, int) or mult < 1:
         raise ValueError('Molpro multiplicity must be a positive integer.')
-    method = {None: 'uccsd(t)', 'HF': '', 'CCSD': 'uccsd'}.get(
-        effective_method)
-    if method is None:
-        raise ValueError('Molpro effective geometry method is unsupported.')
+    requested_method = str(method).strip()
+    electron_count = int(sum(atoms.numbers)) - charge
+    contract = vrc_multireference_energy_contract(requested_method)
+    analytic_caspt2 = (
+        contract is not None and contract['method'] == 'CASPT2')
+    if contract is None:
+        cc_command = {None: 'uccsd(t)', 'HF': '', 'CCSD': 'uccsd'}.get(
+            effective_method)
+        if requested_method.upper() != 'CCSD(T)' or cc_command is None:
+            raise ValueError('Molpro ASE geometry method is unsupported.')
+    else:
+        if effective_method is not None:
+            raise ValueError(
+                'Multireference geometry does not accept effective_method.')
+        # Validate the active space before a job can be submitted.  The
+        # renderer below performs the same parity check while constructing
+        # the exact Molpro program and selected energy variable.
+        _caspt2_space(
+            f'caspt2({contract["active_electrons"]},'
+            f'{contract["active_orbitals"]})', electron_count)
+        if (analytic_caspt2 and
+                (gradient_name is None or not re.fullmatch(
+                    r'[A-Za-z0-9][A-Za-z0-9_.-]*\.xyzgrad',
+                    gradient_name))):
+            raise ValueError(
+                'Analytic CASPT2 geometry requires a safe XYZGRAD filename.')
+        if (isinstance(caspt2_shift, bool)
+                or not isinstance(caspt2_shift, (int, float))
+                or not np.isfinite(caspt2_shift) or caspt2_shift < 0):
+            raise ValueError('CASPT2 level shift must be a finite nonnegative number.')
     xyz = '\n'.join(
         f'{symbol} {x:.12f} {y:.12f} {z:.12f}'
         for symbol, (x, y, z) in zip(atoms.get_chemical_symbols(), atoms.positions)
     )
-    return (f'***,KinBot ASE/Sella gradient\n'
+    header = (f'***,KinBot ASE/Sella gradient\n'
             f'symmetry,nosym\norient,noorient\ngeomtyp=xyz\n'
             f'geometry={{\n{len(atoms)}\nKinBot ASE geometry (angstrom)\n{xyz}\n}}\n'
             f'basis={basis}\nset,charge={charge}\nset,spin={mult - 1}\n'
-            f'gthresh,energy=1.d-9\nrhf\n{method}\n'
+            f'gthresh,energy=1.d-9\n')
+    if contract is not None:
+        if analytic_caspt2:
+            active_electrons, active_orbitals, closed, occupied = \
+                _caspt2_space(requested_method, electron_count)
+            method_block = (
+                '{multi,\n'
+                f'occ,{occupied}\nclosed,{closed}\n'
+                f'wf,{electron_count},1,{mult - 1}\nmaxit,50;}}\n\n'
+                f'{{rs2,shift={float(caspt2_shift):g}}}\n'
+                '! KinBot energy contract: CASPT2/RS2 = ENERGY\n')
+            selected = 'energy'
+        else:
+            method_block, selected = _vrc_multireference_method(
+                requested_method, electron_count, spin=mult - 1,
+                shift=caspt2_shift)
+        body = method_block + f'kb_geom_energy={selected}\n'
+        if analytic_caspt2:
+            body += f'forces\nput,xyzgrad,{gradient_name}\n'
+        else:
+            # Differentiate the selected native variable directly.  For
+            # MRCI this is ENERGD(1/2), never ENERGY, so the geometry path
+            # includes the relaxed-reference Davidson correction.
+            # Conventional single-state MRCI exposes the Davidson-corrected
+            # surface through the scalar ENERGD alias.  F12 computes A and B
+            # together, so those paths must retain the explicit array index.
+            gradient_variable = (
+                'energd' if contract['method'] == 'MRCI+Q'
+                else contract['energy_variable'].casefold())
+            body += (f'forces,numerical,variable={gradient_variable},'
+                     'startcmd=multi\n')
+        body += f'put,xyz,{geometry_name}\n'
+        return header + body
+    return (header + f'rhf\n{cc_command}\n'
             f'kb_geom_energy=energy\n'
             f'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             f'put,xyz,{geometry_name}\n')
@@ -117,7 +199,8 @@ def _xyz_atom_order(path, atoms):
     return order
 
 
-def parse_numerical_gradient(output_path, geometry_path, atoms):
+def parse_numerical_gradient(output_path, geometry_path, atoms,
+                             variable='KB_GEOM_ENERGY'):
     """Read Molpro's numerical dE/dx table (Hartree/Bohr) as ASE forces.
 
     Molpro 2024 prints the numerical gradient in .out but PUT,XYZGRAD fails
@@ -128,10 +211,12 @@ def parse_numerical_gradient(output_path, geometry_path, atoms):
             or any('ERROR EXIT' in line for line in output)):
         raise ValueError('Molpro did not terminate normally.')
     headings = [index for index, line in enumerate(output)
-                if re.fullmatch(r'\s*Numerical gradient for KB_GEOM_ENERGY\s*',
-                                line, re.IGNORECASE)]
+                if re.fullmatch(
+                    rf'\s*Numerical gradient for {re.escape(variable)}\s*',
+                    line, re.IGNORECASE)]
     if len(headings) != 1:
-        raise ValueError('Expected exactly one KB_GEOM_ENERGY numerical gradient table.')
+        raise ValueError(
+            f'Expected exactly one {variable} numerical gradient table.')
     start = headings[0]
     headers = [index for index in range(start + 1, min(start + 12, len(output)))
                if re.search(r'\bAtom\s+dE/dx\s+dE/dy\s+dE/dz\b',
@@ -156,12 +241,65 @@ def parse_numerical_gradient(output_path, geometry_path, atoms):
     return -gradients[order] * Hartree / Bohr
 
 
-def parse_output(path, *, effective_method=None):
+def parse_xyzgrad(path, atoms):
+    """Read Molpro PUT,XYZGRAD forces in eV/angstrom in ASE atom order."""
+    lines = Path(path).read_text().splitlines()
+    if len(lines) < len(atoms) + 2:
+        raise ValueError('Molpro XYZGRAD file is incomplete.')
+    try:
+        count = int(lines[0].strip())
+    except ValueError as exc:
+        raise ValueError('Molpro XYZGRAD lacks its atom count.') from exc
+    if count != len(atoms):
+        raise ValueError('Molpro XYZGRAD atom count disagrees with geometry.')
+    rows = []
+    for line in lines[2:2 + count]:
+        fields = line.split()
+        if len(fields) != 8:
+            raise ValueError('Molpro XYZGRAD row must contain a symbol and seven values.')
+        atom = re.fullmatch(r'([A-Za-z]{1,2})\d*', fields[0])
+        if atom is None:
+            raise ValueError('Molpro XYZGRAD contains an invalid atom label.')
+        try:
+            values = np.asarray([
+                float(value.replace('D', 'E').replace('d', 'e'))
+                for value in fields[1:]], dtype=float)
+        except ValueError as exc:
+            raise ValueError('Molpro XYZGRAD contains a nonnumeric value.') from exc
+        if not np.isfinite(values).all():
+            raise ValueError('Molpro XYZGRAD contains a nonfinite value.')
+        rows.append((atom.group(1).capitalize(), values[:3], values[4:]))
+    order, unused = [], set(range(count))
+    for symbol, position in zip(atoms.get_chemical_symbols(), atoms.positions):
+        matches = [row for row in unused if rows[row][0] == symbol
+                   and np.max(np.abs(rows[row][1] - position)) < 1e-4]
+        if len(matches) != 1:
+            raise ValueError('Molpro XYZGRAD atom order cannot be mapped uniquely.')
+        order.append(matches[0])
+        unused.remove(matches[0])
+    # Molpro documents the XYZGRAD vector in -eV/angstrom, i.e. force units.
+    return np.asarray([rows[index][2] for index in order], dtype=float)
+
+
+def parse_output(path, *, method='CCSD(T)', effective_method=None):
     """Read the explicitly saved undisplaced energy and normal termination."""
     output = Path(path).read_text(errors='replace')
     if 'Molpro calculation terminated' not in output or 'ERROR EXIT' in output:
         raise ValueError('Molpro did not terminate normally.')
-    if effective_method is None:
+    contract = vrc_multireference_energy_contract(method)
+    if contract is not None:
+        f12 = contract['f12_variant'] is not None
+        if contract['method'].startswith('CASPT2'):
+            marker = r'RS2-F12\b' if f12 else r'RS2(?=\s|\()'
+        else:
+            marker = (r'(?:CI|MRCI)-F12\b' if f12
+                      else r'(?:CI|MRCI)(?=\s|\()')
+        if not re.search(rf'PROGRAM\s*\*\s*{marker}', output,
+                         re.IGNORECASE):
+            raise ValueError(
+                f'Molpro output lacks the requested {contract["method"]} '
+                'calculation.')
+    elif effective_method is None:
         validate_molpro_triples(output, scaled=False)
     # Molpro 2024.1 prints SETTING for a user assignment, as in the supplied
     # CH4/H2O2 outputs. Use the first such line: numerical FORCE then repeats
@@ -182,10 +320,14 @@ class Molpro(Calculator):
 
     def __init__(self, *, directory, label, method, basis, command='molpro',
                  charge=0, mult=1, nproc=1, stack_mw=256,
-                 scratch_min_mb=4096, effective_method=None):
+                 scratch_min_mb=4096, effective_method=None,
+                 caspt2_shift=0.3):
         super().__init__()
-        if method.upper() != 'CCSD(T)':
-            raise ValueError('Molpro ASE geometry currently supports conventional CCSD(T).')
+        if (method.upper() != 'CCSD(T)'
+                and vrc_multireference_energy_contract(method) is None):
+            raise ValueError(
+                'Molpro ASE geometry supports CCSD(T), CASPT2 variants, '
+                'MRCI+Q, and MRCI-F12+Q active-space methods.')
         if effective_method not in (None, 'HF', 'CCSD'):
             raise ValueError('Molpro effective geometry method is unsupported.')
         if isinstance(charge, bool) or not isinstance(charge, int):
@@ -214,6 +356,16 @@ class Molpro(Calculator):
         self.charge = charge
         self.mult = mult
         self.effective_method = effective_method
+        self.method = method
+        self.caspt2_shift = caspt2_shift
+        contract = vrc_multireference_energy_contract(method)
+        self.analytic_caspt2 = (
+            contract is not None and contract['method'] == 'CASPT2')
+        self.gradient_variable = (
+            'ENERGD' if contract is not None
+            and contract['method'] == 'MRCI+Q'
+            else contract['energy_variable'] if contract is not None
+            and not self.analytic_caspt2 else 'KB_GEOM_ENERGY')
         self.evaluations = 0
         self.generated_files = []
 
@@ -225,12 +377,15 @@ class Molpro(Calculator):
         input_name = f'{stem}.inp'
         output_name = f'{stem}.out'
         geometry_name = f'{stem}.xyz'
+        gradient_name = f'{stem}.xyzgrad' if self.analytic_caspt2 else None
         stdout_name = f'{stem}.stdout'
         stderr_name = f'{stem}.stderr'
         (self.work_directory / input_name).write_text(
             render_input(atoms, basis=self.basis, geometry_name=geometry_name,
+                         gradient_name=gradient_name, method=self.method,
                          charge=self.charge, mult=self.mult,
-                         effective_method=self.effective_method))
+                         effective_method=self.effective_method,
+                         caspt2_shift=self.caspt2_shift))
         self.generated_files.append(input_name)
         command = [*self.command, '-g', '-n', str(self.nproc), '-m',
                    str(self.stack_mw), input_name]
@@ -249,18 +404,25 @@ class Molpro(Calculator):
             raise RuntimeError(f'Molpro force evaluation {stem} exited with '
                                f'status {result.returncode}.')
         log_name = f'{stem}.log'
-        for name in (output_name, log_name, geometry_name):
+        required = [output_name, log_name, geometry_name]
+        if gradient_name is not None:
+            required.append(gradient_name)
+        for name in required:
             path = self.work_directory / name
             if not path.is_file() or not path.stat().st_size:
                 raise RuntimeError(f'Molpro force evaluation {stem} lacks nonempty {name}.')
         check_process_count(self.work_directory / output_name, self.nproc)
-        self.generated_files.extend([output_name, log_name, geometry_name])
+        self.generated_files.extend(required)
         xml_name = f'{stem}.xml'
         if (self.work_directory / xml_name).is_file():
             self.generated_files.append(xml_name)
         self.results = {'energy': parse_output(
                             self.work_directory / output_name,
+                            method=self.method,
                             effective_method=self.effective_method),
-                        'forces': parse_numerical_gradient(
-                            self.work_directory / output_name,
-                            self.work_directory / geometry_name, atoms)}
+                        'forces': (parse_xyzgrad(
+                            self.work_directory / gradient_name, atoms)
+                            if self.analytic_caspt2 else parse_numerical_gradient(
+                                self.work_directory / output_name,
+                                self.work_directory / geometry_name, atoms,
+                                variable=self.gradient_variable))}

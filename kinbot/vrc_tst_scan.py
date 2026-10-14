@@ -14,9 +14,13 @@ import subprocess
 import sys
 import hashlib
 from pathlib import Path
+import re
 
 from shutil import which
 from subprocess import Popen, PIPE
+from ase import Atoms
+from ase.io import read
+from ase.units import Hartree
 from kinbot.utils import reorder_coord
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
@@ -354,6 +358,18 @@ class VTS:
         and the points are run in sequence.
         """
 
+        scan_method = str(self.par['vrc_tst_scan_method']).strip()
+        if vrc_multireference_energy_contract(scan_method) is not None:
+            return self._do_molpro_multireference_scan(
+                reactions, noscan=noscan)
+        if any(token in scan_method.casefold()
+               for token in ('caspt2', 'mrci', 'casscf')):
+            raise ValueError(
+                f'{scan_method} cannot provide this relaxed VRC path. '
+                'Supported Molpro scan methods are CASPT2(ne,no), '
+                'CASPT2-F12[A/B](ne,no), MRCI+Q(ne,no), and '
+                'MRCI-F12[A/B]+Q(ne,no).')
+
         status = ['ready'] * len(reactions)
         step = np.zeros(len(reactions), dtype=int)
         geoms = []
@@ -436,6 +452,259 @@ class VTS:
 
         return (jobs)
 
+    @staticmethod
+    def _shift_scan_geometry(reaction, geom, distance):
+        """Move fragment B so the selected atom pair has ``distance``."""
+        geom = np.asarray(geom, dtype=float).copy()
+        first, second = reaction.scan_coo
+        vector = geom[second] - geom[first]
+        current = float(np.linalg.norm(vector))
+        if not np.isfinite(current) or current <= 1.e-8:
+            raise ValueError('VRC scan starts from a zero or nonfinite distance.')
+        geom -= geom[first]
+        shift = vector / current * (float(distance) - current)
+        geom[np.asarray(reaction.maps[1], dtype=int)] += shift
+        observed = float(np.linalg.norm(geom[first] - geom[second]))
+        if not np.isclose(observed, distance, atol=1.e-8, rtol=0.):
+            # Product ordering can put the second scanned atom in the first
+            # map.  The opposite translation is then the physically correct
+            # one and is deterministic.
+            geom[np.asarray(reaction.maps[1], dtype=int)] -= 2. * shift
+            observed = float(np.linalg.norm(geom[first] - geom[second]))
+        if not np.isclose(observed, distance, atol=1.e-8, rtol=0.):
+            raise RuntimeError('Unable to construct the requested VRC distance.')
+        return geom
+
+    def _molpro_multireference_scan_task(
+            self, reaction, geom, distance, logical_name):
+        """Run one constrained Molpro multireference scan point."""
+        from kinbot.anl.dispatch import _load, preflight, prepare
+
+        constraints = {'fixed_bonds': [list(map(int, reaction.scan_coo))],
+                       'minimum_bonds': []}
+        for first in reaction.equiv[0]:
+            for second in reaction.equiv[1]:
+                pair = [int(first), int(second)]
+                if pair == constraints['fixed_bonds'][0] or \
+                        pair[::-1] == constraints['fixed_bonds'][0]:
+                    continue
+                constraints['minimum_bonds'].append(
+                    [pair[0], pair[1], float(distance)])
+        method = str(self.par['vrc_tst_scan_method']).strip()
+        basis = str(self.par['vrc_tst_scan_basis']).strip()
+        molecule = {
+            'symbols': list(map(str, reaction.species.atom)),
+            'positions': np.asarray(geom, dtype=float).tolist(),
+            'charge': _native_state_integer(
+                reaction.species.charge, 'Molecular charge'),
+            'multiplicity': _native_state_integer(
+                reaction.species.mult, 'Molecular multiplicity'),
+        }
+        task = {
+            'id': 'relaxed_scan', 'kind': 'ase_optimize',
+            'geometry_from': 'initial', 'geometry_output': 'final.xyz',
+            'profile': {
+                'calculator': 'molpro', 'method': method, 'basis': basis,
+                'command': 'molpro', 'optimizer': 'sella',
+                'frequency_mode': 'ase_forces',
+                'calculator_kwargs': {'caspt2_shift': 0.3},
+                'label': f'RS2-{method.upper()}/{basis}',
+            },
+            'optimizer': {
+                'fmax': 0.03, 'steps': 100, 'order': 0,
+                'sella_kwargs': {'internal': False},
+                'constraints': constraints,
+            },
+            'resources': {
+                'cores': 'auto', 'memory_mb': 'node',
+                'walltime': self.par['vrc_tst_walltime'],
+                'max_cores': self.par['single_point_ppn'],
+                'min_stack_mw': self.par['vrc_tst_min_stack_mw'],
+                'partition': self.par['queue_name'],
+            },
+        }
+        fingerprint = hashlib.sha256(json.dumps({
+            'molecule': molecule, 'method': method, 'basis': basis,
+            'constraints': constraints, 'optimizer': task['optimizer'],
+        }, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        safe_name = re.sub(r'[^A-Za-z0-9_.-]', '_', logical_name)
+        run_dir = (Path('vrctst/molpro_scan').resolve() /
+                   f'{safe_name}_{fingerprint[:16]}')
+        spec = {
+            'schema': 1, 'name': f'vrc-caspt2-{safe_name}',
+            'molecule': molecule,
+            'limits': {'max_nodes': 1}, 'tasks': [task],
+            'intent': {
+                'cap_walltime_to_explicit_partition': True,
+                'vrc_scan_fingerprint': fingerprint,
+                'vrc_scan_distance_angstrom': float(distance),
+            },
+        }
+        if not run_dir.exists():
+            prepare(spec, run_dir)
+        else:
+            _, stored, _ = _load(run_dir)
+            if stored.get('intent', {}).get(
+                    'vrc_scan_fingerprint') != fingerprint:
+                raise RuntimeError(
+                    f'VRC scan provenance collision at {run_dir}.')
+        preflight(run_dir)
+        _, _, state = _load(run_dir)
+        if state['tasks']['relaxed_scan']['status'] != 'complete':
+            result = subprocess.run(
+                [sys.executable, '-m', 'kinbot.anl.dispatch', 'drive',
+                 str(run_dir), '--interval', '20'], check=False)
+            if result.returncode:
+                _, _, state = _load(run_dir)
+                error = state['tasks']['relaxed_scan'].get(
+                    'error', 'unknown task failure')
+                raise RuntimeError(
+                    f'Molpro multireference VRC scan failed at {distance:g} '
+                    f'angstrom; inspect {run_dir}: {error}')
+        task_dir = run_dir / 'tasks' / 'relaxed_scan'
+        execution = json.loads((task_dir / 'execution.json').read_text())
+        if execution.get('status') != 'executed':
+            raise RuntimeError(f'Incomplete VRC scan execution at {run_dir}.')
+        atoms = read(task_dir / 'final.xyz')
+        observed = float(np.linalg.norm(
+            atoms.positions[reaction.scan_coo[0]] -
+            atoms.positions[reaction.scan_coo[1]]))
+        if not np.isclose(observed, distance, atol=0.01, rtol=0.):
+            raise RuntimeError(
+                f'Molpro VRC point lost its distance constraint: '
+                f'{observed:.6f} versus {distance:.6f} angstrom.')
+        # A fixed association coordinate must not be satisfied by breaking an
+        # internal fragment bond.  Check the original connectivity after each
+        # optimization before publishing the geometry for correction jobs.
+        broken = self._broken_scan_fragment_bonds(reaction, atoms.positions)
+        if broken:
+            detail = ', '.join(
+                f'{first + 1}-{second + 1}: {initial:.4f}->{final:.4f} A'
+                for first, second, initial, final in broken)
+            raise RuntimeError(
+                'Molpro VRC relaxed scan broke internal fragment bond(s): '
+                + detail)
+        energy_ev = float(execution['details']['energy_ev'])
+        return atoms, energy_ev, run_dir, execution
+
+    @staticmethod
+    def _broken_scan_fragment_bonds(reaction, positions):
+        """Return fragment bonds stretched beyond the isolated geometry."""
+        positions = np.asarray(positions, dtype=float)
+        fragment_by_atom = {
+            int(atom): fragment
+            for fragment, mapping in enumerate(reaction.maps)
+            for atom in mapping
+        }
+        broken = []
+        for first, second in reaction.irc_prod.bondlist:
+            first, second = int(first), int(second)
+            fragment = fragment_by_atom.get(first)
+            if fragment is None or fragment != fragment_by_atom.get(second):
+                continue
+            mapping = list(map(int, reaction.maps[fragment]))
+            product = np.asarray(reaction.products[fragment].geom, dtype=float)
+            initial = float(np.linalg.norm(
+                product[mapping.index(first)] - product[mapping.index(second)]))
+            final = float(np.linalg.norm(
+                positions[first] - positions[second]))
+            if initial <= 1.e-8 or final > 1.2 * initial:
+                broken.append((first, second, initial, final))
+        return broken
+
+    @staticmethod
+    def _frozen_scan_geometry(reaction, relaxed):
+        """Orient optimized isolated fragments onto a relaxed VRC point."""
+        import rmsd
+
+        maps = [list(map(int, mapping)) for mapping in reaction.maps]
+        scan = list(map(int, reaction.scan_coo))
+        relaxed = np.asarray(relaxed, dtype=float)
+        result = np.zeros_like(relaxed)
+        for fragment_index in range(2):
+            mapping = maps[fragment_index]
+            relaxed_part = relaxed[mapping]
+            product = reaction.products[fragment_index]
+            frozen = np.asarray(product.geom, dtype=float).copy()
+            reactive = scan[fragment_index]
+            if reactive not in mapping:
+                reactive = scan[1 - fragment_index]
+            pivot = mapping.index(reactive)
+            weights = np.asarray(product.bond01[pivot], dtype=float).copy()
+            weights[weights == 0.] = 0.02
+            weights[pivot] = 1.
+            fitted, _ = rmsd.kabsch_weighted_fit(
+                frozen, relaxed_part, W=weights)
+            fitted -= fitted[pivot] - relaxed_part[pivot]
+            result[mapping] = fitted
+        if not np.isfinite(result).all():
+            raise RuntimeError('Frozen VRC fragment alignment is nonfinite.')
+        return result
+
+    def _publish_scan_geometry(self, reaction, name, atoms, energy_ev,
+                               run_dir, *, frozen):
+        """Publish a verified scan geometry under the legacy database key."""
+        atoms = atoms.copy()
+        charges = np.zeros(len(atoms))
+        charges[0] = int(reaction.species.charge)
+        atoms.set_initial_charges(charges)
+        connect('kinbot.db').write(atoms, name=f'vrctst/{name}', data={
+            'energy': float(energy_ev), 'status': 'normal',
+            'vrc_scan_backend': 'molpro',
+            'vrc_scan_method': str(self.par['vrc_tst_scan_method']),
+            'vrc_scan_basis': str(self.par['vrc_tst_scan_basis']),
+            'vrc_scan_role': 'frozen' if frozen else 'relaxed',
+            'vrc_scan_dispatch': str(run_dir),
+        })
+        path = Path('vrctst') / f'{name}.log'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            'Molpro multireference VRC scan geometry accepted\n'
+            f'dispatch={run_dir}\ndone\n')
+
+    def _do_molpro_multireference_scan(self, reactions, noscan=False):
+        """Compute a relaxed VRC path with the requested Molpro MR method."""
+        Path('vrctst/molpro_scan').mkdir(parents=True, exist_ok=True)
+        completed = []
+        for reac in reactions:
+            reaction = self.scan_reac[reac]
+            geom = np.asarray(
+                reaction.irc_prod.geom if reaction.do_vdW
+                else reaction.species.geom, dtype=float)
+            distances = ([30.] if noscan else
+                         [*map(float, self.par['vrc_tst_scan_points']), 30.])
+            for step, distance in enumerate(distances):
+                geom = self._shift_scan_geometry(reaction, geom, distance)
+                base = (f'{reac}_vts_pt_asymptote'
+                        if distance == 30. and step == len(distances) - 1
+                        else f'{reac}_vts_pt{step:02d}')
+                if distance == 30.:
+                    # At the asymptote there is no intermolecular geometry to
+                    # relax.  The correction energies are evaluated later at
+                    # this explicitly separated structure.
+                    relaxed = Atoms(reaction.species.atom, positions=geom)
+                    energy_ev = 0.
+                    run_dir = Path('vrctst/molpro_scan/asymptote_identity')
+                else:
+                    relaxed, energy_ev, run_dir, _ = \
+                        self._molpro_multireference_scan_task(
+                            reaction, geom, distance, base)
+                    geom = relaxed.positions.copy()
+                self._publish_scan_geometry(
+                    reaction, base, relaxed, energy_ev, run_dir, frozen=False)
+                frozen_geom = self._frozen_scan_geometry(
+                    reaction, relaxed.positions)
+                frozen = Atoms(reaction.species.atom, positions=frozen_geom)
+                self._publish_scan_geometry(
+                    reaction, base + '_fr', frozen, energy_ev, run_dir,
+                    frozen=True)
+                logger.info(
+                    'Accepted %s at RS2-%s/%s (%.3f angstrom)', base,
+                    self.par['vrc_tst_scan_method'],
+                    self.par['vrc_tst_scan_basis'], distance)
+                completed.append(str(run_dir))
+        return completed
+
     def energies(self, reactions, noscan=False):
         """Run and read the VRC Molpro correction calculations.
 
@@ -477,7 +746,10 @@ class VTS:
                                            f'{geometry_job}.')
                     last_row = rows[0]
                     scan_spec = StationaryPoint.from_ase_atoms(
-                        last_row.toatoms())
+                        last_row.toatoms(),
+                        charge=int(getattr(
+                            self.scan_reac[reac].species, 'charge', 0)),
+                        mult=int(self.scan_reac[reac].species.mult))
                     scan_spec.characterize()
 
                     molp = Molpro(scan_spec, self.par)
@@ -500,6 +772,9 @@ class VTS:
             self._dispatch_molpro_corrections(pending)
 
         for reac in reactions:
+            scan_method = self.par.get('vrc_tst_scan_method', 'unspecified')
+            scan_basis = self.par.get('vrc_tst_scan_basis', 'unspecified')
+            scan_contract = vrc_multireference_energy_contract(scan_method)
             energies = {component['role']: [] for component in components}
             native_components = {component['role']: []
                                  for component in components}
@@ -582,6 +857,19 @@ class VTS:
                 'correction_model': model,
                 'levels': expected_levels(self.par),
                 'native_components': native_components,
+                'relaxed_scan_level': {
+                    'backend': ('molpro' if scan_contract is not None
+                        else getattr(self.qc, 'qc', 'configured')),
+                    'method': scan_method,
+                    'basis': scan_basis,
+                    'gradient': (
+                        'Molpro RS2 analytic CASPT2'
+                        if (scan_contract is not None and
+                            scan_contract['method'] == 'CASPT2')
+                        else ('Molpro numerical multireference gradient'
+                              if scan_contract is not None
+                              else 'configured legacy scan')),
+                },
                 'frags_atom': [list(self.scan_reac[reac].products[0].atom),
                                list(self.scan_reac[reac].products[1].atom)],
                 'frags_geom': [self.scan_reac[reac].products[0].geom,

@@ -408,12 +408,16 @@ class Parameters:
             'vrc_tst_walltime': '24:00:00',
             # Minimum Molpro memory stack (MW) available to every MPI rank
             'vrc_tst_min_stack_mw': 3200,
-            # using sella for scan
-            'vrc_tst_scan_sella': 0,
-            # Method to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_method': 'ub3lyp',
-            # Basis set to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_basis': '6-31+G(d)',
+            # Relaxed VRC paths use a multireference surface by default.
+            # Molpro's RS2 implementation supplies analytic CASPT2 gradients
+            # to Sella while the reaction-coordinate distance is constrained.
+            'vrc_tst_scan_sella': 1,
+            'vrc_tst_scan_method': 'caspt2(2,2)',
+            'vrc_tst_scan_basis': 'aug-cc-pVTZ',
+            # Gaussian orbitals are used only to construct HOMO-directed
+            # pivot points.  They never supply a VRC scan geometry or energy.
+            'vrc_tst_pivot_method': 'ub3lyp',
+            'vrc_tst_pivot_basis': '6-31+G(d)',
             # Calculator keywords scoped only to VRC Gaussian calculations
             'vrc_tst_calc_kwargs': None,
             # Energy calculations

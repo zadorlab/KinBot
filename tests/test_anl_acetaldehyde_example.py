@@ -21,4 +21,6 @@ def test_acetaldehyde_example_uses_automatic_cbh_and_portable_resources():
     assert parsed.par['rotdpy_max_jobs'] == 8
     assert parsed.theory_profiles['l1'].model_path == 'uma-s-1p2'
     assert parsed.par['composite_method'] == 'ANL0-F12'
+    assert parsed.par['vrc_tst_scan_method'] == 'caspt2(2,2)'
+    assert parsed.par['vrc_tst_scan_basis'] == 'aug-cc-pVTZ'
     assert parsed.par['run_messpf'] == parsed.par['run_me'] == 1

@@ -99,9 +99,8 @@ CASPT2-F12b and `ENERGD(2)` for MRCI-F12b+Q.  The latter is generated with
 `OPTION,CLUSTER=0`, so `+Q` is the relaxed-reference Davidson correction;
 the F12 CABS-singles correction remains included.  The generated input binds
 that value to `KBVRCSEL`, and the reader verifies that the public energy key
-matches it.  Explicit `f12a` method names remain available, while the older
-unqualified `caspt2-f12` and `mrci-f12+q` spellings are compatible aliases for
-the documented F12b convention.
+matches it.  The unqualified `caspt2-f12` and `mrci-f12+q` spellings default
+to F12b.  Explicit F12a method names remain available when requested.
 
 Every lower/upper pair uses the same ANL extrapolation:
 
@@ -133,9 +132,20 @@ used by Ram et al.
 
 The correction is the reconstructed relaxed-path interaction minus the rigid
 CASPT2/cc-pVDZ sampling interaction, after each curve is referenced to its
-own 30-angstrom asymptote.  The MEP geometries remain those produced by the
-configured KinBot VRC relaxed scan; the stored provenance distinguishes this
-from the CASPT2-F12-relaxed MEP used in the published perfluoroalkyl work.
+own 30-angstrom asymptote.  The production default relaxed path is optimized
+with Molpro RS2-CASPT2(2e,2o)/aug-cc-pVTZ.  Conventional CASPT2 uses Molpro's
+analytic gradient.  CASPT2-F12, MRCI+Q, and MRCI-F12+Q scan choices use
+numerical gradients of their explicitly selected native energy.  In
+particular, conventional MRCI+Q differentiates `ENERGD`, while MRCI-F12+Q
+differentiates `ENERGD(1)` or `ENERGD(2)` for an explicitly requested F12A
+or the default F12B surface.  A completed point is rejected if its constrained
+distance changes
+or an internal fragment bond breaks.
+
+Gaussian relaxed scans remain available when a Gaussian method is explicitly
+selected, preserving the original KinBot input path.  The separate default
+UB3LYP/6-31+G(d) fragment calculations only construct HOMO-oriented ROTD_py
+pivot points; they do not supply the relaxed scan geometries or energies.
 
 `selected_reactions` and `stop_product_reaction_search` are ordinary KinBot
 parameters.  The selector uses the atom order generated from

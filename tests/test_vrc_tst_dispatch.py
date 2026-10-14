@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from ase import Atoms
 from ase.db import connect
@@ -93,6 +93,110 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
                 'method': 'mrci+q(2,2)', 'basis': 'vtz'}
         finally:
             os.chdir(previous)
+
+
+def test_default_multireference_scan_publishes_only_caspt2_geometries():
+    with TemporaryDirectory() as temporary:
+        previous = Path.cwd()
+        os.chdir(temporary)
+        try:
+            parent_geom = np.asarray([
+                [0., 0., 0.], [0., 0., .74],
+                [0., 0., 3.24], [0., 0., 3.98]])
+            product_a = SimpleNamespace(
+                atom=['H', 'H'], geom=parent_geom[:2].copy(), mult=1,
+                bond01=np.asarray([[0, 1], [1, 0]]))
+            product_b = SimpleNamespace(
+                atom=['H', 'H'], geom=parent_geom[2:].copy(), mult=1,
+                bond01=np.asarray([[0, 1], [1, 0]]))
+            reaction = SimpleNamespace(
+                scan_coo=[1, 2], maps=[np.asarray([0, 1]),
+                                       np.asarray([2, 3])],
+                equiv=[[1], [2]], products=[product_a, product_b],
+                species=SimpleNamespace(
+                    atom=['H'] * 4, geom=parent_geom.copy(), charge=0,
+                    mult=1),
+                irc_prod=SimpleNamespace(
+                    geom=parent_geom.copy(), bondlist=[[0, 1], [2, 3]]),
+                do_vdW=False)
+            parameters = {
+                'vrc_tst_scan_method': 'caspt2(2,2)',
+                'vrc_tst_scan_basis': 'aug-cc-pVTZ',
+                'vrc_tst_scan_points': [2.5],
+            }
+            vts = VTS(SimpleNamespace(), parameters, None)
+            vts.scan_reac['r'] = reaction
+            calls = []
+
+            def optimize(reaction, geom, distance, logical_name):
+                calls.append((distance, logical_name))
+                return (Atoms(reaction.species.atom, positions=geom),
+                        -272.1, Path('/verified/caspt2'),
+                        {'status': 'executed'})
+
+            with patch.object(
+                    vts, '_molpro_multireference_scan_task', optimize):
+                vts.do_scan(['r'])
+
+            assert calls == [(2.5, 'r_vts_pt00')]
+            db = connect('kinbot.db')
+            for name in ('r_vts_pt00', 'r_vts_pt00_fr',
+                         'r_vts_pt_asymptote',
+                         'r_vts_pt_asymptote_fr'):
+                row = list(db.select(name=f'vrctst/{name}', sort='-id'))[0]
+                assert row.data['vrc_scan_backend'] == 'molpro'
+                assert row.data['vrc_scan_method'] == 'caspt2(2,2)'
+                assert row.data['vrc_scan_basis'] == 'aug-cc-pVTZ'
+            relaxed = list(db.select(
+                name='vrctst/r_vts_pt00', sort='-id'))[0].toatoms()
+            assert np.linalg.norm(
+                relaxed.positions[1] - relaxed.positions[2]) == \
+                pytest.approx(2.5)
+        finally:
+            os.chdir(previous)
+
+
+def test_explicit_gaussian_scan_keeps_legacy_qc_route():
+    geometry = np.asarray([
+        [0., 0., 0.], [0., 0., .74],
+        [0., 0., 3.], [0., 0., 3.74],
+    ])
+    reaction = SimpleNamespace(
+        do_vdW=False, scan_coo=[1, 2], maps=[np.asarray([0, 1]),
+                                             np.asarray([2, 3])],
+        equiv=[[1], [2]],
+        species=SimpleNamespace(geom=geometry.copy(), natom=4))
+    qc = SimpleNamespace()
+    qc.qc_vts = Mock(return_value='legacy-gaussian-job')
+    qc.get_qc_geom = Mock(return_value=(0, geometry.copy()))
+    qc.check_qc = Mock(return_value='normal')
+    vts = VTS(SimpleNamespace(), {
+        'vrc_tst_scan_method': 'ub3lyp',
+        'vrc_tst_scan_points': [],
+    }, qc)
+    vts.scan_reac['r'] = reaction
+    with patch('kinbot.vrc_tst_scan.time.sleep'):
+        assert vts.do_scan(['r'], noscan=True) == ['legacy-gaussian-job']
+    qc.qc_vts.assert_called_once()
+
+
+def test_multireference_scan_rejects_internal_fragment_dissociation():
+    reaction = SimpleNamespace(
+        maps=[np.asarray([0, 1]), np.asarray([2, 3])],
+        products=[
+            SimpleNamespace(geom=np.asarray([[0., 0., 0.], [0., 0., .74]])),
+            SimpleNamespace(geom=np.asarray([[0., 0., 0.], [0., 0., .74]])),
+        ],
+        irc_prod=SimpleNamespace(bondlist=[[0, 1], [2, 3]]))
+    positions = np.asarray([
+        [0., 0., 0.], [0., 0., .74],
+        [0., 0., 3.], [0., 0., 4.2],
+    ])
+    broken = VTS._broken_scan_fragment_bonds(reaction, positions)
+    assert len(broken) == 1
+    assert broken[0][:2] == (2, 3)
+    assert broken[0][2] == pytest.approx(.74)
+    assert broken[0][3] == pytest.approx(1.2)
 
 
 def test_spin_splitting_dispatches_all_cbs_components_and_records_provenance():

@@ -21,8 +21,8 @@ def vrc_multireference_energy_contract(method):
 
     Molpro stores the F12A and F12B results of an unqualified F12 command in
     indices 1 and 2, respectively.  The literature shorthand ``CASPT2-F12``
-    and ``MRCI-F12+Q`` is interpreted as F12B here; users can request F12A
-    explicitly.  MRCI ``+Q`` always means the relaxed-reference Davidson
+    and ``MRCI-F12+Q`` is interpreted as F12B here.  Users can still request
+    F12A explicitly.  MRCI ``+Q`` always means the relaxed-reference Davidson
     correction (``OPTION,CLUSTER=0``), including the default CABS-singles
     correction in an F12 calculation.
     """

@@ -1225,6 +1225,15 @@ class QuantumChemistry:
         self._prepare_stereochemistry(frag)
         mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
         kwargs = self.get_qc_arguments(job, mult, frag.charge, frag.nel, vts=1)
+        # Fragment calculations provide orbitals for HOMO-oriented pivot
+        # points.  Keep that auxiliary role separate from the relaxed VRC
+        # scan level, which may be a Molpro multireference method.
+        kwargs['method'] = self.par.get(
+            'vrc_tst_pivot_method',
+            getattr(self, 'vts_method', kwargs.get('method')))
+        kwargs['basis'] = self.par.get(
+            'vrc_tst_pivot_basis',
+            getattr(self, 'vts_basis', kwargs.get('basis')))
         # Add chk to fragments only
         kwargs['chk'] = f'{routing_name(frag)}_vts'
 

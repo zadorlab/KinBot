@@ -12,9 +12,10 @@ from kinbot.anl.extrapolation import (ORIGINAL_ANL_POWER,
 
 
 _SPIN_SPLITTING_DEFAULTS = {
-    'singlet_multiplicity': 1,
-    'triplet_multiplicity': 3,
-    'triplet_reference': {
+    'target_multiplicity': 1,
+    'reference_multiplicity': 3,
+    'fragment_multiplicities': None,
+    'reference': {
         'method': 'uccsd(t)-f12b',
         'basis': ['avtz-f12', 'avqz-f12'],
         'extrapolation_power': ORIGINAL_ANL_POWER,
@@ -67,6 +68,18 @@ def correction_model(parameters):
             from exc
 
 
+def coupled_multiplicities(first, second):
+    """Return all total-spin multiplicities allowed for two fragments."""
+    if (isinstance(first, bool) or not isinstance(first, int) or first < 1
+            or isinstance(second, bool) or not isinstance(second, int)
+            or second < 1):
+        raise ValueError('Fragment multiplicities must be positive integers.')
+    twice_s_min = abs((first - 1) - (second - 1))
+    twice_s_max = (first - 1) + (second - 1)
+    return tuple(value + 1 for value in range(
+        twice_s_min, twice_s_max + 1, 2))
+
+
 def spin_splitting_settings(parameters):
     """Return validated spin-splitting settings with concise user overrides."""
     settings = deepcopy(_SPIN_SPLITTING_DEFAULTS)
@@ -75,22 +88,35 @@ def spin_splitting_settings(parameters):
         override = {}
     if not isinstance(override, dict):
         raise ValueError('vrc_tst_spin_splitting must be an object.')
+    override = deepcopy(override)
+    legacy = {
+        'singlet_multiplicity': 'target_multiplicity',
+        'triplet_multiplicity': 'reference_multiplicity',
+        'triplet_reference': 'reference',
+    }
+    for old, new in legacy.items():
+        if old in override:
+            if new in override:
+                raise ValueError(
+                    f'vrc_tst_spin_splitting cannot define both {old} and '
+                    f'{new}.')
+            override[new] = override.pop(old)
     allowed = set(settings)
     unknown = set(override) - allowed
     if unknown:
         raise ValueError('Unknown vrc_tst_spin_splitting option(s): '
                          + ', '.join(sorted(unknown)))
     for key, value in override.items():
-        if key in ('triplet_reference', 'weighting'):
+        if key in ('reference', 'weighting'):
             if not isinstance(value, dict):
                 raise ValueError(f'vrc_tst_spin_splitting.{key} must be an '
                                  'object.')
             settings[key].update(value)
         else:
             settings[key] = value
-    if isinstance(settings.get('triplet_reference'), dict) \
-            and isinstance(settings['triplet_reference'].get('basis'), str):
-        settings['triplet_reference'].pop('extrapolation_power', None)
+    if isinstance(settings.get('reference'), dict) \
+            and isinstance(settings['reference'].get('basis'), str):
+        settings['reference'].pop('extrapolation_power', None)
     for level in settings.get('gap_levels', []):
         if isinstance(level, dict) and isinstance(level.get('basis'), str):
             level.pop('extrapolation_power', None)
@@ -99,42 +125,61 @@ def spin_splitting_settings(parameters):
             == 'arithmetic_mean'):
         settings['weighting'] = {'model': 'arithmetic_mean'}
     _validate_spin_splitting_settings(settings)
+    # Keep archived ethane manifests and callers readable while new records
+    # use state-neutral names.  These aliases are views of the same validated
+    # values and are never accepted alongside their canonical input names.
+    settings['singlet_multiplicity'] = settings['target_multiplicity']
+    settings['triplet_multiplicity'] = settings['reference_multiplicity']
+    settings['triplet_reference'] = settings['reference']
     return settings
 
 
 def _validate_spin_splitting_settings(settings):
-    singlet = settings['singlet_multiplicity']
-    triplet = settings['triplet_multiplicity']
-    if (isinstance(singlet, bool) or not isinstance(singlet, int)
-            or isinstance(triplet, bool) or not isinstance(triplet, int)
-            or singlet != 1 or triplet != 3):
-        raise ValueError('The implemented spin-splitting model requires '
-                         'singlet multiplicity 1 and triplet multiplicity 3.')
-    reference = settings['triplet_reference']
+    target = settings['target_multiplicity']
+    reference_multiplicity = settings['reference_multiplicity']
+    if (isinstance(target, bool) or not isinstance(target, int) or target < 1
+            or isinstance(reference_multiplicity, bool)
+            or not isinstance(reference_multiplicity, int)
+            or reference_multiplicity < 1
+            or target == reference_multiplicity):
+        raise ValueError('Spin-splitting target and reference multiplicities '
+                         'must be distinct positive integers.')
+    fragments = settings['fragment_multiplicities']
+    if fragments is not None:
+        if (not isinstance(fragments, list) or len(fragments) != 2
+                or any(isinstance(value, bool) or not isinstance(value, int)
+                       or value < 1 for value in fragments)):
+            raise ValueError('fragment_multiplicities must contain two '
+                             'positive integers.')
+        allowed = coupled_multiplicities(*fragments)
+        if target not in allowed or reference_multiplicity not in allowed:
+            raise ValueError('Spin-splitting multiplicities are not allowed '
+                             'by the two fragment spins.')
+    reference = settings['reference']
     if (not isinstance(reference, dict)
             or set(reference) - {'method', 'basis', 'extrapolation_power'}
             or not isinstance(reference.get('method'), str)
             or not reference['method'].strip()):
-        raise ValueError('spin-splitting triplet_reference requires a method '
+        raise ValueError('spin-splitting reference requires a method '
                          'and one basis or an adjacent basis pair.')
     basis = reference.get('basis')
     if isinstance(basis, str):
         if not basis.strip():
-            raise ValueError('Triplet-reference basis cannot be empty.')
+            raise ValueError('Reference basis cannot be empty.')
     elif isinstance(basis, list) and len(basis) == 2 \
             and all(isinstance(item, str) and item.strip() for item in basis):
         lower, upper = map(_basis_cardinal, basis)
         if upper != lower + 1:
-            raise ValueError('Triplet-reference CBS bases must be adjacent.')
+            raise ValueError('Reference CBS bases must be adjacent.')
         power = reference.get('extrapolation_power', ORIGINAL_ANL_POWER)
         extrapolation_coefficient(upper, power=power)
     else:
-        raise ValueError('Triplet-reference basis must be a string or a '
+        raise ValueError('Reference basis must be a string or a '
                          'two-item list of adjacent cardinal bases.')
     levels = settings['gap_levels']
-    if not isinstance(levels, list) or len(levels) != 2:
-        raise ValueError('spin-splitting gap_levels must contain exactly two '
-                         'levels.')
+    if not isinstance(levels, list) or not levels:
+        raise ValueError('spin-splitting gap_levels must contain at least one '
+                         'level.')
     labels = []
     for level in levels:
         required = {'label', 'method', 'basis'}
@@ -217,41 +262,50 @@ def _validate_spin_splitting_settings(settings):
 
 def correction_components(parameters):
     """Describe the independent energies required at every VRC scan point."""
+    sampling = sampling_settings(parameters)
+    sample_bases = (sampling['basis'] if isinstance(sampling['basis'], list)
+                    else [sampling['basis']])
+    sample_components = []
+    for index, basis in enumerate(sample_bases):
+        sample_components.append({
+            'role': ('sampling' if len(sample_bases) == 1
+                     else f'sampling:{index}'),
+            'suffix': ('_fr' if len(sample_bases) == 1
+                       else f'_fr_sampling_{index}'),
+            'geometry': 'frozen',
+            'method': sampling['method'],
+            'basis': basis,
+            'multiplicity': None,
+        })
     if correction_model(parameters) == 'direct':
-        return [
-            {
-                'role': 'sampling', 'suffix': '_fr', 'geometry': 'frozen',
-                'method': parameters['vrc_tst_sample_method'],
-                'basis': parameters['vrc_tst_sample_basis'],
-                'multiplicity': None,
-            },
-            {
+        return [*sample_components, {
                 'role': 'trusted', 'suffix': '', 'geometry': 'relaxed',
                 'method': parameters['vrc_tst_high_method'],
                 'basis': parameters['vrc_tst_high_basis'],
                 'multiplicity': None,
-            },
-        ]
+            }]
 
     settings = spin_splitting_settings(parameters)
-    components = [{
-        'role': 'sampling', 'suffix': '_fr', 'geometry': 'frozen',
-        'method': parameters['vrc_tst_sample_method'],
-        'basis': parameters['vrc_tst_sample_basis'],
-        'multiplicity': settings['singlet_multiplicity'],
-    }]
-    triplet = settings['triplet_reference']
-    bases = triplet['basis'] if isinstance(triplet['basis'], list) \
-        else [triplet['basis']]
+    legacy_states = (settings['target_multiplicity'] == 1
+                     and settings['reference_multiplicity'] == 3)
+    components = []
+    for component in sample_components:
+        component = dict(component)
+        component['multiplicity'] = settings['target_multiplicity']
+        components.append(component)
+    reference = settings['reference']
+    bases = reference['basis'] if isinstance(reference['basis'], list) \
+        else [reference['basis']]
     for index, basis in enumerate(bases):
-        role = ('triplet_reference' if len(bases) == 1
-                else f'triplet_reference:{index}')
-        suffix = ('_ss_triplet_cc' if len(bases) == 1
-                  else f'_ss_triplet_cc_{index}')
+        stem = 'triplet_reference' if legacy_states else 'reference'
+        role = (stem if len(bases) == 1 else f'{stem}:{index}')
+        suffix_stem = 'triplet_cc' if legacy_states else 'reference_cc'
+        suffix = (f'_ss_{suffix_stem}' if len(bases) == 1
+                  else f'_ss_{suffix_stem}_{index}')
         components.append({
             'role': role, 'suffix': suffix, 'geometry': 'relaxed',
-            'method': triplet['method'], 'basis': basis,
-            'multiplicity': settings['triplet_multiplicity'],
+            'method': reference['method'], 'basis': basis,
+            'multiplicity': settings['reference_multiplicity'],
         })
     for level in settings['gap_levels']:
         common = {key: value for key, value in level.items()
@@ -259,9 +313,12 @@ def correction_components(parameters):
         label = level['label']
         bases = level['basis'] if isinstance(level['basis'], list) \
             else [level['basis']]
-        for state, multiplicity in (
-                ('singlet', settings['singlet_multiplicity']),
-                ('triplet', settings['triplet_multiplicity'])):
+        state_pairs = ((('singlet', settings['target_multiplicity']),
+                        ('triplet', settings['reference_multiplicity']))
+                       if legacy_states else
+                       (('target', settings['target_multiplicity']),
+                        ('reference', settings['reference_multiplicity'])))
+        for state, multiplicity in state_pairs:
             for index, basis in enumerate(bases):
                 role = (f'gap:{label}:{state}' if len(bases) == 1
                         else f'gap:{label}:{state}:{index}')
@@ -277,10 +334,7 @@ def correction_components(parameters):
 
 def expected_levels(parameters):
     """Return the immutable level declaration stored with a correction."""
-    sampling = {
-        'method': parameters['vrc_tst_sample_method'],
-        'basis': parameters['vrc_tst_sample_basis'],
-    }
+    sampling = sampling_settings(parameters)
     if correction_model(parameters) == 'direct':
         trusted = {
             'method': parameters['vrc_tst_high_method'],
@@ -290,11 +344,72 @@ def expected_levels(parameters):
         settings = spin_splitting_settings(parameters)
         trusted = {
             'model': 'spin_splitting',
-            'triplet_reference': settings['triplet_reference'],
-            'singlet_triplet_gaps': settings['gap_levels'],
+            'target_multiplicity': settings['target_multiplicity'],
+            'reference_multiplicity': settings['reference_multiplicity'],
+            'fragment_multiplicities': settings['fragment_multiplicities'],
+            'reference': settings['reference'],
+            'spin_gaps': settings['gap_levels'],
             'weighting': settings['weighting'],
         }
     return {'sampling': sampling, 'trusted_correction': trusted}
+
+
+def sampling_settings(parameters):
+    """Return the frozen sampling level and optional ANL-style CBS pair."""
+    method = parameters.get('vrc_tst_sample_method')
+    basis = parameters.get('vrc_tst_sample_basis')
+    if not isinstance(method, str) or not method.strip():
+        raise ValueError('vrc_tst_sample_method must be a nonempty string.')
+    if isinstance(basis, str):
+        if not basis.strip():
+            raise ValueError('vrc_tst_sample_basis cannot be empty.')
+        return {'method': method, 'basis': basis}
+    if (not isinstance(basis, list) or len(basis) != 2
+            or any(not isinstance(item, str) or not item.strip()
+                   for item in basis)):
+        raise ValueError('vrc_tst_sample_basis must be one basis or an '
+                         'adjacent two-basis CBS pair.')
+    lower, upper = map(_basis_cardinal, basis)
+    if upper != lower + 1:
+        raise ValueError('VRC sampling CBS bases must be adjacent.')
+    power = parameters.get('vrc_tst_sample_extrapolation_power',
+                           ORIGINAL_ANL_POWER)
+    extrapolation_coefficient(upper, power=power)
+    return {'method': method, 'basis': list(basis),
+            'extrapolation_power': power}
+
+
+def assemble_sampling_reference(distances, energies, settings):
+    """Return the sampling curve, applying its optional CBS extrapolation."""
+    basis = settings['basis']
+    if isinstance(basis, str):
+        values = np.asarray(energies.get('sampling', []), dtype=float)
+        if len(values) != len(distances) or not np.isfinite(values).all():
+            raise ValueError('Incomplete or nonfinite VRC sampling series.')
+        return values.tolist(), None
+    lower = energies.get('sampling:0', [])
+    upper = energies.get('sampling:1', [])
+    if len(lower) != len(distances) or len(upper) != len(distances):
+        raise ValueError('Incomplete VRC sampling CBS series.')
+    lower_cardinal, upper_cardinal = map(_basis_cardinal, basis)
+    power = settings['extrapolation_power']
+    values = np.asarray([
+        two_point_cbs(float(lo), float(hi),
+                      upper_cardinal=upper_cardinal, power=power)
+        for lo, hi in zip(lower, upper)], dtype=float)
+    if not np.isfinite(values).all():
+        raise ValueError('VRC sampling CBS energies must be finite.')
+    return values.tolist(), {
+        'formula': 'E_n + alpha_n*(E_n-E_(n-1))',
+        'basis': list(basis),
+        'lower_cardinal': lower_cardinal,
+        'upper_cardinal': upper_cardinal,
+        'power': power,
+        'alpha': extrapolation_coefficient(upper_cardinal, power=power),
+        'lower_hartree': list(lower),
+        'upper_hartree': list(upper),
+        'extrapolated_hartree': values.tolist(),
+    }
 
 
 def spin_splitting_weights(distances, settings):
@@ -313,83 +428,103 @@ def spin_splitting_weights(distances, settings):
 
 
 def assemble_spin_splitting_reference(distances, energies, settings):
-    """Reconstruct singlet energies from CC triplets and weighted MR gaps."""
+    """Reconstruct a target-spin surface from a reference and MR gaps."""
     distances = np.asarray(distances, dtype=float)
-    triplet_settings = settings['triplet_reference']
+    reference_settings = settings.get(
+        'reference', settings.get('triplet_reference'))
+    if reference_settings is None:
+        raise ValueError('Spin-splitting reference settings are missing.')
     cbs_metadata = None
-    if isinstance(triplet_settings['basis'], list):
-        lower = energies.get('triplet_reference:0', [])
-        upper = energies.get('triplet_reference:1', [])
+    if isinstance(reference_settings['basis'], list):
+        lower = energies.get(
+            'reference:0', energies.get('triplet_reference:0', []))
+        upper = energies.get(
+            'reference:1', energies.get('triplet_reference:1', []))
         if len(lower) != len(distances) or len(upper) != len(distances):
-            raise ValueError('Incomplete spin-splitting triplet CBS series.')
+            raise ValueError('Incomplete spin-splitting reference CBS series.')
         lower_cardinal, upper_cardinal = map(
-            _basis_cardinal, triplet_settings['basis'])
-        power = triplet_settings.get('extrapolation_power',
-                                     ORIGINAL_ANL_POWER)
-        triplet_reference = np.asarray([
+            _basis_cardinal, reference_settings['basis'])
+        power = reference_settings.get('extrapolation_power',
+                                       ORIGINAL_ANL_POWER)
+        reference_energy = np.asarray([
             two_point_cbs(float(lo), float(hi),
                           upper_cardinal=upper_cardinal, power=power)
             for lo, hi in zip(lower, upper)], dtype=float)
         cbs_metadata = {
             'formula': 'E_n + alpha_n*(E_n-E_(n-1))',
-            'basis': list(triplet_settings['basis']),
+            'basis': list(reference_settings['basis']),
             'lower_cardinal': lower_cardinal,
             'upper_cardinal': upper_cardinal,
             'power': power,
             'alpha': extrapolation_coefficient(upper_cardinal, power=power),
             'lower_hartree': list(lower),
             'upper_hartree': list(upper),
-            'extrapolated_hartree': triplet_reference.tolist(),
+            'extrapolated_hartree': reference_energy.tolist(),
         }
     else:
-        triplet_reference = np.asarray(
-            energies.get('triplet_reference', []), dtype=float)
-    if len(triplet_reference) != len(distances):
-        raise ValueError('Incomplete spin-splitting triplet-reference series.')
+        reference_energy = np.asarray(
+            energies.get('reference', energies.get('triplet_reference', [])),
+            dtype=float)
+    if len(reference_energy) != len(distances):
+        raise ValueError('Incomplete spin-splitting reference series.')
     weights = spin_splitting_weights(distances, settings)
-    reference = triplet_reference.copy()
+    result = reference_energy.copy()
     reconstructed = {}
     gap_cbs = {}
     for level in settings['gap_levels']:
         label = level['label']
-        singlet, singlet_cbs = _state_series(
-            distances, energies, level, label, 'singlet')
-        triplet, triplet_cbs = _state_series(
-            distances, energies, level, label, 'triplet')
-        if len(singlet) != len(distances) or len(triplet) != len(distances):
+        target, target_cbs = _state_series(
+            distances, energies, level, label, 'target')
+        reference_state, reference_cbs = _state_series(
+            distances, energies, level, label, 'reference')
+        if len(target) != len(distances) or len(reference_state) != len(distances):
             raise ValueError(f'Incomplete spin-splitting gap series: {label}.')
-        candidate = triplet_reference + singlet - triplet
+        candidate = reference_energy + target - reference_state
         reconstructed[label] = candidate.tolist()
-        reference += np.asarray(weights[label]) * (singlet - triplet)
-        if singlet_cbs is not None:
+        result += np.asarray(weights[label]) * (target - reference_state)
+        if target_cbs is not None:
             gap_cbs[label] = {
-                'singlet': singlet_cbs,
-                'triplet': triplet_cbs,
-                'gap_hartree': (singlet - triplet).tolist(),
+                'target': target_cbs,
+                'reference': reference_cbs,
+                'gap_hartree': (target - reference_state).tolist(),
             }
-    if not np.isfinite(reference).all():
+    if not np.isfinite(result).all():
         raise ValueError('Spin-splitting reference energies must be finite.')
     metadata = {
-        'formula': ('E_singlet = E_triplet_CC + sum_i w_i(R) '
-                    '[E_singlet_i - E_triplet_i]'),
+        'formula': ('E_target = E_reference_CC + sum_i w_i(R) '
+                    '[E_target_i - E_reference_i]'),
+        'target_multiplicity': settings.get(
+            'target_multiplicity', settings.get('singlet_multiplicity')),
+        'reference_multiplicity': settings.get(
+            'reference_multiplicity', settings.get('triplet_multiplicity')),
         'weights': weights,
-        'reconstructed_singlet_hartree': reconstructed,
+        'reconstructed_target_hartree': reconstructed,
     }
     if cbs_metadata is not None:
+        metadata['reference_cbs'] = cbs_metadata
         metadata['triplet_cbs'] = cbs_metadata
     if gap_cbs:
         metadata['gap_cbs'] = gap_cbs
-    return reference.tolist(), metadata
+    return result.tolist(), metadata
 
 
 def _state_series(distances, energies, level, label, state):
     """Read one MR state series, applying the ANL CBS formula when requested."""
     basis = level['basis']
+    legacy_state = {'target': 'singlet', 'reference': 'triplet'}.get(state)
+
+    def series(key):
+        value = energies.get(key)
+        if value is None and legacy_state is not None:
+            value = energies.get(key.replace(f':{state}',
+                                             f':{legacy_state}'))
+        return [] if value is None else value
+
     if isinstance(basis, str):
-        return np.asarray(energies.get(f'gap:{label}:{state}', []),
+        return np.asarray(series(f'gap:{label}:{state}'),
                           dtype=float), None
-    lower = energies.get(f'gap:{label}:{state}:0', [])
-    upper = energies.get(f'gap:{label}:{state}:1', [])
+    lower = series(f'gap:{label}:{state}:0')
+    upper = series(f'gap:{label}:{state}:1')
     if len(lower) != len(distances) or len(upper) != len(distances):
         raise ValueError(f'Incomplete spin-splitting CBS series: '
                          f'{label} {state}.')

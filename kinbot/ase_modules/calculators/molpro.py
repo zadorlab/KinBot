@@ -21,6 +21,7 @@ from kinbot.anl.results import validate_molpro_triples
 from kinbot.molpro import (
     _vrc_multireference_method, vrc_multireference_energy_contract,
 )
+from kinbot.theory import fortran_threshold
 
 
 _ENERGY = re.compile(
@@ -65,7 +66,9 @@ def _caspt2_space(method, electron_count):
 
 def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                  mult=1, method='CCSD(T)', effective_method=None,
-                 caspt2_shift=0.3):
+                 caspt2_shift=0.3, caspt2_ipea=0.25,
+                 gradient_mode='auto', scf_convergence=1.e-10,
+                 correlation_convergence=1.e-8):
     """Render a CCSD(T), CASPT2, or Davidson-corrected MRCI gradient.
 
     Molpro's RHF step supplies RHF or ROHF orbitals according to multiplicity.
@@ -85,8 +88,16 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
     requested_method = str(method).strip()
     electron_count = int(sum(atoms.numbers)) - charge
     contract = vrc_multireference_energy_contract(requested_method)
-    analytic_caspt2 = (
-        contract is not None and contract['method'] == 'CASPT2')
+    if gradient_mode not in ('auto', 'analytic', 'numerical'):
+        raise ValueError('Molpro gradient_mode must be auto, analytic, or '
+                         'numerical.')
+    analytic_available = (
+        contract is not None and contract['method'] == 'CASPT2'
+        and contract['f12_variant'] is None)
+    if gradient_mode == 'analytic' and not analytic_available:
+        raise ValueError(
+            f'{requested_method} has no supported analytic Molpro gradient.')
+    analytic_caspt2 = analytic_available and gradient_mode != 'numerical'
     if contract is None:
         cc_command = {None: 'uccsd(t)', 'HF': '', 'CCSD': 'uccsd'}.get(
             effective_method)
@@ -112,6 +123,14 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                 or not isinstance(caspt2_shift, (int, float))
                 or not np.isfinite(caspt2_shift) or caspt2_shift < 0):
             raise ValueError('CASPT2 level shift must be a finite nonnegative number.')
+        if (isinstance(caspt2_ipea, bool)
+                or not isinstance(caspt2_ipea, (int, float))
+                or not np.isfinite(caspt2_ipea) or caspt2_ipea < 0):
+            raise ValueError('CASPT2 IPEA shift must be a finite nonnegative number.')
+    scf_threshold = fortran_threshold(
+        scf_convergence, 'Molpro SCF convergence')
+    correlation_threshold = fortran_threshold(
+        correlation_convergence, 'Molpro correlation convergence')
     xyz = '\n'.join(
         f'{symbol} {x:.12f} {y:.12f} {z:.12f}'
         for symbol, (x, y, z) in zip(atoms.get_chemical_symbols(), atoms.positions)
@@ -120,7 +139,8 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
             f'symmetry,nosym\norient,noorient\ngeomtyp=xyz\n'
             f'geometry={{\n{len(atoms)}\nKinBot ASE geometry (angstrom)\n{xyz}\n}}\n'
             f'basis={basis}\nset,charge={charge}\nset,spin={mult - 1}\n'
-            f'gthresh,energy=1.d-9\n')
+            f'gthresh,energy={scf_threshold},coeff={correlation_threshold},'
+            f'civec={correlation_threshold}\n')
     if contract is not None:
         if analytic_caspt2:
             active_electrons, active_orbitals, closed, occupied = \
@@ -129,13 +149,14 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                 '{multi,\n'
                 f'occ,{occupied}\nclosed,{closed}\n'
                 f'wf,{electron_count},1,{mult - 1}\nmaxit,50;}}\n\n'
-                f'{{rs2,shift={float(caspt2_shift):g}}}\n'
+                f'{{rs2,shift={float(caspt2_shift):g},'
+                f'ipea={float(caspt2_ipea):g}}}\n'
                 '! KinBot energy contract: CASPT2/RS2 = ENERGY\n')
             selected = 'energy'
         else:
             method_block, selected = _vrc_multireference_method(
                 requested_method, electron_count, spin=mult - 1,
-                shift=caspt2_shift)
+                shift=caspt2_shift, ipea=caspt2_ipea)
         body = method_block + f'kb_geom_energy={selected}\n'
         if analytic_caspt2:
             body += f'forces\nput,xyzgrad,{gradient_name}\n'
@@ -321,7 +342,9 @@ class Molpro(Calculator):
     def __init__(self, *, directory, label, method, basis, command='molpro',
                  charge=0, mult=1, nproc=1, stack_mw=256,
                  scratch_min_mb=4096, effective_method=None,
-                 caspt2_shift=0.3):
+                 caspt2_shift=0.3, caspt2_ipea=0.25,
+                 gradient_mode='auto', scf_convergence=1.e-10,
+                 correlation_convergence=1.e-8):
         super().__init__()
         if (method.upper() != 'CCSD(T)'
                 and vrc_multireference_energy_contract(method) is None):
@@ -358,9 +381,27 @@ class Molpro(Calculator):
         self.effective_method = effective_method
         self.method = method
         self.caspt2_shift = caspt2_shift
+        self.caspt2_ipea = caspt2_ipea
+        # Validate at construction so a bad public input never reaches the
+        # scheduler, including conventional CC jobs that do not use CASPT2.
+        fortran_threshold(scf_convergence, 'Molpro SCF convergence')
+        fortran_threshold(correlation_convergence,
+                          'Molpro correlation convergence')
+        self.scf_convergence = scf_convergence
+        self.correlation_convergence = correlation_convergence
+        if gradient_mode not in ('auto', 'analytic', 'numerical'):
+            raise ValueError('Molpro gradient_mode must be auto, analytic, '
+                             'or numerical.')
+        self.gradient_mode = gradient_mode
         contract = vrc_multireference_energy_contract(method)
+        analytic_available = (
+            contract is not None and contract['method'] == 'CASPT2'
+            and contract['f12_variant'] is None)
+        if gradient_mode == 'analytic' and not analytic_available:
+            raise ValueError(
+                f'{method} has no supported analytic Molpro gradient.')
         self.analytic_caspt2 = (
-            contract is not None and contract['method'] == 'CASPT2')
+            analytic_available and gradient_mode != 'numerical')
         self.gradient_variable = (
             'ENERGD' if contract is not None
             and contract['method'] == 'MRCI+Q'
@@ -385,7 +426,12 @@ class Molpro(Calculator):
                          gradient_name=gradient_name, method=self.method,
                          charge=self.charge, mult=self.mult,
                          effective_method=self.effective_method,
-                         caspt2_shift=self.caspt2_shift))
+                         caspt2_shift=self.caspt2_shift,
+                         caspt2_ipea=self.caspt2_ipea,
+                         gradient_mode=self.gradient_mode,
+                         scf_convergence=self.scf_convergence,
+                         correlation_convergence=
+                             self.correlation_convergence))
         self.generated_files.append(input_name)
         command = [*self.command, '-g', '-n', str(self.nproc), '-m',
                    str(self.stack_mw), input_name]

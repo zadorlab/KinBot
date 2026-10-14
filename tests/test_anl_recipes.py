@@ -65,16 +65,17 @@ def test_complete_anl0_expressions_include_zpe_once(name):
     assert result.zero_point_hartree == pytest.approx(0.09)
     assert result.zero_k_hartree == pytest.approx(-100.033)
     assert equation.name == (
-        'profiled:ANL0-F12:scaled-triples' if name == 'ANL0-F12'
+        ('profiled:ANL0-F12:scaled-triples:'
+         'dual-CBS-high-reference') if name == 'ANL0-F12'
         else name)
     if name == 'ANL0-F12':
-        assert components['reference_cbs'].method == 'CCSD(T)-F12b'
+        assert components['reference_cbs'].method == \
+            'mean[CCSD(T)-F12b,CCSD(T)]'
         assert components['reference_cbs'].settings['scale_trip'] == 1
     else:
         assert components['reference_cbs'].method == 'CCSD(T)'
         assert components['reference_cbs'].settings['native_basis_pair'] == (
-            'aug-cc-pVQZ,h=cc-pVQZ',
-            'aug-cc-pV5Z,h=cc-pV5Z')
+            'aug-cc-pVQZ', 'aug-cc-pV5Z')
 
 
 def test_reduced_recipe_omits_whole_additive_families_with_explicit_label():
@@ -114,6 +115,25 @@ def test_anl1_cross_program_higher_order_pairs_and_profiled_label():
     assert components['vpt2_correction'].settings['dispersion'] == 'GD3BJ'
 
 
+def test_anl1_f12_uses_ram_high_reference_with_anl_power_extrapolation():
+    equation = recipe('ANL1-F12', vpt2_method='B2PLYP-D3BJ')
+    requirements = {item.key: item for item in equation.requirements}
+    reference = requirements['reference_cbs']
+    assert reference.method == 'mean[CCSD(T)-F12b,CCSD(T)]'
+    assert reference.basis == \
+        'mean[CBS(QZ-F12,5Z-F12),CBS(aug-5Z,aug-6Z)]'
+    assert reference.settings['component_weights'] == (0.5, 0.5)
+    assert reference.settings['f12_extrapolation_power'] == 3.7
+    assert reference.settings['conventional_extrapolation_power'] == 3.7
+    assert reference.settings['reference_convention'] == 'RHF/ROHF-UCC'
+    assert requirements['harmonic_zpe'].backends == ('composite',)
+    assert {item.key for item in equation.requirements} >= {
+        'hoe_tz_high', 'hoe_tz_low', 'hoe_dz_high', 'hoe_dz_low'}
+    assert evaluate(equation, components_for(equation)).recipe == (
+        'profiled:ANL1-F12:scaled-triples:'
+        'Ram-2025-high-reference:B2PLYP-D3BJ')
+
+
 def test_rank_exact_higher_order_backend_is_narrowly_allowed():
     equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ')
     components = components_for(equation)
@@ -130,7 +150,7 @@ def test_rank_exact_higher_order_backend_is_narrowly_allowed():
     assert result.electronic_hartree == pytest.approx(-100.023)
 
 
-@pytest.mark.parametrize('name', ['ANL0', 'ANL0-F12', 'ANL1'])
+@pytest.mark.parametrize('name', ['ANL0', 'ANL0-F12', 'ANL1', 'ANL1-F12'])
 def test_rank_exact_recipe_has_one_zero_correction_not_cancelling_energies(name):
     equation = recipe(name, rank_exact_higher_order=True)
     keys = {item.key for item in equation.requirements}

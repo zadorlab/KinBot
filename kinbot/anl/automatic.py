@@ -41,6 +41,8 @@ from kinbot.anl.model import ComponentResult, IncompleteRecipeError
 from kinbot.anl.recipes import ANL_REDUCIBLE_FAMILIES
 from kinbot.anl.validation import (assemble_profiled_anl0,
                                    assemble_profiled_anl0_f12,
+                                   assemble_profiled_anl1,
+                                   assemble_profiled_anl1_f12,
                                    automatic_composite_spec)
 from kinbot.anl.workflow import _verified_task_result, task_component
 from kinbot.execution import atomic_json
@@ -54,7 +56,27 @@ from kinbot.theory import (DEFAULT_ANL_SIZE_POLICY,
 # Public compatibility alias used by validation helpers and existing scripts.
 DEFAULT_SIZE_POLICY = DEFAULT_ANL_SIZE_POLICY
 
-_TIERS = ('ANL0-F12', 'ANL0', 'L3', 'L3-SP@L2', 'L2')
+_METHOD_LADDERS = {
+    # ANL1 and ANL0 use different optimized geometries and higher-order
+    # increments.  A failed ANL1 calculation therefore falls through to the
+    # geometry-compatible conventional/F12 partner or to L3; it is not
+    # silently relabeled as ANL0.  Larger states can still be assigned ANL0
+    # directly by the size policy and CBH nodes may use different exact tiers.
+    'ANL1-F12': ('ANL1-F12', 'ANL1', 'L3', 'L3-SP@L2', 'L2'),
+    'ANL1': ('ANL1', 'L3', 'L3-SP@L2', 'L2'),
+    'ANL0-F12': ('ANL0-F12', 'ANL0', 'L3', 'L3-SP@L2', 'L2'),
+    'ANL0': ('ANL0', 'L3', 'L3-SP@L2', 'L2'),
+}
+
+
+def method_fallback_ladder(method):
+    """Return the declared, method-preserving automatic fallback order."""
+    try:
+        return _METHOD_LADDERS[method]
+    except KeyError as error:
+        raise ValueError(
+            'Automatic composite_method must be ANL0, ANL0-F12, ANL1, '
+            'or ANL1-F12.') from error
 
 
 def _resolve_user_executable(command):
@@ -240,7 +262,7 @@ def _resolved_l2_theory(parameters):
     if (profile.calculator != 'gaussian' or method not in ('B3LYP', 'B2PLYP')
             or basis.casefold() != 'cc-pvtz'):
         raise ValueError(
-            'Automatic ANL0/ANL0-F12 requires Gaussian B3LYP/cc-pVTZ '
+            'Automatic ANL production requires Gaussian B3LYP/cc-pVTZ '
             'or B2PLYP-D3(BJ)/cc-pVTZ at L2.')
     kwargs = {str(key).casefold(): str(value).upper()
               for key, value in profile.calculator_kwargs.items()}
@@ -324,8 +346,7 @@ def _validate_policy(policy):
 def highest_tier(smiles, charge, multiplicity, policy,
                  requested_method='ANL0-F12'):
     """Select a deterministic upper calculation tier from CBH connectivity."""
-    if requested_method not in ('ANL0', 'ANL0-F12'):
-        raise ValueError('Automatic highest tier must be ANL0 or ANL0-F12.')
+    method_fallback_ladder(requested_method)
     policy = _validate_policy(policy)
     metrics = cbh_size_metrics(
         smiles, charge=charge, multiplicity=multiplicity)
@@ -376,9 +397,7 @@ def _reaction_identity(root, index, reaction):
 def build_network_request(root, parameters):
     """Freeze one completed KinBot reaction network and expand its CBH trees."""
     requested = str(parameters.get('composite_method', '')).upper()
-    if requested not in ('ANL0', 'ANL0-F12'):
-        raise ValueError(
-            'Automatic production supports composite_method ANL0 or ANL0-F12.')
+    requested_ladder = method_fallback_ladder(requested)
     rung_policy = parameters.get('cbh_rung', 'auto')
     if rung_policy == 'auto':
         max_rung = 3
@@ -553,7 +572,8 @@ def build_network_request(root, parameters):
         states.append({
             'smiles': smiles, 'charge': charge,
             'multiplicity': multiplicity, 'highest_tier': tier,
-            'fallback_tiers': list(_TIERS[_TIERS.index(tier):]),
+            'fallback_tiers': list(
+                requested_ladder[requested_ladder.index(tier):]),
             'size_metrics': metrics,
             'source': ('network_l2' if live is not None
                        else 'automatic_reference_l2'),
@@ -565,7 +585,8 @@ def build_network_request(root, parameters):
             record['smiles'], molecule['charge'], molecule['multiplicity'],
             policy, requested)
         record['highest_tier'] = tier
-        record['fallback_tiers'] = list(_TIERS[_TIERS.index(tier):])
+        record['fallback_tiers'] = list(
+            requested_ladder[requested_ladder.index(tier):])
         record['size_metrics'] = metrics
 
     thermochemistry_states = {}
@@ -603,6 +624,10 @@ def build_network_request(root, parameters):
             'partition': parameters.get('queue_name'),
             'cores_per_job': int(parameters.get('ppn', 1)),
             'global_max_jobs': max_jobs,
+            'scf_convergence': float(parameters.get(
+                'anl_scf_convergence', 1.e-10)),
+            'cc_convergence': float(parameters.get(
+                'anl_cc_convergence', 1.e-8)),
         },
         'size_policy': policy,
         'network': {
@@ -815,19 +840,12 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
         value=source_record['energy_hartree'], method=l2_method,
         basis=theory['basis'], state_id=state_id)
 
-    family_tasks = {
-        'higher_order': (() if electrons <= 2
-                         else ('ccsdt_dz', 'ccsdtq_dz')),
+    common_family_tasks = {
         'dboc': ('cfour_dboc',),
         'scalar_relativistic': ('rel_dkh', 'rel_nonrel'),
         'core_valence': (() if all(
             symbol in ('H', 'He') for symbol in molecule['symbols']) else
             ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz')),
-    }
-    family_available = {
-        family: all(task in declared and statuses[task] == 'complete'
-                    for task in tasks)
-        for family, tasks in family_tasks.items()
     }
     l3_status = statuses.get('l3_geometry')
     if l3_status in ('complete', 'unavailable', 'skipped'):
@@ -838,14 +856,36 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
                 'energies are invariant to this per-species convention'),
             spin_orbit_backend='known_zero', base_run=run_dir,
             vpt2_method=l2_method)
-        for family, assembler, reference_ids, stem in (
-                ('ANL0-F12', assemble_profiled_anl0_f12,
-                 ('f12_tz', 'f12_qz'), 'anl0_f12'),
-                ('ANL0', assemble_profiled_anl0,
-                 ('anl0_qz', 'anl0_5z'), 'anl0')):
+        high_graph = 'l3_geometry_tz' in declared
+        recipe_configs = ((
+            ('ANL1-F12', assemble_profiled_anl1_f12,
+             ('f12_qz', 'f12_5z', 'anl1_5z', 'anl1_6z'), 'anl1_f12'),
+            ('ANL1', assemble_profiled_anl1,
+             ('anl1_5z', 'anl1_6z'), 'anl1'),
+        ) if high_graph else (
+            ('ANL0-F12', assemble_profiled_anl0_f12,
+             ('f12_qz', 'f12_5z', 'anl1_5z', 'anl1_6z'), 'anl0_f12'),
+            ('ANL0', assemble_profiled_anl0,
+             ('anl0_qz', 'anl0_5z'), 'anl0'),
+        ))
+        for family, assembler, reference_ids, stem in recipe_configs:
             if not (set(reference_ids) <= declared and all(
                     statuses[key] == 'complete' for key in reference_ids)):
                 continue
+            family_tasks = {
+                **common_family_tasks,
+                'higher_order': (() if electrons <= 2 else (
+                    ('ccsdt_tz', 'ccsdtq_tz',
+                     'ccsdtq_dz', 'ccsdtqp_dz')
+                    if family in ('ANL1', 'ANL1-F12') else
+                    ('ccsdt_dz', 'ccsdtq_dz'))),
+            }
+            family_available = {
+                component_family: all(
+                    task in declared and statuses[task] == 'complete'
+                    for task in tasks)
+                for component_family, tasks in family_tasks.items()
+            }
             # Emit every scientifically valid subset of complete additive
             # families.  The CBH solver can then choose the best *common*
             # expression across a reaction without rerunning a species that
@@ -1227,7 +1267,9 @@ def _prepare_graphs(plan, sources, root):
                 partition=plan['resources']['partition'],
                 vpt2_method=plan['l2_theory']['method'],
                 vpt2_basis=plan['l2_theory']['basis'],
-                vpt2_dispersion=plan['l2_theory']['dispersion'])
+                vpt2_dispersion=plan['l2_theory']['dispersion'],
+                scf_convergence=plan['resources']['scf_convergence'],
+                cc_convergence=plan['resources']['cc_convergence'])
             prepare(specification, graph)
         preflight_until_scheduler_ready(
             graph, skip_optional=True, interval=20.)
@@ -1246,7 +1288,9 @@ def _prepare_graphs(plan, sources, root):
                 stationary_point='transition_state',
                 vpt2_method=plan['l2_theory']['method'],
                 vpt2_basis=plan['l2_theory']['basis'],
-                vpt2_dispersion=plan['l2_theory']['dispersion'])
+                vpt2_dispersion=plan['l2_theory']['dispersion'],
+                scf_convergence=plan['resources']['scf_convergence'],
+                cc_convergence=plan['resources']['cc_convergence'])
             prepare(specification, graph)
         preflight_until_scheduler_ready(
             graph, skip_optional=True, interval=20.)
@@ -1555,7 +1599,8 @@ def finalize_automatic_run(automatic, parameters, *, run_dir='.'):
         'graphs': graphs, 'formations': formations,
         'messpf': messpf, 'rotdpy': rotdpy, 'mess': mess,
         'scope': {
-            'implemented_composites': ['ANL0', 'ANL0-F12'],
+            'implemented_composites': [
+                'ANL0', 'ANL0-F12', 'ANL1', 'ANL1-F12'],
             'cbh_rungs': [0, 1, 2, 3],
             'graph_state': [
                 'integral Kekule bond order', 'formal charge',
@@ -1589,18 +1634,22 @@ def _ordered_methods(energies):
 
     def rank(label):
         harmonic = 'harmonic-ZPE' in label
-        if label.startswith('profiled:ANL0-F12'):
+        if label.startswith('profiled:ANL1-F12'):
             tier = 0
-        elif label.startswith('profiled:ANL0') or label == 'ANL0':
+        elif label.startswith('profiled:ANL1') or label == 'ANL1':
             tier = 1
-        elif label.startswith('L3:') and '//CCSD(T)/cc-pVTZ' in label:
+        elif label.startswith('profiled:ANL0-F12'):
             tier = 2
-        elif label.startswith('L3:'):
+        elif label.startswith('profiled:ANL0') or label == 'ANL0':
             tier = 3
-        elif label.startswith('L2:'):
+        elif label.startswith('L3:') and '//CCSD(T)/cc-pVTZ' in label:
             tier = 4
-        else:
+        elif label.startswith('L3:'):
             tier = 5
+        elif label.startswith('L2:'):
+            tier = 6
+        else:
+            tier = 7
         marker = 'reduced[without='
         if marker in label:
             body = label.split(marker, 1)[1].split(']', 1)[0]

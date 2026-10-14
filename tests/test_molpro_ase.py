@@ -77,7 +77,8 @@ Path(stem + '.xyz').write_text(
 def test_documented_molpro_force_input_and_parser_contract():
     atoms = Atoms('CH2', positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
     deck = render_input(atoms, basis='cc-pVTZ', geometry_name='step.xyz')
-    assert 'set,charge=0\nset,spin=0\ngthresh,energy=1.d-9\n' in deck
+    assert ('set,charge=0\nset,spin=0\n'
+            'gthresh,energy=1.d-10,coeff=1.d-8,civec=1.d-8\n') in deck
     assert ('rhf\nuccsd(t)\nkb_geom_energy=energy\n'
             'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             'put,xyz,step.xyz') in deck
@@ -129,7 +130,7 @@ def test_caspt2_analytic_gradient_input_and_xyzgrad_contract():
     assert 'basis=aug-cc-pvtz' in lowered
     assert ('{multi,\nocc,5\nclosed,3\nwf,8,1,0\nmaxit,50;}'
             in lowered)
-    assert '{rs2,shift=0.3}' in lowered
+    assert '{rs2,shift=0.3,ipea=0.25}' in lowered
     assert 'forces\nput,xyzgrad,step.xyzgrad' in lowered
     assert 'forces,numerical' not in lowered
     with TemporaryDirectory() as temporary:
@@ -157,6 +158,23 @@ def test_caspt2_active_space_rejects_wrong_electron_parity():
         render_input(
             atoms, basis='aug-cc-pVTZ', geometry_name='step.xyz',
             gradient_name='step.xyzgrad', method='CASPT2(2,2)', mult=2)
+
+
+@pytest.mark.parametrize(
+    'formula,method,mult,spin', [
+        ('CH3S', 'CASPT2-F12B(13,8)', 2, 1),
+        ('CH3S', 'MRCI-F12B+Q(13,8)', 4, 3),
+        ('CH3S2', 'CASPT2-F12B(9,7)', 2, 1),
+        ('CH3S2', 'MRCI-F12B+Q(9,7)', 4, 3),
+    ])
+def test_sulfur_radical_active_spaces_support_doublet_and_quartet(
+        formula, method, mult, spin):
+    atoms = Atoms(formula, positions=np.zeros((len(Atoms(formula)), 3)))
+    deck = render_input(
+        atoms, basis='avtz-f12', geometry_name='step.xyz', method=method,
+        mult=mult, gradient_mode='numerical')
+    assert f'wf,{sum(atoms.numbers)},1,{spin}' in deck.lower()
+    assert 'forces,numerical' in deck.lower()
 
 
 @pytest.mark.parametrize(

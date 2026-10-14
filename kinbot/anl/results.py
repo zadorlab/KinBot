@@ -28,7 +28,7 @@ _SCF_WITH_DBOC = re.compile(
 _MOLPRO_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)'
                   r'(?=\s*(?:,|;|}|$))'
                   r'(?![^\n]*\buhf_uccsd\b)'
-                  r'(?:\s*,[^\n;}]*)?(?:\s*;\s*core\s*)?}?\s*$')
+                  r'(?:\s*,[^\n;}]*)?(?:\s*;[^\n}]*)*}?\s*$')
 _MOLPRO_FORCED_UHF_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)[^\n]*'
                              r'\buhf_uccsd\s*=\s*1\b[^\n]*$')
 _MOLPRO_F12B = (r'^\s*\{?\s*uccsd\(t\)-f12b\b[^\n]*'
@@ -36,14 +36,14 @@ _MOLPRO_F12B = (r'^\s*\{?\s*uccsd\(t\)-f12b\b[^\n]*'
 _MOLPRO_ONE_ELECTRON_F12B = (
     r'^\s*\{?\s*uccsd-f12b\b(?![^\n]*\bscale_trip\b)[^\n]*$')
 _MOLPRO_CCSD = (r'^\s*\{?\s*uccsd(?=\s*(?:,|;|}|$))'
-                 r'(?:\s*,[^\n;}]*)?(?:\s*;\s*core\s*)?}?\s*$')
+                 r'(?:\s*,[^\n;}]*)?(?:\s*;[^\n}]*)*}?\s*$')
 _MOLPRO_HF_ENERGY = (
     rf'^\s*!RHF\s+STATE\s+\d+\.\d+\s+Energy\s+({_NUMBER})\s*$')
 _MOLPRO_LEGACY_CCSD_T = r'^\s*ccsd\(t\)(?:\s*,[^\n]*)?\s*$'
 _MOLPRO_LEGACY_F12B = (r'^\s*ccsd\(t\)-f12b?\b[^\n]*'
                         r'\bscale_trip\s*=\s*1\b[^\n]*$')
 _MOLPRO_RHF = r'^\s*\{?\s*rhf(?:\s*,[^\n]*)?\s*$'
-_MOLPRO_ALL_ELECTRON = r'(?:^|;)\s*core\s*}'
+_MOLPRO_ALL_ELECTRON = r'(?:^|;)\s*core(?=\s*(?:;|}))'
 _MRCC_METHODS = ('CCSDT(Q)', 'CCSDTQ(P)')
 _GAUSSIAN_VPT2_WARNING_POLICY = \
     'native-gaussian-warnings-informational-for-anl-v1'

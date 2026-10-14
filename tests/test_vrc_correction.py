@@ -11,8 +11,9 @@ from kinbot.anl.extrapolation import two_point_cbs
 from kinbot.molpro import (Molpro, _vrc_multireference_method,
                            vrc_multireference_energy_contract)
 from kinbot.vrc_correction import (
-    assemble_spin_splitting_reference, correction_components,
-    expected_levels, spin_splitting_settings, spin_splitting_weights,
+    assemble_sampling_reference, assemble_spin_splitting_reference,
+    correction_components, coupled_multiplicities, expected_levels,
+    sampling_settings, spin_splitting_settings, spin_splitting_weights,
 )
 
 
@@ -58,6 +59,58 @@ def test_distance_switch_prefers_mrci_short_and_caspt2_long_range():
         [.8, .8, .6, .5, .4, .2, .2])
     assert np.asarray(weights['caspt2_f12']) + np.asarray(
         weights['mrci_f12_q']) == pytest.approx(np.ones(7))
+
+
+def test_sulfur_radical_spin_couplings_and_high_accuracy_active_spaces():
+    assert coupled_multiplicities(2, 3) == (2, 4)
+    assert coupled_multiplicities(2, 2) == (1, 3)
+    settings = spin_splitting_settings(_parameters(
+        vrc_tst_sample_method='caspt2-f12b(13,8)',
+        vrc_tst_sample_basis=['avtz-f12', 'avqz-f12'],
+        vrc_tst_spin_splitting={
+            'target_multiplicity': 2,
+            'reference_multiplicity': 4,
+            'fragment_multiplicities': [2, 3],
+            'reference': {
+                'method': 'uccsd(t)-f12b',
+                'basis': ['vqz-f12', 'v5z-f12'],
+            },
+            'gap_levels': [
+                {'label': 'caspt2_f12', 'method': 'caspt2-f12b(13,8)',
+                 'basis': ['vqz-f12', 'v5z-f12'], 'shift': .3,
+                 'ipea': .25},
+                {'label': 'mrci_f12_q', 'method': 'mrci-f12b+q(13,8)',
+                 'basis': ['vqz-f12', 'v5z-f12']},
+            ],
+        }))
+    assert settings['target_multiplicity'] == 2
+    assert settings['reference_multiplicity'] == 4
+    assert [item['method'] for item in settings['gap_levels']] == [
+        'caspt2-f12b(13,8)', 'mrci-f12b+q(13,8)']
+
+
+def test_sampling_surface_accepts_an_adjacent_cbs_pair():
+    parameters = _parameters(
+        vrc_tst_sample_method='caspt2-f12b(9,7)',
+        vrc_tst_sample_basis=['avtz-f12', 'avqz-f12'],
+        vrc_tst_sample_extrapolation_power=3.7)
+    settings = sampling_settings(parameters)
+    assert settings == {
+        'method': 'caspt2-f12b(9,7)',
+        'basis': ['avtz-f12', 'avqz-f12'],
+        'extrapolation_power': 3.7,
+    }
+    components = correction_components(parameters)
+    assert [item['role'] for item in components[:2]] == [
+        'sampling:0', 'sampling:1']
+    curve, metadata = assemble_sampling_reference(
+        [2.5, 30.],
+        {'sampling:0': [-10., -9.], 'sampling:1': [-10.1, -9.1]},
+        settings)
+    assert curve == pytest.approx([
+        two_point_cbs(-10., -10.1, upper_cardinal=4),
+        two_point_cbs(-9., -9.1, upper_cardinal=4)])
+    assert metadata['power'] == pytest.approx(3.7)
 
 
 def test_spin_splitting_extrapolates_triplet_and_both_gap_states():

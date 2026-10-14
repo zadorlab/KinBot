@@ -24,11 +24,15 @@ from ase.io import read
 from kinbot.anl.dispatch import (_load, _verify_execution, _verify_stage_files,
                                  prepare)
 from kinbot.anl.extrapolation import two_point_cbs
-from kinbot.anl.model import ComponentResult, IncompleteRecipeError
-from kinbot.anl.recipes import ANL0_NATIVE_REFERENCE_BASES, recipe
+from kinbot.anl.model import (ComponentRequirement, ComponentResult,
+                              IncompleteRecipeError)
+from kinbot.anl.recipes import (ANL0_NATIVE_REFERENCE_BASES,
+                                ANL1_F12_NATIVE_REFERENCE_BASES,
+                                ANL1_NATIVE_REFERENCE_BASES, recipe)
 from kinbot.anl.results import legacy_molpro_parser
 from kinbot.anl.tasks import (higher_order_task, molpro_ccsdt_command,
-                              molpro_task)
+                              molpro_task as native_molpro_task)
+from kinbot.theory import (convergence_exponent, fortran_threshold)
 from kinbot.anl.workflow import (_verified_task_result,
                                  atomic_zero_vibrational_component,
                                  cbs_task_component,
@@ -65,24 +69,13 @@ def _resources(walltime, *, max_cores=8, min_stack_mw=None, partition=None):
 
 def _molpro_task(ident, body, *, geometry_from='l3_geometry',
                   walltime='04:00:00', max_cores=8, parser=None,
-                  partition=None):
-    task = {
-        'id': ident, 'kind': 'external', 'backend': 'molpro',
-        'geometry_from': geometry_from,
-        'resources': _resources(walltime, max_cores=max_cores,
-                                min_stack_mw=1024, partition=partition),
-        'input_name': f'{ident}.inp',
-        'input_template': MOLPRO_HEADER + body,
-        'command': ['molpro', '-n', '{cores}', '-m',
-                    '{molpro_stack_mw}', '{input}'],
-        'stdout': 'launcher.stdout', 'stderr': 'launcher.stderr',
-        'required_outputs': [f'{ident}.out'],
-        'success_marker': {'file': f'{ident}.out',
-                           'contains': 'Molpro calculation terminated'},
-    }
-    if parser:
-        task['result_parser'] = {'file': f'{ident}.out', **parser}
-    return task
+                  partition=None, scf_convergence=1.e-10,
+                  cc_convergence=1.e-8):
+    return native_molpro_task(
+        ident, body, geometry_from=geometry_from, walltime=walltime,
+        max_cores=max_cores, parser=parser, partition=partition,
+        scf_convergence=scf_convergence,
+        cc_convergence=cc_convergence)
 
 
 def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
@@ -376,12 +369,7 @@ def _rank_exact_core_valence(molecule):
 
 def _anl0_reference_tasks(molecule, *, partition=None,
                           geometry_from='l3_geometry'):
-    """Build the conventional a'QZ/a'5Z reference pair for ANL0.
-
-    Published a'VnZ uses aug-cc-pVnZ on non-hydrogen atoms and cc-pVnZ on
-    hydrogen.  Molpro's element override is explicit in the native input and
-    the same spellings are pinned in the recipe requirement.
-    """
+    """Build the fully augmented QZ/5Z reference pair for ANL0."""
     reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
     electrons = _electron_count(molecule)
     effective = 'HF' if electrons == 1 else 'CCSD' if electrons == 2 else None
@@ -410,6 +398,101 @@ def _anl0_reference_tasks(molecule, *, partition=None,
     return tasks
 
 
+def _anl1_reference_tasks(molecule, *, partition=None,
+                          geometry_from='l3_geometry'):
+    """Build the fully augmented 5Z/6Z reference pair."""
+    reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
+    electrons = _electron_count(molecule)
+    effective = 'HF' if electrons == 1 else 'CCSD' if electrons == 2 else None
+    command = ({'HF': '', 'CCSD': 'uccsd'}[effective]
+               if effective else molpro_ccsdt_command(
+                   molecule.get('multiplicity', 1)))
+    rank_parser = ({'rank_exact_electrons': electrons,
+                    'effective_method': effective}
+                   if effective else {})
+    tasks = []
+    for ident, basis in zip(
+            ('anl1_5z', 'anl1_6z'), ANL1_NATIVE_REFERENCE_BASES):
+        task = _molpro_task(
+            ident, f'basis={basis}\nrhf\n{command}\nkb_{ident}=energy\n',
+            geometry_from=geometry_from, walltime='7-00:00:00',
+            max_cores=12,
+            parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
+                    'basis': basis, 'reference': reference, **rank_parser},
+            partition=partition)
+        tasks.append(task)
+    for task in tasks:
+        _component_fallback(
+            task, 'reference_cbs_anl1',
+            failure_skips=tuple(other['id'] for other in tasks
+                                if other is not task))
+    return tasks
+
+
+def _anl1_f12_reference_tasks(molecule, *, partition=None,
+                              geometry_from='l3_geometry'):
+    """Build the 5Z-F12 task completing the Ram-style QZ/5Z pair.
+
+    The ordinary interface graph already contains the physically identical
+    QZ-F12 task.  Reusing that task avoids a duplicate calculation.
+    """
+    reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
+    electrons = _electron_count(molecule)
+    effective = 'HF' if electrons == 1 else 'CCSD-F12b' \
+        if electrons == 2 else None
+    command = ({'HF': '', 'CCSD-F12b': 'uccsd-f12b'}[effective]
+               if effective else 'uccsd(t)-f12b,scale_trip=1')
+    rank_parser = ({'rank_exact_electrons': electrons,
+                    'effective_method': effective}
+                   if effective else {})
+    ident = 'f12_5z'
+    basis = ANL1_F12_NATIVE_REFERENCE_BASES[1]
+    task = _molpro_task(
+        ident, f'basis={basis}\nrhf\n{command}\nkb_{ident}=energy\n',
+        geometry_from=geometry_from, walltime='7-00:00:00', max_cores=12,
+        parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
+                'basis': basis, 'reference': reference, **rank_parser},
+        partition=partition)
+    return [_component_fallback(task, 'reference_cbs_dual_f12')]
+
+
+def _anl1_harmonic_tasks(molecule, *, partition=None,
+                         tz_geometry='l3_geometry_tz',
+                         qz_geometry='l3_geometry',
+                         stationary_point='minimum'):
+    """Build the basis-matched TZ/QZ harmonic pair required by ANL1."""
+    if len(molecule.get('symbols', ())) == 1:
+        return []
+    reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
+    electrons = _electron_count(molecule)
+    effective = 'HF' if electrons == 1 else 'CCSD' if electrons == 2 else None
+    command = ({'HF': '', 'CCSD': 'uccsd'}[effective]
+               if effective else molpro_ccsdt_command(
+                   molecule.get('multiplicity', 1)))
+    rank_parser = ({'rank_exact_electrons': electrons,
+                    'effective_method': effective}
+                   if effective else {})
+    tasks = []
+    for ident, basis, geometry in (
+            ('harmonic_tz', 'cc-pVTZ', tz_geometry),
+            ('harmonic_qz', 'cc-pVQZ', qz_geometry)):
+        task = _molpro_task(
+            ident,
+            f'basis={basis}\nrhf\n{command}\nfrequencies,numerical\n',
+            geometry_from=geometry, walltime='7-00:00:00', max_cores=8,
+            parser={'kind': 'molpro_harmonic', 'basis': basis,
+                    'reference': reference,
+                    'stationary_point': stationary_point, **rank_parser},
+            partition=partition)
+        tasks.append(task)
+    for task in tasks:
+        _component_fallback(
+            task, 'harmonic_zpe_anl1',
+            failure_skips=tuple(other['id'] for other in tasks
+                                if other is not task))
+    return tasks
+
+
 def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
                                  mrcc_command='dmrcc', task_ids=None):
     """Build the ANL1 higher-order interface probe when ranks exist.
@@ -427,20 +510,22 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
     conventional = molpro_ccsdt_command(multiplicity)
     common = dict(geometry_from='initial', partition=partition)
     tasks = [
-        molpro_task(
+        _molpro_task(
             'ccsdt_tz',
             f'basis=cc-pVTZ\nrhf\n{conventional}\nkb_ccsdt=energy\n',
             walltime='08:00:00', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVTZ',
-                    'reference': restricted_reference}, **common),
-        molpro_task(
+                    'reference': restricted_reference, 'core': 'frozen'},
+            **common),
+        _molpro_task(
             'ccsdt_dz',
             f'basis=cc-pVDZ\nrhf\n{conventional}\nkb_ccsdt=energy\n',
             walltime='04:00:00', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVDZ',
-                    'reference': restricted_reference}, **common),
+                    'reference': restricted_reference, 'core': 'frozen'},
+            **common),
         higher_order_task(
             'ccsdtq_tz', 'CCSDT(Q)', 'cc-pVTZ',
             multiplicity=multiplicity,
@@ -538,7 +623,7 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
                        all_electron=(core == 'all-electron')))
         body = (f'basis={basis}\n{dkh}rhf\n{command}\n'
                 f'kb_{ident}=energy\n')
-        return molpro_task(
+        return _molpro_task(
             ident, body, walltime=walltime, max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': basis, 'reference': reference, 'core': core,
@@ -719,7 +804,9 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                              stationary_point='minimum',
                              vpt2_method='B2PLYP',
                              vpt2_basis='cc-pVTZ',
-                             vpt2_dispersion='GD3BJ'):
+                             vpt2_dispersion='GD3BJ',
+                             scf_convergence=1.e-10,
+                             cc_convergence=1.e-8):
     """Build the automatic post-L2 graph for one stable point or tight TS.
 
     The caller supplies the already accepted L2 geometry and its provenance
@@ -727,9 +814,24 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
     contains only work that can contribute to the requested highest tier or
     one of its declared fallbacks.
     """
-    allowed = ('ANL0-F12', 'ANL0', 'L3', 'L3-SP@L2', 'L2')
+    ladders = {
+        'ANL1-F12': ('ANL1-F12', 'ANL1', 'L3', 'L3-SP@L2', 'L2'),
+        'ANL1': ('ANL1', 'L3', 'L3-SP@L2', 'L2'),
+        'ANL0-F12': ('ANL0-F12', 'ANL0', 'L3', 'L3-SP@L2', 'L2'),
+        'ANL0': ('ANL0', 'L3', 'L3-SP@L2', 'L2'),
+        'L3': ('L3', 'L3-SP@L2', 'L2'),
+        'L3-SP@L2': ('L3-SP@L2', 'L2'),
+        'L2': ('L2',),
+    }
+    allowed = tuple(ladders)
     if highest_tier not in allowed:
         raise ValueError(f'highest_tier must be one of {allowed}.')
+    scf_exponent = convergence_exponent(
+        scf_convergence, 'SCF convergence')
+    cc_exponent = convergence_exponent(
+        cc_convergence, 'CC convergence')
+    scf_threshold = fortran_threshold(scf_convergence, 'SCF convergence')
+    cc_threshold = fortran_threshold(cc_convergence, 'CC convergence')
     source = molecule.get('source') if isinstance(molecule, dict) else None
     if (not isinstance(source, dict)
             or not re.fullmatch(r'[0-9a-f]{64}', str(
@@ -741,9 +843,10 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             or not math.isfinite(source['energy_hartree'])):
         raise ValueError(
             'Automatic composite input needs a hash-bound accepted L2 source.')
+    anl1_requested = highest_tier in ('ANL1', 'ANL1-F12')
     full = composite_validation_spec(
         molecule, max_nodes=max_nodes, partition=partition,
-        mrcc_command=mrcc_command, anl0_only=True,
+        mrcc_command=mrcc_command, anl0_only=not anl1_requested,
         stationary_point=stationary_point)
     if (vpt2_method not in ('B3LYP', 'B2PLYP')
             or vpt2_basis.casefold() != 'cc-pvtz'
@@ -755,6 +858,11 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         if original['id'] == 'l2_geometry':
             continue
         task = deepcopy(original)
+        if anl1_requested and task['id'] == 'l3_geometry':
+            task['id'] = 'l3_geometry_tz'
+        elif anl1_requested and task['id'] == 'harmonic':
+            # ANL1 uses a separately generated basis-matched TZ/QZ pair.
+            continue
         if task['id'] == 'gaussian_vpt2':
             dispersion = (f' EmpiricalDispersion={vpt2_dispersion}'
                           if vpt2_dispersion else '')
@@ -778,15 +886,62 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         if not task['depends_on']:
             task.pop('depends_on', None)
         tasks.append(task)
-    tasks.extend(_anl0_reference_tasks(
-        molecule, partition=partition, geometry_from='l3_geometry'))
+    if anl1_requested:
+        tz_geometry = next(task for task in tasks
+                           if task['id'] == 'l3_geometry_tz')
+        qz_geometry = deepcopy(tz_geometry)
+        qz_geometry['id'] = 'l3_geometry'
+        qz_geometry['geometry_from'] = 'l3_geometry_tz'
+        qz_geometry['profile']['basis'] = 'cc-pVQZ'
+        qz_geometry['profile']['label'] = 'CCSD(T)/cc-pVQZ'
+        qz_geometry['resources'] = _resources(
+            '7-00:00:00', max_cores=12, min_stack_mw=1024,
+            partition=partition)
+        tasks.append(qz_geometry)
+        tasks.extend(_anl1_harmonic_tasks(
+            molecule, partition=partition,
+            stationary_point=stationary_point))
+        tasks.extend(_anl1_reference_tasks(
+            molecule, partition=partition,
+            geometry_from='l3_geometry'))
+        if highest_tier == 'ANL1-F12':
+            tasks.extend(_anl1_f12_reference_tasks(
+                molecule, partition=partition,
+                geometry_from='l3_geometry'))
+            by_id = {task['id']: task for task in tasks}
+            _component_fallback(
+                by_id['f12_qz'], 'reference_cbs_dual_f12',
+                failure_skips=('f12_5z',))
+    if not anl1_requested:
+        tasks.extend(_anl0_reference_tasks(
+            molecule, partition=partition, geometry_from='l3_geometry'))
+        if highest_tier == 'ANL0-F12':
+            # The user-selected ANL0-F12 extension uses the same QZ/5Z F12
+            # and fully augmented 5Z/6Z average as ANL1-F12, evaluated on
+            # the ANL0 CCSD(T)/TZ geometry.
+            tasks.extend(_anl1_reference_tasks(
+                molecule, partition=partition,
+                geometry_from='l3_geometry'))
+            tasks.extend(_anl1_f12_reference_tasks(
+                molecule, partition=partition,
+                geometry_from='l3_geometry'))
+            by_id = {task['id']: task for task in tasks}
+            _component_fallback(
+                by_id['f12_qz'], 'reference_cbs_dual_f12',
+                failure_skips=('f12_5z',))
     for task in tasks:
         if (task.get('geometry_from') == 'l3_geometry'
                 and task['id'] != 'harmonic'):
             task['geometry_fallback'] = 'initial'
 
     keep = {
-        'ANL0-F12': {task['id'] for task in tasks},
+        'ANL1-F12': ({task['id'] for task in tasks}
+                     - {'f12_tz', 'anl0_qz', 'anl0_5z'}),
+        'ANL1': ({task['id'] for task in tasks}
+                 - {'f12_tz', 'f12_qz', 'f12_5z',
+                    'anl0_qz', 'anl0_5z'}),
+        'ANL0-F12': ({task['id'] for task in tasks}
+                     - {'f12_tz', 'anl0_qz', 'anl0_5z'}),
         'ANL0': ({task['id'] for task in tasks}
                  - {'f12_tz', 'f12_qz'}),
         'L3': {'l3_geometry', 'harmonic', 'gaussian_vpt2', 'l3_sp_l2'},
@@ -816,11 +971,60 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             task['id'] for task in tasks
             if (task.get('geometry_from') == 'l3_geometry'
                 and 'geometry_fallback' not in task)]
+    for task in tasks:
+        profile = task.get('profile')
+        if isinstance(profile, dict):
+            calculator = str(profile.get('calculator', '')).casefold()
+            kwargs = dict(profile.get('calculator_kwargs', {}))
+            if calculator == 'gaussian':
+                kwargs['scf'] = f'(xqc,conver={scf_exponent})'
+            elif calculator == 'molpro':
+                kwargs.update(
+                    scf_convergence=scf_convergence,
+                    correlation_convergence=cc_convergence)
+            profile['calculator_kwargs'] = kwargs
+        template = task.get('input_template')
+        if not isinstance(template, str):
+            continue
+        if task.get('backend') == 'gaussian':
+            template = re.sub(
+                r'\bSCF\s*=\s*(?:XQC|\([^\n)]*XQC[^\n)]*\))',
+                f'SCF=(XQC,Conver={scf_exponent})', template,
+                flags=re.IGNORECASE)
+        elif task.get('backend') == 'molpro':
+            template = re.sub(
+                r'^\s*gthresh\s*,[^\n]*$',
+                (f'gthresh,energy={scf_threshold},coeff={cc_threshold},'
+                 f'civec={cc_threshold}'), template,
+                flags=re.IGNORECASE | re.MULTILINE)
+            template = re.sub(
+                r'thresh\s*,\s*energy\s*=\s*1\.d-\d+\s*,\s*'
+                r'coeff\s*=\s*1\.d-\d+',
+                f'thresh,energy={cc_threshold},coeff={cc_threshold}',
+                template, flags=re.IGNORECASE)
+        elif task.get('backend') == 'mrcc':
+            template = re.sub(r'^sctol=\d+$', f'sctol={scf_exponent}',
+                              template, flags=re.MULTILINE)
+            template = re.sub(r'^cctol=\d+$', f'cctol={cc_exponent}',
+                              template, flags=re.MULTILINE)
+        elif task.get('backend') == 'cfour':
+            template = re.sub(r'^SCF_CONV=\d+$',
+                              f'SCF_CONV={scf_exponent}', template,
+                              flags=re.MULTILINE)
+            template = re.sub(r'^(?:CC_CONV|LINEQ_CONV)=\d+$',
+                              lambda match: (match.group(0).split('=', 1)[0]
+                                             + f'={cc_exponent}'), template,
+                              flags=re.MULTILINE)
+        task['input_template'] = template
     return {
         'schema': 1, 'name': 'anl-automatic-post-l2',
         'molecule': molecule, 'limits': {'max_nodes': max_nodes},
         'tasks': tasks,
         'intent': {
+            'convergence': {
+                'scf': scf_convergence,
+                'coupled_cluster_or_ci': cc_convergence,
+            },
             'claim': 'automatic-cbh-anl-production',
             # A user may deliberately choose a short partition. Native jobs
             # then request that partition's limit, so scheduler timeouts are
@@ -828,10 +1032,10 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             # can follow the normal recorded fallback ladder.
             'cap_walltime_to_explicit_partition': True,
             'highest_tier': highest_tier,
-            'fallback_ladder': list(allowed[allowed.index(highest_tier):]),
+            'fallback_ladder': list(ladders[highest_tier]),
             'stationary_point': stationary_point,
             'source_geometry_role': 'accepted-l2',
-            'anl0_only': True,
+            'anl0_only': not anl1_requested,
         },
     }
 
@@ -1290,13 +1494,91 @@ def _apply_quality_review(component, task_id, review_file):
         review_required=False)
 
 
-def _assemble_profiled_anl0(
+def _dual_f12_reference_component(run_dir, requirement, *, state_id):
+    """Assemble and average the F12 and fully augmented CBS limits."""
+    settings = dict(requirement.settings)
+    geometry = {
+        key: settings[key] for key in ('geometry_method', 'geometry_basis')
+        if key in settings
+    }
+    f12_requirement = ComponentRequirement(
+        'reference_cbs_f12', 'electronic', 'CCSD(T)-F12b',
+        'CBS(cc-pVQZ-F12,cc-pV5Z-F12)', 'l3', ('composite',),
+        {'scale_trip': settings['scale_trip'],
+         'correlation': settings['correlation'],
+         'reference': settings['reference'],
+         'reference_convention': settings['reference_convention'],
+         'upper_cardinal': settings['f12_upper_cardinal'],
+         'extrapolation_power': settings['f12_extrapolation_power'],
+         **geometry})
+    conventional_requirement = ComponentRequirement(
+        'reference_cbs_conventional', 'electronic', 'CCSD(T)',
+        'CBS(aug-5Z,aug-6Z)', 'l3', ('composite',),
+        {'correlation': settings['correlation'],
+         'reference': settings['reference'],
+         'reference_convention': settings['reference_convention'],
+         'upper_cardinal': settings['conventional_upper_cardinal'],
+         'extrapolation_power':
+             settings['conventional_extrapolation_power'],
+         'native_basis_pair':
+             settings['conventional_native_basis_pair'],
+         **geometry})
+    f12 = cbs_task_component(
+        run_dir, 'f12_qz', 'f12_5z', requirement=f12_requirement,
+        state_id=state_id,
+        lower_basis=ANL1_F12_NATIVE_REFERENCE_BASES[0],
+        upper_basis=ANL1_F12_NATIVE_REFERENCE_BASES[1])
+    conventional = cbs_task_component(
+        run_dir, 'anl1_5z', 'anl1_6z',
+        requirement=conventional_requirement, state_id=state_id,
+        lower_basis=ANL1_NATIVE_REFERENCE_BASES[0],
+        upper_basis=ANL1_NATIVE_REFERENCE_BASES[1])
+    if (f12.state_id, f12.charge, f12.multiplicity,
+            f12.geometry_sha256) != (
+            conventional.state_id, conventional.charge,
+            conventional.multiplicity, conventional.geometry_sha256):
+        raise ValueError('Dual-CBS F12 reference estimates describe different states.')
+    weights = settings.get('component_weights')
+    if (not isinstance(weights, (tuple, list)) or len(weights) != 2
+            or any(isinstance(value, bool)
+                   or not isinstance(value, (int, float))
+                   or not math.isfinite(value) or value < 0.
+                   for value in weights)
+            or abs(math.fsum(weights) - 1.) > 1.e-12):
+        raise ValueError('Dual-CBS reference weights must be two nonnegative values summing to one.')
+    f12_weight, conventional_weight = map(float, weights)
+    provenance = {
+        'formula': (
+            f'{f12_weight:g}*CBS(F12,QZ/5Z)+'
+            f'{conventional_weight:g}*CBS(conventional,5Z/6Z)'),
+        'f12_sha256': f12.source_sha256,
+        'conventional_sha256': conventional.source_sha256,
+        'settings': settings,
+    }
+    digest = hashlib.sha256(json.dumps(
+        provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return ComponentResult(
+        key=requirement.key,
+        value_hartree=math.fsum(
+            (f12_weight * f12.value_hartree,
+             conventional_weight * conventional.value_hartree)),
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend='composite',
+        state_id=f12.state_id, charge=f12.charge,
+        multiplicity=f12.multiplicity,
+        geometry_sha256=f12.geometry_sha256,
+        source_sha256=digest,
+        source=f'mean({f12.source},{conventional.source})',
+        settings=settings)
+
+
+def _assemble_profiled_anl(
         recipe_name, interface_run, higher_order_run, corrections_run, *, state_id,
         spin_orbit_hartree, spin_orbit_source, spin_orbit_backend='manual',
         vpt2_review=None, base_run=None, harmonic_only=False,
         vpt2_method='B2PLYP-D3BJ', l2_geometry_fallback=None,
         omitted_families=()):
-    """Assemble one provenance-checked ANL0 or ANL0-F12 0 K energy.
+    """Assemble one provenance-checked supported ANL 0 K energy.
 
     Every geometry-dependent term must trace to the accepted L2 geometry in
     ``interface_run`` and the accepted current L3 geometry in ``base_run``.
@@ -1304,8 +1586,9 @@ def _assemble_profiled_anl0(
     for both roles. Higher-order and correction graphs must identify the same
     completed L3 result.
     """
-    if recipe_name not in ('ANL0', 'ANL0-F12'):
-        raise ValueError('Profiled ANL0 assembly needs ANL0 or ANL0-F12.')
+    if recipe_name not in ('ANL0', 'ANL0-F12', 'ANL1', 'ANL1-F12'):
+        raise ValueError('Unsupported profiled ANL assembly recipe.')
+    anl1 = recipe_name in ('ANL1', 'ANL1-F12')
     interface_run, interface_spec, interface_state = _load(interface_run)
     if interface_spec.get('name') not in (
             'anl1-f12-non-mrcc-interface-validation',
@@ -1347,9 +1630,14 @@ def _assemble_profiled_anl0(
                 interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
     l3_status = base_state['tasks'].get('l3_geometry', {}).get('status')
     geometry_fallback = l3_status in ('unavailable', 'skipped')
-    harmonic_status = base_state['tasks'].get('harmonic', {}).get('status')
+    harmonic_ids = (('harmonic_tz', 'harmonic_qz') if anl1
+                    else ('harmonic',))
+    harmonic_statuses = tuple(
+        base_state['tasks'].get(task_id, {}).get('status')
+        for task_id in harmonic_ids)
     harmonic_fallback = (len(molecule.get('symbols', ())) > 1
-                         and harmonic_status in ('unavailable', 'skipped'))
+                         and any(status in ('unavailable', 'skipped')
+                                 for status in harmonic_statuses))
     if geometry_fallback:
         harmonic_fallback = True
     needs_l2_fallback = geometry_fallback or harmonic_fallback
@@ -1395,16 +1683,23 @@ def _assemble_profiled_anl0(
                          if harmonic_fallback else fallback_basis)
                         or 'cc-pVTZ'))
     required = {item.key: item for item in equation.requirements}
-    reference_tasks, reference_bases = (
-        (('f12_tz', 'f12_qz'), ('cc-pVTZ-F12', 'cc-pVQZ-F12'))
-        if recipe_name == 'ANL0-F12' else
-        (('anl0_qz', 'anl0_5z'), ANL0_NATIVE_REFERENCE_BASES))
-    components = {
-        'reference_cbs': cbs_task_component(
+    if recipe_name in ('ANL0-F12', 'ANL1-F12'):
+        reference_tasks = reference_bases = None
+    elif recipe_name == 'ANL1':
+        reference_tasks = ('anl1_5z', 'anl1_6z')
+        reference_bases = ANL1_NATIVE_REFERENCE_BASES
+    else:
+        reference_tasks = ('anl0_qz', 'anl0_5z')
+        reference_bases = ANL0_NATIVE_REFERENCE_BASES
+    if recipe_name in ('ANL0-F12', 'ANL1-F12'):
+        reference = _dual_f12_reference_component(
+            base_run, required['reference_cbs'], state_id=state_id)
+    else:
+        reference = cbs_task_component(
             base_run, *reference_tasks,
             requirement=required['reference_cbs'], state_id=state_id,
-            lower_basis=reference_bases[0], upper_basis=reference_bases[1]),
-    }
+            lower_basis=reference_bases[0], upper_basis=reference_bases[1])
+    components = {'reference_cbs': reference}
     if 'dboc' in required:
         components['dboc'] = task_component(
             base_run, 'cfour_dboc', key='dboc', state_id=state_id)
@@ -1418,6 +1713,15 @@ def _assemble_profiled_anl0(
                 geometry_sha256=l2_hash)
     elif harmonic_fallback:
         components['harmonic_zpe'] = l2_geometry_fallback
+        if not harmonic_only:
+            components['vpt2_correction'] = task_component(
+                interface_run, 'gaussian_vpt2', key='vpt2_correction',
+                state_id=state_id)
+    elif anl1:
+        components['harmonic_zpe'] = cbs_task_component(
+            base_run, 'harmonic_tz', 'harmonic_qz',
+            requirement=required['harmonic_zpe'], state_id=state_id,
+            lower_basis='cc-pVTZ', upper_basis='cc-pVQZ')
         if not harmonic_only:
             components['vpt2_correction'] = task_component(
                 interface_run, 'gaussian_vpt2', key='vpt2_correction',
@@ -1440,6 +1744,14 @@ def _assemble_profiled_anl0(
         components['hoe_high'] = task_component(
             higher_order_run, 'ccsdtq_dz', key='hoe_high',
             state_id=state_id)
+    elif 'hoe_tz_low' in required:
+        for key, task_id in (
+                ('hoe_tz_low', 'ccsdt_tz'),
+                ('hoe_tz_high', 'ccsdtq_tz'),
+                ('hoe_dz_low', 'ccsdtq_dz'),
+                ('hoe_dz_high', 'ccsdtqp_dz')):
+            components[key] = task_component(
+                higher_order_run, task_id, key=key, state_id=state_id)
     if harmonic_only:
         if vpt2_review is not None:
             raise ValueError(
@@ -1487,7 +1799,7 @@ def _assemble_profiled_anl0(
                 'accepted_l3_optimization'),
             'harmonic_zpe': (
                 'accepted_l2_fallback' if harmonic_fallback else
-                'l3_harmonic'),
+                ('l3_harmonic_cbs' if anl1 else 'l3_harmonic')),
         },
         'components': {key: asdict(value)
                        for key, value in result.components.items()},
@@ -1515,16 +1827,31 @@ def _assemble_profiled_anl0(
 def assemble_profiled_anl0_f12(
         interface_run, higher_order_run, corrections_run, **kwargs):
     """Assemble the explicitly correlated profiled ANL0 variant."""
-    return _assemble_profiled_anl0(
+    return _assemble_profiled_anl(
         'ANL0-F12', interface_run, higher_order_run, corrections_run,
         **kwargs)
 
 
 def assemble_profiled_anl0(
         interface_run, higher_order_run, corrections_run, **kwargs):
-    """Assemble conventional ANL0 with the published a'QZ/a'5Z reference."""
-    return _assemble_profiled_anl0(
+    """Assemble profiled ANL0 with the fully augmented QZ/5Z reference."""
+    return _assemble_profiled_anl(
         'ANL0', interface_run, higher_order_run, corrections_run, **kwargs)
+
+
+def assemble_profiled_anl1_f12(
+        interface_run, higher_order_run, corrections_run, **kwargs):
+    """Assemble the KinBot ANL1-F12 profiled extension."""
+    return _assemble_profiled_anl(
+        'ANL1-F12', interface_run, higher_order_run, corrections_run,
+        **kwargs)
+
+
+def assemble_profiled_anl1(
+        interface_run, higher_order_run, corrections_run, **kwargs):
+    """Assemble profiled ANL1 with the fully augmented 5Z/6Z reference."""
+    return _assemble_profiled_anl(
+        'ANL1', interface_run, higher_order_run, corrections_run, **kwargs)
 
 
 def audit_interface_run(run_dir):
@@ -1544,6 +1871,17 @@ def audit_interface_run(run_dir):
         multiplicity=spec['molecule'].get('multiplicity', 1))
     requirement = next(item for item in equation.requirements
                        if item.key == 'reference_cbs')
+    diagnostic_requirement = ComponentRequirement(
+        'reference_cbs', 'electronic', 'CCSD(T)-F12b',
+        'CBS(cc-pVTZ-F12,cc-pVQZ-F12)', 'l3', ('composite',),
+        {'scale_trip': 1, 'correlation': 'unrestricted',
+         'reference': requirement.settings['reference'],
+         'reference_convention': requirement.settings['reference_convention'],
+         'upper_cardinal': 4,
+         'extrapolation_power':
+             requirement.settings['f12_extrapolation_power'],
+         'geometry_method': requirement.settings['geometry_method'],
+         'geometry_basis': requirement.settings['geometry_basis']})
     legacy = sorted(
         task['id'] for task in spec['tasks']
         if task.get('result_parser', {}).get('kind') in
@@ -1555,8 +1893,8 @@ def audit_interface_run(run_dir):
         upper = parsed['f12_qz']['energy_hartree']
         diagnostic = two_point_cbs(
             lower, upper,
-            upper_cardinal=requirement.settings['upper_cardinal'],
-            power=requirement.settings['extrapolation_power'])
+            upper_cardinal=4,
+            power=requirement.settings['f12_extrapolation_power'])
         unavailable = list(spec['intent']['unavailable_components'])
         unavailable.append(
             'current unrestricted Molpro geometry, reference, and harmonic components')
@@ -1572,7 +1910,7 @@ def audit_interface_run(run_dir):
             'unavailable_components': unavailable,
         }
     reference = cbs_task_component(
-        run_dir, 'f12_tz', 'f12_qz', requirement=requirement,
+        run_dir, 'f12_tz', 'f12_qz', requirement=diagnostic_requirement,
         state_id='validation-state', lower_basis='cc-pVTZ-F12',
         upper_basis='cc-pVQZ-F12')
     return {

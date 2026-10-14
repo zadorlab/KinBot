@@ -12,7 +12,8 @@ import numpy as np
 from ase import units
 from kinbot import pp_tables
 from kinbot.theory import (automatic_cbh_anl_requested, profiled_requested,
-                           resolve_profiles, validate_anl_size_policy)
+                           convergence_exponent, resolve_profiles,
+                           validate_anl_size_policy)
 
 logger = logging.getLogger('KinBot')
 
@@ -222,6 +223,11 @@ class Parameters:
             'l1_profile': {},
             'l2_profile': {},
             'composite_method': '',
+            # Native convergence contracts used by every automatic ANL
+            # geometry, frequency, and single-point calculation.  Values are
+            # exact thresholds, rather than backend-specific exponents.
+            'anl_scf_convergence': 1.e-10,
+            'anl_cc_convergence': 1.e-8,
             # Automatic CBH planning chooses the highest structurally valid
             # rung (up to CBH-3), then falls down by rung and common ANL tier
             # as required.  An integer remains accepted for reproducible
@@ -414,6 +420,14 @@ class Parameters:
             'vrc_tst_scan_sella': 1,
             'vrc_tst_scan_method': 'caspt2(2,2)',
             'vrc_tst_scan_basis': 'aug-cc-pVTZ',
+            # auto uses an analytic gradient when the selected Molpro method
+            # supplies the requested energy derivative and a numerical
+            # gradient otherwise.  Expert inputs may force either contract.
+            'vrc_tst_scan_gradient': 'auto',
+            'vrc_tst_scan_shift': 0.3,
+            'vrc_tst_scan_ipea': 0.25,
+            'vrc_tst_scf_convergence': 1.e-10,
+            'vrc_tst_correlation_convergence': 1.e-8,
             # Gaussian orbitals are used only to construct HOMO-directed
             # pivot points.  They never supply a VRC scan geometry or energy.
             'vrc_tst_pivot_method': 'ub3lyp',
@@ -424,6 +438,7 @@ class Parameters:
             'vrc_tst_sample_method': 'caspt2(2,2)',
             'vrc_tst_high_method': 'caspt2(2,2)',
             'vrc_tst_sample_basis': 'vdz',
+            'vrc_tst_sample_extrapolation_power': 3.7,
             'vrc_tst_high_basis': 'avtz',
             # ``direct`` preserves the original single trusted calculation.
             # ``spin_splitting`` reconstructs the singlet from a
@@ -676,6 +691,10 @@ class Parameters:
                              'composite_method.')
         self.par['anl_size_policy'] = validate_anl_size_policy(
             self.par['anl_size_policy'])
+        convergence_exponent(
+            self.par['anl_scf_convergence'], 'anl_scf_convergence')
+        convergence_exponent(
+            self.par['anl_cc_convergence'], 'anl_cc_convergence')
         if (not isinstance(self.par['atct_version'], str)
                 or not self.par['atct_version'].strip()):
             raise ValueError('atct_version must be a nonempty string.')
@@ -759,9 +778,26 @@ class Parameters:
             raise ValueError('rotdpy_validation_profile must be interface '
                              'or production')
         from kinbot.vrc_correction import (correction_model,
+                                           sampling_settings,
                                            spin_splitting_settings)
+        sampling_settings(self.par)
         if correction_model(self.par) == 'spin_splitting':
             spin_splitting_settings(self.par)
+        if self.par['vrc_tst_scan_gradient'] not in (
+                'auto', 'analytic', 'numerical'):
+            raise ValueError('vrc_tst_scan_gradient must be auto, analytic, '
+                             'or numerical')
+        for key in ('vrc_tst_scan_shift', 'vrc_tst_scan_ipea'):
+            value = self.par[key]
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not np.isfinite(value) or value < 0.):
+                raise ValueError(f'{key} must be a finite nonnegative number')
+        convergence_exponent(
+            self.par['vrc_tst_scf_convergence'],
+            'vrc_tst_scf_convergence')
+        convergence_exponent(
+            self.par['vrc_tst_correlation_convergence'],
+            'vrc_tst_correlation_convergence')
         energy_index = self.par['rotdpy_mess_energy_index']
         if (isinstance(energy_index, bool)
                 or not isinstance(energy_index, int) or energy_index < -1):

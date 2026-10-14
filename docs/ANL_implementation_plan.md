@@ -53,9 +53,11 @@ L2  B2PLYP-D3(BJ)/cc-pVTZ
 L3  requested ANL recipe
 ```
 
-The lower profile substitutes B3LYP/cc-pVTZ at L2. Gaussian VPT2 is a
-frequency-only calculation on the accepted L2 geometry. Hindered-rotor scans
-also use the corresponding L2 surface.
+The automatic default for every ANL head is B2PLYP-D3(BJ)/cc-pVTZ at L2.
+The explicit lower profile substitutes B3LYP/cc-pVTZ for reproducing the
+published anharmonic correction. Gaussian VPT2 is a frequency-only
+calculation on the accepted L2 geometry. Hindered-rotor scans also use the
+corresponding L2 surface.
 
 All conventional and F12 coupled-cluster components use an RHF determinant
 for closed shells or an ROHF determinant for open shells, followed by the
@@ -75,36 +77,95 @@ required, even when their electronic rank reduces.
 
 ## ANL energy model
 
-A composite record stores each component once and gives explicit signed
-expressions for electronic energy and ZPE. The common ANL0-F12 profile uses
+A composite record stores each native component once and gives explicit
+signed expressions for the electronic energy and zero-point energy.  Define
 
 ```text
-E0 = E_ref,CBS(F12)
-   + Delta_higher_order
-   + Delta_core_valence,CBS
-   + Delta_scalar_relativistic
-   + DBOC
-   + spin_orbit
-   + ZPE_harmonic
-   + Delta_ZPE,anharmonic
+CBS_p(E_(n-1), E_n) = E_n + alpha_n (E_n - E_(n-1))
+alpha_n              = (n - 1)^p / (n^p - (n - 1)^p)
+p                    = 3.7
+
+delta_anh(M/B) = ZPE_anh(M/B) - ZPE_har(M/B)
+delta_CV       = CBS_3.7[E_CCSD(T,all-electron)(cTZ,cQZ)]
+               - CBS_3.7[E_CCSD(T,frozen-core)(cTZ,cQZ)]
+delta_REL      = E_CCSD(T,all-electron,DKH2)(acTZ-DK)
+               - E_CCSD(T,all-electron,nonrelativistic)(acTZ-DK)
 ```
 
-Every difference is evaluated on the same accepted highest-level geometry
-available for that recipe. The selected program or reference determinant may
-differ between components when the underlying method is the same and the
-native program supports the requested calculation.
+Every CBS extrapolation in the four built-in profiles uses the same inverse
+angular-momentum power of 3.7.  Ram et al. reported different fitted alpha
+values for their calculations; those fitted values are not used by these
+profiles.  Each result records the exponent, cardinal numbers, basis labels,
+geometry hashes, and native output hashes.
 
-Two-point CBS terms use the recipe's pinned coefficients. A generic pair is
-stored as
+The implemented equations are:
 
 ```text
-E_CBS = c_low E_low + c_high E_high
+ANL0 = CBS_3.7[CCSD(T)/aug-QZ,aug-5Z] // CCSD(T)/TZ
+     + ZPE_har[CCSD(T)/TZ]
+     + delta_anh[L2/TZ]
+     + {CCSDT(Q)-CCSD(T)}/DZ
+     + delta_CV
+     + delta_REL
+     + DBOC[HF/TZ]
+     + SO
+
+ANL0-F12 = 0.5 CBS_3.7[CCSD(T)-F12b/QZ-F12,5Z-F12]
+           + 0.5 CBS_3.7[CCSD(T)/aug-5Z,aug-6Z]
+           all on the CCSD(T)/TZ geometry
+           + ZPE_har[CCSD(T)/TZ]
+           + delta_anh[L2/TZ]
+           + {CCSDT(Q)-CCSD(T)}/DZ
+           + delta_CV
+           + delta_REL
+           + DBOC[HF/TZ]
+           + SO
+
+ANL1 = CBS_3.7[CCSD(T)/aug-5Z,aug-6Z] // CCSD(T)/QZ
+     + CBS_3.7[ZPE_har(CCSD(T)/TZ), ZPE_har(CCSD(T)/QZ)]
+     + delta_anh[L2/TZ]
+     + {CCSDT(Q)-CCSD(T)}/TZ
+     + {CCSDTQ(P)-CCSDT(Q)}/DZ
+     + delta_CV
+     + delta_REL
+     + DBOC[HF/TZ]
+     + SO
+
+ANL1-F12 = 0.5 CBS_3.7[CCSD(T)-F12b/QZ-F12,5Z-F12]
+           + 0.5 CBS_3.7[CCSD(T)/aug-5Z,aug-6Z]
+           all on the CCSD(T)/QZ geometry
+           + CBS_3.7[ZPE_har(CCSD(T)/TZ), ZPE_har(CCSD(T)/QZ)]
+           + delta_anh[L2/TZ]
+           + {CCSDT(Q)-CCSD(T)}/TZ
+           + {CCSDTQ(P)-CCSDT(Q)}/DZ
+           + delta_CV
+           + delta_REL
+           + DBOC[HF/TZ]
+           + SO
 ```
 
-with the coefficients, basis labels, source hashes, and extrapolated quantity
-in the result. Harmonic ZPE and the anharmonic correction may each be
-extrapolated from TZ/QZ when both calculations are available. `SCALE_TRIP=1`
-is retained for Molpro F12 calculations where the method requires it.
+`aug-nZ` denotes aug-cc-pVnZ on every atom, including hydrogen; `cVnZ` is
+cc-pCVnZ; and `acVTZ-DK` is aug-cc-pCVTZ-DK.  The ANL0, ANL0-F12, and ANL1
+names retain their correction hierarchy, but these production profiles use
+full hydrogen augmentation.  ANL0-F12 and ANL1-F12 are explicitly labeled
+KinBot profiled extensions: both average QZ-F12/5Z-F12 and fully augmented
+5Z/6Z CBS limits.  The ANL0-F12 extension keeps the ANL0 geometry, harmonic,
+and higher-order terms; ANL1-F12 keeps the ANL1 terms.  Every CBS term uses
+the 3.7 power above.
+
+The published anharmonic term is B3LYP/cc-pVTZ.  Automatic production for
+all four ANL heads defaults to B2PLYP-D3(BJ)/cc-pVTZ and records that choice
+in the recipe label.  A harmonic-only fallback is also labeled explicitly.
+`SCALE_TRIP=1` is pinned for Molpro F12b calculations and is likewise
+included in the profiled recipe label.
+
+Closed shells use an RHF determinant and open shells use a semicanonical
+ROHF determinant.  All post-HF coupled-cluster correlation is unrestricted:
+RHF-UCC for closed shells and ROHF-UCC for open shells.  Direct MRCC
+CCSDT(Q) and CCSDTQ(P) parsing selects the native `/B` perturbative variant.
+The ordinary coupled-cluster terms are frozen core; the all-electron side of
+`delta_CV` and both sides of `delta_REL` are explicit exceptions.  Exact
+one-electron and two-electron rank reductions are applied before submission.
 
 ANL1-only components remain excluded from an ANL0 result. A fallback result
 keeps the actual recipe label; it is never renamed to the requested ladder
@@ -158,11 +219,19 @@ leaves are CBH-0 ATcT references. Each reaction node may select its own
 highest complete method tier, which implements ANL laddering without forcing
 a large target and all smaller references onto one method.
 
-The default method order is:
+The per-state method orders are:
 
 ```text
-ANL1-F12 -> ANL1 -> ANL0-F12 -> ANL0 -> configured L3 -> L2
+ANL1-F12 -> ANL1 -> configured L3 -> L3 single point on L2 -> L2
+ANL1     -> configured L3 -> L3 single point on L2 -> L2
+ANL0-F12 -> ANL0 -> configured L3 -> L3 single point on L2 -> L2
+ANL0     -> configured L3 -> L3 single point on L2 -> L2
 ```
+
+ANL1 does not silently fall through to ANL0 within one state because their
+optimized geometries, harmonic terms, and higher-order increments differ.
+The CBH size policy may assign different requested recipe heads to different
+states, and different CBH nodes may therefore use different exact levels.
 
 A node uses one exact common method for every energy in that reaction. Missing
 or inconsistent data move that node to the next tier or stop the solve.
@@ -260,6 +329,32 @@ numeric surface data, number-of-states output, and hashes tying outputs to
 the generated input. Reduced interface smoke data cannot satisfy the
 production gate.
 
+The sampling basis may be one basis or an adjacent two-basis list.  A list is
+extrapolated point by point with the same inverse-power expression used by the
+ANL recipes; `vrc_tst_sample_extrapolation_power` defaults to 3.7.  Thus a
+high-accuracy input can request, for example,
+
+```json
+"vrc_tst_sample_method": "caspt2-f12b(9,7)",
+"vrc_tst_sample_basis": ["avtz-f12", "avqz-f12"]
+```
+
+Spin splitting is state neutral.  `target_multiplicity`,
+`reference_multiplicity`, and the two `fragment_multiplicities` are checked
+against angular-momentum coupling before any task is submitted.  This covers
+singlet/triplet surfaces from two doublets and doublet/quartet surfaces from a
+doublet plus a triplet.  CASPT2 and MRCI active electron/orbital counts are
+user inputs and are validated for electron parity at every requested spin.
+Unqualified F12 multireference methods select variant B; MRCI+Q selects the
+relaxed-reference Davidson energy (`ENERGD`).
+
+Automatic ANL calculations use `anl_scf_convergence=1e-10` and
+`anl_cc_convergence=1e-8` by default.  The values are translated into native
+Gaussian, Molpro, CFOUR, and MRCC controls.  VRC calculations independently
+use `vrc_tst_scf_convergence=1e-10` and
+`vrc_tst_correlation_convergence=1e-8`, allowing expert inputs to change VRC
+thresholds without weakening the thermochemistry graph.
+
 ROTD_py owns and records every submitted sample job. Resume logic counts
 completed samples, avoids duplicate submissions, stops orphan controllers,
 and never resubmits after every surface has converged.
@@ -311,22 +406,17 @@ comparisons.
 
 ## Supported production boundary
 
-The ordinary KinBot input now drives the whole ANL0 or ANL0-F12 path.  It
+The ordinary KinBot input drives ANL0, ANL0-F12, ANL1, or ANL1-F12. It
 freezes the accepted reaction network, generates every CBH reference graph,
 runs missing reference conformer/L2/frequency/hindered-rotor work, schedules
 the size-selected composite DAGs, selects the best complete common tier at
 each reaction node, solves 0 and 298.15 K formation enthalpies, applies the
 handoff, and runs MESSPF/ROTD_py/MESS when requested.
 
-The automatic tier order is:
-
-```text
-ANL0-F12 -> ANL0 -> L3//L3 -> L3 single point on L2 -> L2
-```
-
-ANL1 and ANL1-F12 are separate higher-cost presets and are outside this
-ANL0 production preset.  Existing targeted ANL1 backend probes remain
-available without being mislabeled as complete production recipes.
+The exact per-state tier orders are listed in the formation-enthalpy section
+above.  Size-infeasible states fall to L3 or L2 under the current three-band
+size policy.  A future independent ANL1-to-ANL0 size boundary would require a
+new user-visible policy key; it must not be inferred by relabeling ANL1 work.
 
 The graph generator covers CBH-0 through CBH-3 for covalent SMILES carrying
 formal charges and atom-local radical electrons.  External CBH references are

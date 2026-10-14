@@ -6,12 +6,18 @@ the legacy global ``qc`` setting keeps its meaning for existing inputs.
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+import math
+from numbers import Real
 from typing import Any, Mapping
 
 
-ANL_AUTOMATIC_METHODS = frozenset(('ANL0', 'ANL0-F12'))
+ANL_AUTOMATIC_METHODS = frozenset(
+    ('ANL0', 'ANL0-F12', 'ANL1', 'ANL1-F12'))
 
 DEFAULT_ANL_SIZE_POLICY = {
+    # ``full_anl0_f12`` is retained as the serialized spelling used by
+    # existing calculations.  It is the ceiling for the *requested* complete
+    # recipe and is not restricted to ANL0-F12.
     'full_anl0_f12': {
         'max_atoms': 16, 'max_heavy_atoms': 4, 'max_heavy_bonds': 4},
     'l3_geometry': {
@@ -19,6 +25,32 @@ DEFAULT_ANL_SIZE_POLICY = {
     'l3_single_point': {
         'max_atoms': 50, 'max_heavy_atoms': 12, 'max_heavy_bonds': 12},
 }
+
+
+def convergence_exponent(value, label='convergence threshold'):
+    """Return ``n`` for an exact decimal threshold ``10**-n``.
+
+    Gaussian, CFOUR, and MRCC expose their portable convergence controls as
+    decimal exponents.  Requiring the public value to be an exact power of
+    ten prevents the input from promising a precision that one backend would
+    silently round.
+    """
+    if (isinstance(value, bool) or not isinstance(value, Real)
+            or not math.isfinite(float(value)) or not 0. < float(value) < 1.):
+        raise ValueError(f'{label} must be a finite number between 0 and 1.')
+    exponent = int(round(-math.log10(float(value))))
+    if exponent < 2 or exponent > 14 \
+            or not math.isclose(float(value), 10. ** -exponent,
+                                rel_tol=1.e-12, abs_tol=0.):
+        raise ValueError(
+            f'{label} must be an exact power of ten from 1e-2 to 1e-14.')
+    return exponent
+
+
+def fortran_threshold(value, label='convergence threshold'):
+    """Return a Molpro-compatible spelling after validating ``value``."""
+    exponent = convergence_exponent(value, label)
+    return f'1.d-{exponent}'
 
 
 def automatic_cbh_anl_requested(parameters):
@@ -148,8 +180,12 @@ THEORY_PRESETS = {
 }
 
 _COMPOSITE_DEFAULT_PRESET = {
-    'ANL0': 'uma-b3lyp-anl-low',
-    'ANL0-F12': 'uma-b3lyp-anl-low',
+    # Automatic production uses the higher B2PLYP-D3(BJ) L2 surface for
+    # every ANL head. The published B3LYP/cc-pVTZ anharmonic correction
+    # remains selectable through the explicit low preset and is recorded in
+    # the recipe provenance.
+    'ANL0': 'uma-b2plyp-anl',
+    'ANL0-F12': 'uma-b2plyp-anl',
     'ANL1': 'uma-b2plyp-anl',
     # ANL1-F12 is a ladder request used by the CBH workflow. Its exact
     # electronic expression remains a separately provenance-labelled recipe;
@@ -250,6 +286,15 @@ def resolve_profiles(par):
         values = _merge(values, override)
         values['calculator'] = _ALIASES.get(values['calculator'].lower(),
                                             values['calculator'].lower())
+        if (level == 'l2' and par.get('composite_method')
+                and values['calculator'] == 'gaussian'):
+            exponent = convergence_exponent(
+                par.get('anl_scf_convergence', 1.e-10),
+                'anl_scf_convergence')
+            values['calculator_kwargs'] = {
+                **values.get('calculator_kwargs', {}),
+                'scf': f'(xqc,conver={exponent})',
+            }
         if values['calculator'] == 'fairchem':
             # Explicit profile > legacy/global option > portable preset.
             # Keeping this precedence preserves existing site-local inputs

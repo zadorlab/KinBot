@@ -302,13 +302,13 @@ def test_automatic_anl0_and_f12_graphs_have_distinct_reference_fallbacks():
     conventional = automatic_composite_spec(mol, highest_tier='ANL0')
     f12_tasks = {task['id']: task for task in f12['tasks']}
     conventional_ids = {task['id'] for task in conventional['tasks']}
-    assert {'f12_tz', 'f12_qz', 'anl0_qz', 'anl0_5z'} <= set(f12_tasks)
+    assert {'f12_qz', 'f12_5z', 'anl1_5z', 'anl1_6z'} <= set(f12_tasks)
+    assert {'f12_tz', 'anl0_qz', 'anl0_5z'}.isdisjoint(f12_tasks)
     assert {'anl0_qz', 'anl0_5z'} <= conventional_ids
     assert not {'f12_tz', 'f12_qz'} & conventional_ids
-    assert f12_tasks['anl0_qz']['failure_skips'] == ['anl0_5z']
-    assert f12_tasks['anl0_5z']['failure_skips'] == ['anl0_qz']
-    assert 'basis=aug-cc-pVQZ,h=cc-pVQZ' in \
-        f12_tasks['anl0_qz']['input_template']
+    assert f12_tasks['anl1_5z']['failure_skips'] == ['anl1_6z']
+    assert f12_tasks['anl1_6z']['failure_skips'] == ['anl1_5z']
+    assert 'basis=aug-cc-pV5Z' in f12_tasks['anl1_5z']['input_template']
 
 
 def test_automatic_environment_checks_final_solvers_before_qc(
@@ -407,7 +407,7 @@ def test_cbh0_is_an_active_automatic_request(monkeypatch):
         'cbh_rung': 0, 'composite_method': 'ANL0-F12',
         'anl_handoff_manifest': '',
         'thermochemistry_model_output': 'reference-model.json'})
-    assert not automatic_requested({
+    assert automatic_requested({
         'cbh_rung': 0, 'composite_method': 'ANL1-F12',
         'anl_handoff_manifest': ''})
     monkeypatch.setattr('kinbot.anl.automatic.shutil.which', lambda value: None)

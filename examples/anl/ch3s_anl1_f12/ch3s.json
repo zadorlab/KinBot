@@ -1,0 +1,58 @@
+{
+  "title": "ch3s_anl1_f12",
+  "smiles": "[CH3][S]",
+  "charge": 0,
+  "mult": 2,
+  "barrier_threshold": 1000.0,
+  "conformer_search": 1,
+  "high_level": 1,
+  "rotor_scan": 1,
+  "theory_preset": "uma-b2plyp-anl",
+  "composite_method": "ANL1-F12",
+  "vrc_tst_scan_method": "caspt2-f12b(13,8)",
+  "vrc_tst_scan_basis": "avtz-f12",
+  "vrc_tst_scan_gradient": "numerical",
+  "vrc_tst_sample_method": "caspt2-f12b(13,8)",
+  "vrc_tst_sample_basis": ["avtz-f12", "avqz-f12"],
+  "vrc_tst_correction_model": "spin_splitting",
+  "vrc_tst_spin_splitting": {
+    "target_multiplicity": 2,
+    "reference_multiplicity": 4,
+    "fragment_multiplicities": [2, 3],
+    "reference": {
+      "method": "uccsd(t)-f12b",
+      "basis": ["vqz-f12", "v5z-f12"],
+      "extrapolation_power": 3.7
+    },
+    "gap_levels": [
+      {
+        "label": "caspt2_f12",
+        "method": "caspt2-f12b(13,8)",
+        "basis": ["vqz-f12", "v5z-f12"],
+        "extrapolation_power": 3.7,
+        "shift": 0.3,
+        "ipea": 0.25
+      },
+      {
+        "label": "mrci_f12_q",
+        "method": "mrci-f12b+q(13,8)",
+        "basis": ["vqz-f12", "v5z-f12"],
+        "extrapolation_power": 3.7
+      }
+    ]
+  },
+  "rotdpy_run": 1,
+  "rotdpy_validation_profile": "production",
+  "rotdpy_mess_mode": "production",
+  "run_messpf": 1,
+  "me": 1,
+  "run_me": 1,
+  "collider": "He",
+  "epsilon": 300.0,
+  "epsilon_unit": "K",
+  "sigma": 4.5,
+  "queuing": "slurm",
+  "queue_name": "day-long-cpu",
+  "ppn": 8,
+  "queue_job_limit": 8
+}

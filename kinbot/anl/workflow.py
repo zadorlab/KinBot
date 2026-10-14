@@ -82,6 +82,9 @@ def task_component(run_dir, task_id, *, key, state_id):
                             driver=parsed['driver'], program=parsed['program'])
         if method == 'CCSD(T)-F12b':
             settings['scale_trip'] = 1
+        if (settings.get('reference') in ('RHF', 'ROHF')
+                and settings.get('correlation') == 'unrestricted'):
+            settings['reference_convention'] = 'RHF/ROHF-UCC'
     elif kind == 'molpro_harmonic':
         quantity = 'zpe'
         value = parsed['zpe']['hartree']
@@ -98,6 +101,9 @@ def task_component(run_dir, task_id, *, key, state_id):
             settings['rank_exact'] = parsed['rank_exact']
         if 'correlation' in parsed:
             settings['correlation'] = parsed['correlation']
+        if (settings.get('reference') in ('RHF', 'ROHF')
+                and settings.get('correlation') == 'unrestricted'):
+            settings['reference_convention'] = 'RHF/ROHF-UCC'
     elif kind == 'gaussian_vpt2':
         if parsed['optimized_in_job']:
             raise IncompleteRecipeError(

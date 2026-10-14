@@ -105,9 +105,13 @@ def test_legacy_interface_audit_is_readable_but_recipe_incompatible(monkeypatch)
             parser.pop('reference', None)
             task['input_template'] = (task['input_template']
                                       .replace('rhf\n', 'hf\n')
-                                      .replace('uccsd(t)', 'ccsd(t)')
-                                      .replace('uccsd(t)-f12b',
-                                               'ccsd(t)-f12'))
+                                      .replace(
+                                          '{uccsd(t);thresh,energy=1.d-8,'
+                                          'coeff=1.d-8}', 'ccsd(t)')
+                                      .replace(
+                                          '{uccsd(t)-f12b,scale_trip=1;'
+                                          'thresh,energy=1.d-8,coeff=1.d-8}',
+                                          'ccsd(t)-f12,scale_trip=1'))
     state = {'tasks': {task['id']: {'status': 'complete'}
                        for task in spec['tasks']}}
     parsed = {
@@ -161,7 +165,7 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     radical['multiplicity'] = 2
     opened = higher_order_validation_spec(radical)
     open_tasks = {task['id']: task for task in opened['tasks']}
-    assert '\nuccsd(t)\n' in \
+    assert '\n{uccsd(t);thresh,energy=1.d-8,coeff=1.d-8}\n' in \
         open_tasks['ccsdt_tz']['input_template'].lower()
     assert 'uhf_uccsd' not in open_tasks['ccsdt_tz']['input_template'].lower()
     for ident in ('ccsdtq_tz', 'ccsdtq_dz', 'ccsdtqp_dz'):
@@ -200,7 +204,8 @@ def test_common_corrections_graph_pins_core_and_relativistic_differences():
                           'rel_dkh', 'rel_nonrel'}
     for ident in ('cv_ae_tz', 'cv_ae_qz', 'rel_dkh', 'rel_nonrel'):
         assert tasks[ident]['result_parser']['core'] == 'all-electron'
-        assert ';core}' in tasks[ident]['input_template'].lower()
+        assert ';core;thresh,energy=1.d-8,coeff=1.d-8}' in \
+            tasks[ident]['input_template'].lower()
     for ident in ('cv_fc_tz', 'cv_fc_qz'):
         assert tasks[ident]['result_parser']['core'] == 'frozen'
         assert ';core}' not in tasks[ident]['input_template'].lower()
@@ -313,6 +318,38 @@ def test_automatic_post_l2_graph_never_repeats_l2_and_prunes_by_tier():
     for task in resolved['tasks']:
         task['resources'].update(
             cores=1, memory_mb=64000, partition='test')
+    validate_spec(resolved)
+
+
+def test_automatic_anl1_f12_graph_reuses_qz_without_anl0_duplicates():
+    molecule = deepcopy(_molecule())
+    molecule['source'] = {
+        'geometry_sha256': _geometry_hash(Atoms(
+            molecule['symbols'], positions=molecule['positions'])),
+        'record_sha256': '2' * 64,
+        'energy_hartree': -40.0,
+        'l2_theory': {
+            'calculator': 'gaussian', 'method': 'B2PLYP',
+            'basis': 'cc-pVTZ', 'dispersion': 'GD3BJ',
+        },
+    }
+    spec = automatic_composite_spec(
+        molecule, highest_tier='ANL1-F12', max_nodes=8,
+        partition='day-long-cpu')
+    tasks = {task['id']: task for task in spec['tasks']}
+    assert {'l3_geometry_tz', 'l3_geometry', 'harmonic_tz', 'harmonic_qz',
+            'anl1_5z', 'anl1_6z', 'f12_qz', 'f12_5z'} <= set(tasks)
+    assert 'f12_tz' not in tasks
+    assert {'anl0_qz', 'anl0_5z'}.isdisjoint(tasks)
+    assert sum(task['id'] == 'f12_qz' for task in spec['tasks']) == 1
+    assert tasks['f12_5z']['result_parser']['method'] == 'CCSD(T)-F12b'
+    assert 'uccsd(t)-f12b,scale_trip=1' in \
+        tasks['f12_5z']['input_template'].lower()
+    assert spec['intent']['fallback_ladder'][0:2] == ['ANL1-F12', 'ANL1']
+    resolved = deepcopy(spec)
+    for task in resolved['tasks']:
+        task['resources'].update(
+            cores=4, memory_mb=64000, partition='test')
     validate_spec(resolved)
 
 
@@ -659,7 +696,7 @@ def test_completed_run_geometry_export_is_hash_verified():
 
 
 @pytest.mark.parametrize('recipe_name,assembler,reference_tasks', [
-    ('ANL0-F12', assemble_profiled_anl0_f12, ('f12_tz', 'f12_qz')),
+    ('ANL0-F12', assemble_profiled_anl0_f12, None),
     ('ANL0', assemble_profiled_anl0, ('anl0_qz', 'anl0_5z')),
 ])
 def test_profiled_anl0_assemblers_use_all_required_components(
@@ -710,6 +747,10 @@ def test_profiled_anl0_assemblers_use_all_required_components(
         return components['reference_cbs']
 
     monkeypatch.setattr(validation_module, 'cbs_task_component', cbs)
+    if recipe_name == 'ANL0-F12':
+        monkeypatch.setattr(
+            validation_module, '_dual_f12_reference_component',
+            lambda *args, **kwargs: components['reference_cbs'])
     monkeypatch.setattr(
         validation_module, 'task_component',
         lambda run_dir, task_id, *, key, state_id: components[key])
@@ -727,7 +768,8 @@ def test_profiled_anl0_assemblers_use_all_required_components(
     assert result['recipe'].startswith(
         'profiled:' + recipe_name + ':' if recipe_name == 'ANL0-F12'
         else 'profiled:ANL0:')
-    assert observed_reference_tasks == [reference_tasks]
+    assert observed_reference_tasks == ([] if reference_tasks is None
+                                        else [reference_tasks])
     assert set(result['components']) == {
         item.key for item in equation.requirements}
     expected_electronic = sum(

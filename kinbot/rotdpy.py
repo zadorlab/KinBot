@@ -397,13 +397,21 @@ def _valid_trusted_correction(level):
     """Accept direct levels and the explicit spin-splitting provenance."""
     if _valid_vrc_level(level):
         return True
-    if (not isinstance(level, dict)
-            or level.get('model') != 'spin_splitting'
-            or not _valid_vrc_level(level.get('triplet_reference'))):
+    if not isinstance(level, dict) or level.get('model') != 'spin_splitting':
         return False
-    gaps = level.get('singlet_triplet_gaps')
+    reference = level.get('reference', level.get('triplet_reference'))
+    if not _valid_vrc_level(reference):
+        return False
+    target_mult = level.get('target_multiplicity', 1)
+    reference_mult = level.get('reference_multiplicity', 3)
+    if (isinstance(target_mult, bool) or not isinstance(target_mult, int)
+            or target_mult < 1 or isinstance(reference_mult, bool)
+            or not isinstance(reference_mult, int) or reference_mult < 1
+            or target_mult == reference_mult):
+        return False
+    gaps = level.get('spin_gaps', level.get('singlet_triplet_gaps'))
     labels = []
-    if not isinstance(gaps, list) or len(gaps) != 2:
+    if not isinstance(gaps, list) or not gaps:
         return False
     for gap in gaps:
         if (not _valid_vrc_level(gap)
@@ -412,7 +420,7 @@ def _valid_trusted_correction(level):
             return False
         labels.append(gap['label'])
     weighting = level.get('weighting')
-    return (len(set(labels)) == 2 and isinstance(weighting, dict)
+    return (len(set(labels)) == len(labels) and isinstance(weighting, dict)
             and weighting.get('model') in ('distance_switch',
                                             'arithmetic_mean'))
 

@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 from kinbot import kb_path
+from kinbot.theory import fortran_threshold
 from kinbot import constants
 import math
 
@@ -251,9 +252,17 @@ class Molpro:
                                        occ=occ
                                        ))
         elif VTS:
+            scf_threshold = fortran_threshold(
+                self.par.get('vrc_tst_scf_convergence', 1.e-10),
+                'vrc_tst_scf_convergence')
+            correlation_threshold = fortran_threshold(
+                self.par.get('vrc_tst_correlation_convergence', 1.e-8),
+                'vrc_tst_correlation_convergence')
             options = 'memory,3200,M\n' \
                       'GPRINT,ORBITALS,ORBEN,CIVECTOR\n' \
-                      'GTHRESH,energy=1.d-7\n' \
+                      f'GTHRESH,energy={scf_threshold},' \
+                      f'coeff={correlation_threshold},' \
+                      f'civec={correlation_threshold}\n' \
                       'angstrom\n' \
                       'orient,noorient\n' \
                       'nosym'

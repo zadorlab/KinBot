@@ -79,17 +79,17 @@ class TestTheoryProfiles(unittest.TestCase):
             self.assertEqual(backend.queue_job_root, str(Path.cwd()))
             self.assertFalse(backend.queue_job_root_recursive)
 
-    def test_lower_and_higher_anl_tiers_select_matching_l2_surfaces(self):
-        lower = self.parameters(composite_method='ANL0-F12',
-                                fc_model_path='/site/uma.pt')
-        self.assertEqual(lower.theory_profiles['l2'].method, 'B3LYP')
-        self.assertNotIn('EmpiricalDispersion',
-                         lower.theory_profiles['l2'].calculator_kwargs)
-        higher = self.parameters(composite_method='ANL1',
-                                 fc_model_path='/site/uma.pt')
-        self.assertEqual(higher.theory_profiles['l2'].method, 'B2PLYP')
-        self.assertEqual(higher.theory_profiles['l2'].calculator_kwargs[
-            'EmpiricalDispersion'], 'GD3BJ')
+    def test_every_anl_tier_defaults_to_b2plyp_d3bj_l2(self):
+        for method in ('ANL0', 'ANL0-F12', 'ANL1', 'ANL1-F12'):
+            parameters = self.parameters(
+                composite_method=method, fc_model_path='/site/uma.pt')
+            self.assertEqual(parameters.theory_profiles['l2'].method,
+                             'B2PLYP')
+            self.assertEqual(parameters.theory_profiles['l2'].basis,
+                             'cc-pVTZ')
+            self.assertEqual(
+                parameters.theory_profiles['l2'].calculator_kwargs[
+                    'EmpiricalDispersion'], 'GD3BJ')
 
     def test_explicit_profiles_override_preset_without_mutating_it(self):
         parameters = self.parameters(
@@ -132,7 +132,7 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual(parameters.theory_profiles['l1'].calculator, 'fairchem')
         self.assertEqual(parameters.theory_profiles['l1'].model_path,
                          '/site/uma.pt')
-        self.assertEqual(parameters.theory_profiles['l2'].method, 'B3LYP')
+        self.assertEqual(parameters.theory_profiles['l2'].method, 'B2PLYP')
 
     def test_invalid_profile_and_preset_fail_during_input_parsing(self):
         with self.assertRaisesRegex(ValueError, 'Unknown theory_preset'):

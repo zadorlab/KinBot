@@ -183,6 +183,17 @@ def test_direct_mrcc_selects_b_from_native_rohf_perturbative_pair():
     assert result['program_variant'] == 'ROHF-UCCSDT(Q)/B'
 
 
+def test_direct_mrcc_anl1_tz_output_uses_same_strict_rohf_parser():
+    basis = 'cc-pVTZ'
+    output = _MRCC_METHYL_CCSDTQ.replace('basis=cc-pVDZ', f'basis={basis}')
+    result = parse_mrcc_energy(
+        output, method='CCSDT(Q)', basis=basis, reference='ROHF',
+        correlation='unrestricted', core='frozen', program='mrcc')
+    assert result['basis'] == basis
+    assert result['selected_perturbative_variant'] == 'B'
+    assert result['program_variant'] == 'ROHF-UCCSDT(Q)/B'
+
+
 def test_direct_mrcc_requires_complete_unambiguous_variant_pair():
     with pytest.raises(ValueError, match=r'lacks perturbative variant.*B'):
         parse_mrcc_energy(
@@ -450,12 +461,41 @@ def test_molpro_f12b_selects_exact_total_energy():
                             basis='cc-pVQZ-F12')
 
 
-def test_molpro_conventional_anl0_accepts_explicit_aug_prime_basis():
-    basis = 'aug-cc-pVQZ,h=cc-pVQZ'
+def test_molpro_conventional_anl0_accepts_full_augmented_basis():
+    basis = 'aug-cc-pVQZ'
     output = _MOLPRO_OPEN_CCSD_T.replace('basis=cc-pVDZ', f'basis={basis}')
     result = parse_molpro_energy(
         output, method='CCSD(T)', basis=basis, reference='ROHF')
     assert result['basis'] == basis
+    assert result['program_variant'] == 'RHF-UCCSD(T)'
+
+
+@pytest.mark.parametrize('basis', [
+    'aug-cc-pV5Z',
+    'aug-cc-pV6Z',
+])
+def test_molpro_conventional_anl1_basis_outputs_use_strict_parser(basis):
+    output = _MOLPRO_OPEN_CCSD_T.replace('basis=cc-pVDZ', f'basis={basis}')
+    result = parse_molpro_energy(
+        output, method='CCSD(T)', basis=basis, reference='ROHF')
+    assert result['basis'] == basis
+    assert result['program_variant'] == 'RHF-UCCSD(T)'
+
+
+def test_molpro_anl1_f12_5z_output_uses_strict_f12b_parser():
+    basis = 'cc-pV5Z-F12'
+    output = _MOLPRO_F12.replace('cc-pVTZ-F12', basis)
+    result = parse_molpro_energy(
+        output, method='CCSD(T)-F12b', basis=basis, reference='ROHF')
+    assert result['basis'] == basis
+    assert result['program_variant'] == 'RHF-UCCSD(T)-F12b'
+
+
+def test_molpro_anl1_qz_harmonic_output_uses_strict_harmonic_parser():
+    output = _MOLPRO_HARMONIC.replace('basis=cc-pVTZ', 'basis=cc-pVQZ')
+    result = parse_molpro_harmonic(
+        output, basis='cc-pVQZ', reference='RHF')
+    assert result['basis'] == 'cc-pVQZ'
     assert result['program_variant'] == 'RHF-UCCSD(T)'
 
 

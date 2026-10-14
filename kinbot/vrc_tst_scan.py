@@ -23,8 +23,10 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
 from kinbot.molpro import Molpro, vrc_multireference_energy_contract
 from kinbot.vrc_correction import (
-    assemble_spin_splitting_reference, correction_components,
-    correction_model, expected_levels, spin_splitting_settings,
+    assemble_sampling_reference, assemble_spin_splitting_reference,
+    correction_components,
+    correction_model, coupled_multiplicities, expected_levels,
+    sampling_settings, spin_splitting_settings,
 )
 from kinbot.utils import create_matplotlib_graph, NpEncoder
 from kinbot import constants
@@ -584,7 +586,18 @@ class VTS:
                 'calculator': 'molpro', 'method': method, 'basis': basis,
                 'command': 'molpro', 'optimizer': 'sella',
                 'frequency_mode': 'ase_forces',
-                'calculator_kwargs': {'caspt2_shift': 0.3},
+                'calculator_kwargs': {
+                    'caspt2_shift': self.par.get(
+                        'vrc_tst_scan_shift', 0.3),
+                    'caspt2_ipea': self.par.get(
+                        'vrc_tst_scan_ipea', 0.25),
+                    'gradient_mode': self.par.get(
+                        'vrc_tst_scan_gradient', 'auto'),
+                    'scf_convergence': self.par.get(
+                        'vrc_tst_scf_convergence', 1.e-10),
+                    'correlation_convergence': self.par.get(
+                        'vrc_tst_correlation_convergence', 1.e-8),
+                },
                 'label': f'RS2-{method.upper()}/{basis}',
             },
             'optimizer': {
@@ -601,8 +614,7 @@ class VTS:
             },
         }
         fingerprint = hashlib.sha256(json.dumps({
-            'molecule': molecule, 'method': method, 'basis': basis,
-            'constraints': constraints, 'optimizer': task['optimizer'],
+            'molecule': molecule, 'task': task,
         }, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         safe_name = re.sub(r'[^A-Za-z0-9_.-]', '_', logical_name)
         run_dir = (Path('vrctst/molpro_scan').resolve() /
@@ -800,10 +812,26 @@ class VTS:
                 fragment_mults = [int(product.mult)
                                   for product in reaction.products]
                 parent_mult = int(reaction.species.mult)
-                if fragment_mults != [2, 2] or parent_mult != 1:
+                if len(fragment_mults) != 2:
                     raise ValueError(
-                        'The spin-splitting VRC correction requires a '
-                        'singlet association of two doublet fragments.')
+                        'The spin-splitting VRC correction requires exactly '
+                        'two separated fragments.')
+                settings = spin_splitting_settings(self.par)
+                declared = settings.get('fragment_multiplicities')
+                if declared is not None and fragment_mults != declared:
+                    raise ValueError(
+                        'The spin-splitting fragment multiplicities differ '
+                        'from the accepted reaction products.')
+                allowed = coupled_multiplicities(*fragment_mults)
+                if parent_mult != settings['target_multiplicity']:
+                    raise ValueError(
+                        'The spin-splitting target multiplicity differs from '
+                        'the associated molecular state.')
+                if (parent_mult not in allowed
+                        or settings['reference_multiplicity'] not in allowed):
+                    raise ValueError(
+                        'The requested target/reference spin surfaces are '
+                        'not allowed by the fragment multiplicities.')
             records[reac] = []
             ndist = 1 if noscan else len(self.par['vrc_tst_scan_points']) + 1
             for step in range(ndist):
@@ -831,7 +859,7 @@ class VTS:
                     molp = Molpro(scan_spec, self.par)
                     molp.create_molpro_input(
                         name=job, VTS=True,
-                        sample=component['role'] == 'sampling',
+                        sample=component['role'].startswith('sampling'),
                         vrc_level=component)
                     if self._vrc_output_matches_input(job):
                         e_stat, e = molp.get_molpro_energy(
@@ -878,7 +906,8 @@ class VTS:
 
             dist = ([30] if noscan
                     else self.par['vrc_tst_scan_points'] + [30])
-            e_samp = energies['sampling']
+            e_samp, sampling_cbs = assemble_sampling_reference(
+                dist, energies, sampling_settings(self.par))
             spin_splitting = None
             if model == 'direct':
                 e_high = energies['trusted']
@@ -959,6 +988,8 @@ class VTS:
                 }
             if spin_splitting is not None:
                 corr['spin_splitting'] = spin_splitting
+            if sampling_cbs is not None:
+                corr['sampling_cbs'] = sampling_cbs
 
             with open(f'vrctst/corr_{reac}.json', 'w',
                       encoding='utf-8') as f:

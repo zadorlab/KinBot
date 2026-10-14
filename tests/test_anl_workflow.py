@@ -12,7 +12,8 @@ from ase.units import Hartree, invcm, kJ, mol
 
 from kinbot.anl.dispatch import _geometry_hash, advance, prepare
 from kinbot.anl.extrapolation import core_valence_correction
-from kinbot.anl.model import ComponentResult, IncompleteRecipeError
+from kinbot.anl.model import (ComponentRequirement, ComponentResult,
+                              IncompleteRecipeError)
 from kinbot.anl.recipes import recipe
 from kinbot.anl.results import parse_result
 from kinbot.anl.workflow import (_cbs_components,
@@ -28,6 +29,7 @@ from tests.anl_fixture import dispatch_spec, molpro_task
 
 
 _F12 = """basis=cc-pVTZ-F12
+rhf
 uccsd(t)-f12b,scale_trip=1
  Starting UCCSD calculation
  UCCSD-F12b correlation energy -0.288234238676
@@ -40,6 +42,7 @@ uccsd(t)-f12b,scale_trip=1
 """
 
 _F12_QZ = """basis=cc-pVQZ-F12
+rhf
 uccsd(t)-f12b,scale_trip=1
  Starting UCCSD calculation
  UCCSD-F12b correlation energy -0.290012345678
@@ -214,6 +217,7 @@ def _completed_f12(root):
                     if task['id'] == 'l3_geometry')
     geometry['geometry_from'] = 'initial'
     task = next(task for task in spec['tasks'] if task['id'] == 'f12_tz')
+    task['result_parser']['reference'] = 'RHF'
     spec['tasks'] = [geometry, task]
     spec_file = root / 'spec.json'
     spec_file.write_text(json.dumps(spec))
@@ -231,6 +235,8 @@ def _completed_f12_pair(root, *, split_geometry=False):
     geometry['geometry_from'] = 'initial'
     tasks = [task for task in spec['tasks']
              if task['id'] in ('f12_tz', 'f12_qz')]
+    for task in tasks:
+        task['result_parser']['reference'] = 'RHF'
     optimizations = [geometry]
     if split_geometry:
         other = deepcopy(geometry)
@@ -409,7 +415,8 @@ def _completed_zpe_pair(root, *, kind):
                 f'basis={basis}\nrhf\nuccsd(t)\n'
                 'frequencies,numerical\n',
                 geometry_from=opt['id'],
-                result_parser={'kind': 'molpro_harmonic', 'basis': basis})
+                result_parser={'kind': 'molpro_harmonic', 'basis': basis,
+                               'reference': 'RHF'})
         else:
             task = deepcopy(next(item for item in spec['tasks']
                                  if item['id'] == 'gaussian_vpt2'))
@@ -502,8 +509,19 @@ def test_old_unparsed_dispatch_result_cannot_enter_recipe():
 def test_verified_f12_task_pair_builds_recipe_cbs_component():
     with TemporaryDirectory() as temporary:
         run_dir = _completed_f12_pair(Path(temporary))
-        requirement = next(item for item in recipe('ANL0-F12').requirements
-                           if item.key == 'reference_cbs')
+        parent = next(item for item in recipe('ANL0-F12').requirements
+                      if item.key == 'reference_cbs')
+        requirement = ComponentRequirement(
+            'reference_cbs', 'electronic', 'CCSD(T)-F12b',
+            'CBS(cc-pVTZ-F12,cc-pVQZ-F12)', 'l3', ('composite',),
+            {'scale_trip': 1, 'correlation': 'unrestricted',
+             'reference': 'RHF',
+             'reference_convention': 'RHF/ROHF-UCC',
+             'upper_cardinal': 4,
+             'extrapolation_power':
+                 parent.settings['f12_extrapolation_power'],
+             'geometry_method': 'CCSD(T)',
+             'geometry_basis': 'cc-pVTZ'})
         kwargs = {'requirement': requirement, 'state_id': 'state-A',
                   'lower_basis': 'cc-pVTZ-F12',
                   'upper_basis': 'cc-pVQZ-F12'}
@@ -530,13 +548,23 @@ def test_verified_f12_task_pair_builds_recipe_cbs_component():
 
 
 def test_one_electron_f12_cbs_ignores_only_legacy_rank_recovery_metadata():
-    requirement = next(item for item in recipe('ANL0-F12').requirements
-                       if item.key == 'reference_cbs')
+    parent = next(item for item in recipe(
+        'ANL0-F12', multiplicity=2).requirements
+                  if item.key == 'reference_cbs')
+    requirement = ComponentRequirement(
+        'reference_cbs', 'electronic', 'CCSD(T)-F12b',
+        'CBS(cc-pVTZ-F12,cc-pVQZ-F12)', 'l3', ('composite',),
+        {'scale_trip': 1, 'correlation': 'unrestricted',
+         'reference': 'ROHF', 'reference_convention': 'RHF/ROHF-UCC',
+         'upper_cardinal': 4,
+         'extrapolation_power': parent.settings['f12_extrapolation_power'],
+         'geometry_method': 'CCSD(T)', 'geometry_basis': 'cc-pVTZ'})
     geometry = '1' * 64
     common = {
         'reference': 'ROHF',
         'program_variant': 'RHF-UCCSD(T)-F12b',
         'correlation': 'unrestricted',
+        'reference_convention': 'RHF/ROHF-UCC',
         'scale_trip': 1,
     }
 
@@ -585,13 +613,14 @@ def test_one_electron_f12_cbs_ignores_only_legacy_rank_recovery_metadata():
             geometry_sources=geometry_sources, electron_count=1)
 
 
-def test_conventional_anl0_cbs_pins_native_aug_prime_pair():
+def test_conventional_anl0_cbs_pins_native_full_augmented_pair():
     requirement = next(item for item in recipe('ANL0').requirements
                        if item.key == 'reference_cbs')
     lower_basis, upper_basis = requirement.settings['native_basis_pair']
     geometry = '5' * 64
     settings = {
         'reference': 'RHF', 'correlation': 'unrestricted',
+        'reference_convention': 'RHF/ROHF-UCC',
         'program_variant': 'RHF-UCCSD(T)',
     }
 
@@ -613,7 +642,7 @@ def test_conventional_anl0_cbs_pins_native_aug_prime_pair():
         requirement=requirement, lower_basis=lower_basis,
         upper_basis=upper_basis, geometry_sources=sources,
         electron_count=10)
-    assert result.basis == "CBS(a'QZ,a'5Z)//cc-pVTZ"
+    assert result.basis == 'CBS(aug-QZ,aug-5Z)//cc-pVTZ'
     assert result.settings['native_basis_pair'] == (
         lower_basis, upper_basis)
 

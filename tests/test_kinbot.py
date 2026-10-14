@@ -25,7 +25,6 @@ sys.path.insert(0,os.path.expanduser('~/ml-kinbot/code/kinbot'))
 
 import imp
 
-from thread_kinbot import *
 #try to import pybel to generate the structure from the smiles using OpenBabel
 try:
     import pybel

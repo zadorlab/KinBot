@@ -3,20 +3,6 @@
   "smiles": "CC=O",
   "charge": 0,
   "mult": 1,
-  "reaction_search": 1,
-  "families": [
-    "r12_insertion_R",
-    "h2_elim",
-    "hom_sci"
-  ],
-  "selected_reactions": {
-    "initial": {
-      "r12_insertion_R": [[6, 1, 0]],
-      "h2_elim": [[3, 0, 1, 6]],
-      "hom_sci": [[0, 1]]
-    }
-  },
-  "stop_product_reaction_search": 1,
   "barrier_threshold": 100.0,
   "conformer_search": 1,
   "high_level": 1,

@@ -39,7 +39,7 @@ reference reaction is introduced for the finite-temperature result.
 ## Intended user input
 
 The production interface should add only the following scientific choices to
-an ordinary KinBot PES input:
+an ordinary KinBot calculation input:
 
 ```json
 {
@@ -47,16 +47,6 @@ an ordinary KinBot PES input:
   "smiles": "CC=O",
   "charge": 0,
   "mult": 1,
-  "reaction_search": 1,
-  "families": ["r12_insertion_R", "h2_elim", "hom_sci"],
-  "selected_reactions": {
-    "initial": {
-      "r12_insertion_R": [[6, 1, 0]],
-      "h2_elim": [[3, 0, 1, 6]],
-      "hom_sci": [[0, 1]]
-    }
-  },
-  "stop_product_reaction_search": 1,
   "barrier_threshold": 100.0,
   "conformer_search": 1,
   "high_level": 1,
@@ -154,9 +144,10 @@ selected, preserving the original KinBot input path.  The separate default
 UB3LYP/6-31+G(d) fragment calculations only construct HOMO-oriented ROTD_py
 pivot points; they do not supply the relaxed scan geometries or energies.
 
-`selected_reactions` and `stop_product_reaction_search` are ordinary KinBot
-parameters.  The selector uses the atom order generated from
-the input SMILES and avoids a hard-coded connectivity ID.  Program paths,
+Reaction search, supported families, and individual atom motifs are not
+specified in this input. KinBot uses its ordinary defaults to enumerate all
+supported unimolecular families and motifs, then accepts channels through its
+normal optimization, IRC, connectivity, and barrier checks. Program paths,
 module names, memory per node, and executable locations remain site
 configuration rather than molecular input.
 
@@ -168,8 +159,8 @@ Species in different ladder reactions may use different ANL fallback tiers.
 The checked input is
 `examples/anl/acetaldehyde_cbh_anl0_f12/acetaldehyde.json`.
 
-`selected_reactions` limits this deliberately small validation PES to three
-published channels. It has no role in CBH balancing or rung selection.
+The automatic CBH and VRC planners consume the accepted reaction network;
+neither requires a user-selected family, atom motif, or CBH rung.
 
 ## Automatic feasibility and fallback policy
 

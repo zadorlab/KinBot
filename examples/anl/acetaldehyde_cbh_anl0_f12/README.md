@@ -6,9 +6,13 @@ CBH rung, applies size based electronic structure fallbacks, runs the accepted
 tight and barrierless channels, and hands the resulting thermochemistry and
 ROTD_py flux to MESS.
 
-The three atom motifs deliberately limit this validation to C-C homolysis,
-the adjacent-H molecular channel to methane plus CO, and H2 elimination to
-ketene. They scope the PES search and do not choose a CBH rung.
+Reaction discovery uses the ordinary KinBot defaults: reaction search is on,
+all supported unimolecular families are considered, and no family or atom
+motif is selected by the user. Optimization, IRC, connectivity, and barrier
+checks determine which discovered channels enter the network. The automatic
+VRC branch selects accepted homolytic channels from that completed network.
+The default `pes: 0` keeps this as a single-starting-well validation; recursive
+searches from newly formed wells are intentionally outside this small test.
 
 The input contains no executable path, module name, FairChem cache path, CBH
 rung, CBH reference list, or per-program resource table. KinBot checks explicit

@@ -331,6 +331,9 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual(restarted.l1.job_ids['conf/a'], '123')
         self.assertEqual(restarted.l2.job_ids['a_well_high'], '456')
         self.assertEqual(restarted.job_ids['a_well_high'], '456')
+        self.assertFalse(restarted.l1.job_generation_tagged['conf/a'])
+        self.assertFalse(
+            restarted.l2.job_generation_tagged['a_well_high'])
         restarted._clear_job_id('a_well_high')
         final = QuantumChemistry(parameters.par)
         self.assertNotIn('a_well_high', final.job_ids)

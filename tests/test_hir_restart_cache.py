@@ -67,6 +67,11 @@ class TestHIRRestartCache(unittest.TestCase):
                                 handle.write(' Translations and Rotations\n')
                         if suffix:
                             Path(job + suffix).write_text('new normal output\ndone\n')
+                        # Replacement workers publish the scheduler generation
+                        # with their atomic completion marker.  The controller
+                        # must not accept an unbound database row for a reused
+                        # constrained-path name.
+                        Path(job + '.exitcode').write_text('123 0\n')
                         self.assertEqual(self.qc.check_qc(job), 'normal')
                         np.testing.assert_allclose(self.qc.read_qc_hess(job, 2), np.eye(6) * 2)
                         self.assertEqual(self.qc.submit_qc(job, 2), 0)

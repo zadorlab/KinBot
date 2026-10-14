@@ -1,7 +1,7 @@
 import copy
 import json
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 import numpy as np
 from kinbot.parameters import Parameters
 from kinbot.reaction_finder import ReactionFinder
@@ -60,20 +60,29 @@ def test_vrc_scan_overrides_agree_before_qc_and_pes_export(tmp_path, monkeypatch
             settings = {base: [base + suffixes[0]]}
             if override is not None:
                 settings[exact] = override
-            par = dict(vrc_tst_scan={}, vrc_tst_noscan={})
+            par = dict(vrc_tst_scan={}, vrc_tst_noscan={},
+                       pp_orient='geometric')
             par[option] = settings
             for point in (p, mirror):
                 name = routing_name(point)
                 jobs = [name + suffix for suffix in suffixes]
-                point.reac_obj = [SimpleNamespace(instance_name=job) for job in jobs]
+                point.reac_obj = [SimpleNamespace(
+                    instance_name=job, scan_coo=[0, 1], products=[])
+                    for job in jobs]
                 expected = ([] if override == [] else [jobs[1]]) if (
                     name == exact and override is not None) else [jobs[0]]
                 qc = Mock()
                 scanner = VTS(point, par, qc)
-                for method in ('opt_products', 'save_products', 'find_scan_coos',
-                               'find_equiv', 'do_scan', 'energies'):
+                scanner.opt_products = Mock(side_effect=lambda reactions: (
+                    scanner.scan_reac.update({
+                        reaction.instance_name: reaction
+                        for reaction in point.reac_obj
+                        if reaction.instance_name in reactions})))
+                for method in ('save_products', 'find_scan_coos', 'find_equiv',
+                               'do_scan', 'energies'):
                     setattr(scanner, method, Mock())
-                scanner.calculate_correction_potentials()
+                with patch('kinbot.pes.create_rotdpy_inputs'):
+                    scanner.calculate_correction_potentials()
                 assert Path('vrctst/molpro').is_dir()
                 assert Path('perm/vrctst/molpro').is_dir()
                 if expected:

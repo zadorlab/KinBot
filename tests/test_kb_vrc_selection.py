@@ -1,8 +1,17 @@
 """VRC auto-selection uses public ReactionFinder identities."""
 
+import json
+from pathlib import Path
+import threading
 from types import SimpleNamespace
 
-from kinbot.kb import _accepted_homolytic_channels
+import pytest
+
+import kinbot.kb as kb
+import kinbot.anl.automatic as automatic
+from kinbot.kb import (_accepted_homolytic_channels,
+                       _check_initial_minimum_frequencies,
+                       _post_reaction_branches)
 
 
 def test_completed_hom_sci_with_internal_hs_label_is_selected():
@@ -31,3 +40,126 @@ def test_incomplete_or_nonbimolecular_scission_is_not_selected():
         reac_type=['hom_sci', 'hom_sci'])
 
     assert _accepted_homolytic_channels(species) == []
+
+
+def test_initial_frequency_check_supports_atoms_and_two_electron_diatomics():
+    assert _check_initial_minimum_frequencies([], 'H')
+    h2 = [-12.]
+    assert _check_initial_minimum_frequencies(h2, 'H2')
+    assert h2 == [12.]
+
+
+def test_initial_frequency_check_rejects_two_imaginary_modes():
+    modes = [-5., -2., 100.]
+    assert not _check_initial_minimum_frequencies(modes, 'test')
+    assert modes[0] == 5.
+
+
+def _branch_parameters(tmp_path):
+    return {
+        'queue_job_limit': 8,
+        'vrc_tst_max_nodes': 8,
+        'rotdpy_max_jobs': 8,
+        'vrc_tst_scan': {'root': ['root_hom_sci_1_2']},
+        'vrc_tst_noscan': {},
+        'anl_automatic_directory': str(tmp_path / 'anl_automatic'),
+    }
+
+
+def test_vrc_and_composite_branches_run_concurrently_with_disjoint_slots(
+        monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    barrier = threading.Barrier(2)
+    observed = {}
+
+    def prepare(well, parameters, directory):
+        observed['prepare_slots'] = parameters['queue_job_limit']
+        return {'schema': 1, 'status': 'planned'}
+
+    def run_vrc(well, parameters, qc):
+        observed['vrc_slots'] = (
+            parameters['vrc_tst_max_nodes'], parameters['rotdpy_max_jobs'])
+        barrier.wait(timeout=2)
+        return {'status': 'complete'}
+
+    def run_auto(well, parameters, input_file, directory, plan):
+        observed['auto_slots'] = parameters['queue_job_limit']
+        barrier.wait(timeout=2)
+        return {'status': 'complete', 'handoff_manifest': 'handoff.json',
+                'thermochemistry_models': 'models.json'}
+
+    monkeypatch.setattr(automatic, 'prepare_automatic_cbh_anl', prepare)
+    monkeypatch.setattr(kb, '_execute_vrc_branch', run_vrc)
+    monkeypatch.setattr(kb, '_execute_automatic_branch', run_auto)
+
+    result = _post_reaction_branches(
+        object(), _branch_parameters(tmp_path), object(), 'input.json', True)
+
+    assert result['status'] == 'complete'
+    assert observed == {
+        'prepare_slots': 4, 'vrc_slots': (4, 4), 'auto_slots': 4}
+    state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+    assert state['status'] == 'complete'
+    assert state['mess_gate'] == 'ready'
+    assert state['branches']['vrc_tst']['status'] == 'complete'
+    assert state['branches']['cbh_anl']['status'] == 'complete'
+
+
+def test_mess_gate_stays_blocked_until_both_independent_branches_succeed(
+        monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    completed = []
+    monkeypatch.setattr(
+        automatic, 'prepare_automatic_cbh_anl',
+        lambda *args, **kwargs: {'schema': 1, 'status': 'planned'})
+
+    def fail_vrc(*args):
+        raise RuntimeError('VRC failed')
+
+    def finish_auto(*args):
+        completed.append('cbh_anl')
+        return {'status': 'complete'}
+
+    monkeypatch.setattr(kb, '_execute_vrc_branch', fail_vrc)
+    monkeypatch.setattr(kb, '_execute_automatic_branch', finish_auto)
+
+    with pytest.raises(RuntimeError, match='MESS was not started'):
+        _post_reaction_branches(
+            object(), _branch_parameters(tmp_path), object(), 'input.json', True)
+
+    assert completed == ['cbh_anl']
+    state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+    assert state['status'] == 'failed'
+    assert state['mess_gate'] == 'blocked'
+    assert state['branches']['vrc_tst']['status'] == 'failed'
+    assert state['branches']['cbh_anl']['status'] == 'complete'
+
+
+def test_missing_mess_does_not_prevent_either_independent_branch(
+        monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    completed = []
+    monkeypatch.setattr(
+        automatic, 'validate_mess_environment',
+        lambda parameters: (_ for _ in ()).throw(
+            FileNotFoundError('mess unavailable')))
+    monkeypatch.setattr(
+        automatic, 'prepare_automatic_cbh_anl',
+        lambda *args, **kwargs: {'schema': 1, 'status': 'planned'})
+    monkeypatch.setattr(
+        kb, '_execute_vrc_branch',
+        lambda *args: completed.append('vrc'))
+    monkeypatch.setattr(
+        kb, '_execute_automatic_branch',
+        lambda *args: completed.append('cbh_anl'))
+
+    with pytest.raises(RuntimeError, match='MESS was not started'):
+        _post_reaction_branches(
+            object(), _branch_parameters(tmp_path), object(), 'input.json', True)
+
+    assert sorted(completed) == ['cbh_anl', 'vrc']
+    state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+    assert state['branches']['vrc_tst']['status'] == 'complete'
+    assert state['branches']['cbh_anl']['status'] == 'complete'
+    assert state['final_solver']['status'] == 'failed'
+    assert state['mess_gate'] == 'blocked'

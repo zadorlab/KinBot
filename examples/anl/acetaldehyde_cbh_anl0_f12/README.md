@@ -12,9 +12,15 @@ ketene. They scope the PES search and do not choose a CBH rung.
 
 The input contains no executable path, module name, FairChem cache path, CBH
 rung, CBH reference list, or per-program resource table. Site software remains
-discoverable through the loaded environment and `site_setup.sh`; one
-`queue_job_limit` caps all automatic calculation pools unless an expert
-explicitly overrides a subsystem.
+discoverable through the loaded environment and `site_setup.sh`.
+
+After the accepted reaction network is frozen, VRC-TST and CBH/ANL execute as
+independent branches. With this eight-slot input, KinBot reserves four slots
+for VRC scanning, correction potentials, and ROTD_py, and four for reference
+L2 calculations and composite graphs. Reference drivers use a shared
+submission lock and count only jobs inside their reserved branch. MESSPF and
+MESS are an explicit join: neither starts until both branches have completed
+and their hash-bound artifacts are available.
 
 This validation selects `day-long-cpu`, which gives the B2PLYP L2 saddle and
 frequency calculations their intended 24-hour execution window. Bundled Slurm

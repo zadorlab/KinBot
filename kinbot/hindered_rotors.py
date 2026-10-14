@@ -392,7 +392,12 @@ class HIR:
         except OSError:
             # Local execution does not necessarily use the scheduler wrapper.
             exit_text = ''
-        clean_exit = exit_text in ('', '0')
+        # Scheduler wrappers now prefix the exit code with the scheduler job
+        # id. Keep historical one-field status files restartable.
+        exit_fields = exit_text.split()
+        clean_exit = (not exit_fields
+                      or (len(exit_fields) in (1, 2)
+                          and exit_fields[-1] == '0'))
         terminal = log_text.rstrip().endswith('done')
         geom = self._last_finite_geometry(job, self.species.natom)
         if not clean_exit or not terminal or geom is None:

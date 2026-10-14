@@ -253,14 +253,25 @@ class TestSpeciesRouting(unittest.TestCase):
         reaction = SimpleNamespace(instance_name=key+'_hom_sci_1_2', products=[p], species=p)
         p.reac_obj = [reaction]
         vts = VTS(p, self.par, self.qc)
+        vts.gaussian_tools = {
+            'formchk': '/bin/formchk', 'cubegen': '/bin/cubegen'}
         self.assertEqual(vts.configured_reactions([old+'_hom_sci_1_2']), [reaction.instance_name])
         vts.scan_reac[reaction.instance_name] = reaction
-        with patch('kinbot.vrc_tst_scan.which', return_value='/bin/example'), \
-                patch('kinbot.vrc_tst_scan.Popen') as process:
-            process.return_value.communicate.return_value = (b'', b'')
+        commands = []
+
+        def native(command, **kwargs):
+            commands.append(command)
+            Path(command[-2] if command[0].endswith('cubegen')
+                 else command[-1]).write_text('native artifact\n')
+            return SimpleNamespace(returncode=0, stdout='', stderr='')
+
+        with patch('kinbot.vrc_tst_scan.run', side_effect=native):
             vts.save_products([reaction.instance_name])
-            self.assertEqual(process.call_args.kwargs['args'], ['formchk', source+'.chk', source+'.fchk'])
-        Path(source+'.cube').write_text('cube evidence\n')
+        self.assertEqual(commands, [
+            ['/bin/formchk', source+'.chk', source+'.fchk'],
+            ['/bin/cubegen', '1', 'MO=HOMO', source+'.fchk',
+             source+'.cube', '-4'],
+        ])
         p.parent = '.'
         with patch('builtins.open', side_effect=RuntimeError('read cube')) as handle, \
                 self.assertRaisesRegex(RuntimeError, 'read cube'):

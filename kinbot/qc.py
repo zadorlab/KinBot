@@ -1,6 +1,7 @@
 from kinbot.species_routing import routing_name
 import os
 import sys
+import fcntl
 import subprocess
 import logging
 import re
@@ -33,11 +34,52 @@ _SLURM_TIME = re.compile(r'(?:(\d+)-)?(\d{1,2}):(\d{2}):(\d{2})\Z')
 _SLURM_WALLTIME_CACHE = {}
 _SLURM_NODE_STATE = '.kinbot_slurm_nodes.json'
 _SCHEDULER_QUERY_TIMEOUT = 15
+_SCHEDULER_QUERY_FAILURE_TIMEOUT = 60
 _SCHEDULER_SUBMIT_TIMEOUT = 30
 _SLURM_TERMINAL_STATES = {
     'BOOT_FAIL', 'CANCELLED', 'COMPLETED', 'DEADLINE', 'FAILED',
     'NODE_FAIL', 'OUT_OF_MEMORY', 'PREEMPTED', 'TIMEOUT',
 }
+
+
+def _worker_exit_status(path, expected_job_id=None):
+    """Read one atomic worker-completion marker.
+
+    New scheduler wrappers write ``<scheduler job id> <exit code>`` so a
+    logical KinBot job name can be reused without accepting the preceding
+    submission's files. One-field markers remain readable for calculations
+    created by older KinBot revisions.
+
+    Return ``(exit_code, generation_is_explicit)``. Return ``None`` when the
+    marker is absent or explicitly belongs to a different scheduler job.
+    Raise ``ValueError`` for malformed content.
+    """
+    try:
+        fields = open(path).read().strip().split()
+    except FileNotFoundError:
+        return None
+    if len(fields) == 1:
+        return int(fields[0]), False
+    if len(fields) != 2:
+        raise ValueError('worker status must contain an exit code, optionally '
+                         'preceded by its scheduler job id')
+    marker_job_id, raw_code = fields
+    marker_job_id = marker_job_id.split('.', 1)[0]
+    if (expected_job_id is not None
+            and marker_job_id != str(expected_job_id).split('.', 1)[0]):
+        return None
+    return int(raw_code), True
+
+
+def _pbs_job_active(job_id):
+    """Return PBS activity, or ``None`` when scheduler status is unavailable."""
+    try:
+        result = subprocess.run(
+            ['qstat', '-f', str(job_id)], capture_output=True, text=True,
+            check=False, timeout=_SCHEDULER_QUERY_TIMEOUT)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.returncode == 0
 
 
 def _vrc_scan_requires_frozen_handoff(job):
@@ -290,6 +332,10 @@ class QuantumChemistry:
         self.zf = par['zf']
         self.db = connect('kinbot.db')
         self.job_ids = {}
+        # True means this controller submitted the job with a wrapper that
+        # writes ``<scheduler id> <exit code>``. Profiled restarts may restore
+        # older jobs whose one-field marker must retain legacy semantics.
+        self.job_generation_tagged = {}
         self._slurm_excluded_nodes = _load_slurm_node_state(par)
         if self.queuing == 'slurm':
             _export_slurm_excluded_nodes(self._slurm_excluded_nodes)
@@ -302,6 +348,11 @@ class QuantumChemistry:
         else:
             self.slurm_feature = '#SBATCH -C ' + par['slurm_feature']
         self.queue_job_limit = par['queue_job_limit']
+        queue_root = os.environ.get('KINBOT_QUEUE_ROOT', '').strip()
+        self.queue_job_root = (os.path.realpath(os.path.expanduser(queue_root))
+                               if queue_root else None)
+        self.queue_job_root_recursive = (
+            os.environ.get('KINBOT_QUEUE_ROOT_RECURSIVE', '') == '1')
         self.username = par['username']
         self.use_sella = par['use_sella']
         self.frequency_mode = par.get('frequency_mode', 'auto')
@@ -1372,6 +1423,7 @@ class QuantumChemistry:
             'status': 0, 'reason': 'HIR restart', 'supersedes_row_id': previous.id})
         self._archive_outputs(job, marker)
         self.job_ids.pop(job, None)
+        getattr(self, 'job_generation_tagged', {}).pop(job, None)
 
     @staticmethod
     def _archive_outputs(job, marker):
@@ -1408,9 +1460,33 @@ class QuantumChemistry:
         keys = dict(source.key_value_pairs, name=target)
         result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)
         self.job_ids.pop(target, None)
+        getattr(self, 'job_generation_tagged', {}).pop(target, None)
         return result
 
     def submit_qc(self, job, nproc, singlejob=1, jobtype=None):
+        """Submit under an optional cross-process queue admission lock.
+
+        Automatic CBH references are ordinary KinBot controllers in separate
+        directories.  They share one lock so their queue-count observation
+        and ``sbatch`` call are atomic with respect to one another.  Existing
+        standalone inputs do not set the environment variable and preserve
+        their historical behavior.
+        """
+        lock_path = os.environ.get('KINBOT_QUEUE_LOCK', '').strip()
+        if not lock_path:
+            return QuantumChemistry._submit_qc(
+                self, job, nproc, singlejob, jobtype)
+        lock_path = os.path.abspath(os.path.expanduser(lock_path))
+        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+        with open(lock_path, 'a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                return QuantumChemistry._submit_qc(
+                    self, job, nproc, singlejob, jobtype)
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+
+    def _submit_qc(self, job, nproc, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:
             * has finished with Normal termination
             * has finished with Error termination
@@ -1572,6 +1648,11 @@ class QuantumChemistry:
             logger.error(msg)
             sys.exit()
         self.job_ids[job] = pid
+        generations = getattr(self, 'job_generation_tagged', None)
+        if generations is None:
+            generations = {}
+            self.job_generation_tagged = generations
+        generations[job] = True
 
         now = datetime.now()
         logger.debug(f'SUBMITTED {job} on {now.ctime()}')
@@ -1989,19 +2070,18 @@ class QuantumChemistry:
         # forever and hides the scheduler failure from restart logic.
         exit_file = f'{job}.exitcode'
         try:
-            raw_code = open(exit_file).read().strip()
-            exit_code = int(raw_code)
-        except FileNotFoundError:
-            logger.error(f'{job}: scheduler job {key[1]} left the queue '
-                         f'without {exit_file} or a calculation result. '
-                         'Inspect its scheduler stderr; the job cannot be '
-                         'treated as complete.')
+            worker_exit = _worker_exit_status(exit_file, key[1])
         except (OSError, ValueError):
             logger.error(f'{job}: invalid worker status file {exit_file}.')
         else:
-            if exit_code:
-                logger.error(f'{job}: worker exited with status {exit_code}; '
-                             'inspect the scheduler stderr.')
+            if worker_exit is None:
+                logger.error(f'{job}: scheduler job {key[1]} left the queue '
+                             f'without a matching {exit_file} or a calculation '
+                             'result. Inspect its scheduler stderr; the job '
+                             'cannot be treated as complete.')
+            elif worker_exit[0]:
+                logger.error(f'{job}: worker exited with status '
+                             f'{worker_exit[0]}; inspect the scheduler stderr.')
             else:
                 logger.error(f'{job}: worker exited successfully but did not '
                              'publish a calculation result.')
@@ -2116,6 +2196,64 @@ class QuantumChemistry:
             ==> this one resets the step number to 0
         '''
 
+        # A reaction path deliberately reuses one logical job name for its
+        # successive constrained optimizations.  A replacement submission
+        # can therefore coexist briefly with the previous step's exit marker
+        # or database row on a shared filesystem.  Check the scheduler-owned
+        # generation first: while that exact Slurm job is pending or running,
+        # historical artifacts must not advance the path or trigger another
+        # submission of the same script.
+        current_job_id = (self.job_ids.get(job)
+                          if self.queuing in ('slurm', 'pbs') else None)
+        generation_tagged = getattr(
+            self, 'job_generation_tagged', {}).get(job, True)
+        if current_job_id and generation_tagged:
+            # The worker publishes its generation-tagged marker atomically and
+            # only after it has finished publishing its calculation artifacts.
+            # Prefer that positive handoff over another scheduler round trip.
+            # A one-field legacy marker is deliberately not authoritative here:
+            # it cannot distinguish a replacement constrained-path submission
+            # from the preceding generation that used the same logical name.
+            try:
+                current_exit = _worker_exit_status(
+                    f'{job}.exitcode', current_job_id)
+            except (OSError, ValueError):
+                logger.error('Invalid worker status file %s.exitcode.', job)
+                return 'error'
+            current_finished = bool(current_exit and current_exit[1])
+            if current_finished and current_exit[0]:
+                logger.error('%s exited with worker status %s.',
+                             job, current_exit[0])
+                return 'error'
+
+            active = (False if current_finished else
+                      (_slurm_job_active(current_job_id)
+                       if self.queuing == 'slurm'
+                       else _pbs_job_active(current_job_id)))
+            if active is None:
+                warned = getattr(self, '_scheduler_query_warnings', set())
+                key = (self.queuing, str(current_job_id))
+                if key not in warned:
+                    scheduler_name = ('Slurm' if self.queuing == 'slurm'
+                                      else 'PBS')
+                    logger.warning(
+                        '%s: %s status query is unavailable; retaining the '
+                        'submitted job state.', job, scheduler_name)
+                    warned.add(key)
+                    self._scheduler_query_warnings = warned
+                return 'running'
+            if active:
+                logger.debug('Current %s generation of %s is active.',
+                             self.queuing.upper(), job)
+                return 'running'
+
+            # The scheduler has released this generation. Do not ingest a pkl
+            # or database row until its matching worker marker is visible;
+            # otherwise an older constrained-path step can be mistaken for
+            # the replacement on a lagging shared filesystem.
+            if not current_finished:
+                return 0
+
         loaded_data = self.ingest_pkl(job)
         if loaded_data is not None:
             mol = Atoms(symbols=loaded_data['sym'], positions=loaded_data['pos'])
@@ -2145,12 +2283,15 @@ class QuantumChemistry:
         worker_finished = False
         if os.path.isfile(exit_file):
             try:
-                exit_code = int(open(exit_file).read().strip())
+                worker_exit = _worker_exit_status(exit_file, current_job_id)
             except (OSError, ValueError):
                 logger.error(f'Invalid worker status file {exit_file}.')
                 return 'error'
-            if exit_code:
-                logger.error(f'{job} exited with worker status {exit_code}.')
+            if worker_exit is None:
+                return 0
+            if worker_exit[0]:
+                logger.error(f'{job} exited with worker status '
+                             f'{worker_exit[0]}.')
                 return 'error'
             worker_finished = True
 
@@ -2212,6 +2353,9 @@ class QuantumChemistry:
                 logger.error('Exiting')
                 sys.exit()
 
+        if worker_finished and current_job_id:
+            # Let check_qc apply its bounded shared-filesystem grace period.
+            return 0
         if worker_finished:
             # No scheduler transition can repair a worker that has already
             # exited without publishing a database result.  Returning zero
@@ -2232,9 +2376,12 @@ class QuantumChemistry:
         '''
 
         warned = False
+        failure_started = None
         while 1:
             if self.queuing == 'slurm':
                 command = ['squeue', '-h', '-u', '{}'.format(self.username)]
+                if getattr(self, 'queue_job_root', None):
+                    command.extend(('-o', '%Z'))
             elif self.queuing == 'pbs':
                 command = ['qselect', '-u', '{}'.format(self.username)]
             elif self.queuing == 'local':
@@ -2244,22 +2391,53 @@ class QuantumChemistry:
                     command, capture_output=True, text=True, check=False,
                     timeout=_SCHEDULER_QUERY_TIMEOUT)
             except (OSError, subprocess.TimeoutExpired) as error:
+                now = time.monotonic()
+                if failure_started is None:
+                    failure_started = now
                 if not warned:
                     logger.warning('Scheduler queue query is unavailable; '
                                    'waiting before job submission: %s', error)
                     warned = True
+                if now - failure_started >= _SCHEDULER_QUERY_FAILURE_TIMEOUT:
+                    raise RuntimeError(
+                        'Scheduler queue query remained unavailable for 60 '
+                        'seconds; no job was submitted.') from error
                 time.sleep(5)
                 continue
             if result.returncode:
+                now = time.monotonic()
+                if failure_started is None:
+                    failure_started = now
                 if not warned:
                     logger.warning('Scheduler queue query failed; waiting '
                                    'before job submission: %s',
                                    result.stderr.strip() or result.returncode)
                     warned = True
+                if now - failure_started >= _SCHEDULER_QUERY_FAILURE_TIMEOUT:
+                    raise RuntimeError(
+                        'Scheduler queue query failed continuously for 60 '
+                        'seconds; no job was submitted. Last error: ' +
+                        (result.stderr.strip() or str(result.returncode)))
                 time.sleep(5)
                 continue
             warned = False
+            failure_started = None
             jobs = [line for line in result.stdout.splitlines() if line.strip()]
+            queue_root = getattr(self, 'queue_job_root', None)
+            if self.queuing == 'slurm' and queue_root:
+                recursive = getattr(
+                    self, 'queue_job_root_recursive', False)
+                selected = []
+                for value in jobs:
+                    try:
+                        workdir = os.path.realpath(value.strip())
+                        common = os.path.commonpath((queue_root, workdir))
+                    except (OSError, ValueError):
+                        continue
+                    if (workdir == queue_root
+                            or (recursive and common == queue_root)):
+                        selected.append(value)
+                jobs = selected
             if len(jobs) < self.queue_job_limit:
                 return 0
             time.sleep(1)

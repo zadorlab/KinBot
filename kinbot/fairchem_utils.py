@@ -68,6 +68,14 @@ def _cached_uma_checkpoint(model):
     return None
 
 
+def resolve_model_checkpoint(model):
+    """Resolve a local FairChem checkpoint without loading or downloading it."""
+    candidate = Path(str(model)).expanduser()
+    if candidate.is_file():
+        return candidate.resolve()
+    return _cached_uma_checkpoint(str(model))
+
+
 @contextmanager
 def _offline_hub_environment():
     """Hide invalid generic SOCKS proxies during an offline cache lookup."""
@@ -80,13 +88,10 @@ def _offline_hub_environment():
 
 def load_predictor(model, device):
     """Load a local checkpoint or a named pretrained model."""
-    if os.path.isfile(model):
+    resolved = resolve_model_checkpoint(model)
+    if resolved is not None:
         from fairchem.core.units.mlip_unit import load_predict_unit
-        return load_predict_unit(model, device=device)
-    cached = _cached_uma_checkpoint(model)
-    if cached is not None:
-        from fairchem.core.units.mlip_unit import load_predict_unit
-        return load_predict_unit(str(cached), device=device)
+        return load_predict_unit(str(resolved), device=device)
     from fairchem.core import pretrained_mlip
     try:
         # Some institutional environments export the nonstandard

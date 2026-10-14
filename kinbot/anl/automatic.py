@@ -89,10 +89,23 @@ def automatic_requested(parameters):
     return automatic_cbh_anl_requested(parameters)
 
 
-def validate_automatic_environment(parameters):
-    """Fail before reaction/QC work when a requested final solver is absent."""
-    if not automatic_requested(parameters):
-        return {}
+def _planning_profiles(parameters):
+    """Resolve profiles from a full input or a minimal validation mapping."""
+    values = dict(parameters)
+    for key, default in {
+            'qc': 'gauss', 'method': 'b3lyp', 'basis': '6-31G',
+            'high_level_method': 'b3lyp', 'high_level_basis': '6-31G',
+            'qc_command': 'g16', 'profiled_theory': 1,
+            'theory_preset': '', 'l1': '', 'l2': '',
+            'l1_profile': {}, 'l2_profile': {}, 'l3_overrides': {},
+            'l3_resource_overrides': {}, 'fc_model_path': '__planning__',
+            'fc_task_name': 'omol', 'fc_device': 'cpu'}.items():
+        values.setdefault(key, default)
+    return resolve_profiles(values)
+
+
+def validate_mess_environment(parameters):
+    """Resolve only the solvers used after the VRC/composite join."""
     checked = {}
 
     def require_command(key, needed):
@@ -125,7 +138,17 @@ def validate_automatic_environment(parameters):
     require_command(
         'mess_command', parameters.get('me') == 1
         and bool(parameters.get('run_me')))
-    if parameters.get('rotdpy_run'):
+    return checked
+
+
+def validate_automatic_environment(parameters, *, include_mess=True,
+                                   include_vrc=True):
+    """Validate one automatic branch without coupling independent branches."""
+    if not automatic_requested(parameters):
+        return {}
+    checked = (validate_mess_environment(parameters)
+               if include_mess else {})
+    if include_vrc and parameters.get('rotdpy_run'):
         from kinbot.rotdpy import ensure_available
         checked['rotdpy'] = ensure_available()
     if parameters.get('queuing') == 'slurm':
@@ -135,6 +158,49 @@ def validate_automatic_environment(parameters):
                 raise FileNotFoundError(
                     f'{command} is unavailable for the requested Slurm run.')
             checked[command] = executable
+
+    # Resolve deterministic scientific dependencies at the composite branch
+    # boundary. Dispatcher preflight repeats these checks inside its generated
+    # site environment.
+    from kinbot.anl.site import _executable
+
+    def require_program(key, program, backend):
+        executable = _executable(program, backend)
+        if executable is None:
+            raise FileNotFoundError(
+                f'Required {backend} executable {program!r} is unavailable; '
+                f'configure KINBOT_{backend.upper()}_ROOT, '
+                f'KINBOT_{program.upper()}_EXECUTABLE, or PATH before '
+                'starting automatic CBH/ANL work.')
+        checked[key] = str(executable)
+        return executable
+
+    profiles = _planning_profiles(parameters)
+    for level, profile in profiles.items():
+        if profile.calculator == 'gaussian':
+            parts = shlex.split(profile.command or 'g16')
+            if not parts:
+                raise ValueError(f'{level} Gaussian command is empty.')
+            require_program(f'{level}_gaussian', parts[0], 'gaussian')
+        elif profile.calculator == 'fairchem':
+            try:
+                import fairchem  # noqa: F401
+            except ImportError as error:
+                raise ImportError(
+                    f'{level} requires the FairChem package.') from error
+            from kinbot.fairchem_utils import resolve_model_checkpoint
+            checkpoint = resolve_model_checkpoint(profile.model_path)
+            if checkpoint is None:
+                raise FileNotFoundError(
+                    f'{level} FairChem checkpoint {profile.model_path!r} is '
+                    'not present in the configured Hugging Face cache. Cache '
+                    'it before starting the automatic run.')
+            checked[f'{level}_fairchem_checkpoint'] = str(checkpoint)
+
+    if include_vrc and parameters.get('rotdpy_run') and str(
+            parameters.get('pp_orient', 'homo')).casefold() == 'homo':
+        require_program('formchk', 'formchk', 'gaussian')
+        require_program('cubegen', 'cubegen', 'gaussian')
     try:
         import atct.api  # noqa: F401
     except ImportError as error:
@@ -161,17 +227,7 @@ def _finite(value, label):
 
 def _resolved_l2_theory(parameters):
     """Return the L2 identity used by both KinBot and automatic assembly."""
-    values = dict(parameters)
-    for key, default in {
-            'qc': 'gauss', 'method': 'b3lyp', 'basis': '6-31G',
-            'high_level_method': 'b3lyp', 'high_level_basis': '6-31G',
-            'qc_command': 'g16', 'profiled_theory': 1,
-            'theory_preset': '', 'l1': '', 'l2': '',
-            'l1_profile': {}, 'l2_profile': {}, 'l3_overrides': {},
-            'l3_resource_overrides': {}, 'fc_model_path': '__planning__',
-            'fc_task_name': 'omol', 'fc_device': 'cpu'}.items():
-        values.setdefault(key, default)
-    profiles = resolve_profiles(values)
+    profiles = _planning_profiles(parameters)
     try:
         profile = profiles['l2']
     except KeyError as error:
@@ -932,7 +988,8 @@ def _safe_state_directory(smiles, charge, multiplicity):
     return f'state_{digest}'
 
 
-def _reference_input(source_input, entry, directory, model_path):
+def _reference_input(source_input, entry, directory, model_path,
+                     queue_job_limit=1):
     """Create one ordinary, restartable KinBot L2/HIR reference input."""
     source = _read_json(source_input, 'parent KinBot input')
     source.update({
@@ -948,9 +1005,10 @@ def _reference_input(source_input, entry, directory, model_path):
         'cbh_rung': 0, 'anl_handoff_manifest': '',
         'cbh_thermochemistry_models': '',
         'thermochemistry_model_output': str(model_path),
-        # Several references may run concurrently, but each reference owns
-        # at most one live L1/L2 scheduler slot.
-        'queue_job_limit': 1, 'do_clean': False,
+        # Reference drivers share a cross-process admission lock.  Each sees
+        # the automatic branch's reserved total, rather than interpreting a
+        # per-driver value as a user-wide queue limit.
+        'queue_job_limit': int(queue_job_limit), 'do_clean': False,
     })
     for key in ('fc_model_path', 'q_temp', 'q_temp_hi', 'q_temp_mp2',
                 'q_temp_l3'):
@@ -1053,7 +1111,9 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
             records[key] = _model_record(model, entry, l2_theory)
             continue
         directory.mkdir(parents=True, exist_ok=True)
-        input_path = _reference_input(source_input, entry, directory, model)
+        input_path = _reference_input(
+            source_input, entry, directory, model,
+            queue_job_limit=max_jobs)
         pid_path = directory / 'driver.pid'
         if pid_path.is_file():
             try:
@@ -1076,20 +1136,30 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
             if existing_pid is None:
                 stdout = (directory / 'driver.stdout').open('a')
                 stderr = (directory / 'driver.stderr').open('a')
+                environment = dict(os.environ)
+                environment['KINBOT_QUEUE_LOCK'] = str(
+                    (root / '.submission.lock').resolve())
+                environment['KINBOT_QUEUE_ROOT'] = str(root.resolve())
+                environment['KINBOT_QUEUE_ROOT_RECURSIVE'] = '1'
                 process = subprocess.Popen(
                     [sys.executable, '-m', 'kinbot.kb', str(input_path)],
-                    cwd=directory, stdout=stdout, stderr=stderr)
-                (directory / 'driver.pid').write_text(f'{process.pid}\n')
+                    cwd=directory, stdout=stdout, stderr=stderr,
+                    env=environment)
+                pid_path = directory / 'driver.pid'
+                pid_temporary = pid_path.with_suffix('.pid.tmp')
+                pid_temporary.write_text(f'{process.pid}\n')
+                os.replace(pid_temporary, pid_path)
                 pid = process.pid
             else:
                 process, pid, stdout, stderr = None, existing_pid, None, None
-            active.append((process, pid, key, entry, directory, model,
-                           stdout, stderr))
+            active.append((process, pid, key, entry, directory, input_path,
+                           model, stdout, stderr))
         if not active:
             break
         time.sleep(2.)
         remaining = []
-        for process, pid, key, entry, directory, model, stdout, stderr in active:
+        for (process, pid, key, entry, directory, input_path, model, stdout,
+             stderr) in active:
             if process is not None:
                 returncode = process.poll()
                 running = returncode is None
@@ -1099,15 +1169,34 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
                 except OSError:
                     running, returncode = False, None
                 else:
-                    running, returncode = True, None
+                    running = _pid_matches_reference(
+                        pid, input_path, directory)
+                    returncode = None
             if running:
-                remaining.append((process, pid, key, entry, directory, model,
-                                  stdout, stderr))
+                remaining.append((process, pid, key, entry, directory,
+                                  input_path, model, stdout, stderr))
                 continue
             if stdout is not None:
                 stdout.close()
             if stderr is not None:
                 stderr.close()
+            if returncode in (None, 0) and not model.is_file():
+                # The controller can leave the process table before its final
+                # model becomes visible through a shared filesystem.
+                deadline = time.monotonic() + 60.
+                while time.monotonic() < deadline and not model.is_file():
+                    time.sleep(1.)
+            if process is None and not model.is_file():
+                # A controller inherited from an earlier parent disappeared
+                # without publishing its final model.  Its exit status is no
+                # longer observable, so replace it exactly once with a child
+                # owned by this process.  A failure of that replacement has a
+                # real Popen return code and follows the hard-failure path
+                # below instead of being resubmitted indefinitely.
+                (directory / 'driver.pid').unlink(missing_ok=True)
+                pending.append((key, entry, directory, input_path, model,
+                                None))
+                continue
             if (returncode not in (None, 0)) or not model.is_file():
                 diagnostic = directory / 'driver.stderr'
                 tail = (diagnostic.read_text(errors='replace').splitlines()[-60:]
@@ -1478,9 +1567,14 @@ def _ordered_methods(energies):
     return tuple(sorted(labels, key=rank))
 
 
-def run_automatic_cbh_anl(root_species, parameters, input_file, *,
-                          directory='anl_automatic', interval=20.):
-    """Build, execute, solve, and publish a complete automatic CBH/ANL DAG."""
+def prepare_automatic_cbh_anl(root_species, parameters, *,
+                              directory='anl_automatic'):
+    """Freeze and atomically publish the accepted network before execution.
+
+    The returned value is plain JSON data.  A VRC worker may therefore mutate
+    its private reaction objects and optimized fragment geometries while the
+    composite worker consumes this immutable snapshot in parallel.
+    """
     base = Path(directory).expanduser().resolve()
     base.mkdir(parents=True, exist_ok=True)
     plan = build_network_request(root_species, parameters)
@@ -1492,8 +1586,32 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
                 'Accepted KinBot network differs from the existing automatic plan; '
                 'use a fresh calculation directory.')
     else:
-        plan_path.write_text(json.dumps(
+        temporary = plan_path.with_suffix('.json.tmp')
+        temporary.write_text(json.dumps(
             plan, indent=2, sort_keys=True) + '\n')
+        os.replace(temporary, plan_path)
+    return plan
+
+
+def run_automatic_cbh_anl(root_species, parameters, input_file, *,
+                          directory='anl_automatic', interval=20., plan=None):
+    """Build, execute, solve, and publish a complete automatic CBH/ANL DAG."""
+    base = Path(directory).expanduser().resolve()
+    base.mkdir(parents=True, exist_ok=True)
+    if plan is None:
+        plan = prepare_automatic_cbh_anl(
+            root_species, parameters, directory=directory)
+    elif (not isinstance(plan, dict) or plan.get('schema') != 1
+          or plan.get('status') != 'planned'):
+        raise ValueError('Prepared automatic CBH/ANL plan is invalid.')
+    plan_path = base / 'network_request.json'
+    if not plan_path.is_file():
+        raise FileNotFoundError(
+            'Prepared automatic CBH/ANL plan was not published.')
+    saved_plan = _read_json(plan_path, 'automatic network request')
+    if _sha256_json(saved_plan) != _sha256_json(plan):
+        raise ValueError(
+            'Prepared automatic CBH/ANL plan differs from its published file.')
 
     # Resolve the pinned terminal thermochemistry before launching any
     # licensed electronic-structure calculation. A proxy, cache, identity,

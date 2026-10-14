@@ -770,7 +770,8 @@ class ReactionGenerator:
                                 jobs = [ji for ji in jobs]
                                 if not str(chemid) in jobs:
                                     # this well is new, add it to the jobs
-                                    while 1:
+                                    write_error = None
+                                    for _ in range(60):
                                         try:
                                             # try to open the file and write to it
                                             logger.info(f'\tLaunching new KinBot as {chemid}')
@@ -778,10 +779,13 @@ class ReactionGenerator:
                                             with open(dirwell + '/chemids', 'a') as f:
                                                 f.write('{}\n'.format(chemid))
                                             break
-                                        except IOError:
-                                            # wait a second and try again
+                                        except IOError as error:
+                                            write_error = error
                                             time.sleep(1)
-                                            pass
+                                    else:
+                                        raise RuntimeError(
+                                            f'Unable to publish the new PES well {chemid} '
+                                            f'after 60 seconds: {write_error}')
 
                         # check for wrong number of negative frequencies
                         neg_freq = 0
@@ -823,14 +827,11 @@ class ReactionGenerator:
                     obj.stereochemical_rejection = str(error)
                     self.species.reac_ts_done[index] = -999
 
-            alldone = 1
-            for index, instance in enumerate(self.species.reac_inst):
-                if any(self.species.reac_ts_done[index] >= 0
-                       for i in range(len(self.species.reac_inst))):
-                    alldone = 1
-                    break
-                else:
-                    alldone = 0
+            # Continue only while at least one reaction is in a nonterminal
+            # state.  The former nested ``any`` tested the same scalar once
+            # per reaction and obscured this controller invariant.
+            alldone = any(status >= 0
+                          for status in self.species.reac_ts_done)
 
             # write a small summary while running
             with open('kinbot_monitor.out', 'w') as f_out:

@@ -178,7 +178,9 @@ class ProfiledQuantumChemistry:
             if (not isinstance(job, str) or not isinstance(record, dict)
                     or record.get('level') not in self.backends
                     or (record.get('job_id') is not None
-                        and not isinstance(record.get('job_id'), str))):
+                        and not isinstance(record.get('job_id'), str))
+                    or record.get('generation_tagged', False)
+                    not in (False, True)):
                 raise ValueError(f'Invalid profiled job route for {job!r}.')
         return routes
 
@@ -194,9 +196,15 @@ class ProfiledQuantumChemistry:
 
     def _record(self, job, level, job_id=None):
         previous = self._routes.get(job, {})
-        record = {'level': level,
-                  'job_id': str(job_id) if job_id is not None
-                  else previous.get('job_id')}
+        record = {
+            'level': level,
+            'job_id': (str(job_id) if job_id is not None
+                       else previous.get('job_id')),
+            'generation_tagged': (
+                bool(self.backends[level].job_generation_tagged.get(job))
+                if job_id is not None
+                else previous.get('generation_tagged', False)),
+        }
         if job_id is not None:
             self.job_ids[job] = str(job_id)
         if previous != record:
@@ -207,14 +215,21 @@ class ProfiledQuantumChemistry:
         self.job_ids.pop(job, None)
         record = self._routes.get(job)
         if record and record.get('job_id') is not None:
+            backend = self.backends[record['level']]
+            backend.job_ids.pop(job, None)
+            backend.job_generation_tagged.pop(job, None)
             record['job_id'] = None
+            record['generation_tagged'] = False
             self._save_routes()
 
     def _restore_job_ids(self):
         for job, record in self._routes.items():
             job_id = record.get('job_id')
             if job_id:
-                self.backends[record['level']].job_ids[job] = job_id
+                backend = self.backends[record['level']]
+                backend.job_ids[job] = job_id
+                backend.job_generation_tagged[job] = bool(
+                    record.get('generation_tagged', False))
                 self.job_ids[job] = job_id
 
     def _level_for(self, job):

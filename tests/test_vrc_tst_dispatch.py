@@ -13,6 +13,43 @@ import numpy as np
 import pytest
 
 from kinbot.vrc_tst_scan import VTS
+from kinbot.fragments import Fragment
+
+
+def test_homo_oriented_vrc_fails_before_submission_without_gaussian_tools(
+        monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr('kinbot.anl.site._executable', lambda *args: None)
+    vts = VTS(SimpleNamespace(reac_obj=[]), {
+        'pp_orient': 'homo', 'rotdpy_run': 0,
+        'vrc_tst_scan': {}, 'vrc_tst_noscan': {},
+    }, SimpleNamespace())
+
+    with pytest.raises(FileNotFoundError, match='formchk'):
+        vts.calculate_correction_potentials()
+
+
+def test_vrc_fragment_handoff_rejects_incomplete_geometry():
+    product = SimpleNamespace(
+        wellorts=1, name='fragment', natom=2, atom=['H', 'H'], mult=1)
+    qc = SimpleNamespace(get_qc_geom=Mock(return_value=(
+        -1, np.full((2, 3), np.nan), ['H', 'H'])))
+    vts = VTS(SimpleNamespace(), {'pp_orient': 'geometric'}, qc)
+    vts.scan_reac['r'] = SimpleNamespace(products=[product])
+
+    with pytest.raises(RuntimeError, match='finite, complete geometry'):
+        vts.save_products(['r'])
+
+
+def test_homo_orientation_honors_configured_mode():
+    fragment = Fragment.__new__(Fragment)
+    fragment.orient = {}
+    fragment.par = {'pp_orient': 'homo'}
+    expected = np.asarray([[1., 0., 0.]], dtype=np.float32)
+    fragment.pp_from_homo = Mock(return_value=expected)
+
+    assert np.array_equal(fragment.get_pp_orientation(2), expected)
+    fragment.pp_from_homo.assert_called_once_with(index=2)
 
 
 class _FakeMolpro:
@@ -305,8 +342,8 @@ def test_molpro_dispatch_normalizes_numpy_charge_and_multiplicity():
 
             with patch('kinbot.anl.dispatch.prepare', prepare_dispatch), \
                     patch('kinbot.anl.dispatch.preflight'), \
-                    patch('kinbot.vrc_tst_scan.subprocess.run',
-                          return_value=SimpleNamespace(returncode=0)):
+                    patch('kinbot.anl.dispatch.drive_run',
+                          return_value=(0, {'r': 'complete'})):
                 vts._dispatch_molpro_corrections({'r': species})
 
             molecule = captured['spec']['molecule']
@@ -350,8 +387,8 @@ def test_molpro_dispatch_surfaces_native_task_failure():
                     patch('kinbot.anl.dispatch.preflight'), \
                     patch('kinbot.anl.dispatch._load',
                           side_effect=lambda run_dir: (Path(run_dir), {}, state)), \
-                    patch('kinbot.vrc_tst_scan.subprocess.run',
-                          return_value=SimpleNamespace(returncode=1)):
+                    patch('kinbot.anl.dispatch.drive_run',
+                          return_value=(1, {'r': 'failed'})):
                 with pytest.raises(RuntimeError, match='PMPI_Init.*OFI endpoint'):
                     vts._dispatch_molpro_corrections({'r': species})
         finally:

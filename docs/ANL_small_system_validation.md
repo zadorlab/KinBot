@@ -82,6 +82,13 @@ an ordinary KinBot PES input:
 }
 ```
 
+For a simultaneous automatic VRC and composite calculation, the positive
+`queue_job_limit` is a total cap. KinBot freezes the accepted network, assigns
+disjoint slot reservations to the two branches, and runs them concurrently.
+The composite branch never reads the VRC branch's mutable reaction objects;
+it consumes the frozen JSON plan. MESSPF and MESS remain behind a persisted
+join record and cannot start from a partially completed branch.
+
 The spin-splitting preset keeps the original direct VRC correction as the
 global compatibility default; selecting it is one extra scientific choice in
 this validation input.  For this test its three reference branches all use

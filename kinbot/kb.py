@@ -4,7 +4,12 @@ import fcntl
 import sys
 import datetime
 import copy
+import json
 import logging
+import os
+from pathlib import Path
+from queue import Queue
+import threading
 
 from kinbot import license_message
 from kinbot import postprocess
@@ -23,6 +28,9 @@ from kinbot.run_format import ensure_current_run
 from kinbot.stereo_identity import require_supported_identity, log_input_stereochemistry, UnsupportedStereochemistry
 from kinbot.stereo_routing import StereoRoutingError
 from kinbot.theory import automatic_cbh_anl_requested
+
+
+logger = logging.getLogger('KinBot')
 
 
 @contextmanager
@@ -62,6 +70,229 @@ def _accepted_homolytic_channels(species):
     return selected
 
 
+def _check_initial_minimum_frequencies(frequencies, species_name):
+    """Apply the stable-well check without assuming two vibrational modes."""
+    if frequencies and frequencies[0] <= 0:
+        logger.warning('First frequency is %s for initial structure %s.',
+                       frequencies[0], species_name)
+        frequencies[0] *= -1.
+    if len(frequencies) > 1 and frequencies[1] <= 0:
+        logger.error('Second frequency is %s for initial structure %s.',
+                     frequencies[1], species_name)
+        return False
+    return True
+
+
+def _atomic_json(path, payload):
+    """Publish one controller-owned state record without partial reads."""
+    path = Path(path)
+    temporary = path.with_suffix(path.suffix + '.tmp')
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n')
+    os.replace(temporary, path)
+
+
+def _execute_vrc_branch(well, parameters, qc):
+    logger.info('Starting the independent VRC-TST branch')
+    previous_limit = qc.queue_job_limit
+    previous_root = getattr(qc, 'queue_job_root', None)
+    previous_recursive = getattr(qc, 'queue_job_root_recursive', False)
+    qc.queue_job_limit = parameters.get(
+        'vrc_tst_branch_slots', previous_limit)
+    if 'vrc_tst_branch_slots' in parameters:
+        qc.queue_job_root = str(Path.cwd().resolve())
+        qc.queue_job_root_recursive = False
+    try:
+        vts = VTS(well, parameters, qc)
+        vts.calculate_correction_potentials()
+    finally:
+        qc.queue_job_limit = previous_limit
+        qc.queue_job_root = previous_root
+        qc.queue_job_root_recursive = previous_recursive
+    logger.info('Independent VRC-TST branch is complete')
+    return {'status': 'complete'}
+
+
+def _execute_automatic_branch(well, parameters, input_file, directory, plan):
+    from kinbot.anl.automatic import (run_automatic_cbh_anl,
+                                      validate_automatic_environment)
+    logger.info('Starting the independent CBH/ANL composite branch')
+    validate_automatic_environment(
+        parameters, include_mess=False, include_vrc=False)
+    result = run_automatic_cbh_anl(
+        well, parameters, input_file, directory=directory, plan=plan)
+    logger.info('Independent CBH/ANL composite branch is complete')
+    return result
+
+
+def _post_reaction_branches(well, parameters, qc, input_file,
+                            automatic_requested):
+    """Run VRC and composite work independently, then open the MESS gate.
+
+    The automatic branch consumes a frozen JSON snapshot.  It never reads or
+    mutates the live reaction objects used by VRC.  Their filesystem outputs
+    are disjoint, and this controller is the sole writer of the join record.
+    """
+    vrc_requested = bool(parameters.get('vrc_tst_scan')
+                         or parameters.get('vrc_tst_noscan'))
+    if not automatic_requested and not vrc_requested:
+        return None
+
+    total_slots = parameters.get('queue_job_limit', -1)
+    if isinstance(total_slots, bool) or not isinstance(total_slots, int):
+        raise ValueError('queue_job_limit must be an integer.')
+    total_slots = max(1, total_slots)
+    concurrent = automatic_requested and vrc_requested and total_slots > 1
+    automatic_parameters = copy.deepcopy(parameters)
+    vrc_parameters = copy.deepcopy(parameters)
+    if concurrent:
+        # A static reservation is intentional: neither branch can race the
+        # other between an squeue observation and sbatch.  The cap applies to
+        # each branch's nested dispatcher and remains valid across restarts.
+        vrc_slots = max(1, total_slots // 2)
+        automatic_slots = total_slots - vrc_slots
+        automatic_parameters['queue_job_limit'] = automatic_slots
+        vrc_parameters['vrc_tst_max_nodes'] = min(
+            int(vrc_parameters['vrc_tst_max_nodes']), vrc_slots)
+        vrc_parameters['rotdpy_max_jobs'] = min(
+            int(vrc_parameters['rotdpy_max_jobs']), vrc_slots)
+        vrc_parameters['vrc_tst_branch_slots'] = vrc_slots
+        logger.info(
+            'Running VRC-TST and CBH/ANL concurrently under the %d-slot cap: '
+            '%d VRC slot(s), %d composite slot(s).',
+            total_slots, vrc_slots, automatic_slots)
+    else:
+        vrc_slots = total_slots if vrc_requested else 0
+        automatic_slots = total_slots if automatic_requested else 0
+
+    directory = parameters.get('anl_automatic_directory', 'anl_automatic')
+    plan = None
+    preparation_error = None
+    join_error = None
+    try:
+        from kinbot.anl.automatic import validate_mess_environment
+        validate_mess_environment(parameters)
+    except Exception as error:
+        # Missing final solvers block only the join.  They cannot prevent the
+        # independent VRC and composite branches from producing reusable
+        # scientific results.
+        join_error = error
+    if automatic_requested:
+        from kinbot.anl.automatic import prepare_automatic_cbh_anl
+        try:
+            plan = prepare_automatic_cbh_anl(
+                well, automatic_parameters, directory=directory)
+        except Exception as error:  # preserve the independent VRC branch
+            preparation_error = error
+
+    state_path = Path('.kinbot_post_reaction_branches.json')
+    state = {
+        'schema': 1,
+        'status': 'running',
+        'mess_gate': 'waiting',
+        'slot_cap': total_slots,
+        'branches': {
+            'vrc_tst': {
+                'status': 'pending' if vrc_requested else 'not_requested',
+                'slots': vrc_slots,
+            },
+            'cbh_anl': {
+                'status': ('failed' if preparation_error else
+                           ('pending' if automatic_requested else
+                            'not_requested')),
+                'slots': automatic_slots,
+            },
+        },
+        'final_solver': {
+            'status': 'failed' if join_error else 'ready',
+        },
+    }
+    if preparation_error:
+        state['branches']['cbh_anl']['error'] = str(preparation_error)
+    if join_error:
+        state['final_solver']['error'] = str(join_error)
+    _atomic_json(state_path, state)
+
+    results = {}
+    errors = ([('cbh_anl', preparation_error)]
+              if preparation_error is not None else [])
+    requested_count = int(vrc_requested) + int(
+        automatic_requested and preparation_error is None)
+    def record(name, function, *args):
+        try:
+            results[name] = function(*args)
+        except Exception as error:
+            errors.append((name, error))
+            state['branches'][name].update(status='failed', error=str(error))
+        else:
+            state['branches'][name]['status'] = 'complete'
+        _atomic_json(state_path, state)
+
+    if concurrent:
+        # Keep VRC in the main thread. Its ROTD_py wrapper installs signal
+        # forwarding handlers so termination reaches its process group; Python
+        # permits that only in the main thread. The immutable composite branch
+        # is the sole background worker.
+        state['branches']['vrc_tst']['status'] = 'running'
+        state['branches']['cbh_anl']['status'] = 'running'
+        _atomic_json(state_path, state)
+        channel = Queue(maxsize=1)
+
+        def run_composite():
+            try:
+                value = _execute_automatic_branch(
+                    well, automatic_parameters, input_file, directory, plan)
+            except BaseException as error:
+                channel.put(('error', error))
+            else:
+                channel.put(('result', value))
+
+        # A daemon worker is deliberate. On SIGTERM the main-thread VRC
+        # wrapper terminates its ROTD_py process group and exits immediately;
+        # Python must not then wait indefinitely for a composite polling
+        # thread. Submitted composite jobs remain restartable from atomic
+        # dispatcher state, and reference child PIDs are recorded separately.
+        worker = threading.Thread(
+            target=run_composite, name='kinbot-composite', daemon=True)
+        worker.start()
+        record('vrc_tst', _execute_vrc_branch,
+               well, vrc_parameters, qc)
+        worker.join()
+        kind, payload = channel.get()
+        if kind == 'error':
+            errors.append(('cbh_anl', payload))
+            state['branches']['cbh_anl'].update(
+                status='failed', error=str(payload))
+        else:
+            results['cbh_anl'] = payload
+            state['branches']['cbh_anl']['status'] = 'complete'
+        _atomic_json(state_path, state)
+    else:
+        if vrc_requested:
+            state['branches']['vrc_tst']['status'] = 'running'
+            _atomic_json(state_path, state)
+            record('vrc_tst', _execute_vrc_branch,
+                   well, vrc_parameters, qc)
+        if automatic_requested and preparation_error is None:
+            state['branches']['cbh_anl']['status'] = 'running'
+            _atomic_json(state_path, state)
+            record('cbh_anl', _execute_automatic_branch,
+                   well, automatic_parameters, input_file, directory, plan)
+
+    if join_error is not None:
+        errors.append(('mess', join_error))
+    if errors:
+        state.update(status='failed', mess_gate='blocked')
+        _atomic_json(state_path, state)
+        names = ', '.join(name for name, _ in errors)
+        raise RuntimeError(
+            f'Post-reaction branch failure ({names}); MESS was not started.') \
+            from errors[0][1]
+    if requested_count:
+        state.update(status='complete', mess_gate='ready')
+        _atomic_json(state_path, state)
+    return results.get('cbh_anl')
+
+
 def _main():
     if sys.version_info.major < 3 or sys.version_info.minor < 8:
         print('KinBot only runs with python 3.8 or higher. You have python '
@@ -84,9 +315,6 @@ def _main():
     par = masterpar.par
     input_file = masterpar.input_file
     automatic_run_requested = automatic_cbh_anl_requested(par)
-    if automatic_run_requested:
-        from kinbot.anl.automatic import validate_automatic_environment
-        validate_automatic_environment(par)
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', level='debug')
@@ -161,11 +389,7 @@ def _main():
         if err < 0:
             logger.error('Error with initial structure optimization.')
             return 1
-        if well0.freq[0] <= 0:
-            logger.warning(f'First frequency is {well0.freq[0]} for initial structure.')
-            well0.freq[0] *= -1.
-        if well0.freq[1] <= 0:
-            logger.error(f'Second frequency is {well0.freq[1]} for initial structure.')
+        if not _check_initial_minimum_frequencies(well0.freq, well0.name):
             return 1
 
         # characterize again and look for differences
@@ -264,18 +488,6 @@ def _main():
                         'Automatically selected accepted homolytic channel(s) '
                         'for VRC-TST: %s', ', '.join(selected_vrc))
 
-        if par['vrc_tst_scan'] or par['vrc_tst_noscan']:
-            logger.info('Setting up scans for VRC-TST...')
-            vts = VTS(well0, par, qc)
-            vts.calculate_correction_potentials()
-            # this move to pes.py
-            # wait for molpro
-            # read the molpro
-            # apply symmtery
-            # call util create_mpl ... --> .py which can be used to plot the correction
-            #rotd = RotdPy(vts, par)
-            #rotd.make_input
-
     # BIMOLECULAR REACTANTS
     elif par['bimol'] == 1:
         fragments = {'frag_a': None, 'frag_b': None} 
@@ -364,12 +576,9 @@ def _main():
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
-    automatic = None
-    if automatic_run_requested:
-        from kinbot.anl.automatic import run_automatic_cbh_anl
-        logger.info('Building and executing the automatic CBH/ANL network')
-        automatic = run_automatic_cbh_anl(
-            well0, par, input_file, directory=par['anl_automatic_directory'])
+    automatic = _post_reaction_branches(
+        well0, par, qc, input_file, automatic_run_requested)
+    if automatic is not None:
         par['anl_handoff_manifest'] = automatic['handoff_manifest']
         par['cbh_thermochemistry_models'] = automatic[
             'thermochemistry_models']

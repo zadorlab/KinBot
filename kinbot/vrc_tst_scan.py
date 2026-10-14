@@ -10,14 +10,11 @@ import copy
 import os
 import json
 import shutil
-import subprocess
-import sys
 import hashlib
 from pathlib import Path
 import re
 
-from shutil import which
-from subprocess import Popen, PIPE
+from subprocess import run
 from ase import Atoms
 from ase.io import read
 from ase.units import Hartree
@@ -85,6 +82,20 @@ class VTS:
         # have been populated during startup.
         for directory in ('vrctst/molpro', 'perm/vrctst/molpro'):
             Path(directory).mkdir(parents=True, exist_ok=True)
+        self.gaussian_tools = {}
+        if str(self.par.get('pp_orient', 'homo')).casefold() == 'homo':
+            # HOMO-oriented pivot points require both native Gaussian
+            # conversion utilities. Resolve them before submitting fragment
+            # work so a missing artifact cannot surface later in ROTD_py.
+            from kinbot.anl.site import _executable
+            for program in ('formchk', 'cubegen'):
+                executable = _executable(program, 'gaussian')
+                if executable is None:
+                    raise FileNotFoundError(
+                        f'HOMO-oriented VRC-TST requires {program!r}; '
+                        f'configure KINBOT_{program.upper()}_EXECUTABLE, '
+                        'KINBOT_GAUSSIAN_ROOT, or PATH.')
+                self.gaussian_tools[program] = str(executable)
         if self.par.get('rotdpy_run'):
             from kinbot.rotdpy import ensure_available
             ensure_available()
@@ -98,6 +109,14 @@ class VTS:
             self.opt_products(reactions)
             self.save_products(reactions)
             self.find_scan_coos(reactions)
+            invalid = [name for name in reactions
+                       if not isinstance(self.scan_reac[name].scan_coo,
+                                         (list, tuple, np.ndarray))
+                       or len(self.scan_reac[name].scan_coo) != 2]
+            if invalid:
+                raise ValueError(
+                    'VRC scan coordinate is unavailable for: '
+                    + ', '.join(invalid))
             self.find_equiv(reactions)
             self.do_scan(reactions, noscan=noscan)
             self.energies(reactions, noscan=noscan)
@@ -171,51 +190,49 @@ class VTS:
                     wait=1,
                     allow_error=1,
                     reorder=True)
-                # update geom in self.scan_reac[reac] values,
-                # this already saves it
-                prod.geom = geom
+                geometry_array = np.asarray(geom, dtype=float)
+                if (status != 0 or geometry_array.shape != (prod.natom, 3)
+                        or not np.isfinite(geometry_array).all()
+                        or len(atoms) != prod.natom):
+                    raise RuntimeError(
+                        f'{job}: VRC fragment optimization did not produce a '
+                        'finite, complete geometry.')
+                # Publish the fragment geometry only after the complete native
+                # result has passed validation.
+                prod.geom = geometry_array
                 prod.atom = atoms
-                if status == 0:
-                    # Check if commands are available
-                    commands = ['formchk', 'cubegen']
-                    missing_com = False
-                    for com in commands:
-                        if which(com) is None:
-                            logger.warning(f'Make sure the command {com} is installed.')
-                            missing_com = True
-                    if not missing_com:
-                        # Create the formchk
-                        if not os.path.isfile(f'{job}.fchk'):
-                            if os.path.isfile(f'{job}.chk'):
-                                command = ['formchk', f'{job}.chk', f'{job}.fchk']
-                                process = Popen(
-                                    args=command,
-                                    shell=False,
-                                    stdout=PIPE,
-                                    stdin=PIPE,
-                                    stderr=PIPE)
-                                out, err = process.communicate()
-                                out = out.decode()
-                            else:
-                                logger.warning(f"Could not create formatted checkpoint file for {job} as checkpoint file doesn't exist.")
 
-                        # Create the cubegen file
-                        if not os.path.isfile(f'{job}.cube'):
-                            if os.path.isfile(f'{job}.fchk'):
-                                if prod.mult != 1:
-                                    command = ['cubegen', '1', 'AMO=HOMO', f'{job}.fchk', f'{job}.cube', '-4']
-                                else:
-                                    command = ['cubegen', '1', 'MO=HOMO', f'{job}.fchk', f'{job}.cube', '-4']
-                                process = Popen(
-                                    command,
-                                    shell=False,
-                                    stdout=PIPE,
-                                    stdin=PIPE,
-                                    stderr=PIPE)
-                                out, err = process.communicate()
-                                out = out.decode()
-                            else:
-                                logger.warning(f"Cannnot create cube file for {job} as formated checkpoint file doesn't exist.")
+                if str(self.par.get('pp_orient', 'homo')).casefold() != 'homo':
+                    continue
+                chk = Path(f'{job}.chk')
+                fchk = Path(f'{job}.fchk')
+                cube = Path(f'{job}.cube')
+                if not fchk.is_file():
+                    if not chk.is_file():
+                        raise FileNotFoundError(
+                            f'{job}: Gaussian checkpoint is unavailable for '
+                            'HOMO-oriented VRC pivot points.')
+                    result = run(
+                        [self.gaussian_tools['formchk'], str(chk), str(fchk)],
+                        capture_output=True, text=True, check=False)
+                    if (result.returncode or not fchk.is_file()
+                            or not fchk.stat().st_size):
+                        detail = result.stderr.strip() or result.stdout.strip()
+                        raise RuntimeError(
+                            f'{job}: formchk failed to create {fchk}.'
+                            + (f' {detail}' if detail else ''))
+                if not cube.is_file():
+                    orbital = 'AMO=HOMO' if prod.mult != 1 else 'MO=HOMO'
+                    result = run(
+                        [self.gaussian_tools['cubegen'], '1', orbital,
+                         str(fchk), str(cube), '-4'],
+                        capture_output=True, text=True, check=False)
+                    if (result.returncode or not cube.is_file()
+                            or not cube.stat().st_size):
+                        detail = result.stderr.strip() or result.stdout.strip()
+                        raise RuntimeError(
+                            f'{job}: cubegen failed to create {cube}.'
+                            + (f' {detail}' if detail else ''))
         return
 
     def find_scan_coos(self, reactions):
@@ -433,12 +450,19 @@ class VTS:
                     logger.info(f'\trunning {jobs[ri]}')
                     status[ri] = 'running'
                 elif status[ri] == 'running':
-                    _, geom = \
+                    geometry_status, geom = \
                         self.qc.get_qc_geom(jobs[ri],
                                             self.scan_reac[reac].species.natom,
                                             allow_error=1)
                     qcst = self.qc.check_qc(jobs[ri])
                     if qcst in ['normal', 'error']:
+                        geom = np.asarray(geom, dtype=float)
+                        expected = (self.scan_reac[reac].species.natom, 3)
+                        if (geometry_status < 0 or geom.shape != expected
+                                or not np.isfinite(geom).all()):
+                            raise RuntimeError(
+                                f'{jobs[ri]}: Gaussian VRC scan point ended '
+                                'without a finite geometry.')
                         status[ri] = 'ready'
                         step[ri] += 1
                         geoms[ri] = copy.deepcopy(geom)
@@ -478,7 +502,7 @@ class VTS:
     def _molpro_multireference_scan_task(
             self, reaction, geom, distance, logical_name):
         """Run one constrained Molpro multireference scan point."""
-        from kinbot.anl.dispatch import _load, preflight, prepare
+        from kinbot.anl.dispatch import _load, drive_run, preflight, prepare
 
         constraints = {'fixed_bonds': [list(map(int, reaction.scan_coo))],
                        'minimum_bonds': []}
@@ -551,10 +575,8 @@ class VTS:
         preflight(run_dir)
         _, _, state = _load(run_dir)
         if state['tasks']['relaxed_scan']['status'] != 'complete':
-            result = subprocess.run(
-                [sys.executable, '-m', 'kinbot.anl.dispatch', 'drive',
-                 str(run_dir), '--interval', '20'], check=False)
-            if result.returncode:
+            returncode, _ = drive_run(run_dir, interval=20.)
+            if returncode:
                 _, _, state = _load(run_dir)
                 error = state['tasks']['relaxed_scan'].get(
                     'error', 'unknown task failure')
@@ -905,7 +927,7 @@ class VTS:
 
     def _dispatch_molpro_corrections(self, pending):
         """Execute missing VRC correction points with the ANL dispatcher."""
-        from kinbot.anl.dispatch import _load, preflight, prepare
+        from kinbot.anl.dispatch import _load, drive_run, preflight, prepare
 
         first = next(iter(pending.values()))
         molecule = {
@@ -973,10 +995,8 @@ class VTS:
             'schema': 1, 'run_dir': str(run_dir),
         }, indent=2) + '\n')
         preflight(run_dir)
-        result = subprocess.run(
-            [sys.executable, '-m', 'kinbot.anl.dispatch', 'drive',
-             str(run_dir), '--interval', '20'], check=False)
-        if result.returncode:
+        returncode, _ = drive_run(run_dir, interval=20.)
+        if returncode:
             _, _, state = _load(run_dir)
             failures = []
             for job in sorted(pending):

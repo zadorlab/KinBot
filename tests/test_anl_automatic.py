@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -12,6 +13,7 @@ from ase.build import molecule
 from kinbot.anl.automatic import (DEFAULT_SIZE_POLICY, _model_record,
                                   _component_family_omissions,
                                   _ordered_methods, _reference_input,
+                                  _run_reference_l2,
                                   _reference_thermochemistry_models,
                                   _vpt2_zpe_components,
                                   automatic_requested,
@@ -19,6 +21,27 @@ from kinbot.anl.automatic import (DEFAULT_SIZE_POLICY, _model_record,
                                   finalize_automatic_run, highest_tier,
                                   validate_automatic_environment)
 from kinbot.anl.validation import automatic_composite_spec
+
+
+def _mock_scientific_runtime(monkeypatch, tmp_path, found):
+    """Provide the licensed-program/cache contract for environment unit tests."""
+    found.update({
+        'g16': '/opt/gaussian/g16/g16',
+        'molpro': '/opt/molpro/bin/molpro',
+        'xcfour': '/opt/cfour/bin/xcfour',
+        'dmrcc': '/opt/mrcc/bin/dmrcc',
+        'formchk': '/opt/gaussian/g16/formchk',
+        'cubegen': '/opt/gaussian/g16/cubegen',
+    })
+    genbas = tmp_path / 'GENBAS'
+    genbas.write_text('test basis library\n')
+    checkpoint = tmp_path / 'uma-s-1p2.pt'
+    checkpoint.write_bytes(b'test checkpoint')
+    monkeypatch.setenv('CFOUR_GENBAS', str(genbas))
+    monkeypatch.setitem(sys.modules, 'fairchem', SimpleNamespace())
+    monkeypatch.setattr(
+        'kinbot.fairchem_utils.resolve_model_checkpoint',
+        lambda model: checkpoint)
 
 
 def _species(name, smiles, atoms, multiplicity=1, energy=-1., zpe=.01):
@@ -206,10 +229,12 @@ def test_automatic_anl0_and_f12_graphs_have_distinct_reference_fallbacks():
         f12_tasks['anl0_qz']['input_template']
 
 
-def test_automatic_environment_checks_final_solvers_before_qc(monkeypatch):
+def test_automatic_environment_checks_final_solvers_before_qc(
+        monkeypatch, tmp_path):
     found = {
         'mess': '/opt/mess/bin/mess', 'messpf': '/opt/mess/bin/messpf',
         'sbatch': '/usr/bin/sbatch', 'squeue': '/usr/bin/squeue'}
+    _mock_scientific_runtime(monkeypatch, tmp_path, found)
     monkeypatch.setattr(
         'kinbot.anl.automatic.shutil.which', lambda value: found.get(value))
     checked = validate_automatic_environment({
@@ -221,12 +246,20 @@ def test_automatic_environment_checks_final_solvers_before_qc(monkeypatch):
     assert checked['mess_command'] == '/opt/mess/bin/mess'
     assert checked['messpf_command'] == '/opt/mess/bin/messpf'
     assert checked['sbatch'] == '/usr/bin/sbatch'
+    gaussian = {key: value for key, value in checked.items()
+                if key.endswith('_gaussian')}
+    assert gaussian
+    assert set(gaussian.values()) == {'/opt/gaussian/g16/g16'}
+    assert 'molpro' not in checked
+    assert 'xcfour' not in checked
+    assert 'dmrcc' not in checked
 
 
-def test_automatic_environment_honors_solver_environment(monkeypatch):
+def test_automatic_environment_honors_solver_environment(monkeypatch, tmp_path):
     found = {
         '/site/mess/bin/mess': '/site/mess/bin/mess',
         '/site/mess/bin/messpf': '/site/mess/bin/messpf'}
+    _mock_scientific_runtime(monkeypatch, tmp_path, found)
     monkeypatch.setenv('KINBOT_MESS_COMMAND', '/site/mess/bin/mess')
     monkeypatch.setenv('KINBOT_MESSPF_COMMAND', '/site/mess/bin/messpf')
     monkeypatch.setattr(
@@ -235,10 +268,9 @@ def test_automatic_environment_honors_solver_environment(monkeypatch):
         'composite_method': 'ANL0-F12', 'me': 1, 'run_me': 1,
         'run_messpf': 1, 'mess_command': 'missing-mess',
         'messpf_command': 'missing-messpf', 'queuing': 'local'})
-    assert checked == {
-        'mess_command': '/site/mess/bin/mess',
-        'messpf_command': '/site/mess/bin/messpf',
-        'atct_client': 'available'}
+    assert checked['mess_command'] == '/site/mess/bin/mess'
+    assert checked['messpf_command'] == '/site/mess/bin/messpf'
+    assert checked['atct_client'] == 'available'
 
 
 def test_automatic_environment_finds_unambiguous_user_prefix(
@@ -249,11 +281,13 @@ def test_automatic_environment_finds_unambiguous_user_prefix(
         executable = prefix / name
         executable.write_text('#!/bin/sh\n')
         executable.chmod(0o755)
+    found = {}
+    _mock_scientific_runtime(monkeypatch, tmp_path, found)
     monkeypatch.setenv('HOME', str(tmp_path))
     monkeypatch.delenv('KINBOT_MESS_COMMAND', raising=False)
     monkeypatch.delenv('KINBOT_MESSPF_COMMAND', raising=False)
     monkeypatch.setattr(
-        'kinbot.anl.automatic.shutil.which', lambda value: None)
+        'kinbot.anl.automatic.shutil.which', lambda value: found.get(value))
     parameters = {
         'composite_method': 'ANL0-F12', 'me': 1, 'run_me': 1,
         'run_messpf': 1, 'mess_command': 'mess',
@@ -265,8 +299,12 @@ def test_automatic_environment_finds_unambiguous_user_prefix(
     assert parameters['messpf_command'] == str((prefix / 'messpf').resolve())
 
 
-def test_automatic_environment_checks_rotdpy_before_qc(monkeypatch):
+def test_automatic_environment_checks_rotdpy_before_qc(monkeypatch, tmp_path):
     provenance = {'git_revision': 'pinned'}
+    found = {}
+    _mock_scientific_runtime(monkeypatch, tmp_path, found)
+    monkeypatch.setattr(
+        'kinbot.anl.automatic.shutil.which', lambda value: found.get(value))
     monkeypatch.setattr(
         'kinbot.rotdpy.ensure_available', lambda: provenance)
     checked = validate_automatic_environment({
@@ -328,6 +366,71 @@ def test_reference_input_is_an_ordinary_one_slot_kinbot_run(tmp_path):
     assert generated['conformer_search'] == generated['high_level'] == 1
     assert generated['rotor_scan'] == 1
     assert generated['queue_job_limit'] == 1
+
+
+def test_reference_input_uses_the_shared_automatic_branch_limit(tmp_path):
+    source = tmp_path / 'parent.json'
+    source.write_text(json.dumps({
+        'smiles': 'CC=O', 'charge': 0, 'mult': 1,
+        'reaction_search': 1, 'me': 1, 'cbh_rung': 1,
+        'composite_method': 'ANL0-F12'}))
+    directory = tmp_path / 'reference'
+    directory.mkdir()
+    output = _reference_input(
+        source, {'smiles': 'C=O', 'charge': 0, 'multiplicity': 1},
+        directory, directory / 'model.json', queue_job_limit=4)
+    assert json.loads(output.read_text())['queue_job_limit'] == 4
+
+
+def test_inherited_reference_controller_is_replaced_once_if_it_disappears(
+        monkeypatch, tmp_path):
+    source = tmp_path / 'parent.json'
+    source.write_text(json.dumps({
+        'smiles': 'CC=O', 'charge': 0, 'mult': 1,
+        'reaction_search': 1, 'me': 0, 'cbh_rung': 1,
+        'composite_method': 'ANL0-F12'}))
+    root = tmp_path / 'references'
+    directory = root / ('state_' + hashlib.sha256(
+        b'C|0|1').hexdigest()[:16])
+    directory.mkdir(parents=True)
+    (directory / 'driver.pid').write_text('321\n')
+
+    matches = iter((True, False))
+    monkeypatch.setattr(
+        'kinbot.anl.automatic._pid_matches_reference',
+        lambda *args: next(matches))
+    monkeypatch.setattr('kinbot.anl.automatic.os.kill', lambda *args: None)
+    clock = iter((0., 61.))
+    monkeypatch.setattr(
+        'kinbot.anl.automatic.time.monotonic', lambda: next(clock))
+    monkeypatch.setattr('kinbot.anl.automatic.time.sleep', lambda value: None)
+
+    launched = []
+
+    class FinishedProcess:
+        pid = 654
+
+        def poll(self):
+            return 0
+
+    def launch(*args, **kwargs):
+        launched.append((args, kwargs))
+        (directory / 'thermochemistry_model.json').write_text('{}')
+        return FinishedProcess()
+
+    monkeypatch.setattr('kinbot.anl.automatic.subprocess.Popen', launch)
+    monkeypatch.setattr(
+        'kinbot.anl.automatic._model_record',
+        lambda model, entry, theory: {'record': str(model)})
+
+    records = _run_reference_l2(
+        [{'smiles': 'C', 'charge': 0, 'multiplicity': 1}],
+        source, root, max_jobs=1, l2_theory={})
+
+    assert len(launched) == 1
+    assert (directory / 'driver.pid').read_text() == '654\n'
+    assert records['C|0|1'] == {
+        'record': str(directory / 'thermochemistry_model.json')}
 
 
 def test_exported_reference_model_becomes_a_hash_bound_l2_source(tmp_path):

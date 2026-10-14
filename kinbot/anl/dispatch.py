@@ -2175,6 +2175,29 @@ def refresh_status(run_dir):
     return _summary(spec, state)
 
 
+def drive_run(run_dir, *, interval=20., submit_only=None):
+    """Drive a dispatcher graph without creating an orphanable controller."""
+    run_dir = Path(run_dir).resolve()
+    with (run_dir / 'drive.lock').open('w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError(
+                'Another driver is already managing this run.') from exc
+        while True:
+            state = advance(run_dir, submit=True, submit_only=submit_only)
+            _, spec, _ = _load(run_dir)
+            summary = _summary(spec, state)
+            terminal = {
+                'complete', 'failed', 'blocked', 'unavailable', 'skipped'}
+            if all(value in terminal for value in summary.values()):
+                successful = all(value in (
+                    'complete', 'unavailable', 'skipped')
+                    for value in summary.values())
+                return (0 if successful else 1), summary
+            time.sleep(float(interval))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Stage and drive exclusive QC jobs')
     sub = parser.add_subparsers(dest='action', required=True)
@@ -2291,29 +2314,26 @@ def main(argv=None):
     else:
         if args.only and not args.once:
             parser.error('--only requires --once')
-        run_dir = Path(args.run_dir).resolve()
-        with (run_dir / 'drive.lock').open('w') as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as exc:
-                raise RuntimeError('Another driver is already managing this run.') from exc
-            while True:
+        if args.interval < 1 or args.interval > 60:
+            parser.error('--interval must be 1 through 60 seconds')
+        if args.once:
+            run_dir = Path(args.run_dir).resolve()
+            with (run_dir / 'drive.lock').open('w') as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as exc:
+                    raise RuntimeError(
+                        'Another driver is already managing this run.') from exc
                 state = advance(run_dir, submit=True, submit_only=args.only)
                 _, spec, _ = _load(run_dir)
                 summary = _summary(spec, state)
                 print(json.dumps(summary, sort_keys=True), flush=True)
-                terminal = {
-                    'complete', 'failed', 'blocked', 'unavailable', 'skipped'}
-                if all(value in terminal for value in summary.values()):
-                    return 0 if all(value in (
-                        'complete', 'unavailable', 'skipped')
-                        for value in summary.values()) else 1
-                if args.once:
-                    return int(any(value in ('failed', 'blocked')
-                                   for value in summary.values()))
-                if args.interval < 1 or args.interval > 60:
-                    parser.error('--interval must be 1 through 60 seconds')
-                time.sleep(args.interval)
+                return int(any(value in ('failed', 'blocked')
+                               for value in summary.values()))
+        returncode, summary = drive_run(
+            args.run_dir, interval=args.interval, submit_only=args.only)
+        print(json.dumps(summary, sort_keys=True), flush=True)
+        return returncode
 
 
 if __name__ == '__main__':

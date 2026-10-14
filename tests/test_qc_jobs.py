@@ -15,7 +15,7 @@ import numpy as np
 from ase import Atoms
 
 from kinbot.qc import (QuantumChemistry, _export_slurm_excluded_nodes,
-                       _slurm_job_active)
+                       _slurm_job_active, _worker_exit_status)
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.utils import clean_files, too_far
@@ -106,6 +106,7 @@ class TestSchedulerJobs(unittest.TestCase):
         self.assertNotIn('#SBATCH -q ', script)
         self.assertIn('#SBATCH --time=1-00:00:00', script)
         self.assertIn('kinbot_exit_file=partition_job.exitcode', script)
+        self.assertIn('${SLURM_JOB_ID:-unknown}', script)
         self.assertIn('exit "$kinbot_exit_code"', script)
 
     def test_completed_scheduler_job_without_result_becomes_error(self):
@@ -117,7 +118,42 @@ class TestSchedulerJobs(unittest.TestCase):
             self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'running')
             self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'error')
 
-    def test_completed_worker_reads_result_without_contacting_slurm(self):
+    def test_scheduler_query_outage_is_bounded_before_submission(self):
+        qc = SimpleNamespace(
+            queuing='slurm', username='tester', queue_job_limit=8)
+        failed = Mock(returncode=1, stdout='', stderr='controller unavailable')
+        with patch('kinbot.qc.subprocess.run', return_value=failed), \
+                patch('kinbot.qc.time.monotonic', side_effect=[0., 61.]), \
+                patch('kinbot.qc.time.sleep'), \
+                self.assertRaisesRegex(RuntimeError, 'continuously'):
+            QuantumChemistry.limit_jobs(qc)
+
+    def test_queue_limit_counts_only_the_reserved_slurm_branch(self):
+        root = str((Path.cwd() / 'anl_automatic').resolve())
+        qc = SimpleNamespace(
+            queuing='slurm', username='tester', queue_job_limit=2,
+            queue_job_root=root, queue_job_root_recursive=True)
+        listing = Mock(returncode=0, stderr='', stdout='\n'.join((
+            root + '/reference_l2/a',
+            str((Path.cwd() / 'vrctst').resolve()),
+        )))
+        with patch('kinbot.qc.subprocess.run', return_value=listing) as run:
+            self.assertEqual(QuantumChemistry.limit_jobs(qc), 0)
+        self.assertEqual(
+            run.call_args.args[0],
+            ['squeue', '-h', '-u', 'tester', '-o', '%Z'])
+
+    def test_automatic_reference_submission_uses_cross_process_lock(self):
+        qc = SimpleNamespace()
+        with patch.object(QuantumChemistry, '_submit_qc', return_value=1) as submit, \
+                patch.dict(os.environ, {
+                    'KINBOT_QUEUE_LOCK': str(Path.cwd() / 'shared.lock')}):
+            self.assertEqual(
+                QuantumChemistry.submit_qc(qc, 'job', 8), 1)
+        submit.assert_called_once_with(qc, 'job', 8, 1, None)
+        self.assertTrue(Path('shared.lock').is_file())
+
+    def test_completed_worker_reads_result_after_current_slurm_generation(self):
         Path('input.json').write_text(json.dumps({
             'barrier_threshold': 100., 'queuing': 'slurm'}))
         qc = QuantumChemistry(
@@ -128,11 +164,86 @@ class TestSchedulerJobs(unittest.TestCase):
         qc.db.write(atoms, name=job,
                     data={'energy': -1., 'status': 'normal'})
         Path(job + '_sella.log').write_text('done\n')
+        Path(job + '.exitcode').write_text('123 0\n')
+        qc.job_ids[job] = '123'
+        with patch('kinbot.qc._slurm_job_active', return_value=False) as active:
+            self.assertEqual(qc.check_qc(job), 'normal')
+        active.assert_not_called()
+
+    def test_legacy_profiled_job_keeps_one_field_exit_marker_compatibility(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'fc'
+        job = 'legacy_completed'
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [.74, 0., 0.]])
+        qc.db.write(atoms, name=job,
+                    data={'energy': -1., 'status': 'normal'})
+        Path(job + '_sella.log').write_text('done\n')
         Path(job + '.exitcode').write_text('0\n')
         qc.job_ids[job] = '123'
-        with patch('kinbot.qc.subprocess.run',
-                   side_effect=AssertionError('Slurm must not be queried')):
+        qc.job_generation_tagged[job] = False
+
+        with patch('kinbot.qc._slurm_job_active') as active:
             self.assertEqual(qc.check_qc(job), 'normal')
+        active.assert_not_called()
+
+    def test_active_replacement_ignores_previous_worker_error(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'fc'
+        job = 'reaction_path'
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [.74, 0., 0.]])
+        qc.db.write(atoms, name=job,
+                    data={'energy': -1., 'status': 'error'})
+        Path(job + '_sella.log').write_text('done\n')
+        Path(job + '.exitcode').write_text('1\n')
+        qc.job_ids[job] = '456'
+
+        with patch('kinbot.qc._slurm_job_active', return_value=True):
+            self.assertEqual(qc.check_qc(job), 'running')
+
+    def test_released_replacement_ignores_previous_generation_marker(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'fc'
+        job = 'reaction_path'
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [.74, 0., 0.]])
+        qc.db.write(atoms, name=job,
+                    data={'energy': -1., 'status': 'normal'})
+        Path(job + '_sella.log').write_text('done\n')
+        Path(job + '.exitcode').write_text('455 0\n')
+        qc.job_ids[job] = '456'
+
+        with patch('kinbot.qc._slurm_job_active', return_value=False):
+            self.assertEqual(qc._check_qc(job), 0)
+
+    def test_current_generation_marker_accepts_completed_worker(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'fc'
+        job = 'reaction_path'
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [.74, 0., 0.]])
+        qc.db.write(atoms, name=job,
+                    data={'energy': -1., 'status': 'normal'})
+        Path(job + '.exitcode').write_text('456 0\n')
+        qc.job_ids[job] = '456'
+
+        with patch('kinbot.qc._slurm_job_active', return_value=False):
+            self.assertEqual(qc.check_qc(job), 'normal')
+
+    def test_worker_exit_marker_normalizes_pbs_server_suffix(self):
+        Path('worker.exitcode').write_text('123.server 0\n')
+        self.assertEqual(
+            _worker_exit_status('worker.exitcode', '123'), (0, True))
+        self.assertIsNone(_worker_exit_status('worker.exitcode', '124'))
 
     def test_completed_worker_accepts_database_row_without_legacy_done_marker(self):
         Path('input.json').write_text(json.dumps({

@@ -1,4 +1,5 @@
 from kinbot.species_routing import routing_name
+import getpass
 import os
 import sys
 import fcntl
@@ -368,7 +369,18 @@ class QuantumChemistry:
                                if queue_root else None)
         self.queue_job_root_recursive = (
             os.environ.get('KINBOT_QUEUE_ROOT_RECURSIVE', '') == '1')
-        self.username = par['username']
+        # An empty username is the portable input default.  Resolve it at
+        # runtime so scheduler admission control cannot silently query an
+        # empty user and submit past ``queue_job_limit``.
+        self.username = str(par.get('username', '') or '').strip()
+        if not self.username:
+            self.username = (os.environ.get('USER', '').strip()
+                             or os.environ.get('LOGNAME', '').strip()
+                             or getpass.getuser().strip())
+        if self.queuing in ('slurm', 'pbs') and not self.username:
+            raise ValueError(
+                'Cannot determine the scheduler username; set username or '
+                'the USER environment variable.')
         self.use_sella = par['use_sella']
         self.frequency_mode = par.get('frequency_mode', 'auto')
         if not self.use_sella and self.qc.lower() == 'nn_pes':

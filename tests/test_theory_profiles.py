@@ -64,6 +64,21 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual(l2.calculator_kwargs['integral'], 'UltraFine')
         self.assertEqual(l2.frequency_mode, 'native_hessian')
 
+    def test_profiled_queue_reservations_propagate_to_both_backends(self):
+        parameters = self.parameters(
+            composite_method='ANL0-F12', queue_job_limit=8,
+            fc_model_path='/site/uma.pt')
+        qc = QuantumChemistry(parameters.par)
+
+        qc.queue_job_limit = 4
+        qc.queue_job_root = str(Path.cwd())
+        qc.queue_job_root_recursive = False
+
+        for backend in (qc.l1, qc.l2):
+            self.assertEqual(backend.queue_job_limit, 4)
+            self.assertEqual(backend.queue_job_root, str(Path.cwd()))
+            self.assertFalse(backend.queue_job_root_recursive)
+
     def test_lower_and_higher_anl_tiers_select_matching_l2_surfaces(self):
         lower = self.parameters(composite_method='ANL0-F12',
                                 fc_model_path='/site/uma.pt')

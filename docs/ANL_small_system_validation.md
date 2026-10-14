@@ -78,6 +78,10 @@ disjoint slot reservations to the two branches, and runs them concurrently.
 The composite branch never reads the VRC branch's mutable reaction objects;
 it consumes the frozen JSON plan. MESSPF and MESS remain behind a persisted
 join record and cannot start from a partially completed branch.
+For an automatic run, KinBot also scopes admission to the calculation tree,
+serializes scheduler submissions across child controllers, and infers an
+omitted scheduler username from the login environment. The portable example
+therefore does not require a site-specific `username` field.
 
 The spin-splitting preset keeps the original direct VRC correction as the
 global compatibility default; selecting it is one extra scientific choice in

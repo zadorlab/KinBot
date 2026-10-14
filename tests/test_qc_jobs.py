@@ -47,6 +47,14 @@ class TestSchedulerJobs(unittest.TestCase):
             self.assertIn(f"'method': '{method}'", script)
             self.assertIn(f"'basis': '{basis}'", script)
 
+    def test_blank_scheduler_username_uses_login_environment(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm', 'username': ''}))
+        with patch.dict(os.environ, {'USER': 'scheduler-user'}, clear=False):
+            qc = QuantumChemistry(
+                Parameters('input.json', show_warnings=False).par)
+        self.assertEqual(qc.username, 'scheduler-user')
+
     def test_pbs_uses_requested_processors_and_records_job_id(self):
         for requested, expected in ((4, 4), (0, 1)):
             with self.subTest(requested=requested):

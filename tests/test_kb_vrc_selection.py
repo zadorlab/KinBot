@@ -1,6 +1,7 @@
 """VRC auto-selection uses public ReactionFinder identities."""
 
 import json
+import os
 from pathlib import Path
 import threading
 from types import SimpleNamespace
@@ -11,6 +12,7 @@ import kinbot.kb as kb
 import kinbot.anl.automatic as automatic
 from kinbot.kb import (_accepted_homolytic_channels,
                        _check_initial_minimum_frequencies,
+                       _configure_automatic_queue_admission,
                        _post_reaction_branches)
 
 
@@ -64,6 +66,23 @@ def _branch_parameters(tmp_path):
         'vrc_tst_noscan': {},
         'anl_automatic_directory': str(tmp_path / 'anl_automatic'),
     }
+
+
+def test_automatic_run_configures_one_recursive_queue_scope(
+        monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    for name in ('KINBOT_QUEUE_ROOT', 'KINBOT_QUEUE_ROOT_RECURSIVE',
+                 'KINBOT_QUEUE_LOCK'):
+        monkeypatch.delenv(name, raising=False)
+
+    root = _configure_automatic_queue_admission({
+        'queuing': 'slurm', 'queue_job_limit': 8}, True)
+
+    assert root == tmp_path.resolve()
+    assert os.environ['KINBOT_QUEUE_ROOT'] == str(tmp_path.resolve())
+    assert os.environ['KINBOT_QUEUE_ROOT_RECURSIVE'] == '1'
+    assert os.environ['KINBOT_QUEUE_LOCK'] == str(
+        tmp_path.resolve() / '.kinbot_submission.lock')
 
 
 def test_vrc_and_composite_branches_run_concurrently_with_disjoint_slots(

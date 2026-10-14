@@ -161,6 +161,40 @@ class ProfiledQuantumChemistry:
         # Unclassified operations (reaction scans, IRC, VTS, conformers) are L1.
         return getattr(self.l1, name)
 
+    def _get_queue_setting(self, name):
+        return getattr(self.l1, name)
+
+    def _set_queue_setting(self, name, value):
+        # Queue admission belongs to the workflow, rather than a theory
+        # level.  Propagate temporary branch reservations to both routed
+        # backends instead of shadowing the L1 attribute on this wrapper.
+        for backend in getattr(self, 'backends', {}).values():
+            setattr(backend, name, value)
+
+    @property
+    def queue_job_limit(self):
+        return self._get_queue_setting('queue_job_limit')
+
+    @queue_job_limit.setter
+    def queue_job_limit(self, value):
+        self._set_queue_setting('queue_job_limit', value)
+
+    @property
+    def queue_job_root(self):
+        return self._get_queue_setting('queue_job_root')
+
+    @queue_job_root.setter
+    def queue_job_root(self, value):
+        self._set_queue_setting('queue_job_root', value)
+
+    @property
+    def queue_job_root_recursive(self):
+        return self._get_queue_setting('queue_job_root_recursive')
+
+    @queue_job_root_recursive.setter
+    def queue_job_root_recursive(self, value):
+        self._set_queue_setting('queue_job_root_recursive', value)
+
     def _load_routes(self):
         if not self.route_file.exists():
             return {}

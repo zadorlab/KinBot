@@ -1,6 +1,7 @@
 from kinbot.species_routing import routing_name, apply_input_reference, matches_name
 from contextlib import contextmanager
 import fcntl
+import os
 import sys
 import datetime
 import copy
@@ -30,6 +31,25 @@ from kinbot.theory import automatic_cbh_anl_requested
 
 
 logger = logging.getLogger('KinBot')
+
+
+def _configure_automatic_queue_admission(parameters, requested):
+    """Scope and serialize scheduler admission for one automatic run.
+
+    The ordinary reaction search and both post-reaction branches belong to
+    one calculation tree.  Establish the shared scope before constructing
+    any QC backend, including both members of a profiled L1/L2 router.
+    Generated reference controllers receive their narrower scope from the
+    automatic dispatcher and do not enter this function as requested runs.
+    """
+    if (not requested or parameters.get('queuing') == 'local'
+            or int(parameters.get('queue_job_limit', -1)) <= 0):
+        return None
+    root = Path.cwd().resolve()
+    os.environ['KINBOT_QUEUE_ROOT'] = str(root)
+    os.environ['KINBOT_QUEUE_ROOT_RECURSIVE'] = '1'
+    os.environ['KINBOT_QUEUE_LOCK'] = str(root / '.kinbot_submission.lock')
+    return root
 
 
 @contextmanager
@@ -306,6 +326,7 @@ def _main():
     par = masterpar.par
     input_file = masterpar.input_file
     automatic_run_requested = automatic_cbh_anl_requested(par)
+    _configure_automatic_queue_admission(par, automatic_run_requested)
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', level='debug')

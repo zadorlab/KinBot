@@ -1761,6 +1761,66 @@ def test_mrcc_discovery_uses_configuration_without_site_paths():
                                               for name in ('dmrcc', 'scf', 'mrcc')]
 
 
+def test_mrcc_discovery_searches_conventional_versioned_installations():
+    with TemporaryDirectory() as temporary:
+        prefix = Path(temporary) / 'opt'
+        install = prefix / 'MRCC' / 'mrcc-2026' / 'bin'
+        install.mkdir(parents=True)
+        for program in ('dmrcc', 'scf', 'mrcc'):
+            executable = install / program
+            executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+            executable.chmod(0o755)
+        environment = {'PATH': '/usr/bin:/bin', 'LOADEDMODULES': '',
+                       'HOME': str(Path(temporary) / 'home')}
+        with patch.dict(os.environ, environment, clear=True), \
+                patch('kinbot.anl.site._automatic_install_bases',
+                      return_value=[prefix]):
+            setup = render_site_setup({'mrcc': {'dmrcc', 'scf', 'mrcc'}})
+        assert str(install) in setup
+        assert 'module load' not in setup
+
+
+def test_unloaded_environment_module_is_discovered_and_recorded():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        install = root / 'mrcc-2026' / 'bin'
+        install.mkdir(parents=True)
+        for program in ('dmrcc', 'scf', 'mrcc'):
+            executable = install / program
+            executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+            executable.chmod(0o755)
+        modules_home = root / 'modules'
+        (modules_home / 'init').mkdir(parents=True)
+        (modules_home / 'init' / 'bash').write_text(
+            'module() {\n'
+            '  if [ "$1" = -t ] && [ "$2" = avail ]; then\n'
+            '    echo mrcc/mrcc-2026\n'
+            '  elif [ "$1" = load ] && [ "$2" = mrcc/mrcc-2026 ]; then\n'
+            f'    export PATH={install}:$PATH\n'
+            '  else\n'
+            '    return 1\n'
+            '  fi\n'
+            '}\n')
+        environment = {
+            'PATH': '/usr/bin:/bin', 'LOADEDMODULES': '',
+            'MODULESHOME': str(modules_home), 'HOME': str(root / 'home'),
+        }
+        with patch.dict(os.environ, environment, clear=True), \
+                patch('kinbot.anl.site._automatic_install_bases',
+                      return_value=[]):
+            setup = render_site_setup({'mrcc': {'dmrcc', 'scf', 'mrcc'}})
+        assert 'module load mrcc/mrcc-2026' in setup
+        setup_path = root / 'setup.sh'
+        setup_path.write_text(setup)
+        result = subprocess.run(
+            ['bash', '-c', 'export KINBOT_BACKEND=mrcc; source setup.sh; '
+                           'command -v dmrcc; command -v scf; command -v mrcc'],
+            cwd=root, env=environment, capture_output=True, text=True,
+            check=True)
+        assert result.stdout.splitlines() == [str(install / name)
+                                              for name in ('dmrcc', 'scf', 'mrcc')]
+
+
 def test_preflight_refreshes_a_stale_generated_mrcc_site_setup():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)

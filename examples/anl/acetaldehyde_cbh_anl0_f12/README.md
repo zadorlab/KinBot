@@ -11,8 +11,11 @@ the adjacent-H molecular channel to methane plus CO, and H2 elimination to
 ketene. They scope the PES search and do not choose a CBH rung.
 
 The input contains no executable path, module name, FairChem cache path, CBH
-rung, CBH reference list, or per-program resource table. Site software remains
-discoverable through the loaded environment and `site_setup.sh`.
+rung, CBH reference list, or per-program resource table. KinBot checks explicit
+configuration, `PATH`, conventional user and system installation prefixes, and
+both loaded and available environment modules. It records the resolved paths
+and any required module loads in `site_setup.sh`; the user does not need to
+load program modules before starting the driver.
 
 After the accepted reaction network is frozen, VRC-TST and CBH/ANL execute as
 independent branches. With this eight-slot input, KinBot reserves four slots

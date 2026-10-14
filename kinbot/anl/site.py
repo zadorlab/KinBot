@@ -22,6 +22,23 @@ _DEFAULT_MOLPRO_STACK_MW = 1024
 _DEFAULT_MEMORY_PER_CORE_MB = 4096
 _DEFAULT_MAX_CORES = 16
 _EFFICIENT_CORE_COUNTS = (1, 2, 4, 8, 12, 16)
+_MODULE_ENVIRONMENT_KEYS = ('MODULESHOME', 'MODULEPATH', 'LMOD_CMD')
+_MODULE_INIT_FILES = (
+    '/etc/profile.d/modules.sh',
+    '/etc/profile.d/lmod.sh',
+    '/usr/share/Modules/init/bash',
+    '/usr/share/lmod/lmod/init/bash',
+)
+_BACKEND_ALIASES = {
+    'cfour': ('cfour',),
+    'gauss': ('gaussian', 'g16', 'gauss'),
+    'gaussian': ('gaussian', 'g16', 'gauss'),
+    'molpro': ('molpro',),
+    'mrcc': ('mrcc',),
+    'nwchem': ('nwchem',),
+    'orca': ('orca',),
+    'qchem': ('qchem',),
+}
 
 
 def _duration_seconds(value):
@@ -274,8 +291,78 @@ def _backend_roots(backend):
     return roots
 
 
-def _executable(program, backend):
-    """Find a program from explicit configuration, PATH, or a backend root."""
+def _automatic_install_bases():
+    """Return conventional user and system software prefixes.
+
+    Discovery is deliberately bounded.  It checks only conventional prefixes
+    and backend-named descendants rather than recursively walking a user's
+    home directory or a shared filesystem.
+    """
+    home = Path.home()
+    values = (
+        home,
+        home / '.local',
+        home / 'local',
+        home / 'opt',
+        home / 'software',
+        home / 'Software',
+        home / 'apps',
+        home / 'programs',
+        Path('/opt'),
+        Path('/usr/local'),
+        Path('/usr/local/opt'),
+        Path('/apps'),
+        Path('/software'),
+        Path('/sw'),
+    )
+    return list(dict.fromkeys(path.absolute() for path in values))
+
+
+def _version_key(path):
+    """Sort versioned installation names naturally, newest-looking first."""
+    return tuple((1, int(part)) if part.isdigit() else (0, part.casefold())
+                 for part in re.split(r'(\d+)', path.name))
+
+
+def _automatic_backend_roots(backend):
+    """Find backend-named roots below conventional installation prefixes."""
+    aliases = _BACKEND_ALIASES.get(backend.casefold(), (backend.casefold(),))
+    roots = []
+
+    def add(path):
+        if path.is_dir() and path not in roots:
+            roots.append(path)
+
+    for base in _automatic_install_bases():
+        if not base.is_dir():
+            continue
+        add(base)
+        try:
+            children = list(base.iterdir())
+        except OSError:
+            continue
+        matching = [child for child in children if child.is_dir()
+                    and any(child.name.casefold().startswith(alias)
+                            for alias in aliases)]
+        for root in sorted(matching, key=_version_key, reverse=True):
+            add(root)
+            try:
+                versions = [child for child in root.iterdir()
+                            if child.is_dir()]
+            except OSError:
+                continue
+            for version in sorted(versions, key=_version_key, reverse=True):
+                add(version)
+    return roots
+
+
+def _executable_without_modules(program, backend):
+    """Find a program without changing or probing the module environment."""
+    requested = Path(program).expanduser()
+    if requested.parent != Path('.'):
+        if requested.is_file() and os.access(requested, os.X_OK):
+            return requested.absolute()
+        return None
     program_tag = re.sub(r'[^A-Za-z0-9]', '_', program).upper()
     configured = os.environ.get(f'KINBOT_{program_tag}_EXECUTABLE')
     if configured:
@@ -284,11 +371,138 @@ def _executable(program, backend):
     found = shutil.which(program)
     if found:
         return Path(found).absolute()
-    for root in _backend_roots(backend):
-        for candidate in (root / program, root / 'bin' / program):
+    roots = _backend_roots(backend) + _automatic_backend_roots(backend)
+    for root in dict.fromkeys(roots):
+        for directory in ('', 'bin', 'exe', 'libexec'):
+            candidate = root / directory / program if directory else root / program
             if candidate.is_file() and os.access(candidate, os.X_OK):
                 return candidate.absolute()
     return None
+
+
+def _module_system_available():
+    """Whether a shell module implementation is plausibly installed."""
+    if any(os.environ.get(key) for key in _MODULE_ENVIRONMENT_KEYS):
+        return True
+    if shutil.which('modulecmd'):
+        return True
+    return any(Path(path).is_file() for path in _MODULE_INIT_FILES)
+
+
+def _module_shell_prelude():
+    """Initialize Environment Modules or Lmod in a noninteractive shell."""
+    quoted = ' '.join(shlex.quote(path) for path in _MODULE_INIT_FILES)
+    return (
+        'if ! type module >/dev/null 2>&1; then\n'
+        '  for kinbot_module_init in '
+        '"${MODULESHOME:-}/init/bash" ' + quoted + '; do\n'
+        '    [ -n "$kinbot_module_init" ] && '
+        '[ -r "$kinbot_module_init" ] || continue\n'
+        '    source "$kinbot_module_init" >/dev/null 2>&1 || continue\n'
+        '    type module >/dev/null 2>&1 && break\n'
+        '  done\n'
+        '  unset kinbot_module_init\n'
+        'fi\n'
+        'if ! type module >/dev/null 2>&1; then\n'
+        '  if [ -n "${LMOD_CMD:-}" ] && [ -x "${LMOD_CMD:-}" ]; then\n'
+        '    module() { eval "$("$LMOD_CMD" bash "$@")"; }\n'
+        '  elif command -v modulecmd >/dev/null 2>&1; then\n'
+        '    module() { eval "$(modulecmd bash "$@")"; }\n'
+        '  fi\n'
+        'fi\n'
+        'type module >/dev/null 2>&1\n'
+    )
+
+
+def _available_module_names(backend):
+    """Return safe module names advertised for a backend."""
+    if not _module_system_available():
+        return []
+    aliases = _BACKEND_ALIASES.get(backend.casefold(), (backend.casefold(),))
+    names = []
+    for query in aliases:
+        script = (_module_shell_prelude()
+                  + 'module -t avail "$1" 2>&1 || true\n')
+        try:
+            result = subprocess.run(
+                ['bash', '-lc', script, 'kinbot-module-query', query],
+                capture_output=True, text=True, check=False, timeout=15,
+                env={**os.environ, 'LMOD_COLORIZE': 'no', 'TERM': 'dumb'})
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        for line in result.stdout.splitlines():
+            token = line.strip().split()[0] if line.strip() else ''
+            token = re.sub(r'\((?:default|D|L|S|\*)\)\Z', '', token,
+                           flags=re.IGNORECASE)
+            if (token and ':' not in token and _MODULE_NAME.fullmatch(token)
+                    and any(token.split('/', 1)[0].casefold().startswith(alias)
+                            for alias in aliases)
+                    and token not in names):
+                names.append(token)
+    # An exact family name commonly selects the site's default version. Try
+    # it only after concrete names reported by ``module avail`` so generated
+    # setup scripts pin a version whenever the module system exposes one.
+    names.extend(alias for alias in aliases if alias not in names)
+    return names
+
+
+def _probe_module(module, programs):
+    """Load one module in a child shell and resolve all required programs."""
+    if not _MODULE_NAME.fullmatch(module):
+        return None
+    script = (_module_shell_prelude()
+              + 'module load "$1" >/dev/null 2>&1 || exit 91\n'
+                'shift\n'
+                'for kinbot_program in "$@"; do\n'
+                '  kinbot_path=$(command -v -- "$kinbot_program") || exit 92\n'
+                '  printf "%s\\t%s\\n" "$kinbot_program" "$kinbot_path"\n'
+                'done\n')
+    try:
+        result = subprocess.run(
+            ['bash', '-lc', script, 'kinbot-module-probe', module, *programs],
+            capture_output=True, text=True, check=False, timeout=20,
+            env={**os.environ, 'LMOD_COLORIZE': 'no', 'TERM': 'dumb'})
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode:
+        return None
+    paths = {}
+    for line in result.stdout.splitlines():
+        fields = line.split('\t', 1)
+        if len(fields) != 2 or fields[0] not in programs:
+            continue
+        candidate = Path(fields[1]).expanduser()
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            paths[fields[0]] = candidate.absolute()
+    return paths if set(paths) == set(programs) else None
+
+
+def _discover_module(backend, programs):
+    """Find an unloaded module that supplies every requested executable."""
+    for module in _available_module_names(backend):
+        paths = _probe_module(module, programs)
+        if paths is not None:
+            return module, paths
+    return None, {}
+
+
+def _discover_backend(backend, programs):
+    """Resolve a backend from configuration, paths, roots, or modules."""
+    programs = tuple(sorted(programs))
+    paths = {program: _executable_without_modules(program, backend)
+             for program in programs}
+    module = _loaded_module(backend)
+    if any(path is None for path in paths.values()):
+        discovered_module, discovered = _discover_module(backend, programs)
+        if discovered_module:
+            module = discovered_module
+            paths.update(discovered)
+    return module, paths
+
+
+def _executable(program, backend):
+    """Find an executable, including software exposed by unloaded modules."""
+    return _discover_backend(backend, (program,))[1][program]
 
 
 def _installation_paths(path):
@@ -297,7 +511,7 @@ def _installation_paths(path):
 
 
 def render_site_setup(programs_by_backend):
-    """Build a user-editable setup script from visible programs and modules."""
+    """Build a setup script from configured, installed, or module software."""
     lines = [
         '#!/usr/bin/env bash',
         '# Generated from the environment visible during prepare.',
@@ -306,20 +520,37 @@ def render_site_setup(programs_by_backend):
     ]
     for backend, programs in sorted(programs_by_backend.items()):
         lines.append(f'  {backend})')
-        module = _loaded_module(backend)
+        module, resolved = _discover_backend(backend, programs)
         if module:
             lines += [
                 '    if ! type module >/dev/null 2>&1; then',
-                '      if [ -r "${MODULESHOME:-}/init/bash" ]; then',
-                '        source "$MODULESHOME/init/bash"',
-                '      else',
-                '        echo "Module initialization is unavailable" >&2; return 1',
+                '      for kinbot_module_init in '
+                '"${MODULESHOME:-}/init/bash" '
+                + ' '.join(shlex.quote(path) for path in _MODULE_INIT_FILES)
+                + '; do',
+                '        [ -n "$kinbot_module_init" ] && '
+                '[ -r "$kinbot_module_init" ] || continue',
+                '        source "$kinbot_module_init" >/dev/null 2>&1 || continue',
+                '        type module >/dev/null 2>&1 && break',
+                '      done',
+                '      unset kinbot_module_init',
+                '    fi',
+                '    if ! type module >/dev/null 2>&1; then',
+                '      if [ -n "${LMOD_CMD:-}" ] && '
+                '[ -x "${LMOD_CMD:-}" ]; then',
+                '        module() { eval "$("$LMOD_CMD" bash "$@")"; }',
+                '      elif command -v modulecmd >/dev/null 2>&1; then',
+                '        module() { eval "$(modulecmd bash "$@")"; }',
                 '      fi',
                 '    fi',
-                f'    module load {shlex.quote(module)}',
+                '    if ! type module >/dev/null 2>&1; then',
+                '      echo "Module initialization is unavailable" >&2; return 1',
+                '    fi',
+                f'    if ! module load {shlex.quote(module)}; then',
+                f'      echo "Cannot load module {module}" >&2; return 1',
+                '    fi',
             ]
-        found = [_executable(program, backend)
-                 for program in sorted(programs)]
+        found = [resolved[program] for program in sorted(programs)]
         dirs = []
         for path in found:
             if path and str(path.parent) not in dirs:

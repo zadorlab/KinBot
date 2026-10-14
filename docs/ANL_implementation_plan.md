@@ -275,7 +275,10 @@ The generic dispatcher:
 - isolates Molpro scratch and repository files per invocation;
 - detects Gaussian scratch and library requirements on compute nodes;
 - discovers Gaussian, Molpro, CFOUR, MRCC, modules, basis files, and runtime
-  libraries without cluster-specific constants;
+  libraries without cluster-specific constants or prior module loads; it
+  searches explicit configuration, `PATH`, conventional versioned install
+  prefixes, and available Environment Modules/Lmod entries, then pins the
+  resolved setup in each worker script;
 - reconciles jobs that have left `squeue` without treating an invalid job ID
   as a dispatcher failure;
 - stages all dependency-ready post-geometry tasks concurrently under the

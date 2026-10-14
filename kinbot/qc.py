@@ -42,6 +42,12 @@ _SLURM_TERMINAL_STATES = {
     'NODE_FAIL', 'OUT_OF_MEMORY', 'PREEMPTED', 'TIMEOUT',
 }
 _SUBMISSION_LOCK = threading.RLock()
+_QC_SITE_BACKENDS = {
+    'gauss': ('gaussian', 'g16'),
+    'nwchem': ('nwchem', 'nwchem'),
+    'orca': ('orca', 'orca'),
+    'qchem': ('qchem', 'qchem'),
+}
 _SCHEDULER_UNAVAILABLE = re.compile(
     r'(?:unable to contact (?:slurm )?controller|'
     r'unable to establish controller connection|'
@@ -388,6 +394,33 @@ class QuantumChemistry:
         if not getattr(species, 'wellorts', 0):
             species.optical_population = getattr(self, 'par', {}).get('optical_population', 'specified')
             optical_scope(species, species.optical_population)
+
+    def _worker_site_setup(self):
+        """Create the portable environment sourced by ordinary Slurm jobs."""
+        if self.queuing != 'slurm' or self.qc not in _QC_SITE_BACKENDS:
+            return ''
+        backend, default_program = _QC_SITE_BACKENDS[self.qc]
+        try:
+            command = shlex.split(str(getattr(self, 'qc_command', '') or ''))
+        except ValueError as error:
+            raise ValueError('qc_command is not valid shell syntax.') from error
+        program = Path(command[0]).name if command else default_program
+        cache = getattr(self, '_worker_site_setup_cache', {})
+        key = (backend, program)
+        path = cache.get(key)
+        if path is None:
+            from kinbot.anl.site import render_site_setup
+            path = Path(f'.kinbot_site_setup_{backend}.sh').resolve()
+            content = render_site_setup({backend: {program}})
+            with _SUBMISSION_LOCK:
+                temporary = path.with_name(path.name + f'.tmp.{os.getpid()}')
+                temporary.write_text(content)
+                os.chmod(temporary, 0o700)
+                os.replace(temporary, path)
+            cache[key] = path
+            self._worker_site_setup_cache = cache
+        return (f'export KINBOT_BACKEND={shlex.quote(backend)}\n'
+                f'source {shlex.quote(str(path))} || exit $?\n')
 
     def get_qc_arguments(self, job, mult, charge, nel, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -1572,7 +1605,10 @@ class QuantumChemistry:
             python_file = f'{os.path.basename(job)}.py'
         else:
             python_file = f'{job}.py'
-        job_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
+        site_setup = (self._worker_site_setup()
+                      if hasattr(self, '_worker_site_setup') else '')
+        job_template = (open(template_head_file, 'r').read() + site_setup
+                        + open(template_file, 'r').read())
         excluded_nodes = getattr(self, '_slurm_excluded_nodes', None)
         if excluded_nodes is None:
             excluded_nodes = _load_slurm_node_state(getattr(self, 'par', {}))

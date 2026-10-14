@@ -54,10 +54,6 @@ else:  # select the last geometry that was within the range of allowed change
             db.write(mol, name=label, data={{'energy': energies[gii], 'status': 'normal'}})
             break
 
-time.sleep(1)  
-with open(logfile, 'a') as f:
-    f.write('done\n')
-
 # FROZEN
 
 # create fragment geometries from the relaxed scan and save scan atoms' position and index
@@ -121,4 +117,10 @@ except:
 
 time.sleep(1)  
 with open(logfile, 'a') as f:
+    f.write('done\n')
+
+# The relaxed and frozen records are one VRC scan-point handoff.  Publish
+# the relaxed completion stamp only after the frozen geometry is durable so
+# a controller can never advance between the two writes.
+with open('{label}.log', 'a') as f:
     f.write('done\n')

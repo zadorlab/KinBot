@@ -40,6 +40,12 @@ _SLURM_TERMINAL_STATES = {
 }
 
 
+def _vrc_scan_requires_frozen_handoff(job):
+    """Return whether one worker must publish a paired frozen VRC point."""
+    return bool(re.fullmatch(
+        r'vrctst/.+_vts_pt(?:\d+|_asymptote)', str(job)))
+
+
 def _slurm_node_names(values):
     """Validate explicit single-node names used in ``--exclude``."""
     if values in (None, ''):
@@ -2076,6 +2082,25 @@ class QuantumChemistry:
                     or not finite_energy):
                 logger.error('%s: rejecting a nominally normal database '
                              'result with nonfinite geometry or energy.', job)
+                return 'error'
+        # A legacy Gaussian VRC worker publishes two database records.  The
+        # relaxed record used to become visible before the frozen single
+        # point was written, so the controller could advance directly into
+        # correction-energy assembly and fail on the missing ``_fr`` row.
+        # Treat both records as one atomic worker handoff.  When the worker
+        # has exited, ``worker_finished`` also lets historical runs without
+        # trailing log stamps be recovered from their completed database
+        # rows, consistently with ordinary KinBot jobs.
+        if _vrc_scan_requires_frozen_handoff(job):
+            frozen = QuantumChemistry._database_qc_status(
+                self, job + '_fr', worker_finished=worker_finished)
+            if frozen is None:
+                logger.debug(
+                    'Waiting for paired frozen VRC result %s_fr.', job)
+                return None
+            if frozen != 'normal':
+                logger.error('%s_fr did not produce an accepted frozen VRC '
+                             'geometry.', job)
                 return 'error'
         logger.debug('Returning status %s', data['status'])
         return data['status']

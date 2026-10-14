@@ -163,6 +163,41 @@ class TestSchedulerJobs(unittest.TestCase):
         self.assertIn('did not publish a calculation result',
                       '\n'.join(messages.output))
 
+    def test_vrc_scan_completion_waits_for_paired_frozen_geometry(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'gauss'
+        Path('vrctst').mkdir()
+        job = 'vrctst/reaction_vts_pt_asymptote'
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [30., 0., 0.]])
+        qc.db.write(atoms, name=job,
+                    data={'energy': -1., 'status': 'normal'})
+        Path(job + '.log').write_text('done\n')
+
+        self.assertIsNone(qc._database_qc_status(job))
+
+        qc.db.write(atoms, name=job + '_fr',
+                    data={'energy': -1., 'status': 'normal'})
+        Path(job + '_fr.log').write_text('done\n')
+        self.assertEqual(qc._database_qc_status(job), 'normal')
+
+    def test_finished_vrc_worker_without_frozen_geometry_is_error(self):
+        Path('input.json').write_text(json.dumps({
+            'barrier_threshold': 100., 'queuing': 'slurm'}))
+        qc = QuantumChemistry(
+            Parameters('input.json', show_warnings=False).par)
+        qc.qc = 'gauss'
+        Path('vrctst').mkdir()
+        job = 'vrctst/reaction_vts_pt_asymptote'
+        atoms = Atoms('H2', positions=[[0., 0., 0.], [30., 0., 0.]])
+        qc.db.write(atoms, name=job,
+                    data={'energy': -1., 'status': 'normal'})
+        Path(job + '.exitcode').write_text('0\n')
+        with self.assertLogs('KinBot', 'ERROR'):
+            self.assertEqual(qc._check_qc(job), 'error')
+
     def test_slurm_status_query_is_targeted_and_bounded(self):
         result = Mock(returncode=0, stdout='123\n', stderr='')
         with patch('kinbot.qc.subprocess.run', return_value=result) as run:
@@ -355,6 +390,11 @@ class TestVRCJobs(unittest.TestCase):
                 self.qc.get_qc_arguments.assert_called_once_with(job, 1, 0, 2, vts=1)
                 self.qc.submit_qc.assert_called_once_with(job, 2)
                 ast.parse(Path(f'{job}.py').read_text())
+                script = Path(f'{job}.py').read_text()
+                frozen_done = script.index("with open(logfile, 'a') as f:")
+                relaxed_done = script.rindex(
+                    f"with open('{job}.log', 'a') as f:")
+                self.assertGreater(relaxed_done, frozen_done)
 
 
 if __name__ == '__main__':

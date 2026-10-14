@@ -76,9 +76,10 @@ def validate_theory_restart(par, directory='.', *, profiles=None):
     except (OSError, ValueError) as exc:
         raise ValueError(f'Cannot read {route_file}.') from exc
     if (not isinstance(payload, dict) or payload.get('schema') != 1
-            or payload.get('profile_sha256') != _fingerprint(profiles)
+            or payload.get('profile_sha256') != _fingerprint(profiles, par)
             or not isinstance(payload.get('jobs'), dict)):
-        raise ValueError('Theory profiles changed since jobs were submitted; '
+        raise ValueError('Theory profiles or calculator settings changed, or the '
+                         'saved theory record lacks required settings; '
                          'start a new calculation in a fresh directory. '
                          f'Keep {route_file} with the existing results; '
                          'removing it does not remove calculations made with the old profiles.')
@@ -89,11 +90,20 @@ def validate_theory_restart(par, directory='.', *, profiles=None):
                 or (record.get('job_id') is not None
                     and not isinstance(record.get('job_id'), str))):
             raise ValueError(f'Invalid profiled job route for {job!r}.')
+        # Rotor job names do not distinguish L1 from L2. Check before either
+        # calculation workers or PES can read scans from the previous level.
+        if job.startswith('hir/') or '/hir_' in job:
+            level = 'l2' if par['high_level'] else 'l1'
+            if record['level'] != level:
+                raise ValueError(f'{job}: saved rotor scan uses '
+                                 f'{record["level"].upper()}, but high_level '
+                                 f'requests {level.upper()}. Run the new level '
+                                 'in a fresh directory; existing scans were preserved.')
     return routes
 
 
-def _profile_payload(profile):
-    return {
+def _profile_payload(profile, par):
+    payload = {
         'calculator': profile.calculator,
         'method': profile.method,
         'basis': profile.basis,
@@ -105,10 +115,30 @@ def _profile_payload(profile):
         'task_name': profile.task_name,
         'device': profile.device,
     }
+    # These method choices still come from the ordinary input, even when
+    # calculators use profiles. Omitting them can relabel a saved energy.
+    keys = []
+    if profile.calculator == 'orca':
+        keys += ['orcasimpleinput', 'orcablocks']
+    if profile.calculator == 'nn_pes':
+        keys += ['nn_model']
+    if profile.calculator in ('gaussian', 'nn_pes'):
+        keys += ['integral', 'guessmix']
+    if profile.calculator == 'gaussian' and profile.name == 'l2':
+        keys += ['vrc_tst_scan_method', 'vrc_tst_scan_basis']
+    explicit = bool(par.get(profile.name) or par.get(f'{profile.name}_profile')
+                    or par.get('profiled_theory'))
+    if profile.calculator in ('gaussian', 'qchem', 'nn_pes') and not explicit:
+        keys += ['scan_method', 'scan_basis',
+                 'barrierless_saddle_method', 'barrierless_saddle_basis',
+                 'barrierless_saddle_method_high', 'barrierless_saddle_basis_high']
+    if keys:
+        payload['calculation_settings'] = {key: par[key] for key in keys}
+    return payload
 
 
-def _fingerprint(profiles):
-    payload = {level: _profile_payload(profile)
+def _fingerprint(profiles, par):
+    payload = {level: _profile_payload(profile, par)
                for level, profile in sorted(profiles.items())}
     return hashlib.sha256(json.dumps(payload, sort_keys=True,
                                      separators=(',', ':')).encode()).hexdigest()
@@ -168,7 +198,7 @@ class ProfiledQuantumChemistry:
         self.profiles = resolve_profiles(par)
         if set(self.profiles) != {'l0', 'l1', 'l2'}:
             raise ValueError('Profiled theory requires resolved L0, L1 and L2 profiles.')
-        self._fingerprint = _fingerprint(self.profiles)
+        self._fingerprint = _fingerprint(self.profiles, par)
         self._routes = validate_theory_restart(par, profiles=self.profiles)
         ensure_current_run(create=True)
         # Save the methods before marking profile use or opening calculators,
@@ -232,7 +262,7 @@ class ProfiledQuantumChemistry:
 
     def _save_routes(self):
         payload = {'schema': 1, 'profile_sha256': self._fingerprint,
-                   'profiles': {key: _profile_payload(value)
+                   'profiles': {key: _profile_payload(value, self.par)
                                 for key, value in self.profiles.items()},
                    'jobs': self._routes}
         self.route_file.parent.mkdir(parents=True, exist_ok=True)

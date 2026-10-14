@@ -230,6 +230,19 @@ original profiles and route-file setting; keep those settings for that restart.
 PES checks the same theory records before replacing species inputs or reading
 results, including with `no-kinbot`. These checks compare profile settings;
 they do not add method tracking to older calculations made without profiles.
+The comparison also includes ORCA's `orcasimpleinput` and `orcablocks`, the
+NNPES `nn_model`, Gaussian integration-grid and electronic-guess settings,
+and the existing scan-method settings used by the selected calculator.
+Records from earlier versions that omitted these settings are rejected even
+with unchanged input, because they cannot establish how the saved energies
+were calculated. Keep those results unchanged and use a fresh directory for
+calculations with the updated code.
+
+Hindered-rotor scans use L1 when `high_level` is 0 and L2 when it is 1. Changing
+`high_level` after rotor jobs have been recorded requires a fresh directory;
+KinBot refuses to reuse scans from the other level, including during PES
+postprocessing. Changing this option before any rotor jobs were recorded is
+still allowed.
 Keep profiles and the route-file location fixed when resuming a run; use a fresh
 directory when changing the methods or models. CPU, memory and queue limits
 remain the existing global settings. L3 retains its existing settings.

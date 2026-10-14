@@ -317,6 +317,159 @@ def test_restart_refuses_to_mix_results_after_model_change(workspace):
     assert Path('.kinbot_theory_jobs.json').read_bytes() == before
 
 
+@pytest.mark.parametrize('calculator, option, original, replacement', [
+    ('orca', 'orcasimpleinput', 'D3BJ', 'D4'),
+    ('orca', 'orcablocks', '%method Grid 4 end', '%method Grid 5 end'),
+    ('nn_pes', 'nn_model', '/models/old.pt', '/models/new.pt'),
+    ('gaussian', 'integral', 'UltraFine', 'FineGrid'),
+])
+def test_restart_checks_backend_settings_before_reusing_methanol(
+        workspace, calculator, option, original, replacement):
+    profile = dict(calculator=calculator, method='B3LYP', basis='6-31G(d)',
+                   optimizer='sella', frequency_mode='ase_forces')
+    high_level = int(calculator == 'gaussian')
+    level = 'l2' if high_level else 'l1'
+    par = profile_parameters(high_level=high_level, conformer_search=1,
+        queuing='local', **{f'{level}_profile': profile, option: original})
+    qc = QuantumChemistry(par)
+    point = methanol()
+    qc.qc_opt(point, point.geom, high_level=high_level)
+    job = routing_name(point) + ('_well_high' if high_level else '_well')
+    used = literal(script(job), 'kwargs')
+    key = 'fname' if option == 'nn_model' else option
+    assert original in used[key]
+    qc.db.write(molecule('CH3OH'), name=job, data=dict(energy=-100., status='normal'))
+    Path(job + '_sella.log').write_text('done\n')
+    before = file_contents(workspace)
+    restarted = QuantumChemistry(par)
+    assert restarted.get_qc_energy(job)[0] == 0
+    assert file_contents(workspace) == before
+
+    changed = dict(par, **{option: replacement})
+    with pytest.raises(ValueError, match='fresh directory'):
+        QuantumChemistry(changed)
+    assert file_contents(workspace) == before
+
+
+@pytest.mark.parametrize('calculator, level, option, replacement, arguments, keyword', [
+    ('gaussian', 'l1', 'guessmix', 1, {}, 'guess'),
+    ('gaussian', 'l1', 'scan_method', 'B3LYP', {'scan': 1}, 'method'),
+    ('qchem', 'l1', 'scan_basis', '6-31G(d)', {'scan': 1}, 'basis'),
+    ('gaussian', 'l1', 'barrierless_saddle_method', 'B3LYP', {}, 'method'),
+    ('qchem', 'l1', 'barrierless_saddle_basis', '6-31G(d)', {}, 'basis'),
+    ('gaussian', 'l2', 'barrierless_saddle_method_high', 'HF', {'high_level': 1}, 'method'),
+    ('gaussian', 'l2', 'barrierless_saddle_basis_high', 'STO-3G', {'high_level': 1}, 'basis'),
+    ('gaussian', 'l2', 'vrc_tst_scan_method', 'HF', {'vts': 1}, 'method'),
+    ('gaussian', 'l2', 'vrc_tst_scan_basis', 'STO-3G', {'vts': 1}, 'basis'),
+])
+def test_restart_checks_method_choices_outside_profiles(
+        workspace, calculator, level, option, replacement, arguments, keyword):
+    from kinbot.profiled_qc import _backend_parameters
+
+    par = parameters(l0_profile=fairchem('/models/small.pt'), queuing='local')
+    par['qc'] = calculator
+    qc = QuantumChemistry(par)
+    job = 'methanol_barrierless_saddle' if option.startswith('barrierless') else 'methanol'
+    args = (job, 1, 0, 18)
+    original = qc.for_level(level).get_qc_arguments(*args, **arguments)
+    changed = dict(par, **{option: replacement})
+    # Confirm this setting changes the actual requested calculation, not just
+    # the recorded input. Construct only a backend in this temporary test.
+    backend = QuantumChemistry(_backend_parameters(changed, resolve_profiles(changed)[level]),
+                               profile_backend=True)
+    requested = backend.get_qc_arguments(*args, **arguments)
+    assert requested.get(keyword) != original.get(keyword)
+    before = file_contents(workspace)
+    with pytest.raises(ValueError, match='fresh directory'):
+        QuantumChemistry(changed)
+    assert file_contents(workspace) == before
+
+
+@pytest.mark.parametrize('calculator', ['gaussian', 'orca', 'nn_pes'])
+def test_old_records_without_backend_settings_refuse_restart(workspace, calculator):
+    import hashlib
+
+    par = profile_parameters(l1_profile=dict(calculator=calculator, optimizer='sella'),
+                             l2_profile=fairchem('/models/large.pt'))
+    QuantumChemistry(par)
+    path = Path('.kinbot_theory_jobs.json')
+    record = json.loads(path.read_text())
+    for profile in record['profiles'].values():
+        profile.pop('calculation_settings', None)
+    record['profile_sha256'] = hashlib.sha256(json.dumps(
+        record['profiles'], sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    path.write_text(json.dumps(record))
+    before = file_contents(workspace)
+    with pytest.raises(ValueError, match='saved theory record lacks required settings'):
+        QuantumChemistry(par)
+    assert file_contents(workspace) == before
+
+
+def test_unused_calculator_settings_do_not_change_uma_records(workspace):
+    par = profile_parameters(l2_profile=fairchem('/models/large.pt'))
+    qc = QuantumChemistry(par)
+    before = file_contents(workspace)
+    changed = dict(par, orcasimpleinput='D4', orcablocks='%method Grid 5 end',
+                   nn_model='/models/different.pt', integral='FineGrid', guessmix=1)
+    assert QuantumChemistry(changed)._fingerprint == qc._fingerprint
+    assert file_contents(workspace) == before
+
+
+def test_explicit_theory_cannot_relabel_an_inherited_reaction_search(workspace):
+    par = parameters(l0_profile=fairchem('/models/small.pt'), queuing='local')
+    qc = QuantumChemistry(par)
+    args = qc.l1.get_qc_arguments('methanol_ts', 1, 0, 18, ts=1, step=0, max_step=10)
+    assert args['method'] == 'am1'
+    changed = dict(par, profiled_theory=1)
+    # Explicit profiles use HF for these steps even though the resolved HF
+    # profile itself has not changed. Earlier AM1 results must not be reused.
+    assert resolve_profiles(changed) == resolve_profiles(par)
+    before = file_contents(workspace)
+    with pytest.raises(ValueError, match='fresh directory'):
+        QuantumChemistry(changed)
+    assert file_contents(workspace) == before
+
+
+@pytest.mark.parametrize('high_level', [0, 1])
+@pytest.mark.parametrize('replacement_scan', [False, True])
+def test_restart_refuses_rotor_points_from_the_other_level(
+        workspace, high_level, replacement_scan):
+    par = parameters(l1_profile=dict(gaussian('HF'), basis='STO-3G'),
+                     l2_profile=gaussian('B3LYP'), high_level=high_level,
+                     conformer_search=1, queuing='local')
+    qc = QuantumChemistry(par)
+    point = methanol()
+    Path('hir').mkdir()
+    fix = [[int(atom) + 1 for atom in point.dihed[0]]]
+    geom = point.geom.copy()
+    job = qc.qc_hir(point, geom, 0, 0, fix, False)
+    if replacement_scan:
+        geom[0, 0] += .1
+        job = qc.qc_hir(point, geom, 0, 0, fix, False)
+        assert '_recovery_' in job
+    qc.db.write(molecule('CH3OH'), name=job, data=dict(energy=-100., status='normal'))
+    Path(job + '.log').write_text('done\n')
+    before = file_contents(workspace)
+    restarted = QuantumChemistry(par)
+    assert restarted.qc_hir(point, geom, 0, 0, fix, False) == job
+    assert file_contents(workspace) == before
+
+    changed = dict(par, high_level=1 - high_level)
+    with pytest.raises(ValueError, match='rotor.*L[12].*L[12].*fresh directory'):
+        QuantumChemistry(changed)
+    assert file_contents(workspace) == before
+
+
+def test_enabling_l2_before_rotor_scans_keeps_l1_results(workspace):
+    par = profile_parameters(high_level=0, conformer_search=1)
+    qc = QuantumChemistry(par)
+    qc.qc_opt(methanol(), methanol().geom)
+    before = file_contents(workspace)
+    restarted = QuantumChemistry(dict(par, high_level=1))
+    assert restarted._routes == qc._routes
+    assert file_contents(workspace) == before
+
+
 @pytest.mark.parametrize('saved_result', ['database', 'worker', 'rotor'])
 def test_adding_profiles_refuses_unverified_old_calculations(workspace, saved_result):
     par = parameters(high_level=0)
@@ -386,7 +539,10 @@ def test_existing_custom_record_gains_flag_only_on_calculation_restart(workspace
     assert ensure_current_run()['profiled_theory'] is True
 
 
-@pytest.mark.parametrize('change', ['l1_model', 'l2_method', 'remove_profiles'])
+@pytest.mark.parametrize('change', [
+    'l1_model', 'l2_method', 'remove_profiles', 'orcasimpleinput', 'orcablocks',
+    'nn_model', 'integral', 'rotor_l1_to_l2', 'rotor_l2_to_l1',
+])
 @pytest.mark.parametrize('entry', ['postprocess', 'write_input', 'write_input_keep', 'cli'])
 def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
         workspace, monkeypatch, change, entry):
@@ -395,7 +551,18 @@ def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
     from kinbot import pes
     from kinbot.run_format import ensure_current_run
 
-    par = profile_parameters(profiled_route_file='routes/jobs.json', queuing='local', mult=1)
+    options = {}
+    if change in ('orcasimpleinput', 'orcablocks'):
+        options = dict(l1_profile=dict(calculator='orca', method='B3LYP',
+            basis='6-31G(d)'), orcasimpleinput='D3BJ', orcablocks='%method Grid 4 end')
+    elif change == 'nn_model':
+        options = dict(l1_profile=dict(calculator='nn_pes'), nn_model='/models/old.pt')
+    elif change == 'integral':
+        options = dict(integral='UltraFine')
+    elif change.startswith('rotor_'):
+        options = dict(high_level=int(change == 'rotor_l2_to_l1'), conformer_search=1)
+    par = profile_parameters(profiled_route_file='routes/jobs.json', queuing='local',
+                             mult=1, **options)
     point = methanol()
     name = routing_name(point)
     ensure_current_run(create=True)
@@ -405,15 +572,26 @@ def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
         qc = QuantumChemistry(par)
         qc.db.write(molecule('CH3OH'), name=name + '_well', data=dict(
             energy=-100., zpe=.01, frequencies=[100.] * 12, status='normal'))
+        if change.startswith('rotor_'):
+            Path('hir').mkdir()
+            job = qc.qc_hir(point, point.geom, 0, 0,
+                           [[int(atom) + 1 for atom in point.dihed[0]]], False)
+            qc.db.write(molecule('CH3OH'), name=job,
+                        data=dict(energy=-100., status='normal'))
         Path(name + '.json').write_text(json.dumps(par))
     changed = copy.deepcopy(par)
     if change == 'l1_model':
         changed['l1_profile']['model_path'] = '/models/different.pt'
     elif change == 'l2_method':
         changed['l2_profile']['method'] = 'B3LYP'
-    else:
+    elif change == 'remove_profiles':
         for key in ('l0_profile', 'l1_profile', 'l2_profile', 'profiled_route_file'):
             changed.pop(key)
+    elif change.startswith('rotor_'):
+        changed['high_level'] = 1 - par['high_level']
+    else:
+        changed[change] = dict(orcasimpleinput='D4', orcablocks='%method Grid 5 end',
+                              nn_model='/models/new.pt', integral='FineGrid')[change]
     changed['smiles'] = 'CO'
     Path('input.json').write_text(json.dumps(changed))
     before = file_contents(workspace)
@@ -422,7 +600,7 @@ def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
     monkeypatch.setattr(QuantumChemistry, '__init__',
                         Mock(side_effect=AssertionError('created a calculator')))
 
-    with pytest.raises(ValueError, match='Theory profiles'):
+    with pytest.raises(ValueError, match='Theory profiles|saved rotor scan'):
         if entry == 'postprocess':
             pes.postprocess(changed, [name], 'all', [], point.mass)
         elif entry == 'write_input':

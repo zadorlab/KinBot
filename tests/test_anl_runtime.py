@@ -118,7 +118,7 @@ def test_environment_can_raise_but_not_lower_a_molpro_task_disk_requirement(tmp_
             _molpro_scratch(environment, tmp_path, 1000)
 
 
-@pytest.mark.parametrize('failure', ['directory_creation', 'fsync', 'readback'])
+@pytest.mark.parametrize('failure', ['directory_creation', 'parent_permissions', 'fsync', 'readback'])
 def test_molpro_rejects_broken_scratch_and_uses_only_configured_fallback(tmp_path, monkeypatch, failure):
     from kinbot.anl import runtime
     primary, fallback = tmp_path / 'primary', tmp_path / 'fallback'
@@ -128,6 +128,11 @@ def test_molpro_rejects_broken_scratch_and_uses_only_configured_fallback(tmp_pat
         20000 * 1024**2, 0, 20000 * 1024**2))
     original_mkdtemp = runtime.tempfile.mkdtemp
     original_check = runtime._check_scratch_io
+    original_mkdir = Path.mkdir
+    def mkdir(path, *args, **kwargs):
+        if failure == 'parent_permissions' and path == primary:
+            raise PermissionError(errno.EACCES, 'Permission denied', str(path))
+        return original_mkdir(path, *args, **kwargs)
     def create(*args, **kwargs):
         if failure == 'directory_creation' and Path(kwargs['dir']) == primary:
             raise OSError(errno.EIO, 'Input/output error')
@@ -143,13 +148,14 @@ def test_molpro_rejects_broken_scratch_and_uses_only_configured_fallback(tmp_pat
         return original_check(directory)
     monkeypatch.setattr(runtime.tempfile, 'mkdtemp', create)
     monkeypatch.setattr(runtime, '_check_scratch_io', check)
+    monkeypatch.setattr(Path, 'mkdir', mkdir)
     child, provenance = qc_runtime_environment('molpro', 'molpro', env,
         work_directory=tmp_path, scratch_min_mb=1000)
     try:
         scratch = Path(child['TMPDIR'])
         assert scratch.parent == fallback
         assert list(scratch.iterdir()) == []
-        assert list(primary.iterdir()) == []
+        assert not primary.exists() or list(primary.iterdir()) == []
         assert provenance['scratch_io_checked'] is True
         assert provenance['scratch_host']
         assert len(provenance['scratch_rejected_candidates']) == 1

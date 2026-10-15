@@ -479,14 +479,21 @@ attempts and completed WFU records intact.
 
 The follow-up execution metadata records 5,564,398 MB free for failed job
 `52907311`, corroborating that a simple capacity shortfall does not explain
-its `mktemp` EIO. A second failed job, `52907317` (QZ-F12 C–S), has an empty
-runtime record and requires its own setup error to be examined. Slurm no
+its `mktemp` EIO. A second failed job, `52907317` (QZ-F12 C–S), failed runtime
+setup with `Permission denied: /scratch/hram`. Its empty runtime record does
+not mean Molpro started. Slurm no
 longer retains either job in `scontrol show job`; identify their nodes in
 controller/job-completion logs before investigating mount/kernel/storage
-errors. Do not infer the failed node from another job's live allocation.
+errors and parent directory ownership/modes/ACLs. The user cannot read
+`/var/log/slurm-llnl/slurmctld.log`, and job completion logging is disabled;
+administrator access is required to trace these expired allocations.
+Do not infer the failed node from another job's live allocation.
 
 Scratch-fix release validation: **1267 tests and 391 subtests pass**; all 159
 non-template Python modules parse and all ten runbook Bash blocks pass syntax
 checks. Regression coverage includes failed directory allocation, fsync and
 read-back, explicit override preservation, capacity floors and launcher
 stderr/host retention when native output is absent.
+The subsequent directory-permission regression also passes: all 41 targeted
+runtime/reconnaissance tests pass with that additional case. Runtime code is
+unchanged from the full-suite-tested version.

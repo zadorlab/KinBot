@@ -139,6 +139,12 @@ remain available for an explicitly chosen future comparison.
     candidates are recorded; reconnaissance also retains launcher stdout and
     stderr and includes their tails in errors. No automatic native retry is
     added. A probe cannot prevent later filesystem failures or repair a mount.
+    The follow-up native QZ-F12 record independently reports `Permission
+    denied: /scratch/hram`. Usable scratch capacity on one node is not evidence
+    of permissions or mount health on another. Nodes for jobs `52907311` and
+    `52907317` require administrator lookup in the restricted controller log
+    `/var/log/slurm-llnl/slurmctld.log`, then storage/mount and directory/ACL
+    checks respectively. The underlying cause of EIO remains unresolved.
 
 All state routing follows input species/fragment terms and spin coupling;
 the implementation contains no CH3S/CH3SS name-dependent physics. Bond indices,

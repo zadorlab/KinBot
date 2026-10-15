@@ -159,6 +159,14 @@ def test_only_successful_multi_can_recover_hf_guess_failure(header, failure):
         validate_molpro_convergence('PROGRAM * MULTI\nNO CONVERGENCE!\n' + text, allow_scf_guess_failure=True)
 
 
+def test_reference_ci_failure_is_rejected_even_after_normal_exit():
+    from kinbot.molpro import validate_molpro_convergence
+    with pytest.raises(ValueError, match='unconverged'):
+        validate_molpro_convergence('PROGRAM * MULTI\nCONVERGENCE REACHED!\n'
+            'PROGRAM * RS2-F12\nNO CONVERGENCE IN REFERENCE CI AFTER 50 ITERATIONS.\n'
+            'Molpro calculation terminated\n', allow_scf_guess_failure=True)
+
+
 def test_caspt2_analytic_gradient_input_and_xyzgrad_contract():
     atoms = Atoms('CH2', positions=[[0., 0., 0.], [0., 0., 1.],
                                     [0., 1., 0.]])

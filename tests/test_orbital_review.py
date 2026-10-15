@@ -163,6 +163,81 @@ def test_partition_reoptimizes_reviewed_natural_orbitals_without_avas_or_basis_c
         recon.prepare(tmp_path / 'unseeded.json', tmp_path / 'unseeded')
 
 
+def test_partition_iteration_controls_reach_every_correlated_root(tmp_path, partition_source):
+    _, item = partition_source
+    item['casscf_options'] = {'max_iterations': 100}
+    item['correlation_options'] = {'max_reference_iterations': 200}
+    specification = tmp_path / 'partition.json'
+    atomic_json(specification, {'schema': 1, 'models': [item]})
+    result = review.prepare_partitions(specification, tmp_path / 'candidate')
+    system = json.loads(result.read_text())['systems'][0]
+    job = json.loads(Path(system['pilot_manifest']).read_text())['jobs'][0]
+    deck = Path(job['directory'], job['name'] + '.inp').read_text()
+    assert 'maxit,100;' in deck and 'accuracy,energy=1.d-8' in deck
+    assert deck.count('option,maxiti=200;') == len(job['root_states'])
+    assert 'rs2-f12,shift=0.3,ipea=0.25;' in deck
+    assert job['state_model']['correlation_options'] == item['correlation_options']
+
+
+def test_prepare_incomplete_preserves_complete_points_and_only_raises_limits(tmp_path, partition_source, monkeypatch):
+    from types import SimpleNamespace
+    _, item = partition_source
+    second = deepcopy(item)
+    second['name'] = 'other_point'
+    specification = tmp_path / 'partition.json'
+    atomic_json(specification, {'schema': 1, 'models': [item, second]})
+    original = review.prepare_partitions(specification, tmp_path / 'candidate')
+    campaign = json.loads(original.read_text())
+    originals = {Path(s['configuration']): Path(s['configuration']).read_bytes()
+                 for s in campaign['systems']}
+    def audit(path):
+        manifest = json.loads(Path(path).read_text())
+        job = manifest['jobs'][0]
+        if Path(path).parent.name == '01_pilot':
+            job.update(status='complete', output_sha256='validated-output')
+        else:
+            job.update(status='incomplete', validation_errors=['Reference CI did not converge'])
+        return manifest
+    monkeypatch.setattr(recon, '_audit', audit)
+    monkeypatch.setattr(review.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=''))
+    review.main(['prepare-incomplete', str(original.parent), str(tmp_path / 'remaining'),
+                 '--casscf-max-iterations', '150', '--reference-max-iterations', '200'])
+    fixed = json.loads((tmp_path / 'remaining/campaign.json').read_text())
+    assert len(fixed['systems']) == 1 and fixed['systems'][0]['title'] == second['name']
+    previous = json.loads(originals[Path(campaign['systems'][1]['configuration'])])
+    updated = json.loads(Path(fixed['systems'][0]['configuration']).read_text())
+    for key in ('anchors', 'bases', 'scf_options', 'scf_convergence', 'initial_records', 'correlation_checks'):
+        assert updated.get(key) == previous.get(key)
+    expected = deepcopy(previous['casscf_options'])
+    expected['max_iterations'] = 150
+    assert updated['casscf_options'] == expected
+    previous['probe_definition']['state_model']['correlation_options'] = {'max_reference_iterations': 200}
+    assert updated['probe_definition'] == previous['probe_definition']
+    assert all(p.read_bytes() == content for p, content in originals.items())
+    provenance = json.loads((tmp_path / 'remaining/review_plan.json').read_text())
+    assert len(provenance['completed_preserved']) == 1
+    job = json.loads(Path(fixed['systems'][0]['pilot_manifest']).read_text())['jobs'][0]
+    deck = Path(job['directory'], job['name'] + '.inp').read_text()
+    assert 'maxit,150;' in deck and 'option,maxiti=200;' in deck
+
+
+def test_prepare_incomplete_refuses_multigeometry_dependencies(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    path = review.prepare(review.plan(SOURCE, tmp_path / 'plan.json'), tmp_path / 'original')
+    monkeypatch.setattr(review.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=''))
+    with pytest.raises(ValueError, match='single-geometry'):
+        review.prepare_incomplete(path.parent, tmp_path / 'remaining')
+    assert not (tmp_path / 'remaining').exists()
+
+
+@pytest.mark.parametrize('options', [None, {'max_iterations': True},
+    {'max_reference_iterations': 0}, {'max_reference_iterations': 2.5}, {'ignore_error': True}])
+def test_invalid_correlation_controls_cannot_enter_a_selection(tmp_path, options):
+    from kinbot.molpro import validate_mr_correlation_options
+    with pytest.raises(ValueError, match='correlation_options'):
+        validate_mr_correlation_options(options)
+
+
 @pytest.mark.parametrize('invalid', ['count', 'native_count', 'basis', 'incomplete', 'casci'])
 def test_partition_refuses_incompatible_or_unvalidated_sources(tmp_path, partition_source, invalid):
     row, item = partition_source
@@ -228,7 +303,8 @@ def test_potential_profiles_match_root_labels_and_keep_unlike_curves_separate():
     assert duplicate['reference_directory'] is None
 
 
-def _selected(tmp_path, electrons=5, orbitals=4, averages=None, casscf_options=None):
+def _selected(tmp_path, electrons=5, orbitals=4, averages=None, casscf_options=None,
+              correlation_options=None):
     wfu = tmp_path / f'space{electrons}.wfu'
     wfu.write_bytes(b'reviewed checkpoint ' + str(electrons).encode())
     return recon.select_record(wfu, tmp_path / f'space{electrons}.json', record='2140.2',
@@ -236,7 +312,7 @@ def _selected(tmp_path, electrons=5, orbitals=4, averages=None, casscf_options=N
         state_average=averages or [{'multiplicity': 2, 'roots': 2, 'weights': [0.7, 0.3]},
                                    {'multiplicity': 4, 'roots': 1}],
         selected_roots={2: 1, 4: 1}, review_note='Reviewed candidate interaction energies and characters',
-        basis='avtz-f12', casscf_options=casscf_options)
+        basis='avtz-f12', casscf_options=casscf_options, correlation_options=correlation_options)
 
 
 def test_reviewed_averages_survive_production_resolution(tmp_path):
@@ -245,7 +321,8 @@ def test_reviewed_averages_survive_production_resolution(tmp_path):
     controls = {'solver': 'so_sci', 'energy_convergence': 1e-8,
                 'gradient_convergence': 1e-5, 'quasi_newton': True,
                 'exact_diagonalization': True, 'max_iterations': 70}
-    selection = _selected(tmp_path, casscf_options=controls)
+    correlation = {'max_iterations': 80, 'max_reference_iterations': 200}
+    selection = _selected(tmp_path, casscf_options=controls, correlation_options=correlation)
     parameters = {'vrc_tst_active_space': json.loads(selection.read_text())['active_space'],
                   'vrc_tst_state_model_file': str(selection), 'mult': 2}
     settings = {'target_multiplicity': 2, 'reference_multiplicity': 4}
@@ -254,12 +331,14 @@ def test_reviewed_averages_survive_production_resolution(tmp_path):
     assert model['state_average'][0] == {'multiplicity': 2, 'roots': 2, 'weights': [0.7, 0.3]}
     assert model['state_average'][1]['roots'] == 1
     assert model['casscf_options'] == controls
+    assert model['correlation_options'] == correlation
     staged = stage_vrc_state_model(model, tmp_path / 'native', 'job')
     for method in ('caspt2-f12b(5,4)', 'mrci-f12b+q(5,4)'):
         deck, _ = _vrc_multireference_method(method, 25, 1, state_model=staged)
         assert '{multi,so-sci,exact_diag=1,qn=1;' in deck
         assert 'accuracy,energy=1.d-8,gradient=1.d-5' in deck
         assert 'maxit,70;' in deck
+        assert 'option,maxit=80,maxiti=200;' in deck
     parameters['vrc_tst_state_average_roots'] = {'2': 3}
     with pytest.raises(ValueError, match='conflict'):
         resolved_state_model(parameters, ['C', 'S', 'H', 'H', 'H'], 0,

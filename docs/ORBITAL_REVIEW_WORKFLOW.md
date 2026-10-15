@@ -25,6 +25,46 @@ checks required to complete the examples.
 
 See also the [generality and automatic handoff audit](GENERALITY_AUDIT_2026-10-15.md).
 
+## What accuracy means for this workflow
+
+Reconnaissance is an aid to model development, not an automatic discovery of
+the chemically correct CAS. AVAS generates candidate orbital subspaces from
+specified atomic valence targets. The user reviews their chemical content,
+state averages and dissociation limits; occupations alone cannot make that
+decision. Native convergence and agreement between initial guesses establish
+numerical reproducibility, not physical accuracy. A larger CASSCF space is a
+comparison model, not an exact reference for the correlated potential.
+
+The relevant quantity is the interaction potential for each physical state,
+relative to a consistent separated-fragment reference. For corrected sampling,
+compare the **final** potential, schematically
+`V_final(R,Omega) = V_sampling(R,Omega) + Delta(R)`, with independent correlated
+checks. A radial correction can remove radial bias, but cannot generally repair
+an incorrect angular dependence, a missing electronic manifold or discontinuous
+root/orbital switching. Physical crossings must not be smoothed away. The aim
+is accurate state-consistent surfaces over geometries contributing to the flux,
+then the cheapest numerical representation that preserves those surfaces.
+
+CAS(2,2) for methyl + methyl has a chemical justification: the two radical
+orbitals span the forming bond and its antibond. In CASPT2 or MRCI this does not
+mean only two electrons receive correlation; external excitations recover
+dynamic correlation beyond the CAS reference, subject to the chosen core policy.
+Bare CASSCF(2,2), correlated CAS(2,2), and a corrected VRC sampling model therefore
+have different accuracy. The [alkyl-recombination study](https://doi.org/10.1039/B515914H)
+validated corrected CASPT2/cc-pVDZ sampling against direct higher-level
+CAS+1+2/aug-cc-pVTZ sampling. A [recent implementation](https://pmc.ncbi.nlm.nih.gov/articles/PMC12573747/)
+explicitly uses (2e,2o) for methyl + methyl, together with a high-level correction.
+Neither result assigns a universal kcal/mol error to CAS(2,2), or establishes
+that it suffices for resonance-stabilized radicals or open-shell atomic terms.
+
+Inner and outer models can require different spaces and averages. For example,
+the [NH2O study, section 2.2](https://doi.org/10.1021/acs.jpca.3c05181)
+uses (3e,3o) for inner NH + OH addition and (5e,4o) outside, where the additional
+orbital represents the near-degenerate OH states. These are literature examples
+of chemical reasoning, not defaults copied into other reactions. Stationary
+well/reaction energies remain the responsibility of the CBH/ANL energy framework;
+the VRC calculation must also deliver accurate relative interaction energies.
+
 ## Procedure
 
 1. `plan CONFIG PLAN.json` derives fragment/spin context from the existing
@@ -164,6 +204,16 @@ See also the [generality and automatic handoff audit](GENERALITY_AUDIT_2026-10-1
    `model` (comparison group), `source_directory`, `region`, `chemical_note`,
    target `active_electrons`/`active_orbitals`, `close_lowest`, `discard_highest`,
    and `correlation_checks`; optional `state_average` defines a separate average.
+   Optional `casscf_options` overrides the partition preparation's solver defaults;
+   optional `correlation_options` sets `max_iterations` and/or
+   `max_reference_iterations` for the correlated calls. Both limits must be
+   positive integers. The latter is Molpro's internal/reference-CI `MAXITI`,
+   distinct from CASSCF macroiterations and from the correlated `MAXIT` limit.
+   These controls change iteration budgets without changing convergence
+   tolerances, the Hamiltonian, or the selected states. Omitted correlation
+   controls retain native defaults. See the
+   [Molpro MRCI iteration controls](https://www.molpro.net/manual/doku.php?id=the_mrci_program#maximum_number_of_iterations),
+   which also apply to [RS2](https://www.molpro.net/manual/doku.php?id=multireference_rayleigh_schroedinger_perturbation_theory).
    Source CASSCF convergence, hashes, geometry and basis are checked. Partitions
    reoptimize all closed and active orbitals and retain explicit source provenance.
    They cannot change basis. Optional `target_distance_angstrom` generates a new
@@ -192,6 +242,33 @@ See also the [generality and automatic handoff audit](GENERALITY_AUDIT_2026-10-1
    not silently revert to numerical controls that failed during recon. Omitting
    the field retains legacy defaults; choosing tolerances still needs numerical
    validation, independently of active-space accuracy.
+   `select --correlation-options-json '{"max_reference_iterations":200}'`
+   similarly retains explicitly validated MR iteration limits in the general
+   `state_model.correlation_options` field. This is an example of the syntax,
+   not a universal convergence prescription. Native solver failure remains
+   an error even when energies are printed; `IGNORE_ERROR` is not enabled.
+
+For failed jobs, `execution.json` is published before checkpoint staging, so
+missing/changed seeds and input-validation failures are retained. If a job
+never produced native output, audit reports the missing output and available
+batch/retry stderr rather than diagnosing missing occupations as CAS failures.
+Only the recorded allocation's latest restart journal is used. A scheduler
+interruption still needs Slurm accounting to establish its cause; a stale
+`status="running"` execution record is not proof of native nonconvergence.
+Campaign `collect` includes `scheduler_accounting.json`, queried with `sacct`
+for only the recorded allocation IDs and their prior attempts. This preserves
+states, exit codes/signals and restart counts alongside native diagnostics.
+An unavailable accounting service is recorded without blocking the export.
+For finite independent single-geometry validation panels,
+`orbital_review prepare-incomplete OLD_ROOT NEW_ROOT` prepares only incomplete
+pilots, preserving completed results in `OLD_ROOT`. Optional
+`--casscf-max-iterations` and `--reference-max-iterations` raise iteration ceilings
+without lowering existing limits or altering tolerances, chemistry, or seeds.
+It verifies that source allocations are stopped and uses the original input
+configurations and verified seeds, never interrupted output WFUs. It rejects
+multigeometry/dependent reconnaissance chains, which must use their normal
+resume machinery. Run the new panel with `--pilot-only`, then combine evidence
+using `orbital_review report NEW_ROOT REPORT --additional-campaign OLD_ROOT`.
 
 AVAS/CASCI occupation inspection follows the
 [Molpro recommendation](https://www.molpro.net/manual/doku.php?id=automated_construction_of_atomic_valence_active_spaces).

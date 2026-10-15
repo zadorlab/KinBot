@@ -30,7 +30,7 @@ def validate_molpro_convergence(output, *, allow_scf_guess_failure=False):
     if re.search(r'(?im)^\s*VARIABLE\s+\w+\s+UNDEFINED,\s*ASSUMING\s+0', output):
         raise ValueError('Molpro used an undefined variable; energy selection is invalid.')
     failure = (r'NO CONVERGENCE\s*!|No convergence in '
-               r'(?:[ru]?hf(?:pr)?|multi|mcscf|[ru]?ccsd|ci|mrci|rs2|caspt2)\b|'
+               r'(?:[ru]?hf(?:pr)?|multi|mcscf|[ru]?ccsd|(?:reference\s+)?ci|mrci|rs2|caspt2)\b|'
                r'(?:[RU]?HF|MCSCF|[RU]?CCSD|MRCI|RS2|CASPT2|\bCI)[^\n]*not converged')
     programs = list(re.finditer(r'PROGRAM\s*\*\s*([^\r\n]+)', output, re.I))
     scf_header = r'(?:[RU]?HF\b|(?:Restricted|Unrestricted)\s+Hartree.Fock\b)'
@@ -276,7 +276,7 @@ def validate_vrc_state_model(model, *, active_electrons=None,
     if not isinstance(model, dict):
         raise ValueError('vrc_tst_state_model must be an object.')
     allowed = {'orbital_selection', 'state_average', 'selected_roots',
-               'canonical_orbitals', 'casscf_options'}
+               'canonical_orbitals', 'casscf_options', 'correlation_options'}
     unknown = set(model) - allowed
     if unknown:
         raise ValueError('Unknown vrc_tst_state_model option(s): '
@@ -287,6 +287,8 @@ def validate_vrc_state_model(model, *, active_electrons=None,
     if not isinstance(canonical, bool):
         raise ValueError('canonical_orbitals must be true or false.')
     result['canonical_orbitals'] = canonical
+    if 'correlation_options' in result:
+        result['correlation_options'] = validate_mr_correlation_options(result['correlation_options'])
     if 'casscf_options' in result:
         options = result['casscf_options']
         allowed_options = {'solver', 'max_iterations', 'exact_diagonalization',
@@ -619,6 +621,21 @@ def vrc_multireference_energy_contract(method):
     }
 
 
+def validate_mr_correlation_options(options):
+    """Bounded numerical controls shared by native MRPT and MRCI.
+
+    Iteration limits change solver effort, not the Hamiltonian or convergence
+    tolerances. Do not expose IGNORE_ERROR or unvalidated native input here.
+    """
+    allowed = {'max_iterations', 'max_reference_iterations'}
+    if not isinstance(options, dict) or set(options) - allowed:
+        raise ValueError('Unknown reviewed correlation_options.')
+    for key, value in options.items():
+        if type(value) is not int or value < 1:
+            raise ValueError(f'correlation_options.{key} must be a positive integer.')
+    return deepcopy(options)
+
+
 def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
                                ipea=None, state_model=None):
     """Render a supported VRC active-space method and its energy variable.
@@ -651,6 +668,10 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         active_orbitals=active_orbitals, spin=int(spin))
     f12 = contract['explicitly_correlated']
     selected = contract['energy_variable'].casefold()
+    controls = validate_mr_correlation_options((state_model or {}).get('correlation_options', {}))
+    iteration_options = [f'{native}={controls[key]}' for key, native in (
+        ('max_iterations', 'maxit'), ('max_reference_iterations', 'maxiti')) if key in controls]
+    iteration_card = 'option,' + ','.join(iteration_options) + ';' if iteration_options else ''
     if family == 'caspt2':
         program = ('rs2-f12' if f12
                    else ('rs2c' if int(spin) == 0 else 'rs2'))
@@ -668,7 +689,7 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         audit = (f'! KinBot energy contract: {contract["method"]} = '
                  f'{contract["energy_variable"]}\n'
                  f'KBVRCSEL={selected}\n')
-        body = command if not state else f'{command};{state}'
+        body = command if not (state or iteration_card) else f'{command};{state}{iteration_card}'
         return avas + multi + f'{{{body}}}\n' + audit, 'KBVRCSEL'
     program = ('mrci-f12,scalf12=1,cabs_singles=1' if f12 else 'mrci')
     audit = (f'! KinBot energy contract: {contract["method"]} = '
@@ -679,7 +700,7 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
              f'wf,{int(nelectron)},1,{int(spin)};'
              f'state,1,{selected_root};')
     return (avas + multi
-            + f'{{{program};{state}option,cluster=0;}}\n' + audit,
+            + f'{{{program};{state}{iteration_card}option,cluster=0;}}\n' + audit,
             'KBVRCSEL')
 
 

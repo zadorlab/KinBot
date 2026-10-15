@@ -654,6 +654,71 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
     return output
 
 
+def prepare_incomplete(root, output, *, casscf_max_iterations=None,
+                       reference_max_iterations=None):
+    """Prepare the remaining independent validation points in a fresh tree.
+
+    This is for finite single-geometry pilot panels. Full reconnaissance
+    chains retain their existing resume/dependency machinery. Never seed a
+    new attempt from an interrupted product or relabel a failed energy.
+    """
+    from kinbot import orbital_campaign
+    from kinbot.molpro import validate_mr_correlation_options
+    for key, value in (('casscf_max_iterations', casscf_max_iterations),
+                       ('reference_max_iterations', reference_max_iterations)):
+        if value is not None and (type(value) is not int or value < 1):
+            raise ValueError(f'{key} must be a positive integer.')
+    root = Path(root).expanduser().resolve()
+    configurations, metadata, preserved = [], [], []
+    index = {row['title']: row for row in json.loads((root / 'review_index.json').read_text())['systems']}
+    with orbital_campaign._stopped_snapshot(root) as (campaign, snapshots), \
+            tempfile.TemporaryDirectory(prefix='kinbot-incomplete-panel-') as temporary:
+        for system in campaign['systems']:
+            orbital_campaign._validate_inputs(system)
+            data = json.loads(Path(system['configuration']).read_text())
+            loaded = recon._load(system['configuration'])
+            pilot = snapshots[Path(system['pilot_manifest']).resolve()]
+            panel = snapshots[Path(system['manifest']).resolve()]
+            if (len(pilot['jobs']) != 1 or len(panel['jobs']) != 1
+                    or len(loaded['anchors']) != 1 or len(loaded['bases']) != 1
+                    or any(j.get('orbital_predecessor') for j in pilot['jobs'] + panel['jobs'])):
+                raise ValueError('prepare-incomplete requires independent single-geometry pilot systems; '
+                                 'resume multigeometry reconnaissance with its existing dependencies.')
+            audited = recon._audit(system['pilot_manifest'])['jobs'][0]
+            if audited['status'] == 'complete':
+                preserved.append({'title': system['title'], 'directory': audited['directory'],
+                                  'output_sha256': audited['output_sha256']})
+                continue
+            if casscf_max_iterations is not None and data.get('probe_method') == 'casscf':
+                inherited = (data.get('probe_definition', {}).get('state_model', {})
+                             .get('casscf_options', {}))
+                options = {**inherited, **data.get('casscf_options', {})}
+                options['max_iterations'] = max(casscf_max_iterations, options.get('max_iterations', 50))
+                data['casscf_options'] = options
+            if reference_max_iterations is not None and data.get('correlation_checks'):
+                if not data.get('probe_definition', {}).get('state_model'):
+                    raise ValueError('Correlated iteration repair requires an explicit candidate state model.')
+                model = data['probe_definition']['state_model']
+                options = validate_mr_correlation_options(model.get('correlation_options', {}))
+                options['max_reference_iterations'] = max(reference_max_iterations,
+                                                         options.get('max_reference_iterations', 50))
+                model['correlation_options'] = options
+            target = Path(temporary) / (system['title'] + '.json')
+            atomic_json(target, data)
+            recon._load(target)
+            configurations.append(target)
+            metadata.append({**index[system['title']], 'retry_of': audited['directory'],
+                             'retry_validation_errors': audited.get('validation_errors', [])})
+        if not configurations:
+            raise ValueError('All validation pilots are complete; no new campaign needed.')
+        result = orbital_campaign.prepare(output, configurations)
+        atomic_json(result.parent / 'review_index.json', {'schema': 1, 'systems': metadata})
+        atomic_json(result.parent / 'review_plan.json', {'schema': 1, 'incomplete_from': str(root),
+            'completed_preserved': preserved, 'casscf_max_iterations': casscf_max_iterations,
+            'reference_max_iterations': reference_max_iterations})
+        return result
+
+
 def prepare_partitions(source, output):
     """Reoptimize explicit natural-orbital partitions of completed references.
 
@@ -673,7 +738,8 @@ def prepare_partitions(source, output):
     names = set()
     for item in definition['models']:
         if (not isinstance(item, dict) or not required <= set(item)
-                or set(item) - required - {'state_average', 'target_distance_angstrom'}
+                or set(item) - required - {'state_average', 'target_distance_angstrom',
+                                          'casscf_options', 'correlation_options'}
                 or any(not recon._SAFE.fullmatch(str(item[key])) for key in ('name', 'model'))
                 or item['name'] in names
                 or item['region'] not in ('diagnostic', 'single', 'inner', 'outer')):
@@ -722,6 +788,8 @@ def prepare_partitions(source, output):
             state_model.pop('orbital_selection', None)
             if 'state_average' in item:
                 state_model.update(state_average=item['state_average'], selected_roots={})
+            if 'correlation_options' in item:
+                state_model['correlation_options'] = deepcopy(item['correlation_options'])
             space = prior['probe_active_space']
             data.update(title=item['name'], anchors=[anchor], bases=[basis],
                 probe_method='casscf', orbital_initialization='independent',
@@ -729,7 +797,8 @@ def prepare_partitions(source, output):
                 correlation_checks=item['correlation_checks'],
                 scf_options={'solver': 'so_sci', 'max_iterations': 100},
                 casscf_options={'solver': 'so_sci', 'energy_convergence': 1e-8,
-                    'quasi_newton': True, 'exact_diagonalization': item['active_orbitals'] <= 8},
+                    'quasi_newton': True, 'exact_diagonalization': item['active_orbitals'] <= 8,
+                    **item.get('casscf_options', {})},
                 initial_records={basis['name'] + '__' + anchor['name']:
                     {'path': prior['wfu'], 'sha256': prior['wfu_sha256']}},
                 probe_definition={
@@ -761,7 +830,7 @@ def prepare_partitions(source, output):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='python -m kinbot.orbital_review')
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('plan', 'prepare', 'prepare-partitions', 'report', 'repair-convergence'):
+    for name in ('plan', 'prepare', 'prepare-partitions', 'prepare-incomplete', 'report', 'repair-convergence'):
         command = commands.add_parser(name)
         command.add_argument('source')
         command.add_argument('output')
@@ -770,6 +839,9 @@ def main(argv=None):
             command.add_argument('--reuse-from')
         if name == 'report':
             command.add_argument('--additional-campaign', action='append', default=[])
+        if name == 'prepare-incomplete':
+            command.add_argument('--casscf-max-iterations', type=int)
+            command.add_argument('--reference-max-iterations', type=int)
         if name == 'repair-convergence':
             command.add_argument('--solver', choices=['second_order', 'so_sci'], default='second_order')
             command.add_argument('--probe-method', choices=['casci', 'casscf'])
@@ -797,6 +869,10 @@ def main(argv=None):
         print(report(args.source, args.output, additional_campaigns=args.additional_campaign))
     elif args.command == 'prepare-partitions':
         print(prepare_partitions(args.source, args.output))
+    elif args.command == 'prepare-incomplete':
+        print(prepare_incomplete(args.source, args.output,
+              casscf_max_iterations=args.casscf_max_iterations,
+              reference_max_iterations=args.reference_max_iterations))
     else:
         print({'plan': plan, 'prepare': prepare, 'report': report, 'repair-convergence': repair_convergence}
               [args.command](args.source, args.output))

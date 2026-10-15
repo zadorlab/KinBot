@@ -844,6 +844,26 @@ def execute(manifest_path, name):
     job = next((job for job in manifest['jobs'] if job['name'] == name), None)
     if job is None:
         raise ValueError(f'Unknown reconnaissance job: {name}.')
+    # Publish before staging seeds or validating inputs: failures in those
+    # steps previously left no execution record and looked like missing CAS
+    # occupations/energies. The native worker fills in the remaining metadata.
+    record = Path(job['directory']) / 'execution.json'
+    execution = {'schema': 1, 'status': 'running', 'host': socket.gethostname(),
+                 'input_sha256': job['input_sha256']}
+    atomic_json(record, execution)
+    started = time.monotonic()
+    try:
+        _execute(job)
+    except BaseException as error:
+        execution = json.loads(record.read_text())
+        execution.update(status='failed', error=str(error), error_type=type(error).__name__,
+                         elapsed_seconds=time.monotonic() - started)
+        atomic_json(record, execution)
+        raise
+
+
+def _execute(job):
+    name = job['name']
     directory = Path(job['directory'])
     if job.get('initial_record'):
         import shutil
@@ -1084,8 +1104,8 @@ def convergence_diagnostics(output_text, job):
             errors.append('Native CASSCF orbital partition does not match the requested candidate.')
     if job.get('correlation_checks') and blocks:
         following = output_text[blocks[-1].end():]
-        if re.search(r'NO CONVERGENCE\s*!|No convergence in (?:CI|MRCI|RS2|CASPT2)\b|'
-                     r'(?:CI|MRCI|RS2|CASPT2)[^\n]*not converged', following, re.I):
+        if re.search(r'NO CONVERGENCE\s*!|No convergence in (?:REFERENCE\s+CI|CI|MRCI|RS2|CASPT2)\b|'
+                     r'(?:MCSCF|CI|MRCI|RS2|CASPT2)[^\n]*not converged', following, re.I):
             errors.append('Correlated validation contains an unconverged native calculation.')
     # RHF,SO reports the generic MULTI-style iteration-limit message in the
     # HF section, without the conventional "No convergence in rhfpr" line.
@@ -1099,6 +1119,49 @@ def convergence_diagnostics(output_text, job):
         else:
             warnings.append(message)
     return {'errors': errors, 'warnings': warnings}
+
+
+def _launch_diagnostics(directory, job):
+    """Surface batch/guard failures before diagnosing absent chemistry.
+
+    Read only this allocation's latest restart journal. Older archived
+    attempts must not be presented as the reason a new execution failed.
+    """
+    paths = [directory / (job['name'] + '.stderr')]
+    messages = []
+    identifier = str(job.get('job_id', ''))
+    if re.fullmatch(r'[0-9]+', identifier):
+        journal = directory / '.kinbot_slurm_io_retries'
+        for allocation in sorted(journal.glob('*/' + identifier)):
+            folders = [allocation, *[p for p in allocation.glob('restart-*')
+                                    if p.is_dir() and re.fullmatch(r'restart-[0-9]+', p.name)]]
+            latest = max(folders, key=lambda p: int(p.name.split('-')[1]) if p != allocation else 0)
+            record = latest / 'execution.json'
+            if record.is_file():
+                try:
+                    detail = json.loads(record.read_text())
+                    attempts = detail.get('attempts', [])
+                    code = attempts[-1].get('returncode') if attempts else None
+                    messages.append(f'Slurm retry guard status={detail.get("status")!r}, '
+                                    f'returncode={code!r}; journal: {record}.')
+                except (OSError, ValueError):
+                    messages.append(f'Unreadable Slurm retry journal: {record}.')
+            attempts = [p for p in latest.glob('attempt-*')
+                        if p.is_dir() and re.fullmatch(r'attempt-[0-9]+', p.name)]
+            if attempts:
+                paths.append(max(attempts, key=lambda p: int(p.name.split('-')[1])) / 'stderr.txt')
+    seen = set()
+    for path in paths:
+        if not path.is_file():
+            continue
+        with path.open('rb') as stream:
+            stream.seek(0, 2)
+            stream.seek(max(0, stream.tell() - 2000))
+            tail = stream.read().decode(errors='replace').strip()
+        if tail and tail not in seen:
+            messages.append(f'Batch diagnostic ({path}):\n{tail}')
+            seen.add(tail)
+    return messages
 
 
 def _audit(manifest_path, *, live_job_ids=()):
@@ -1125,6 +1188,8 @@ def _audit(manifest_path, *, live_job_ids=()):
             job['validation_errors'] = [
                 'Slurm allocation is still live.' if live else
                 f'Execution status is {execution.get("status")!r}; a complete record is required.']
+            if not live:
+                job['validation_errors'].extend(_launch_diagnostics(directory, job))
             for key in ('output_sha256', 'wfu', 'wfu_sha256', 'molden', 'molden_sha256'):
                 job.pop(key, None)
             continue
@@ -1135,6 +1200,13 @@ def _audit(manifest_path, *, live_job_ids=()):
         natural = directory / f'{stem}.natural.molden'
         inp = directory / f'{stem}.inp'
         output_text = output.read_text(errors='replace') if output.is_file() else ''
+        if not output_text.strip():
+            job['status'] = 'incomplete'
+            job['validation_errors'] = [f'Native output is missing or empty: {output}.',
+                                        *_launch_diagnostics(directory, job)]
+            for key in ('output_sha256', 'wfu', 'wfu_sha256', 'molden', 'molden_sha256'):
+                job.pop(key, None)
+            continue
         xml_evidence = _xml_evidence(directory, job)
         errors = []
         if not inp.is_file() or file_sha256(inp) != job['input_sha256']:
@@ -1729,7 +1801,7 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
 
 def select_record(wfu, output, *, record, active_electrons, active_orbitals,
                   state_average, selected_roots, review_note, basis=None,
-                  state_average_policy='reviewed', casscf_options=None):
+                  state_average_policy='reviewed', casscf_options=None, correlation_options=None):
     path = Path(wfu).expanduser().resolve()
     if not path.is_file() or not path.stat().st_size:
         raise FileNotFoundError(f'Reviewed Molpro WFU is unavailable: {path}.')
@@ -1747,6 +1819,7 @@ def select_record(wfu, output, *, record, active_electrons, active_orbitals,
         'selected_roots': selected_roots,
         'canonical_orbitals': True,
         **({'casscf_options': casscf_options} if casscf_options is not None else {}),
+        **({'correlation_options': correlation_options} if correlation_options is not None else {}),
     }, active_electrons=active_electrons,
        active_orbitals=active_orbitals)
     active_space = {
@@ -1814,6 +1887,7 @@ def main(argv=None):
     select.add_argument('--state-average-json', required=True)
     select.add_argument('--selected-roots-json', default='{}')
     select.add_argument('--casscf-options-json', help='Reviewed CASSCF solver/tolerances to preserve in production.')
+    select.add_argument('--correlation-options-json', help='Reviewed MR correlation iteration limits to preserve in production.')
     select.add_argument('--review-note', required=True)
     select.add_argument('--state-average-policy', choices=['reviewed', 'channel_derived'], default='reviewed')
     args = parser.parse_args(argv)
@@ -1845,6 +1919,7 @@ def main(argv=None):
             selected_roots=json.loads(args.selected_roots_json),
             review_note=args.review_note, basis=args.basis,
             casscf_options=json.loads(args.casscf_options_json) if args.casscf_options_json else None,
+            correlation_options=json.loads(args.correlation_options_json) if args.correlation_options_json else None,
             state_average_policy=args.state_average_policy))
     return 0
 

@@ -332,6 +332,35 @@ def test_collection_keeps_binary_wavefunctions_on_cluster(tmp_path):
         assert not any(name.endswith('.wfu') for name in names)
 
 
+@pytest.mark.parametrize('unavailable', [False, True])
+def test_collection_captures_scoped_accounting_without_requiring_it(tmp_path, monkeypatch, unavailable):
+    from types import SimpleNamespace
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    saved = json.loads(campaign.prepare(root, [source]).read_text())
+    path = Path(saved['systems'][0]['pilot_manifest'])
+    manifest = json.loads(path.read_text())
+    manifest['jobs'][0].update(job_id='42', attempt_history=[{'job_id': '40'}])
+    path.write_text(json.dumps(manifest))
+    calls = []
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='')
+        calls.append(command)
+        assert command[0] == 'sacct' and '--jobs=40,42' in command
+        if unavailable:
+            raise FileNotFoundError('sacct unavailable')
+        return SimpleNamespace(returncode=0, stdout='42|NODE_FAIL|0:9|\n', stderr='')
+    monkeypatch.setattr(campaign.subprocess, 'run', scheduler)
+    archive = campaign.collect(root, tmp_path / 'review.tar.gz')
+    with tarfile.open(archive) as stream:
+        accounting = json.load(stream.extractfile('scheduler_accounting.json'))
+    assert len(calls) == 1 and len(accounting['queries']) == 1
+    query = accounting['queries'][0]
+    assert 'sacct unavailable' in query['error'] if unavailable else 'NODE_FAIL' in query['stdout']
+
+
 @pytest.mark.parametrize('hazard', ['live', 'uncertain', 'scheduler_failure'])
 def test_collection_rejects_owned_outputs_before_auditing(tmp_path, monkeypatch, hazard):
     from types import SimpleNamespace

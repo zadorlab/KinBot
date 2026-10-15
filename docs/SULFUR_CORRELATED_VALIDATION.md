@@ -6,6 +6,14 @@ cost, followed by completed CBH/ANL–ROTD–MESS examples. The next native batc
 is a finite CASPT2-F12 comparison, not another reconnaissance expansion.
 No smaller space or cheaper production basis is approved by its preparation.
 
+Current milestone: the broad CASSCF orbital/initialization panel is complete;
+the first correlated candidate comparison is partly complete and needs the
+incomplete-point restart below. Sparse independent-method checks, final
+inner/outer state-average choices, basis/cost validation and native production
+are still outstanding. The available outputs do not yet justify selecting a
+final production CAS for either example. Scheduler interruptions and iteration
+limits are not evidence that every candidate is chemically unsuitable.
+
 ## First native batch
 
 The acceptance target is **accurate interaction potentials and spin gaps, with
@@ -138,19 +146,36 @@ passed 126 tests after tightening recovery's successful-return-code check.
 The only full-suite warnings were the existing deprecated `imp` import and
 unwritable external Sella cache. No new native Molpro job ran locally.
 
-## Resume on Blodgett
+## Second failure snapshot (14:48 on 15 October)
 
-Keep the existing campaign and all five reference/repair campaign directories;
-the original binary WFUs are still required. The archive intentionally omits
-WFUs, so the full checkpoint audit happens on Blodgett. No completed Molpro
-calculation needs to be repeated for this selector repair.
+The later status paste and the subsequently supplied native excerpts establish
+separate failure classes. The local full archive still predates this attempt.
 
-This block re-audits the 18 recoverable results, archives only the two
-interrupted attempts, and resumes the remaining **21 jobs**, at most 20 at a
-time. It uses the existing immutable plan and prepared campaign. The commands
-stop this campaign's controller; if any allocation remains live, the retry
-command refuses to alter it. In the supplied snapshot there were no live jobs.
-All exits are inside a child shell and preserve the SSH session.
+- Pilots 10 and 21 have unfinished execution records after leaving the queue.
+  The cause is not established by `status="running"` alone.
+- Pilot 26's RS2-F12 step rejects its MCSCF orbital record as unconverged.
+  MULTI was still improving at its 50-iteration limit: energy change
+  1.6e-7 Eh and orbital gradient 2.6984e-4, against targets 1e-8 Eh and 1e-5.
+  This is actual nonconvergence; `IGNORE_ERROR` would invalidate the comparison.
+- Pilot 36 converged CASSCF in eight iterations and computed the first RS2-F12
+  root. The second root exhausted 50 reference-CI iterations and explicitly
+  requested more `MAXITI`. The new general `correlation_options` field raises
+  that budget without loosening the requested accuracy.
+- Several other pilots have no native output. The previous validator expanded
+  this into many missing-orbital/root/occupation errors. Those derivative
+  messages do not establish a chemistry failure. Audit now surfaces launch
+  evidence, and execution records cover failures during seed/input staging.
+
+The reference-CI failure phrase is now rejected by both reconnaissance and
+production convergence validation, including when the process exits normally.
+These changes do not establish the cause of the unfinished or output-free
+jobs. Pilot 27 has no execution record, guard journal or batch streams. Slurm
+accounting is disabled on this installation, so the scheduler cause remains
+unknown. The restart below selects only incomplete points, retaining the
+original verified seeds and chemistry. It raises CASSCF's ceiling to 150 and
+reference CI's to 200; converged jobs still stop at their existing tolerances.
+It does not claim these budgets guarantee native convergence. Keep completed
+results and every original checkpoint.
 
 ```bash
 bash <<'BASH'
@@ -160,9 +185,59 @@ env -u LD_LIBRARY_PATH -u LD_PRELOAD \
     git -c submodule.recurse=false pull --ff-only origin composite
 KB_PY=/home/hram/KinBot/.venv/bin/python
 RUN=/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015
-"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
 "$KB_PY" -m kinbot.orbital_campaign stop-controller "$RUN"
-"$KB_PY" -m kinbot.orbital_campaign retry-failed "$RUN" --include-interrupted
+"$KB_PY" -m kinbot.orbital_campaign collect "$RUN" \
+    /home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_latest_20261015.tar.gz
+BASH
+```
+
+Collection now also queries `sacct` for this campaign's recorded allocations
+and prior attempts, including job states, exit codes/signals and restart counts.
+The result is included as `scheduler_accounting.json`. Unavailable accounting
+is recorded without preventing export of native evidence. See the
+[Slurm accounting fields](https://slurm.schedmd.com/sacct.html).
+
+Then, in a local Mac terminal:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /Users/hrishikeshram/KinBot
+scp hram@blodgett.ca.sandia.gov:/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_latest_20261015.tar.gz \
+    examples/anl/orbital_reviews/
+BASH
+```
+
+## Restart incomplete points on Blodgett
+
+Keep the existing campaign and all five reference/repair campaign directories;
+the original binary WFUs are still required. The archive intentionally omits
+WFUs, so the full checkpoint audit happens on Blodgett. The generic
+`prepare-incomplete` command re-audits the finite single-geometry pilots and
+copies only incomplete configurations into a fresh campaign. Completed points
+remain in the original campaign; their paths/hashes are recorded in the new
+plan. It preserves the original verified seeds and numerical controls except
+the explicitly raised iteration ceilings. It never uses interrupted products
+as starting guesses. No molecular names enter this selection logic.
+All exits are inside a child shell and preserve the SSH session.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+KB_PY=/home/hram/KinBot/.venv/bin/python
+OLD=/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015
+RUN=/home/hram/kinbot-runs/ch3s_ch3ss_potential_repair_20261015
+test ! -e "$RUN"
+"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
+"$KB_PY" -m kinbot.orbital_campaign stop-controller "$OLD"
+"$KB_PY" -m kinbot.run_cleanup "$OLD" --stop --timeout 300
+"$KB_PY" -m kinbot.orbital_campaign collect "$OLD" \
+    /home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_latest_20261015.tar.gz
+"$KB_PY" -m kinbot.orbital_review prepare-incomplete "$OLD" "$RUN" \
+    --casscf-max-iterations 150 --reference-max-iterations 200
 export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
 export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
 mkdir -p "$KINBOT_MOLPRO_SCRATCH"
@@ -180,11 +255,11 @@ BASH
 Monitor:
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.orbital_campaign progress /home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.orbital_campaign progress /home/hram/kinbot-runs/ch3s_ch3ss_potential_repair_20261015'
 ```
 
-The expected successful status is `selected_pilot_complete`, with **39/39
-pilots complete**. Each system also has a duplicate full-panel manifest that
+The expected successful status is `selected_pilot_complete`, with every newly
+prepared pilot complete. Each system also has a duplicate full-panel manifest that
 remains unrun. Do not drop `--pilot-only`: doing so repeats those geometries.
 Elapsed times cover the reoptimization and all requested correlated roots;
 they are not per-root timings. Slurm availability determines actual concurrency.
@@ -199,9 +274,11 @@ cd /home/hram/KinBot
 KB_PY=/home/hram/KinBot/.venv/bin/python
 RUN=/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015
 STAMP=$(date +%Y%m%d_%H%M%S)
-"$KB_PY" -m kinbot.orbital_review report "$RUN" "$RUN/review_report_$STAMP.json"
-"$KB_PY" -m kinbot.orbital_campaign collect "$RUN" \
-    /home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015.tar.gz
+REPAIRED=/home/hram/kinbot-runs/ch3s_ch3ss_potential_repair_20261015
+"$KB_PY" -m kinbot.orbital_review report "$REPAIRED" "$REPAIRED/review_report_$STAMP.json" \
+    --additional-campaign "$RUN"
+"$KB_PY" -m kinbot.orbital_campaign collect "$REPAIRED" \
+    /home/hram/kinbot-runs/ch3s_ch3ss_potential_repair_20261015.tar.gz
 BASH
 ```
 
@@ -212,7 +289,8 @@ Copy the archive from a local Mac terminal:
 bash <<'BASH'
 set -euo pipefail
 cd /Users/hrishikeshram/KinBot
-scp hram@blodgett.ca.sandia.gov:/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015.tar.gz \
+scp hram@blodgett.ca.sandia.gov:/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_latest_20261015.tar.gz \
+    hram@blodgett.ca.sandia.gov:/home/hram/kinbot-runs/ch3s_ch3ss_potential_repair_20261015.tar.gz \
     examples/anl/orbital_reviews/
 BASH
 ```
@@ -225,6 +303,10 @@ BASH
    order and occupations. The common center/far and tilted points test reference agreement and
    anisotropy; the radial stencils expose local branch changes and slope
    changes. None of these alone establishes complete production PES accuracy.
+   When a sampling correction is proposed, judge its final corrected potential
+   as well as the raw sampling error. A predominantly radial bias may be
+   correctable; an unvalidated orientation-dependent residual is not removed
+   merely by fitting the radial scan.
    `potential_profiles` groups single-point systems by model, basis, channel,
    region, orientation and state average, with labelled relative energies,
    secants and timings. Compare small/medium/large spaces at matching points,
@@ -262,5 +344,5 @@ BASH
    not an absolute physical error claim. Basis economies in VRC do not by
    themselves justify removing independent ANL thermochemical corrections.
 
-The native correlated comparisons and the final end-to-end runs remain to be
-performed on Blodgett. Local preparation/parser tests cannot replace them.
+The native correlated comparisons must be completed and the final end-to-end
+runs performed on Blodgett. Local preparation/parser tests cannot replace them.

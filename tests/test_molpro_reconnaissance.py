@@ -209,8 +209,52 @@ def test_partition_requires_native_counts_and_correlated_convergence():
            'correlation_checks': [{'method': 'caspt2-f12b(5,4)'}]}
     assert not convergence_diagnostics(text, job)['errors']
     assert 'partition' in ' '.join(convergence_diagnostics(text.replace('orbitals: 4', 'orbitals: 8'), job)['errors'])
-    for failure in ('NO CONVERGENCE!', '?No convergence in CI', 'RS2 not converged'):
+    for failure in ('NO CONVERGENCE!', '?No convergence in CI', 'RS2 not converged',
+                    'NO CONVERGENCE IN REFERENCE CI AFTER 50 ITERATIONS.',
+                    '?Error: MCSCF not converged.'):
         assert 'Correlated' in ' '.join(convergence_diagnostics(text + failure, job)['errors'])
+
+
+def test_pre_native_staging_failure_publishes_execution_record(tmp_path, monkeypatch):
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    manifest_path = prepare(source, tmp_path / 'recon')
+    manifest = json.loads(manifest_path.read_text())
+    job = manifest['jobs'][0]
+    job['initial_record'] = {'path': str(tmp_path / 'missing.wfu'), 'sha256': '0' * 64}
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *a, **kw: pytest.fail('Must not launch Molpro'))
+    with pytest.raises(FileNotFoundError):
+        recon.execute(manifest_path, job['name'])
+    execution = json.loads(Path(job['directory'], 'execution.json').read_text())
+    assert execution['status'] == 'failed' and execution['error_type'] == 'FileNotFoundError'
+    assert execution['input_sha256'] == job['input_sha256']
+
+
+def test_missing_output_reports_current_launch_evidence_not_cas_failures(tmp_path):
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    manifest_path = prepare(source, tmp_path / 'recon')
+    manifest = json.loads(manifest_path.read_text())
+    job = manifest['jobs'][0]
+    job.update(job_id='42', natural_orbital_probe=True, probe_method='casscf')
+    manifest_path.write_text(json.dumps(manifest))
+    directory = Path(job['directory'])
+    journal = directory / '.kinbot_slurm_io_retries/token'
+    old = journal / '41/attempt-1'
+    old.mkdir(parents=True)
+    (old / 'stderr.txt').write_text('unrelated old failure')
+    current = journal / '42/restart-2/attempt-1'
+    current.mkdir(parents=True)
+    (current / 'stderr.txt').write_text('ModuleNotFoundError: missing library')
+    (current.parent / 'execution.json').write_text(json.dumps({'status': 'failed',
+                                                            'attempts': [{'returncode': 1}]}))
+    result = audit(manifest_path)['jobs'][0]
+    errors = '\n'.join(result['validation_errors'])
+    assert result['status'] == 'incomplete'
+    assert 'output is missing' in errors and 'ModuleNotFoundError' in errors and 'returncode=1' in errors
+    assert 'unrelated old' not in errors and 'CASSCF' not in errors and 'occupations' not in errors
 
 
 @pytest.mark.parametrize('solver', ['second_order', 'so_sci'])

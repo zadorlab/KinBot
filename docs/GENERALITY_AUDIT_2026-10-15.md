@@ -78,6 +78,17 @@ reject undefined-variable assignments. The supplied complete native output
 is a regression fixture. The scheduler retry guard also handles requeues
 using Slurm's restart count rather than rejecting every repeated job ID.
 
+The subsequent native diagnostics distinguish CASSCF macroiteration exhaustion,
+correlated reference-CI iteration exhaustion and missing/interrupted execution.
+Generic state-model controls now preserve separately validated CASSCF and MR
+iteration budgets through production selection. `prepare-incomplete` re-audits
+finite independent validation pilots, preserves successful points, and prepares
+only unfinished points with their original verified seeds. No molecule names
+or job indices enter that repair. Accounting export records unavailable `sacct`
+without blocking native evidence collection; an unavailable accounting service
+does not establish why an allocation disappeared. The updated full regression
+suite passed **1,451 tests and 391 subtests**, with the same two existing warnings.
+
 ## Verification
 
 The complete local suite passed **1,434 tests and 391 subtests**. The subsequent

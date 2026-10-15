@@ -317,9 +317,36 @@ def collect(root, destination):
     destination = Path(destination).expanduser().resolve()
     if root == destination or root in destination.parents:
         raise ValueError('Collection archive must be outside the campaign tree.')
-    with _stopped_snapshot(root) as (data, _):
+    with _stopped_snapshot(root) as (data, snapshots):
         paths = {root / 'campaign.json', root / 'review_plan.json', root / 'review_index.json',
                  root / 'controller.log'}
+        # Native output cannot establish why Slurm killed/requeued a process.
+        # Keep allocation and step accounting with the same stopped snapshot;
+        # sites without sacct still get all native evidence and an explicit
+        # accounting-unavailable record. Never query unrelated allocations.
+        identifiers = set()
+        for manifest in snapshots.values():
+            for job in manifest['jobs'] + manifest.get('excluded_jobs', []):
+                for attempt in [job, *job.get('attempt_history', [])]:
+                    identifier = str(attempt.get('job_id', ''))
+                    if identifier.isdigit():
+                        identifiers.add(identifier)
+        accounting = {'schema': 1, 'captured_unix_time': time.time(), 'queries': []}
+        ordered = sorted(identifiers, key=int)
+        for start in range(0, len(ordered), 200):
+            command = ['sacct', '--jobs=' + ','.join(ordered[start:start + 200]),
+                       '--parsable2', '--duplicates',
+                       '--format=JobIDRaw,State,ExitCode,Reason,Elapsed,MaxRSS,NodeList,Restarts']
+            query = {'command': command}
+            try:
+                result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+                query.update(returncode=result.returncode, stdout=result.stdout, stderr=result.stderr)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                query['error'] = str(error)
+            accounting['queries'].append(query)
+        accounting_path = root / 'scheduler_accounting.json'
+        atomic_json(accounting_path, accounting)
+        paths.add(accounting_path)
         paths.update(root.glob('review_report*.json'))
         for record in data['systems']:
             paths.update(Path(record['configuration']).parent.glob('*.json'))

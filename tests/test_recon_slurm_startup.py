@@ -387,7 +387,8 @@ def test_explicit_numerical_retry_preserves_live_peer_and_binds_actual_native_in
     manifest['jobs'].append(peer)
     atomic_json(path, manifest)
     monkeypatch.setattr(recon, 'slurm_job_record', lambda _: {})
-    result = recon._retry_failed(path, job_ids={'71'}, live_job_ids={'72'}, max_reference_vectors=60)
+    result = recon._retry_failed(path, job_ids={'71'}, live_job_ids={'72'}, max_reference_vectors=60,
+                                 max_reference_iterations=2000)
     assert result['retry_ready'] == ['probe']
     assert artifact.read_text() == '{"status":"running","owner":"peer"}'
     job = json.loads(path.read_text())['jobs'][0]
@@ -399,12 +400,13 @@ def test_explicit_numerical_retry_preserves_live_peer_and_binds_actual_native_in
     def native(command, **kwargs):
         deck = (directory / command[-1]).read_text()
         assert 'gthresh,energy=1.d-10,coeff=1.d-10' in deck
-        assert '{rs2-f12,shift=0.3,ipea=0.25;state,1,3;option,maxiti=200;option,maxvi=60;}' in deck
+        assert '{rs2-f12,shift=0.3,ipea=0.25;state,1,3;option,maxiti=2000;option,maxvi=60;}' in deck
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(recon.subprocess, 'run', native)
     recon._execute(job)
     execution = json.loads((directory / 'execution.json').read_text())
     assert execution['retry_max_reference_vectors'] == 60
+    assert execution['retry_max_reference_iterations'] == 2000
     assert recon._checkpoint_evidence(directory, job, execution)[1] is None
     job['retry_max_reference_vectors'] = 61
     assert 'override differs' in recon._checkpoint_evidence(directory, job, execution)[1]
@@ -421,19 +423,56 @@ def test_explicit_numerical_retry_preserves_live_peer_and_binds_actual_native_in
 def test_numerical_retry_rejects_invalid_capacity_before_touching_files(tmp_path, value):
     with pytest.raises(ValueError):
         recon._retry_failed(tmp_path / 'missing.json', job_ids={'1'}, max_reference_vectors=value)
+    with pytest.raises(ValueError):
+        recon._retry_failed(tmp_path / 'missing.json', job_ids={'1'}, max_reference_iterations=value)
 
 
 def test_reference_capacity_override_cannot_change_an_unrelated_program():
     text = '{multi;state,3;maxit,150;}\n{mrci-f12;state,1,3;option,maxvi=9,cluster=0;}\n'
     expected = text.replace('maxvi=9', 'maxvi=60')
-    assert recon._reference_vector_override(text, 60) == expected
-    assert recon._reference_vector_override(expected, 60) == expected
+    assert recon._reference_solver_override(text, 60) == expected
+    assert recon._reference_solver_override(expected, 60) == expected
     with pytest.raises(ValueError, match='No supported'):
-        recon._reference_vector_override('{uccsd(t)-f12;}', 60)
+        recon._reference_solver_override('{uccsd(t)-f12;}', 60)
     with pytest.raises(ValueError, match='explicit MAXDAV'):
-        recon._reference_vector_override('{rs2;maxdav,4,9;}', 60)
+        recon._reference_solver_override('{rs2;maxdav,4,9;}', 60)
     with pytest.raises(ValueError, match='explicit --job-id'):
         recon._retry_failed(Path('/missing'), max_reference_vectors=60)
+    with pytest.raises(ValueError, match='explicit --job-id'):
+        recon._retry_failed(Path('/missing'), max_reference_iterations=2000)
+    with pytest.raises(ValueError, match='explicit MAXITER'):
+        recon._reference_solver_override('{rs2;maxiter,30,200;}', iterations=2000)
+    assert recon._reference_solver_override(text, iterations=2000).startswith('{multi;state,3;maxit,150;}')
+
+
+def test_manifest_solver_settings_reach_submission_without_mutating_live_work(tmp_path, monkeypatch):
+    from copy import deepcopy
+    path, manifest, job, _ = _manifest(tmp_path)
+    job.pop('job_id')
+    job.pop('missing_since', None)
+    job['correlation_checks'] = [{'method': 'caspt2-f12(5,4)'}]
+    deck = Path(job['directory']) / 'probe.inp'
+    deck.write_text('{multi;maxit,150;}\n{rs2-f12;state,1,3;option,maxiti=200;}\n')
+    job['input_sha256'] = file_sha256(deck)
+    peer = deepcopy(job)
+    peer.update(name='live', job_id='72', directory=str(tmp_path / 'live'))
+    manifest['jobs'].append(peer)
+    manifest['reference_solver_options'] = {'max_reference_vectors': 60, 'max_reference_iterations': 2000}
+    atomic_json(path, manifest)
+    monkeypatch.setattr(recon, '_audit', lambda p, **kw: json.loads(Path(p).read_text()))
+    commands = []
+    def submit(command, **kwargs):
+        assert command[0] == 'sbatch'
+        commands.append(command)
+        return SimpleNamespace(returncode=0, stdout='99', stderr='')
+    monkeypatch.setattr(recon.subprocess, 'run', submit)
+    recon._submit(path, max_jobs=20, live_job_ids={'72'}, startup_checked=True)
+    saved = json.loads(path.read_text())['jobs']
+    assert len(commands) == 1 and saved[0]['job_id'] == '99'
+    assert saved[0]['retry_max_reference_iterations'] == 2000
+    assert saved[0]['retry_max_reference_vectors'] == 60
+    assert saved[1] == peer
+    assert file_sha256(deck) == job['input_sha256']
 
 
 def test_campaign_explicit_recovery_covers_all_exhausted_startups_without_touching_qc_or_live(tmp_path, monkeypatch):

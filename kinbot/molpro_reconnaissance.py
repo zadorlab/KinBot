@@ -892,7 +892,8 @@ def _prepare(source, output):
             if channel:
                 predecessors[(basis['name'], channel)] = stem
     manifest = {
-        **{key: previous[key] for key in ('excluded_bases', 'excluded_jobs') if key in previous},
+        **{key: previous[key] for key in ('excluded_bases', 'excluded_jobs', 'slurm_excluded_nodes', 'startup_retries',
+                                                         'reference_solver_options') if key in previous},
         'schema': 1, 'source': data['_source'], 'title': data['title'],
         'electron_count': data['_electrons'], 'jobs': records,
         'scan_policy': data.get('scan_policy'),
@@ -932,31 +933,33 @@ def execute(manifest_path, name):
         raise
 
 
-def _reference_vector_override(text, value):
-    """Explicit numerical retry: change only MR internal Davidson capacity.
-
-    Prepared inputs stay immutable. The override and transformed native hash
-    are recorded in execution.json and checked before accepting the result.
-    No tolerances, state definitions, shifts or reference policies change.
-    """
-    if value is None:
+def _reference_solver_override(text, vectors=None, iterations=None):
+    """Change only explicit MR reference-CI limits in hash-bound native inputs."""
+    controls = {key: value for key, value in (
+        ('max_reference_vectors', vectors), ('max_reference_iterations', iterations))
+        if value is not None}
+    if not controls:
         return text
-    validate_mr_correlation_options({'max_reference_vectors': value})
+    validate_mr_correlation_options(controls)
     def change(match):
         body = match[0][:-1].rstrip()
-        # Prepared KinBot decks use OPTION,MAXVI; refuse foreign MAXDAV
-        # cards rather than relying on precedence between two directives.
-        if re.search(r'(?:[;\n])\s*maxdav\s*,', body, re.I):
-            raise ValueError('Cannot override an explicit MAXDAV card; prepare a reviewed input.')
-        if re.search(r'\bmaxvi\s*=', body, re.I):
-            body = re.sub(r'\bmaxvi\s*=\s*[^,;\s}]+', f'maxvi={value}', body, flags=re.I)
-        else:
-            body += ('' if body.endswith(';') else ';') + f'option,maxvi={value};'
+        for value, option, card in ((vectors, 'maxvi', 'MAXDAV'),
+                                     (iterations, 'maxiti', 'MAXITER')):
+            if value is None:
+                continue
+            # Generated decks use OPTION; refuse competing foreign cards.
+            if re.search(r'(?:[;\n])\s*' + card + r'\s*,', body, re.I):
+                raise ValueError(f'Cannot override an explicit {card} card; prepare a reviewed input.')
+            if re.search(r'\b' + option + r'\s*=', body, re.I):
+                body = re.sub(r'\b' + option + r'\s*=\s*[^,;\s}]+',
+                              f'{option}={value}', body, flags=re.I)
+            else:
+                body += ('' if body.endswith(';') else ';') + f'option,{option}={value};'
         return body + '}'
     result, count = re.subn(r'\{\s*(?:rs2(?:c|-f12)?|mrci(?:-f12)?)(?=[,;\s}])[^{}]*\}',
                             change, text, flags=re.I)
     if not count:
-        raise ValueError('No supported MR correlation block for max_reference_vectors override.')
+        raise ValueError('No supported MR correlation block for reference solver override.')
     return result
 
 
@@ -983,7 +986,8 @@ def _execute(job):
     native_text = compact_molpro_titles(native_text)
     native_text, energy_repairs = _repair_legacy_energy_selectors(native_text)
     vectors = job.get('retry_max_reference_vectors')
-    native_text = _reference_vector_override(native_text, vectors)
+    iterations = job.get('retry_max_reference_iterations')
+    native_text = _reference_solver_override(native_text, vectors, iterations)
     checkpoint = directory / molpro_wfu_name(name)
     native_text, changed = re.subn(r'(?im)^file,2,[^\n]+$',
                                   f'file,2,{checkpoint.name}', native_text)
@@ -1027,8 +1031,9 @@ def _execute(job):
                  'native_input_sha256': file_sha256(native),
                  'input_transform': 'native_xml_mr_state_energy_v4', 'orbital_exports': exports,
                  'legacy_mr_energy_selectors_repaired': energy_repairs}
-    if vectors is not None:
-        execution['retry_max_reference_vectors'] = vectors
+    for key in ('retry_max_reference_vectors', 'retry_max_reference_iterations'):
+        if job.get(key) is not None:
+            execution[key] = job[key]
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -1126,12 +1131,15 @@ def _checkpoint_evidence(directory, job, execution):
     a separate transformed native input. Never downgrade partial modern records.
     """
     default = directory / (job['name'] + '.wfu')
+    overrides = {key: job.get(key) for key in
+                 ('retry_max_reference_vectors', 'retry_max_reference_iterations')}
+    numerical_retry = any(value is not None for value in overrides.values())
     if execution is None:
-        if job.get('retry_max_reference_vectors') is not None:
+        if numerical_retry:
             return default, 'Numerical retry requires an execution record.'
         return default, None
-    if execution.get('retry_max_reference_vectors') != job.get('retry_max_reference_vectors'):
-        return default, 'Execution reference-vector override differs from the requested retry.'
+    if any(execution.get(key) != value for key, value in overrides.items()):
+        return default, 'Execution reference-solver override differs from the requested retry.'
     if execution.get('input_sha256') != job['input_sha256']:
         return default, 'Execution prepared-input SHA-256 is missing or differs from the manifest.'
     modern_fields = {'native_input', 'native_input_sha256', 'input_transform', 'orbital_exports'}
@@ -1146,16 +1154,17 @@ def _checkpoint_evidence(directory, job, execution):
             return default, 'Transformed execution record is missing its native_input_sha256.'
         if file_sha256(native) != execution['native_input_sha256']:
             return default, f'Native input SHA-256 mismatch: {native}.'
-        if job.get('retry_max_reference_vectors') is not None:
+        if numerical_retry:
             try:
-                if _reference_vector_override(native.read_text(), job['retry_max_reference_vectors']) != native.read_text():
-                    return default, 'Native input does not contain the requested reference-vector override.'
+                if _reference_solver_override(native.read_text(), job.get('retry_max_reference_vectors'),
+                                              job.get('retry_max_reference_iterations')) != native.read_text():
+                    return default, 'Native input does not contain the requested reference-solver override.'
             except ValueError as error:
                 return default, str(error)
     else:
         # Workers before the XML-export change did not create .native.inp.
         # Their command and input_sha256 bind execution to the original .inp.
-        if job.get('retry_max_reference_vectors') is not None:
+        if numerical_retry:
             return default, 'Numerical retry requires a hash-bound transformed native input.'
         native = directory / (job['name'] + '.inp')
         command = execution.get('command')
@@ -1609,19 +1618,24 @@ def submit(manifest_path, *, max_jobs=8):
         return _submit(manifest_path, max_jobs=max_jobs)
 
 
-def retry_failed(manifest_path, *, include_interrupted=False, job_ids=None, max_reference_vectors=None):
+def retry_failed(manifest_path, *, include_interrupted=False, job_ids=None, max_reference_vectors=None,
+                 max_reference_iterations=None):
     """Archive selected stopped attempts while preserving inputs and live peers."""
     path = Path(manifest_path).expanduser().resolve()
     with _manifest_lock(path.parent):
         return _retry_failed(path, include_interrupted=include_interrupted, job_ids=job_ids,
-                             max_reference_vectors=max_reference_vectors)
+                             max_reference_vectors=max_reference_vectors,
+                             max_reference_iterations=max_reference_iterations)
 
 
 def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids=None,
-                  max_reference_vectors=None):
+                  max_reference_vectors=None, max_reference_iterations=None):
     import shutil
-    if max_reference_vectors is not None:
-        validate_mr_correlation_options({'max_reference_vectors': max_reference_vectors})
+    controls = {key: value for key, value in (
+        ('max_reference_vectors', max_reference_vectors),
+        ('max_reference_iterations', max_reference_iterations)) if value is not None}
+    if controls:
+        validate_mr_correlation_options(controls)
         if not job_ids:
             raise ValueError('A numerical retry override requires explicit --job-id selection.')
     if live_job_ids is None:
@@ -1656,8 +1670,8 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
         inp = directory / (job['name'] + '.inp')
         if file_sha256(inp) != job['input_sha256']:
             raise ValueError('Failed probe input changed; do not retry under the old manifest.')
-        if max_reference_vectors is not None:
-            _reference_vector_override(inp.read_text(), max_reference_vectors)
+        if controls:
+            _reference_solver_override(inp.read_text(), max_reference_vectors, max_reference_iterations)
         attempt = int(job.get('attempt', 1))
         archive = directory / 'attempts' / str(attempt)
         # A failed visualization export does not invalidate the preceding
@@ -1702,12 +1716,13 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
             'error': execution.get('error') or ('Explicitly retried interrupted allocation'
                                                if interrupted else None),
             'input_sha256': job['input_sha256'],
-            'retry_max_reference_vectors': job.get('retry_max_reference_vectors')})
+            **{key: job.get(key) for key in
+               ('retry_max_reference_vectors', 'retry_max_reference_iterations')}})
         for key in ('job_id', 'missing_since', 'terminal_failure', 'scheduler_record'):
             job.pop(key, None)
         job.update(attempt=attempt + 1, submission_status='retry_ready', status='incomplete')
-        if max_reference_vectors is not None:
-            job['retry_max_reference_vectors'] = max_reference_vectors
+        for key, value in controls.items():
+            job['retry_' + key] = value
         if recovery:
             job['recovered_scf'] = recovery
         retried.append(job['name'])
@@ -1777,7 +1792,7 @@ def _recover_slurm_startup_failures(path, manifest, live):
         if time.time() - job.setdefault('missing_since', time.time()) <= 60.:
             continue
         history = job.setdefault('startup_retry_history', [])
-        limit = job.get('startup_retry_limit', 2)
+        limit = job.get('startup_retry_limit', manifest.get('startup_retries', 2))
         if type(limit) is not int or limit < 0:
             raise ValueError('Startup retry limit must be a nonnegative integer.')
         if len(history) >= limit:
@@ -1932,6 +1947,18 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
         if job.get('submission_status') == 'submitting':
             raise RuntimeError(f'{job["name"]}: interrupted Slurm submission '
                                'requires scheduler reconciliation before resubmission.')
+        controls = manifest.get('reference_solver_options', {})
+        if controls and any(vrc_multireference_energy_contract(c['method'])
+                            for c in job.get('correlation_checks', [])):
+            validate_mr_correlation_options(controls)
+            if set(controls) - {'max_reference_vectors', 'max_reference_iterations'}:
+                raise ValueError('Only reference solver limits may override a prepared campaign.')
+            for key, value in controls.items():
+                # Explicit job retry controls take precedence over campaign defaults.
+                job.setdefault('retry_' + key, value)
+            inp = Path(job['directory']) / (job['name'] + '.inp')
+            _reference_solver_override(inp.read_text(), job.get('retry_max_reference_vectors'),
+                                        job.get('retry_max_reference_iterations'))
         predecessor = job.get('orbital_predecessor')
         if job.get('recovered_scf'):
             import shutil

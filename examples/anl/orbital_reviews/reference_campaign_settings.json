@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "max_jobs": 20,
+  "pilot_only": true,
+  "probe_method": "casscf",
+  "max_refinements": 0,
+  "keep_going": true,
+  "allocation_retries": 2,
+  "startup_retries": 2,
+  "io_retries": 2,
+  "memory_mb": 104000,
+  "scratch_root": "/home/hram/.cache/kinbot/molpro",
+  "excluded_nodes": [
+    "node1", "node9", "node10", "node13", "node14", "node16",
+    "node21", "node23", "node24", "node30", "node33"
+  ],
+  "reference_solver_options": {
+    "max_reference_iterations": 2000,
+    "max_reference_vectors": 60
+  }
+}

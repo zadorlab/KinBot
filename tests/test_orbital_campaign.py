@@ -11,6 +11,76 @@ from kinbot import orbital_campaign as campaign
 from test_molpro_reconnaissance import _coordinate_configuration, _complete_probes
 
 
+@pytest.mark.parametrize('setting', [
+    {'max_jobs': True}, {'memory_mb': 0}, {'startup_retries': 11}, {'io_retries': -1},
+    {'allocation_retries': 1.5}, {'keep_going': 'yes'}, {'max_reference_iterations': 2000},
+    {'reference_solver_options': {'max_reference_iterations': False}},
+    {'reference_solver_options': {'reference_policy': 'state_average'}},
+    {'excluded_nodes': ['node[1-2]']}, {'scratch_root': 'relative/path'}])
+def test_campaign_json_settings_reject_invalid_or_misplaced_controls(tmp_path, setting):
+    (tmp_path / 'campaign_settings.json').write_text(json.dumps({'schema': 1, **setting}))
+    with pytest.raises(ValueError):
+        campaign.run(tmp_path)
+    assert not (tmp_path / '.campaign.lock').exists()
+
+
+def test_json_settings_drive_controller_and_preserve_prepared_inputs(tmp_path, monkeypatch):
+    source = tmp_path / 'source.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    saved = json.loads(campaign.prepare(root, [source]).read_text())
+    (root / 'campaign_settings.json').write_text(json.dumps({
+        'schema': 1, 'max_jobs': 20, 'pilot_only': True, 'keep_going': True,
+        'allocation_retries': 2, 'startup_retries': 3, 'io_retries': 4,
+        'memory_mb': 104000, 'scratch_root': str(tmp_path / 'scratch'),
+        'reference_solver_options': {'max_reference_iterations': 2000, 'max_reference_vectors': 60}}))
+    before = {p: p.read_bytes() for p in root.rglob('*.inp')}
+    monkeypatch.setenv('SBATCH_MEM_PER_CPU', '999')
+    monkeypatch.setenv('KINBOT_SLURM_IO_RETRIES', '1')
+    monkeypatch.setattr(campaign, 'preflight', lambda _: None)
+    calls = []
+    def native(paths, **kwargs):
+        assert os.environ['SBATCH_MEM_PER_NODE'] == '104000'
+        assert 'SBATCH_MEM_PER_CPU' not in os.environ
+        assert os.environ['KINBOT_SLURM_IO_RETRIES'] == '4'
+        assert os.environ['KINBOT_MOLPRO_SCRATCH'] == str(tmp_path / 'scratch')
+        assert kwargs['max_jobs'] == 12  # Explicit CLI/API takes precedence.
+        assert kwargs['keep_going'] is True and kwargs['allocation_retries'] == 2
+        for path in paths:
+            m = json.loads(Path(path).read_text())
+            assert m['startup_retries'] == 3
+            assert m['reference_solver_options']['max_reference_iterations'] == 2000
+        calls.append(paths)
+        return [{'jobs': [{'status': 'complete'}]} for _ in paths]
+    monkeypatch.setattr(campaign.recon, 'run_many', native)
+    result = campaign.run(root, max_jobs=12)
+    assert result['status'] == 'pilot_complete' and len(calls) == 1
+    assert os.environ['SBATCH_MEM_PER_CPU'] == '999'
+    assert os.environ['KINBOT_SLURM_IO_RETRIES'] == '1'
+    assert all(p.read_bytes() == content for p, content in before.items())
+    # Refinement/repreparation must retain execution settings and node exclusions.
+    path = Path(saved['systems'][0]['manifest'])
+    m = json.loads(path.read_text())
+    m['slurm_excluded_nodes'] = ['node99']
+    path.write_text(json.dumps(m))
+    campaign.recon.prepare(source, path.parent)
+    m = json.loads(path.read_text())
+    assert m['slurm_excluded_nodes'] == ['node99'] and m['startup_retries'] == 3
+    assert m['reference_solver_options']['max_reference_vectors'] == 60
+
+
+def test_json_memory_cannot_underallocate_molpro_stacks(tmp_path):
+    source = tmp_path / 'source.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    campaign.prepare(root, [source])
+    (root / 'campaign_settings.json').write_text('{"schema":1,"memory_mb":1}')
+    original = Path.cwd()
+    with pytest.raises(ValueError, match='rank stacks'):
+        campaign.run(root)
+    assert Path.cwd() == original
+
+
 @pytest.mark.parametrize('valid_identity', [True, False])
 def test_controller_handoff_signals_only_verified_owner_and_preserves_jobs(tmp_path, monkeypatch, valid_identity):
     source = tmp_path / 'input.json'

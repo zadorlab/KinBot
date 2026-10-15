@@ -12,7 +12,7 @@ reference-check campaign. The two latest native failures are allocations
 52907740 and 52907745: both tilted S–S calculations completed CASSCF and the
 first two CASPT2 doublet roots, then exhausted 200 internal-CI iterations for
 root 3. Their printed internal Davidson capacity was `MAXVI=9`. The explicit
-retry below uses 60 internal vectors, retaining all accuracy thresholds,
+retry below permits 2,000 internal-CI iterations and 60 internal vectors, retaining all accuracy thresholds,
 states, shifts, reference policies and active spaces. This is a documented
 solver adjustment whose effectiveness still requires a native run, not an
 acceptance of the failed energies. See [Molpro's internal Davidson controls](https://www.molpro.net/manual/doku.php?id=the_mrci_program#restricting_numbers_of_expansion_vectors).
@@ -28,13 +28,15 @@ The 16:32 snapshot has 23 failures: 21 pre-shell I/O failures on node16 and
 the two reference-CI failures above. The node inventory additionally reports
 node1, node9, node10, node13, node14, node21, node23, node24, node30 and node33
 as draining, down or unknown. These example incident exclusions, plus node16,
-are explicitly persisted below; shared runtime code contains no node names.
+are stored in `examples/anl/orbital_reviews/reference_campaign_settings.json`;
+shared runtime code contains no node names.
 
 This block preserves completed results and running jobs, including the nested
 CAS(7,5) addition. It recovers all currently confirmed stopped pre-shell
 failures, including exhausted ones, preserving their history and granting two
 new bounded startup retries. It also archives and retries the two identified
-CI failures. Repeating it without new failures cannot replenish budgets or
+CI failures. The JSON solver settings apply to newly submitted MR probes;
+already running probes retain their original numerical limits. Repeating it without new failures cannot replenish budgets or
 select replacement CI job IDs. The 104000M memory request remains below the
 reported 126000M node capacity; it is a reservation, not measured peak usage.
 
@@ -48,18 +50,15 @@ RUN=/home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015
 env -u LD_LIBRARY_PATH -u LD_PRELOAD git -c submodule.recurse=false pull --ff-only origin composite
 "$KB_PY" -m pip install -e . --no-build-isolation --no-deps
 "$KB_PY" -m kinbot.orbital_campaign monitor "$RUN" --details
-unset SBATCH_MEM_PER_CPU SBATCH_MEM_PER_GPU
-export SBATCH_MEM_PER_NODE=104000
-export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
-export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
-mkdir -p "$KINBOT_MOLPRO_SCRATCH"
-"$KB_PY" -m kinbot.orbital_campaign refresh-exclusions "$RUN" \
-    --node node1 --node node9 --node node10 --node node13 --node node14 \
-    --node node16 --node node21 --node node23 --node node24 --node node30 --node node33
+cp examples/anl/orbital_reviews/reference_campaign_settings.json "$RUN/campaign_settings.json"
+"$KB_PY" -m kinbot.orbital_campaign refresh-exclusions "$RUN"
 "$KB_PY" - "$RUN" <<'PY'
-import json, subprocess, sys
+import json, os, subprocess, sys
 from pathlib import Path
+from kinbot.orbital_campaign import load_settings
 from kinbot.molpro_reconnaissance import _slurm_submission_options
+settings = load_settings(sys.argv[1])
+Path(settings["scratch_root"]).mkdir(parents=True, exist_ok=True)
 c = json.loads((Path(sys.argv[1]) / 'campaign.json').read_text())
 manifests = [json.loads(Path(s[k]).read_text()) for s in c['systems']
              for k in ('pilot_manifest', 'manifest')]
@@ -68,22 +67,33 @@ j = manifests[0]['jobs'][0]
 batch = Path(j['directory']) / (j['name'] + '.sbatch')
 options = _slurm_submission_options(batch.read_text(), excluded)
 print('Slurm submission options:', options, flush=True)
-subprocess.run(['sbatch', '--test-only', '--mem=104000M', *options, batch.name],
-               cwd=j['directory'], check=True)
+env = os.environ.copy()
+for key in ('SBATCH_MEM_PER_CPU', 'SBATCH_MEM_PER_GPU'):
+    env.pop(key, None)
+subprocess.run(['sbatch', '--test-only', '--mem=' + str(settings['memory_mb']) + 'M',
+                *options, batch.name], cwd=j['directory'], env=env, check=True)
 PY
 "$KB_PY" -m kinbot.orbital_campaign retry-startup-failures "$RUN"
 "$KB_PY" -m kinbot.orbital_campaign retry-failed "$RUN" \
-    --job-id 52907740 --job-id 52907745 --max-reference-vectors 60
+    --job-id 52907740 --job-id 52907745
 nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$RUN" \
-    --pilot-only --probe-method casscf --max-jobs 20 --max-refinements 0 \
-    --keep-going --allocation-retries 2 \
     >> "$RUN/controller.log" 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$RUN/controller.pid"
 sleep 3
-kill -0 "$(cat "$RUN/controller.pid")" || { tail -n 40 "$RUN/controller.log"; exit 1; }
+if ! kill -0 "$(cat "$RUN/controller.pid")" 2>/dev/null; then
+    tail -n 40 "$RUN/controller.log"
+    "$KB_PY" -m kinbot.orbital_campaign progress "$RUN"
+fi
 "$KB_PY" -m kinbot.orbital_campaign monitor "$RUN" --details
 BASH
 ```
+
+All execution controls in this block are read from `$RUN/campaign_settings.json`.
+Edit that file with the controller stopped; it is separate from the immutable
+scientific input snapshots. The checked-in example is site-specific; the parser
+and runtime are general. Explicit CLI flags take precedence over JSON. For new
+campaigns the example `followup_recipe.json` also requests 2,000 reference-CI
+iterations and 60 internal vectors in the generated scientific inputs.
 
 Monitor without requiring accounting or `rg`:
 

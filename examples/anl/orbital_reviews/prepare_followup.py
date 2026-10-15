@@ -20,6 +20,7 @@ def limits(item, recipe):
     item['casscf_options'] = {'max_iterations': recipe['casscf_max_iterations']}
     item['correlation_options'] = {
         'max_reference_iterations': recipe['reference_max_iterations'],
+        **({'max_reference_vectors': recipe['reference_max_vectors']} if 'reference_max_vectors' in recipe else {}),
         'max_iterations': recipe['correlated_max_iterations']}
     return item
 
@@ -154,6 +155,8 @@ def prepare_references(output, old, original, cases, recipe):
                         'orbital_selection': {'mode': 'avas', 'centers': control['centers'],
                                              'threshold': .3, 'minao_basis': 'minao'},
                         'correlation_options': {'max_reference_iterations': recipe['reference_max_iterations'],
+                                                **({'max_reference_vectors': recipe['reference_max_vectors']}
+                                                   if 'reference_max_vectors' in recipe else {}),
                                                 'max_iterations': recipe['correlated_max_iterations']}}},
                 correlation_checks=checks(control['active_electrons'], control['active_orbitals'],
                                           diagnostic=True, mrci=True))

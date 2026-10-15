@@ -22,6 +22,72 @@ from kinbot.execution import atomic_json, file_sha256
 from kinbot import molpro_reconnaissance as recon
 
 
+def load_settings(root, settings=None):
+    """Load optional, editable execution settings without changing scientific inputs."""
+    path = Path(settings).expanduser().resolve() if settings else Path(root) / 'campaign_settings.json'
+    if settings is None and not path.is_file():
+        return {}
+    data = json.loads(path.read_text())
+    allowed = {'schema', 'max_jobs', 'max_refinements', 'pilot_only', 'probe_method',
+               'keep_going', 'allocation_retries', 'startup_retries', 'io_retries',
+               'memory_mb', 'excluded_nodes', 'reference_solver_options', 'scratch_root'}
+    if not isinstance(data, dict) or type(data.get('schema')) is not int or data['schema'] != 1 or set(data) - allowed:
+        raise ValueError('Unknown campaign settings or schema; expected schema 1.')
+    for key in ('max_jobs', 'max_refinements', 'allocation_retries', 'startup_retries',
+                'io_retries', 'memory_mb'):
+        if key not in data:
+            continue
+        minimum = 1 if key in ('max_jobs', 'memory_mb') else 0
+        if type(data[key]) is not int or data[key] < minimum:
+            raise ValueError(f'campaign settings {key} must be an integer >= {minimum}.')
+        if key.endswith('_retries') and data[key] > 10:
+            raise ValueError(f'campaign settings {key} must be from 0 to 10.')
+    for key in ('pilot_only', 'keep_going'):
+        if key in data and type(data[key]) is not bool:
+            raise ValueError(f'campaign settings {key} must be boolean.')
+    if data.get('probe_method') not in (None, 'casci', 'casscf'):
+        raise ValueError('campaign settings probe_method must be casci, casscf or null.')
+    nodes = data.get('excluded_nodes', [])
+    if not isinstance(nodes, list) or any(not isinstance(n, str) or not recon._SAFE.fullmatch(n) for n in nodes):
+        raise ValueError('excluded_nodes must list individual Slurm node names.')
+    if 'scratch_root' in data and (not isinstance(data['scratch_root'], str)
+            or not data['scratch_root'].strip() or not Path(data['scratch_root']).is_absolute()):
+        raise ValueError('scratch_root must be an absolute directory path.')
+    controls = data.get('reference_solver_options', {})
+    recon.validate_mr_correlation_options(controls)
+    if set(controls) - {'max_reference_iterations', 'max_reference_vectors'}:
+        raise ValueError('reference_solver_options supports reference iterations and vectors only; '
+                         'change scientific controls in a new reconnaissance input.')
+    return data
+
+
+@contextmanager
+def _settings_environment(settings):
+    """Explicit JSON resource/retry settings override environment for this controller."""
+    changes = {}
+    if 'memory_mb' in settings:
+        changes.update(SBATCH_MEM_PER_NODE=str(settings['memory_mb']),
+                       SBATCH_MEM_PER_CPU=None, SBATCH_MEM_PER_GPU=None)
+    if 'io_retries' in settings:
+        changes['KINBOT_SLURM_IO_RETRIES'] = str(settings['io_retries'])
+    if 'scratch_root' in settings:
+        changes['KINBOT_MOLPRO_SCRATCH'] = settings['scratch_root']
+    previous = {key: os.environ.get(key) for key in changes}
+    try:
+        for key, value in changes.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 @contextmanager
 def _lock(root):
     with (root / '.campaign.lock').open('a+') as handle:
@@ -214,9 +280,16 @@ def preflight(root):
     return {'status': 'ready_for_native_pilots', 'setups': setups}
 
 
-def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=None,
-        keep_going=False, allocation_retries=0):
+def run(root, *, max_jobs=None, max_refinements=None, pilot_only=None, probe_method=None,
+        keep_going=None, allocation_retries=None, settings=None):
     root = Path(root).expanduser().resolve()
+    configured = load_settings(root, settings)
+    max_jobs = configured.get('max_jobs', 10) if max_jobs is None else max_jobs
+    max_refinements = configured.get('max_refinements', 0) if max_refinements is None else max_refinements
+    pilot_only = configured.get('pilot_only', False) if pilot_only is None else pilot_only
+    probe_method = configured.get('probe_method') if probe_method is None else probe_method
+    keep_going = configured.get('keep_going', False) if keep_going is None else keep_going
+    allocation_retries = configured.get('allocation_retries', 0) if allocation_retries is None else allocation_retries
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
         raise ValueError('max_jobs must be positive.')
     if isinstance(max_refinements, bool) or not isinstance(max_refinements, int) or max_refinements < 0:
@@ -225,12 +298,33 @@ def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=
         raise ValueError('probe_method must be casci or casscf.')
     if type(allocation_retries) is not int or not 0 <= allocation_retries <= 10:
         raise ValueError('allocation_retries must be an integer from 0 to 10.')
-    with _lock(root):
+    if configured.get('excluded_nodes'):
+        refresh_exclusions(root, nodes=configured['excluded_nodes'], settings=settings)
+    with _lock(root), _settings_environment(configured):
         previous_directory = Path.cwd()
         path = root / 'campaign.json'
         campaign = json.loads(path.read_text())
         if campaign.get('adopted_by'):
             raise ValueError('Run the owning campaign instead: ' + campaign['adopted_by'])
+        # Validate resources for every panel before any submission or cwd change.
+        for record in campaign['systems']:
+            _validate_inputs(record)
+            data = json.loads(Path(record['configuration']).read_text())
+            if ('memory_mb' in configured and configured['memory_mb'] <
+                    data.get('ppn', 8) * data.get('memory_mw', 1000) * 8):
+                raise ValueError('campaign memory_mb does not cover all Molpro rank stacks.')
+        if 'startup_retries' in configured or configured.get('reference_solver_options'):
+            for manifest_path in sorted({Path(s[k]) for s in campaign['systems'] for k in ('pilot_manifest', 'manifest')}):
+                with recon._manifest_lock(manifest_path.parent):
+                    manifest = json.loads(manifest_path.read_text())
+                    if 'startup_retries' in configured:
+                        manifest['startup_retries'] = configured['startup_retries']
+                    if 'reference_solver_options' in configured:
+                        manifest['reference_solver_options'] = configured['reference_solver_options']
+                    atomic_json(manifest_path, manifest)
+        campaign['execution_settings'] = {**configured, 'max_jobs': max_jobs,
+            'max_refinements': max_refinements, 'pilot_only': pilot_only, 'probe_method': probe_method,
+            'keep_going': keep_going, 'allocation_retries': allocation_retries}
         os.chdir(root)  # run-scoped cleanup can identify the live controller
         campaign.update(status='running', controller_pid=os.getpid(), max_jobs=max_jobs,
                         selected_probe_method=probe_method, keep_going=keep_going,
@@ -357,13 +451,14 @@ def progress(root, *, failures_only=False):
     return result
 
 
-def refresh_exclusions(root, *, nodes=()):
+def refresh_exclusions(root, *, nodes=(), settings=None):
     """Apply recorded exclusions to this campaign's pending jobs only.
 
     Requires a stopped controller. Running jobs keep their allocations; this
     never cancels or requeues them. Preserve existing scheduler exclusions.
     """
     root = Path(root).expanduser().resolve()
+    nodes = [*nodes, *load_settings(root, settings).get('excluded_nodes', [])]
     if any(not isinstance(node, str) or not recon._SAFE.fullmatch(node) for node in nodes):
         raise ValueError('Exclusions must be individual Slurm node names.')
     with _lock(root), ExitStack() as locks:
@@ -424,14 +519,15 @@ def refresh_exclusions(root, *, nodes=()):
         return {'excluded_nodes': excluded, 'jobs': reports}
 
 
-def retry_startup_failures(root):
+def retry_startup_failures(root, *, settings=None):
     """Explicit recovery after infrastructure repair; preserve retry evidence.
 
     Reuse the controller's strict pre-shell classifier (scheduler identity,
-    signal 53, no worker/guard artifacts, publication grace). Grant two new
-    automatic startup retries only to explicitly recovered stopped jobs.
+    signal 53, no worker/guard artifacts, publication grace). Grant the configured
+    startup allowance (default two) only to explicitly recovered stopped jobs.
     """
     root = Path(root).expanduser().resolve()
+    allowance = load_settings(root, settings).get('startup_retries', 2)
     with _lock(root):
         campaign = json.loads((root / 'campaign.json').read_text())
         queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
@@ -447,6 +543,7 @@ def retry_startup_failures(root):
                 seen.add(path)
                 with recon._manifest_lock(path.parent):
                     manifest = json.loads(path.read_text())
+                    manifest['startup_retries'] = allowance
                     recon._recover_slurm_startup_failures(path, manifest, live)
                     selected = {str(j['job_id']): j['name'] for j in manifest['jobs']
                         if j.get('startup_failure') and j.get('job_id')
@@ -461,10 +558,10 @@ def retry_startup_failures(root):
                         if name not in result['retry_ready']:
                             continue
                         job = next(j for j in manifest['jobs'] if j['name'] == name)
-                        limit = len(job.get('startup_retry_history', [])) + 2
+                        limit = len(job.get('startup_retry_history', [])) + allowance
                         job.setdefault('manual_startup_retry_history', []).append({
                             'job_id': identifier, 'time': time.time(),
-                            'previous_limit': job.get('startup_retry_limit', 2), 'new_limit': limit})
+                            'previous_limit': job.get('startup_retry_limit', allowance), 'new_limit': limit})
                         job['startup_retry_limit'] = limit
                         job.pop('startup_failure', None)
                     atomic_json(path, manifest)
@@ -475,11 +572,16 @@ def retry_startup_failures(root):
         return {'manual_retries': reports, 'running_jobs_preserved': True}
 
 
-def retry_failed(root, *, include_interrupted=False, job_ids=None, max_reference_vectors=None):
+def retry_failed(root, *, include_interrupted=False, job_ids=None, max_reference_vectors=None,
+                 max_reference_iterations=None, settings=None):
     """Reconcile failed native jobs without discarding successful probes."""
     root = Path(root).expanduser().resolve()
-    if max_reference_vectors is not None:
-        recon.validate_mr_correlation_options({'max_reference_vectors': max_reference_vectors})
+    controls = load_settings(root, settings).get('reference_solver_options', {}).copy()
+    controls.update({key: value for key, value in (
+        ('max_reference_vectors', max_reference_vectors),
+        ('max_reference_iterations', max_reference_iterations)) if value is not None})
+    if controls:
+        recon.validate_mr_correlation_options(controls)
         if not job_ids:
             raise ValueError('A numerical retry override requires explicit --job-id selection.')
     with _lock(root):
@@ -498,7 +600,7 @@ def retry_failed(root, *, include_interrupted=False, job_ids=None, max_reference
                         continue
                 results.append(recon.retry_failed(record[key], include_interrupted=include_interrupted,
                     **({'job_ids': job_ids} if job_ids is not None else {}),
-                    **({'max_reference_vectors': max_reference_vectors} if max_reference_vectors is not None else {})))
+                    **controls))
         campaign['status'] = 'prepared_retry'
         campaign.pop('error', None)
         atomic_json(root / 'campaign.json', campaign)
@@ -538,7 +640,7 @@ def collect(root, destination):
     if root == destination or root in destination.parents:
         raise ValueError('Collection archive must be outside the campaign tree.')
     with _stopped_snapshot(root) as (data, snapshots):
-        paths = {root / 'campaign.json', root / 'review_plan.json', root / 'review_index.json',
+        paths = {root / 'campaign.json', root / 'campaign_settings.json', root / 'review_plan.json', root / 'review_index.json',
                  root / 'controller.log'}
         for addition in data.get('additions', []):
             paths.update(Path(addition) / name for name in ('campaign.json', 'review_plan.json', 'review_index.json'))
@@ -711,12 +813,12 @@ def main(argv=None):
     add.add_argument('addition')
     drive = commands.add_parser('run')
     drive.add_argument('root')
-    drive.add_argument('--max-jobs', type=int, default=10)
-    drive.add_argument('--max-refinements', type=int, default=0)
-    drive.add_argument('--pilot-only', action='store_true')
-    drive.add_argument('--keep-going', action='store_true',
+    drive.add_argument('--max-jobs', type=int)
+    drive.add_argument('--max-refinements', type=int)
+    drive.add_argument('--pilot-only', action=argparse.BooleanOptionalAction, default=None)
+    drive.add_argument('--keep-going', action=argparse.BooleanOptionalAction, default=None,
                        help='Finish independent manifests after a probe failure; still exit with failure.')
-    drive.add_argument('--allocation-retries', type=int, default=0,
+    drive.add_argument('--allocation-retries', type=int,
                        help='Bounded retries of finalized I/O failures or interrupted known workers (0–10).')
     drive.add_argument('--probe-method', choices=['casci', 'casscf'],
                        help='Run only this probe method; retain other systems as unresolved controls.')
@@ -747,6 +849,10 @@ def main(argv=None):
                        help='Retry only these allocation IDs; preserve unrelated running jobs. Repeat as needed.')
     retry.add_argument('--max-reference-vectors', type=int,
                        help='Explicit numerical retry: MR internal Davidson capacity (MAXVI); requires --job-id.')
+    retry.add_argument('--max-reference-iterations', type=int,
+                       help='Explicit numerical retry: MR internal CI iteration ceiling (MAXITI); requires --job-id.')
+    for command in (drive, refresh, startup, retry):
+        command.add_argument('--settings', help='Execution settings JSON; defaults to ROOT/campaign_settings.json.')
     archive = commands.add_parser('archive-excluded')
     archive.add_argument('root')
     selection = commands.add_parser('exclude-bases')
@@ -770,7 +876,7 @@ def main(argv=None):
         result = run(args.root, max_jobs=args.max_jobs,
                      max_refinements=args.max_refinements, pilot_only=args.pilot_only,
                      probe_method=args.probe_method, keep_going=args.keep_going,
-                     allocation_retries=args.allocation_retries)
+                     allocation_retries=args.allocation_retries, settings=args.settings)
     elif args.action == 'collect':
         result = collect(args.root, args.destination)
     elif args.action == 'preflight':
@@ -778,12 +884,13 @@ def main(argv=None):
     elif args.action == 'stop-controller':
         result = stop_controller(args.root)
     elif args.action == 'refresh-exclusions':
-        result = refresh_exclusions(args.root, nodes=args.node)
+        result = refresh_exclusions(args.root, nodes=args.node, settings=args.settings)
     elif args.action == 'retry-startup-failures':
-        result = retry_startup_failures(args.root)
+        result = retry_startup_failures(args.root, settings=args.settings)
     elif args.action == 'retry-failed':
         result = retry_failed(args.root, include_interrupted=args.include_interrupted, job_ids=args.job_id,
-                              max_reference_vectors=args.max_reference_vectors)
+                              max_reference_vectors=args.max_reference_vectors,
+                              max_reference_iterations=args.max_reference_iterations, settings=args.settings)
     elif args.action == 'archive-excluded':
         result = archive_excluded(args.root)
     elif args.action == 'exclude-bases':

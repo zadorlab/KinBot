@@ -310,7 +310,7 @@ the VRC calculation must also deliver accurate relative interaction energies.
    Optional `casscf_options` overrides the partition preparation's solver defaults;
    optional `correlation_options` sets `max_iterations`,
    `max_reference_iterations`, and/or `max_reference_vectors` for correlated calls. These limits must be
-   positive integers. The latter is Molpro's internal/reference-CI `MAXITI`,
+   positive integers. `max_reference_iterations` is Molpro's internal/reference-CI `MAXITI`,
    distinct from CASSCF macroiterations and from the correlated `MAXIT` limit.
    `max_reference_vectors` is Molpro's internal Davidson expansion capacity
    (`OPTION,MAXVI`), independent of the iteration ceiling. These controls change solver budgets without changing convergence
@@ -405,15 +405,83 @@ new automatic startup retries. Native solver failures, unknown disappearances,
 cancellations and running jobs are not selected by this operation.
 
 For a diagnosed reference-CI failure, an explicit in-place numerical retry is
-`orbital_campaign retry-failed ROOT --job-id ID --max-reference-vectors N`.
+`orbital_campaign retry-failed ROOT --job-id ID --max-reference-vectors N --max-reference-iterations M`.
 The controller must be stopped and the selected allocation must have ended.
 It archives the old attempt, preserves the prepared input and original seed,
 and records the numerical override in the manifest and hash-bound executed
 native input. Completed and unrelated running jobs are preserved. The override
-changes internal Davidson capacity only; convergence requirements, active
+changes internal Davidson capacity and/or iteration ceiling; convergence requirements, active
 space, states, shifts and reference policy are unchanged. Acceptance still
 requires native convergence. Carry a successfully validated value into the
-reviewed production model's `correlation_options.max_reference_vectors`.
+reviewed production model's `correlation_options`.
+
+Campaign execution settings can be supplied in `ROOT/campaign_settings.json`
+(loaded automatically) or with `--settings FILE` on `run`, `refresh-exclusions`,
+`retry-startup-failures`, and `retry-failed`. Example:
+
+```json
+{
+  "schema": 1,
+  "max_jobs": 20,
+  "max_refinements": 0,
+  "pilot_only": true,
+  "probe_method": "casscf",
+  "keep_going": true,
+  "allocation_retries": 2,
+  "startup_retries": 2,
+  "io_retries": 2,
+  "memory_mb": 104000,
+  "excluded_nodes": [],
+  "reference_solver_options": {
+    "max_reference_iterations": 2000,
+    "max_reference_vectors": 60
+  }
+}
+```
+
+These are editable execution settings, separate from the immutable scientific
+input snapshots. Unknown keys, noninteger limits, unsafe node names, and retry
+counts outside 0–10 are rejected. Explicit CLI values override JSON; boolean
+flags also have `--no-pilot-only` and `--no-keep-going` forms. Without settings,
+existing defaults remain unchanged. `memory_mb` is the per-node Slurm request;
+it must cover all Molpro rank stacks, and the user must keep it within the site's
+node capacity. Optional `scratch_root` is an absolute directory path.
+
+`startup_retries` bounds confirmed pre-shell I/O retries; a manual
+`retry-startup-failures` grants that many additional automatic retries only to
+the explicitly recovered stopped attempts. Existing manual allowances and all
+attempt histories persist. `io_retries` controls the shared worker I/O guard;
+`allocation_retries` controls stopped-worker/allocation recovery. These limits
+do not authorize accepting unconverged scientific results. A controller restart
+does not erase consumed retry counts.
+
+`reference_solver_options` applies to **new submissions with MR correlation
+checks**, and to explicitly selected `retry-failed --job-id` targets. It does not
+alter running, queued or completed scientific inputs. Explicit per-job retry
+limits take precedence over campaign defaults. Prepared inputs remain immutable;
+the actual transformed input and its limits are hash-bound in `execution.json`.
+Refinement retains these execution settings. The run records effective settings
+in `campaign.json`; review archives include the local settings file.
+
+The scientific JSON already provides these controls when preparing a new panel:
+
+| JSON location | Controls |
+| --- | --- |
+| Recon input `scf_options` | `solver`, `max_iterations` |
+| Recon input `scf_convergence` | Global SCF energy/coefficient threshold |
+| Recon input `casscf_options` | `solver`, `max_iterations`, `exact_diagonalization`, `quasi_newton`, `energy_convergence`, `gradient_convergence`, `verbosity` |
+| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `reference_policy` |
+| Each recon `correlation_checks` entry | `method`, `shift`, `ipea`, optional `reference_policy` |
+| Recon input resources | `ppn`, `memory_mw` per Molpro rank, `memory_mb` per node, `partition`, `walltime`, `scratch_min_mb` |
+| Partition recipe model | `casscf_options`, `correlation_options` |
+| Final KinBot `vrc_tst_state_model` or a reviewed stage model | `casscf_options`, `correlation_options` |
+
+For example, the same correlated limits in a new recon or final production state
+model are `"correlation_options": {"max_reference_iterations": 2000,
+"max_reference_vectors": 60}`. Chemical definitions, states and accuracy thresholds
+belong in these reviewed scientific inputs. They cannot be changed through the
+campaign execution file. Successful convergence with these limits is necessary,
+but does not itself validate the active-space accuracy or the sampling potential.
 
 For finite independent single-geometry validation panels,
 `orbital_review prepare-incomplete OLD_ROOT NEW_ROOT` prepares only incomplete

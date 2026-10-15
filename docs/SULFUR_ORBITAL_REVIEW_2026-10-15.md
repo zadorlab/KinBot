@@ -180,6 +180,11 @@ unmet criterion. Check the printed native thresholds and column headers
 before choosing another solver change; normal termination and printed
 energies do not supersede the convergence requirement. Molpro documents
 separate [MCSCF energy and orbital-gradient criteria](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#convergence_thresholds).
+The follow-up header confirmed targets of 1e-5 for the orbital gradient and
+1e-10 Eh for energy. The displayed gradients are below their target; the
+eight-decimal energy changes cannot resolve the requested energy criterion.
+Both remaining allocations subsequently left Slurm with normal termination,
+which still requires checking their complete output for native convergence.
 
 Failure handling now stops new submissions but monitors already submitted
 jobs until they leave the queue and their outputs validate or fail. This also
@@ -190,6 +195,61 @@ The controller-only update below adopts any surviving allocations without
 retrying the rejected calculation. It is a monitoring repair, not a claim that
 the electronic convergence problem has been solved. Do not repeat the same
 solver repair or relax convergence thresholds without inspecting the output.
+
+### Bounded SO-SCI test after the quadratic repair
+
+An explicit alternative is now available:
+`repair-convergence OLD NEW --solver so_sci --probe-method casscf`.
+It uses `rhf,so-sci` and `multi,so-sci,exact_diag=1,qn=1`, preserving the
+1e-10 global energy/coefficient thresholds, TZ-F12 basis, CAS(13,8) and equal
+three-doublet/three-quartet state average in this case. SO-SCI combines
+first- and second-order orbital optimization and is documented for difficult
+open-shell references in the [Molpro SCF manual](https://www.molpro.net/manual/doku.php?id=the_scf_program#options_for_the_so-sci_optimization).
+This tests a different algorithm; it does not reinterpret the rejected energies
+as converged. The first launch runs only one pilot per affected CASSCF
+initialization (at most two for this repair), with a shared cap of 20.
+No complete panel or optional CASCI controls are launched by this command.
+The parser/scheduling tests pass locally; the native SO-SCI pilots must still
+be tested on Blodgett before continuing.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+OLD=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_convergence_20261015
+NEW=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_sosci_20261015
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
+"$KB_PY" -m kinbot.orbital_campaign stop-controller "$OLD"
+export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+mkdir -p "$KINBOT_MOLPRO_SCRATCH"
+if [ ! -f "$NEW/campaign.json" ]; then
+    "$KB_PY" -m kinbot.orbital_review repair-convergence "$OLD" "$NEW" \
+        --solver so_sci --probe-method casscf
+fi
+"$KB_PY" -m kinbot.orbital_campaign stop-controller "$NEW"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$NEW"
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$NEW" \
+    --pilot-only --probe-method casscf --max-jobs 20 --max-refinements 0 \
+    >> "$NEW/controller.log" 2>&1 < /dev/null &
+printf '%s\n' "$!" > "$NEW/controller.pid"
+"$KB_PY" -m kinbot.orbital_campaign progress "$NEW"
+tail -n 30 "$NEW/controller.log"
+squeue -u hram -o '%.18i %.10T %.48j %.10M %Z'
+BASH
+```
+
+The new campaign is separate: nothing in either source campaign is deleted or
+relabelled. Repeating this block adopts an existing pilot allocation rather
+than submitting a duplicate. Repeating `repair-convergence` with the same
+already failed solver controls is now refused instead of generating another
+identical repair campaign. The block runs in a child shell, preserving the
+SSH login if any command fails.
+
+### Controller handoff and original repair procedure
 
 **Scheduling follow-up:** all six repaired CASSCF panel jobs have no checkpoint
 predecessor; the three checkpoint-initialized probes each have their own seed.

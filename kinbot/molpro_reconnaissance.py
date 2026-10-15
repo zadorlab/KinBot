@@ -318,7 +318,7 @@ def _load(path):
             raise ValueError(f'{key} must be one of {choices}.')
     for key, allowed in (
             ('scf_options', {'solver', 'max_iterations'}),
-            ('casscf_options', {'exact_diagonalization', 'quasi_newton', 'max_iterations'})):
+            ('casscf_options', {'solver', 'exact_diagonalization', 'quasi_newton', 'max_iterations'})):
         options = data.get(key, {})
         if not isinstance(options, dict) or set(options) - allowed:
             raise ValueError(f'Unknown {key} controls.')
@@ -328,8 +328,10 @@ def _load(path):
         for control in ('exact_diagonalization', 'quasi_newton'):
             if control in options and not isinstance(options[control], bool):
                 raise ValueError(f'{key}.{control} must be boolean.')
-    if data.get('scf_options', {}).get('solver', 'diis') not in ('diis', 'second_order'):
-        raise ValueError('scf_options.solver must be diis or second_order.')
+    if data.get('scf_options', {}).get('solver', 'diis') not in ('diis', 'second_order', 'so_sci'):
+        raise ValueError('scf_options.solver must be diis, second_order or so_sci.')
+    if data.get('casscf_options', {}).get('solver', 'second_order') not in ('second_order', 'so_sci'):
+        raise ValueError('casscf_options.solver must be second_order or so_sci.')
     if data.get('partition') is not None and not _SAFE.fullmatch(str(data['partition'])):
         raise ValueError('partition must be a safe Slurm partition name.')
     if 'coordinates' in data:
@@ -476,7 +478,8 @@ def _deck(data, basis, anchor, stem, previous=None):
     scf = fortran_threshold(data.get('scf_convergence', 1.e-10),
                             'scf_convergence')
     scf_options = data.get('scf_options', {})
-    scf_command = 'rhf' + (',so' if scf_options.get('solver') == 'second_order' else '')
+    scf_command = 'rhf' + {'diis': '', 'second_order': ',so', 'so_sci': ',so-sci'}[
+        scf_options.get('solver', 'diis')]
     if 'max_iterations' in scf_options:
         scf_command += f',maxit={scf_options["max_iterations"]}'
     basis_input = f'basis={basis}\n'
@@ -512,6 +515,8 @@ def _deck(data, basis, anchor, stem, previous=None):
         options = data.get('casscf_options', {})
         if method == 'casscf':
             controls = []
+            if 'solver' in options:
+                controls.append({'second_order': 'so', 'so_sci': 'so-sci'}[options['solver']])
             for key, option in (('exact_diagonalization', 'exact_diag'), ('quasi_newton', 'qn')):
                 if key in options:
                     controls.append(f'{option}={int(options[key])}')

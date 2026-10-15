@@ -183,7 +183,8 @@ def test_report_checks_equivalent_geometry_and_preserves_native_character_data(t
         review.report(campaign_file.parent, tmp_path / 'changed.json')
 
 
-def test_convergence_repair_preserves_completed_work_and_chemistry(tmp_path, monkeypatch):
+@pytest.mark.parametrize('solver', ['second_order', 'so_sci'])
+def test_convergence_repair_preserves_completed_work_and_chemistry(tmp_path, monkeypatch, solver):
     from types import SimpleNamespace
     plan = review.plan(SOURCE, tmp_path / 'plan.json')
     definition = json.loads(plan.read_text())
@@ -204,22 +205,54 @@ def test_convergence_repair_preserves_completed_work_and_chemistry(tmp_path, mon
                 before[Path(job['directory'], job['name'] + '.inp')] = job['input_sha256']
             before[path] = file_sha256(path)
     monkeypatch.setattr(review.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=''))
-    repaired = review.repair_convergence(original.parent, tmp_path / 'repair')
+    repaired = review.repair_convergence(original.parent, tmp_path / 'repair', solver=solver)
     records = json.loads(repaired.read_text())['systems']
     assert len(records) == 1
     manifest = json.loads(Path(records[0]['manifest']).read_text())
     assert len(manifest['jobs']) == 1
     job = manifest['jobs'][0]
     deck = Path(job['directory'], job['name'] + '.inp').read_text()
-    assert '{rhf,so,maxit=100;' in deck
-    assert '{multi,exact_diag=1,qn=0;' in deck
+    hf = 'so' if solver == 'second_order' else 'so-sci'
+    multi = 'exact_diag=1,qn=0' if solver == 'second_order' else 'so-sci,exact_diag=1,qn=1'
+    assert '{rhf,' + hf + ',maxit=100;' in deck
+    assert '{multi,' + multi + ';' in deck
     assert 'gthresh,energy=1.d-10,coeff=1.d-10' in deck
     assert job['root_states'] == json.loads(Path(campaign['systems'][0]['manifest']).read_text())['jobs'][0]['root_states']
     assert all(file_sha256(path) == digest for path, digest in before.items())
     data = recon._load(records[0]['configuration'])
     seeded = recon._deck(data, 'avtz-f12', data['anchors'][0], 'trial', previous='previous')
-    assert '{multi,exact_diag=1,qn=0;\nstart,2140.2,type=natural\ndiab,2140.2\n' in seeded
+    assert '{multi,' + multi + ';\nstart,2140.2,type=natural\ndiab,2140.2\n' in seeded
     recon.validate_input_blocks(seeded)
+    # Repeating a failed repair must not spend more jobs with identical controls.
+    for key in ('pilot_manifest', 'manifest'):
+        repeated = json.loads(Path(records[0][key]).read_text())
+        for job in repeated['jobs']:
+            Path(job['directory'], job['name'] + '.out').write_text(
+                'PROGRAM * MULTI\nNO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n')
+    with pytest.raises(ValueError, match='repeats the failed solver'):
+        review.repair_convergence(repaired.parent, tmp_path / 'duplicate', solver=solver)
+    assert not (tmp_path / 'duplicate').exists()
+
+
+def test_so_sci_repair_can_exclude_optional_casci_controls(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    plan = review.plan(SOURCE, tmp_path / 'plan.json')
+    original = review.prepare(plan, tmp_path / 'original')
+    for system in json.loads(original.read_text())['systems']:
+        manifest = json.loads(Path(system['manifest']).read_text())
+        job = manifest['jobs'][0]
+        Path(job['directory'], job['name'] + '.out').write_text(
+            'No convergence in rhfpr\nPROGRAM * MULTI\nNO CONVERGENCE!\n')
+    monkeypatch.setattr(review.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=''))
+    review.main(['repair-convergence', str(original.parent), str(tmp_path / 'repair'),
+                 '--solver', 'so_sci', '--probe-method', 'casscf'])
+    campaign = json.loads((tmp_path / 'repair' / 'campaign.json').read_text())
+    assert len(campaign['systems']) == 2
+    for system in campaign['systems']:
+        config = recon._load(system['configuration'])
+        assert config['probe_method'] == 'casscf'
+        assert config['scf_options']['solver'] == config['casscf_options']['solver'] == 'so_sci'
+        assert len(config['anchors']) == 1
 
 
 def test_reuses_checked_old_wfu_as_casscf_seed_without_relabeling_results(tmp_path, monkeypatch):

@@ -63,6 +63,18 @@ the full reference panel.
    The final campaign status is `failed`, requiring review before a repair.
    Uncertain submissions and scheduler errors still stop immediately, since
    allocation ownership cannot safely be inferred in those cases.
+   For native convergence failures, `orbital_review repair-convergence OLD NEW`
+   prepares only rejected anchors, preserving old evidence. Its default small-CAS
+   repair uses quadratic RHF and exact CI without L-BFGS. If that also stalls,
+   `--solver so_sci --probe-method casscf` explicitly selects Molpro's combined
+   first/second-order optimizer with L-BFGS for RHF and CASSCF, excluding optional
+   CASCI controls. Run the new campaign with `--pilot-only` first. Basis, active
+   space, state averages and convergence thresholds are unchanged; success
+   still requires native convergence. Repeating the same failed repair controls
+   is refused. Direct recon configurations can select `so_sci` or `second_order`
+   in `scf_options.solver` and `casscf_options.solver` (`diis` is also available
+   for SCF). See the [Molpro SCF](https://www.molpro.net/manual/doku.php?id=the_scf_program)
+   and [MULTI](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi) manuals.
 6. `report ROOT OUTPUT.json` supplies geometry, chemical rationale, requested
    state averages, occupations, complete native orbital/CI text, root energies,
    elapsed times and hash-bound artifact paths. It compares geometrically

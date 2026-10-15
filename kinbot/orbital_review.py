@@ -241,14 +241,19 @@ def _signature(job):
     return [(e['multiplicity'], e['root']) for e in job.get('state_energies_hartree', [])]
 
 
-def repair_convergence(root, output):
+def repair_convergence(root, output, *, solver='second_order', probe_method=None):
     """Prepare only explicitly unconverged probes, preserving the old campaign.
 
     Use quadratic RHF and exact CI diagonalization without L-BFGS acceleration
-    for small CASSCF references. Energetic thresholds, basis, geometry and state
-    averages are unchanged. Native convergence still has to be demonstrated.
+    for small CASSCF references, or explicitly select SO-SCI with L-BFGS.
+    Energetic thresholds, basis, geometry and state averages are unchanged.
+    Native convergence still has to be demonstrated.
     """
     from kinbot import orbital_campaign
+    if solver not in ('second_order', 'so_sci'):
+        raise ValueError('Repair solver must be second_order or so_sci.')
+    if probe_method not in (None, 'casci', 'casscf'):
+        raise ValueError('probe_method must be casci or casscf.')
     root = Path(root).expanduser().resolve()
     with orbital_campaign._lock(root):
         campaign = json.loads((root / 'campaign.json').read_text())
@@ -261,6 +266,8 @@ def repair_convergence(root, output):
             for system in campaign['systems']:
                 orbital_campaign._validate_inputs(system)
                 data = json.loads(Path(system['configuration']).read_text())
+                if probe_method is not None and data.get('probe_method', 'casci') != probe_method:
+                    continue
                 rejected = set()
                 for key in ('pilot_manifest', 'manifest'):
                     manifest = json.loads(Path(system[key]).read_text())
@@ -291,9 +298,17 @@ def repair_convergence(root, output):
                 data['anchors'] = [a for a in data['anchors'] if a['name'] in rejected]
                 if len(data['anchors']) != len(rejected):
                     raise ValueError('Rejected anchor no longer occurs in the immutable configuration.')
-                data['scf_options'] = {'solver': 'second_order', 'max_iterations': 100}
+                scf_options = {'solver': solver, 'max_iterations': 100}
+                casscf_options = {'exact_diagonalization': True, 'quasi_newton': solver == 'so_sci'}
+                if solver == 'so_sci':
+                    casscf_options['solver'] = solver
+                if (data.get('scf_options') == scf_options and
+                        (data.get('probe_method') != 'casscf' or data.get('casscf_options') == casscf_options)):
+                    raise ValueError('Requested repair repeats the failed solver controls; '
+                                     'inspect the native output or choose a different solver.')
+                data['scf_options'] = scf_options
                 if data.get('probe_method') == 'casscf':
-                    data['casscf_options'] = {'exact_diagonalization': True, 'quasi_newton': False}
+                    data['casscf_options'] = casscf_options
                 target = Path(temporary) / (system['title'] + '.json')
                 atomic_json(target, data)
                 recon._load(target)
@@ -307,6 +322,7 @@ def repair_convergence(root, output):
         atomic_json(result.parent / 'review_index.json', {'schema': 1, 'systems': metadata})
         atomic_json(result.parent / 'review_plan.json', {'schema': 1, 'repair_of': str(root),
             'reason': 'Native convergence failures; unchanged chemistry and energetic thresholds.',
+            'solver': solver, 'selected_probe_method': probe_method,
             'rejected_outputs': repairs})
         return result
 
@@ -480,6 +496,9 @@ def main(argv=None):
         if name == 'prepare':
             command.add_argument('--additional-plan', action='append', default=[])
             command.add_argument('--reuse-from')
+        if name == 'repair-convergence':
+            command.add_argument('--solver', choices=['second_order', 'so_sci'], default='second_order')
+            command.add_argument('--probe-method', choices=['casci', 'casscf'])
     install = commands.add_parser('install-selection')
     install.add_argument('input')
     install.add_argument('selection')
@@ -493,6 +512,8 @@ def main(argv=None):
               surface_file=args.surface_file, bond=args.bond, stage=args.stage))
     elif args.command == 'prepare':
         print(prepare(args.source, args.output, additional_plans=args.additional_plan, reuse_from=args.reuse_from))
+    elif args.command == 'repair-convergence':
+        print(repair_convergence(args.source, args.output, solver=args.solver, probe_method=args.probe_method))
     else:
         print({'plan': plan, 'prepare': prepare, 'report': report, 'repair-convergence': repair_convergence}
               [args.command](args.source, args.output))

@@ -64,7 +64,7 @@
     "maximum_energy_step_hartree": 0.02,
     "maximum_occupation_change": 0.2
   },
-  "queue_job_limit": 10,
+  "queue_job_limit": 20,
   "orientation_probes": {
     "distance_scales": [
       1.0,

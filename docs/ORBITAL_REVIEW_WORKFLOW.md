@@ -136,30 +136,28 @@ env -u LD_LIBRARY_PATH -u LD_PRELOAD \
     git -c submodule.recurse=false pull --ff-only origin composite
 "$KB_PY" -m pip install -e . --no-build-isolation --no-deps
 "$KB_PY" -m kinbot.orbital_review --help
+"$KB_PY" -m kinbot.orbital_campaign archive-excluded "$OLD"
 export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
 export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
 mkdir -p /home/hram/.cache/kinbot/molpro
 
 mkdir -p "$PLANS"
-if [ ! -f "$PLANS/ch3s.json" ]; then
+if [ ! -f "$NEW/campaign.json" ]; then
+    STAMP=$(date +%Y%m%d_%H%M%S)
     "$KB_PY" -m kinbot.orbital_review plan \
         /home/hram/KinBot/examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json \
-        "$PLANS/ch3s.json"
-fi
-if [ ! -f "$PLANS/ch3ss.json" ]; then
+        "$PLANS/ch3s_$STAMP.json"
     "$KB_PY" -m kinbot.orbital_review plan \
         /home/hram/KinBot/examples/anl/ch3ss_anl1_f12/orbital_reconnaissance.json \
-        "$PLANS/ch3ss.json"
-fi
-if [ ! -f "$NEW/campaign.json" ]; then
-    "$KB_PY" -m kinbot.orbital_review prepare "$PLANS/ch3s.json" "$NEW" \
-        --additional-plan "$PLANS/ch3ss.json" --reuse-from "$OLD"
+        "$PLANS/ch3ss_$STAMP.json"
+    "$KB_PY" -m kinbot.orbital_review prepare "$PLANS/ch3s_$STAMP.json" "$NEW" \
+        --additional-plan "$PLANS/ch3ss_$STAMP.json" --reuse-from "$OLD"
 else
     "$KB_PY" -m kinbot.orbital_campaign retry-failed "$NEW" --include-interrupted
 fi
 "$KB_PY" -m kinbot.orbital_campaign preflight "$NEW"
 nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$NEW" \
-    --max-jobs 10 --max-refinements 0 \
+    --max-jobs 20 --max-refinements 0 \
     >> "$NEW/controller.log" 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$NEW/controller.pid"
 "$KB_PY" -m kinbot.orbital_campaign progress "$NEW"
@@ -174,7 +172,7 @@ CASCI archive to choose the smaller candidate comparisons hands-on. Completed
 new jobs are reused on resume; an interrupted allocation is explicitly reset.
 A native failure still needs its reported diagnostic addressed before retry.
 With the current examples, preparation produces 72 finite-panel jobs and
-nine native pilots, under one ten-job cap. Every requested basis is retained;
+nine native pilots, under one twenty-job cap. Every requested basis is retained;
 the examples currently request only TZ-F12. No correlated checks are enabled
 in this initial reference-orbital campaign.
 

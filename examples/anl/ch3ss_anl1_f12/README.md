@@ -75,5 +75,5 @@ See the [current safe Blodgett stop/update/restart commands and active-space gui
 
 Use the [general chemical orbital-review workflow](../../../docs/ORBITAL_REVIEW_WORKFLOW.md)
 for optimized comparisons and independent C–S/S–S and inner/outer selections.
-Its Blodgett commands run both sulfur systems under one ten-job cap and reuse
+Its Blodgett commands run both sulfur systems under one twenty-job cap and reuse
 verified old checkpoints without treating frozen-CASCI energies as CASSCF.

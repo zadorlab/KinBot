@@ -31,7 +31,7 @@
   "queuing": "slurm",
   "queue_name": "month-long-cpu",
   "ppn": 8,
-  "queue_job_limit": 10,
+  "queue_job_limit": 20,
   "electronic_state_models": [
     {
       "smiles": "[S]",

@@ -326,8 +326,9 @@ def archive_excluded(root):
             if source.is_dir():
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 source.rename(destination)
-            job['archived_directory'] = str(destination)
-            atomic_json(path, manifest)
+            if job.get('archived_directory') != str(destination):
+                job['archived_directory'] = str(destination)
+                atomic_json(path, manifest)
         return {'archive': str(root / 'archived_excluded'),
                 'excluded_directories': len(moves), 'files_deleted': 0}
 

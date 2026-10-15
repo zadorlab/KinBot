@@ -73,10 +73,14 @@ def test_campaign_controller_has_one_global_cap_and_is_run_scoped(tmp_path, monk
         configurations.append(source)
     root = tmp_path / 'campaign'
     campaign.prepare(root, configurations)
+    saved = json.loads((root / 'campaign.json').read_text())
+    saved['error'] = 'previous interruption'
+    (root / 'campaign.json').write_text(json.dumps(saved))
     calls = []
     original = Path.cwd()
     def run(path, *, max_jobs):
         assert Path.cwd() == root
+        assert 'error' not in json.loads((root / 'campaign.json').read_text())
         calls.append((Path(path).parent.name, max_jobs))
         return {'status': 'complete_review_required', 'jobs': [{'status': 'complete'}]}
     monkeypatch.setattr(campaign.recon, 'run', run)

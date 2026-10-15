@@ -124,6 +124,7 @@ def run(root, *, max_jobs=10, max_refinements=3, pilot_only=False):
         path = root / 'campaign.json'
         campaign = json.loads(path.read_text())
         campaign.update(status='running', controller_pid=os.getpid(), max_jobs=max_jobs)
+        campaign.pop('error', None)
         atomic_json(path, campaign)
         try:
             preflight(root)

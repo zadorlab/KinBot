@@ -196,29 +196,44 @@ retrying the rejected calculation. It is a monitoring repair, not a claim that
 the electronic convergence problem has been solved. Do not repeat the same
 solver repair or relax convergence thresholds without inspecting the output.
 
-### Bounded SO-SCI test after the quadratic repair
+### SO-SCI result and explicit CASSCF threshold correction
 
 An explicit alternative is now available:
 `repair-convergence OLD NEW --solver so_sci --probe-method casscf`.
 It uses `rhf,so-sci` and `multi,so-sci,exact_diag=1,qn=1`, preserving the
-1e-10 global energy/coefficient thresholds, TZ-F12 basis, CAS(13,8) and equal
+1e-10 global energy/coefficient settings, TZ-F12 basis, CAS(13,8) and equal
 three-doublet/three-quartet state average in this case. SO-SCI combines
 first- and second-order orbital optimization and is documented for difficult
 open-shell references in the [Molpro SCF manual](https://www.molpro.net/manual/doku.php?id=the_scf_program#options_for_the_so-sci_optimization).
-This tests a different algorithm; it does not reinterpret the rejected energies
-as converged. The first launch runs only one pilot per affected CASSCF
-initialization (at most two for this repair), with a shared cap of 20.
-No complete panel or optional CASCI controls are launched by this command.
-The parser/scheduling tests pass locally; the native SO-SCI pilots must still
-be tested on Blodgett before continuing.
+The two native pilots took about 140 and 143 seconds. Both RHF starts converged;
+both CASSCF optimizations reached the iteration limit. Crucially, MULTI printed
+`0.10E-11 (energy)`, i.e. **1e-12 Eh**, despite `GTHRESH,ENERGY=1e-10`.
+The prior claim that changing the optimizer preserved the effective CASSCF
+threshold was incorrect: the global setting was preserved, but its
+solver-dependent interpretation was not. Final orbital gradients were about
+4e-8 and 3e-8 against the printed 1e-5 target, with energies stationary at the
+displayed precision. This is consistent with an overly tight stopping target;
+the printed table alone is not an energy-error bound or proof of convergence.
+
+New decks use `ACCURACY,ENERGY=1.d-10` inside MULTI, as documented in the
+[Molpro convergence controls](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#convergence_thresholds).
+This changes the effective CASSCF energy target from 1e-12 to the configured
+1e-10 Eh; it therefore requires a new native calculation. The native
+gradient criterion, global SCF/correlation settings and chemical model are
+unchanged. A configurable `casscf_options.energy_convergence` permits a different
+explicit local target; no value looser than the configured 1e-10 is selected.
+The failed outputs remain rejected. The fresh campaign below runs only the
+two corrected pilots, under a shared cap of 20; it does not launch the panels
+or optional CASCI controls. Check native convergence and the printed MULTI
+threshold before continuing. There is no local Molpro validation.
 
 ```bash
 bash <<'BASH'
 set -euo pipefail
 cd /home/hram/KinBot
 KB_PY=/home/hram/KinBot/.venv/bin/python
-OLD=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_convergence_20261015
-NEW=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_sosci_20261015
+OLD=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_sosci_20261015
+NEW=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_accuracy_20261015
 env -u LD_LIBRARY_PATH -u LD_PRELOAD \
     git -c submodule.recurse=false pull --ff-only origin composite
 "$KB_PY" -m pip install -e . --no-build-isolation --no-deps

@@ -69,12 +69,23 @@ the full reference panel.
    `--solver so_sci --probe-method casscf` explicitly selects Molpro's combined
    first/second-order optimizer with L-BFGS for RHF and CASSCF, excluding optional
    CASCI controls. Run the new campaign with `--pilot-only` first. Basis, active
-   space, state averages and convergence thresholds are unchanged; success
+   space and state averages are unchanged; success
    still requires native convergence. Repeating the same failed repair controls
    is refused. Direct recon configurations can select `so_sci` or `second_order`
    in `scf_options.solver` and `casscf_options.solver` (`diis` is also available
    for SCF). See the [Molpro SCF](https://www.molpro.net/manual/doku.php?id=the_scf_program)
    and [MULTI](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi) manuals.
+   New CASSCF decks explicitly set `ACCURACY,ENERGY` inside MULTI: otherwise
+   SO-SCI in Molpro 2024.1 can derive a target 100 times tighter than the global
+   `GTHRESH,ENERGY` value. `casscf_options.energy_convergence` sets that local
+   target; it defaults to `scf_convergence` (1e-10 when omitted). The optional
+   `casscf_options.gradient_convergence` separately sets the orbital-gradient
+   criterion; omitting it retains Molpro's gradient default. These options do
+   not change the global SCF/correlation thresholds. Explicit targets apply
+   equally to fresh and checkpoint-initialized CASSCF. A repair from an older
+   implicit-target SO-SCI campaign is allowed once; an identical explicit-target
+   repair is still refused. Old input files and validation results are preserved.
+   Failure reports include the native MULTI threshold line when available.
 6. `report ROOT OUTPUT.json` supplies geometry, chemical rationale, requested
    state averages, occupations, complete native orbital/CI text, root energies,
    elapsed times and hash-bound artifact paths. It compares geometrically

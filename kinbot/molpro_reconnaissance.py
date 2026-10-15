@@ -318,7 +318,8 @@ def _load(path):
             raise ValueError(f'{key} must be one of {choices}.')
     for key, allowed in (
             ('scf_options', {'solver', 'max_iterations'}),
-            ('casscf_options', {'solver', 'exact_diagonalization', 'quasi_newton', 'max_iterations'})):
+            ('casscf_options', {'solver', 'exact_diagonalization', 'quasi_newton', 'max_iterations',
+                               'energy_convergence', 'gradient_convergence'})):
         options = data.get(key, {})
         if not isinstance(options, dict) or set(options) - allowed:
             raise ValueError(f'Unknown {key} controls.')
@@ -328,6 +329,9 @@ def _load(path):
         for control in ('exact_diagonalization', 'quasi_newton'):
             if control in options and not isinstance(options[control], bool):
                 raise ValueError(f'{key}.{control} must be boolean.')
+        for control in ('energy_convergence', 'gradient_convergence'):
+            if control in options:
+                fortran_threshold(options[control], f'{key}.{control}')
     if data.get('scf_options', {}).get('solver', 'diis') not in ('diis', 'second_order', 'so_sci'):
         raise ValueError('scf_options.solver must be diis, second_order or so_sci.')
     if data.get('casscf_options', {}).get('solver', 'second_order') not in ('second_order', 'so_sci'):
@@ -514,6 +518,16 @@ def _deck(data, basis, anchor, stem, previous=None):
         multi = multi.replace('maxit,50;', 'natorb,2140.2\nmaxit,50;')
         options = data.get('casscf_options', {})
         if method == 'casscf':
+            # SO-SCI derives a 100x tighter energy target from GTHRESH than
+            # second-order MULTI. Set the intended local target explicitly;
+            # changing the optimizer must not silently change convergence.
+            accuracy = 'energy=' + fortran_threshold(
+                options.get('energy_convergence', data.get('scf_convergence', 1.e-10)),
+                'casscf_options.energy_convergence')
+            if 'gradient_convergence' in options:
+                accuracy += ',gradient=' + fortran_threshold(
+                    options['gradient_convergence'], 'casscf_options.gradient_convergence')
+            multi = multi.replace('natorb,2140.2\n', f'accuracy,{accuracy}\nnatorb,2140.2\n')
             controls = []
             if 'solver' in options:
                 controls.append({'second_order': 'so', 'so_sci': 'so-sci'}[options['solver']])
@@ -921,6 +935,9 @@ def convergence_diagnostics(output_text, job):
             r'No orbitals (?:are )?optimized|No orbital optimization', multi, re.I))):
         errors.append('Requested CASSCF orbital optimization did not converge.' if casscf
                       else 'Native MULTI calculation did not converge.')
+        thresholds = re.search(r'(?im)^\s*Convergence thresholds[^\r\n]*', multi)
+        if thresholds:
+            errors[-1] += ' Native ' + thresholds[0].strip() + '.'
     # RHF,SO reports the generic MULTI-style iteration-limit message in the
     # HF section, without the conventional "No convergence in rhfpr" line.
     if (re.search(r'No convergence in (?:rhfpr|[ru]?hf)|[RU]?HF[^\n]*not converged', output_text, re.I)

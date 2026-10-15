@@ -246,7 +246,8 @@ def repair_convergence(root, output, *, solver='second_order', probe_method=None
 
     Use quadratic RHF and exact CI diagonalization without L-BFGS acceleration
     for small CASSCF references, or explicitly select SO-SCI with L-BFGS.
-    Energetic thresholds, basis, geometry and state averages are unchanged.
+    The configured energy target is passed explicitly to MULTI so that SO-SCI
+    does not silently tighten it. Basis, geometry and state averages are unchanged.
     Native convergence still has to be demonstrated.
     """
     from kinbot import orbital_campaign
@@ -299,7 +300,12 @@ def repair_convergence(root, output, *, solver='second_order', probe_method=None
                 if len(data['anchors']) != len(rejected):
                     raise ValueError('Rejected anchor no longer occurs in the immutable configuration.')
                 scf_options = {'solver': solver, 'max_iterations': 100}
-                casscf_options = {'exact_diagonalization': True, 'quasi_newton': solver == 'so_sci'}
+                previous_options = data.get('casscf_options', {})
+                casscf_options = {'exact_diagonalization': True, 'quasi_newton': solver == 'so_sci',
+                    'energy_convergence': previous_options.get('energy_convergence',
+                                                              data.get('scf_convergence', 1.e-10))}
+                if 'gradient_convergence' in previous_options:
+                    casscf_options['gradient_convergence'] = previous_options['gradient_convergence']
                 if solver == 'so_sci':
                     casscf_options['solver'] = solver
                 if (data.get('scf_options') == scf_options and
@@ -321,7 +327,7 @@ def repair_convergence(root, output, *, solver='second_order', probe_method=None
             result = orbital_campaign.prepare(output, configurations)
         atomic_json(result.parent / 'review_index.json', {'schema': 1, 'systems': metadata})
         atomic_json(result.parent / 'review_plan.json', {'schema': 1, 'repair_of': str(root),
-            'reason': 'Native convergence failures; unchanged chemistry and energetic thresholds.',
+            'reason': 'Native convergence failures; unchanged chemistry and explicit configured CASSCF energy target.',
             'solver': solver, 'selected_probe_method': probe_method,
             'rejected_outputs': repairs})
         return result

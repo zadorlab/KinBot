@@ -217,6 +217,7 @@ def test_convergence_repair_preserves_completed_work_and_chemistry(tmp_path, mon
     assert '{rhf,' + hf + ',maxit=100;' in deck
     assert '{multi,' + multi + ';' in deck
     assert 'gthresh,energy=1.d-10,coeff=1.d-10' in deck
+    assert 'accuracy,energy=1.d-10\n' in deck
     assert job['root_states'] == json.loads(Path(campaign['systems'][0]['manifest']).read_text())['jobs'][0]['root_states']
     assert all(file_sha256(path) == digest for path, digest in before.items())
     data = recon._load(records[0]['configuration'])
@@ -253,6 +254,49 @@ def test_so_sci_repair_can_exclude_optional_casci_controls(tmp_path, monkeypatch
         assert config['probe_method'] == 'casscf'
         assert config['scf_options']['solver'] == config['casscf_options']['solver'] == 'so_sci'
         assert len(config['anchors']) == 1
+
+
+def test_legacy_so_sci_repair_can_correct_implicit_energy_target_once(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import orbital_campaign
+    source = tmp_path / 'input.json'
+    data = json.loads(SOURCE.read_text())
+    data.pop('kinbot_input', None)
+    data.update(probe_method='casscf', scf_options={'solver': 'so_sci', 'max_iterations': 100},
+                casscf_options={'solver': 'so_sci', 'exact_diagonalization': True, 'quasi_newton': True})
+    atomic_json(source, data)
+    loaded = recon._load(source)
+    data.pop('coordinates', None)
+    data['anchors'] = loaded['anchors']
+    data['probe_definition'] = {
+        'active_electrons': loaded['_probe_space']['active_electrons'],
+        'active_orbitals': loaded['_probe_space']['active_orbitals'],
+        'state_model': recon._probe_model(loaded, loaded['anchors'][0]),
+        'chemical_note': 'Valence reference for a threshold repair test.'}
+    atomic_json(source, data)
+    renderer = recon._deck
+    with monkeypatch.context() as old:
+        old.setattr(recon, '_deck', lambda *args, **kw:
+                    renderer(*args, **kw).replace('accuracy,energy=1.d-10\n', ''))
+        original = orbital_campaign.prepare(tmp_path / 'old', [source])
+    campaign = json.loads(original.read_text())
+    system = campaign['systems'][0]
+    atomic_json(original.parent / 'review_index.json', {'systems': [{'title': system['title']}]})
+    pilot = json.loads(Path(system['pilot_manifest']).read_text())['jobs'][0]
+    inp = Path(pilot['directory'], pilot['name'] + '.inp')
+    before = inp.read_bytes()
+    Path(pilot['directory'], pilot['name'] + '.out').write_text(
+        'PROGRAM * MULTI\nConvergence thresholds 0.10E-04 (gradient) 0.10E-11 (energy)\n'
+        'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n')
+    monkeypatch.setattr(review.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=''))
+    repaired = review.repair_convergence(original.parent, tmp_path / 'fixed',
+                                         solver='so_sci', probe_method='casscf')
+    record = json.loads(repaired.read_text())['systems'][0]
+    config = json.loads(Path(record['configuration']).read_text())
+    assert config['casscf_options']['energy_convergence'] == 1.e-10
+    job = json.loads(Path(record['pilot_manifest']).read_text())['jobs'][0]
+    assert 'accuracy,energy=1.d-10\n' in Path(job['directory'], job['name'] + '.inp').read_text()
+    assert inp.read_bytes() == before
 
 
 def test_reuses_checked_old_wfu_as_casscf_seed_without_relabeling_results(tmp_path, monkeypatch):

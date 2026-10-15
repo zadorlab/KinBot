@@ -106,6 +106,57 @@ def test_rhf_so_failure_is_not_hidden_by_successful_frozen_casci():
     assert result['errors'] == ['RHF starting calculation did not converge.']
 
 
+def test_so_sci_failure_reports_its_actual_threshold_after_converged_rhf():
+    from kinbot.molpro_reconnaissance import convergence_diagnostics
+    text = ('Program * Restricted Hartree-Fock\nCONVERGENCE REACHED!\n'
+            'PROGRAM * MULTI (Direct Multiconfiguration SCF)\n'
+            'Convergence thresholds  0.10E-04 (gradient)  0.10E-11 (energy)\n'
+            'First-order MCSCF: SO-SCI\n'
+            'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n'
+            'SETTING RECONDONE = 1\nMolpro calculation terminated\n')
+    result = convergence_diagnostics(text, {'probe_method': 'casscf',
+        'natural_orbital_probe': True, 'avas_reference': 'rhf'})
+    assert len(result['errors']) == 1 and not result['warnings']
+    assert '0.10E-11 (energy)' in result['errors'][0]
+
+
+@pytest.mark.parametrize('solver', ['second_order', 'so_sci'])
+@pytest.mark.parametrize('custom', [False, True])
+def test_casscf_sets_local_energy_accuracy_independently_of_solver(tmp_path, solver, custom):
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    data = json.loads(source.read_text())
+    data.update(probe_method='casscf', scf_convergence=1.e-10,
+                casscf_options={'solver': solver})
+    if custom:
+        data['casscf_options'].update(energy_convergence=1.e-9, gradient_convergence=1.e-6)
+    source.write_text(json.dumps(data))
+    data = recon._load(source)
+    for previous in (None, 'previous'):
+        deck = recon._deck(data, 'avtz-f12', data['anchors'][0], 'probe', previous=previous)
+        before, multi = deck.split('{multi,', 1)
+        assert 'gthresh,energy=1.d-10,coeff=1.d-10' in before
+        assert 'accuracy,' not in before
+        requested = 'accuracy,energy=1.d-9,gradient=1.d-6' if custom else 'accuracy,energy=1.d-10'
+        assert requested + '\n' in multi
+        assert multi.count('accuracy,') == 1
+        recon.validate_input_blocks(deck)
+
+
+@pytest.mark.parametrize('key', ['energy_convergence', 'gradient_convergence'])
+@pytest.mark.parametrize('value', [True, 0., -1.e-8, float('nan'), float('inf'), '1e-8', 3.e-8])
+def test_casscf_accuracy_rejects_invalid_or_unrepresentable_targets(tmp_path, key, value):
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    data = json.loads(source.read_text())
+    data.update(probe_method='casscf', casscf_options={key: value})
+    source.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='casscf_options.' + key):
+        recon._load(source)
+
+
 @pytest.mark.parametrize('execution_format', ['none', 'legacy', 'wrong_hash',
     'missing_hash', 'wrong_command', 'nonzero_returncode', 'partial_modern',
     'null_native_path', 'missing_native_hash', 'wrong_native_hash'])

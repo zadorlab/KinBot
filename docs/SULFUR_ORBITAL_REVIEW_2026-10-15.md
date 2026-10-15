@@ -427,7 +427,16 @@ initialization comparison resolved. This is a targeted validation, not a
 claim that the native solver has been tested locally or that the rejected job
 is now valid.
 
-Run on Blodgett (one failed anchor, pilot only; the cap remains 20):
+**11:51 update:** the user reports `selected_pilot_complete`, with the single
+checkpoint-initialized CASSCF pilot accepted and no campaign error. This confirms
+native validation at the explicit 1e-8 target. The full-panel manifest's
+`incomplete` status is expected: `--pilot-only` leaves its duplicate unsubmitted.
+Use the completed pilot in the combined report; proceed to the export below
+instead of launching that duplicate. Root-energy and orbital-character agreement
+with the converged fresh calculation still needs review from the exported data.
+
+The following is the command used for that completed pilot (retained for
+reproducibility; the cap is 20):
 
 ```bash
 bash <<'BASH'

@@ -112,32 +112,59 @@ def preflight(root):
     return {'status': 'ready_for_native_pilots', 'setups': setups}
 
 
-def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False):
+def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=None):
     root = Path(root).expanduser().resolve()
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
         raise ValueError('max_jobs must be positive.')
     if isinstance(max_refinements, bool) or not isinstance(max_refinements, int) or max_refinements < 0:
         raise ValueError('max_refinements must be nonnegative.')
+    if probe_method not in (None, 'casci', 'casscf'):
+        raise ValueError('probe_method must be casci or casscf.')
     with _lock(root):
         previous_directory = Path.cwd()
         os.chdir(root)  # run-scoped cleanup can identify the live controller
         path = root / 'campaign.json'
         campaign = json.loads(path.read_text())
-        campaign.update(status='running', controller_pid=os.getpid(), max_jobs=max_jobs)
+        campaign.update(status='running', controller_pid=os.getpid(), max_jobs=max_jobs,
+                        selected_probe_method=probe_method)
         campaign.pop('error', None)
         atomic_json(path, campaign)
         try:
             preflight(root)
+            selected = []
+            for record in campaign['systems']:
+                _validate_inputs(record)
+                method = json.loads(Path(record['configuration']).read_text()).get('probe_method', 'casci')
+                if probe_method is None or method == probe_method:
+                    selected.append(record)
+            if not selected:
+                raise ValueError(f'No systems request probe_method={probe_method!r}.')
+            if probe_method is not None:
+                queue = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                                       text=True, check=True, timeout=30)
+                live = set(queue.stdout.split())
+                for record in campaign['systems']:
+                    if record in selected:
+                        continue
+                    for key in ('pilot_manifest', 'manifest'):
+                        manifest = json.loads(Path(record[key]).read_text())
+                        jobs = manifest['jobs'] + manifest.get('excluded_jobs', [])
+                        if any(str(job.get('job_id')) in live or job.get('submission_status') == 'submitting'
+                               for job in jobs):
+                            raise RuntimeError('Stop/reconcile unselected allocations before a scoped run.')
+                        # Refresh old completion labels using current validation,
+                        # but neither submit nor retry an unselected control.
+                        recon.audit(record[key])
             # Complete every system's native pilot first. No full recon jobs
             # start if any requested basis/root block fails its pilot.
-            for record in campaign['systems']:
+            for record in selected:
                 _validate_inputs(record)
                 print(f'Native pilot: {record["title"]}', flush=True)
                 report = recon.run(record['pilot_manifest'], max_jobs=max_jobs)
                 if not all(job['status'] == 'complete' for job in report['jobs']):
                     raise RuntimeError('Native reconnaissance pilot did not complete.')
             if not pilot_only:
-                for record in campaign['systems']:
+                for record in selected:
                     print(f'Orbital reconnaissance: {record["title"]}', flush=True)
                     for attempt in range(max_refinements + 1):
                         report = recon.run(record['manifest'], max_jobs=max_jobs)
@@ -148,6 +175,8 @@ def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False):
                     print(f'{record["title"]}: {report["status"]}', flush=True)
                     atomic_json(path, campaign)
             campaign['status'] = 'pilot_complete' if pilot_only else 'complete_review_required'
+            if probe_method is not None:
+                campaign['status'] = 'selected_' + campaign['status']
             campaign.pop('error', None)
         except BaseException as error:
             campaign.update(status='interrupted' if isinstance(error, KeyboardInterrupt) else 'failed',
@@ -167,6 +196,9 @@ def progress(root):
     systems = []
     for record in data['systems']:
         item = {'title': record['title']}
+        if data.get('selected_probe_method'):
+            method = json.loads(Path(record['configuration']).read_text()).get('probe_method', 'casci')
+            item['selected'] = method == data['selected_probe_method']
         for key in ('pilot_manifest', 'manifest'):
             manifest = json.loads(Path(record[key]).read_text())
             item[key] = {'status': manifest['status'], 'jobs': len(manifest['jobs']),
@@ -176,6 +208,7 @@ def progress(root):
                 item[key]['excluded_bases'] = manifest['excluded_bases']
         systems.append(item)
     return {'status': data['status'], 'max_jobs': data.get('max_jobs'),
+            'selected_probe_method': data.get('selected_probe_method'),
             'error': data.get('error'), 'systems': systems}
 
 
@@ -344,6 +377,8 @@ def main(argv=None):
     drive.add_argument('--max-jobs', type=int, default=10)
     drive.add_argument('--max-refinements', type=int, default=0)
     drive.add_argument('--pilot-only', action='store_true')
+    drive.add_argument('--probe-method', choices=['casci', 'casscf'],
+                       help='Run only this probe method; retain other systems as unresolved controls.')
     report = commands.add_parser('progress')
     report.add_argument('root')
     check = commands.add_parser('preflight')
@@ -366,7 +401,8 @@ def main(argv=None):
         result = str(prepare(args.root, args.configurations))
     elif args.action == 'run':
         result = run(args.root, max_jobs=args.max_jobs,
-                     max_refinements=args.max_refinements, pilot_only=args.pilot_only)
+                     max_refinements=args.max_refinements, pilot_only=args.pilot_only,
+                     probe_method=args.probe_method)
     elif args.action == 'collect':
         result = collect(args.root, args.destination)
     elif args.action == 'preflight':

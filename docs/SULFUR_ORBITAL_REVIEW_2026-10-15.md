@@ -135,6 +135,37 @@ basis energies. Do not repeat a complete QZ reconnaissance campaign yet.
 
 ## Repair only the rejected probes
 
+### Follow-up: complete CASSCF without blocking on optional CASCI controls
+
+The initial repair passed both CH3S CASSCF pilots. Its CH3SS C–S CASCI pilot
+at 30 Å then stalled in **RHF,SO**, reaching 100 iterations and printing
+`NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!` before the MULTI
+section. This differs from conventional RHF's `No convergence in rhfpr`
+diagnostic. The recon validator now detects this earlier failure too; a later
+frozen CASCI result and normal Molpro termination do not recover it. Shared
+production checks also recognize Molpro's `Restricted Hartree-Fock` program
+header when a subsequently converged CASSCF legitimately recovers the guess.
+
+Stop the current controller and resume **only CASSCF** using the command below.
+This retains/revalidates its two successful pilots and runs six pending panel
+jobs at the reported stopping point. CASCI-only work is deferred, not approved.
+The final status is `selected_complete_review_required`, with
+`selected_probe_method: casscf`; CASCI systems show `selected: false` and may
+remain incomplete. This is sufficient to continue optimized-reference review,
+not to claim that the entire original comparison campaign passed.
+
+At large separation, a low-spin coupling of a doublet radical and a triplet
+fragment is intrinsically multiconfigurational. Molpro RHF requires its singly
+occupied electrons to couple to high spin; a one-open-orbital doublet RHF is
+not the neutral three-open-orbital asymptote. This is a reason to avoid making
+that optional starting-reference control a production gate, not a proven
+diagnosis of every stalled iteration. See the [Molpro SCF wavefunction rules](https://www.molpro.net/manual/doku.php?id=the_scf_program).
+The optimized state-averaged CASSCF references and subsequent correlated
+interaction-energy/spin-gap checks remain required. We are not loosening any
+convergence thresholds or substituting unconverged CASCI energies.
+
+### Solver repair and restart
+
 `orbital_review repair-convergence OLD NEW` prepares a separate campaign from
 the rejected native outputs. It preserves the old files and all valid work.
 It uses quadratic RHF (`rhf,so`) and, for the small CASSCF reference, exact CI
@@ -145,10 +176,12 @@ and [MULTI](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi)
 manuals; their convergence on these inputs still requires the native pilots.
 Dense exact-CI repair is limited to references with at most eight orbitals.
 
-The supplied archive yields 13 distinct system/anchor repairs plus four
-native pilots. One successful full-panel anchor is repeated because its
-separate pilot failed. The previous campaign's historical progress JSON is
-not rewritten; the native findings and replacement results supersede it.
+The original supplied archive prepared 13 distinct system/anchor repairs plus
+four native pilots. The CASSCF-only resume selects six of those panel jobs and
+two pilots; it reuses any already completed selected jobs. One successful
+full-panel anchor is repeated because its separate pilot had failed in the
+original campaign. The original campaign's historical progress JSON is not
+rewritten; native findings and replacement results supersede it.
 
 On Blodgett:
 
@@ -174,7 +207,7 @@ else
 fi
 "$KB_PY" -m kinbot.orbital_campaign preflight "$NEW"
 nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$NEW" \
-    --max-jobs 20 --max-refinements 0 \
+    --probe-method casscf --max-jobs 20 --max-refinements 0 \
     >> "$NEW/controller.log" 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$NEW/controller.pid"
 "$KB_PY" -m kinbot.orbital_campaign progress "$NEW"

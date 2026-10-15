@@ -36,7 +36,14 @@ the full reference panel.
 5. Run with `orbital_campaign run`. Native pilots and a shared Slurm limit
    precede full execution. The finite panels do not trigger automatic spatial
    expansion. Legacy adaptive refinement remains an explicit opt-in; both CLI
-   defaults are now zero passes.
+   defaults are now zero passes. For a stopped mixed-method campaign,
+   `run ROOT --probe-method casscf --max-jobs 20 --max-refinements 0` resumes
+   only the optimized references, rechecking/reusing their completed pilots.
+   It refuses live or uncertain unselected allocations, re-audits unselected
+   controls without submitting them, and reports
+   `selected_complete_review_required` rather than whole-campaign completion.
+   `progress` labels each system with `selected`; a later run without the
+   method filter explicitly resumes the entire original campaign.
 6. `report ROOT OUTPUT.json` supplies geometry, chemical rationale, requested
    state averages, occupations, complete native orbital/CI text, root energies,
    elapsed times and hash-bound artifact paths. It compares geometrically

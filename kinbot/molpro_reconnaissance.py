@@ -902,6 +902,7 @@ def convergence_diagnostics(output_text, job):
     errors, warnings = [], []
     casscf = job.get('probe_method') == 'casscf'
     blocks = list(re.finditer(r'PROGRAM\s*\*\s*MULTI\b', output_text, re.I))
+    before_multi = output_text[:blocks[0].start()] if blocks else output_text
     multi = output_text[blocks[-1].end():] if blocks else output_text
     multi = re.split(r'PROGRAM\s*\*', multi, maxsplit=1, flags=re.I)[0]
     failed = re.search(r'NO CONVERGENCE\s*!|No convergence in (?:MULTI|MCSCF)|'
@@ -911,7 +912,10 @@ def convergence_diagnostics(output_text, job):
             r'No orbitals (?:are )?optimized|No orbital optimization', multi, re.I))):
         errors.append('Requested CASSCF orbital optimization did not converge.' if casscf
                       else 'Native MULTI calculation did not converge.')
-    if re.search(r'No convergence in (?:rhfpr|[ru]?hf)|[RU]?HF[^\n]*not converged', output_text, re.I):
+    # RHF,SO reports the generic MULTI-style iteration-limit message in the
+    # HF section, without the conventional "No convergence in rhfpr" line.
+    if (re.search(r'No convergence in (?:rhfpr|[ru]?hf)|[RU]?HF[^\n]*not converged', output_text, re.I)
+            or re.search(r'NO CONVERGENCE\s*!', before_multi, re.I)):
         message = 'RHF starting calculation did not converge.'
         if casscf and converged and not failed:
             warnings.append(message + ' Subsequent CASSCF optimization converged; RHF energy is not validated.')

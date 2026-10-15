@@ -80,15 +80,30 @@ def test_casscf_requires_positive_native_convergence_even_after_normal_exit(endi
     assert convergence_diagnostics(text, {'probe_method': 'casscf'})['errors']
 
 
-def test_rhf_failure_is_only_a_warning_after_converged_casscf():
+@pytest.mark.parametrize('failure', ['?No convergence in rhfpr',
+    'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!'])
+def test_rhf_failure_is_only_a_warning_after_converged_casscf(failure):
     from kinbot.molpro_reconnaissance import convergence_diagnostics
-    text = '?No convergence in rhfpr\nPROGRAM * MULTI\nCONVERGENCE REACHED!\n'
+    text = ('Program * Restricted Hartree-Fock\n' + failure
+            + '\nPROGRAM * MULTI\nCONVERGENCE REACHED!\n')
     job = {'probe_method': 'casscf', 'natural_orbital_probe': True, 'avas_reference': 'rhf'}
     result = convergence_diagnostics(text, job)
     assert not result['errors'] and result['warnings']
     job['probe_method'] = 'casci'
     assert convergence_diagnostics(text, job)['errors']
     assert convergence_diagnostics(text, {'natural_orbital_probe': False})['errors']
+
+
+def test_rhf_so_failure_is_not_hidden_by_successful_frozen_casci():
+    from kinbot.molpro_reconnaissance import convergence_diagnostics
+    text = ('Program * Restricted Hartree-Fock\n'
+            'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n'
+            '!RHF STATE 1.1 Energy -834.421740430818\n'
+            'PROGRAM * MULTI (Direct Multiconfiguration SCF)\nNo orbital optimization\n'
+            'SETTING RECONDONE = 1\nMolpro calculation terminated\n')
+    result = convergence_diagnostics(text, {'probe_method': 'casci',
+        'natural_orbital_probe': True, 'avas_reference': 'rhf'})
+    assert result['errors'] == ['RHF starting calculation did not converge.']
 
 
 @pytest.mark.parametrize('execution_format', ['none', 'legacy', 'wrong_hash',

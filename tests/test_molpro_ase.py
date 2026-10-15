@@ -133,10 +133,14 @@ def test_native_nonconvergence_invalidates_energy_even_after_normal_exit(tmp_pat
         parse_output(path, method=method)
 
 
-def test_only_successful_multi_can_recover_hf_guess_failure():
+@pytest.mark.parametrize('header', ['RHF-SCF', 'Restricted Hartree-Fock'])
+@pytest.mark.parametrize('failure', ['?No convergence in rhfpr',
+    'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!'])
+def test_only_successful_multi_can_recover_hf_guess_failure(header, failure):
     from kinbot.molpro import validate_molpro_convergence
-    text = ('PROGRAM * RHF-SCF\n?No convergence in rhfpr\n'
-            'PROGRAM * AVAS\nPROGRAM * MULTI\nCONVERGENCE REACHED!\nPROGRAM * RS2-F12\n')
+    text = (f'Program * {header}\n{failure}\n'
+            'PROGRAM * AVAS\nPROGRAM * MULTI (Direct Multiconfiguration SCF)\n'
+            'CONVERGENCE REACHED!\nPROGRAM * RS2-F12\n')
     validate_molpro_convergence(text, allow_scf_guess_failure=True)
     with pytest.raises(ValueError, match='unconverged'):
         validate_molpro_convergence(text)

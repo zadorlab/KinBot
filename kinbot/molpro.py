@@ -28,17 +28,18 @@ def validate_molpro_convergence(output, *, allow_scf_guess_failure=False):
     invocation, including displaced geometries in a numerical force job.
     """
     failure = r'NO CONVERGENCE\s*!|No convergence in (?:[ru]?hf(?:pr)?|multi|mcscf|[ru]?ccsd)\b|(?:[RU]?HF|MCSCF|[RU]?CCSD)[^\n]*not converged'
-    programs = list(re.finditer(r'PROGRAM\s*\*\s*(\S+)', output, re.I))
+    programs = list(re.finditer(r'PROGRAM\s*\*\s*([^\r\n]+)', output, re.I))
+    scf_header = r'(?:[RU]?HF\b|(?:Restricted|Unrestricted)\s+Hartree.Fock\b)'
     sections = [output[:programs[0].start()]] if programs else [output]
     for index, match in enumerate(programs):
         end = programs[index + 1].start() if index + 1 < len(programs) else len(output)
         block = output[match.start():end]
-        if allow_scf_guess_failure and re.match(r'[RU]?HF\b', match[1], re.I):
+        if allow_scf_guess_failure and re.match(scf_header, match[1], re.I):
             for following in range(index + 1, len(programs)):
                 name = programs[following][1]
-                if re.match(r'[RU]?HF\b', name, re.I):
+                if re.match(scf_header, name, re.I):
                     break
-                if name.upper() == 'MULTI':
+                if re.match(r'MULTI\b', name, re.I):
                     stop = programs[following + 1].start() if following + 1 < len(programs) else len(output)
                     multi = output[programs[following].end():stop]
                     if (re.search(r'(?im)^\s*CONVERGENCE REACHED!', multi)

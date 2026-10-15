@@ -382,6 +382,7 @@ def report(root, output):
                                                  far.get('correlated_energies_hartree', []))]}
                 for row in group]})
     result = {'schema': 1, 'campaign': str(root), 'complete': len(completed), 'total': len(rows),
+        'selected_probe_method': campaign.get('selected_probe_method'),
         'selection_status': 'user_review_required', 'jobs': rows,
         'radial_profiles': profiles,
         'equivalent_geometry_comparisons': comparisons,

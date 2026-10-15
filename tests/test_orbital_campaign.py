@@ -110,6 +110,53 @@ def test_failed_pilot_stops_before_full_jobs_and_records_failure(tmp_path, monke
     assert json.loads((root / 'campaign.json').read_text())['status'] == 'failed'
 
 
+@pytest.mark.parametrize('unselected_state', ['stopped', 'live', 'uncertain'])
+def test_method_scoped_resume_keeps_unselected_controls_unresolved(tmp_path, monkeypatch, unselected_state):
+    from types import SimpleNamespace
+    monkeypatch.setattr(campaign, 'preflight', lambda root: None)
+    configurations = []
+    for method in ('casci', 'casscf'):
+        source = tmp_path / (method + '.json')
+        _coordinate_configuration(source)
+        data = json.loads(source.read_text())
+        data.update(title=method, probe_method=method)
+        source.write_text(json.dumps(data))
+        configurations.append(source)
+    root = tmp_path / 'campaign'
+    records = json.loads(campaign.prepare(root, configurations).read_text())['systems']
+    manifest_path = Path(records[0]['pilot_manifest'])
+    manifest = json.loads(manifest_path.read_text())
+    manifest['jobs'][0].update(job_id='99', submission_status=(
+        'submitting' if unselected_state == 'uncertain' else 'submitted'))
+    manifest_path.write_text(json.dumps(manifest))
+    inputs = {path: path.read_bytes() for path in root.rglob('*.inp')}
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **kw:
+        SimpleNamespace(stdout='99\n' if unselected_state == 'live' else ''))
+    calls = []
+    def execute(path, *, max_jobs):
+        calls.append((Path(path).parent.name, max_jobs))
+        return {'status': 'complete_review_required', 'jobs': [{'status': 'complete'}]}
+    monkeypatch.setattr(campaign.recon, 'run', execute)
+    if unselected_state != 'stopped':
+        with pytest.raises(RuntimeError, match='unselected allocations'):
+            campaign.run(root, probe_method='casscf', max_jobs=20)
+        assert not calls
+    else:
+        result = campaign.run(root, probe_method='casscf', max_jobs=20)
+        assert calls == [('02_pilot', 20), ('02_recon', 20)]
+        assert result['status'] == 'selected_complete_review_required'
+        status = campaign.progress(root)
+        assert status['selected_probe_method'] == 'casscf'
+        assert [item['selected'] for item in status['systems']] == [False, True]
+        assert status['systems'][0]['pilot_manifest']['complete'] == 0
+        assert all(path.read_bytes() == before for path, before in inputs.items())
+        # An explicit later full resume restores the normal campaign scope.
+        calls.clear()
+        assert campaign.run(root)['status'] == 'complete_review_required'
+        assert len(calls) == 4
+        assert campaign.progress(root)['selected_probe_method'] is None
+
+
 def test_campaign_rejects_changed_context_before_submission(tmp_path, monkeypatch):
     source = tmp_path / 'input.json'
     _coordinate_configuration(source)

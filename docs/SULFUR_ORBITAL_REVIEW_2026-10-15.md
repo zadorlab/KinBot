@@ -391,7 +391,7 @@ Both original and replacement archives are needed for review.
 No final active space, physical surface model, or production input is selected
 by this analysis or repair.
 
-## October 15, 11:11: consolidate evidence before further retries
+## October 15, 11:11: remaining SO-SCI failure and targeted tolerance pilot
 
 The `orbital_accuracy_20261015` campaign now has a converged fresh-AVAS
 orientation pilot. Its checkpoint-initialized compressed CH3S pilot still
@@ -404,13 +404,69 @@ run to become review evidence.
 The remaining initialization uses the original same-geometry CASCI checkpoint,
 preserved through each repair. It is not a restart from the latest failed
 CASSCF orbitals or necessarily a continuation from a neighboring converged
-CASSCF point. The latest failure's full native iterations are still needed
-before attributing it to numerical noise, a state/space issue, or a particular
-optimizer criterion. Do not increase iterations or loosen thresholds solely
-because earlier, different attempts printed small rounded gradients.
+CASSCF point. The subsequently supplied full native output confirms RHF
+convergence and shows 42 final CASSCF iterations (9–50) below the printed 1e-5
+gradient target: maximum 3.06e-6 and final 7e-8. Their weighted energy is
+unchanged at the printed eight-decimal precision, -436.95303158 Hartree.
+The individual final doublet roots are -437.129445511917 and
+-437.129445503088 Hartree; near-degenerate state rotations remain relevant
+when comparing character. Diabatization occurs after the iteration-limit
+message, so its later overlap table is not evidence of the cause of the
+optimizer failure.
 
-The immediate next step supersedes the earlier restart instructions: **leave
-the stopped campaigns intact and export all four review/repair campaigns**.
+This is consistent with a numerical stopping limit, not a large residual
+orbital gradient; the rounded table alone does not identify the unmet internal
+test. Use one explicit CASSCF energy-tolerance pilot at 1e-8 Hartree, the
+[documented first-order Molpro default](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#convergence_thresholds),
+with detailed solver output. That tolerance is approximately 0.0000063 kcal/mol,
+but a convergence threshold is not a bound on total or relative energy error.
+Keep the 1e-5 gradient target, SCF/correlation settings, basis, CAS, six-state
+average, starting checkpoint and iteration limit. Require native convergence
+and compare with the already converged fresh calculation before calling the
+initialization comparison resolved. This is a targeted validation, not a
+claim that the native solver has been tested locally or that the rejected job
+is now valid.
+
+Run on Blodgett (one failed anchor, pilot only; the cap remains 20):
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+OLD=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_accuracy_20261015
+NEW=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_tolerance_20261015
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+"$KB_PY" -m kinbot.run_cleanup "$OLD" --stop --timeout 300
+if [ -f "$NEW/campaign.json" ]; then
+    "$KB_PY" -m kinbot.run_cleanup "$NEW" --stop --timeout 300
+    "$KB_PY" -m kinbot.orbital_campaign retry-failed "$NEW" --include-interrupted
+else
+    "$KB_PY" -m kinbot.orbital_review repair-convergence "$OLD" "$NEW" \
+        --solver so_sci --probe-method casscf --energy-convergence 1e-8 --verbosity 4
+fi
+export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+mkdir -p "$KINBOT_MOLPRO_SCRATCH"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$NEW"
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$NEW" \
+    --pilot-only --probe-method casscf --max-jobs 20 --max-refinements 0 \
+    >> "$NEW/controller.log" 2>&1 < /dev/null &
+printf '%s\n' "$!" > "$NEW/controller.pid"
+"$KB_PY" -m kinbot.orbital_campaign progress "$NEW"
+tail -n 20 "$NEW/controller.log"
+BASH
+```
+
+Monitor with:
+
+```bash
+watch -n 5 '/home/hram/KinBot/.venv/bin/python -m kinbot.orbital_campaign progress /home/hram/kinbot-runs/ch3s_ch3ss_orbital_tolerance_20261015'
+```
+
+After this pilot leaves Slurm, **leave the stopped campaigns intact and export
+all five review/repair campaigns** using the block below.
 This submits no calculations. It checks for active recorded Slurm allocations
 before re-auditing each campaign, retains rejected native outputs, and makes
 one combined report including pilots, initialization provenance and matching
@@ -436,7 +492,7 @@ from kinbot import orbital_campaign, orbital_review
 
 base = Path('/home/hram/kinbot-runs')
 roots = [base / ('ch3s_ch3ss_orbital_' + suffix + '_20261015')
-         for suffix in ('review', 'convergence', 'sosci', 'accuracy')]
+         for suffix in ('review', 'convergence', 'sosci', 'accuracy', 'tolerance')]
 target = base / 'ch3s_ch3ss_orbital_diagnostics_20261015.tar.gz'
 if target.exists():
     raise SystemExit(f'Preserving existing export: {target}')

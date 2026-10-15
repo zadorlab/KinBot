@@ -90,6 +90,15 @@ the full reference panel.
    implicit-target SO-SCI campaign is allowed once; an identical explicit-target
    repair is still refused. Old input files and validation results are preserved.
    Failure reports include the native MULTI threshold line when available.
+   An explicitly reviewed change to the orbital-search tolerance can be made with
+   `repair-convergence ... --energy-convergence 1e-8`. This changes only local
+   CASSCF `ACCURACY,ENERGY`; SCF/correlation targets, gradient tolerance, basis,
+   active space and state average remain unchanged. Molpro documents 1e-8 as
+   its first-order energy default, but the target is a stopping criterion,
+   not an error bound. Use a pilot and compare converged state energies/character
+   before propagating the choice. `--verbosity 4` enables detailed MULTI output
+   (`casscf_options.verbosity` in a direct configuration). Increasing print level
+   alone does not bypass the guard against repeating failed numerical controls.
 6. `report ROOT OUTPUT.json` supplies geometry, chemical rationale, requested
    state averages, occupations, complete native orbital/CI text, root energies,
    elapsed times and hash-bound artifact paths. It compares geometrically

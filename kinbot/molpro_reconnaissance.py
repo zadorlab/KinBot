@@ -319,7 +319,7 @@ def _load(path):
     for key, allowed in (
             ('scf_options', {'solver', 'max_iterations'}),
             ('casscf_options', {'solver', 'exact_diagonalization', 'quasi_newton', 'max_iterations',
-                               'energy_convergence', 'gradient_convergence'})):
+                               'energy_convergence', 'gradient_convergence', 'verbosity'})):
         options = data.get(key, {})
         if not isinstance(options, dict) or set(options) - allowed:
             raise ValueError(f'Unknown {key} controls.')
@@ -332,6 +332,9 @@ def _load(path):
         for control in ('energy_convergence', 'gradient_convergence'):
             if control in options:
                 fortran_threshold(options[control], f'{key}.{control}')
+        if 'verbosity' in options and (type(options['verbosity']) is not int
+                                      or not 0 <= options['verbosity'] <= 4):
+            raise ValueError(f'{key}.verbosity must be an integer from 0 to 4.')
     if data.get('scf_options', {}).get('solver', 'diis') not in ('diis', 'second_order', 'so_sci'):
         raise ValueError('scf_options.solver must be diis, second_order or so_sci.')
     if data.get('casscf_options', {}).get('solver', 'second_order') not in ('second_order', 'so_sci'):
@@ -534,6 +537,8 @@ def _deck(data, basis, anchor, stem, previous=None):
             for key, option in (('exact_diagonalization', 'exact_diag'), ('quasi_newton', 'qn')):
                 if key in options:
                     controls.append(f'{option}={int(options[key])}')
+            if 'verbosity' in options:
+                controls.append(f'verbosity={options["verbosity"]}')
             if 'max_iterations' in options:
                 multi = multi.replace('maxit,50;', f'maxit,{options["max_iterations"]};')
         if avas and data.get('avas_reference') == 'rhf':

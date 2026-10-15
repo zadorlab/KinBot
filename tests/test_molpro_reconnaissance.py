@@ -157,6 +157,18 @@ def test_casscf_accuracy_rejects_invalid_or_unrepresentable_targets(tmp_path, ke
         recon._load(source)
 
 
+@pytest.mark.parametrize('verbosity', [True, -1, 5, 1.5, '4'])
+def test_casscf_rejects_invalid_diagnostic_verbosity(tmp_path, verbosity):
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    data = json.loads(source.read_text())
+    data.update(probe_method='casscf', casscf_options={'verbosity': verbosity})
+    source.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='casscf_options.verbosity'):
+        recon._load(source)
+
+
 @pytest.mark.parametrize('execution_format', ['none', 'legacy', 'wrong_hash',
     'missing_hash', 'wrong_command', 'nonzero_returncode', 'partial_modern',
     'null_native_path', 'missing_native_hash', 'wrong_native_hash'])

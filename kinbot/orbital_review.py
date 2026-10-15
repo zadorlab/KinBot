@@ -241,7 +241,8 @@ def _signature(job):
     return [(e['multiplicity'], e['root']) for e in job.get('state_energies_hartree', [])]
 
 
-def repair_convergence(root, output, *, solver='second_order', probe_method=None):
+def repair_convergence(root, output, *, solver='second_order', probe_method=None,
+                       energy_convergence=None, verbosity=None):
     """Prepare only explicitly unconverged probes, preserving the old campaign.
 
     Use quadratic RHF and exact CI diagonalization without L-BFGS acceleration
@@ -255,6 +256,12 @@ def repair_convergence(root, output, *, solver='second_order', probe_method=None
         raise ValueError('Repair solver must be second_order or so_sci.')
     if probe_method not in (None, 'casci', 'casscf'):
         raise ValueError('probe_method must be casci or casscf.')
+    if probe_method == 'casci' and (energy_convergence is not None or verbosity is not None):
+        raise ValueError('CASSCF accuracy/verbosity controls do not apply to CASCI repairs.')
+    if energy_convergence is not None:
+        recon.fortran_threshold(energy_convergence, 'casscf_options.energy_convergence')
+    if verbosity is not None and (type(verbosity) is not int or not 0 <= verbosity <= 4):
+        raise ValueError('casscf_options.verbosity must be an integer from 0 to 4.')
     root = Path(root).expanduser().resolve()
     with orbital_campaign._lock(root):
         campaign = json.loads((root / 'campaign.json').read_text())
@@ -302,16 +309,20 @@ def repair_convergence(root, output, *, solver='second_order', probe_method=None
                 scf_options = {'solver': solver, 'max_iterations': 100}
                 previous_options = data.get('casscf_options', {})
                 casscf_options = {'exact_diagonalization': True, 'quasi_newton': solver == 'so_sci',
-                    'energy_convergence': previous_options.get('energy_convergence',
-                                                              data.get('scf_convergence', 1.e-10))}
+                    'energy_convergence': (energy_convergence if energy_convergence is not None else
+                        previous_options.get('energy_convergence', data.get('scf_convergence', 1.e-10)))}
                 if 'gradient_convergence' in previous_options:
                     casscf_options['gradient_convergence'] = previous_options['gradient_convergence']
+                if verbosity is not None or 'verbosity' in previous_options:
+                    casscf_options['verbosity'] = verbosity if verbosity is not None else previous_options['verbosity']
                 if solver == 'so_sci':
                     casscf_options['solver'] = solver
                 if (data.get('scf_options') == scf_options and
-                        (data.get('probe_method') != 'casscf' or data.get('casscf_options') == casscf_options)):
+                        (data.get('probe_method') != 'casscf' or
+                         {k: v for k, v in previous_options.items() if k != 'verbosity'} ==
+                         {k: v for k, v in casscf_options.items() if k != 'verbosity'})):
                     raise ValueError('Requested repair repeats the failed solver controls; '
-                                     'inspect the native output or choose a different solver.')
+                                     'inspect the native output; print verbosity alone is not a numerical repair.')
                 data['scf_options'] = scf_options
                 if data.get('probe_method') == 'casscf':
                     data['casscf_options'] = casscf_options
@@ -538,6 +549,10 @@ def main(argv=None):
         if name == 'repair-convergence':
             command.add_argument('--solver', choices=['second_order', 'so_sci'], default='second_order')
             command.add_argument('--probe-method', choices=['casci', 'casscf'])
+            command.add_argument('--energy-convergence', type=float,
+                                 help='Explicit local CASSCF energy target; other thresholds are preserved.')
+            command.add_argument('--verbosity', type=int, choices=range(5),
+                                 help='Molpro MULTI diagnostic print level (4 prints all details).')
     install = commands.add_parser('install-selection')
     install.add_argument('input')
     install.add_argument('selection')
@@ -552,7 +567,8 @@ def main(argv=None):
     elif args.command == 'prepare':
         print(prepare(args.source, args.output, additional_plans=args.additional_plan, reuse_from=args.reuse_from))
     elif args.command == 'repair-convergence':
-        print(repair_convergence(args.source, args.output, solver=args.solver, probe_method=args.probe_method))
+        print(repair_convergence(args.source, args.output, solver=args.solver, probe_method=args.probe_method,
+                                energy_convergence=args.energy_convergence, verbosity=args.verbosity))
     elif args.command == 'report':
         print(report(args.source, args.output, additional_campaigns=args.additional_campaign))
     else:

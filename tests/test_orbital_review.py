@@ -302,7 +302,8 @@ def test_so_sci_repair_can_exclude_optional_casci_controls(tmp_path, monkeypatch
         assert len(config['anchors']) == 1
 
 
-def test_legacy_so_sci_repair_can_correct_implicit_energy_target_once(tmp_path, monkeypatch):
+@pytest.mark.parametrize('explicit_override', [False, True])
+def test_so_sci_repair_can_change_only_local_accuracy_once(tmp_path, monkeypatch, explicit_override):
     from types import SimpleNamespace
     from kinbot import orbital_campaign
     source = tmp_path / 'input.json'
@@ -310,6 +311,8 @@ def test_legacy_so_sci_repair_can_correct_implicit_energy_target_once(tmp_path, 
     data.pop('kinbot_input', None)
     data.update(probe_method='casscf', scf_options={'solver': 'so_sci', 'max_iterations': 100},
                 casscf_options={'solver': 'so_sci', 'exact_diagonalization': True, 'quasi_newton': True})
+    if explicit_override:
+        data['casscf_options'].update(energy_convergence=1.e-10, gradient_convergence=1.e-5)
     atomic_json(source, data)
     loaded = recon._load(source)
     data.pop('coordinates', None)
@@ -322,8 +325,9 @@ def test_legacy_so_sci_repair_can_correct_implicit_energy_target_once(tmp_path, 
     atomic_json(source, data)
     renderer = recon._deck
     with monkeypatch.context() as old:
-        old.setattr(recon, '_deck', lambda *args, **kw:
-                    renderer(*args, **kw).replace('accuracy,energy=1.d-10\n', ''))
+        if not explicit_override:
+            old.setattr(recon, '_deck', lambda *args, **kw:
+                        renderer(*args, **kw).replace('accuracy,energy=1.d-10\n', ''))
         original = orbital_campaign.prepare(tmp_path / 'old', [source])
     campaign = json.loads(original.read_text())
     system = campaign['systems'][0]
@@ -335,13 +339,27 @@ def test_legacy_so_sci_repair_can_correct_implicit_energy_target_once(tmp_path, 
         'PROGRAM * MULTI\nConvergence thresholds 0.10E-04 (gradient) 0.10E-11 (energy)\n'
         'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n')
     monkeypatch.setattr(review.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=''))
-    repaired = review.repair_convergence(original.parent, tmp_path / 'fixed',
-                                         solver='so_sci', probe_method='casscf')
+    extra = ['--energy-convergence', '1e-8', '--verbosity', '4'] if explicit_override else []
+    review.main(['repair-convergence', str(original.parent), str(tmp_path / 'fixed'),
+                 '--solver', 'so_sci', '--probe-method', 'casscf', *extra])
+    repaired = tmp_path / 'fixed' / 'campaign.json'
     record = json.loads(repaired.read_text())['systems'][0]
     config = json.loads(Path(record['configuration']).read_text())
-    assert config['casscf_options']['energy_convergence'] == 1.e-10
+    assert config['casscf_options']['energy_convergence'] == (1.e-8 if explicit_override else 1.e-10)
+    assert config['scf_options'] == data['scf_options']
+    assert config['probe_definition'] == json.loads(Path(system['configuration']).read_text())['probe_definition']
     job = json.loads(Path(record['pilot_manifest']).read_text())['jobs'][0]
-    assert 'accuracy,energy=1.d-10\n' in Path(job['directory'], job['name'] + '.inp').read_text()
+    deck = Path(job['directory'], job['name'] + '.inp').read_text()
+    expected = 'accuracy,energy=1.d-8,gradient=1.d-5' if explicit_override else 'accuracy,energy=1.d-10'
+    assert expected + '\n' in deck
+    assert 'gthresh,energy=1.d-10,coeff=1.d-10' in deck
+    if explicit_override:
+        assert 'so-sci,exact_diag=1,qn=1,verbosity=4;' in deck
+        Path(job['directory'], job['name'] + '.out').write_text(
+            'PROGRAM * MULTI\nNO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n')
+        with pytest.raises(ValueError, match='repeats the failed solver'):
+            review.repair_convergence(repaired.parent, tmp_path / 'identical',
+                                     solver='so_sci', verbosity=3)
     assert inp.read_bytes() == before
 
 

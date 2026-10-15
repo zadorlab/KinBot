@@ -4,6 +4,12 @@ The general entry point is `python -m kinbot.orbital_review`. It uses the
 existing Molpro/Slurm execution machinery. There are no molecule-name branches
 or prescribed sulfur active spaces in the implementation.
 
+The [October 15 native review](SULFUR_ORBITAL_REVIEW_2026-10-15.md) identifies
+solver failures hidden by the original completion checks, gives candidate
+spaces from the actual orbital data, and provides a selective repair command.
+Use that follow-up for the completed sulfur campaign rather than rerunning
+the full reference panel.
+
 ## Procedure
 
 1. `plan CONFIG PLAN.json` derives fragment/spin context from the existing

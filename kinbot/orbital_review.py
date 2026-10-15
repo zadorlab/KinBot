@@ -7,6 +7,7 @@ import argparse
 from copy import deepcopy
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 
 import numpy as np
@@ -240,6 +241,76 @@ def _signature(job):
     return [(e['multiplicity'], e['root']) for e in job.get('state_energies_hartree', [])]
 
 
+def repair_convergence(root, output):
+    """Prepare only explicitly unconverged probes, preserving the old campaign.
+
+    Use quadratic RHF and exact CI diagonalization without L-BFGS acceleration
+    for small CASSCF references. Energetic thresholds, basis, geometry and state
+    averages are unchanged. Native convergence still has to be demonstrated.
+    """
+    from kinbot import orbital_campaign
+    root = Path(root).expanduser().resolve()
+    with orbital_campaign._lock(root):
+        campaign = json.loads((root / 'campaign.json').read_text())
+        queue = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                               text=True, check=True, timeout=30)
+        live = set(queue.stdout.split())
+        index = {row['title']: row for row in json.loads((root / 'review_index.json').read_text())['systems']}
+        configurations, metadata, repairs = [], [], []
+        with tempfile.TemporaryDirectory(prefix='kinbot-convergence-repair-') as temporary:
+            for system in campaign['systems']:
+                orbital_campaign._validate_inputs(system)
+                data = json.loads(Path(system['configuration']).read_text())
+                rejected = set()
+                for key in ('pilot_manifest', 'manifest'):
+                    manifest = json.loads(Path(system[key]).read_text())
+                    if any(str(job.get('job_id')) in live for job in manifest['jobs']):
+                        raise RuntimeError('Stop the source campaign allocations before preparing repairs.')
+                    if any(job.get('submission_status') == 'submitting' for job in manifest['jobs']):
+                        raise RuntimeError('Reconcile uncertain source submissions before preparing repairs.')
+                    for job in manifest['jobs']:
+                        directory = Path(job['directory'])
+                        native = directory / (job['name'] + '.out')
+                        if not native.is_file():
+                            continue
+                        diagnostics = recon.convergence_diagnostics(native.read_text(errors='replace'), job)
+                        if not diagnostics['errors']:
+                            continue
+                        if file_sha256(directory / (job['name'] + '.inp')) != job['input_sha256']:
+                            raise ValueError('Rejected probe input changed; inspect before preparing repairs.')
+                        rejected.add(job['anchor'])
+                        repairs.append({'directory': str(directory), 'output_sha256': file_sha256(native),
+                                        'errors': diagnostics['errors']})
+                if not rejected:
+                    continue
+                # Avoid unexpectedly huge dense CI matrices for larger references.
+                space = data.get('probe_definition', {})
+                if data.get('probe_method') == 'casscf' and space.get('active_orbitals', 99) > 8:
+                    raise ValueError('Automatic exact-CI repair is limited to at most eight active orbitals; '
+                                     'review solver controls explicitly for this larger reference.')
+                data['anchors'] = [a for a in data['anchors'] if a['name'] in rejected]
+                if len(data['anchors']) != len(rejected):
+                    raise ValueError('Rejected anchor no longer occurs in the immutable configuration.')
+                data['scf_options'] = {'solver': 'second_order', 'max_iterations': 100}
+                if data.get('probe_method') == 'casscf':
+                    data['casscf_options'] = {'exact_diagonalization': True, 'quasi_newton': False}
+                target = Path(temporary) / (system['title'] + '.json')
+                atomic_json(target, data)
+                recon._load(target)
+                configurations.append(target)
+                metadata.append({**index[system['title']], 'repair_of': str(root),
+                                 'solver_controls': {key: data[key] for key in ('scf_options', 'casscf_options')
+                                                     if key in data}})
+            if not configurations:
+                raise ValueError('No native convergence failures found; no repair campaign needed.')
+            result = orbital_campaign.prepare(output, configurations)
+        atomic_json(result.parent / 'review_index.json', {'schema': 1, 'systems': metadata})
+        atomic_json(result.parent / 'review_plan.json', {'schema': 1, 'repair_of': str(root),
+            'reason': 'Native convergence failures; unchanged chemistry and energetic thresholds.',
+            'rejected_outputs': repairs})
+        return result
+
+
 def report(root, output):
     """Read atomic snapshots; retain native tables and label diagnostic limits."""
     root = Path(root).expanduser().resolve()
@@ -261,6 +332,11 @@ def report(root, output):
                     raise ValueError(f'{job["name"]}: completed evidence changed; audit before review.')
                 native = directory / (job['name'] + '.out')
                 text = native.read_text(errors='replace')
+                convergence = recon.convergence_diagnostics(text, job)
+                if convergence['errors']:
+                    raise ValueError(f'{job["directory"]}: ' + ' '.join(convergence['errors'])
+                                     + ' Re-audit this campaign before review.')
+                row['validation_warnings'] = convergence['warnings']
                 # Preserve complete native character/CI tables, avoiding assumptions
                 # about AO labels, symmetry, orbital rank identities or elements.
                 row['native_output'] = str(native)
@@ -396,7 +472,7 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='python -m kinbot.orbital_review')
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('plan', 'prepare', 'report'):
+    for name in ('plan', 'prepare', 'report', 'repair-convergence'):
         command = commands.add_parser(name)
         command.add_argument('source')
         command.add_argument('output')
@@ -417,7 +493,8 @@ def main(argv=None):
     elif args.command == 'prepare':
         print(prepare(args.source, args.output, additional_plans=args.additional_plan, reuse_from=args.reuse_from))
     else:
-        print({'plan': plan, 'prepare': prepare, 'report': report}[args.command](args.source, args.output))
+        print({'plan': plan, 'prepare': prepare, 'report': report, 'repair-convergence': repair_convergence}
+              [args.command](args.source, args.output))
 
 
 if __name__ == '__main__':

@@ -22,6 +22,7 @@ from kinbot.anl.results import validate_molpro_triples
 from kinbot.molpro import (
     _vrc_multireference_method, stage_vrc_state_model,
     molpro_wfu_name,
+    validate_molpro_convergence,
     validate_vrc_state_model,
     vrc_multireference_energy_contract,
 )
@@ -330,6 +331,7 @@ def parse_output(path, *, method='CCSD(T)', effective_method=None):
     if 'Molpro calculation terminated' not in output or 'ERROR EXIT' in output:
         raise ValueError('Molpro did not terminate normally.')
     contract = vrc_multireference_energy_contract(method)
+    validate_molpro_convergence(output, allow_scf_guess_failure=contract is not None)
     if contract is not None:
         f12 = contract['f12_variant'] is not None
         if contract['method'].startswith('CASPT2'):

@@ -312,6 +312,20 @@ def _load(path):
             ('orbital_initialization', ('propagated', 'independent'), 'propagated')):
         if data.get(key, default) not in choices:
             raise ValueError(f'{key} must be one of {choices}.')
+    for key, allowed in (
+            ('scf_options', {'solver', 'max_iterations'}),
+            ('casscf_options', {'exact_diagonalization', 'quasi_newton', 'max_iterations'})):
+        options = data.get(key, {})
+        if not isinstance(options, dict) or set(options) - allowed:
+            raise ValueError(f'Unknown {key} controls.')
+        if 'max_iterations' in options and (isinstance(options['max_iterations'], bool)
+                or not isinstance(options['max_iterations'], int) or options['max_iterations'] < 1):
+            raise ValueError(f'{key}.max_iterations must be a positive integer.')
+        for control in ('exact_diagonalization', 'quasi_newton'):
+            if control in options and not isinstance(options[control], bool):
+                raise ValueError(f'{key}.{control} must be boolean.')
+    if data.get('scf_options', {}).get('solver', 'diis') not in ('diis', 'second_order'):
+        raise ValueError('scf_options.solver must be diis or second_order.')
     if data.get('partition') is not None and not _SAFE.fullmatch(str(data['partition'])):
         raise ValueError('partition must be a safe Slurm partition name.')
     if 'coordinates' in data:
@@ -457,6 +471,10 @@ def _deck(data, basis, anchor, stem, previous=None):
         for symbol, (x, y, z) in zip(data['symbols'], geometry))
     scf = fortran_threshold(data.get('scf_convergence', 1.e-10),
                             'scf_convergence')
+    scf_options = data.get('scf_options', {})
+    scf_command = 'rhf' + (',so' if scf_options.get('solver') == 'second_order' else '')
+    if 'max_iterations' in scf_options:
+        scf_command += f',maxit={scf_options["max_iterations"]}'
     basis_input = f'basis={basis}\n'
     deck = (
         f'***,{data["title"]} orbital reconnaissance: {stem}\n'
@@ -467,7 +485,7 @@ def _deck(data, basis, anchor, stem, previous=None):
         + basis_input +
         f'gthresh,energy={scf},coeff={scf}\n'
         'gprint,orbitals,orben,civector\n'
-        f'{{rhf;wf,{data["_electrons"]},1,{data["multiplicity"] - 1};'
+        f'{{{scf_command};wf,{data["_electrons"]},1,{data["multiplicity"] - 1};'
         'orbital,2100.2}\n'
         'gprint,orbitals,orben,civector\n'
         f'put,molden,{stem}.molden\n'
@@ -487,6 +505,14 @@ def _deck(data, basis, anchor, stem, previous=None):
         # Always emit natural orbitals, including when canonical_orbitals=false.
         multi = multi.replace('canonical,2140.2\n', '')
         multi = multi.replace('maxit,50;', 'natorb,2140.2\nmaxit,50;')
+        options = data.get('casscf_options', {})
+        if method == 'casscf':
+            controls = []
+            for key, option in (('exact_diagonalization', 'exact_diag'), ('quasi_newton', 'qn')):
+                if key in options:
+                    controls.append(f'{option}={int(options[key])}')
+            if 'max_iterations' in options:
+                multi = multi.replace('maxit,50;', f'maxit,{options["max_iterations"]};')
         if avas and data.get('avas_reference') == 'rhf':
             avas = avas.replace('}\n', 'start,2100.2\n}\n', 1)
         if previous is not None:
@@ -494,6 +520,8 @@ def _deck(data, basis, anchor, stem, previous=None):
                      else 'start,2140.2')
             multi = multi.replace(opening, opening + f'\n{start}\ndiab,2140.2', 1)
             deck = '! Initial orbital checkpoint SHA-256: {{PREVIOUS_WFU_SHA256}}\n' + deck
+        if method == 'casscf' and controls:
+            multi = multi.replace('{multi,', '{multi,' + ','.join(controls) + ';', 1)
         deck += (avas + multi + f'{{put,molden,{stem}.natural.molden;orbital,2140.2,type=natural}}\n'
                  'reconenergy=energy(1)\nshow,reconenergy\n')
         for index in range(1, sum(entry['roots'] for entry in model['state_average']) + 1):
@@ -864,6 +892,36 @@ def _checkpoint_evidence(directory, job, execution):
     return directory / requested, None
 
 
+def convergence_diagnostics(output_text, job):
+    """Check solver completion independently of Molpro's zero return code.
+
+    A failed RHF starting guess does not invalidate subsequently converged
+    CASSCF energies. It does invalidate an RHF-only probe or a frozen CASCI
+    comparison advertised as starting from converged RHF orbitals.
+    """
+    errors, warnings = [], []
+    casscf = job.get('probe_method') == 'casscf'
+    blocks = list(re.finditer(r'PROGRAM\s*\*\s*MULTI\b', output_text, re.I))
+    multi = output_text[blocks[-1].end():] if blocks else output_text
+    multi = re.split(r'PROGRAM\s*\*', multi, maxsplit=1, flags=re.I)[0]
+    failed = re.search(r'NO CONVERGENCE\s*!|No convergence in (?:MULTI|MCSCF)|'
+                      r'MCSCF[^\n]*not converged', multi, re.I)
+    converged = bool(re.search(r'(?im)^\s*CONVERGENCE REACHED!', multi))
+    if failed or (casscf and (not converged or re.search(
+            r'No orbitals (?:are )?optimized|No orbital optimization', multi, re.I))):
+        errors.append('Requested CASSCF orbital optimization did not converge.' if casscf
+                      else 'Native MULTI calculation did not converge.')
+    if re.search(r'No convergence in (?:rhfpr|[ru]?hf)|[RU]?HF[^\n]*not converged', output_text, re.I):
+        message = 'RHF starting calculation did not converge.'
+        if casscf and converged and not failed:
+            warnings.append(message + ' Subsequent CASSCF optimization converged; RHF energy is not validated.')
+        elif not job.get('natural_orbital_probe') or job.get('avas_reference') == 'rhf':
+            errors.append(message)
+        else:
+            warnings.append(message)
+    return {'errors': errors, 'warnings': warnings}
+
+
 def _audit(manifest_path, *, live_job_ids=()):
     path = Path(manifest_path).expanduser().resolve()
     manifest = json.loads(path.read_text())
@@ -872,6 +930,7 @@ def _audit(manifest_path, *, live_job_ids=()):
         for key in ('energy_hartree', 'root_energies_hartree', 'state_energies_hartree',
                     'natural_occupations', 'natural_molden_sha256',
                     'orbital_error', 'orbital_xml', 'occupation_source', 'validation_errors',
+                    'validation_warnings',
                     'correlated_energies_hartree'):
             job.pop(key, None)
         directory = Path(job['directory'])
@@ -907,11 +966,9 @@ def _audit(manifest_path, *, live_job_ids=()):
             errors.append('Native output lacks RECONDONE=1.')
         if 'ERROR EXIT' in output_text:
             errors.append('Native output contains ERROR EXIT.')
-        optimization_failed = (job.get('probe_method') == 'casscf' and re.search(
-            r'No orbitals (?:are )?optimized|No convergence in MULTI|MCSCF.*not converged',
-            output_text, re.I))
-        if optimization_failed:
-            errors.append('Requested CASSCF orbital optimization did not complete.')
+        convergence = convergence_diagnostics(output_text, job)
+        errors.extend(convergence['errors'])
+        job['validation_warnings'] = convergence['warnings']
         if checkpoint_error:
             errors.append(checkpoint_error)
         if not wfu.is_file() or not wfu.stat().st_size:
@@ -922,7 +979,7 @@ def _audit(manifest_path, *, live_job_ids=()):
                   and file_sha256(inp) == job['input_sha256']
                   and 'Molpro calculation terminated' in output_text
                   and re.search(r'SETTING\s+RECONDONE\s*=\s*1(?:\.0*)?\s*(?:\n|$)', output_text)
-                  and 'ERROR EXIT' not in output_text and not optimization_failed)
+                  and 'ERROR EXIT' not in output_text and not convergence['errors'])
         job['status'] = ('complete' if normal and not checkpoint_error and wfu.is_file()
                          and wfu.stat().st_size and (xml_evidence or
                          molden.is_file() and molden.stat().st_size) else 'incomplete')

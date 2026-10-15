@@ -437,6 +437,13 @@ def test_gaussian_vpt2_framework_cap_parser_is_not_group_specific():
     assert result['framework_group_cap'] == 'C2V'
 
 
+@pytest.mark.parametrize('failure', ['?No convergence in rhfpr', 'NO CONVERGENCE!'])
+def test_molpro_composite_rejects_unconverged_native_output(failure):
+    with pytest.raises(ValueError, match='unconverged'):
+        parse_molpro_energy(failure + '\n' + _MOLPRO_F12,
+                            method='CCSD(T)-F12b', basis='cc-pVTZ-F12')
+
+
 def test_molpro_f12b_selects_exact_total_energy():
     result = parse_molpro_energy(_MOLPRO_F12, method='CCSD(T)-F12b',
                                  basis='cc-pVTZ-F12', reference='ROHF')

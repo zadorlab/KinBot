@@ -613,14 +613,22 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
             '(Davidson, relaxed reference)\n'
             ' SETTING KBVRCVAR = -114.545957200000 AU\n'
             ' SETTING KBVRCSEL = -114.559663800000 AU\n'
-            ' SETTING MYENERGY = -114.559663800000 AU\n')
+            ' SETTING MYENERGY = -114.559663800000 AU\n'
+            ' Molpro calculation terminated\n')
         assert molpro.get_molpro_energy(
             'MYENERGY', name='mrci', VTS=True) == (
                 1, pytest.approx(-114.5596638))
 
+        good = (directory / 'mrci.out').read_text()
+        for broken in (good.replace('Molpro calculation terminated', ''),
+                       'PROGRAM * MULTI\nNO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n' + good):
+            (directory / 'mrci.out').write_text(broken)
+            assert molpro.get_molpro_energy('MYENERGY', name='mrci', VTS=True) == (0, -1)
+
         (directory / 'mrci.out').write_text(
             ' SETTING KBVRCSEL = -114.559663800000 AU\n'
-            ' SETTING MYENERGY = -114.545957200000 AU\n')
+            ' SETTING MYENERGY = -114.545957200000 AU\n'
+            ' Molpro calculation terminated\n')
         assert molpro.get_molpro_energy(
             'MYENERGY', name='mrci', VTS=True) == (0, -1)
 
@@ -635,7 +643,8 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
             ' SETTING F12A     = -39.100000000000 AU\n'
             ' SETTING F12B     = -39.200000000000 AU\n'
             ' SETTING KBVRCSEL = -39.200000000000 AU\n'
-            ' SETTING MYENERGY = -39.200000000000 AU\n')
+            ' SETTING MYENERGY = -39.200000000000 AU\n'
+            ' Molpro calculation terminated\n')
         assert molpro.get_molpro_energy(
             'MYENERGY', name='caspt2', VTS=True) == (
                 1, pytest.approx(-39.2))

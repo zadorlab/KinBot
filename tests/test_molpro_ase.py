@@ -124,6 +124,28 @@ def test_documented_molpro_force_input_and_parser_contract():
             parse_output(output)
 
 
+@pytest.mark.parametrize('method', ['CCSD(T)', 'CASPT2-F12b(2,2)', 'MRCI-F12b+Q(2,2)'])
+def test_native_nonconvergence_invalidates_energy_even_after_normal_exit(tmp_path, method):
+    path = tmp_path / 'bad.out'
+    path.write_text('PROGRAM * MULTI\nNO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n'
+                    ' SETTING KB_GEOM_ENERGY = -40.0 AU\nMolpro calculation terminated\n')
+    with pytest.raises(ValueError, match='unconverged'):
+        parse_output(path, method=method)
+
+
+def test_only_successful_multi_can_recover_hf_guess_failure():
+    from kinbot.molpro import validate_molpro_convergence
+    text = ('PROGRAM * RHF-SCF\n?No convergence in rhfpr\n'
+            'PROGRAM * AVAS\nPROGRAM * MULTI\nCONVERGENCE REACHED!\nPROGRAM * RS2-F12\n')
+    validate_molpro_convergence(text, allow_scf_guess_failure=True)
+    with pytest.raises(ValueError, match='unconverged'):
+        validate_molpro_convergence(text)
+    with pytest.raises(ValueError, match='unconverged'):
+        validate_molpro_convergence(text.replace('CONVERGENCE REACHED!', ''), allow_scf_guess_failure=True)
+    with pytest.raises(ValueError, match='unconverged'):
+        validate_molpro_convergence('PROGRAM * MULTI\nNO CONVERGENCE!\n' + text, allow_scf_guess_failure=True)
+
+
 def test_caspt2_analytic_gradient_input_and_xyzgrad_contract():
     atoms = Atoms('CH2', positions=[[0., 0., 0.], [0., 0., 1.],
                                     [0., 1., 0.]])

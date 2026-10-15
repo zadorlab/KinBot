@@ -69,6 +69,28 @@ def test_audit_requires_native_output_wfu_and_molden(tmp_path):
     assert all(job['wfu_sha256'] for job in result['jobs'])
 
 
+@pytest.mark.parametrize('ending', [
+    'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!',
+    'No convergence in MULTI', 'MCSCF not converged',
+    'No orbitals optimized', ''])
+def test_casscf_requires_positive_native_convergence_even_after_normal_exit(ending):
+    from kinbot.molpro_reconnaissance import convergence_diagnostics
+    text = ('PROGRAM * RHF-SCF\nCONVERGENCE REACHED!\nPROGRAM * MULTI\n'
+            + ending + '\nSETTING RECONDONE = 1\nMolpro calculation terminated\n')
+    assert convergence_diagnostics(text, {'probe_method': 'casscf'})['errors']
+
+
+def test_rhf_failure_is_only_a_warning_after_converged_casscf():
+    from kinbot.molpro_reconnaissance import convergence_diagnostics
+    text = '?No convergence in rhfpr\nPROGRAM * MULTI\nCONVERGENCE REACHED!\n'
+    job = {'probe_method': 'casscf', 'natural_orbital_probe': True, 'avas_reference': 'rhf'}
+    result = convergence_diagnostics(text, job)
+    assert not result['errors'] and result['warnings']
+    job['probe_method'] = 'casci'
+    assert convergence_diagnostics(text, job)['errors']
+    assert convergence_diagnostics(text, {'natural_orbital_probe': False})['errors']
+
+
 @pytest.mark.parametrize('execution_format', ['none', 'legacy', 'wrong_hash',
     'missing_hash', 'wrong_command', 'nonzero_returncode', 'partial_modern',
     'null_native_path', 'missing_native_hash', 'wrong_native_hash'])

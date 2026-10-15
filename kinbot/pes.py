@@ -2002,6 +2002,14 @@ def get_l3energy(job, par, bls=0):
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
+            from kinbot.molpro import validate_molpro_convergence
+            output = ''.join(lines)
+            if 'Molpro calculation terminated' not in output or 'ERROR EXIT' in output:
+                return 0, -1
+            try:
+                validate_molpro_convergence(output)
+            except ValueError:
+                return 0, -1
             for line in reversed(lines):
             #for line in lines:
                 if ('SETTING ' + key) in line:

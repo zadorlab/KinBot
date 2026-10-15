@@ -164,7 +164,8 @@ def test_report_checks_equivalent_geometry_and_preserves_native_character_data(t
         for job in manifest['jobs']:
             directory = Path(job['directory'])
             out = directory / (job['name'] + '.out')
-            out.write_text('NATURAL ORBITALS\nMO character and CI coefficients\n')
+            out.write_text('PROGRAM * MULTI\nCONVERGENCE REACHED!\n'
+                           'NATURAL ORBITALS\nMO character and CI coefficients\n')
             wfu = directory / 'test.wfu'
             wfu.write_bytes(b'finished')
             job.update(status='complete', output_sha256=file_sha256(out),
@@ -180,6 +181,45 @@ def test_report_checks_equivalent_geometry_and_preserves_native_character_data(t
     wfu.write_bytes(b'changed')
     with pytest.raises(ValueError, match='evidence changed'):
         review.report(campaign_file.parent, tmp_path / 'changed.json')
+
+
+def test_convergence_repair_preserves_completed_work_and_chemistry(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    plan = review.plan(SOURCE, tmp_path / 'plan.json')
+    definition = json.loads(plan.read_text())
+    definition['variants'] = definition['variants'][1:]
+    definition['models'][0]['anchors'] = definition['models'][0]['anchors'][:2]
+    atomic_json(plan, definition)
+    original = review.prepare(plan, tmp_path / 'old')
+    campaign = json.loads(original.read_text())
+    before = {}
+    for i, system in enumerate(campaign['systems']):
+        for key in ('pilot_manifest', 'manifest'):
+            path = Path(system[key])
+            manifest = json.loads(path.read_text())
+            for j, job in enumerate(manifest['jobs']):
+                text = ('NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!'
+                        if i == 0 and j == 0 else 'CONVERGENCE REACHED!')
+                Path(job['directory'], job['name'] + '.out').write_text('PROGRAM * MULTI\n' + text + '\n')
+                before[Path(job['directory'], job['name'] + '.inp')] = job['input_sha256']
+            before[path] = file_sha256(path)
+    monkeypatch.setattr(review.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=''))
+    repaired = review.repair_convergence(original.parent, tmp_path / 'repair')
+    records = json.loads(repaired.read_text())['systems']
+    assert len(records) == 1
+    manifest = json.loads(Path(records[0]['manifest']).read_text())
+    assert len(manifest['jobs']) == 1
+    job = manifest['jobs'][0]
+    deck = Path(job['directory'], job['name'] + '.inp').read_text()
+    assert '{rhf,so,maxit=100;' in deck
+    assert '{multi,exact_diag=1,qn=0;' in deck
+    assert 'gthresh,energy=1.d-10,coeff=1.d-10' in deck
+    assert job['root_states'] == json.loads(Path(campaign['systems'][0]['manifest']).read_text())['jobs'][0]['root_states']
+    assert all(file_sha256(path) == digest for path, digest in before.items())
+    data = recon._load(records[0]['configuration'])
+    seeded = recon._deck(data, 'avtz-f12', data['anchors'][0], 'trial', previous='previous')
+    assert '{multi,exact_diag=1,qn=0;\nstart,2140.2,type=natural\ndiab,2140.2\n' in seeded
+    recon.validate_input_blocks(seeded)
 
 
 def test_reuses_checked_old_wfu_as_casscf_seed_without_relabeling_results(tmp_path, monkeypatch):

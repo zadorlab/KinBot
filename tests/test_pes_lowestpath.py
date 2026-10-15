@@ -11,6 +11,21 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.species_routing import routing_name
 
 
+def test_l3_molpro_requires_completion_and_converged_solver(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    directory = tmp_path / 'molpro'
+    directory.mkdir()
+    output = directory / 'well.out'
+    parameters = {'single_point_qc': 'molpro', 'single_point_key': 'MYENERGY'}
+    good = ' SETTING MYENERGY = -40.0 AU\nMolpro calculation terminated\n'
+    output.write_text(good)
+    assert pes.get_l3energy('well', parameters) == (1, -40.)
+    for broken in (good.replace('Molpro calculation terminated', ''),
+                   '?No convergence in rhfpr\n' + good):
+        output.write_text(broken)
+        assert pes.get_l3energy('well', parameters) == (0, -1)
+
+
 def test_lowestpath_retains_classified_selected_edges_only():
     wells=['a','b','c','d']
     reactions=[['a','x',['b'],30.],['b','y',['a'],32.],['b','z',['c'],40.],

@@ -20,6 +20,36 @@ import math
 logger = logging.getLogger('KinBot')
 
 
+def validate_molpro_convergence(output, *, allow_scf_guess_failure=False):
+    """Reject explicit native solver failures even after normal termination.
+
+    For multireference energies, a failed HF guess is usable only when its
+    subsequent MULTI optimization explicitly converged. Check every program
+    invocation, including displaced geometries in a numerical force job.
+    """
+    failure = r'NO CONVERGENCE\s*!|No convergence in (?:[ru]?hf(?:pr)?|multi|mcscf|[ru]?ccsd)\b|(?:[RU]?HF|MCSCF|[RU]?CCSD)[^\n]*not converged'
+    programs = list(re.finditer(r'PROGRAM\s*\*\s*(\S+)', output, re.I))
+    sections = [output[:programs[0].start()]] if programs else [output]
+    for index, match in enumerate(programs):
+        end = programs[index + 1].start() if index + 1 < len(programs) else len(output)
+        block = output[match.start():end]
+        if allow_scf_guess_failure and re.match(r'[RU]?HF\b', match[1], re.I):
+            for following in range(index + 1, len(programs)):
+                name = programs[following][1]
+                if re.match(r'[RU]?HF\b', name, re.I):
+                    break
+                if name.upper() == 'MULTI':
+                    stop = programs[following + 1].start() if following + 1 < len(programs) else len(output)
+                    multi = output[programs[following].end():stop]
+                    if (re.search(r'(?im)^\s*CONVERGENCE REACHED!', multi)
+                            and not re.search(failure, multi, re.I)):
+                        block = ''
+                    break
+        sections.append(block)
+    if re.search(failure, '\n'.join(sections), re.I):
+        raise ValueError('Molpro output contains an unconverged calculation.')
+
+
 def molpro_wfu_name(stem):
     """Return a lowercase checkpoint basename within Molpro's 31-char limit.
 
@@ -884,6 +914,13 @@ class Molpro:
         if status:
             with open(f"{molpro_dir}{fname}.out") as f:
                 lines = f.readlines()
+            output = ''.join(lines)
+            if 'Molpro calculation terminated' not in output or 'ERROR EXIT' in output:
+                return 0, -1
+            try:
+                validate_molpro_convergence(output, allow_scf_guess_failure=VTS)
+            except ValueError:
+                return 0, -1
             def setting(name):
                 pattern = re.compile(
                     rf'^\s*SETTING\s+{re.escape(name)}\s*=\s*'

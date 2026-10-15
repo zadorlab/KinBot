@@ -256,6 +256,8 @@ def parse_cfour_energy(output, *, method, basis, reference, correlation, core,
 
 
 def _molpro_output(output, basis, *, allow_rank_exact_nan=False):
+    from kinbot.molpro import validate_molpro_convergence
+    validate_molpro_convergence(output)
     if (not allow_rank_exact_nan
             and not re.search(r'^\s*Molpro calculation terminated\s*$', output,
                               re.IGNORECASE | re.MULTILINE)):

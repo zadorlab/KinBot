@@ -2,7 +2,7 @@
 
 **Current procedure:** see [implementation and acceptance status](WORKFLOW_READINESS_2026-10-14.md).
 Preserve the existing campaign. Its reduced D/T/Q basis selection is retained.
-For the latest CH3SS XML title failure, use the final recovery section below.
+For the latest CH3SS scratch I/O failure, use the final recovery section below.
 Conventional-5Z RHF completed
 using about 138 GB of scratch, then Molden rejected h functions. Use the
 published native XML/WFU recovery below after all campaign allocations finish.
@@ -418,3 +418,75 @@ reported-title execution, immutable-input preservation, SCF recovery from
 both known export failures, rejection of unproven SCF recovery, long production
 channel names, Unicode titles and padded user titles. All 159 non-template
 Python modules parse; all nine runbook Bash blocks pass `bash -n`.
+
+## Recover the CH3SS QZ launcher scratch I/O failure
+
+Five CH3SS pilots completed after the title fix. The conventional-QZ C–S
+pilot then failed before creating native output because its Molpro launcher
+received `Input/output error` from `mktemp` under `/scratch`. This is distinct
+from the earlier export failure. The log establishes a failed filesystem
+operation; it does not identify the underlying disk, mount or node fault.
+Free space from `df` does not establish that writes or metadata operations
+work. Code cannot repair that filesystem.
+
+The runtime now tests nested directories and file I/O and records rejected
+roots. An explicit override is strict unless `KINBOT_MOLPRO_SCRATCH_FALLBACKS`
+permits alternatives, in order, separated by the platform's path separator
+(`:` on Blodgett). The same capacity requirement applies to every candidate.
+Reconnaissance records its host and launcher stdout/stderr, including stderr
+in controller errors even when Molpro produced no `.out` file. The shared
+runtime check also covers production Molpro paths. There is no automatic
+native retry or guarantee against a filesystem failing after its probe.
+
+Let the remaining job `52907312` finish. Wait for all campaign allocations to
+leave before running the following block. It preserves successful pilots and
+the reduced basis selection. New jobs try `/scratch2` and may explicitly use
+shared home scratch if that local filesystem is unavailable or fails checks.
+The 65536 MB floor is an operational free-space threshold, not a forecast or
+reservation of a particular calculation's peak storage.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+.venv/bin/python -m pip install -e . --no-build-isolation --no-deps
+KB_PY=/home/hram/KinBot/.venv/bin/python
+"$KB_PY" -c 'from kinbot.anl.runtime import _check_scratch_io'
+CAMPAIGN=$(cat /home/hram/kinbot-runs/last_sulfur_orbital_campaign.txt)
+export KINBOT_MOLPRO_SCRATCH="/scratch2/$USER/kinbot-molpro"
+export KINBOT_MOLPRO_SCRATCH_FALLBACKS="$HOME/.cache/kinbot/molpro"
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+"$KB_PY" -m kinbot.orbital_campaign retry-failed "$CAMPAIGN"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"
+cd "$CAMPAIGN"
+if [ -f controller.log ]; then
+    mv controller.log "controller.previous.$(date +%Y%m%d_%H%M%S).log"
+fi
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$CAMPAIGN" \
+    --max-jobs 10 --max-refinements 3 \
+    > controller.log 2>&1 < /dev/null &
+printf '%s\n' "$!" > controller.pid
+printf 'Campaign: %s\nController PID: %s\n' "$CAMPAIGN" "$!"
+BASH
+```
+
+Each compute job evaluates scratch health on its allocated node. The login
+preflight checks modules and scheduler access; it does not validate compute
+filesystems. Existing Molpro site setup remains in effect. Leave archived
+attempts and completed WFU records intact.
+
+The follow-up execution metadata records 5,564,398 MB free for failed job
+`52907311`, corroborating that a simple capacity shortfall does not explain
+its `mktemp` EIO. A second failed job, `52907317` (QZ-F12 C–S), has an empty
+runtime record and requires its own setup error to be examined. Slurm no
+longer retains either job in `scontrol show job`; identify their nodes in
+controller/job-completion logs before investigating mount/kernel/storage
+errors. Do not infer the failed node from another job's live allocation.
+
+Scratch-fix release validation: **1267 tests and 391 subtests pass**; all 159
+non-template Python modules parse and all ten runbook Bash blocks pass syntax
+checks. Regression coverage includes failed directory allocation, fsync and
+read-back, explicit override preservation, capacity floors and launcher
+stderr/host retention when native output is absent.

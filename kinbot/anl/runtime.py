@@ -12,10 +12,12 @@ preserving an explicit site or user selection.
 
 from __future__ import annotations
 
+import errno
 import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -32,8 +34,31 @@ def _positive_scratch_mb(value):
     return value
 
 
+def _check_scratch_io(directory):
+    """Exercise the nested directories and file I/O needed by a QC launcher."""
+    probe = Path(directory) / '.kinbot-io-check'
+    probe.mkdir()
+    payload = b'KinBot Molpro scratch check\n' * 128
+    original = probe / 'write'
+    renamed = probe / 'read'
+    with original.open('xb') as stream:
+        stream.write(payload)
+        stream.flush()
+        os.fsync(stream.fileno())
+    original.rename(renamed)
+    if renamed.read_bytes() != payload:
+        raise OSError(errno.EIO, 'scratch read-back differs from written data')
+    renamed.unlink()
+    probe.rmdir()
+
+
 def _molpro_scratch(child, work_directory, minimum_mb):
-    """Create an isolated Molpro repository on a sufficiently large filesystem."""
+    """Create and probe an isolated repository on a sufficiently large filesystem.
+
+    An explicit root remains strict unless the user supplies an ordered,
+    path-separated KINBOT_MOLPRO_SCRATCH_FALLBACKS list. No filesystem probe
+    can guarantee that later native I/O will succeed.
+    """
     minimum_mb = _positive_scratch_mb(
         _DEFAULT_MOLPRO_SCRATCH_MB if minimum_mb is None else minimum_mb)
     configured_minimum = child.get('KINBOT_MOLPRO_SCRATCH_MIN_MB')
@@ -61,6 +86,13 @@ def _molpro_scratch(child, work_directory, minimum_mb):
                                / '.molpro_scratch'))
         candidates.append(('/tmp', Path('/tmp')))
 
+    fallbacks = child.get('KINBOT_MOLPRO_SCRATCH_FALLBACKS')
+    if fallbacks:
+        for value in fallbacks.split(os.pathsep):
+            if not value.strip():
+                raise ValueError('KINBOT_MOLPRO_SCRATCH_FALLBACKS contains an empty path.')
+            candidates.append(('KINBOT_MOLPRO_SCRATCH_FALLBACKS', Path(value).expanduser()))
+
     usable = []
     seen = set()
     errors = []
@@ -72,24 +104,33 @@ def _molpro_scratch(child, work_directory, minimum_mb):
         if root in seen:
             continue
         seen.add(root)
+        scratch = None
         try:
             root.mkdir(parents=True, exist_ok=True)
             if not root.is_dir() or not os.access(root, os.W_OK | os.X_OK):
                 raise OSError('directory is not writable')
             free_mb = shutil.disk_usage(root).free // (1024 * 1024)
+            usable.append((source, root, free_mb))
+            if free_mb < minimum_mb:
+                errors.append(f'{source}={root} (requires {minimum_mb} MB; {free_mb} MB free)')
+                continue
+            scratch = Path(tempfile.mkdtemp(prefix='kinbot-molpro-', dir=root))
+            _check_scratch_io(scratch)
         except OSError as exc:
+            if scratch is not None:
+                shutil.rmtree(scratch, ignore_errors=True)
             errors.append(f'{source}={root} ({exc})')
             continue
-        usable.append((source, root, free_mb))
-        if free_mb >= minimum_mb:
-            scratch = Path(tempfile.mkdtemp(prefix='kinbot-molpro-', dir=root))
-            return scratch, {
-                'scratch_directory': str(scratch),
-                'scratch_root': str(root),
-                'scratch_source': source,
-                'scratch_available_mb': free_mb,
-                'scratch_minimum_mb': minimum_mb,
-            }
+        return scratch, {
+            'scratch_directory': str(scratch),
+            'scratch_root': str(root),
+            'scratch_source': source,
+            'scratch_available_mb': free_mb,
+            'scratch_minimum_mb': minimum_mb,
+            'scratch_host': socket.gethostname(),
+            'scratch_io_checked': True,
+            'scratch_rejected_candidates': errors,
+        }
 
     capacities = ', '.join(
         f'{source}={root} ({free_mb} MB free)'

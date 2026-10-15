@@ -1,6 +1,7 @@
 """Native QC runtime checks are scoped to the launched program."""
 
 from pathlib import Path
+import errno
 import shutil
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -115,3 +116,77 @@ def test_environment_can_raise_but_not_lower_a_molpro_task_disk_requirement(tmp_
         environment['KINBOT_MOLPRO_SCRATCH_MIN_MB'] = '1.5'
         with pytest.raises(ValueError, match='positive integer'):
             _molpro_scratch(environment, tmp_path, 1000)
+
+
+@pytest.mark.parametrize('failure', ['directory_creation', 'fsync', 'readback'])
+def test_molpro_rejects_broken_scratch_and_uses_only_configured_fallback(tmp_path, monkeypatch, failure):
+    from kinbot.anl import runtime
+    primary, fallback = tmp_path / 'primary', tmp_path / 'fallback'
+    env = {'KINBOT_MOLPRO_SCRATCH': str(primary),
+           'KINBOT_MOLPRO_SCRATCH_FALLBACKS': str(fallback), 'SLURM_NNODES': '1'}
+    monkeypatch.setattr(runtime.shutil, 'disk_usage', lambda _: shutil._ntuple_diskusage(
+        20000 * 1024**2, 0, 20000 * 1024**2))
+    original_mkdtemp = runtime.tempfile.mkdtemp
+    original_check = runtime._check_scratch_io
+    def create(*args, **kwargs):
+        if failure == 'directory_creation' and Path(kwargs['dir']) == primary:
+            raise OSError(errno.EIO, 'Input/output error')
+        return original_mkdtemp(*args, **kwargs)
+    def check(directory):
+        if directory.parent == primary:
+            if failure == 'fsync':
+                with patch.object(runtime.os, 'fsync', side_effect=OSError(errno.EIO, 'Input/output error')):
+                    return original_check(directory)
+            if failure == 'readback':
+                with patch.object(Path, 'read_bytes', return_value=b'corrupt data'):
+                    return original_check(directory)
+        return original_check(directory)
+    monkeypatch.setattr(runtime.tempfile, 'mkdtemp', create)
+    monkeypatch.setattr(runtime, '_check_scratch_io', check)
+    child, provenance = qc_runtime_environment('molpro', 'molpro', env,
+        work_directory=tmp_path, scratch_min_mb=1000)
+    try:
+        scratch = Path(child['TMPDIR'])
+        assert scratch.parent == fallback
+        assert list(scratch.iterdir()) == []
+        assert list(primary.iterdir()) == []
+        assert provenance['scratch_io_checked'] is True
+        assert provenance['scratch_host']
+        assert len(provenance['scratch_rejected_candidates']) == 1
+        assert str(primary) in provenance['scratch_rejected_candidates'][0]
+        assert 'TMPDIR' not in env
+    finally:
+        cleanup_qc_runtime(provenance)
+
+
+def test_explicit_scratch_failure_does_not_silently_choose_another_filesystem(tmp_path, monkeypatch):
+    from kinbot.anl import runtime
+    primary = tmp_path / 'primary'
+    monkeypatch.setattr(runtime.shutil, 'disk_usage', lambda _: shutil._ntuple_diskusage(
+        20000 * 1024**2, 0, 20000 * 1024**2))
+    def failed(directory):
+        raise OSError(errno.EIO, 'Input/output error')
+    monkeypatch.setattr(runtime, '_check_scratch_io', failed)
+    with pytest.raises(RuntimeError, match='Input/output error'):
+        runtime._molpro_scratch({'KINBOT_MOLPRO_SCRATCH': str(primary),
+                               'HOME': str(tmp_path / 'home')}, tmp_path, 1000)
+    assert list(primary.iterdir()) == []
+    assert not (tmp_path / 'home').exists()
+
+
+def test_scratch_fallback_cannot_weaken_the_capacity_floor(tmp_path, monkeypatch):
+    from kinbot.anl import runtime
+    primary, fallback = tmp_path / 'primary', tmp_path / 'fallback'
+    monkeypatch.setattr(runtime.shutil, 'disk_usage', lambda _: shutil._ntuple_diskusage(
+        20000 * 1024**2, 19900 * 1024**2, 100 * 1024**2))
+    with pytest.raises(RuntimeError, match='1000 MB'):
+        runtime._molpro_scratch({'KINBOT_MOLPRO_SCRATCH': str(primary),
+            'KINBOT_MOLPRO_SCRATCH_FALLBACKS': str(fallback)}, tmp_path, 1000)
+    assert list(primary.iterdir()) == list(fallback.iterdir()) == []
+
+
+def test_empty_scratch_fallback_path_is_rejected(tmp_path):
+    from kinbot.anl.runtime import _molpro_scratch
+    with pytest.raises(ValueError, match='empty path'):
+        _molpro_scratch({'KINBOT_MOLPRO_SCRATCH': str(tmp_path),
+                        'KINBOT_MOLPRO_SCRATCH_FALLBACKS': ':/another'}, tmp_path, 1000)

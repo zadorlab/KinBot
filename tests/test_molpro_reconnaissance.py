@@ -196,6 +196,35 @@ def test_execute_selects_its_own_wavefunction_repository(tmp_path, monkeypatch):
     assert json.loads((Path(job['directory']) / 'execution.json').read_text())['status'] == 'complete'
 
 
+def test_launcher_stderr_and_host_are_reported_when_no_native_output_exists(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = recon.prepare(source, tmp_path / 'recon')
+    job = json.loads(path.read_text())['jobs'][0]
+    directory = Path(job['directory'])
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *args, **kw: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *args: None)
+    message = 'mktemp: failed to create directory: Input/output error'
+    calls = []
+    def failed(command, **kwargs):
+        calls.append(command)
+        kwargs['stderr'].write(message + '\n')
+        kwargs['stdout'].write('Molpro launcher\n')
+        return SimpleNamespace(returncode=1)
+    monkeypatch.setattr(recon.subprocess, 'run', failed)
+    with pytest.raises(RuntimeError, match='Input/output error'):
+        recon.execute(path, job['name'])
+    execution = json.loads((directory / 'execution.json').read_text())
+    assert execution['host']
+    assert execution['status'] == 'failed' and execution['returncode'] == 1
+    assert 'No native output' in execution['error']
+    assert 'Launcher stderr' in execution['error'] and 'Molpro launcher' in execution['error']
+    assert Path(execution['launcher_stderr']).read_text() == message + '\n'
+    assert len(calls) == 1  # A launcher error does not silently retry a calculation.
+
+
 def test_first_native_probe_gates_other_submissions_and_reports_its_failure(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from kinbot import molpro_reconnaissance as recon

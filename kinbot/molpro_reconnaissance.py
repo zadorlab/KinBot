@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import time
@@ -599,6 +600,7 @@ def execute(manifest_path, name):
         exports['natural'] = str(directory / f'{name}.natural.orbitals.xml')
     runtime = {}
     execution = {'schema': 1, 'status': 'running',
+                 'host': socket.gethostname(),
                  'input_sha256': job['input_sha256'],
                  'native_input': str(native),
                  'native_input_sha256': hashlib.sha256(native.read_bytes()).hexdigest(),
@@ -612,14 +614,23 @@ def execute(manifest_path, name):
                                               scratch_min_mb=job.get('scratch_min_mb'))
         command = ['molpro', '-d', runtime['scratch_directory'], '-W', str(directory), '-t', '1',
                    '-n', str(job['ppn']), '-o', f'{name}.out', native.name]
-        execution.update(command=command, runtime=runtime)
+        launcher_stdout = directory / f'{name}.launcher.stdout'
+        launcher_stderr = directory / f'{name}.launcher.stderr'
+        execution.update(command=command, runtime=runtime,
+                         launcher_stdout=str(launcher_stdout), launcher_stderr=str(launcher_stderr))
         atomic_json(record, execution)
-        result = subprocess.run(command, cwd=directory, env=env, check=False)
+        with launcher_stdout.open('w') as stdout, launcher_stderr.open('w') as stderr:
+            result = subprocess.run(command, cwd=directory, env=env, check=False,
+                                    stdout=stdout, stderr=stderr)
         execution['returncode'] = result.returncode
         if result.returncode:
             output = directory / (name + '.out')
             detail = ('\n' + '\n'.join(output.read_text(errors='replace').splitlines()[-20:])
                       if output.is_file() else f' No native output found at {output}.')
+            for label, path in (('Launcher stderr', launcher_stderr), ('Launcher stdout', launcher_stdout)):
+                tail = '\n'.join(path.read_text(errors='replace').splitlines()[-20:])
+                if tail.strip():
+                    detail += f'\n{label}:\n{tail}'
             raise RuntimeError(f'{name}: Molpro exited with status {result.returncode}.{detail}')
         execution['status'] = 'complete'
     except BaseException as error:

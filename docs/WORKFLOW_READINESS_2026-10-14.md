@@ -127,6 +127,18 @@ remain available for an explicitly chosen future comparison.
     and failed-attempt diagnostics; large WFU files stay on the cluster.
     Refinement retains the original site setup instead of rediscovering a
     potentially different module environment midway through the campaign.
+12. **Scratch health and hidden launcher errors.** The CH3SS conventional-QZ
+    launcher reported `mktemp: ... Input/output error` on `/scratch`, before
+    creating native output. Free capacity alone cannot detect this failure.
+    The shared Molpro runtime now probes nested-directory creation, write,
+    fsync, rename, read-back and deletion before native launch, and handles
+    allocation/probe failures when considering another root. An explicit
+    `KINBOT_MOLPRO_SCRATCH` remains strict unless the user supplies an ordered,
+    path-separated `KINBOT_MOLPRO_SCRATCH_FALLBACKS` list. Each candidate must
+    satisfy the same capacity floor. Host, selected root and rejected
+    candidates are recorded; reconnaissance also retains launcher stdout and
+    stderr and includes their tails in errors. No automatic native retry is
+    added. A probe cannot prevent later filesystem failures or repair a mount.
 
 All state routing follows input species/fragment terms and spin coupling;
 the implementation contains no CH3S/CH3SS name-dependent physics. Bond indices,
@@ -150,17 +162,19 @@ are identified as reductions, not reproductions of that retained-well network.
 
 ## Exact next procedure
 
-1. Stop the remaining 5Z allocation (the supplied ID was 52907305), or let it
-   finish; wait until it leaves the queue. Pull/install on Blodgett, exclude
-   `aug-cc-pV5Z` and `av5z-f12` using the checked command, and
-   retain `KINBOT_MOLPRO_SCRATCH=/scratch/$USER/kinbot-molpro`, run the checked
-   `retry-failed`, preflight, and resume the same controller/directory with
-   ten one-node jobs maximum. The command block is in the runbook. Running
-   jobs are not cancelled or retroactively changed by the source update;
-   the checked retry refuses live campaign allocations.
+1. Let the remaining current pilot allocations finish (last supplied ID
+   `52907312`). The D/T/Q selection is already stored; retain it. Pull/install
+   on Blodgett and select `/scratch2/$USER/kinbot-molpro`, with shared home
+   scratch as the explicitly permitted fallback. Run checked `retry-failed`,
+   preflight, and resume the same controller/directory with ten one-node jobs
+   maximum. The command block is at the end of the runbook. Running jobs are
+   not cancelled or retroactively changed by the source update; the checked
+   retry refuses live campaign allocations.
 2. Complete all basis/channel native pilots, then adaptive radial/orientation
-   recon. Preserve successes. Native XML execution is first verified by that
-   retry on the installed Molpro; local fixtures cannot substitute for it.
+   recon. Preserve successes. The user reported five completed CH3SS pilots
+   after the title fix, in addition to the six completed CH3S pilots; those
+   are native acceptance evidence for their particular decks, not for all
+   remaining jobs. Local fixtures cannot substitute for native execution.
    Unresolved coverage after the refinement cap remains a review requirement.
 3. Collect the review archive; keep WFU records on Blodgett. Review all three
    dissociations separately: CH3S C–S, CH3SS C–S, CH3SS S–S. Inspect orbital
@@ -199,7 +213,7 @@ prove the same cause. The runbook's run-scoped stop/archive preserves those
 attempts and does not kill unrelated jobs or delete shared scratch.
 
 Current regression results are recorded in the runbook/release handoff.
-The final suite, including XML title-overflow recovery, passes **1260 tests
+The final suite, including XML title-overflow and scratch-I/O recovery, passes **1267 tests
 and 391 subtests**, all 159
 non-template modules parse, and the diff and documented shell syntax checks
 pass. The actual SI verifier passes again. The only suite warnings are the

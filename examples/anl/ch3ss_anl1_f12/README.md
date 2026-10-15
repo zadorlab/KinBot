@@ -16,16 +16,16 @@ Inner and outer contributing states require separate evidence and statistical
 counting. KinBot orchestration uses independent existing ROTD_py scalar
 flux calculations; it does not assume every averaged root is reactive.
 
-`orbital_reconnaissance.json` covers aug-cc-pVDZ/TZ/QZ/5Z and their F12 variants.
+`orbital_reconnaissance.json` uses only native aug-cc-pVTZ-F12 (`avtz-f12`).
 Molpro supplies native basis and auxiliary definitions, with no forced
 revision suffix. The two grids initially contain 75 geometries (39 radial and 36
-orientation probes) and 600 basis/geometry jobs, plus 16 native pilot jobs. Each job uses one node. The controller limit is ten
+orientation probes) and 75 basis/geometry jobs, plus two native pilot jobs. Each job uses one node. The controller limit is ten
 jobs; diagnostics can request denser intervals or longer separations.
 Neither 8 Å nor the initial 30 Å is accepted as an asymptote without a
 plateau check.
 
 Probes save ROHF and AVAS/CASCI natural orbital evidence, every requested
-root energy, Molden files, and WFU records. Subsequent points stage a verified
+root energy, native XML exports (legacy Molden remains readable), and WFU records. Subsequent points stage a verified
 predecessor and use START/DIAB. Refinement preserves completed checkpoint
 histories. Occupation-based candidate indices and electron populations are
 reported; orbital character and wavefunction root continuity need review.
@@ -60,6 +60,9 @@ now derives a hash-bound XML-export deck from the immutable prepared input;
 WFU/native orbital evidence retains the complete requested basis. Existing
 Molden results remain valid. Export-only failures with an evidenced converged
 RHF record can recover that record through the checked retry path.
-The production preset samples in one augmented TZ-F12 basis. CBS remains in
-the correction-potential reference/gap calculations; explicit sampling-CBS
-inputs remain supported for compatibility.
+The production preset uses augmented TZ-F12 for the relaxed path, sampling,
+CC high-spin anchor, both MR gaps, and direct MR leaves. There is no routine
+VRC CBS extrapolation; explicit expert overrides remain supported. The CBH/ANL
+thermochemistry recipe is independent and unchanged.
+
+See the [current safe Blodgett stop/update/restart commands and active-space guide](../../../docs/SULFUR_TZ_RESTART_2026-10-14.md).

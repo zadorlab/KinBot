@@ -87,7 +87,7 @@ class MolproSample(LegacyMolpro):
 
     def _run_basis_job(self, child):
         env, runtime = qc_runtime_environment('molpro', 'molpro', work_directory=Path.cwd())
-        command = ['molpro', '-d', runtime['scratch_directory'], '-t', '1',
+        command = ['molpro', '-d', runtime['scratch_directory'], '-W', str(Path.cwd()), '-t', '1',
                    '-n', str(child.procs), f'{child.name}.inp']
         try:
             with Path(f'{child.name}.stdout').open('w') as stdout, \

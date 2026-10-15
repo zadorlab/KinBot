@@ -28,6 +28,8 @@ from pathlib import Path
 import sys
 
 args = sys.argv[1:]
+assert args[0] == '-W' and Path(args[1]) == Path.cwd(), args
+args = args[2:]
 assert args[:5] == ['-g', '-n', '8', '-m', '225'], args
 inp = Path(args[5])
 text = inp.read_text()

@@ -8,14 +8,28 @@ from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import shutil
+import shlex
 from pathlib import Path
 
 from kinbot import kb_path
 from kinbot.theory import fortran_threshold
+from kinbot.execution import file_sha256
 from kinbot import constants
 import math
 
 logger = logging.getLogger('KinBot')
+
+
+def molpro_wfu_name(stem):
+    """Return a lowercase checkpoint basename within Molpro's 31-char limit.
+
+    Keep full identities in metadata. FILE names are lowercased by Molpro and
+    long names have been observed silently truncated on the cluster.
+    """
+    name = f'{stem}.wfu'
+    if len(name) <= 31 and re.fullmatch(r'[a-z0-9][a-z0-9_.-]*', name):
+        return name
+    return 'kb_' + hashlib.sha256(name.encode()).hexdigest()[:20] + '.wfu'
 
 
 def compact_molpro_titles(contents):
@@ -325,7 +339,7 @@ def validate_vrc_state_model(model, *, active_electrons=None,
                                  'dump on file 2, such as 2140.2.')
             if not re.fullmatch(r'[0-9a-f]{64}', digest):
                 raise ValueError('Molpro orbital record requires a SHA-256.')
-            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            actual = file_sha256(path)
             if actual != digest:
                 raise ValueError('Molpro orbital-record SHA-256 mismatch.')
             result['orbital_selection'] = {
@@ -411,18 +425,18 @@ def stage_vrc_state_model(model, directory, stem):
         return model
     selection = model['orbital_selection']
     source = Path(selection['path'])
-    actual = hashlib.sha256(source.read_bytes()).hexdigest()
+    actual = file_sha256(source)
     if actual != selection['sha256']:
         raise ValueError('Molpro orbital-record SHA-256 changed after input '
                          'validation.')
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    target = directory / f'{stem}.initial.wfu'
+    target = directory / molpro_wfu_name(f'{stem}.initial')
     if source.resolve() != target.resolve():
         temporary = target.with_name(target.name + f'.tmp.{os.getpid()}')
         try:
             shutil.copyfile(source, temporary)
-            if hashlib.sha256(temporary.read_bytes()).hexdigest() != actual:
+            if file_sha256(temporary) != actual:
                 raise ValueError('Staged Molpro orbital record failed its '
                                  'SHA-256 check.')
             os.replace(temporary, target)
@@ -469,8 +483,15 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
         space = ''
     elif (orbital_selection is not None
           and orbital_selection['mode'] == 'molpro_record'):
+        # Execution callers stage this verified record in the work directory.
+        # FILE rejects path separators and can truncate long names; retain
+        # the absolute source path only in the state-model provenance.
+        filename = Path(orbital_selection['path']).name
+        if (len(filename) > 31 or
+                not re.fullmatch(r'[a-z0-9][a-z0-9_.-]*', filename)):
+            raise ValueError('Stage the Molpro orbital record under a short lowercase basename before rendering.')
         avas = (f'! KinBot orbital source SHA-256: {orbital_selection["sha256"]}\n'
-                f'file,2,{orbital_selection["path"]}\n')
+                f'file,2,{filename}\n')
         space = (f'start,{orbital_selection["record"]}\n'
                  f'occ,{occupied}\nclosed,{closed}\n'
                  f'diab,{orbital_selection["record"]}\n')
@@ -917,6 +938,9 @@ class Molpro:
             file_string = f'molpro/{fname}.{self.par["queuing"]}'
         else:
             file_string = f'vrctst/molpro/{fname}.{self.par["queuing"]}'
+        command = self.par['single_point_command']
+        if VTS:
+            command += ' -W ' + shlex.quote(str(Path(file_string).parent.resolve()))
         with open(file_string, 'w') as f:
             if self.par['queuing'] == 'pbs':
                 f.write((tpl_head + tpl).format(
@@ -924,14 +948,14 @@ class Molpro:
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
                         errdir='molpro',
-                        command=self.par['single_point_command']))
+                        command=command))
             elif self.par['queuing'] == 'slurm':
                 f.write((tpl_head + tpl).format(
                         name=fname,
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
                         errdir='.',
-                        command=self.par['single_point_command'],
+                        command=command,
                         slurm_feature=self.par['slurm_feature'],
                         slurm_exclude_directive=slurm_exclude_directive,
                         walltime_directive=walltime_directive))

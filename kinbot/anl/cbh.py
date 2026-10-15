@@ -761,6 +761,10 @@ def _atct_reference(smiles, formula, state, atct, reference_ids):
     return record
 
 
+class IncompleteCBHError(ValueError):
+    """A reaction lacks a complete energy/reference tier; fallback is valid."""
+
+
 def solve_cbh_network(reaction: CBHReaction,
                       energies: Mapping[str, ZeroKEnergy | Mapping[str, ZeroKEnergy]],
                       atct: ATcTTable, *,
@@ -796,7 +800,7 @@ def solve_cbh_network(reaction: CBHReaction,
     def candidates(node, forced=None):
         missing = sorted(set(node.stoichiometry) - set(profiles))
         if missing:
-            raise ValueError('Missing 0 K energies for: ' + ', '.join(missing))
+            raise IncompleteCBHError('Missing 0 K energies for: ' + ', '.join(missing))
         common = set.intersection(*(
             set(profiles[smiles]) for smiles in node.stoichiometry))
         if forced is not None:
@@ -816,15 +820,15 @@ def solve_cbh_network(reaction: CBHReaction,
         labels = candidates(node, forced)
         if not labels:
             detail = f' at {forced}' if forced is not None else ''
-            raise ValueError(
+            raise IncompleteCBHError(
                 f'CBH-{node.rung} has no common 0 K energy method{detail}.')
         failures = []
         for label in labels:
             try:
                 return solve_label(node, label)
-            except (LookupError, ValueError, NotImplementedError) as error:
+            except (LookupError, IncompleteCBHError, NotImplementedError) as error:
                 failures.append(f'{label}: {error}')
-        raise ValueError(
+        raise IncompleteCBHError(
             f'CBH-{node.rung} has no complete energy/reference tier: '
             + '; '.join(failures))
 
@@ -1003,7 +1007,7 @@ def select_cbh_ladder(
                     reaction, energies_by_smiles, atct,
                     reference_ids=reference_ids, method_ladder=method_ladder,
                     root_method=label)
-            except (LookupError, ValueError) as exc:
+            except (LookupError, IncompleteCBHError) as exc:
                 skipped.append(f'CBH-{rung} {tier}: {exc}')
                 continue
             return LadderSelection(formation, reaction, tuple(skipped))

@@ -1,18 +1,14 @@
 # Blodgett orbital reconnaissance checkpoint — 14 October 2026
 
-**Current procedure:** see [implementation and acceptance status](WORKFLOW_READINESS_2026-10-14.md).
-Preserve the existing campaign. Its reduced D/T/Q basis selection is retained.
-For the latest CH3SS scratch I/O failure, use the shared-retry restart at the
-end of this runbook; it supersedes the earlier manual-only procedures.
-Conventional-5Z RHF completed
-using about 138 GB of scratch, then Molden rejected h functions. Use the
-published native XML/WFU recovery below after all campaign allocations finish.
+**Current procedure:** [TZ-F12-only stop, update, archive, and restart](SULFUR_TZ_RESTART_2026-10-14.md).
+The user authorized stopping the six-basis campaign and retaining only TZ-F12.
+The linked commands use explicit paths and a child Bash shell so failures do
+not exit the SSH session. They preserve completed TZ-F12 jobs and relocate
+excluded-basis evidence. Run them on Blodgett; no SSH was performed here.
 
-Run all commands on Blodgett yourself. No SSH or cluster job has been started
-by this development session. Use the existing `composite` checkout and its
-`.venv`; no SCP or replacement source directory is required. The orbital
-campaign can run independently of MESS development. Do not start the
-full KinBot chemistry campaign until the reconnaissance has been reviewed.
+**Historical procedures below:** retained to explain prior native failures.
+Their six/eight-basis selections, job IDs and release gates are superseded;
+use the linked current procedure for this restart.
 
 ## Pull and install
 

@@ -134,11 +134,12 @@ def test_select_accumulates_basis_specific_reviewed_records(tmp_path):
 
 
 @pytest.mark.parametrize('name,channels', [('ch3s', 1), ('ch3ss', 2)])
-def test_sulfur_recon_covers_all_eight_bases_and_derives_channel_states(tmp_path, name, channels):
+def test_sulfur_recon_covers_production_basis_and_derives_channel_states(tmp_path, name, channels):
     source = Path(__file__).parents[1] / 'examples' / 'anl' / f'{name}_anl1_f12' / 'orbital_reconnaissance.json'
     manifest = json.loads(prepare(source, tmp_path / name).read_text())
     jobs = manifest['jobs']
-    assert len({job['basis'] for job in jobs}) == 8
+    assert {job['basis'] for job in jobs} == {'avtz-f12'}
+    assert len(jobs) == (31 if name == 'ch3s' else 75)
     assert len({job['channel'] for job in jobs if job['channel']}) == channels
     assert max(job['distance_angstrom'] for job in jobs) >= 30.
     for job in jobs:
@@ -248,6 +249,50 @@ def test_first_native_probe_gates_other_submissions_and_reports_its_failure(tmp_
     assert len(submitted) == 1
 
 
+def test_uncertain_later_submission_blocks_every_new_probe(tmp_path, monkeypatch):
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    manifest = json.loads(path.read_text())
+    manifest['jobs'][-1]['submission_status'] = 'submitting'
+    path.write_text(json.dumps(manifest))
+    from types import SimpleNamespace
+    submitted = []
+    def scheduler(command, **kwargs):
+        if command[0] == 'sbatch':
+            submitted.append(command)
+        return SimpleNamespace(stdout='42' if command[0] == 'sbatch' else '',
+                               returncode=0, stderr='')
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    with pytest.raises(RuntimeError, match='reconciliation'):
+        recon.submit(path, max_jobs=10)
+    assert submitted == []
+
+
+def test_submission_timeout_keeps_uncertain_journal_and_prevents_retry(tmp_path, monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    submitted = []
+    def scheduler(command, **kwargs):
+        assert kwargs['timeout'] == 30
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='', returncode=0)
+        submitted.append(command)
+        raise subprocess.TimeoutExpired(command, 30)
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    with pytest.raises(RuntimeError, match='uncertain'):
+        recon.submit(path)
+    assert json.loads(path.read_text())['jobs'][0]['submission_status'] == 'submitting'
+    with pytest.raises(RuntimeError, match='reconciliation'):
+        recon.submit(path)
+    assert len(submitted) == 1
+
+
 def _coordinate_configuration(source):
     _configuration(source)
     data = json.loads(source.read_text())
@@ -302,6 +347,49 @@ def test_refinement_preserves_completed_checkpoint_chain_and_exposes_candidates(
         assert by_name[job['name']]['orbital_predecessor'] == job['orbital_predecessor']
         assert by_name[job['name']]['input_sha256'] == job['input_sha256']
     assert len(refined['jobs']) > len(before['jobs'])
+
+
+def test_live_predecessor_is_not_consumed_or_hashed_during_retry(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    manifest = _complete_probes(path)
+    first = manifest['jobs'][0]
+    first['job_id'] = '42'
+    first['submission_status'] = 'submitted'
+    # Valid-looking artifacts can belong to an attempt still owned by the
+    # guard. The following checkpoint-dependent job must wait for queue exit.
+    for job in manifest['jobs'][1:]:
+        directory = Path(job['directory'])
+        (directory / (job['name'] + '.out')).unlink()
+        (directory / (job['name'] + '.wfu')).unlink()
+    path.write_text(json.dumps(manifest))
+    submitted = []
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='42\n', returncode=0)
+        submitted.append(command)
+        return SimpleNamespace(stdout='43\n', stderr='', returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    report = recon.submit(path, max_jobs=10)
+    assert report['jobs'][0]['status'] == 'incomplete'
+    assert 'wfu_sha256' not in report['jobs'][0]
+    assert submitted == []
+
+
+@pytest.mark.parametrize('status', ['running', 'failed'])
+def test_legacy_exports_do_not_override_unfinished_native_execution(tmp_path, status):
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    manifest = _complete_probes(path)
+    directory = Path(manifest['jobs'][0]['directory'])
+    (directory / 'execution.json').write_text(json.dumps({'status': status}))
+    report = audit(path)
+    assert report['jobs'][0]['status'] == 'incomplete'
+    assert 'wfu_sha256' not in report['jobs'][0]
 
 
 def test_changed_input_is_not_reblessed_by_prepare_and_failed_audit_clears_evidence(tmp_path):
@@ -471,13 +559,16 @@ def test_retry_archives_known_failure_and_preserves_completed_probe(tmp_path, mo
     assert recon.retry_failed(path)['retry_ready'] == []
 
 
-def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, monkeypatch):
+@pytest.mark.parametrize('long_names', [False, True])
+def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, monkeypatch, long_names):
     from types import SimpleNamespace
     from kinbot import molpro_reconnaissance as recon
     source = tmp_path / 'input.json'
     _coordinate_configuration(source)
     data = json.loads(source.read_text())
     data['title'] = 'ch3ss_orbital_reconnaissance_pilot'
+    if long_names:
+        data['coordinates'][0]['name'] = 'long_sulfur_orientation_checkpoint'
     source.write_text(json.dumps(data))
     path = prepare(source, tmp_path / 'recon')
     job = json.loads(path.read_text())['jobs'][0]
@@ -500,7 +591,10 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
             + ''.join(f'SETTING RECONR{index} = -436.1 HARTREE\n'
                       for index in range(1, len(job['root_states']) + 1))
             + 'SETTING RECONDONE = 1\nMolpro calculation terminated\n')
-        (directory / (name + '.wfu')).write_bytes(b'h functions retained in native WFU')
+        checkpoint = deck.split('file,2,', 1)[1].splitlines()[0]
+        assert len(checkpoint) <= 31 and '/' not in checkpoint
+        assert command[command.index('-W') + 1] == str(directory)
+        (directory / checkpoint).write_bytes(b'h functions retained in native WFU')
         for suffix in ('.orbitals.xml', '.natural.orbitals.xml'):
             (directory / (name + suffix)).write_text('<molpro><orbital occupation="1"/></molpro>')
         return SimpleNamespace(returncode=0)
@@ -512,10 +606,94 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
     assert len(audited['orbital_xml']) == 2
     assert (directory / (name + '.inp')).read_bytes() == original
     execution = json.loads((directory / 'execution.json').read_text())
-    assert execution['input_transform'] == 'native_xml_compact_title_v2'
+    assert execution['input_transform'] == 'native_xml_short_wfu_v3'
     assert execution['input_sha256'] == hashlib.sha256(original).hexdigest()
     (directory / (name + '.natural.orbitals.xml')).write_text('incomplete XML')
     assert audit(path)['jobs'][0]['status'] == 'incomplete'
+
+
+@pytest.mark.parametrize('checkpoint_form', ['truncated31', 'truncated32', 'short_native'])
+def test_completed_long_name_probe_recovers_exact_native_checkpoint(tmp_path, checkpoint_form):
+    """Regression for Blodgett job 52907323: all evidence but FILE,2 passed."""
+    from kinbot.molpro import molpro_wfu_name
+    source = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json'
+    path = prepare(source, tmp_path / 'recon')
+    manifest = json.loads(path.read_text())
+    job = next(job for job in manifest['jobs'] if job['orientation'])
+    directory, name = Path(job['directory']), job['name']
+    requested = name + '.wfu'
+    native = directory / (name + '.native.inp')
+    native.write_text((directory / (name + '.inp')).read_text())
+    if checkpoint_form == 'short_native':
+        checkpoint = directory / molpro_wfu_name(name)
+        native.write_text(native.read_text().replace(requested, checkpoint.name))
+    else:
+        checkpoint = directory / requested[:int(checkpoint_form[-2:])]
+    checkpoint.write_bytes(b'final state averaged native checkpoint')
+    occupations = [2.] * 6 + [1.99808, 1.99228, 1.98755, 1.98755,
+                              1.51137, 1.51137, 1.4945, .51729]
+    energies = [-436.35736908, -436.35736908, -436.22996844,
+                -436.04457692, -435.93856107, -435.93856107]
+    (directory / (name + '.out')).write_text(
+        'NATURAL ORBITALS (STATE AVERAGED)\n'
+        + ''.join(f'{index}.1 {value:.5f} -1.0\n' for index, value in enumerate(occupations, 1))
+        + 'Natural orbital dump\nSETTING RECONENERGY = -436.35736908 HARTREE\n'
+        + ''.join(f'SETTING RECONR{index} = {value:.8f} HARTREE\n'
+                  for index, value in enumerate(energies, 1))
+        + 'SETTING RECONDONE = 1.00000000\nMolpro calculation terminated\n')
+    exports = {}
+    for kind in ('scf', 'natural'):
+        export = directory / (kind + '.xml')
+        export.write_text('<molpro/>')
+        exports[kind] = str(export)
+    execution = {'status': 'complete', 'returncode': 0,
+                 'input_sha256': job['input_sha256'], 'native_input': str(native),
+                 'native_input_sha256': hashlib.sha256(native.read_bytes()).hexdigest(),
+                 'orbital_exports': exports}
+    record = directory / 'execution.json'
+    record.write_text(json.dumps(execution))
+    # A staged predecessor with the expected long name must not mask the
+    # actual final checkpoint produced by Molpro's truncated FILE name.
+    (directory / requested).write_bytes(b'staged starting orbitals')
+    job['initial_wfu_sha256'] = hashlib.sha256(b'staged starting orbitals').hexdigest()
+    path.write_text(json.dumps(manifest))
+    audited = next(item for item in audit(path)['jobs'] if item['name'] == name)
+    assert audited['status'] == 'complete'
+    assert audited['wfu'] == str(checkpoint)
+    assert audited['natural_occupations'] == occupations
+    assert audited['root_energies_hartree'] == energies
+    # Missing final WFU cannot be replaced by the staged predecessor.
+    checkpoint.unlink()
+    rejected = next(item for item in audit(path)['jobs'] if item['name'] == name)
+    assert rejected['status'] == 'incomplete'
+    assert any('checkpoint' in error for error in rejected['validation_errors'])
+
+
+def test_native_checkpoint_recovery_rejects_ambiguous_or_unbound_files(tmp_path):
+    from kinbot.molpro_reconnaissance import _checkpoint_evidence
+    name = 'avd__cs_orient_f1_bond_a60_r1p776838825'
+    native = tmp_path / 'probe.native.inp'
+    native.write_text(f'file,2,{name}.wfu\n')
+    job = {'name': name, 'input_sha256': 'prepared'}
+    execution = {'input_sha256': 'prepared', 'native_input': str(native),
+                 'native_input_sha256': hashlib.sha256(native.read_bytes()).hexdigest()}
+    for length in (31, 32):
+        (tmp_path / name[:length]).write_bytes(b'checkpoint')
+    assert 'Ambiguous' in _checkpoint_evidence(tmp_path, job, execution)[1]
+    native.write_text('changed native input')
+    assert 'hashes' in _checkpoint_evidence(tmp_path, job, execution)[1]
+
+
+def test_run_reports_specific_validation_failure(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    manifest = {'status': 'incomplete', 'jobs': [{'name': 'probe', 'job_id': '42',
+        'status': 'incomplete', 'directory': str(tmp_path), 'missing_since': 0.,
+        'validation_errors': ['Missing or empty FILE,2 checkpoint: probe.wfu.']}]}
+    monkeypatch.setattr(recon, '_submit', lambda *args, **kwargs: manifest)
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout=''))
+    with pytest.raises(RuntimeError, match='Missing or empty FILE,2 checkpoint'):
+        recon._run(tmp_path / 'reconnaissance.json')
 
 
 @pytest.mark.parametrize('failure', [

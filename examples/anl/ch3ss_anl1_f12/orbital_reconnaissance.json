@@ -45,36 +45,8 @@
   "multiplicity": 2,
   "bases": [
     {
-      "name": "avd",
-      "basis": "aug-cc-pVDZ"
-    },
-    {
-      "name": "avt",
-      "basis": "aug-cc-pVTZ"
-    },
-    {
-      "name": "avq",
-      "basis": "aug-cc-pVQZ"
-    },
-    {
-      "name": "av5",
-      "basis": "aug-cc-pV5Z"
-    },
-    {
-      "name": "avd_f12",
-      "basis": "avdz-f12"
-    },
-    {
       "name": "avt_f12",
       "basis": "avtz-f12"
-    },
-    {
-      "name": "avq_f12",
-      "basis": "avqz-f12"
-    },
-    {
-      "name": "av5_f12",
-      "basis": "av5z-f12"
     }
   ],
   "scf_convergence": 1e-10,

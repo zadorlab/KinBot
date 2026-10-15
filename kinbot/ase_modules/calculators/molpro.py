@@ -9,7 +9,6 @@ selected CASPT2-F12 or Davidson-corrected MRCI energy.
 
 from pathlib import Path
 from copy import deepcopy
-import hashlib
 import re
 import shlex
 import subprocess
@@ -22,10 +21,12 @@ from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
 from kinbot.anl.results import validate_molpro_triples
 from kinbot.molpro import (
     _vrc_multireference_method, stage_vrc_state_model,
+    molpro_wfu_name,
     validate_vrc_state_model,
     vrc_multireference_energy_contract,
 )
 from kinbot.theory import fortran_threshold
+from kinbot.execution import file_sha256
 
 
 _ENERGY = re.compile(
@@ -156,8 +157,9 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
     if (orbital_file is not None
             and not (isinstance(selection, dict)
                      and selection.get('mode') == 'molpro_record')):
-        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.wfu', orbital_file):
-            raise ValueError('Molpro orbital checkpoint must be a safe WFU basename.')
+        if (len(orbital_file) > 31 or
+                not re.fullmatch(r'[a-z0-9][a-z0-9_.-]*\.wfu', orbital_file)):
+            raise ValueError('Molpro orbital checkpoint must be a short lowercase WFU basename.')
         header += f'file,2,{orbital_file}\n'
     header += 'gprint,orbitals,orben,civector\n'
     if contract is not None:
@@ -457,7 +459,7 @@ class Molpro(Calculator):
                 and selection.get('mode') == 'molpro_record'):
             orbital_name = Path(selection['path']).name
         else:
-            orbital_name = f'{stem}.orbitals.wfu'
+            orbital_name = molpro_wfu_name(f'{stem}.orbitals')
         (self.work_directory / input_name).write_text(
             render_input(atoms, basis=self.basis, geometry_name=geometry_name,
                          gradient_name=gradient_name, method=self.method,
@@ -472,7 +474,8 @@ class Molpro(Calculator):
                          correlation_convergence=
                              self.correlation_convergence))
         self.generated_files.append(input_name)
-        command = [*self.command, '-g', '-n', str(self.nproc), '-m',
+        command = [*self.command, '-W', str(self.work_directory.resolve()),
+                   '-g', '-n', str(self.nproc), '-m',
                    str(self.stack_mw), input_name]
         child_env, runtime = qc_runtime_environment(
             command[0], 'molpro', work_directory=self.work_directory,
@@ -517,7 +520,7 @@ class Molpro(Calculator):
                 'mode': 'molpro_record',
                 'path': str(checkpoint.resolve()),
                 'record': '2140.2',
-                'sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+                'sha256': file_sha256(checkpoint),
             }
             self._orbital_checkpoint_model = validate_vrc_state_model(updated)
         xml_name = f'{stem}.xml'

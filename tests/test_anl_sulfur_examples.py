@@ -47,8 +47,8 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
         2, 4)
     assert settings['target_multiplicity'] == 2
     assert settings['reference_multiplicity'] == 4
-    assert settings['reference']['basis'] == ['avtz-f12', 'avqz-f12']
-    assert all(level['basis'] == ['avtz-f12', 'avqz-f12']
+    assert settings['reference']['basis'] == 'avtz-f12'
+    assert all(level['basis'] == 'avtz-f12'
                for level in settings['gap_levels'])
     assert species.mult == 2
     assert 'S' in species.atom

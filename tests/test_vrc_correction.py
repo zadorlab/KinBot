@@ -239,7 +239,8 @@ def test_radical_pair_is_a_guarded_two_doublet_cas22_shortcut():
         VTS._spin_context(holder, rejected)
 
 
-def test_hash_verified_molpro_orbitals_are_staged_reproducibly(tmp_path):
+@pytest.mark.parametrize('stem', ['point', 'Long_Sulfur_Channel_' * 5])
+def test_hash_verified_molpro_orbitals_are_staged_reproducibly(tmp_path, stem):
     source = tmp_path / 'expert.wfu'
     source.write_bytes(b'molpro orbital record fixture')
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -255,13 +256,18 @@ def test_hash_verified_molpro_orbitals_are_staged_reproducibly(tmp_path):
             {'multiplicity': 3, 'roots': 1},
         ],
     })
-    staged = stage_vrc_state_model(model, tmp_path / 'calculation', 'point')
+    staged = stage_vrc_state_model(model, tmp_path / 'calculation', stem)
     staged_path = Path(staged['orbital_selection']['path'])
     assert staged_path.is_absolute()
+    assert len(staged_path.name) <= 31 and staged_path.name.islower()
+    assert stage_vrc_state_model(model, tmp_path / 'calculation', stem) == staged
+    other = stage_vrc_state_model(model, tmp_path / 'calculation', stem + '_other')
+    assert other['orbital_selection']['path'] != str(staged_path)
     assert staged_path.read_bytes() == source.read_bytes()
     program, _ = _vrc_multireference_method(
         'caspt2-f12b(2,2)', 18, spin=0, state_model=staged)
-    assert f'file,2,{staged_path}' in program
+    assert f'file,2,{staged_path.name}\n' in program
+    assert str(staged_path.parent) not in program
     assert 'start,2140.2' in program
     assert 'occ,10\nclosed,8\n' in program
     assert 'diab,2140.2' in program
@@ -405,8 +411,10 @@ def test_anl1_f12_vrc_preset_is_augmented_and_preserves_overrides():
     assert parameters['vrc_tst_scan_basis'] == 'aug-cc-pVQZ'
     assert parameters['vrc_tst_scan_gradient'] == 'numerical'
     assert parameters['vrc_tst_sample_basis'] == 'avtz-f12'
-    assert parameters['vrc_tst_spin_splitting']['reference']['basis'] == [
-        'avtz-f12', 'avqz-f12']
+    assert parameters['vrc_tst_spin_splitting']['reference']['basis'] == 'avtz-f12'
+    assert parameters['vrc_tst_high_basis'] == 'avtz-f12'
+    assert all(level['basis'] == 'avtz-f12'
+               for level in parameters['vrc_tst_spin_splitting']['gap_levels'])
 
 
 def test_sampling_surface_accepts_an_adjacent_cbs_pair():

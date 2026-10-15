@@ -121,6 +121,93 @@ def test_campaign_rejects_changed_context_before_submission(tmp_path, monkeypatc
         campaign.run(root)
 
 
+def test_excluded_directories_are_archived_idempotently_and_collected(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    config = json.loads(source.read_text())
+    config['bases'].append({'name': 'large', 'basis': 'avqz-f12'})
+    source.write_text(json.dumps(config))
+    root = tmp_path / 'campaign'
+    campaign.prepare(root, [source])
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **k:
+                        SimpleNamespace(stdout='', returncode=0))
+    campaign.exclude_bases(root, ['avqz-f12'])
+    saved = json.loads((root / 'campaign.json').read_text())
+    manifest_path = Path(saved['systems'][0]['manifest'])
+    manifest = json.loads(manifest_path.read_text())
+    excluded = manifest['excluded_jobs'][0]
+    evidence = Path(excluded['directory']) / (excluded['name'] + '.out')
+    evidence.write_text('native diagnostic to preserve')
+    active = Path(manifest['jobs'][0]['directory'])
+    result = campaign.archive_excluded(root)
+    assert result['files_deleted'] == 0
+    assert active.is_dir() and not evidence.parent.exists()
+    assert campaign.archive_excluded(root) == result
+    moved = json.loads(manifest_path.read_text())['excluded_jobs'][0]
+    assert moved['directory'] == excluded['directory']
+    assert (Path(moved['archived_directory']) / evidence.name).read_text() == 'native diagnostic to preserve'
+    archive = campaign.collect(root, tmp_path / 'review.tar.gz')
+    with tarfile.open(archive) as bundle:
+        assert any(name.endswith(evidence.name) and name.startswith('archived_excluded/')
+                   for name in bundle.getnames())
+
+
+def test_archive_checks_live_excluded_jobs_before_moving_anything(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    config = json.loads(source.read_text())
+    config['bases'].append({'name': 'large', 'basis': 'avqz-f12'})
+    source.write_text(json.dumps(config))
+    root = tmp_path / 'campaign'
+    saved = json.loads(campaign.prepare(root, [source]).read_text())
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **k:
+                        SimpleNamespace(stdout='', returncode=0))
+    campaign.exclude_bases(root, ['avqz-f12'])
+    path = Path(saved['systems'][0]['manifest'])
+    manifest = json.loads(path.read_text())
+    manifest['excluded_jobs'][0]['job_id'] = '99'
+    path.write_text(json.dumps(manifest))
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **k:
+                        SimpleNamespace(stdout='99\n', returncode=0))
+    with pytest.raises(RuntimeError, match='allocations'):
+        campaign.archive_excluded(root)
+    assert not (root / 'archived_excluded').exists()
+
+
+@pytest.mark.parametrize('execution_status', [None, 'running', 'complete'])
+def test_explicit_interrupted_retry_preserves_evidence_and_rejects_parser_only_failure(
+        tmp_path, monkeypatch, execution_status):
+    from types import SimpleNamespace
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    saved = json.loads(campaign.prepare(root, [source]).read_text())
+    path = Path(saved['systems'][0]['manifest'])
+    manifest = json.loads(path.read_text())
+    job = manifest['jobs'][0]
+    job.update(job_id='99', submission_status='submitted')
+    path.write_text(json.dumps(manifest))
+    directory = Path(job['directory'])
+    (directory / (job['name'] + '.out')).write_text('partial native result')
+    if execution_status:
+        (directory / 'execution.json').write_text(json.dumps({'status': execution_status}))
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **k:
+                        SimpleNamespace(stdout='', returncode=0))
+    campaign.retry_failed(root)
+    assert not (directory / 'attempts').exists()
+    campaign.retry_failed(root, include_interrupted=True)
+    updated = json.loads(path.read_text())['jobs'][0]
+    if execution_status == 'complete':
+        assert updated['job_id'] == '99'
+        assert not (directory / 'attempts').exists()
+    else:
+        assert 'job_id' not in updated
+        assert updated['submission_status'] == 'retry_ready'
+        assert (directory / 'attempts/1' / (job['name'] + '.out')).read_text() == 'partial native result'
+
+
 def test_collection_keeps_binary_wavefunctions_on_cluster(tmp_path):
     source = tmp_path / 'input.json'
     _coordinate_configuration(source)

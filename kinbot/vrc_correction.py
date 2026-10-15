@@ -75,20 +75,20 @@ _VRC_ACCURACY_PRESETS = {
         'vrc_tst_sample_basis': 'avtz-f12',
         'vrc_tst_sample_extrapolation_power': ORIGINAL_ANL_POWER,
         'vrc_tst_high_method': 'mrci-f12b+q(2,2)',
-        'vrc_tst_high_basis': ['avtz-f12', 'avqz-f12'],
+        'vrc_tst_high_basis': 'avtz-f12',
         'vrc_tst_correction_model': 'spin_splitting',
         'vrc_tst_spin_splitting': {
             'weighting': {'model': 'arithmetic_mean'},
             'reference': {
                 'method': 'uccsd(t)-f12b',
-                'basis': ['avtz-f12', 'avqz-f12'],
+                'basis': 'avtz-f12',
                 'extrapolation_power': ORIGINAL_ANL_POWER,
             },
             'gap_levels': [
                 {
                     'label': 'caspt2_f12',
                     'method': 'caspt2-f12b(2,2)',
-                    'basis': ['avtz-f12', 'avqz-f12'],
+                    'basis': 'avtz-f12',
                     'extrapolation_power': ORIGINAL_ANL_POWER,
                     'shift': 0.2,
                     'ipea': 0.25,
@@ -96,7 +96,7 @@ _VRC_ACCURACY_PRESETS = {
                 {
                     'label': 'mrci_f12_q',
                     'method': 'mrci-f12b+q(2,2)',
-                    'basis': ['avtz-f12', 'avqz-f12'],
+                    'basis': 'avtz-f12',
                     'extrapolation_power': ORIGINAL_ANL_POWER,
                 },
             ],

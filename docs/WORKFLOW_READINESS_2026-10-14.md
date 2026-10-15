@@ -1,11 +1,9 @@
 # Sulfur workflow implementation and acceptance — 14 October 2026
 
-The user resumed implementation after the historical pause. This document
-supersedes that checkpoint's open-software list. The existing reconnaissance
-can recover native exports using published commit `c14913f`. The cost-reduced
-restart additionally requires the newer `exclude-bases` command. Original
-inputs, completed results, excluded-basis evidence, and the directory remain intact. The resumed MESS audit
-is described below. No SSH or cluster calculation has been performed here.
+The current user-requested restart uses **TZ-F12-only reconnaissance and VRC**.
+See [the complete safe Blodgett restart and active-space review](SULFUR_TZ_RESTART_2026-10-14.md).
+It supersedes the earlier six/eight-basis restart instructions and preserves
+completed retained-basis jobs. No SSH or cluster calculation was performed here.
 
 ## Theory and cost policy
 
@@ -16,14 +14,14 @@ The default VRC production preset now uses:
 | --- | --- |
 | Relaxed correction path | Selected-root CASPT2-F12b / aug-cc-pVTZ-F12, numerical gradient |
 | ROTD sampling | Selected-root CASPT2-F12b / aug-cc-pVTZ-F12; one basis at each sample |
-| High-spin anchor for a lower-spin target | ROHF–UCCSD(T)-F12b / aug-cc-pV{T,Q}Z-F12 |
-| First spin-gap estimator | Selected-root CASPT2-F12b / aug-cc-pV{T,Q}Z-F12 |
-| Second spin-gap estimator | Selected-root MRCI-F12b+Q / aug-cc-pV{T,Q}Z-F12 |
+| High-spin anchor for a lower-spin target | ROHF–UCCSD(T)-F12b / aug-cc-pVTZ-F12 |
+| First spin-gap estimator | Selected-root CASPT2-F12b / aug-cc-pVTZ-F12 |
+| Second spin-gap estimator | Selected-root MRCI-F12b+Q / aug-cc-pVTZ-F12 |
 | Combination | CC high-spin energy plus the arithmetic mean of the two target-minus-high-spin MR gaps |
 
-Each correction branch retains its configured two-point CBS extrapolation.
-The inherited default exponent is 3.7 and is configurable; its use is a model
-choice requiring basis sensitivity checks, not a demonstrated F12 error bound.
+The default correction branches now use a single TZ-F12 basis. Explicit
+CBS overrides remain supported; their exponent is a model choice requiring
+basis sensitivity checks, not a demonstrated F12 error bound.
 MRCI uses the relaxed-reference Davidson correction and the F12b energy.
 An already-high-spin physical leaf uses its explicitly declared direct trusted
 level rather than reversing the spin-gap construction. An excited physical
@@ -37,29 +35,22 @@ records initialize the chosen subspace; CASSCF subsequently optimizes it.
 The reconnaissance instead uses cheaper ROHF/AVAS/CASCI diagnostics. Counts
 CAS(13,8) and CAS(9,7) remain provisional requests, not certified orbital choices.
 
-Correction reports retain each estimator, its CBS components, and method
+Correction reports retain each estimator, any explicitly requested CBS components, and method
 spreads in hartree, including the spread after each curve's asymptotic zero is
 removed. These spreads diagnose method dependence; they are not statistical
 uncertainties and averaging is not proof of improved accuracy.
 
-There is no 5Z production default. The current recon examples deliberately
-retain conventional and F12 D/T/Q/5Z for the user's requested comparison.
-Changing the production preset does not alter a snapshotted recon campaign.
-ROHF/CASCI basis comparisons alone cannot establish the accuracy gain in a
-correlated capture potential. Decide whether to use 5Z production checks from
-representative correlated interaction energies/gaps after orbital review.
-All F12 names use Molpro's installed **default** definitions: no rev2 suffix,
-basis synthesis, or auxiliary substitution. Explicit expert sampling-CBS
-requests and older scalar inputs remain supported.
+Recon now uses only native augmented TZ-F12, matching VRC production. There
+are 31 CH3S and 75 CH3SS full probes, plus 1 and 2 pilots: **109 initial jobs**,
+with adaptive additions possible. Existing six-basis campaigns can exclude
+all other bases and archive their directories in place. Input snapshots and
+completed retained results remain intact. All F12 names use Molpro's installed
+default definitions; no revision suffix, synthesis or auxiliary substitution.
 
-Following the long-running last pilot, the recommended current restart uses
-native conventional and F12 **D/T/QZ**, excluding both 5Z families in place.
-This gives 186 CH3S + 450 CH3SS full probes and 6 + 12 pilots: **654 initial
-jobs**, versus 872 with all eight bases. Adaptive additions remain possible.
-The six completed CH3S pilots and all excluded-basis artifacts are retained.
-The selection is stored in manifests and survives refinement; original input
-snapshots are not edited. The original eight-basis example configurations
-remain available for an explicitly chosen future comparison.
+The independent CBH/ANL thermochemistry recipe still uses its configured CBS
+reference. Any cheaper thermochemical variant needs balanced-CBH-reaction
+sensitivity checks. ROHF/CASCI orbital agreement does not demonstrate correlated
+potential convergence. Sparse higher-basis checks can be selected after review.
 
 ## Bugs corrected during the resumed audit
 
@@ -196,17 +187,17 @@ are identified as reductions, not reproductions of that retained-well network.
 
 ## Exact next procedure
 
-1. Let the remaining current pilot allocations finish (last supplied ID
-   `52907312`). The D/T/Q selection is already stored; retain it. Pull/install
-   on Blodgett and select `/scratch2/$USER/kinbot-molpro`, with shared home
-   scratch as the explicitly permitted fallback. Run checked `retry-failed`,
-   preflight, and resume the same controller/directory with ten one-node jobs
-   maximum. The command block is at the end of the runbook. Running jobs are
-   not cancelled or retroactively changed by the source update; the checked
-   retry refuses live campaign allocations.
-2. Complete all basis/channel native pilots, then adaptive radial/orientation
-   recon. Preserve successes. The user reported five completed CH3SS pilots
-   after the title fix, in addition to the six completed CH3S pilots; those
+1. Use the [current stop/update/archive/restart block](SULFUR_TZ_RESTART_2026-10-14.md)
+   to switch the existing campaign to TZ-F12 only. The latest supplied snapshot
+   had six completed CH3S pilots, twelve completed CH3SS pilots, six completed
+   CH3S full probes and an empty queue. The failed controller rejected a
+   normally completed orientation probe because Molpro truncated its WFU name;
+   the checkpoint recovery fix accepts its valid native evidence without a rerun.
+   Stop by current run ownership, not stale IDs.
+   Preserve completed TZ-F12 results; archive excluded bases and explicitly
+   reset any retained interrupted allocations before resuming with ten jobs maximum.
+2. Reuse the completed TZ-F12 native pilots, then complete adaptive radial/orientation
+   recon. Preserve successes. The eighteen completed pilots
    are native acceptance evidence for their particular decks, not for all
    remaining jobs. Local fixtures cannot substitute for native execution.
    Unresolved coverage after the refinement cap remains a review requirement.
@@ -225,7 +216,7 @@ are identified as reductions, not reproductions of that retained-well network.
    corrections are labeled spin-free approximations, never asserted exact zero.
 6. Validate one licensed native correction → ROTD → Ne → MESSPF/MESS handoff
    per channel. Check reference quality, CASPT2 intruders/shift sensitivity,
-   MRCI+Q size consistency, separated-fragment gaps, basis/CBS/model spread,
+   MRCI+Q size consistency, separated-fragment gaps, sparse basis/model checks,
    numerical gradients, pivot/surface and Monte Carlo/grid convergence.
 7. Validate rotor/harmonic fallbacks and collision/energy-transfer inputs;
    the example Lennard-Jones values are inputs, not fitted sulfur constants.
@@ -247,8 +238,11 @@ prove the same cause. The runbook's run-scoped stop/archive preserves those
 attempts and does not kill unrelated jobs or delete shared scratch.
 
 Current regression results are recorded in the runbook/release handoff.
-The final suite, including shared Slurm I/O retries and atomic ROTD completion,
-passes **1295 tests and 391 subtests**, all 161
+The latest [TZ-only restart audit](SULFUR_TZ_RESTART_2026-10-14.md) passed
+1,321 tests and 391 subtests, followed by 79 affected tests after the final
+long-name execution fixture and archive-path guard.
+The preceding suite, including shared Slurm I/O retries and atomic ROTD completion,
+passed **1295 tests and 391 subtests**, all 161
 non-template modules parse, and the diff and documented shell syntax checks
 pass. The actual SI verifier passes again. The only suite warnings are the
 existing deprecated `imp` import and Sella external-cache permissions.

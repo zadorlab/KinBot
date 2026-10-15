@@ -1,9 +1,9 @@
 # CBH/ANL, VRC-TST, ROTD_py, MESS audit — 14 October 2026
 
-**Work resumed.** See [the current implementation and acceptance procedure](WORKFLOW_READINESS_2026-10-14.md).
-The earlier checkpoint is historical. Preserve successful native pilots and
-the existing eight-basis campaign. The latest 5Z failure occurred at Molden
-export after RHF completed; native XML/WFU recovery is published in `c14913f`.
+**Latest follow-up:** [TZ-F12 restart, additional bug fixes, and active-space review](SULFUR_TZ_RESTART_2026-10-14.md).
+The user selected single-basis TZ-F12 VRC and recon. Earlier multi-basis counts
+and restart procedures below are historical. CBH/ANL recipe improvements and
+RHF/ROHF-UCC conventions remain intentional and unchanged.
 
 The current software is **not yet certified for the full CH3S/CH3SS production
 campaign**. The automated interfaces and diagnostic reconnaissance have been

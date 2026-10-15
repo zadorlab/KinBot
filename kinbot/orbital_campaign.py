@@ -179,7 +179,7 @@ def progress(root):
             'error': data.get('error'), 'systems': systems}
 
 
-def retry_failed(root):
+def retry_failed(root, *, include_interrupted=False):
     """Reconcile failed native jobs without discarding successful probes."""
     root = Path(root).expanduser().resolve()
     with _lock(root):
@@ -188,7 +188,7 @@ def retry_failed(root):
         for record in campaign['systems']:
             _validate_inputs(record)
             for key in ('pilot_manifest', 'manifest'):
-                results.append(recon.retry_failed(record[key]))
+                results.append(recon.retry_failed(record[key], include_interrupted=include_interrupted))
         campaign['status'] = 'prepared_retry'
         campaign.pop('error', None)
         atomic_json(root / 'campaign.json', campaign)
@@ -210,7 +210,8 @@ def collect(root, destination):
                 manifest = recon.audit(record[key])
                 paths.add(Path(record[key]))
                 for job in manifest['jobs'] + manifest.get('excluded_jobs', []):
-                    directory, name = Path(job['directory']), job['name']
+                    directory = Path(job.get('archived_directory', job['directory']))
+                    name = job['name']
                     paths.update(path for path in directory.glob(name + '.*')
                                  if path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin'))
                     paths.add(directory / 'execution.json')
@@ -279,6 +280,57 @@ def exclude_bases(root, bases):
         return reports
 
 
+def archive_excluded(root):
+    """Move excluded basis directories out of the active tree, keeping evidence.
+
+    Original paths remain provenance; archived_directory locates the retained
+    files for collection. Repeating after an interrupted rename is safe.
+    """
+    root = Path(root).expanduser().resolve()
+    with _lock(root), ExitStack() as locks:
+        data = json.loads((root / 'campaign.json').read_text())
+        manifests = []
+        for record in data['systems']:
+            _validate_inputs(record)
+            for key in ('pilot_manifest', 'manifest'):
+                path = Path(record[key])
+                locks.enter_context(recon._manifest_lock(path.parent))
+                manifests.append((path, json.loads(path.read_text())))
+        queue = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                               text=True, check=True, timeout=30)
+        live = set(queue.stdout.split())
+        moves = []
+        for path, manifest in manifests:
+            all_jobs = manifest['jobs'] + manifest.get('excluded_jobs', [])
+            if any(str(job.get('job_id')) in live for job in all_jobs):
+                raise RuntimeError('Wait for all campaign allocations to leave before archiving.')
+            if any(job.get('submission_status') == 'submitting' for job in all_jobs):
+                raise RuntimeError('Reconcile uncertain Slurm submissions before archiving.')
+            for job in manifest.get('excluded_jobs', []):
+                source = Path(job['directory'])
+                destination = root / 'archived_excluded' / path.parent.name / source.name
+                if (source.is_symlink() or source.parent.resolve() != path.parent.resolve()
+                        or root not in source.resolve().parents):
+                    raise ValueError('Excluded job directory is outside its manifest tree.')
+                if job.get('archived_directory') not in (None, str(destination)):
+                    raise ValueError('Excluded job has a different archive location.')
+                if root not in destination.resolve().parents:
+                    raise ValueError('Excluded archive destination is outside the campaign tree.')
+                if destination.is_symlink() or source.exists() and destination.exists():
+                    raise ValueError('Excluded archive destination already exists; preserve both copies.')
+                if not source.is_dir() and not destination.is_dir():
+                    raise FileNotFoundError(f'Excluded job artifacts are missing: {source}')
+                moves.append((path, manifest, job, source, destination))
+        for path, manifest, job, source, destination in moves:
+            if source.is_dir():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                source.rename(destination)
+            job['archived_directory'] = str(destination)
+            atomic_json(path, manifest)
+        return {'archive': str(root / 'archived_excluded'),
+                'excluded_directories': len(moves), 'files_deleted': 0}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='action', required=True)
@@ -296,6 +348,10 @@ def main(argv=None):
     check.add_argument('root')
     retry = commands.add_parser('retry-failed')
     retry.add_argument('root')
+    retry.add_argument('--include-interrupted', action='store_true',
+                       help='Also archive/retry stopped known allocations without a final execution record.')
+    archive = commands.add_parser('archive-excluded')
+    archive.add_argument('root')
     selection = commands.add_parser('exclude-bases')
     selection.add_argument('root')
     selection.add_argument('--basis', action='append', required=True,
@@ -314,7 +370,9 @@ def main(argv=None):
     elif args.action == 'preflight':
         result = preflight(args.root)
     elif args.action == 'retry-failed':
-        result = retry_failed(args.root)
+        result = retry_failed(args.root, include_interrupted=args.include_interrupted)
+    elif args.action == 'archive-excluded':
+        result = archive_excluded(args.root)
     elif args.action == 'exclude-bases':
         result = exclude_bases(args.root, args.basis)
     else:

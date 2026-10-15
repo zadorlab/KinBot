@@ -38,10 +38,12 @@ def test_retry_limit_is_bounded_and_can_be_disabled():
             retry_limit({'KINBOT_SLURM_IO_RETRIES': value})
 
 
-def test_batch_retries_io_and_restores_exact_checkpoint_without_touching_other_jobs(tmp_path, monkeypatch):
+@pytest.mark.parametrize('checkpoint', ['job.wfu', 'kb_1234.wfu'])
+def test_batch_retries_io_and_restores_exact_checkpoint_without_touching_other_jobs(tmp_path, monkeypatch, checkpoint):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv('SLURM_JOB_ID', '42')
-    Path('job.wfu').write_bytes(b'verified starting orbitals')
+    Path(checkpoint).write_bytes(b'verified starting orbitals')
+    Path('job.inp').write_text(f'file,2,{checkpoint}\n')
     Path('job-other.out').write_text('another active job')
     Path('counter').write_text('0')
     program = (
@@ -54,17 +56,18 @@ def test_batch_retries_io_and_restores_exact_checkpoint_without_touching_other_j
         ' sys.exit(1)\n'
         'assert not Path("job.out").exists()\n'
         'Path("job.out").write_text("normal termination")\n')
+    program = program.replace('job.wfu', checkpoint)
     assert run([sys.executable, '-c', program], identity='job', prefixes=['job'],
                exit_marker='job.exitcode') == 0
     journal = next(Path('.kinbot_slurm_io_retries').glob('*/42/execution.json'))
     record = json.loads(journal.read_text())
     assert record['status'] == 'complete' and len(record['attempts']) == 2
     import hashlib
-    assert record['initial_artifacts']['job.wfu'] == hashlib.sha256(b'verified starting orbitals').hexdigest()
+    assert record['initial_artifacts'][checkpoint] == hashlib.sha256(b'verified starting orbitals').hexdigest()
     assert record['attempts'][0]['io_failure'] is True
     assert Path('job.exitcode').read_text() == '42 0\n'
     assert Path('job-other.out').read_text() == 'another active job'
-    assert (journal.parent / 'attempt-1/artifacts/job.wfu').read_bytes() == b'partial corrupt orbitals'
+    assert (journal.parent / 'attempt-1/artifacts' / checkpoint).read_bytes() == b'partial corrupt orbitals'
 
 
 @pytest.mark.parametrize('message,limit,attempts', [

@@ -1466,6 +1466,68 @@ def test_scheduler_query_timeout_is_bounded():
     assert all(call.kwargs['timeout'] == 30 for call in run.call_args_list)
 
 
+def test_queue_exit_reads_final_retry_result_after_scheduler_query(tmp_path, monkeypatch):
+    run_dir = prepare(dispatch_spec(), tmp_path / 'run')
+    state_file = run_dir / 'state.json'
+    state = json.loads(state_file.read_text())
+    entry = state['tasks']['l2_geometry']
+    entry.update(status='submitted', job_id='123')
+    state_file.write_text(json.dumps(state))
+    outcome = run_dir / 'tasks/l2_geometry/execution.json'
+    outcome.write_text(json.dumps({
+        'schema': 1, 'task_id': 'l2_geometry',
+        'geometry_sha256': entry['geometry_sha256'], 'status': 'failed',
+        'error': 'Input/output error from the first in-allocation attempt',
+    }))
+
+    def finished_during_query(job_id):
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        return False
+
+    monkeypatch.setattr('kinbot.anl.dispatch._job_active', finished_during_query)
+    result = advance(run_dir)
+    assert result['tasks']['l2_geometry']['status'] == 'complete'
+    assert result['tasks']['l3_geometry']['status'] == 'staged'
+
+
+def test_queue_exit_allows_delayed_result_publication_without_resubmission(tmp_path, monkeypatch):
+    run_dir = prepare(dispatch_spec(), tmp_path / 'run')
+    state_file = run_dir / 'state.json'
+    state = json.loads(state_file.read_text())
+    state['tasks']['l2_geometry'].update(status='submitted', job_id='123')
+    state_file.write_text(json.dumps(state))
+    monkeypatch.setattr('kinbot.anl.dispatch._job_active', lambda _: False)
+    monkeypatch.setattr('kinbot.anl.dispatch.time.time', lambda: 100.)
+    result = advance(run_dir)
+    assert result['tasks']['l2_geometry']['status'] == 'submitted'
+    assert result['tasks']['l2_geometry']['missing_since'] == 100.
+    monkeypatch.setattr('kinbot.anl.dispatch.time.time', lambda: 120.)
+    _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+    result = advance(run_dir)
+    assert result['tasks']['l2_geometry']['status'] == 'complete'
+    assert 'missing_since' not in result['tasks']['l2_geometry']
+
+
+def test_queue_exit_missing_result_grace_expires_and_resets_if_live(tmp_path, monkeypatch):
+    run_dir = prepare(dispatch_spec(), tmp_path / 'run')
+    state_file = run_dir / 'state.json'
+    state = json.loads(state_file.read_text())
+    state['tasks']['l2_geometry'].update(status='submitted', job_id='123')
+    state_file.write_text(json.dumps(state))
+    monkeypatch.setattr('kinbot.anl.dispatch._job_active', lambda _: False)
+    monkeypatch.setattr('kinbot.anl.dispatch.time.time', lambda: 100.)
+    advance(run_dir)
+    monkeypatch.setattr('kinbot.anl.dispatch._job_active', lambda _: True)
+    assert 'missing_since' not in advance(run_dir)['tasks']['l2_geometry']
+    monkeypatch.setattr('kinbot.anl.dispatch._job_active', lambda _: False)
+    monkeypatch.setattr('kinbot.anl.dispatch.time.time', lambda: 150.)
+    assert advance(run_dir)['tasks']['l2_geometry']['status'] == 'submitted'
+    monkeypatch.setattr('kinbot.anl.dispatch.time.time', lambda: 211.)
+    result = advance(run_dir)['tasks']['l2_geometry']
+    assert result['status'] == 'failed'
+    assert result['failure_phase'] == 'scheduler'
+
+
 def test_scheduler_query_launch_error_is_bounded():
     error = OSError(11, 'Resource temporarily unavailable')
     with patch('kinbot.anl.dispatch.subprocess.run', side_effect=error) as run, \

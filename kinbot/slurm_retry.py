@@ -104,6 +104,18 @@ def _artifacts(prefixes, directories, journal):
                          and (path.name.startswith(prefix.name + '.')
                               or re.match(re.escape(prefix.name) + r'_(?:step|basis)_\d+(?:[._]|$)', path.name)
                               or path.name in (prefix.name + '_sella.log', prefix.name + '_freq.out')))
+    # Molpro FILE names must be short: hashed checkpoints need not share the
+    # job prefix. Follow only local FILE,2 WFU basenames in this job's inputs
+    # so an I/O retry restores its seeds instead of reusing corrupted orbitals.
+    for inp in tuple(paths):
+        if inp.suffix != '.inp':
+            continue
+        names = re.findall(r'(?im)^\s*file\s*,\s*2\s*,\s*([a-z0-9][a-z0-9_.-]*\.wfu)\s*$',
+                           inp.read_text(errors='replace'))
+        for name in names:
+            checkpoint = inp.parent / name
+            if len(name) <= 31 and checkpoint.is_file() and not checkpoint.is_symlink():
+                paths.add(checkpoint)
     # A shared calculation database is transactional and belongs to the
     # controller. Native/job-specific checkpoints are covered by the scopes.
     return {path.resolve() for path in paths

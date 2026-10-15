@@ -419,6 +419,25 @@ def test_ladder_prefers_exact_reduced_recipe_before_lower_tier_or_rung():
     assert any(full in reason for reason in selected.skipped)
 
 
+@pytest.mark.parametrize('species_key', ['CCC', 'CC'])
+@pytest.mark.parametrize('change', [{'hartree': float('nan')},
+                                   {'multiplicity': 3}, {'method': 'wrong-label'}])
+def test_ladder_rejects_invalid_accepted_data_instead_of_downgrading(species_key, change):
+    from dataclasses import replace
+    _, table = _table()
+    species = SimpleNamespace(smiles='CCC', charge=0, mult=1, wellorts=0,
+                              atom=['C'] * 3 + ['H'] * 8)
+    energies = {
+        smiles: {tier: ZeroKEnergy(smiles, value, tier, smiles + tier)
+                 for tier in ('ANL0', 'L2')}
+        for smiles, value in [('CCC', -118.), ('CC', -79.), ('C', -40.),
+                              ('[H][H]', -1.)]
+    }
+    energies[species_key]['ANL0'] = replace(energies[species_key]['ANL0'], **change)
+    with pytest.raises(ValueError, match='invalid'):
+        select_cbh_ladder(species, energies, table)
+
+
 def test_ladder_descends_rung_when_no_common_profile_exists_at_higher_rung():
     _, table = _table()
     species = SimpleNamespace(smiles='CCC', charge=0, mult=1, wellorts=0,

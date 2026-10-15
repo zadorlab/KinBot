@@ -27,9 +27,10 @@ from ase.data import atomic_numbers
 from kinbot.anl.site import render_site_setup
 from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            _render_vrc_state_model, full_valence_active_space,
-                           validate_input_blocks, compact_molpro_titles)
+                           validate_input_blocks, compact_molpro_titles,
+                           molpro_wfu_name)
 from kinbot.theory import fortran_threshold
-from kinbot.execution import atomic_json
+from kinbot.execution import atomic_json, file_sha256
 from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
                                MolproScratchError, molpro_io_failure)
 
@@ -481,7 +482,7 @@ def _prepare(source, output):
             inp = directory / f'{stem}.inp'
             channel = anchor.get('_channel')
             old_job = previous_jobs.get(stem, {})
-            if old_job and (not inp.is_file() or hashlib.sha256(inp.read_bytes()).hexdigest()
+            if old_job and (not inp.is_file() or file_sha256(inp)
                             != old_job['input_sha256']):
                 raise ValueError(f'{stem}: existing probe input changed after preparation.')
             # Refinement inserts points into the distance ordering. Existing
@@ -522,7 +523,7 @@ def _prepare(source, output):
                 **old_job,
                 'name': stem, 'basis': basis['basis'], 'anchor': anchor['name'],
                 'directory': str(directory),
-                'input_sha256': hashlib.sha256(inp.read_bytes()).hexdigest(),
+                'input_sha256': file_sha256(inp),
                 'template_sha256': digest,
                 'orbital_predecessor': predecessor,
                 'channel': anchor.get('_channel'),
@@ -567,7 +568,7 @@ def execute(manifest_path, name):
         raise ValueError(f'Unknown reconnaissance job: {name}.')
     directory = Path(job['directory'])
     inp = directory / f'{name}.inp'
-    if hashlib.sha256(inp.read_bytes()).hexdigest() != job['input_sha256']:
+    if file_sha256(inp) != job['input_sha256']:
         raise ValueError(f'{name}: input changed before native execution.')
     validate_input_blocks(inp.read_text(), name)
     # Molden cannot encode h and higher functions in Molpro 2024. Use the
@@ -578,14 +579,19 @@ def execute(manifest_path, name):
     native_text = re.sub(r'(?i)put,molden,([^;\s}]+)\.molden',
                          r'put,xml,\1.orbitals.xml', inp.read_text())
     native_text = compact_molpro_titles(native_text)
+    checkpoint = directory / molpro_wfu_name(name)
+    native_text, changed = re.subn(r'(?im)^file,2,[^\n]+$',
+                                  f'file,2,{checkpoint.name}', native_text)
+    if changed != 1:
+        raise ValueError('Expected exactly one reconnaissance FILE,2 directive.')
     recovery = job.get('recovered_scf')
     if recovery:
         source = Path(recovery['path'])
         staged = directory / f'{name}.wfu'
         if (recovery['input_sha256'] != job['input_sha256']
                 or not source.is_file() or not staged.is_file()
-                or hashlib.sha256(source.read_bytes()).hexdigest() != recovery['sha256']
-                or hashlib.sha256(staged.read_bytes()).hexdigest() != recovery['sha256']):
+                or file_sha256(source) != recovery['sha256']
+                or file_sha256(staged) != recovery['sha256']):
             raise ValueError('Recovered SCF record no longer matches its archived source.')
         native_text, changed = re.subn(r'(?i)\{rhf;[^{}]*\}',
             '! Reusing converged SCF record from the archived export-only failure',
@@ -599,6 +605,12 @@ def execute(manifest_path, name):
             f'{{put,xml,{name}.orbitals.xml;orbital,{recovery["record"]},type=canonical}}')
     validate_input_blocks(native_text, name)
     native.write_text(native_text)
+    # Submission stages predecessor/export-recovery records under the old
+    # canonical path. Copy to the short native name before launching Molpro.
+    staged = directory / f'{name}.wfu'
+    if staged != checkpoint and staged.is_file():
+        import shutil
+        shutil.copyfile(staged, checkpoint)
     exports = {'scf': str(directory / f'{name}.orbitals.xml')}
     if job.get('natural_orbital_probe'):
         exports['natural'] = str(directory / f'{name}.natural.orbitals.xml')
@@ -607,8 +619,8 @@ def execute(manifest_path, name):
                  'host': socket.gethostname(),
                  'input_sha256': job['input_sha256'],
                  'native_input': str(native),
-                 'native_input_sha256': hashlib.sha256(native.read_bytes()).hexdigest(),
-                 'input_transform': 'native_xml_compact_title_v2', 'orbital_exports': exports}
+                 'native_input_sha256': file_sha256(native),
+                 'input_transform': 'native_xml_short_wfu_v3', 'orbital_exports': exports}
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -673,7 +685,7 @@ def _xml_evidence(directory, job):
     native = Path(execution.get('native_input', directory / '__missing__'))
     exports = execution.get('orbital_exports', {})
     if (execution.get('status') != 'complete' or not native.is_file()
-            or hashlib.sha256(native.read_bytes()).hexdigest() != execution.get('native_input_sha256')
+            or file_sha256(native) != execution.get('native_input_sha256')
             or execution.get('input_sha256') != job['input_sha256']
             or 'scf' not in exports
             or job.get('natural_orbital_probe') and 'natural' not in exports):
@@ -687,34 +699,100 @@ def _xml_evidence(directory, job):
             ET.parse(path)
         except ET.ParseError:
             return None
-        evidence[kind] = {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+        evidence[kind] = {'path': str(path), 'sha256': file_sha256(path)}
     return evidence
 
 
-def _audit(manifest_path):
+def _checkpoint_evidence(directory, job, execution):
+    """Locate the exact native FILE,2 result, including old truncated names.
+
+    Never guess from a glob: a leftover staged predecessor is not evidence of
+    this calculation's final orbitals. Legacy recovery requires a completed,
+    hash-bound native input and an unambiguous 31/32-character FILE basename.
+    """
+    default = directory / (job['name'] + '.wfu')
+    if execution is None:
+        return default, None
+    native = Path(execution.get('native_input', directory / '__missing__'))
+    if (execution.get('input_sha256') != job['input_sha256']
+            or not native.is_file()
+            or file_sha256(native) != execution.get('native_input_sha256')):
+        return default, 'Execution input hashes do not match the prepared/native inputs.'
+    names = re.findall(r'(?im)^\s*file\s*,\s*2\s*,\s*([A-Za-z0-9_.-]+)\s*$',
+                       native.read_text())
+    if len(names) != 1:
+        return default, 'Native input does not identify one safe FILE,2 checkpoint.'
+    requested = names[0].lower()
+    # Old builds truncate at 32; the manual documents a 31-character limit.
+    if len(requested) > 31:
+        candidates = [directory / name for name in dict.fromkeys(
+            [requested, requested[:31], requested[:32]])]
+        present = [path for path in candidates if path.is_file() and path.stat().st_size]
+        if job.get('initial_wfu_sha256'):
+            present = [path for path in present if path.name != requested or
+                       file_sha256(path) != job['initial_wfu_sha256']]
+        if len(present) > 1:
+            return default, 'Ambiguous legacy FILE,2 checkpoints; preserve and reconcile all copies.'
+        if present:
+            return present[0], None
+        return default, 'Missing final native checkpoint; a staged predecessor is not a completed FILE,2 result.'
+    return directory / requested, None
+
+
+def _audit(manifest_path, *, live_job_ids=()):
     path = Path(manifest_path).expanduser().resolve()
     manifest = json.loads(path.read_text())
     complete = True
     for job in manifest['jobs']:
         for key in ('energy_hartree', 'root_energies_hartree', 'state_energies_hartree',
                     'natural_occupations', 'natural_molden_sha256',
-                    'orbital_error', 'orbital_xml', 'occupation_source'):
+                    'orbital_error', 'orbital_xml', 'occupation_source', 'validation_errors'):
             job.pop(key, None)
         directory = Path(job['directory'])
+        execution_path = directory / 'execution.json'
+        # The allocation owns every attempt until the shared retry guard
+        # exits. Do not parse/hash a WFU that it can still replace, or allow
+        # legacy Molden files to override an explicitly unfinished attempt.
+        live = str(job.get('job_id')) in live_job_ids
+        execution = (json.loads(execution_path.read_text())
+                     if not live and execution_path.is_file() else None)
+        if live or execution is not None and execution.get('status') != 'complete':
+            job['status'] = 'incomplete'
+            job['validation_errors'] = [
+                'Slurm allocation is still live.' if live else
+                f'Execution status is {execution.get("status")!r}; a complete record is required.']
+            for key in ('output_sha256', 'wfu', 'wfu_sha256', 'molden', 'molden_sha256'):
+                job.pop(key, None)
+            continue
         stem = job['name']
         output = directory / f'{stem}.out'
-        wfu = directory / f'{stem}.wfu'
+        wfu, checkpoint_error = _checkpoint_evidence(directory, job, execution)
         molden = directory / f'{stem}.molden'
         natural = directory / f'{stem}.natural.molden'
         inp = directory / f'{stem}.inp'
         output_text = output.read_text(errors='replace') if output.is_file() else ''
         xml_evidence = _xml_evidence(directory, job)
+        errors = []
+        if not inp.is_file() or file_sha256(inp) != job['input_sha256']:
+            errors.append('Prepared input is missing or its SHA-256 changed.')
+        if 'Molpro calculation terminated' not in output_text:
+            errors.append('Native output lacks normal termination.')
+        if not re.search(r'SETTING\s+RECONDONE\s*=\s*1(?:\.0*)?\s*(?:\n|$)', output_text):
+            errors.append('Native output lacks RECONDONE=1.')
+        if 'ERROR EXIT' in output_text:
+            errors.append('Native output contains ERROR EXIT.')
+        if checkpoint_error:
+            errors.append(checkpoint_error)
+        if not wfu.is_file() or not wfu.stat().st_size:
+            errors.append(f'Missing or empty FILE,2 checkpoint: {wfu}.')
+        if not (xml_evidence or molden.is_file() and molden.stat().st_size):
+            errors.append('No valid hash-bound XML exports or nonempty legacy Molden file.')
         normal = (inp.is_file()
-                  and hashlib.sha256(inp.read_bytes()).hexdigest() == job['input_sha256']
+                  and file_sha256(inp) == job['input_sha256']
                   and 'Molpro calculation terminated' in output_text
                   and re.search(r'SETTING\s+RECONDONE\s*=\s*1(?:\.0*)?\s*(?:\n|$)', output_text)
                   and 'ERROR EXIT' not in output_text)
-        job['status'] = ('complete' if normal and wfu.is_file()
+        job['status'] = ('complete' if normal and not checkpoint_error and wfu.is_file()
                          and wfu.stat().st_size and (xml_evidence or
                          molden.is_file() and molden.stat().st_size) else 'incomplete')
         energies = re.findall(r'SETTING\s+RECONENERGY\s*=\s*'
@@ -726,6 +804,7 @@ def _audit(manifest_path):
                 job['energy_hartree'] = value
         if job.get('channel') and 'energy_hartree' not in job:
             job['status'] = 'incomplete'
+            errors.append('Missing finite RECONENERGY for the distance profile.')
         if job.get('natural_orbital_probe'):
             roots = {int(index): float(value.replace('D', 'E').replace('d', 'e'))
                      for index, value in re.findall(r'SETTING\s+RECONR(\d+)\s*=\s*'
@@ -735,11 +814,13 @@ def _audit(manifest_path):
             if (not roots or any(not np.isfinite(value) for value in roots.values())
                     or (expected and sorted(roots) != list(range(1, expected + 1)))):
                 job['status'] = 'incomplete'
+                errors.append(f'Missing/nonfinite RECONR roots; expected {expected}, found {sorted(roots)}.')
             else:
                 job['root_energies_hartree'] = [roots[index] for index in sorted(roots)]
                 if job.get('root_states'):
                     if len(job['root_states']) != len(roots):
                         job['status'] = 'incomplete'
+                        errors.append('Root-state labels do not match the number of energies.')
                     else:
                         job['state_energies_hartree'] = [
                             {**state, 'energy_hartree': value}
@@ -754,22 +835,26 @@ def _audit(manifest_path):
                                        for value in occupations)
                     or abs(sum(occupations) - manifest['electron_count']) > .02):
                 job['status'] = 'incomplete'
+                errors.append('Invalid natural occupations: '
+                              f'count={len(occupations)}, sum={sum(occupations):.8g}, '
+                              f'expected electrons={manifest["electron_count"]}.')
             else:
                 job['natural_occupations'] = occupations
                 if not xml_evidence and natural.is_file():
-                    job['natural_molden_sha256'] = hashlib.sha256(natural.read_bytes()).hexdigest()
+                    job['natural_molden_sha256'] = file_sha256(natural)
                 job['occupation_source'] = 'native_state_averaged_table' if xml_evidence else 'molden'
         complete &= job['status'] == 'complete'
         if job['status'] == 'complete':
-            job['output_sha256'] = hashlib.sha256(output.read_bytes()).hexdigest()
+            job['output_sha256'] = file_sha256(output)
             job['wfu'] = str(wfu.resolve())
-            job['wfu_sha256'] = hashlib.sha256(wfu.read_bytes()).hexdigest()
+            job['wfu_sha256'] = file_sha256(wfu)
             if molden.is_file() and molden.stat().st_size:
                 job['molden'] = str(molden.resolve())
-                job['molden_sha256'] = hashlib.sha256(molden.read_bytes()).hexdigest()
+                job['molden_sha256'] = file_sha256(molden)
             if xml_evidence:
                 job['orbital_xml'] = xml_evidence
         else:
+            job['validation_errors'] = errors
             for key in ('output_sha256', 'wfu', 'wfu_sha256', 'molden',
                         'molden_sha256'):
                 job.pop(key, None)
@@ -782,6 +867,9 @@ def _audit(manifest_path):
                     or job.get('initial_wfu_sha256') != prior.get('wfu_sha256')):
                 job['status'] = 'incomplete'
                 job['orbital_error'] = 'Predecessor WFU no longer matches the staged orbital source.'
+                job['validation_errors'] = [job['orbital_error']]
+                for key in ('output_sha256', 'wfu', 'wfu_sha256', 'molden', 'molden_sha256'):
+                    job.pop(key, None)
     complete = all(job['status'] == 'complete' for job in manifest['jobs'])
     manifest['coverage'] = _coverage(manifest)
     manifest['orientation_profiles'] = [{
@@ -916,7 +1004,7 @@ def submit(manifest_path, *, max_jobs=8):
         return _submit(manifest_path, max_jobs=max_jobs)
 
 
-def retry_failed(manifest_path):
+def retry_failed(manifest_path, *, include_interrupted=False):
     """Archive known failed native attempts after every allocation has left.
 
     Completed calculations and immutable inputs/checkpoint chains stay intact.
@@ -926,10 +1014,10 @@ def retry_failed(manifest_path):
     import shutil
     path = Path(manifest_path).expanduser().resolve()
     with _manifest_lock(path.parent):
-        manifest = _audit(path)
         queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
                                 text=True, check=True, timeout=30)
         live = set(queued.stdout.split())
+        manifest = _audit(path, live_job_ids=live)
         if any(str(job.get('job_id')) in live for job in manifest['jobs']):
             raise RuntimeError('Wait for all manifest allocations to leave before retrying.')
         if any(job.get('submission_status') == 'submitting' for job in manifest['jobs']):
@@ -940,13 +1028,14 @@ def retry_failed(manifest_path):
                 continue
             directory = Path(job['directory'])
             record = directory / 'execution.json'
-            if not record.is_file():
-                continue
-            execution = json.loads(record.read_text())
-            if execution.get('status') != 'failed' or not job.get('job_id'):
+            execution = json.loads(record.read_text()) if record.is_file() else {}
+            interrupted = (include_interrupted and
+                           execution.get('status') in (None, 'running'))
+            if (not job.get('job_id') or
+                    execution.get('status') != 'failed' and not interrupted):
                 continue
             inp = directory / (job['name'] + '.inp')
-            if hashlib.sha256(inp.read_bytes()).hexdigest() != job['input_sha256']:
+            if file_sha256(inp) != job['input_sha256']:
                 raise ValueError('Failed probe input changed; do not retry under the old manifest.')
             attempt = int(job.get('attempt', 1))
             archive = directory / 'attempts' / str(attempt)
@@ -974,7 +1063,7 @@ def retry_failed(manifest_path):
             recovery = None
             if export_only:
                 recovery = {'path': str(archive / wfu.name),
-                            'sha256': hashlib.sha256(wfu.read_bytes()).hexdigest(),
+                            'sha256': file_sha256(wfu),
                             'record': scf[1], 'input_sha256': job['input_sha256'],
                             'energy_hartree': scf_energy}
             archive.mkdir(parents=True, exist_ok=False)
@@ -987,7 +1076,9 @@ def retry_failed(manifest_path):
                         artifact.rename(archive / artifact.name)
             job.setdefault('attempt_history', []).append({
                 'attempt': attempt, 'job_id': job['job_id'],
-                'archive': str(archive), 'error': execution.get('error'),
+                'archive': str(archive),
+                'error': execution.get('error') or ('Explicitly retried interrupted allocation'
+                                                   if interrupted else None),
                 'input_sha256': job['input_sha256']})
             for key in ('job_id', 'missing_since'):
                 job.pop(key, None)
@@ -1004,10 +1095,16 @@ def _submit(manifest_path, *, max_jobs=8):
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
         raise ValueError('max_jobs must be positive.')
     path = Path(manifest_path).expanduser().resolve()
-    manifest = _audit(path)
+    pending = json.loads(path.read_text())
+    # An unknown allocation consumes unknown capacity. Check the whole
+    # manifest before the startup/dependency/cap filters can skip its entry.
+    if any(job.get('submission_status') == 'submitting' for job in pending['jobs']):
+        raise RuntimeError('Interrupted Slurm submission requires scheduler '
+                           'reconciliation before any new probes are submitted.')
     queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
-                            text=True, check=True)
+                            text=True, check=True, timeout=30)
     live = set(queued.stdout.split())
+    manifest = _audit(path, live_job_ids=live)
     active = sum(str(job.get('job_id')) in live for job in manifest['jobs'])
     # Validate one native probe before widening a fresh manifest's launch.
     # This catches shared input/runtime failures without duplicating them
@@ -1035,7 +1132,7 @@ def _submit(manifest_path, *, max_jobs=8):
             import shutil
             recovery = job['recovered_scf']
             source = Path(recovery['path'])
-            if hashlib.sha256(source.read_bytes()).hexdigest() != recovery['sha256']:
+            if file_sha256(source) != recovery['sha256']:
                 raise RuntimeError('Archived SCF checkpoint changed before recovery.')
             shutil.copyfile(source, Path(job['directory']) / (job['name'] + '.wfu'))
         elif predecessor:
@@ -1043,7 +1140,7 @@ def _submit(manifest_path, *, max_jobs=8):
             if prior['status'] != 'complete':
                 continue
             source = Path(prior['wfu'])
-            if hashlib.sha256(source.read_bytes()).hexdigest() != prior['wfu_sha256']:
+            if file_sha256(source) != prior['wfu_sha256']:
                 raise RuntimeError('Reconnaissance predecessor WFU changed after audit.')
             import shutil
             checkpoint = Path(job['directory']) / (job['name'] + '.wfu')
@@ -1051,7 +1148,7 @@ def _submit(manifest_path, *, max_jobs=8):
             inp = Path(job['directory']) / (job['name'] + '.inp')
             inp.write_text(inp.read_text().replace('{{PREVIOUS_WFU_SHA256}}', prior['wfu_sha256']))
             job['initial_wfu_sha256'] = prior['wfu_sha256']
-            job['input_sha256'] = hashlib.sha256(inp.read_bytes()).hexdigest()
+            job['input_sha256'] = file_sha256(inp)
         job['submission_status'] = 'submitting'
         # Existing snapshotted campaigns gain the shared batch retry guard
         # without changing the chemically meaningful prepared input/hash.
@@ -1060,8 +1157,14 @@ def _submit(manifest_path, *, max_jobs=8):
         batch.write_text(wrap_script(batch.read_text(), identity=job['name'],
                                      directories=[job['directory']]))
         atomic_json(path, manifest)
-        result = subprocess.run(['sbatch', '--export=ALL', '--parsable', job['name'] + '.sbatch'],
-                                cwd=job['directory'], capture_output=True, text=True)
+        try:
+            result = subprocess.run(
+                ['sbatch', '--export=ALL', '--parsable', job['name'] + '.sbatch'],
+                cwd=job['directory'], capture_output=True, text=True, timeout=30)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError(f'{job["name"]}: sbatch timed out; submission outcome is '
+                               'uncertain. Retain the submitting journal for scheduler '
+                               'reconciliation.') from error
         if result.returncode:
             job['submission_status'] = 'failed'
             atomic_json(path, manifest)
@@ -1088,7 +1191,7 @@ def _run(manifest_path, *, max_jobs=8, interval=20.):
     while True:
         manifest = _submit(manifest_path, max_jobs=max_jobs)
         queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
-                                text=True, check=True)
+                                text=True, check=True, timeout=30)
         live = set(queued.stdout.split())
         if (manifest['status'] in ('complete_review_required', 'coverage_refinement_required')
                 and not any(str(job.get('job_id')) in live for job in manifest['jobs'])):
@@ -1098,8 +1201,10 @@ def _run(manifest_path, *, max_jobs=8, interval=20.):
                 # Account for shared-filesystem publication after queue exit.
                 deadline = job.setdefault('missing_since', time.time())
                 if time.time() - deadline > 60.:
+                    reason = '; '.join(job.get('validation_errors', [])) or 'No validated result was published.'
                     raise RuntimeError(f'{job["name"]}: queued probe ended without '
-                                       'valid output; inspect its stdout/stderr before retrying.')
+                                       f'valid output: {reason} Inspect {job["directory"]}/execution.json '
+                                       'and native output before retrying.')
             else:
                 job.pop('missing_since', None)
         atomic_json(Path(manifest_path), manifest)
@@ -1117,7 +1222,7 @@ def select_record(wfu, output, *, record, active_electrons, active_orbitals,
         'orbital_selection': {
             'mode': 'molpro_record', 'path': str(path),
             'record': record,
-            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+            'sha256': file_sha256(path),
         },
         'state_average': state_average,
         'selected_roots': selected_roots,

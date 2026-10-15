@@ -48,6 +48,7 @@ _RESERVED_FILES = {'geometry.xyz', 'task.json', 'job.slurm', 'execution.json',
                    'slurm.stdout', 'slurm.stderr', 'drive.lock'}
 _SCHEDULER_TIMEOUT = 30
 _SCHEDULER_QUERY_ATTEMPTS = 3
+_RESULT_PUBLICATION_GRACE = 60.
 
 
 class CalculationUnavailableError(RuntimeError):
@@ -2066,11 +2067,16 @@ def advance(run_dir, submit=False, submit_only=None):
                 raise RuntimeError(f'{ident}: completed geometry state changed.')
         if entry['status'] not in ('staged', 'submitted'):
             continue
+        # The retry guard may replace execution.json while this allocation
+        # is alive. Query first, then read the final record, never a failed
+        # intermediate attempt captured before a slow scheduler response.
+        if entry['status'] == 'submitted' and _job_active(entry['job_id']):
+            entry.pop('missing_since', None)
+            continue
         outcome = run_dir / 'tasks' / ident / 'execution.json'
         if outcome.exists():
             execution = json.loads(outcome.read_text())
-            if entry['status'] == 'submitted' and _job_active(entry['job_id']):
-                continue
+            entry.pop('missing_since', None)
             if (_native_success_recovery_candidate(task, execution)
                     and _native_success_present(
                         run_dir / 'tasks' / ident, task)):
@@ -2087,7 +2093,13 @@ def advance(run_dir, submit=False, submit_only=None):
             entry['execution'] = execution['status']
             if actual_hash is not None:
                 entry['final_geometry_sha256'] = actual_hash
-        elif entry['status'] == 'submitted' and not _job_active(entry['job_id']):
+        elif entry['status'] == 'submitted':
+            # Queue exit can precede visibility of the atomic result rename
+            # on the controller's shared-filesystem client. Retain ownership
+            # and the node-cap slot throughout this bounded publication wait.
+            missing_since = entry.setdefault('missing_since', time.time())
+            if time.time() - missing_since <= _RESULT_PUBLICATION_GRACE:
+                continue
             entry['status'] = 'failed'
             entry['error'] = 'Slurm job disappeared without execution.json.'
             entry['failure_phase'] = 'scheduler'

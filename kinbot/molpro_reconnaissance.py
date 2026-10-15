@@ -7,7 +7,7 @@ requested geometry.  A reviewed Molpro record can then be converted to the
 """
 
 from argparse import ArgumentParser
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from copy import deepcopy
 import fcntl
 import hashlib
@@ -1299,7 +1299,8 @@ def retry_failed(manifest_path, *, include_interrupted=False):
                 'completed_preserved': sum(job['status'] == 'complete' for job in manifest['jobs'])}
 
 
-def _submit(manifest_path, *, max_jobs=8):
+def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
+            live_job_ids=None, startup_checked=False, audited_manifest=None):
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
         raise ValueError('max_jobs must be positive.')
     path = Path(manifest_path).expanduser().resolve()
@@ -1309,16 +1310,23 @@ def _submit(manifest_path, *, max_jobs=8):
     if any(job.get('submission_status') == 'submitting' for job in pending['jobs']):
         raise RuntimeError('Interrupted Slurm submission requires scheduler '
                            'reconciliation before any new probes are submitted.')
-    queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
-                            text=True, check=True, timeout=30)
-    live = set(queued.stdout.split())
-    manifest = _audit(path, live_job_ids=live)
+    if max_new_jobs is not None and (isinstance(max_new_jobs, bool)
+            or not isinstance(max_new_jobs, int) or max_new_jobs < 0):
+        raise ValueError('max_new_jobs must be nonnegative.')
+    if live_job_ids is None:
+        queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                                text=True, check=True, timeout=30)
+        live_job_ids = queued.stdout.split()
+    live = set(live_job_ids)
+    # The shared controller already audited under the same held locks and
+    # scheduler snapshot; avoid rehashing every large checkpoint twice.
+    manifest = audited_manifest if audited_manifest is not None else _audit(path, live_job_ids=live)
     active = sum(str(job.get('job_id')) in live for job in manifest['jobs'])
     # Validate one native probe before widening a fresh manifest's launch.
     # This catches shared input/runtime failures without duplicating them
     # across every basis. It adds no jobs and retains the configured cap.
     startup = None
-    if not any(job['status'] == 'complete' for job in manifest['jobs']):
+    if not startup_checked and not any(job['status'] == 'complete' for job in manifest['jobs']):
         startup = manifest['jobs'][0]['name']
         max_jobs = min(max_jobs, 1)
     for job in manifest['jobs']:
@@ -1327,10 +1335,12 @@ def _submit(manifest_path, *, max_jobs=8):
             execution = json.loads(record.read_text())
             if execution.get('status') == 'failed':
                 raise RuntimeError(execution.get('error') or f'{job["name"]}: native execution failed.')
+    submitted = 0
     for job in manifest['jobs']:
         if startup is not None and job['name'] != startup:
             continue
-        if job['status'] == 'complete' or job.get('job_id') or active >= max_jobs:
+        if (job['status'] == 'complete' or job.get('job_id') or active >= max_jobs
+                or max_new_jobs is not None and submitted >= max_new_jobs):
             continue
         if job.get('submission_status') == 'submitting':
             raise RuntimeError(f'{job["name"]}: interrupted Slurm submission '
@@ -1384,6 +1394,7 @@ def _submit(manifest_path, *, max_jobs=8):
         job['job_id'] = identifier
         job['submission_status'] = 'submitted'
         active += 1
+        submitted += 1
         atomic_json(path, manifest)
     return manifest
 
@@ -1401,22 +1412,86 @@ def _run(manifest_path, *, max_jobs=8, interval=20.):
         queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
                                 text=True, check=True, timeout=30)
         live = set(queued.stdout.split())
-        if (manifest['status'] in ('complete_review_required', 'coverage_refinement_required')
-                and not any(str(job.get('job_id')) in live for job in manifest['jobs'])):
+        if _finished(manifest_path, manifest, live):
             return manifest
-        for job in manifest['jobs']:
-            if job.get('job_id') and str(job['job_id']) not in live and job['status'] != 'complete':
-                # Account for shared-filesystem publication after queue exit.
-                deadline = job.setdefault('missing_since', time.time())
-                if time.time() - deadline > 60.:
-                    reason = '; '.join(job.get('validation_errors', [])) or 'No validated result was published.'
-                    raise RuntimeError(f'{job["name"]}: queued probe ended without '
-                                       f'valid output: {reason} Inspect {job["directory"]}/execution.json '
-                                       'and native output before retrying.')
-            else:
-                job.pop('missing_since', None)
-        atomic_json(Path(manifest_path), manifest)
         time.sleep(interval)
+
+
+def _finished(manifest_path, manifest, live):
+    if (manifest['status'] in ('complete_review_required', 'coverage_refinement_required')
+            and not any(str(job.get('job_id')) in live for job in manifest['jobs'])):
+        return True
+    for job in manifest['jobs']:
+        if job.get('job_id') and str(job['job_id']) not in live and job['status'] != 'complete':
+            execution_path = Path(job['directory']) / 'execution.json'
+            if execution_path.is_file():
+                execution = json.loads(execution_path.read_text())
+                if execution.get('status') == 'failed':
+                    raise RuntimeError(execution.get('error') or f'{job["name"]}: native execution failed.')
+            # Allow shared-filesystem publication after queue exit. Until it
+            # validates, a missing allocation still reserves campaign capacity.
+            deadline = job.setdefault('missing_since', time.time())
+            if time.time() - deadline > 60.:
+                reason = '; '.join(job.get('validation_errors', [])) or 'No validated result was published.'
+                raise RuntimeError(f'{job["name"]}: queued probe ended without '
+                                   f'valid output: {reason} Inspect {job["directory"]}/execution.json '
+                                   'and native output before retrying.')
+        else:
+            job.pop('missing_since', None)
+    atomic_json(Path(manifest_path), manifest)
+    return False
+
+
+def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
+             capacity_manifests=()):
+    """Poll independent manifests under one journaled campaign-wide job cap.
+
+    A campaign may waive the per-manifest startup check only after its native
+    pilots pass. Existing jobs from another campaign phase also consume slots.
+    No worker threads or competing manifest writers are created.
+    """
+    if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
+        raise ValueError('max_jobs must be positive.')
+    if not np.isfinite(interval) or not 0. < interval <= 60.:
+        raise ValueError('Polling interval must be in (0, 60] seconds.')
+    paths = [Path(p).expanduser().resolve() for p in manifest_paths]
+    if not paths or len(set(paths)) != len(paths):
+        raise ValueError('Expected distinct reconnaissance manifests.')
+    all_paths = list(dict.fromkeys(paths + [Path(p).expanduser().resolve() for p in capacity_manifests]))
+    with ExitStack() as locks:
+        for parent in sorted({p.parent for p in all_paths}):
+            locks.enter_context(_manifest_lock(parent))
+        while True:
+            snapshots = {p: json.loads(p.read_text()) for p in all_paths}
+            if any(job.get('submission_status') == 'submitting'
+                   for m in snapshots.values() for job in m['jobs'] + m.get('excluded_jobs', [])):
+                raise RuntimeError('Interrupted Slurm submission requires scheduler reconciliation '
+                                   'before any new campaign probes are submitted.')
+            queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                                    text=True, check=True, timeout=30)
+            live = set(queued.stdout.split())
+            # Re-audit every phase before allocating slots. An apparently
+            # finished output remains untrusted while its allocation is live.
+            snapshots = {p: _audit(p, live_job_ids=live) for p in all_paths}
+            finished = {p: _finished(p, m, live) for p, m in snapshots.items()}
+            if all(finished[p] for p in paths):
+                return [snapshots[p] for p in paths]
+            reserved = {str(j['job_id']) for m in snapshots.values() for j in m['jobs']
+                        if j.get('job_id') and (str(j['job_id']) in live or j['status'] != 'complete')}
+            reserved.update(str(j['job_id']) for m in snapshots.values() for j in m.get('excluded_jobs', [])
+                            if str(j.get('job_id')) in live)
+            for path in paths:
+                if finished[path]:
+                    continue
+                before = {str(j['job_id']) for j in snapshots[path]['jobs'] if j.get('job_id')}
+                report = _submit(path, max_jobs=max_jobs, max_new_jobs=max(0, max_jobs - len(reserved)),
+                                 live_job_ids=live, startup_checked=startup_checked,
+                                 audited_manifest=snapshots[path])
+                new_ids = {str(j['job_id']) for j in report['jobs'] if j.get('job_id')} - before
+                # Reserve immediately, even before squeue exposes a new job.
+                reserved.update(new_ids)
+                live.update(new_ids)
+            time.sleep(interval)
 
 
 def select_record(wfu, output, *, record, active_electrons, active_orbitals,

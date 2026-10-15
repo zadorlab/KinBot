@@ -2,11 +2,48 @@ import json
 import os
 from pathlib import Path
 import tarfile
+import fcntl
+import signal
 
 import pytest
 
 from kinbot import orbital_campaign as campaign
 from test_molpro_reconnaissance import _coordinate_configuration, _complete_probes
+
+
+@pytest.mark.parametrize('valid_identity', [True, False])
+def test_controller_handoff_signals_only_verified_owner_and_preserves_jobs(tmp_path, monkeypatch, valid_identity):
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    path = campaign.prepare(root, [source])
+    saved = json.loads(path.read_text())
+    saved.update(status='running', controller_pid=12345)
+    path.write_text(json.dumps(saved))
+    proc = tmp_path / 'proc'
+    process = proc / '12345'
+    process.mkdir(parents=True)
+    (process / 'cwd').symlink_to(root if valid_identity else tmp_path, target_is_directory=True)
+    (process / 'cmdline').write_bytes(b'python\0-m\0kinbot.orbital_campaign\0run\0' + str(root).encode() + b'\0')
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file() and p != path}
+    signals = []
+    with (root / '.campaign.lock').open('a+') as owner:
+        fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        def terminate(pid, sig):
+            signals.append((pid, sig))
+            fcntl.flock(owner, fcntl.LOCK_UN)
+        monkeypatch.setattr(campaign.os, 'kill', terminate)
+        monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **k: pytest.fail('Slurm jobs must be untouched'))
+        if valid_identity:
+            assert campaign.stop_controller(root, proc=proc)['slurm_jobs_preserved']
+            assert signals == [(12345, signal.SIGTERM)]
+            assert campaign.stop_controller(root, proc=proc)['status'] == 'controller_stopped'
+            assert len(signals) == 1
+        else:
+            with pytest.raises(RuntimeError, match='identity'):
+                campaign.stop_controller(root, proc=proc)
+            assert not signals
+    assert all(p.read_bytes() == data for p, data in before.items())
 
 
 def test_preflight_and_batch_activate_the_molpro_backend(tmp_path, monkeypatch):
@@ -78,14 +115,15 @@ def test_campaign_controller_has_one_global_cap_and_is_run_scoped(tmp_path, monk
     (root / 'campaign.json').write_text(json.dumps(saved))
     calls = []
     original = Path.cwd()
-    def run(path, *, max_jobs):
+    def run(paths, *, max_jobs, capacity_manifests, startup_checked=False):
         assert Path.cwd() == root
         assert 'error' not in json.loads((root / 'campaign.json').read_text())
-        calls.append((Path(path).parent.name, max_jobs))
-        return {'status': 'complete_review_required', 'jobs': [{'status': 'complete'}]}
-    monkeypatch.setattr(campaign.recon, 'run', run)
+        calls.append(([Path(path).parent.name for path in paths], max_jobs, startup_checked))
+        assert len(capacity_manifests) == 4
+        return [{'status': 'complete_review_required', 'jobs': [{'status': 'complete'}]} for path in paths]
+    monkeypatch.setattr(campaign.recon, 'run_many', run)
     result = campaign.run(root, max_jobs=10)
-    assert calls == [('01_pilot', 10), ('02_pilot', 10), ('01_recon', 10), ('02_recon', 10)]
+    assert calls == [(['01_pilot', '02_pilot'], 10, False), (['01_recon', '02_recon'], 10, True)]
     assert result['status'] == 'complete_review_required'
     assert Path.cwd() == original
     with campaign._lock(root):
@@ -103,7 +141,7 @@ def test_failed_pilot_stops_before_full_jobs_and_records_failure(tmp_path, monke
     def fail(path, **kwargs):
         calls.append(path)
         raise RuntimeError('native pilot failed')
-    monkeypatch.setattr(campaign.recon, 'run', fail)
+    monkeypatch.setattr(campaign.recon, 'run_many', fail)
     with pytest.raises(RuntimeError, match='native pilot failed'):
         campaign.run(root)
     assert len(calls) == 1
@@ -133,10 +171,10 @@ def test_method_scoped_resume_keeps_unselected_controls_unresolved(tmp_path, mon
     monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **kw:
         SimpleNamespace(stdout='99\n' if unselected_state == 'live' else ''))
     calls = []
-    def execute(path, *, max_jobs):
-        calls.append((Path(path).parent.name, max_jobs))
-        return {'status': 'complete_review_required', 'jobs': [{'status': 'complete'}]}
-    monkeypatch.setattr(campaign.recon, 'run', execute)
+    def execute(paths, *, max_jobs, **kwargs):
+        calls.extend((Path(path).parent.name, max_jobs) for path in paths)
+        return [{'status': 'complete_review_required', 'jobs': [{'status': 'complete'}]} for path in paths]
+    monkeypatch.setattr(campaign.recon, 'run_many', execute)
     if unselected_state != 'stopped':
         with pytest.raises(RuntimeError, match='unselected allocations'):
             campaign.run(root, probe_method='casscf', max_jobs=20)
@@ -163,7 +201,7 @@ def test_campaign_rejects_changed_context_before_submission(tmp_path, monkeypatc
     root = tmp_path / 'campaign'
     saved = json.loads(campaign.prepare(root, [source]).read_text())
     Path(saved['systems'][0]['configuration']).write_text('{}')
-    monkeypatch.setattr(campaign.recon, 'run', lambda *args, **kw: pytest.fail('changed input submitted'))
+    monkeypatch.setattr(campaign.recon, 'run_many', lambda *args, **kw: pytest.fail('changed input submitted'))
     with pytest.raises(ValueError, match='configuration changed'):
         campaign.run(root)
 

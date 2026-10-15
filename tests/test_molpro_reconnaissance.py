@@ -615,6 +615,124 @@ def test_completed_controller_waits_for_allocations_before_next_system(tmp_path,
     assert sleeps == [20.]
 
 
+@pytest.mark.parametrize('limit,startup_checked,publication_lag,chain', [
+    (20, True, False, False), (3, True, False, False), (1, True, False, False),
+    (3, True, True, False), (20, False, False, False), (20, True, False, True)])
+def test_shared_campaign_capacity_reuses_live_jobs_and_keeps_dependencies(
+        tmp_path, monkeypatch, limit, startup_checked, publication_lag, chain):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    paths = []
+    for index in range(2):
+        source = tmp_path / f'input{index}.json'
+        (_coordinate_configuration if chain else _configuration)(source)
+        paths.append(prepare(source, tmp_path / f'recon{index}'))
+    existing = json.loads(paths[0].read_text())
+    existing['jobs'][0].update(job_id='7', submission_status='submitted', status='incomplete')
+    paths[0].write_text(json.dumps(existing))
+    live, outstanding = {'7'}, {'7'}
+    submissions, peaks = [], []
+    jobs_count = sum(len(json.loads(p.read_text())['jobs']) for p in paths)
+
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='\n'.join(sorted(live)), returncode=0)
+        assert command[0] == 'sbatch'
+        directory = Path(kwargs['cwd'])
+        manifest = json.loads((directory.parent / 'reconnaissance.json').read_text())
+        job = next(j for j in manifest['jobs'] if j['directory'] == str(directory))
+        if job['orbital_predecessor']:
+            prior = next(j for j in manifest['jobs'] if j['name'] == job['orbital_predecessor'])
+            assert prior['status'] == 'complete' and prior['job_id'] not in outstanding
+        identifier = str(100 + len(submissions))
+        submissions.append((directory.parent.name, job['name']))
+        outstanding.add(identifier)
+        live.add(identifier)
+        assert len(outstanding) <= limit
+        return SimpleNamespace(stdout=identifier, stderr='', returncode=0)
+
+    def advance(_):
+        peaks.append(len(outstanding))
+        assert len(peaks) < 20, 'scheduler failed to make progress'
+        if publication_lag and len(peaks) == 1:
+            live.clear()  # Slurm no longer shows jobs; final outputs are not published yet.
+            return
+        if publication_lag and len(peaks) == 2:
+            assert len(submissions) == limit - 1  # Missing allocations still reserve slots.
+        for path in paths:
+            for job in json.loads(path.read_text())['jobs']:
+                if job.get('job_id') not in outstanding:
+                    continue
+                directory, name = Path(job['directory']), job['name']
+                (directory / (name + '.out')).write_text(
+                    'SETTING RECONENERGY = -10.0 AU\n'
+                    + ''.join(f'SETTING RECONR{index} = -10.0 AU\n'
+                              for index, _ in enumerate(job['root_states'], 1))
+                    + 'SETTING RECONDONE = 1\nMolpro calculation terminated\n')
+                (directory / (name + '.wfu')).write_bytes(name.encode())
+                (directory / (name + '.molden')).write_text('[Molden Format]\n')
+                if job['natural_orbital_probe']:
+                    (directory / (name + '.natural.molden')).write_text(
+                        '[MO]\n' + 'Occup=2\n' * 11 + 'Occup=1\n')
+        outstanding.clear()
+        live.clear()
+
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    monkeypatch.setattr(recon.time, 'sleep', advance)
+    reports = recon.run_many(paths, max_jobs=limit, startup_checked=startup_checked)
+    assert all(j['status'] == 'complete' for m in reports for j in m['jobs'])
+    assert len(submissions) == jobs_count - 1  # Adopt, never resubmit, the live job.
+    assert reports[0]['jobs'][0]['job_id'] == '7'
+    assert peaks[0] == (min(limit, jobs_count) if startup_checked and not chain else 2)
+
+
+@pytest.mark.parametrize('failure', ['uncertain', 'scheduler'])
+def test_shared_scheduler_fails_before_any_submission(tmp_path, monkeypatch, failure):
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    paths = [prepare(source, tmp_path / f'recon{i}') for i in range(2)]
+    if failure == 'uncertain':
+        manifest = json.loads(paths[1].read_text())
+        manifest['jobs'][0]['submission_status'] = 'submitting'
+        paths[1].write_text(json.dumps(manifest))
+    calls = []
+    def scheduler(command, **kwargs):
+        calls.append(command[0])
+        if command[0] != 'squeue':
+            pytest.fail('submitted without knowing campaign capacity')
+        raise RuntimeError('scheduler unavailable')
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    with pytest.raises(RuntimeError, match='reconciliation|scheduler unavailable'):
+        recon.run_many(paths, startup_checked=True)
+    assert calls == ([] if failure == 'uncertain' else ['squeue'])
+
+
+def test_shared_capacity_includes_allocations_from_another_phase(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    paths = [prepare(source, tmp_path / f'recon{i}') for i in range(3)]
+    outside = json.loads(paths[2].read_text())
+    outside['jobs'][0].update(job_id='77', status='incomplete', submission_status='submitted')
+    paths[2].write_text(json.dumps(outside))
+    submitted = []
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='77\n')
+        submitted.append(kwargs['cwd'])
+        return SimpleNamespace(stdout='88', stderr='', returncode=0)
+    def stop_after_tick(_):
+        raise RuntimeError('end of first polling cycle')
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    monkeypatch.setattr(recon.time, 'sleep', stop_after_tick)
+    with pytest.raises(RuntimeError, match='end of first polling cycle'):
+        recon.run_many(paths[:2], capacity_manifests=paths, max_jobs=2, startup_checked=True)
+    assert len(submitted) == 1  # One old allocation plus one new allocation.
+    assert json.loads(paths[2].read_text())['jobs'][0]['job_id'] == '77'
+
+
 def test_retry_archives_known_failure_and_preserves_completed_probe(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from kinbot import molpro_reconnaissance as recon

@@ -33,8 +33,13 @@ the full reference panel.
    counts, AVAS targets, input hash and WFU hash must agree. Unavailable seeds
    fall back to radial propagation or a fresh start. Old energies are never
    relabeled as optimized results. Keep the old campaign at its original path.
-5. Run with `orbital_campaign run`. Native pilots and a shared Slurm limit
-   precede full execution. The finite panels do not trigger automatic spatial
+5. Run with `orbital_campaign run`. Independent systems share one Slurm job
+   limit; pilots run concurrently, then all ready full-panel probes can launch
+   together after the pilots pass. Full panels do not repeat a redundant
+   one-job startup check. Genuine checkpoint predecessors must still finish
+   and validate before dependent probes launch. Live allocations, newly
+   submitted IDs not yet visible in Slurm, and missing allocations awaiting
+   validated output all consume capacity. The finite panels do not trigger automatic spatial
    expansion. Legacy adaptive refinement remains an explicit opt-in; both CLI
    defaults are now zero passes. For a stopped mixed-method campaign,
    `run ROOT --probe-method casscf --max-jobs 20 --max-refinements 0` resumes
@@ -44,6 +49,10 @@ the full reference panel.
    `selected_complete_review_required` rather than whole-campaign completion.
    `progress` labels each system with `selected`; a later run without the
    method filter explicitly resumes the entire original campaign.
+   `stop-controller ROOT` stops only the verified Linux controller process
+   and waits for its campaign lock to release, preserving running Slurm jobs.
+   A new controller adopts their recorded job IDs. This differs from
+   `run_cleanup --stop`, which also cancels the scoped calculations.
 6. `report ROOT OUTPUT.json` supplies geometry, chemical rationale, requested
    state averages, occupations, complete native orbital/CI text, root energies,
    elapsed times and hash-bound artifact paths. It compares geometrically

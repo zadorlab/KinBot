@@ -1,7 +1,7 @@
 """Snapshot, pilot, run and collect arbitrary Molpro recon configurations.
 
-System controllers run sequentially and wait for their Slurm allocations to
-leave, so max_jobs is a campaign-wide one-node job cap. No SSH is performed.
+Independent probes share one campaign-wide Slurm cap. Native pilots gate
+full panels; checkpoint dependencies are retained. No SSH is performed.
 """
 import argparse
 from contextlib import contextmanager, ExitStack
@@ -12,9 +12,11 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
+import time
 
 from kinbot.execution import atomic_json, file_sha256
 from kinbot import molpro_reconnaissance as recon
@@ -82,6 +84,43 @@ def _validate_inputs(record):
     data = json.loads(source.read_text())
     if data.get('kinbot_input') and file_sha256(data['kinbot_input']) != record['context_sha256']:
         raise ValueError('Campaign electronic context changed; use a fresh campaign.')
+
+
+def stop_controller(root, *, timeout=30., proc=Path('/proc')):
+    """Stop only this Linux campaign controller, preserving Slurm allocations."""
+    root = Path(root).expanduser().resolve(strict=True)
+    if not (root / 'campaign.json').is_file() or not (root / '.kinbot_run.json').is_file():
+        raise ValueError('Expected a prepared orbital campaign.')
+    with (root / '.campaign.lock').open('a+') as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            saved = json.loads((root / 'campaign.json').read_text())
+            pid = saved.get('controller_pid')
+            if not isinstance(pid, int) or pid <= 1:
+                raise RuntimeError('Busy campaign has no identified controller; inspect before stopping.')
+            process = proc / str(pid)
+            command = (process / 'cmdline').read_bytes().split(b'\0')
+            signature = [b'-m', b'kinbot.orbital_campaign', b'run']
+            if (process.stat().st_uid != os.getuid() or (process / 'cwd').resolve() != root
+                    or not any(command[i:i + 3] == signature for i in range(len(command) - 2))):
+                raise RuntimeError('Controller PID identity does not match this campaign; no signal sent.')
+            os.kill(pid, signal.SIGTERM)
+            deadline = time.monotonic() + timeout
+            while True:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError('Controller has not released the campaign lock; do not start another.')
+                    time.sleep(.2)
+        saved = json.loads((root / 'campaign.json').read_text())
+        if saved.get('status') == 'running':
+            saved.update(status='controller_stopped', error=None)
+            saved.pop('controller_pid', None)
+            atomic_json(root / 'campaign.json', saved)
+        return {'status': 'controller_stopped', 'slurm_jobs_preserved': True}
 
 
 def preflight(root):
@@ -155,25 +194,35 @@ def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=
                         # Refresh old completion labels using current validation,
                         # but neither submit nor retry an unselected control.
                         recon.audit(record[key])
-            # Complete every system's native pilot first. No full recon jobs
-            # start if any requested basis/root block fails its pilot.
+            all_manifests = [record[key] for record in selected for key in ('pilot_manifest', 'manifest')]
+            # Independent pilots share the cap. All must pass before opening
+            # full panels, which then need no second one-job startup gate.
             for record in selected:
-                _validate_inputs(record)
                 print(f'Native pilot: {record["title"]}', flush=True)
-                report = recon.run(record['pilot_manifest'], max_jobs=max_jobs)
+            pilots = recon.run_many([record['pilot_manifest'] for record in selected],
+                                    max_jobs=max_jobs, capacity_manifests=all_manifests)
+            for report in pilots:
                 if not all(job['status'] == 'complete' for job in report['jobs']):
                     raise RuntimeError('Native reconnaissance pilot did not complete.')
             if not pilot_only:
-                for record in selected:
-                    print(f'Orbital reconnaissance: {record["title"]}', flush=True)
-                    for attempt in range(max_refinements + 1):
-                        report = recon.run(record['manifest'], max_jobs=max_jobs)
-                        if report['status'] != 'coverage_refinement_required' or attempt == max_refinements:
-                            break
-                        recon.refine(record['manifest'])
-                    record['status'] = report['status']
-                    print(f'{record["title"]}: {report["status"]}', flush=True)
+                pending = selected
+                for attempt in range(max_refinements + 1):
+                    for record in pending:
+                        print(f'Orbital reconnaissance: {record["title"]}', flush=True)
+                    reports = recon.run_many([record['manifest'] for record in pending],
+                        max_jobs=max_jobs, startup_checked=True, capacity_manifests=all_manifests)
+                    refine = []
+                    for record, report in zip(pending, reports):
+                        record['status'] = report['status']
+                        print(f'{record["title"]}: {report["status"]}', flush=True)
+                        if report['status'] == 'coverage_refinement_required':
+                            refine.append(record)
                     atomic_json(path, campaign)
+                    if not refine or attempt == max_refinements:
+                        break
+                    for record in refine:
+                        recon.refine(record['manifest'])
+                    pending = refine
             campaign['status'] = 'pilot_complete' if pilot_only else 'complete_review_required'
             if probe_method is not None:
                 campaign['status'] = 'selected_' + campaign['status']
@@ -383,6 +432,8 @@ def main(argv=None):
     report.add_argument('root')
     check = commands.add_parser('preflight')
     check.add_argument('root')
+    stop = commands.add_parser('stop-controller', help='Stop only the controller, keeping Slurm jobs running.')
+    stop.add_argument('root')
     retry = commands.add_parser('retry-failed')
     retry.add_argument('root')
     retry.add_argument('--include-interrupted', action='store_true',
@@ -407,6 +458,8 @@ def main(argv=None):
         result = collect(args.root, args.destination)
     elif args.action == 'preflight':
         result = preflight(args.root)
+    elif args.action == 'stop-controller':
+        result = stop_controller(args.root)
     elif args.action == 'retry-failed':
         result = retry_failed(args.root, include_interrupted=args.include_interrupted)
     elif args.action == 'archive-excluded':

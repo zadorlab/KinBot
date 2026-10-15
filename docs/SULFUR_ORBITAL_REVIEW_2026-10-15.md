@@ -166,6 +166,50 @@ convergence thresholds or substituting unconverged CASCI energies.
 
 ### Solver repair and restart
 
+**Scheduling follow-up:** all six repaired CASSCF panel jobs have no checkpoint
+predecessor; the three checkpoint-initialized probes each have their own seed.
+The previous one-at-a-time behavior came from sequential system controllers
+and a redundant first-job check in each full panel, despite successful pilots.
+Campaign scheduling now uses a shared queue and skips that redundant check
+after the pilots pass. Up to six remaining jobs can therefore be active in
+this repair, within the configured maximum of 20; the scheduler still decides
+when requested resources are available.
+
+To update a **running** convergence campaign without cancelling its Molpro
+allocations, use this controller-only handoff on Blodgett. Completed outputs,
+running job IDs and native inputs remain in place. No `retry-failed` call is
+needed while adopting live allocations.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+RUN=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_convergence_20261015
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
+"$KB_PY" -m kinbot.orbital_campaign stop-controller "$RUN"
+export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+mkdir -p "$KINBOT_MOLPRO_SCRATCH"
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$RUN" \
+    --probe-method casscf --max-jobs 20 --max-refinements 0 \
+    >> "$RUN/controller.log" 2>&1 < /dev/null &
+printf '%s\n' "$!" > "$RUN/controller.pid"
+"$KB_PY" -m kinbot.orbital_campaign progress "$RUN"
+tail -n 30 "$RUN/controller.log"
+BASH
+```
+
+If a submission was interrupted between `sbatch` and recording its returned
+job ID, the controller stops for reconciliation rather than submitting a
+duplicate. It also stops on a failed queue query. Its single writer holds all
+participating manifest locks while counting slots and submitting new work.
+
+The full stop/repair procedure below remains available for an intentionally
+cancelled campaign or initial preparation.
+
 `orbital_review repair-convergence OLD NEW` prepares a separate campaign from
 the rejected native outputs. It preserves the old files and all valid work.
 It uses quadratic RHF (`rhf,so`) and, for the small CASSCF reference, exact CI

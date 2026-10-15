@@ -177,7 +177,7 @@ def analyze(root, archive):
             'No correlated checks were requested in this campaign.']}
 
 
-def plot(report, destination):
+def plot(report, destination, *, title=None):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -215,7 +215,7 @@ def plot(report, destination):
         ax.set(xlabel='Reactive atom distance (Å)', ylabel='Energy − own 30 Å root (kcal/mol)')
         ax.legend(fontsize=8, ncol=2 if len(far['root_states']) <= 6 else 4)
         ax.grid(alpha=.2)
-    fig.suptitle('TZ-F12 CASSCF diagnostic references: occupations and sparse radial energies\n'
+    fig.suptitle(title or 'TZ-F12 CASSCF diagnostic references: occupations and sparse radial energies\n'
                  'Black crosses: iteration-limit failures. Ranges include provisional points. No correlated energies.',
                  fontsize=12)
     fig.savefig(destination, dpi=180)

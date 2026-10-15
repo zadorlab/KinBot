@@ -1,5 +1,92 @@
 # Review of the completed CH3S/CH3SS reference-orbital campaign
 
+## Current result: repaired reference panel complete
+
+The combined export `ch3s_ch3ss_orbital_diagnostics_20261015.tar.gz` includes
+the original panel and the convergence, SO-SCI, accuracy and tolerance repair
+campaigns. Its SHA-256 is
+`0268ea14446a22c9bc9f4a4db3a3eebd831dc8fd3d35d39fbe203870096825ab`.
+The combined audit verifies **462 artifact hashes**, including prepared/native
+inputs and accepted outputs/XML. The binary WFU files remain on Blodgett;
+their recorded hashes cannot be verified from this export.
+
+**Every one of the eight review geometries in each of the three channels now
+has both a converged fresh and a converged checkpoint-initialized CASSCF result.**
+That is 48 distinct channel/geometry/initialization combinations, drawn from
+55 accepted CASSCF attempts. There are also 19 accepted CASCI attempts,
+22 rejected native attempts and 12 unsubmitted jobs. Rejected attempts remain
+rejected; valid replacement pilots supply the missing comparison evidence.
+The historical failed campaign labels and unrun duplicate panel jobs do not
+require another reference repair or full-panel restart.
+
+Comparison of the twelve-decimal native `!MCSCF STATE` energies, with matching
+geometry, basis, active space, state average and spin/root labels, gives:
+
+| Channel | Fresh/checkpoint pairs covered | Largest absolute root-energy difference (kcal/mol) |
+| --- | --- | --- |
+| CH3S C–S | 8/8 geometries | 0.000001204 |
+| CH3SS C–S | 8/8 geometries | 0.00000000250 |
+| CH3SS S–S | 8/8 geometries | 0.0000000973 |
+
+The occupation spectra agree to their five printed decimals in every matched
+pair. Nearly degenerate states and orbitals can rotate, so this does not prove
+identical orbital coefficients or establish behavior at every sampling geometry.
+
+The last checkpoint-initialized CH3S pilot took **63.35 seconds**, printed native
+CASSCF convergence with energy target **1e-8 Eh**, gradient target **1e-5**, and
+final gradient **7.2e-8**. Its largest root-energy difference from the converged
+fresh calculation is **1.9181e-9 Eh**. This validates the repaired reference at
+that geometry; the stopping target itself is not an energy-error guarantee.
+The production correlation thresholds and global defaults were not changed.
+
+Reproduce the combined analysis from the repository root:
+
+```bash
+.venv/bin/python examples/anl/orbital_reviews/analyze_combined.py \
+    examples/anl/orbital_reviews/ch3s_ch3ss_orbital_diagnostics_20261015.tar.gz \
+    examples/anl/orbital_reviews/combined_results
+```
+
+The [combined evidence](../examples/anl/orbital_reviews/combined_results/summary.json)
+retains every accepted CASSCF attempt, native orbital/CI tables, convergence
+details, initialization provenance and pairwise comparisons. Representatives
+are the first validated attempts in archive order, never those selected by
+lowest energy. The script is a reproducible analysis of this sulfur case;
+its candidate orbital ranks are not a general production selection rule.
+
+![Validated reference occupations and sparse radial energies](../examples/anl/orbital_reviews/combined_results/diagnostics.png)
+
+The candidate table below remains supported by the repaired panel. The next
+decision is which smaller spaces to **test**, followed by user selection of
+the final production models. The recommended comparison is CH3S CAS(5,4)
+versus CAS(9,6), and each CH3SS channel CAS(9,7) versus CAS(13,9), retaining
+CAS(13,8) and CAS(19,12), respectively, as larger references. The completed
+large-space CASSCF energies are not substitutes for correlated reference
+energies in that comparison.
+
+For candidate initialization, identify the retained chemical subspace in the
+reviewed natural orbitals at each geometry; freezing the indicated local ranks
+is a hypothesis to reoptimize and inspect. Do not substitute one fixed Cartesian
+carbon p component for the methyl radical orbital across tilted geometries.
+The general `prepare --reuse-from` path deliberately requires the same active
+counts and AVAS targets. It cannot silently turn a large reference WFU into a
+smaller candidate; that needs an explicit reviewed orbital partition.
+
+Keep the current channel averages for the initial space comparison to isolate
+the active-space effect. Test reduced inner averages separately, retain the
+needed fragment manifolds for outer surfaces, and inspect character near root
+crossings. At shared radial and tilted geometries, compare correlated relative
+interactions and spin gaps with consistent separated references. Time a small
+pilot before expanding expensive methods. DZ-F12 sampling/TZ-F12 correction
+is a candidate cost reduction, not yet an accuracy finding; QZ-F12 remains an
+optional spot check rather than another full reconnaissance campaign.
+
+## Original export and repair history
+
+The sections below retain the original findings and commands for provenance.
+The completion assessment above supersedes their pending-repair instructions;
+do not run those old restart blocks for this already repaired reference panel.
+
 Source: `ch3s_ch3ss_orbital_review_20261015.tar.gz`, exported on Blodgett at
 08:25:04 on October 15. Archive SHA-256:
 `33ab9f2441168a90b462957be929b7f863f76bfaa5d0621a9d086f8510e8b5b5`.
@@ -129,7 +216,7 @@ Median CASSCF times on eight ranks were about 5.5 minutes for CH3S (including
 stalled jobs), 7.8 minutes for CH3SS C–S and 8.7 minutes for CH3SS S–S. These
 are reference optimizations; there are no CASPT2, MRCI or CCSD(T) timings in
 this archive. No timing-based conclusion about production basis sets follows.
-After repair and candidate choice, benchmark correlated methods at a few
+After candidate choice, benchmark correlated methods at a few
 shared geometries, first at TZ-F12, then DZ-F12 sampling and QZ-F12 correction
 checks if useful. Compare relative interactions and spin gaps, not total
 basis energies. Do not repeat a complete QZ reconnaissance campaign yet.

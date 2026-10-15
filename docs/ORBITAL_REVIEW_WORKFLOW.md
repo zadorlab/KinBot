@@ -6,9 +6,10 @@ or prescribed sulfur active spaces in the implementation.
 
 The [October 15 native review](SULFUR_ORBITAL_REVIEW_2026-10-15.md) identifies
 solver failures hidden by the original completion checks, gives candidate
-spaces from the actual orbital data, and provides a selective repair command.
-Use that follow-up for the completed sulfur campaign rather than rerunning
-the full reference panel.
+spaces from the actual orbital data, and now combines the successful repairs
+with the original panel. All eight geometries in each sulfur channel have
+converged fresh and checkpoint-initialized references. Use that combined
+evidence for candidate selection; no further reference-panel restart is needed.
 
 ## Procedure
 

@@ -1,6 +1,8 @@
 """Spin-splitting VRC correction arithmetic and input contracts."""
 
 import os
+import hashlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,12 +11,20 @@ import pytest
 
 from kinbot.anl.extrapolation import two_point_cbs
 from kinbot.molpro import (Molpro, _vrc_multireference_method,
+                           automatic_vrc_state_model,
+                           full_valence_active_space,
+                           stage_vrc_state_model,
+                           validate_vrc_state_model,
                            vrc_multireference_energy_contract)
 from kinbot.vrc_correction import (
+    active_space_feasibility, active_space_settings,
+    apply_vrc_accuracy_preset,
     assemble_sampling_reference, assemble_spin_splitting_reference,
     correction_components, coupled_multiplicities, expected_levels,
-    sampling_settings, spin_splitting_settings, spin_splitting_weights,
+    resolved_state_model, sampling_settings, spin_splitting_settings,
+    spin_splitting_weights, validate_vrc_levels,
 )
+from kinbot.vrc_tst_scan import VTS
 
 
 def _parameters(**updates):
@@ -47,6 +57,57 @@ def test_default_spin_splitting_uses_tz_qz_cbs_for_all_three_branches():
         1, 3}
     assert expected_levels(_parameters())['trusted_correction']['model'] == \
         'spin_splitting'
+
+
+def test_general_triplet_pair_uses_highest_available_reference_spin():
+    settings = spin_splitting_settings(
+        _parameters(), parent_multiplicity=3, fragment_multiplicities=[3, 3])
+    assert settings['target_multiplicity'] == 3
+    assert settings['reference_multiplicity'] == 5
+
+
+def test_direct_trusted_cbs_has_distinct_components_and_correct_arithmetic():
+    from kinbot.vrc_correction import assemble_trusted_reference
+    parameters = _parameters(vrc_tst_correction_model='direct',
+        vrc_tst_high_basis=['avtz-f12', 'avqz-f12'],
+        vrc_tst_high_extrapolation_power=3.7)
+    components = correction_components(parameters)
+    assert [(item['role'], item['basis']) for item in components[1:]] == [
+        ('trusted:0', 'avtz-f12'), ('trusted:1', 'avqz-f12')]
+    assert len({item['suffix'] for item in components}) == len(components)
+    result, metadata = assemble_trusted_reference([3., 30.],
+        {'trusted:0': [-10., -9.], 'trusted:1': [-10.1, -9.1]}, parameters)
+    assert result == pytest.approx([
+        two_point_cbs(-10., -10.1, upper_cardinal=4, power=3.7),
+        two_point_cbs(-9., -9.1, upper_cardinal=4, power=3.7)])
+    assert metadata['basis'] == ['avtz-f12', 'avqz-f12']
+
+
+def test_declared_fragment_context_also_selects_the_high_spin_anchor():
+    settings = spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
+        'target_multiplicity': 3, 'fragment_multiplicities': [3, 3]}))
+    assert settings['reference_multiplicity'] == 5
+
+
+def test_already_high_spin_target_does_not_silently_use_low_spin_cc_anchor():
+    with pytest.raises(ValueError, match='already the highest'):
+        spin_splitting_settings(
+            _parameters(), parent_multiplicity=4, fragment_multiplicities=[2, 3])
+    # An explicit expert reference remains possible, with the parent fixed.
+    settings = spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
+        'reference_multiplicity': 2}), parent_multiplicity=4,
+        fragment_multiplicities=[2, 3])
+    assert settings['reference_multiplicity'] == 2
+
+
+@pytest.mark.parametrize('override,message', [
+    ({'target_multiplicity': 4}, 'accepted parent'),
+    ({'fragment_multiplicities': [2, 5]}, 'accepted products'),
+])
+def test_explicit_spin_settings_cannot_relabel_the_accepted_channel(override, message):
+    with pytest.raises(ValueError, match=message):
+        spin_splitting_settings(_parameters(vrc_tst_spin_splitting=override),
+                                parent_multiplicity=2, fragment_multiplicities=[2, 3])
 
 
 def test_distance_switch_prefers_mrci_short_and_caspt2_long_range():
@@ -87,6 +148,265 @@ def test_sulfur_radical_spin_couplings_and_high_accuracy_active_spaces():
     assert settings['reference_multiplicity'] == 4
     assert [item['method'] for item in settings['gap_levels']] == [
         'caspt2-f12b(13,8)', 'mrci-f12b+q(13,8)']
+
+
+def test_whole_molecule_full_valence_spaces_and_feasibility_are_derived():
+    ch3s = full_valence_active_space(['C', 'H', 'H', 'H', 'S'])
+    ch3ss = full_valence_active_space(['C', 'H', 'H', 'H', 'S', 'S'])
+    assert (ch3s['active_electrons'], ch3s['active_orbitals']) == (13, 8)
+    assert (ch3ss['active_electrons'], ch3ss['active_orbitals']) == (19, 12)
+    assert [center['atom'] for center in ch3s['orbital_selection']['centers']] \
+        == [1, 5]
+    assert [center['atom'] for center in ch3ss['orbital_selection']['centers']] \
+        == [1, 5, 6]
+    assert active_space_feasibility(ch3s, [2, 4]) == {
+        '2': {'alpha_electrons': 7, 'beta_electrons': 6,
+              'determinants': 224},
+        '4': {'alpha_electrons': 8, 'beta_electrons': 5,
+              'determinants': 56},
+    }
+    assert active_space_feasibility(ch3ss, [2, 4]) == {
+        '2': {'alpha_electrons': 10, 'beta_electrons': 9,
+              'determinants': 14520},
+        '4': {'alpha_electrons': 11, 'beta_electrons': 8,
+              'determinants': 5940},
+    }
+
+    ch3s_rydberg = full_valence_active_space(
+        ['C', 'H', 'H', 'H', 'S'],
+        additional_centers=[{'atom': 1, 'orbitals': ['3s']}])
+    assert (ch3s_rydberg['active_electrons'],
+            ch3s_rydberg['active_orbitals']) == (13, 9)
+    assert ch3s_rydberg['orbital_selection']['centers'][0] == {
+        'atom': 1, 'orbitals': ['2s', '2p', '3s']}
+
+
+def test_radical_pair_is_a_guarded_two_doublet_cas22_shortcut():
+    parameters = _parameters(
+        vrc_tst_active_space='radical_pair',
+        vrc_tst_sample_method='caspt2-f12b(9,7)',
+        vrc_tst_sample_basis='avtz-f12',
+        vrc_tst_scan_method='caspt2-f12b(9,7)',
+        vrc_tst_scan_basis='avtz-f12',
+        vrc_tst_spin_splitting={'fragment_multiplicities': [2, 2]},
+    )
+    space = active_space_settings(parameters, ['C', 'C', *['H'] * 6])
+    assert space == {
+        'active_electrons': 2,
+        'active_orbitals': 2,
+        'orbital_selection': None,
+        'selection': 'two_doublet_radical_pair',
+        'validation': 'accepted_products_must_be_two_doublets',
+    }
+    validate_vrc_levels(parameters)
+    model = resolved_state_model(
+        parameters, ['C', 'C', *['H'] * 6], 0,
+        spin_splitting_settings(parameters))
+    assert 'orbital_selection' not in model
+    assert [entry['multiplicity'] for entry in model['state_average']] == [1, 3]
+    assert expected_levels(
+        parameters, symbols=['C', 'C', *['H'] * 6]
+    )['sampling']['method'] == 'caspt2-f12b(2,2)'
+
+    with pytest.raises(ValueError, match='two doublet'):
+        validate_vrc_levels({
+            **parameters,
+            'vrc_tst_spin_splitting': {'fragment_multiplicities': [2, 3]},
+        })
+    with pytest.raises(ValueError, match='spin_splitting'):
+        validate_vrc_levels({
+            **parameters,
+            'vrc_tst_correction_model': 'direct',
+        })
+
+    holder = VTS.__new__(VTS)
+    holder.par = parameters
+    accepted = SimpleNamespace(
+        products=[SimpleNamespace(mult=2, atom=['C', 'H', 'H', 'H']),
+                  SimpleNamespace(mult=2, atom=['C', 'H', 'H', 'H'])],
+        species=SimpleNamespace(atom=['C', 'C', *['H'] * 6],
+                                charge=0, mult=1))
+    settings, _ = VTS._spin_context(holder, accepted)
+    assert (settings['target_multiplicity'],
+            settings['reference_multiplicity']) == (1, 3)
+    rejected = SimpleNamespace(
+        products=[SimpleNamespace(mult=2, atom=['C', 'H', 'H', 'H']),
+                  SimpleNamespace(mult=3, atom=['S'])],
+        species=SimpleNamespace(atom=['C', 'H', 'H', 'H', 'S'],
+                                charge=0, mult=2))
+    with pytest.raises(ValueError, match='two doublet fragments'):
+        VTS._spin_context(holder, rejected)
+
+
+def test_hash_verified_molpro_orbitals_are_staged_reproducibly(tmp_path):
+    source = tmp_path / 'expert.wfu'
+    source.write_bytes(b'molpro orbital record fixture')
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    model = validate_vrc_state_model({
+        'orbital_selection': {
+            'mode': 'molpro_record',
+            'path': str(source),
+            'record': '2140.2',
+            'sha256': digest,
+        },
+        'state_average': [
+            {'multiplicity': 1, 'roots': 1},
+            {'multiplicity': 3, 'roots': 1},
+        ],
+    })
+    staged = stage_vrc_state_model(model, tmp_path / 'calculation', 'point')
+    staged_path = Path(staged['orbital_selection']['path'])
+    assert staged_path.is_absolute()
+    assert staged_path.read_bytes() == source.read_bytes()
+    program, _ = _vrc_multireference_method(
+        'caspt2-f12b(2,2)', 18, spin=0, state_model=staged)
+    assert f'file,2,{staged_path}' in program
+    assert 'start,2140.2' in program
+    assert 'occ,10\nclosed,8\n' in program
+    assert 'diab,2140.2' in program
+    automatic = automatic_vrc_state_model(
+        ['C', 'C', *['H'] * 6], 0, [1, 3],
+        active_space={
+            'active_electrons': 2,
+            'active_orbitals': 2,
+            'orbital_selection': None,
+        })
+    assert 'orbital_selection' not in automatic
+
+    source.write_bytes(b'changed')
+    with pytest.raises(ValueError, match='SHA-256'):
+        validate_vrc_state_model(model)
+
+
+def test_selected_space_can_load_a_relative_reconnaissance_record(tmp_path):
+    wfu = tmp_path / 'reviewed.wfu'
+    wfu.write_bytes(b'reviewed orbitals')
+    digest = hashlib.sha256(wfu.read_bytes()).hexdigest()
+    payload = {
+        'schema': 1,
+        'active_space': {
+            'mode': 'selected', 'active_electrons': 5,
+            'active_orbitals': 4, 'source': 'reviewed C-S manifold',
+        },
+        'state_model': {
+            'orbital_selection': {
+                'mode': 'molpro_record', 'path': str(wfu),
+                'record': '2140.2', 'sha256': digest,
+            },
+            'state_average': [
+                {'multiplicity': 2, 'roots': 3},
+                {'multiplicity': 4, 'roots': 3},
+            ],
+        },
+    }
+    (tmp_path / 'state.json').write_text(json.dumps(payload))
+    (tmp_path / 'input.json').write_text('{}')
+    parameters = _parameters(
+        input_file=str(tmp_path / 'input.json'),
+        vrc_tst_active_space={
+            'mode': 'selected', 'active_electrons': 5,
+            'active_orbitals': 4, 'source': 'reviewed C-S manifold',
+        },
+        vrc_tst_state_model_file='state.json',
+        vrc_tst_sample_method='caspt2-f12b(2,2)',
+        vrc_tst_sample_basis='avtz-f12',
+        vrc_tst_scan_method='caspt2-f12b(2,2)',
+        vrc_tst_scan_basis='avtz-f12',
+        vrc_tst_spin_splitting={
+            'target_multiplicity': 2,
+            'reference_multiplicity': 4,
+            'fragment_multiplicities': [2, 3],
+        },
+    )
+    validate_vrc_levels(parameters)
+    settings = spin_splitting_settings(parameters)
+    model = resolved_state_model(
+        parameters, ['C', 'S', 'H', 'H', 'H'], 0, settings,
+        roots={2: 1, 4: 1})
+    assert model['orbital_selection']['sha256'] == digest
+    assert model['state_average'] == [
+        {'multiplicity': 2, 'roots': 1, 'weights': [1.0]},
+        {'multiplicity': 4, 'roots': 1, 'weights': [1.0]},
+    ]
+    assert expected_levels(
+        parameters, symbols=['C', 'S', 'H', 'H', 'H'], settings=settings
+    )['sampling']['method'] == 'caspt2-f12b(5,4)'
+
+
+def test_external_state_model_selects_a_basis_specific_wfu(tmp_path):
+    models = {}
+    for basis in ('avtz-f12', 'avqz-f12'):
+        wfu = tmp_path / f'{basis}.wfu'
+        wfu.write_bytes(basis.encode())
+        models[basis] = {
+            'orbital_selection': {
+                'mode': 'molpro_record', 'path': str(wfu),
+                'record': '2140.2',
+                'sha256': hashlib.sha256(wfu.read_bytes()).hexdigest(),
+            },
+            'state_average': [{'multiplicity': 2, 'roots': 1}],
+        }
+    (tmp_path / 'state.json').write_text(json.dumps({
+        'schema': 2,
+        'active_space': {
+            'mode': 'selected', 'active_electrons': 5,
+            'active_orbitals': 4, 'source': 'reviewed manifold',
+        },
+        'basis_models': models,
+    }))
+    parameters = _parameters(
+        input_file=str(tmp_path / 'input.json'),
+        vrc_tst_active_space={
+            'mode': 'selected', 'active_electrons': 5,
+            'active_orbitals': 4, 'source': 'reviewed manifold',
+        },
+        vrc_tst_state_model_file='state.json',
+        vrc_tst_sample_method='caspt2-f12b(5,4)',
+        vrc_tst_sample_basis=['avtz-f12', 'avqz-f12'],
+        vrc_tst_scan_method='caspt2-f12b(5,4)',
+        vrc_tst_scan_basis='avtz-f12',
+        vrc_tst_spin_splitting={
+            'target_multiplicity': 2,
+            'reference_multiplicity': 4,
+            'fragment_multiplicities': [2, 3],
+            'reference': {'method': 'uccsd(t)-f12b',
+                          'basis': ['avtz-f12', 'avqz-f12']},
+            'gap_levels': [
+                {'label': 'caspt2_f12', 'method': 'caspt2-f12b(5,4)',
+                 'basis': ['avtz-f12', 'avqz-f12']},
+            ],
+            'weighting': {'model': 'arithmetic_mean'},
+        },
+    )
+    components = correction_components(
+        parameters, symbols=['C', 'S', 'H', 'H', 'H'], settings=None,
+        state_roots={2: 1, 4: 1})
+    selected = {
+        item['basis']: Path(item['state_model']['orbital_selection']['path']).name
+        for item in components
+    }
+    assert selected == {
+        'avtz-f12': 'avtz-f12.wfu',
+        'avqz-f12': 'avqz-f12.wfu',
+    }
+    with pytest.raises(ValueError, match='no orbital record'):
+        resolved_state_model(
+            parameters, ['C', 'S', 'H', 'H', 'H'], 0,
+            spin_splitting_settings(parameters), basis='av5z-f12')
+
+
+def test_anl1_f12_vrc_preset_is_augmented_and_preserves_overrides():
+    parameters = {'vrc_tst_accuracy_preset': 'anl1-f12',
+                  'vrc_tst_scan_basis': 'aug-cc-pVQZ'}
+    apply_vrc_accuracy_preset(parameters, {'vrc_tst_accuracy_preset',
+                                           'vrc_tst_scan_basis'})
+    assert parameters['vrc_tst_active_space'] == 'full_valence'
+    assert parameters['vrc_tst_scan_basis'] == 'aug-cc-pVQZ'
+    assert parameters['vrc_tst_scan_gradient'] == 'numerical'
+    assert parameters['vrc_tst_sample_basis'] == [
+        'avtz-f12', 'avqz-f12']
+    assert parameters['vrc_tst_spin_splitting']['reference']['basis'] == [
+        'avtz-f12', 'avqz-f12']
 
 
 def test_sampling_surface_accepts_an_adjacent_cbs_pair():

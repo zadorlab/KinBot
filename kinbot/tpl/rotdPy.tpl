@@ -63,6 +63,20 @@ kb_sample = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
                          corrections=corrections,
                          name='kb_{job_name}')
 
+# Sampling statistics and cached energies belong to one immutable input.
+sample_root = Path(kb_sample.name)
+sample_root.mkdir(parents=True, exist_ok=True)
+sample_fingerprint = sample_root / '.kinbot_input.sha256'
+input_fingerprint = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+if sample_fingerprint.is_file():
+    if sample_fingerprint.read_text().strip() != input_fingerprint:
+        raise RuntimeError('ROTD input changed; use a fresh rotdpy_directory '
+                           'or restore the input before resuming sampling.')
+elif (sample_root / 'rotdPy_restart.db').is_file() and 'kinbot_vrc' in calc:
+    raise RuntimeError('Profiled ROTD sampling cannot reuse unbound legacy '
+                       'samples; choose a fresh rotdpy_directory.')
+sample_fingerprint.write_text(input_fingerprint + '\n')
+
 # Flux parameters:
 #flux_rel_err: flux accuracy (1=99% certitude, 2=98%, ...)
 #pot_smp_max: maximum number of sampling for each facet

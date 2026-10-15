@@ -20,6 +20,7 @@ from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.vrc_tst_scan import VTS
+from kinbot.electronic_states import apply_electronic_state_model
 from kinbot.qc import QuantumChemistry
 from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
@@ -364,6 +365,7 @@ def _main():
 
         # characterize the initial reactant
         well0.characterize()
+        apply_electronic_state_model(well0, par)
         require_supported_identity(well0)
         apply_input_reference(well0, par)
         log_input_stereochemistry(well0, par, logger)
@@ -516,6 +518,7 @@ def _main():
                                               par['mult'][ii],
                                               structure=par['structure'][ii])
             fragments[frag].characterize()
+            apply_electronic_state_model(fragments[frag], par)
             require_supported_identity(fragments[frag])
             fragments[frag].name = routing_name(fragments[frag])
             charge += par['charge'][ii]

@@ -2,5 +2,5 @@
       Atom
         Name                        {element}
         ElectronicLevels[1/cm]      {nelec}
-            0.    {mult}
+{electronic_levels}
       End ! Atom

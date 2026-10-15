@@ -14,7 +14,7 @@ Species {name}
     Frequencies[1/cm]                  {nfreq}
 {freq}
 {hinderedrotor}
-    ElectronicLevels[1/cm]             1
-      0.0 {mult}
+    ElectronicLevels[1/cm]             {nelec}
+{electronic_levels}
     ZeroEnergy[kcal/mol]               0.0
   End

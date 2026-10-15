@@ -12,6 +12,6 @@
 {freq}
 {hinderedrotor}
       ElectronicLevels[1/cm]      {nelec}
-        0.    {mult}
+{electronic_levels}
       ZeroEnergy[kcal/mol]        {prodzeroenergy}
     End ! RRHO

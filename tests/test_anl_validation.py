@@ -830,6 +830,16 @@ def test_profiled_anl0_f12_assembler_accepts_one_full_run(
     for index, item in enumerate(equation.requirements, 1):
         if item.key == 'spin_orbit':
             continue
+        settings = dict(item.settings)
+        if item.key == 'reference_cbs':
+            settings['basis_uncertainty_series'] = {
+                item.key: {
+                    'lower_hartree': index / 1000,
+                    'upper_hartree': index / 1000,
+                    'lower_basis': 'synthetic-lower',
+                    'upper_basis': 'synthetic-upper',
+                },
+            }
         components[item.key] = ComponentResult(
             key=item.key, value_hartree=index / 1000,
             quantity=item.quantity, method=item.method, basis=item.basis,
@@ -838,7 +848,7 @@ def test_profiled_anl0_f12_assembler_accepts_one_full_run(
             geometry_sha256=(l2_hash if item.geometry_role == 'l2'
                              else l3_hash),
             source_sha256=hashlib.sha256(item.key.encode()).hexdigest(),
-            source=f'{item.key}.out', settings=dict(item.settings))
+            source=f'{item.key}.out', settings=settings)
     monkeypatch.setattr(
         validation_module, 'cbs_task_component',
         lambda *args, **kwargs: components['reference_cbs'])
@@ -895,6 +905,16 @@ def test_profiled_anl0_keeps_all_single_points_when_l3_geometry_fails(
     for index, item in enumerate(equation.requirements, 1):
         if item.key == 'spin_orbit':
             continue
+        settings = dict(item.settings)
+        if item.key == 'reference_cbs':
+            settings['basis_uncertainty_series'] = {
+                item.key: {
+                    'lower_hartree': index / 1000,
+                    'upper_hartree': index / 1000,
+                    'lower_basis': 'synthetic-lower',
+                    'upper_basis': 'synthetic-upper',
+                },
+            }
         components[item.key] = ComponentResult(
             key=item.key, value_hartree=index / 1000,
             quantity=item.quantity, method=item.method, basis=item.basis,
@@ -902,7 +922,7 @@ def test_profiled_anl0_keeps_all_single_points_when_l3_geometry_fails(
             multiplicity=1, geometry_sha256=(
                 l2_hash if item.geometry_role in ('l2', 'l3') else None),
             source_sha256=hashlib.sha256(item.key.encode()).hexdigest(),
-            source=f'{item.key}.out', settings=dict(item.settings))
+            source=f'{item.key}.out', settings=settings)
     monkeypatch.setattr(
         validation_module, 'cbs_task_component',
         lambda *args, **kwargs: components['reference_cbs'])

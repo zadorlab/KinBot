@@ -11,6 +11,6 @@
 {hinderedrotor}
 {tunneling}
       ElectronicLevels[1/cm]      {nelec}
-        0.    {mult}
+{electronic_levels}
       ZeroEnergy[kcal/mol]        {zeroenergy}
     End ! RRHO

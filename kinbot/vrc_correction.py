@@ -1,14 +1,22 @@
 """VRC correction-potential models and their calculation provenance."""
 
 from copy import deepcopy
+import json
 from numbers import Real
+from pathlib import Path
 import re
 
 import numpy as np
+from ase.data import atomic_numbers
 
 from kinbot.anl.extrapolation import (ORIGINAL_ANL_POWER,
                                       extrapolation_coefficient,
                                       two_point_cbs)
+from kinbot.molpro import (automatic_vrc_state_model,
+                           full_valence_active_space,
+                           method_with_active_space,
+                           validate_vrc_state_model,
+                           vrc_multireference_energy_contract)
 
 
 _SPIN_SPLITTING_DEFAULTS = {
@@ -36,10 +44,9 @@ _SPIN_SPLITTING_DEFAULTS = {
             'extrapolation_power': ORIGINAL_ANL_POWER,
         },
     ],
-    # Ram et al. used an arithmetic mean.  This range-dependent refinement
-    # gives the size-consistent CASPT2 gap more weight at long range and the
-    # more complete MRCI gap more weight at short range.  The 2.5--5.0 A
-    # interval spans the radical-radical transition region discussed there.
+    # Historical interpolation retained for archived inputs. Its distances
+    # and weights are not a general chemistry model; the new accuracy preset
+    # uses an arithmetic mean and still requires method-sensitivity checks.
     'weighting': {
         'model': 'distance_switch',
         'distance_knots_angstrom': [2.5, 3.125, 3.75, 4.375, 5.0],
@@ -49,6 +56,79 @@ _SPIN_SPLITTING_DEFAULTS = {
         },
     },
 }
+
+
+_VRC_ACCURACY_PRESETS = {
+    'legacy': {},
+    # A molecule-independent production preset. The apparent CAS(2,2)
+    # tokens are templates: ``full_valence`` replaces them after the accepted
+    # reaction supplies the actual atoms and charge. Keeping that resolution
+    # at the reaction boundary avoids molecule names and channel-specific
+    # active spaces in the input layer.
+    'anl1-f12': {
+        'vrc_tst_active_space': 'full_valence',
+        'vrc_tst_scan_method': 'caspt2-f12b(2,2)',
+        'vrc_tst_scan_basis': 'avtz-f12',
+        'vrc_tst_scan_gradient': 'numerical',
+        'vrc_tst_sample_method': 'caspt2-f12b(2,2)',
+        'vrc_tst_sample_basis': ['avtz-f12', 'avqz-f12'],
+        'vrc_tst_sample_extrapolation_power': ORIGINAL_ANL_POWER,
+        'vrc_tst_high_method': 'mrci-f12b+q(2,2)',
+        'vrc_tst_high_basis': ['avtz-f12', 'avqz-f12'],
+        'vrc_tst_correction_model': 'spin_splitting',
+        'vrc_tst_spin_splitting': {
+            'weighting': {'model': 'arithmetic_mean'},
+            'reference': {
+                'method': 'uccsd(t)-f12b',
+                'basis': ['avtz-f12', 'avqz-f12'],
+                'extrapolation_power': ORIGINAL_ANL_POWER,
+            },
+            'gap_levels': [
+                {
+                    'label': 'caspt2_f12',
+                    'method': 'caspt2-f12b(2,2)',
+                    'basis': ['avtz-f12', 'avqz-f12'],
+                    'extrapolation_power': ORIGINAL_ANL_POWER,
+                    'shift': 0.2,
+                    'ipea': 0.25,
+                },
+                {
+                    'label': 'mrci_f12_q',
+                    'method': 'mrci-f12b+q(2,2)',
+                    'basis': ['avtz-f12', 'avqz-f12'],
+                    'extrapolation_power': ORIGINAL_ANL_POWER,
+                },
+            ],
+        },
+    },
+}
+
+
+def apply_vrc_accuracy_preset(parameters, user_keys=()):
+    """Fill VRC production defaults without replacing expert input.
+
+    ``legacy`` leaves the historical settings untouched. ``anl1-f12`` is a
+    compact request for full-valence, augmented-basis, spin-split VRC work.
+    Every explicitly supplied top-level option wins over the preset.
+    """
+    name = str(parameters.get(
+        'vrc_tst_accuracy_preset', 'legacy')).strip().casefold()
+    aliases = {'legacy': 'legacy', 'default': 'legacy',
+               'anl1-f12': 'anl1-f12', 'anl1_f12': 'anl1-f12'}
+    try:
+        name = aliases[name]
+    except KeyError as exc:
+        raise ValueError('vrc_tst_accuracy_preset must be legacy or '
+                         'anl1-f12.') from exc
+    parameters['vrc_tst_accuracy_preset'] = name
+    explicit = set(user_keys)
+    for key, value in _VRC_ACCURACY_PRESETS[name].items():
+        if (key == 'vrc_tst_active_space'
+                and 'vrc_tst_state_model_file' in explicit):
+            continue
+        if key not in explicit:
+            parameters[key] = deepcopy(value)
+    return parameters
 
 
 def correction_model(parameters):
@@ -80,7 +160,8 @@ def coupled_multiplicities(first, second):
         twice_s_min, twice_s_max + 1, 2))
 
 
-def spin_splitting_settings(parameters):
+def spin_splitting_settings(parameters, *, parent_multiplicity=None,
+                            fragment_multiplicities=None):
     """Return validated spin-splitting settings with concise user overrides."""
     settings = deepcopy(_SPIN_SPLITTING_DEFAULTS)
     override = parameters.get('vrc_tst_spin_splitting')
@@ -101,6 +182,7 @@ def spin_splitting_settings(parameters):
                     f'vrc_tst_spin_splitting cannot define both {old} and '
                     f'{new}.')
             override[new] = override.pop(old)
+    explicit = set(override)
     allowed = set(settings)
     unknown = set(override) - allowed
     if unknown:
@@ -114,6 +196,47 @@ def spin_splitting_settings(parameters):
             settings[key].update(value)
         else:
             settings[key] = value
+    if parent_multiplicity is not None \
+            and 'target_multiplicity' not in explicit:
+        settings['target_multiplicity'] = int(parent_multiplicity)
+    if fragment_multiplicities is not None \
+            and 'fragment_multiplicities' not in explicit:
+        settings['fragment_multiplicities'] = [
+            int(value) for value in fragment_multiplicities]
+    declared_fragments = settings['fragment_multiplicities']
+    if declared_fragments is not None and (
+            not isinstance(declared_fragments, list) or len(declared_fragments) != 2
+            or any(isinstance(value, bool) or not isinstance(value, int) or value < 1
+                   for value in declared_fragments)):
+        raise ValueError('fragment_multiplicities must contain two positive integers.')
+    if (parent_multiplicity is not None
+            and settings['target_multiplicity'] != parent_multiplicity):
+        raise ValueError('Spin-splitting target multiplicity differs from the '
+                         'accepted parent surface.')
+    if (fragment_multiplicities is not None
+            and sorted(settings['fragment_multiplicities'])
+            != sorted(fragment_multiplicities)):
+        raise ValueError('Spin-splitting fragment multiplicities differ from '
+                         'the accepted products.')
+    if (settings['fragment_multiplicities'] is not None
+            and 'reference_multiplicity' not in explicit):
+        allowed = coupled_multiplicities(
+            *settings['fragment_multiplicities'])
+        alternatives = [value for value in allowed
+                        if value != settings['target_multiplicity']]
+        if not alternatives:
+            raise ValueError(
+                'The accepted fragments provide only one coupled spin '
+                'surface; a spin-splitting correction is not defined.')
+        # The single-reference anchor is the maximum-spin coupling. Falling
+        # back to a lower-spin anchor for an already-high-spin target reverses
+        # the physical justification for this correction. Expert references
+        # remain explicit; ordinary high-spin channels should use direct QC.
+        if settings['target_multiplicity'] == max(allowed):
+            raise ValueError('The target is already the highest coupled spin; '
+                             'use a direct correction or explicitly justify '
+                             'a different reference multiplicity.')
+        settings['reference_multiplicity'] = max(allowed)
     if isinstance(settings.get('reference'), dict) \
             and isinstance(settings['reference'].get('basis'), str):
         settings['reference'].pop('extrapolation_power', None)
@@ -260,9 +383,377 @@ def _validate_spin_splitting_settings(settings):
                          'distance knot.')
 
 
-def correction_components(parameters):
+def active_space_settings(parameters, symbols=None, charge=0):
+    """Return the requested active-space policy for one VRC molecule.
+
+    ``full_valence`` uses atom-labelled AVAS targets. ``radical_pair`` is the
+    deliberately narrow CAS(2,2) shortcut for two-doublet recombination; its
+    fragment-spin contract is checked when the accepted reaction is known.
+    """
+    request = parameters.get('vrc_tst_active_space', 'explicit')
+    additions = []
+    if isinstance(request, dict):
+        unknown = set(request) - {
+            'mode', 'additional_orbitals', 'active_electrons',
+            'active_orbitals', 'source',
+        }
+        if unknown:
+            raise ValueError('Unknown vrc_tst_active_space option(s): '
+                             + ', '.join(sorted(unknown)))
+        mode = str(request.get('mode', '')).strip().casefold()
+        additions = request.get('additional_orbitals', [])
+        if not isinstance(additions, list):
+            raise ValueError('additional_orbitals must be a list.')
+        normalized = []
+        for entry in additions:
+            if (not isinstance(entry, dict)
+                    or set(entry) != {'atom', 'orbitals'}
+                    or isinstance(entry['atom'], bool)
+                    or not isinstance(entry['atom'], int)
+                    or entry['atom'] < 1
+                    or not isinstance(entry['orbitals'], list)
+                    or not entry['orbitals']):
+                raise ValueError('Each additional orbital request requires a '
+                                 'positive atom index and an orbital list.')
+            normalized.append({
+                'atom': entry['atom'],
+                'orbitals': [str(value).strip().casefold()
+                             for value in entry['orbitals']],
+            })
+        additions = normalized
+    else:
+        mode = str(request).strip().casefold()
+    if mode == 'explicit':
+        if isinstance(request, dict) and (
+                'active_electrons' in request
+                or 'active_orbitals' in request):
+            raise ValueError(
+                'Counted active spaces use mode=selected; string explicit '
+                'retains the CAS written in each method name.')
+        if additions:
+            raise ValueError('additional_orbitals requires full_valence mode.')
+        return None
+    if mode == 'radical_pair':
+        if additions:
+            raise ValueError('additional_orbitals requires full_valence mode.')
+        return {
+            'active_electrons': 2,
+            'active_orbitals': 2,
+            'orbital_selection': None,
+            'selection': 'two_doublet_radical_pair',
+            'validation': 'accepted_products_must_be_two_doublets',
+        }
+    if mode in ('selected', 'targeted'):
+        if not isinstance(request, dict):
+            raise ValueError(
+                'vrc_tst_active_space=selected requires an object with '
+                'active_electrons and active_orbitals.')
+        if additions:
+            raise ValueError(
+                'additional_orbitals is an AVAS full_valence option.')
+        electrons = request.get('active_electrons')
+        orbitals = request.get('active_orbitals')
+        if (isinstance(electrons, bool) or not isinstance(electrons, int)
+                or electrons < 1 or isinstance(orbitals, bool)
+                or not isinstance(orbitals, int) or orbitals < 1
+                or electrons > 2 * orbitals):
+            raise ValueError(
+                'A selected active space requires compatible positive '
+                'active_electrons and active_orbitals.')
+        source = str(request.get('source', 'user-selected')).strip()
+        if not source:
+            raise ValueError('A selected active-space source cannot be empty.')
+        return {
+            'active_electrons': electrons,
+            'active_orbitals': orbitals,
+            'orbital_selection': None,
+            'selection': 'selected_orbital_subspace',
+            'source': source,
+            'validation': 'explicit_orbital_identity_required',
+        }
+    if mode != 'full_valence':
+        raise ValueError(
+            'vrc_tst_active_space must be explicit, radical_pair, '
+            'selected, full_valence, or an object with one of those modes.')
+    if symbols is None:
+        return {'selection': 'whole_molecule_main_group_valence',
+                'additional_orbitals': additions}
+    return full_valence_active_space(
+        symbols, charge, additional_centers=additions)
+
+
+def _augmented_basis(basis):
+    token = str(basis).strip().casefold().replace('_', '-').replace(' ', '')
+    return (token.startswith('aug-')
+            or re.fullmatch(r'a(?:v|cv|wcv)[dtq2-9]z(?:-f12)?', token)
+            is not None)
+
+
+def _resolve_level(level, active_space):
+    result = deepcopy(level)
+    if active_space is not None:
+        if {'active_electrons', 'active_orbitals'} <= set(active_space):
+            result['method'] = method_with_active_space(
+                result['method'], active_space)
+        contract = vrc_multireference_energy_contract(result['method'])
+        if contract is not None:
+            bases = (result['basis'] if isinstance(result['basis'], list)
+                     else [result['basis']])
+            if not all(_augmented_basis(basis) for basis in bases):
+                raise ValueError(
+                    'Automatic active-space multireference VRC levels '
+                    'require augmented orbital bases.')
+    return result
+
+
+def resolve_vrc_level(level, active_space):
+    """Resolve a VRC level against an automatic molecular active space."""
+    return _resolve_level(level, active_space)
+
+
+def validate_vrc_levels(parameters):
+    """Validate every configured VRC level before any scheduler submission."""
+    active_space = active_space_settings(parameters)
+    state_file = parameters.get('vrc_tst_state_model_file', '')
+    if (not isinstance(state_file, str)
+            or state_file.strip() and (active_space is None
+                                      or 'active_electrons' not in active_space)):
+        raise ValueError('vrc_tst_state_model_file requires a counted selected '
+                         'active space.')
+    if (active_space is not None
+            and active_space.get('selection') == 'selected_orbital_subspace'):
+        state_model = parameters.get('vrc_tst_state_model')
+        state_file = parameters.get('vrc_tst_state_model_file', '')
+        inline = (isinstance(state_model, dict)
+                  and isinstance(state_model.get('orbital_selection'), dict)
+                  and state_model['orbital_selection'].get('mode')
+                  in ('molpro_record', 'avas'))
+        external = isinstance(state_file, str) and bool(state_file.strip())
+        if inline and external:
+            raise ValueError('Configure either vrc_tst_state_model or '
+                             'vrc_tst_state_model_file, not both.')
+        if not inline and not external:
+            raise ValueError(
+                'A selected VRC active space requires '
+                'vrc_tst_state_model.orbital_selection or '
+                'vrc_tst_state_model_file with a reviewed Molpro record.')
+    method = parameters.get('vrc_tst_scan_method')
+    basis = parameters.get('vrc_tst_scan_basis')
+    if not isinstance(method, str) or not method.strip():
+        raise ValueError('vrc_tst_scan_method must be a nonempty string.')
+    if not isinstance(basis, str) or not basis.strip():
+        raise ValueError('vrc_tst_scan_basis must be a nonempty string.')
+    _resolve_level({'method': method, 'basis': basis}, active_space)
+    sampling_settings(parameters, active_space=active_space)
+    model = correction_model(parameters)
+    if (active_space is not None
+            and active_space.get('selection') == 'two_doublet_radical_pair'):
+        if model != 'spin_splitting':
+            raise ValueError(
+                'The radical_pair active space requires the spin_splitting '
+                'VRC correction model.')
+        override = parameters.get('vrc_tst_spin_splitting') or {}
+        fragments = override.get('fragment_multiplicities')
+        if fragments is not None and fragments != [2, 2]:
+            raise ValueError(
+                'The radical_pair active space requires two doublet '
+                'fragments.')
+        spin = spin_splitting_settings(parameters)
+        if {spin['target_multiplicity'], spin['reference_multiplicity']} \
+                != {1, 3}:
+            raise ValueError(
+                'The radical_pair active space requires coupled singlet and '
+                'triplet surfaces.')
+    if model == 'direct':
+        trusted_settings(parameters, active_space=active_space)
+    else:
+        settings = spin_splitting_settings(parameters)
+        _resolve_level(settings['reference'], active_space)
+        for level in settings['gap_levels']:
+            _resolve_level(level, active_space)
+
+
+def active_space_feasibility(active_space, multiplicities):
+    """Report exact determinant dimensions for an automatic CAS.
+
+    This is provenance, not a hidden cutoff. A site or user can decide that
+    the resulting MRCI expansion is too expensive without KinBot silently
+    changing the requested chemistry.
+    """
+    if active_space is None or 'active_electrons' not in active_space:
+        return None
+    from math import comb
+
+    electrons = int(active_space['active_electrons'])
+    orbitals = int(active_space['active_orbitals'])
+    result = {}
+    for multiplicity in dict.fromkeys(map(int, multiplicities)):
+        twice_spin = multiplicity - 1
+        if (electrons - twice_spin) % 2 or twice_spin > electrons:
+            raise ValueError(
+                f'CAS({electrons},{orbitals}) cannot represent multiplicity '
+                f'{multiplicity}.')
+        beta = (electrons - twice_spin) // 2
+        alpha = electrons - beta
+        if alpha > orbitals or beta > orbitals:
+            raise ValueError(
+                f'CAS({electrons},{orbitals}) cannot represent multiplicity '
+                f'{multiplicity}.')
+        result[str(multiplicity)] = {
+            'alpha_electrons': alpha,
+            'beta_electrons': beta,
+            'determinants': comb(orbitals, alpha) * comb(orbitals, beta),
+        }
+    return result
+
+
+def root_overrides(parameters, key):
+    value = parameters.get(key, {})
+    if not isinstance(value, dict):
+        raise ValueError(f'{key} must map multiplicities to positive roots.')
+    result = {}
+    for mult, count in value.items():
+        try:
+            integer = int(mult)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f'{key} needs positive integer multiplicities.') from error
+        if (isinstance(mult, bool) or str(integer) != str(mult) or integer < 1
+                or isinstance(count, bool) or not isinstance(count, int) or count < 1):
+            raise ValueError(f'{key} needs positive integer multiplicities and roots.')
+        result[integer] = count
+    return result
+
+
+def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
+                         basis=None):
+    """Resolve an explicit model or build the automatic whole-molecule model."""
+    roots = {**({} if roots is None else {int(key): value for key, value in roots.items()}),
+             **root_overrides(parameters, 'vrc_tst_state_average_roots')}
+    selected_overrides = root_overrides(parameters, 'vrc_tst_selected_roots')
+    explicit = deepcopy(parameters.get('vrc_tst_state_model'))
+    external = False
+    state_file = parameters.get('vrc_tst_state_model_file', '')
+    if explicit is not None and isinstance(state_file, str) and state_file.strip():
+        raise ValueError('Configure either vrc_tst_state_model or '
+                         'vrc_tst_state_model_file, not both.')
+    if explicit is None and isinstance(state_file, str) and state_file.strip():
+        path = Path(state_file).expanduser()
+        if not path.is_absolute():
+            input_file = parameters.get('input_file')
+            base = (Path(input_file).expanduser().resolve().parent
+                    if input_file else Path.cwd())
+            path = base / path
+        path = path.resolve()
+        if not path.is_file():
+            raise FileNotFoundError(
+                f'Reviewed VRC state-model file is unavailable: {path}. '
+                'Run and audit the Molpro orbital reconnaissance first.')
+        payload = json.loads(path.read_text())
+        if (not isinstance(payload, dict) or payload.get('schema') not in (1, 2)
+                or not isinstance(payload.get('active_space'), dict)):
+            raise ValueError('Reviewed VRC state-model file has an invalid '
+                             'schema.')
+        active_space = active_space_settings(parameters, symbols, charge)
+        declared = payload['active_space']
+        if (declared.get('active_electrons')
+                != active_space.get('active_electrons')
+                or declared.get('active_orbitals')
+                != active_space.get('active_orbitals')):
+            raise ValueError('Reviewed VRC state-model active space differs '
+                             'from vrc_tst_active_space.')
+        if payload['schema'] == 1:
+            if not isinstance(payload.get('state_model'), dict):
+                raise ValueError('Reviewed VRC state-model file has an '
+                                 'invalid schema-1 state_model.')
+            explicit = payload['state_model']
+        else:
+            models = payload.get('basis_models')
+            if not isinstance(models, dict) or not models:
+                raise ValueError('Reviewed VRC state-model file has no '
+                                 'basis_models.')
+            if not isinstance(basis, str) or not basis.strip():
+                raise ValueError('A basis is required to select a reviewed '
+                                 'Molpro orbital record.')
+            key = basis.strip().casefold()
+            matches = {str(name).strip().casefold(): model
+                       for name, model in models.items()}
+            if len(matches) != len(models):
+                raise ValueError('Reviewed VRC basis names are ambiguous.')
+            if key not in matches:
+                raise ValueError(
+                    f'Reviewed VRC state-model file has no orbital record '
+                    f'for basis {basis!r}.')
+            if not isinstance(matches[key], dict):
+                raise ValueError('Reviewed VRC basis model must be an object.')
+            explicit = matches[key]
+        external = True
+    if explicit is not None:
+        active_space = active_space_settings(parameters, symbols, charge)
+        # A reviewed external file certifies the orbital subspace.  The
+        # accepted reaction still determines which coupled spin manifolds
+        # and spatial components must be averaged for that channel.  This
+        # lets one reviewed orbital model cover, for example, both C-S and
+        # S-S cleavage without imposing the atomic-P three-root average on a
+        # nondegenerate molecular fragment channel.
+        if external:
+            multiplicities = ([settings['target_multiplicity'], settings['reference_multiplicity']]
+                              if settings is not None else [int(parameters.get('mult', 1))])
+            counts = {} if roots is None else {
+                int(key): int(value) for key, value in roots.items()}
+            explicit['state_average'] = [
+                {
+                    'multiplicity': multiplicity,
+                    'roots': counts.get(multiplicity, 1),
+                    'weights': ([1. / counts.get(multiplicity, 1)]
+                                * counts.get(multiplicity, 1)),
+                }
+                for multiplicity in multiplicities
+            ]
+            selected = explicit.get('selected_roots', {})
+            explicit['selected_roots'] = {
+                multiplicity: selected.get(str(multiplicity),
+                                          selected.get(multiplicity, 1))
+                for multiplicity in multiplicities
+            }
+        if selected_overrides:
+            chosen = {int(key): value for key, value in explicit.get('selected_roots', {}).items()}
+            chosen.update(selected_overrides)
+            explicit['selected_roots'] = chosen
+        return validate_vrc_state_model(
+            explicit,
+            active_electrons=(active_space or {}).get('active_electrons'),
+            active_orbitals=(active_space or {}).get('active_orbitals'),
+            nelectron=(None if symbols is None else
+                       sum(atomic_numbers[str(symbol)]
+                           for symbol in symbols) - charge),
+            atom_count=None if symbols is None else len(symbols))
+    active_space = active_space_settings(parameters, symbols, charge)
+    if active_space is None:
+        return None
+    if settings is None:
+        multiplicities = [int(parameters.get('mult', 1) or 1)]
+    else:
+        multiplicities = [settings['target_multiplicity'],
+                          settings['reference_multiplicity']]
+    return automatic_vrc_state_model(
+        symbols, charge, multiplicities, roots=roots,
+        selected_roots=selected_overrides,
+        active_space=active_space)
+
+
+def correction_components(parameters, *, symbols=None, charge=0,
+                          settings=None, state_roots=None):
     """Describe the independent energies required at every VRC scan point."""
-    sampling = sampling_settings(parameters)
+    active_space = active_space_settings(parameters, symbols, charge)
+    sampling = sampling_settings(parameters, active_space=active_space)
+    if settings is None and correction_model(parameters) == 'spin_splitting':
+        settings = spin_splitting_settings(parameters)
+    def state_model_for(basis):
+        return (deepcopy(parameters.get('vrc_tst_state_model'))
+                if active_space is None else
+                resolved_state_model(
+                    parameters, symbols, charge, settings,
+                    roots=state_roots, basis=basis))
     sample_bases = (sampling['basis'] if isinstance(sampling['basis'], list)
                     else [sampling['basis']])
     sample_components = []
@@ -276,16 +767,21 @@ def correction_components(parameters):
             'method': sampling['method'],
             'basis': basis,
             'multiplicity': None,
+            'state_model': state_model_for(basis),
         })
     if correction_model(parameters) == 'direct':
-        return [*sample_components, {
-                'role': 'trusted', 'suffix': '', 'geometry': 'relaxed',
-                'method': parameters['vrc_tst_high_method'],
-                'basis': parameters['vrc_tst_high_basis'],
+        trusted = trusted_settings(parameters, active_space=active_space)
+        bases = trusted['basis'] if isinstance(trusted['basis'], list) else [trusted['basis']]
+        return [*sample_components, *[{
+                'role': 'trusted' if len(bases) == 1 else f'trusted:{index}',
+                'suffix': '' if len(bases) == 1 else f'_trusted_{index}', 'geometry': 'relaxed',
+                'method': trusted['method'],
+                'basis': basis,
                 'multiplicity': None,
-            }]
+                'state_model': state_model_for(basis),
+            } for index, basis in enumerate(bases)]]
 
-    settings = spin_splitting_settings(parameters)
+    settings = settings or spin_splitting_settings(parameters)
     legacy_states = (settings['target_multiplicity'] == 1
                      and settings['reference_multiplicity'] == 3)
     components = []
@@ -293,7 +789,7 @@ def correction_components(parameters):
         component = dict(component)
         component['multiplicity'] = settings['target_multiplicity']
         components.append(component)
-    reference = settings['reference']
+    reference = _resolve_level(settings['reference'], active_space)
     bases = reference['basis'] if isinstance(reference['basis'], list) \
         else [reference['basis']]
     for index, basis in enumerate(bases):
@@ -306,8 +802,10 @@ def correction_components(parameters):
             'role': role, 'suffix': suffix, 'geometry': 'relaxed',
             'method': reference['method'], 'basis': basis,
             'multiplicity': settings['reference_multiplicity'],
+            'state_model': state_model_for(basis),
         })
-    for level in settings['gap_levels']:
+    for original_level in settings['gap_levels']:
+        level = _resolve_level(original_level, active_space)
         common = {key: value for key, value in level.items()
                   if key in ('method', 'shift', 'ipea')}
         label = level['label']
@@ -327,34 +825,90 @@ def correction_components(parameters):
                 components.append({
                     'role': role, 'suffix': suffix,
                     'geometry': 'relaxed', 'multiplicity': multiplicity,
-                    'basis': basis, **common,
+                    'basis': basis, 'state_model': state_model_for(basis),
+                    **common,
                 })
     return components
 
 
-def expected_levels(parameters):
+def expected_levels(parameters, *, symbols=None, charge=0, settings=None,
+                    state_roots=None):
     """Return the immutable level declaration stored with a correction."""
-    sampling = sampling_settings(parameters)
+    active_space = active_space_settings(parameters, symbols, charge)
+    sampling = sampling_settings(parameters, active_space=active_space)
     if correction_model(parameters) == 'direct':
-        trusted = {
-            'method': parameters['vrc_tst_high_method'],
-            'basis': parameters['vrc_tst_high_basis'],
-        }
+        trusted = trusted_settings(parameters, active_space=active_space)
+        multiplicities = [int(parameters.get('mult', 1) or 1)]
     else:
-        settings = spin_splitting_settings(parameters)
+        settings = settings or spin_splitting_settings(parameters)
+        multiplicities = [settings['target_multiplicity'],
+                          settings['reference_multiplicity']]
         trusted = {
             'model': 'spin_splitting',
             'target_multiplicity': settings['target_multiplicity'],
             'reference_multiplicity': settings['reference_multiplicity'],
             'fragment_multiplicities': settings['fragment_multiplicities'],
-            'reference': settings['reference'],
-            'spin_gaps': settings['gap_levels'],
+            'reference': _resolve_level(settings['reference'], active_space),
+            'spin_gaps': [_resolve_level(level, active_space)
+                          for level in settings['gap_levels']],
             'weighting': settings['weighting'],
         }
-    return {'sampling': sampling, 'trusted_correction': trusted}
+    external = parameters.get('vrc_tst_state_model_file', '')
+    state_models = None
+    if (active_space is not None and isinstance(external, str)
+            and external.strip()):
+        bases = (list(sampling['basis']) if isinstance(sampling['basis'], list)
+                 else [sampling['basis']])
+        if correction_model(parameters) == 'direct':
+            bases.extend(trusted['basis'] if isinstance(trusted['basis'], list) else [trusted['basis']])
+        else:
+            reference_basis = trusted['reference']['basis']
+            bases.extend(reference_basis if isinstance(reference_basis, list)
+                         else [reference_basis])
+            for level in trusted['spin_gaps']:
+                level_basis = level['basis']
+                bases.extend(level_basis if isinstance(level_basis, list)
+                             else [level_basis])
+        state_models = {
+            basis: resolved_state_model(
+                parameters, symbols, charge, settings,
+                roots=state_roots, basis=basis)
+            for basis in dict.fromkeys(bases)
+        }
+        state_model = None
+    else:
+        state_model = (deepcopy(parameters.get('vrc_tst_state_model'))
+                       if active_space is None
+                       else resolved_state_model(
+                           parameters, symbols, charge, settings,
+                           roots=state_roots))
+    result = {
+        'sampling': sampling, 'trusted_correction': trusted,
+        'active_space': active_space, 'state_model': state_model,
+        'active_space_feasibility': active_space_feasibility(
+            active_space, multiplicities),
+    }
+    if state_models is not None:
+        result['state_models_by_basis'] = state_models
+    return result
 
 
-def sampling_settings(parameters):
+def trusted_settings(parameters, *, active_space=None):
+    return sampling_settings({
+        'vrc_tst_sample_method': parameters['vrc_tst_high_method'],
+        'vrc_tst_sample_basis': parameters['vrc_tst_high_basis'],
+        'vrc_tst_sample_extrapolation_power': parameters.get(
+            'vrc_tst_high_extrapolation_power', ORIGINAL_ANL_POWER)}, active_space=active_space)
+
+
+def assemble_trusted_reference(distances, energies, parameters, *, active_space=None):
+    renamed = {key.replace('trusted', 'sampling', 1): value
+               for key, value in energies.items() if key.startswith('trusted')}
+    return assemble_sampling_reference(distances, renamed,
+        trusted_settings(parameters, active_space=active_space))
+
+
+def sampling_settings(parameters, *, active_space=None):
     """Return the frozen sampling level and optional ANL-style CBS pair."""
     method = parameters.get('vrc_tst_sample_method')
     basis = parameters.get('vrc_tst_sample_basis')
@@ -363,7 +917,7 @@ def sampling_settings(parameters):
     if isinstance(basis, str):
         if not basis.strip():
             raise ValueError('vrc_tst_sample_basis cannot be empty.')
-        return {'method': method, 'basis': basis}
+        return _resolve_level({'method': method, 'basis': basis}, active_space)
     if (not isinstance(basis, list) or len(basis) != 2
             or any(not isinstance(item, str) or not item.strip()
                    for item in basis)):
@@ -375,8 +929,8 @@ def sampling_settings(parameters):
     power = parameters.get('vrc_tst_sample_extrapolation_power',
                            ORIGINAL_ANL_POWER)
     extrapolation_coefficient(upper, power=power)
-    return {'method': method, 'basis': list(basis),
-            'extrapolation_power': power}
+    return _resolve_level({'method': method, 'basis': list(basis),
+                           'extrapolation_power': power}, active_space)
 
 
 def assemble_sampling_reference(distances, energies, settings):

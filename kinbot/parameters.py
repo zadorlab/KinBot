@@ -180,6 +180,11 @@ class Parameters:
             'multi_conf_tst': 0,
             # Fixed stereoisomers are the default; racemic means the global mirror pair.
             'optical_population': 'specified',
+            # Optional ground/excited electronic levels keyed by molecular
+            # SMILES and charge. These states control product multiplicities
+            # before QC submission and the matching MESS partition functions.
+            'electronic_state_models': [],
+            # Optional native JKFIT, MP2FIT, and RI/CABS identifiers.
             # Explicit model choice for unresolved harmonic/HIR coverage only.
             'optical_factor_assumptions': {},
             # temperature in K
@@ -422,6 +427,14 @@ class Parameters:
             # Molpro's RS2 implementation supplies analytic CASPT2 gradients
             # to Sella while the reaction-coordinate distance is constrained.
             'vrc_tst_scan_sella': 1,
+            # ``legacy`` retains historical levels. ``anl1-f12`` expands one
+            # compact request into a full-valence, augmented-basis production
+            # VRC model while preserving every explicit expert override.
+            'vrc_tst_accuracy_preset': 'legacy',
+            # explicit preserves the historical user-supplied CAS;
+            # radical_pair is a guarded CAS(2,2) shortcut for two doublets;
+            # full_valence builds a whole-molecule AVAS space.
+            'vrc_tst_active_space': 'explicit',
             'vrc_tst_scan_method': 'caspt2(2,2)',
             'vrc_tst_scan_basis': 'aug-cc-pVTZ',
             # auto uses an analytic gradient when the selected Molpro method
@@ -430,6 +443,21 @@ class Parameters:
             'vrc_tst_scan_gradient': 'auto',
             'vrc_tst_scan_shift': 0.3,
             'vrc_tst_scan_ipea': 0.25,
+            # Optional validated AVAS/state-average model shared by the
+            # relaxed scan and multireference correction energies.  This is
+            # required for production work where an energy-window CAS is not
+            # enough to identify the intended electronic states.
+            'vrc_tst_state_model': None,
+            # Optional JSON produced by molpro_reconnaissance select.  A
+            # relative path is resolved beside the main KinBot input.  The
+            # file is required only when the VRC branch begins, allowing the
+            # same input to be prepared before the reviewed WFU exists.
+            'vrc_tst_state_model_file': '',
+            # Reviewed physical state contributions, separate from SA orbitals.
+            'vrc_tst_surface_model_file': '',
+            'vrc_tst_selected_roots': {},
+            'vrc_tst_high_extrapolation_power': 3.7,
+            'vrc_tst_state_average_roots': {},
             'vrc_tst_scf_convergence': 1.e-10,
             'vrc_tst_correlation_convergence': 1.e-8,
             # Gaussian orbitals are used only to construct HOMO-directed
@@ -615,6 +643,9 @@ class Parameters:
         if self.input_file is not None:
             self.read_user_input()
 
+        from kinbot.vrc_correction import apply_vrc_accuracy_preset
+        apply_vrc_accuracy_preset(self.par, self.user_keys)
+
         self.par['profiled_theory'] = int(profiled_requested(self.par))
         self.theory_profiles = resolve_profiles(self.par)
 
@@ -768,6 +799,13 @@ class Parameters:
 
         if self.par['optical_population'] not in ('specified', 'racemic'):
             raise ValueError('optical_population must be specified or racemic')
+        from kinbot.electronic_states import electronic_state_models
+        electronic_state_models(self.par)
+        if not isinstance(self.par['vrc_tst_surface_model_file'], str):
+            raise ValueError('vrc_tst_surface_model_file must be a path string')
+        for key in ('vrc_tst_selected_roots', 'vrc_tst_state_average_roots'):
+            from kinbot.vrc_correction import root_overrides
+            root_overrides(self.par, key)
         if self.par['me_skip_vdW'] not in (0, 1):
             raise ValueError('me_skip_vdW must be 0 or 1')
         if self.par['run_messpf'] not in (0, 1):
@@ -785,9 +823,11 @@ class Parameters:
             raise ValueError('rotdpy_validation_profile must be interface '
                              'or production')
         from kinbot.vrc_correction import (correction_model,
-                                           sampling_settings,
-                                           spin_splitting_settings)
-        sampling_settings(self.par)
+                                           spin_splitting_settings,
+                                           validate_vrc_levels)
+        from kinbot.molpro import validate_vrc_state_model
+        validate_vrc_state_model(self.par['vrc_tst_state_model'])
+        validate_vrc_levels(self.par)
         if correction_model(self.par) == 'spin_splitting':
             spin_splitting_settings(self.par)
         if self.par['vrc_tst_scan_gradient'] not in (

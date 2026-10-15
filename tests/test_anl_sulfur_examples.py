@@ -6,15 +6,15 @@ import pytest
 
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.vrc_correction import (correction_components,
+from kinbot.vrc_correction import (active_space_settings,
                                    coupled_multiplicities,
                                    spin_splitting_settings)
 
 
 @pytest.mark.parametrize(
     'name,smiles,active', [
-        ('ch3s', '[CH3][S]', '(13,8)'),
-        ('ch3ss', 'C[S][S]', '(9,7)'),
+        ('ch3s', '[CH3][S]', (13, 8)),
+        ('ch3ss', 'C[S][S]', (9, 7)),
     ])
 def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
         name, smiles, active):
@@ -30,21 +30,26 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert par['families'] == ['all']
     assert par['selected_reactions'] == {}
     assert par['vrc_tst_scan_gradient'] == 'numerical'
-    assert active in par['vrc_tst_scan_method']
+    assert par['vrc_tst_active_space']['mode'] == 'selected'
+    assert par['vrc_tst_state_model_file'] == f'{name}_state_model.json'
     assert par['vrc_tst_sample_basis'] == ['avtz-f12', 'avqz-f12']
-    settings = spin_splitting_settings(par)
+    species = StationaryPoint(name, 0, 2, smiles=smiles)
+    species.characterize()
+    space = active_space_settings(par, species.atom, species.charge)
+    assert (space['active_electrons'], space['active_orbitals']) == active
+    assert space['selection'] == 'selected_orbital_subspace'
+    settings = spin_splitting_settings(
+        par, parent_multiplicity=2, fragment_multiplicities=[2, 3])
     assert settings['fragment_multiplicities'] == [2, 3]
     assert coupled_multiplicities(*settings['fragment_multiplicities']) == (
         2, 4)
     assert settings['target_multiplicity'] == 2
     assert settings['reference_multiplicity'] == 4
-    assert settings['reference']['basis'] == ['vqz-f12', 'v5z-f12']
-    assert all(level['basis'] == ['vqz-f12', 'v5z-f12']
+    assert settings['reference']['basis'] == ['avtz-f12', 'avqz-f12']
+    assert all(level['basis'] == ['avtz-f12', 'avqz-f12']
                for level in settings['gap_levels'])
-    assert [item['role'] for item in correction_components(par)[:2]] == [
-        'sampling:0', 'sampling:1']
-
-    species = StationaryPoint(name, 0, 2, smiles=smiles)
-    species.characterize()
     assert species.mult == 2
     assert 'S' in species.atom
+
+    reconnaissance = path.with_name('orbital_reconnaissance.json')
+    assert reconnaissance.is_file()

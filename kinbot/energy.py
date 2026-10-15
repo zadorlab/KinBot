@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 import json
 import math
@@ -22,6 +22,8 @@ class ZeroKEnergy:
     source: str
     charge: int = 0
     multiplicity: int = 1
+    basis_uncertainty_series: dict[str, dict[str, object]] = field(
+        default_factory=dict)
 
     @classmethod
     def from_composite(cls, smiles: str, result):
@@ -39,9 +41,21 @@ class ZeroKEnergy:
         if len(identity) != 1:
             raise ValueError('Composite components disagree on electronic state.')
         charge, multiplicity = identity.pop()
+        series = {}
+        for component in result.components.values():
+            declared = component.settings.get('basis_uncertainty_series', {})
+            if not isinstance(declared, dict):
+                raise ValueError(
+                    f'{component.key}: invalid CBS uncertainty metadata.')
+            overlap = set(series) & set(declared)
+            if overlap:
+                raise ValueError('Repeated CBS uncertainty series: '
+                                 + ', '.join(sorted(overlap)))
+            series.update({key: dict(value)
+                           for key, value in declared.items()})
         return cls(smiles, result.zero_k_hartree, result.recipe,
                    sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest(),
-                   charge, multiplicity)
+                   charge, multiplicity, series)
 
 
 @dataclass(frozen=True)

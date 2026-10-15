@@ -313,6 +313,11 @@ def messpf_thermochemistry_record(species, output, heat_contents,
         'formation_0k_kj_mol': formation_0k,
         'species_heat_content_0_to_t_kj_mol': point.heat_content_0k_kj_mol,
         'formation_298k_kj_mol': formation_temperature,
+        'formation_uncertainty_kj_mol': formation.uncertainty_kj_mol,
+        'formation_uncertainty_components_kj_mol': dict(
+            formation.uncertainty_components_kj_mol),
+        'formation_uncertainty_source_sensitivities_kj_mol': dict(
+            formation.uncertainty_source_sensitivities_kj_mol),
         'formation_temperature_method': 'cbh_reaction',
         'cbh_formation': dataclass_dict(formation),
         'cbh_temperature_trace': cbh_trace,

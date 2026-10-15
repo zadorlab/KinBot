@@ -575,14 +575,18 @@ def stage_number_of_states_file(source: str | Path,
     if not rows:
         raise ValueError(f'{source}: number-of-states table is empty.')
     values = [row for _, row in rows]
-    if (any(energy < 0. or states < 0. for energy, states in values)
+    if (any(states < 0. for energy, states in values)
             or any(left[0] >= right[0]
                    for left, right in zip(values, values[1:]))):
         raise ValueError(
-            f'{source}: number-of-states rows must have nonnegative values '
+            f'{source}: number-of-states rows must have nonnegative flux '
             'and strictly increasing energies.')
 
-    has_origin = values[0] == (0., 0.)
+    # Native tables may begin below the separated-fragment reference, as in
+    # the NH2O SI. Preserve that threshold instead of inserting a later row.
+    has_origin = values[0][1] == 0.
+    if values[0][0] < 0. and not has_origin:
+        raise ValueError(f'{source}: negative-energy table needs a zero-flux lower boundary.')
     shifted_to = None
     if has_origin:
         staged = native
@@ -612,10 +616,23 @@ def stage_number_of_states_file(source: str | Path,
     return {
         'name': 'explicit_zero_flux_origin',
         'applied': not has_origin,
-        'row': [0., 0.],
+        'row': list(values[0]) if has_origin else [0., 0.],
         'positive_flux_origin_shift_cm_inverse': shifted_to,
         'mess_file_sha256': _sha256(destination),
     }
+
+
+def number_of_states_ground(source: str | Path) -> float:
+    """Match MESS Rotd's highest <=1-state row, in the native energy gauge.
+
+    This is evaluated on the adjusted MESS copy, so the established inserted
+    origin remains supported. A negative native threshold remains negative.
+    """
+    rows = [tuple(map(float, line.split())) for line in Path(source).read_text().splitlines() if line.strip()]
+    indices = [index for index, (_, states) in enumerate(rows) if states <= 1.]
+    if not indices:
+        raise ValueError('Number-of-states grid lacks a MESS zero-state boundary.')
+    return rows[max(indices)][0]
 
 
 def run(input_file: str | Path, python: str | Path | None = None) -> dict:
@@ -639,6 +656,12 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
         if record_file.is_file():
             try:
                 previous = json.loads(record_file.read_text())
+                if (previous.get('input_sha256') is not None
+                        and previous['input_sha256'] != input_hash):
+                    raise ValueError(
+                        f'{input_file.stem}: ROTD input changed since sampling '
+                        'began; restore the input or select a fresh '
+                        'rotdpy_directory to keep the existing samples.')
                 if (previous.get('status') == 'complete'
                         and previous.get('input_sha256') == input_hash):
                     read_result(input_file)

@@ -170,6 +170,17 @@ def test_mess_staging_adds_zero_flux_origin_without_changing_native(tmp_path):
     assert (tmp_path / 'already.out').read_text() == destination.read_text()
 
 
+def test_mess_staging_preserves_native_negative_threshold_and_energy_reference(tmp_path):
+    from kinbot.rotdpy import number_of_states_ground
+    source, target = tmp_path / 'native.out', tmp_path / 'mess.out'
+    source.write_text('-186 0\n0 13000\n100 15000\n')
+    info = stage_number_of_states_file(source, target)
+    assert target.read_bytes() == source.read_bytes()
+    assert not info['applied']
+    assert info['row'] == [-186., 0.]
+    assert number_of_states_ground(target) == -186.
+
+
 def test_production_result_requires_converged_numeric_multipoint_sampling(
         tmp_path):
     input_file = tmp_path / 'channel.py'

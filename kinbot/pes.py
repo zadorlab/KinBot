@@ -40,6 +40,7 @@ from kinbot import pp_settings
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
+from kinbot.electronic_states import apply_electronic_state_model
 from kinbot.mess import MESS, finalize_mc_mess
 from kinbot.reaction_path import read_summary_paths, compare_pathways
 from kinbot.uncertaintyAnalysis import UQ
@@ -184,8 +185,24 @@ def _rotdpy_validation_metadata(par, pp_info, correction_file, noscan,
         raise ValueError('rotdpy_validation_profile must be interface or '
                          'production.')
     levels = pp_info.get('levels')
-    from kinbot.vrc_correction import expected_levels as vrc_expected_levels
-    expected_levels = vrc_expected_levels(par)
+    from kinbot.vrc_correction import (correction_model,
+        expected_levels as vrc_expected_levels, spin_splitting_settings)
+    context = pp_info.get('vrc_molecule', {})
+    symbols = context.get('symbols')
+    charge = context.get('charge', 0)
+    settings = None
+    if correction_model(par) == 'spin_splitting' and context:
+        settings = spin_splitting_settings(
+            par, parent_multiplicity=context['multiplicity'],
+            fragment_multiplicities=list(map(int, pp_info['frags_mult'])))
+        if settings['target_multiplicity'] != context['multiplicity']:
+            raise ValueError('ROTD sampling spin differs from the VRC parent.')
+    context_par = dict(par)
+    if context:
+        context_par['mult'] = context['multiplicity']
+    expected_levels = vrc_expected_levels(
+        context_par, symbols=symbols, charge=charge, settings=settings,
+        state_roots=pp_info.get('state_average_roots'))
     dynamical_correction = float(par['rotdpy_dynamical_correction'])
     if (not np.isfinite(dynamical_correction)
             or not 0. < dynamical_correction <= 1.):
@@ -195,7 +212,7 @@ def _rotdpy_validation_metadata(par, pp_info, correction_file, noscan,
         if noscan:
             raise ValueError('Production ROTD_py validation requires '
                              'vrc_tst_scan, not vrc_tst_noscan.')
-        if levels != expected_levels:
+        if json.loads(json.dumps(levels)) != json.loads(json.dumps(expected_levels)):
             raise ValueError(
                 'Production VRC correction provenance does not match the '
                 'configured sampling and trusted levels.')
@@ -216,6 +233,9 @@ def _rotdpy_validation_metadata(par, pp_info, correction_file, noscan,
         'name': profile,
         'sampling_level': expected_levels['sampling'],
         'trusted_correction_level': expected_levels['trusted_correction'],
+        'electronic_state_model': {
+            key: value for key, value in expected_levels.items()
+            if key not in ('sampling', 'trusted_correction')},
         'correction': {
             'kind': 'none' if noscan else 'one_dimensional',
             'point_count': len(pp_info.get('dist', [])),
@@ -235,6 +255,51 @@ def _rotdpy_validation_metadata(par, pp_info, correction_file, noscan,
         'flux_parameters': dict(par['rotdpy_flux_parameters']),
         'dynamical_correction': dynamical_correction,
         'dynamical_correction_application': 'number_of_states_flux',
+    }
+
+
+def _rotdpy_sampling_calculator(par, pp_info, metadata):
+    """Carry the resolved per-channel VRC model into every ROTD worker."""
+    from kinbot.vrc_correction import active_space_settings
+    level = metadata['sampling_level']
+    context = pp_info.get('vrc_molecule', {})
+    declaration = metadata['electronic_state_model']
+    enhanced = (isinstance(level['basis'], list)
+                or active_space_settings(par) is not None
+                or par.get('vrc_tst_state_model') is not None
+                or bool(par.get('vrc_tst_state_model_file')))
+    if not enhanced:
+        return None
+    if not context or not context.get('symbols'):
+        raise ValueError('This VRC sampling model requires correction data '
+                         'with the parent molecule and atom order; rerun VRC.')
+    order = pp_info.get('sampling_atom_order')
+    symbols = context['symbols']
+    fragments = [symbol for fragment in pp_info['frags_atom']
+                 for symbol in fragment]
+    if (not isinstance(order, list)
+            or any(isinstance(index, bool) or not isinstance(index, int)
+                   for index in order)
+            or sorted(order) != list(range(len(symbols)))
+            or len(fragments) != len(symbols)
+            or any(fragments[index] != symbols[parent_index]
+                   for index, parent_index in enumerate(order))):
+        raise ValueError('VRC sampling atom order disagrees with the parent '
+                         'orbital model.')
+    bases = level['basis'] if isinstance(level['basis'], list) else [level['basis']]
+    models = declaration.get('state_models_by_basis')
+    if models is None:
+        models = {basis: declaration.get('state_model') for basis in bases}
+    return {
+        'method': level['method'], 'basis': level['basis'],
+        'extrapolation_power': level.get('extrapolation_power', 3.7),
+        'charge': context['charge'], 'multiplicity': context['multiplicity'],
+        'parent_symbols': list(symbols), 'sampling_atom_order': list(order),
+        'state_models_by_basis': {basis: models[basis] for basis in bases},
+        'shift': par.get('vrc_tst_scan_shift', 0.3),
+        'ipea': par.get('vrc_tst_scan_ipea', 0.25),
+        'scf_convergence': par.get('vrc_tst_scf_convergence', 1.e-10),
+        'correlation_convergence': par.get('vrc_tst_correlation_convergence', 1.e-8),
     }
 
 
@@ -310,6 +375,7 @@ def _main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.characterize()
+    apply_electronic_state_model(well0, par)
     apply_input_reference(well0, par)
     log_input_stereochemistry(well0, par, logger)
     if no_kinbot:
@@ -1509,7 +1575,7 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
     [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
     """
 
-    folder = "rotdPy"
+    folder = os.fspath(par.get('rotdpy_directory', 'rotdPy'))
     if not os.path.exists(folder):
         # Create a new directory because it does not exist
         os.makedirs(folder)
@@ -1559,6 +1625,12 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
 
         with open(json_file, 'r') as jf:
             pp_info: dict[str, Any] = json.load(jf)
+
+        if pp_info.get('kind') == 'multistate':
+            from kinbot.vrc_multistate import create_inputs
+            created.extend(create_inputs(par, pp_info, reactant, products,
+                                         barrier, folder, json_file))
+            continue
 
         vrc_tst_start: float = pp_info['dist'][0]
         inf_energy: float = pp_info['e_inf_samp']
@@ -1617,15 +1689,25 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
         surfs: list[VRC_TST_Surface]
 
         for dist in par['rotdpy_dist']:
+            coordinate = par.get('_vrc_dividing_coordinate', 'legacy')
+            if coordinate == 'com':
+                fw, sf, surf = pp_settings.create_surface(dist, pp_info['unique'])
+                surfaces.append(surf)
+                faces_weights.append(fw)
+                selected_faces.append(sf)
+                continue
             if dist < vrc_tst_start and not noscan:
                 logger.info(f"Removing sampling surface {dist} for reaction {reac_name}")
                 continue
             else:
+                pivot_par = par
+                if coordinate == 'reactive':
+                    pivot_par = dict(par, pp_on_COM=float('inf'))
                 (fw, sf, surfs) = pp_settings.create_all_surf_for_dist(
                     dist=dist,
                     equiv_ra=pp_info['unique'],
                     fragments=fragments,
-                    par=par)
+                    par=pivot_par)
                 # for sur in surfs:
                 #     if any(sur.dist_matrix <= pp_info['smallest']):
                 #         logger.warning(f'Surface {sur.id} is not on the reaction coordinate.')
@@ -1648,6 +1730,8 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
         kb_1d_correction = _rotdpy_correction_block(pp_info, noscan)
         validation_metadata = _rotdpy_validation_metadata(
             par, pp_info, json_file, noscan, len(surfaces))
+        sampling_calculator = _rotdpy_sampling_calculator(
+            par, pp_info, validation_metadata)
 
         # Calc_block:
         tpl_rotdPy_calc = f'{kb_path}/tpl/rotdPy_calc.tpl'
@@ -1655,13 +1739,15 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
             fr = f.read()
         rotdPy_calc: str = fr.format(code='molpro',
                                      method=par['vrc_tst_sample_method'],
-                                     basis=par['vrc_tst_sample_basis'],
+                                     basis=repr(validation_metadata['sampling_level']['basis']),
                                      mem=par['rotdPy_mem'],
                                      processors=par['rotdpy_processors'],
                                      queue=par['queuing'],
                                      max_jobs=par['rotdpy_max_jobs'],
                                      max_retries=par['rotdpy_max_retries'],
                                      poll_interval=par['rotdpy_poll_interval'])
+        if sampling_calculator is not None:
+            rotdPy_calc += '\ncalc["kinbot_vrc"] = ' + repr(sampling_calculator) + '\n'
 
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
         if noscan:
@@ -1689,6 +1775,10 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
             dynamical_correction=repr(par['rotdpy_dynamical_correction']),
             validation_metadata=repr(validation_metadata),
             result_file=f'{reac_name}.rotdpy.json')
+        if sampling_calculator is not None:
+            new_input = new_input.replace(
+                'from rotd_py.sample.multi_sample import MultiSample',
+                'from kinbot.rotdpy_molpro import KinBotMultiSample as MultiSample')
 
         input_file = f"{folder}/{reac_name}.py"
         with open(input_file, 'w') as f:

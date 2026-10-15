@@ -25,6 +25,7 @@ from kinbot.stereo_identity import (canonical_identity, require_supported_identi
 from kinbot.reaction_path import prepare_stereopath, endpoint_snapshot
 from kinbot.stereo_routing import require_same_configuration, StereoRoutingError
 from kinbot.molpro import Molpro
+from kinbot.electronic_states import apply_electronic_state_model
 from ase.db import connect
 from ase import Atoms
 from kinbot.utils import reorder_coord
@@ -445,6 +446,9 @@ class ReactionGenerator:
                             obj.irc_product_reference = endpoint_snapshot(obj.irc_prod)
                             # identify bimolecular products and wells from IRC - do it once
                             obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
+                            for product in obj.products:
+                                apply_electronic_state_model(product, self.par)
+                                product.name = routing_name(product)
                             self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
                             if self.species.charge == 0:
                                 logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
@@ -532,6 +536,10 @@ class ReactionGenerator:
                                             obj.valid_prod[fri] = False
                                     frag.__dict__.pop('optical_reference', None)
                                     newfrags, _ = frag.start_multi_molecular(vary_charge=True)
+                                    for product in newfrags:
+                                        apply_electronic_state_model(product,
+                                                                     self.par)
+                                        product.name = routing_name(product)
                                     self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                     for product in newfrags:
                                         require_supported_identity(product)

@@ -22,6 +22,8 @@ from kinbot.energy import (KJ_PER_KCAL, formation_enthalpy_0k_kj_mol,
                            reaction_barrier_0k_kj_mol,
                            species_zero_k_hartree)
 from kinbot.execution import file_sha256
+from kinbot.electronic_states import (electronic_levels_for_species,
+                                      mess_electronic_levels)
 from kinbot.uncertaintyAnalysis import UQ
 
 from kinbot.mess_mirrors import annotate_population, annotate_endpoints, complete_mirror_channels
@@ -256,6 +258,16 @@ class MESS:
         """CBH/ANL requests use formation enthalpies as the MESS energy axis."""
         return getattr(self.species, 'formation_enthalpy_0k', None) is not None
 
+    def _electronic_fields(self, species, indent, *, ground_only=False):
+        """Return a fully rendered, explicitly counted MESS level block."""
+        count, lines = mess_electronic_levels(
+            species, self.par, ground_only=ground_only)
+        return {
+            'nelec': count,
+            'electronic_levels': '\n'.join(
+                indent + line for line in lines.splitlines()),
+        }
+
     def _stable_species(self):
         result = [self.species]
         for index, reaction in enumerate(self.species.reac_obj):
@@ -462,10 +474,12 @@ class MESS:
         destination = Path(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         if species.natom == 1:
+            electronic = electronic_levels_for_species(species, self.par)
             text = self._atomic_partition_function_input(
-                species.name, species.atom[0], species.mult, temperatures)
+                species.name, species.atom[0], electronic, temperatures)
         else:
             stable_freqs = self._stable_frequencies(species)
+            electronic = self._electronic_fields(species, '      ')
             text = self.pftpl.format(
                 temperatures=' '.join(f'{value:g}' for value in temperatures),
                 name=species.name, natom=species.natom,
@@ -474,7 +488,7 @@ class MESS:
                 rotconst=self.rotor_core_line(species),
                 nfreq=len(stable_freqs),
                 freq=self.make_freq(stable_freqs, 1., 0),
-                hinderedrotor=self.make_rotors(species, 1.), mult=species.mult)
+                hinderedrotor=self.make_rotors(species, 1.), **electronic)
         destination.write_text(text)
         return destination
 
@@ -502,6 +516,8 @@ class MESS:
             'geometry_sha256': _geometry_hash(Atoms(
                 symbols=symbols, positions=positions)),
         }
+        if getattr(species, 'spin_orbit_correction', None) is not None:
+            source['spin_orbit_correction'] = dict(species.spin_orbit_correction)
         source['record_sha256'] = hashlib.sha256(json.dumps(
             source, sort_keys=True,
             separators=(',', ':')).encode()).hexdigest()
@@ -516,6 +532,8 @@ class MESS:
                                 float(species.sigma_ext)
                                 / float(species.nopt)),
             'frequencies_cm_inverse': frequencies,
+            'electronic_levels': electronic_levels_for_species(
+                species, self.par),
             'hindered_rotor_blocks': rotor_blocks,
             'hindered_rotor_source': self._hindered_rotor_source(
                 species, rotor_blocks),
@@ -547,7 +565,7 @@ class MESS:
                           (*self.par['TemperatureList'], 298.15)))
 
     @staticmethod
-    def _atomic_partition_function_input(name, symbol, multiplicity,
+    def _atomic_partition_function_input(name, symbol, electronic_levels,
                                          temperatures):
         """Return the single-block atomic grammar consumed by MESSPF."""
         return (
@@ -559,8 +577,12 @@ class MESS:
             f'Species {name}\n'
             '  Atom\n'
             f'    Name {symbol}\n'
-            '    ElectronicLevels[1/cm] 1\n'
-            f'      0.0 {multiplicity}\n'
+            f'    ElectronicLevels[1/cm] {len(electronic_levels)}\n'
+            + ''.join(
+                f'      {float(level["energy_cm_inverse"]):.12g} '
+                f'{int(level["degeneracy"])}\n'
+                for level in electronic_levels)
+            +
             '  End\n')
 
     def write_partition_function_model(self, model, destination):
@@ -583,6 +605,22 @@ class MESS:
         frequencies_cm = [float(value)
                           for value in model['frequencies_cm_inverse']]
         symmetry_factor = float(model['symmetry_factor'])
+        electronic_levels = model.get('electronic_levels', [{
+            'energy_cm_inverse': 0.,
+            'multiplicity': model['multiplicity'],
+            'orbital_degeneracy': 1,
+            'degeneracy': model['multiplicity'],
+        }])
+        if (not isinstance(electronic_levels, list) or not electronic_levels
+                or any(not isinstance(level, dict)
+                       or not {'energy_cm_inverse', 'degeneracy'} <= set(level)
+                       or not math.isfinite(float(level['energy_cm_inverse']))
+                       or float(level['energy_cm_inverse']) < 0.
+                       or isinstance(level['degeneracy'], bool)
+                       or not isinstance(level['degeneracy'], int)
+                       or level['degeneracy'] < 1
+                       for level in electronic_levels)):
+            raise ValueError('Invalid external electronic-level model.')
         if (not symbols or positions.shape != (len(symbols), 3)
                 or not np.isfinite(positions).all()
                 or not math.isfinite(symmetry_factor)
@@ -594,7 +632,7 @@ class MESS:
             if frequencies_cm:
                 raise ValueError('An atomic CBH model cannot have vibrations.')
             text = self._atomic_partition_function_input(
-                model['name'], symbols[0], model['multiplicity'], temperatures)
+                model['name'], symbols[0], electronic_levels, temperatures)
         else:
             rotor_blocks = model.get('hindered_rotor_blocks', '')
             if not isinstance(rotor_blocks, str):
@@ -607,7 +645,11 @@ class MESS:
                 nfreq=len(frequencies_cm),
                 freq=self.make_freq(frequencies_cm, 1., 0),
                 hinderedrotor=rotor_blocks,
-                mult=model['multiplicity'])
+                nelec=len(electronic_levels),
+                electronic_levels='\n'.join(
+                    '      ' + f'{float(level["energy_cm_inverse"]):.12g} '
+                    + str(int(level['degeneracy']))
+                    for level in electronic_levels))
         destination.write_text(text)
         return destination
 
@@ -1323,12 +1365,14 @@ class MESS:
         """Render one MC member from its associated geometry and properties."""
         modes = frequencies.thermochemical_frequencies(
             record.frequencies_cm1, saddle, self.par.get('imagfreq_threshold', 50.))
+        electronic = self._electronic_fields(
+            species, '      ', ground_only=saddle)
         return self._counting_comment(record.optical_evidence, record.member_id) + self.rrhotpl.format(
             natom=species.natom, geom=self.rotor_geom(species, record.geometry, record.frequencies_cm1),
             core=self.corerrtpl.format(symm=record.sigma_ext / record.remaining_optical_weight,
                 rotconst=self.rotor_core_line(species, record.geometry, record.frequencies_cm1)),
             nfreq=len(modes) - int(saddle), freq=self.make_freq(modes, freq_factor, int(saddle)),
-            rotors='', tunneling=tunneling, nelec=1, mult=species.mult,
+            rotors='', tunneling=tunneling, **electronic,
             zeroenergy=zeroenergy, shift=shift)
 
     def _population_comment(self, species):
@@ -1443,6 +1487,7 @@ class MESS:
                             round((record.zero_energy_hartree - base) * constants.AUtoKCAL, 2))
                     fragment += '    End ! Union\n'
                 else:
+                    electronic = self._electronic_fields(species, '            ')
                     fragment = self.fragmenttpl.format(chemid=name,
                                                          smi=species.smiles,
                                                          natom=species.natom,
@@ -1452,18 +1497,17 @@ class MESS:
                                                          nfreq=len(stable_freqs),
                                                          freq=self.make_freq(stable_freqs, freq_factor, 0),
                                                          hinderedrotor=self.make_rotors(species, freq_factor),
-                                                         nelec=1,
-                                                         mult=species.mult)
+                                                         **electronic)
             else:
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(routing_key(species))
                 else:
                     name = self.fragment_names[routing_key(species)] + ' ! ' + routing_name(species)
 
+                electronic = self._electronic_fields(species, '            ')
                 fragment = self.atomtpl.format(chemid=name,
                                                  element=species.atom[0],
-                                                 nelec=1,
-                                                 mult=species.mult)
+                                                 **electronic)
 
             # Compute comments after rendering (which sets optical warnings),
             # but put the identity marker before the fragment it describes.
@@ -1546,7 +1590,11 @@ class MESS:
         input_file = directory / f'{reaction.instance_name}.py'
         manifest = input_file.with_name(
             f'{reaction.instance_name}.rotdpy.json')
-        if not input_file.is_file() or not manifest.is_file():
+        multistate_manifest = directory / f'{reaction.instance_name}.multistate.json'
+        multistate = multistate_manifest.is_file()
+        if (not multistate and (not input_file.is_file() or not manifest.is_file())):
+            if self.par.get('vrc_tst_surface_model_file'):
+                raise FileNotFoundError(f'{reaction.instance_name}: state-resolved ROTD results are required.')
             if mode in ('required', 'production'):
                 raise FileNotFoundError(
                     f'{reaction.instance_name}: completed ROTD_py input and '
@@ -1555,12 +1603,16 @@ class MESS:
         from kinbot.rotdpy import (number_of_states_file,
                                    stage_number_of_states_file)
         try:
-            source, provenance = number_of_states_file(
-                input_file, self.par.get('rotdpy_mess_energy_index', -1),
-                required_profile=('production'
-                                  if mode == 'production' else None))
+            if multistate:
+                from kinbot.vrc_multistate import stage_channel
+                provenance = stage_channel(multistate_manifest, 'me',
+                    required_profile='production' if mode == 'production' else None)
+            else:
+                source, provenance = number_of_states_file(
+                    input_file, self.par.get('rotdpy_mess_energy_index', -1),
+                    required_profile=('production' if mode == 'production' else None))
         except (OSError, RuntimeError, ValueError) as error:
-            if mode in ('required', 'production'):
+            if multistate or mode in ('required', 'production'):
                 raise RuntimeError(
                     f'{reaction.instance_name}: cannot use ROTD_py result: '
                     f'{error}') from error
@@ -1568,15 +1620,15 @@ class MESS:
                            'fallback: %s', reaction.instance_name, error)
             return None
 
-        safe_name = re.sub(r'[^A-Za-z0-9_.-]+', '_', reaction.instance_name)
-        destination = Path('me') / (
-            f'rotd_{safe_name}_Ne_{provenance["energy_index"]}.out')
-        preprocessing = stage_number_of_states_file(source, destination)
         provenance = dict(provenance)
-        provenance['mess_file'] = destination.name
-        provenance['mess_file_sha256'] = preprocessing.pop(
-            'mess_file_sha256')
-        provenance['mess_preprocessing'] = preprocessing
+        if not multistate:
+            safe_name = re.sub(r'[^A-Za-z0-9_.-]+', '_', reaction.instance_name)
+            destination = Path('me') / (
+                f'rotd_{safe_name}_Ne_{provenance["energy_index"]}.out')
+            preprocessing = stage_number_of_states_file(source, destination)
+            provenance['mess_file'] = destination.name
+            provenance['mess_file_sha256'] = preprocessing.pop('mess_file_sha256')
+            provenance['mess_preprocessing'] = preprocessing
 
         modes = []
         rotors = []
@@ -1584,6 +1636,11 @@ class MESS:
             modes.extend(self._stable_frequencies(species))
             rotors.append(self.make_rotors(species, freq_factor, bless=True))
         zero = round(float(ground_energy) - reference_shift, 2)
+        if not multistate:
+            from kinbot.rotdpy import number_of_states_ground
+            threshold = number_of_states_ground(destination)
+            zero += threshold * constants.AUtoKCAL / constants.AUtoCM
+            provenance['transitional_ground_cm_inverse'] = threshold
         identities = Counter(routing_key(species) for species in products)
         indistinguishability = math.prod(
             math.factorial(count) for count in identities.values())
@@ -1608,11 +1665,29 @@ class MESS:
                 rotd_symmetry / dynamical_correction)
         self.rotdpy_sources[reaction.instance_name] = provenance
 
+        if multistate:
+            from kinbot.vrc_multistate import render_mess
+            zero += (provenance['baseline_cm_inverse']
+                     * constants.AUtoKCAL / constants.AUtoCM)
+            # Multiplicity is already present in the summed electronic flux.
+            # Fragment resolved levels remain in their partition functions.
+            def rrho(stage):
+                return self.rotdrrhotpl.format(
+                    stoich=stoich, file=stage['file'], symmetry=rotd_symmetry,
+                    nfreq=len(modes), freq=self.make_freq(modes, freq_factor, 0),
+                    hinderedrotor='\n'.join(rotors), nelec=1,
+                    electronic_levels='            0 1', zeroenergy=(zero + stage['ground_cm_inverse']
+                        * constants.AUtoKCAL / constants.AUtoCM),
+                    provenance_sha256=stage['source_sha256'])
+            return render_mess(provenance, rrho)
+
+        electronic = self._electronic_fields(
+            self.species, '            ', ground_only=True)
         return self.rotdrrhotpl.format(
             stoich=stoich, file=destination.name,
             symmetry=rotd_symmetry, nfreq=len(modes),
             freq=self.make_freq(modes, freq_factor, 0),
-            hinderedrotor='\n'.join(rotors), mult=self.species.mult,
+            hinderedrotor='\n'.join(rotors), **electronic,
             zeroenergy=zero,
             provenance_sha256=provenance['source_sha256'])
 
@@ -1661,10 +1736,13 @@ class MESS:
                     geom=self.rotor_geom(species, geom, freq)))
             zero = ('{ground_energy}' + (f' ! {offset}' if offset else '') if self.par['pes']
                     else round(float(ground_energy) - reference_shift + offset, 2))
+            electronic = self._electronic_fields(
+                self.species, '            ', ground_only=True)
             models.append(self.pstrrhotpl.format(stoich=stoich,
                 frag1=geometries[0], frag2=geometries[1], pstsymm=divisor,
                 nfreq=len(modes), freq=self.make_freq(modes, freq_factor, 0),
-                hinderedrotor='\n'.join(rotors), mult=self.species.mult, zeroenergy=zero))
+                hinderedrotor='\n'.join(rotors), **electronic,
+                zeroenergy=zero))
         if len(models) == 1:
             model = models[0]
         else:
@@ -1710,6 +1788,7 @@ class MESS:
 
         if not self.par['multi_conf_tst'] or not valid_conformers:
             stable_freqs = self._stable_frequencies(species)
+            electronic = self._electronic_fields(species, '          ')
             mess_well = self.welltpl.format(chemid=name,
                                             smi=species.smiles,
                                             natom=species.natom,
@@ -1719,8 +1798,7 @@ class MESS:
                                             nfreq=len(stable_freqs),
                                             freq=self.make_freq(stable_freqs, freq_factor, 0),
                                             hinderedrotor=self.make_rotors(species, freq_factor, norot=norot),
-                                            nelec=1,
-                                            mult=species.mult,
+                                            **electronic,
                                             zeroenergy=zeroenergy)
         else:
             rrho = '      '
@@ -1852,6 +1930,8 @@ class MESS:
                         species_zero_k_hartree(self.species))
                     * constants.AUtoKCAL)
 
+            ts_electronic = self._electronic_fields(
+                reaction.ts, '        ', ground_only=True)
             outerts = self.psttpl.format(natom1=reaction.prod_opt[0].species.natom,
                                          geom1=self.rotor_geom(reaction.prod_opt[0].species),
                                          natom2=reaction.prod_opt[1].species.natom,
@@ -1862,8 +1942,7 @@ class MESS:
                                          nfreq=nfreq,
                                          freq=freq,
                                          hinderedrotor=rotors,
-                                         nelec=1,
-                                         mult=reaction.ts.mult,
+                                         **ts_electronic,
                                          prodzeroenergy=prodzeroenergy
                                          )
             twotst = self.twotstpl.format(outerts=outerts)
@@ -1876,8 +1955,7 @@ class MESS:
                                        freq=self.make_freq(reaction.ts.reduced_freqs, freq_factor, 1),
                                        rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
-                                       nelec=1,
-                                       mult=reaction.ts.mult,
+                                       **ts_electronic,
                                        zeroenergy=zeroenergy,
                                        shift='',
                                       )
@@ -1892,6 +1970,8 @@ class MESS:
         elif not self.par['multi_conf_tst'] or not valid_conformers:
             corerr = self.corerrtpl.format(symm=self._parent_symmetry(reaction.ts),
                                            rotconst=self.rotor_core_line(reaction.ts))
+            ts_electronic = self._electronic_fields(
+                reaction.ts, '      ', ground_only=True)
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
                                        geom=self.rotor_geom(reaction.ts),
                                        core=corerr,
@@ -1899,8 +1979,7 @@ class MESS:
                                        freq=self.make_freq(reaction.ts.reduced_freqs, freq_factor, 1),
                                        rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
-                                       nelec=1,
-                                       mult=reaction.ts.mult,
+                                       **ts_electronic,
                                        zeroenergy=zeroenergy,
                                        shift='',
                                       )

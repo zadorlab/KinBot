@@ -38,7 +38,7 @@ from kinbot.anl.dispatch import (_file_hash, _geometry_hash, _load, advance,
                                  SchedulerUnavailableError, _verify_execution,
                                  _verify_stage_files)
 from kinbot.anl.model import ComponentResult, IncompleteRecipeError
-from kinbot.anl.recipes import ANL_REDUCIBLE_FAMILIES
+from kinbot.anl.recipes import ANL_REDUCIBLE_FAMILIES, recipe
 from kinbot.anl.validation import (assemble_profiled_anl0,
                                    assemble_profiled_anl0_f12,
                                    assemble_profiled_anl1,
@@ -323,6 +323,10 @@ def _l2_species_record(species, l2_theory, *, identity_smiles=None,
         'l2_theory': dict(l2_theory),
     }
     payload['record_sha256'] = _sha256_json(payload)
+    if getattr(species, 'spin_orbit_correction', None) is not None:
+        payload['spin_orbit_correction'] = dict(species.spin_orbit_correction)
+        payload['record_sha256'] = _sha256_json({key: value for key, value in payload.items()
+                                                if key != 'record_sha256'})
     molecule['smiles'] = payload['smiles']
     molecule['source'] = {
         'provider': payload['provider'],
@@ -822,6 +826,19 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
     profiles = {'thermochemistry': {}, 'barrier': {}}
 
     def save(role, label, record, filename):
+        correction = source_record.get('spin_orbit_correction')
+        if correction is not None and 'spin_orbit' not in record['components']:
+            from kinbot.anl.workflow import state_correction_component
+            requirement = next(item for item in recipe('ANL0').requirements
+                               if item.key == 'spin_orbit')
+            component = state_correction_component(
+                requirement=requirement, value_hartree=correction['value_hartree'],
+                state_id=state_id, charge=molecule['charge'],
+                multiplicity=molecule['multiplicity'], source=correction['source'])
+            record['components']['spin_orbit'] = asdict(component)
+            record['electronic_terms'].append({'component': 'spin_orbit', 'coefficient': 1})
+            record['electronic_hartree'] += component.value_hartree
+            record['zero_k_hartree'] += component.value_hartree
         path = destination / filename
         path.write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
         profiles[role][label] = str(path)
@@ -852,11 +869,11 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
     l3_status = statuses.get('l3_geometry')
     if l3_status in ('complete', 'unavailable', 'skipped'):
         common = dict(
-            state_id=state_id, spin_orbit_hartree=0.,
-            spin_orbit_source=(
-                'balanced-CBH gauge zero; composition-balanced reaction '
-                'energies are invariant to this per-species convention'),
-            spin_orbit_backend='known_zero', base_run=run_dir,
+            state_id=state_id, spin_orbit_hartree=source_record.get(
+                'spin_orbit_correction', {}).get('value_hartree', 0.),
+            spin_orbit_source=source_record.get('spin_orbit_correction', {}).get(
+                'source', 'Spin-free approximation: no species-specific SO correction supplied.'),
+            spin_orbit_backend='manual', base_run=run_dir,
             vpt2_method=l2_method,
             f12_augmented=bool(spec.get('intent', {}).get(
                 'f12_augmented', False)))
@@ -1123,6 +1140,8 @@ def _model_record(model_path, entry, l2_theory):
             'frequencies_cm_inverse', ())),
         'l2_theory': dict(l2_theory),
         'geometry_sha256': geometry_hash, 'record_sha256': digest,
+        **({'spin_orbit_correction': dict(source['spin_orbit_correction'])}
+           if 'spin_orbit_correction' in source else {}),
         'thermochemistry_model': model,
         'thermochemistry_model_file': str(Path(model_path).resolve()),
     }
@@ -1369,6 +1388,8 @@ def _terminal_formation(smiles, state, formula, table, energy):
     if (record.formation_0k_kj_mol is None
             or record.formation_298k_kj_mol is None):
         raise ValueError(f'{smiles}: terminal ATcT record lacks 0/298 K values.')
+    uncertainty = 0. if record.exact else record.uncertainty_kj_mol
+    sources = {} if uncertainty is None else {f'atct:{record.atct_id}': uncertainty}
     return FormationEnthalpy(
         target_smiles=smiles, rung=0, method=energy.method,
         reaction_energy_0k_kj_mol=0.,
@@ -1377,7 +1398,11 @@ def _terminal_formation(smiles, state, formula, table, energy):
         atct_source_sha256=table.source_sha256,
         energy_sources={smiles: energy.source},
         stoichiometry={}, formulas={smiles: dict(formula)},
-        states={smiles: tuple(state)})
+        states={smiles: tuple(state)},
+        uncertainty_kj_mol=(0. if record.exact else
+                            record.uncertainty_kj_mol),
+        uncertainty_components_kj_mol=sources,
+        uncertainty_source_sensitivities_kj_mol=sources)
 
 
 def _write_formation(path, selection, *, terminal=False):

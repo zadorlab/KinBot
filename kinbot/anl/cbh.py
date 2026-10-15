@@ -75,6 +75,14 @@ class FormationEnthalpy:
     stoichiometry: Mapping[str, int] = field(default_factory=dict)
     formulas: Mapping[str, Mapping[str, int]] = field(default_factory=dict)
     states: Mapping[str, tuple[int, int]] = field(default_factory=dict)
+    uncertainty_kj_mol: float | None = None
+    uncertainty_components_kj_mol: Mapping[str, float] = field(
+        default_factory=dict)
+    # Signed first-order contributions from each independent uncertainty
+    # source.  Keeping signs allows a higher CBH rung to preserve cancellation
+    # when the same lower-rung ATcT or CBS source occurs more than once.
+    uncertainty_source_sensitivities_kj_mol: Mapping[str, float] = field(
+        default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -116,6 +124,9 @@ def formation_from_dict(value, reaction=None) -> FormationEnthalpy:
                 for smiles, formula in (formulas or {}).items()}
     states = {smiles: tuple(state)
               for smiles, state in (states or {}).items()}
+    components = dict(value.get('uncertainty_components_kj_mol', {}))
+    sensitivities = dict(value.get(
+        'uncertainty_source_sensitivities_kj_mol', components))
     result = FormationEnthalpy(
         target_smiles=value['target_smiles'], rung=value['rung'],
         method=value['method'],
@@ -124,7 +135,10 @@ def formation_from_dict(value, reaction=None) -> FormationEnthalpy:
         references=references, atct_version=value['atct_version'],
         atct_source_sha256=value['atct_source_sha256'],
         energy_sources=dict(value['energy_sources']),
-        stoichiometry=stoichiometry, formulas=formulas, states=states)
+        stoichiometry=stoichiometry, formulas=formulas, states=states,
+        uncertainty_kj_mol=value.get('uncertainty_kj_mol'),
+        uncertainty_components_kj_mol=components,
+        uncertainty_source_sensitivities_kj_mol=sensitivities)
     if (isinstance(result.rung, bool) or result.rung not in range(4)
             or not isinstance(result.method, str) or not result.method
             or not isinstance(result.atct_version, str)
@@ -134,7 +148,36 @@ def formation_from_dict(value, reaction=None) -> FormationEnthalpy:
                    for source in result.energy_sources.values())
             or not all(math.isfinite(number) for number in (
                 result.reaction_energy_0k_kj_mol,
-                result.formation_0k_kj_mol))):
+                result.formation_0k_kj_mol))
+            or (result.uncertainty_kj_mol is not None
+                and (isinstance(result.uncertainty_kj_mol, bool)
+                     or not isinstance(result.uncertainty_kj_mol,
+                                       (int, float))
+                     or not math.isfinite(result.uncertainty_kj_mol)
+                     or result.uncertainty_kj_mol < 0.))
+            or any(not isinstance(key, str) or not key
+                   or isinstance(number, bool)
+                   or not isinstance(number, (int, float))
+                   or not math.isfinite(number) or number < 0.
+                   for key, number in
+                   result.uncertainty_components_kj_mol.items())
+            or any(not isinstance(key, str) or not key
+                   or isinstance(number, bool)
+                   or not isinstance(number, (int, float))
+                   or not math.isfinite(number)
+                   for key, number in
+                   result.uncertainty_source_sensitivities_kj_mol.items())
+            or set(result.uncertainty_components_kj_mol) != set(
+                result.uncertainty_source_sensitivities_kj_mol)
+            or any(abs(result.uncertainty_components_kj_mol[key]
+                       - abs(number)) > 1.e-10
+                   for key, number in
+                   result.uncertainty_source_sensitivities_kj_mol.items())
+            or (result.uncertainty_kj_mol is not None
+                and abs(result.uncertainty_kj_mol - math.sqrt(math.fsum(
+                    number * number for number in
+                    result.uncertainty_components_kj_mol.values())))
+                > 1.e-10)):
         raise ValueError('CBH formation identity or values are invalid.')
     state_species = (set(result.stoichiometry) if result.stoichiometry
                      else {result.target_smiles})
@@ -542,7 +585,7 @@ def solve_formation_enthalpy(
         raise ValueError('CBH target must have stoichiometric coefficient -1.')
     _check_balance(reaction.stoichiometry, reaction.formulas,
                    reaction.states)
-    if set(energies) < set(reaction.stoichiometry):
+    if not set(reaction.stoichiometry) <= set(energies):
         missing = sorted(set(reaction.stoichiometry) - set(energies))
         raise ValueError('Missing 0 K energies for: ' + ', '.join(missing))
     methods = set()
@@ -603,13 +646,71 @@ def solve_formation_enthalpy(
         for smiles, record in references.items())
     # delta_r H(0) = sum(nu_i Hf_i(0)); nu_target is -1.
     target_hf = reference_sum - delta
+    series_names = set().union(*(
+        set(energies[smiles].basis_uncertainty_series)
+        for smiles in reaction.stoichiometry))
+    uncertainty_sensitivities = {}
+    uncertainty_complete = True
+    for series in sorted(series_names):
+        endpoints = []
+        for smiles, coefficient in reaction.stoichiometry.items():
+            endpoint = energies[smiles].basis_uncertainty_series.get(series)
+            if endpoint is None:
+                raise ValueError(
+                    f'{smiles}: missing CBS uncertainty series {series!r} '
+                    'within a common CBH method.')
+            try:
+                lower = float(endpoint['lower_hartree'])
+                upper = float(endpoint['upper_hartree'])
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError(
+                    f'{smiles}: invalid CBS uncertainty series {series!r}.') \
+                    from error
+            if not math.isfinite(lower) or not math.isfinite(upper):
+                raise ValueError(
+                    f'{smiles}: nonfinite CBS uncertainty endpoints.')
+            endpoints.append((coefficient * lower, coefficient * upper))
+        lower_reaction = math.fsum(item[0] for item in endpoints)
+        upper_reaction = math.fsum(item[1] for item in endpoints)
+        uncertainty_sensitivities[f'cbs:{series}'] = (
+            -0.5 * (upper_reaction - lower_reaction) * HARTREE_TO_KJ_MOL)
+    for smiles, coefficient in reaction.stoichiometry.items():
+        if smiles == reaction.target_smiles:
+            continue
+        reference = references[smiles]
+        if isinstance(reference, ATcTRecord):
+            value = 0. if reference.exact else reference.uncertainty_kj_mol
+            if value is None:
+                uncertainty_complete = False
+                continue
+            source_sensitivities = {
+                f'atct:{reference.atct_id}': float(value)}
+        else:
+            if reference.uncertainty_kj_mol is None:
+                uncertainty_complete = False
+            source_sensitivities = dict(
+                reference.uncertainty_source_sensitivities_kj_mol)
+            if not source_sensitivities:
+                uncertainty_complete = False
+        for label, sensitivity in source_sensitivities.items():
+            uncertainty_sensitivities[label] = (
+                uncertainty_sensitivities.get(label, 0.)
+                + coefficient * float(sensitivity))
+    uncertainty_components = {
+        label: abs(value)
+        for label, value in uncertainty_sensitivities.items()
+    }
+    uncertainty = (math.sqrt(math.fsum(
+        value * value for value in uncertainty_components.values()))
+        if uncertainty_complete else None)
     return FormationEnthalpy(
         reaction.target_smiles, reaction.rung, methods.pop(), delta,
         target_hf, references, atct_version, atct_source_sha256,
         {smiles: energies[smiles].source for smiles in reaction.stoichiometry},
         dict(reaction.stoichiometry),
         {smiles: dict(formula) for smiles, formula in reaction.formulas.items()},
-                       dict(reaction.states))
+        dict(reaction.states), uncertainty, uncertainty_components,
+        uncertainty_sensitivities)
 
 
 def cbh_size_metrics(smiles: str, *, charge: int = 0,
@@ -750,6 +851,9 @@ def solve_cbh_network(reaction: CBHReaction,
                     record = _atct_reference(
                         smiles, node.formulas[smiles], state, atct,
                         reference_ids)
+                    uncertainty = 0. if record.exact else record.uncertainty_kj_mol
+                    sources = ({} if uncertainty is None else
+                               {f'atct:{record.atct_id}': uncertainty})
                     lower[smiles] = FormationEnthalpy(
                         target_smiles=smiles, rung=0, method=label,
                         reaction_energy_0k_kj_mol=0.,
@@ -760,7 +864,12 @@ def solve_cbh_network(reaction: CBHReaction,
                         energy_sources={},
                         stoichiometry={},
                         formulas={smiles: dict(node.formulas[smiles])},
-                        states={smiles: state})
+                        states={smiles: state},
+                        uncertainty_kj_mol=(
+                            0. if record.exact else
+                            record.uncertainty_kj_mol),
+                        uncertainty_components_kj_mol=sources,
+                        uncertainty_source_sensitivities_kj_mol=sources)
                 else:
                     lower[smiles] = solve_node(child)
             result = solve_formation_enthalpy(
@@ -968,9 +1077,20 @@ def zero_k_from_composite_record(smiles: str, path: str | Path) -> ZeroKEnergy:
                 or not math.isfinite(stored) or abs(stored - value) > 5e-12):
             raise ValueError(f'{path}: stored {key} disagrees with components.')
     source = f'{path}#sha256={sha256(raw).hexdigest()}'
+    series = {}
+    for component in components.values():
+        settings = component.get('settings', {})
+        declared = settings.get('basis_uncertainty_series', {}) \
+            if isinstance(settings, dict) else {}
+        if not isinstance(declared, dict):
+            raise ValueError(f'{path}: invalid CBS uncertainty metadata.')
+        overlap = set(series) & set(declared)
+        if overlap:
+            raise ValueError(f'{path}: repeated CBS uncertainty series.')
+        series.update({key: dict(value) for key, value in declared.items()})
     return ZeroKEnergy(
         smiles, expected['zero_k_hartree'], record['recipe'], source,
-        record['charge'], record['multiplicity'])
+        record['charge'], record['multiplicity'], series)
 
 
 def solve_composite_records(

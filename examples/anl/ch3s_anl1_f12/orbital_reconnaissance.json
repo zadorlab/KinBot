@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "title": "ch3s_orbital_reconnaissance",
+  "symbols": [
+    "C",
+    "S",
+    "H",
+    "H",
+    "H"
+  ],
+  "geometry_angstrom": [
+    [
+      -0.13343535,
+      -0.00355507,
+      0.00144609
+    ],
+    [
+      1.64266896,
+      0.04376502,
+      -0.01780225
+    ],
+    [
+      -0.49882584,
+      -0.54048668,
+      -0.89797837
+    ],
+    [
+      -0.47942262,
+      -0.53189202,
+      0.91354423
+    ],
+    [
+      -0.53098515,
+      1.03216875,
+      0.0007903
+    ]
+  ],
+  "charge": 0,
+  "multiplicity": 2,
+  "bases": [
+    {
+      "name": "avd",
+      "basis": "aug-cc-pVDZ"
+    },
+    {
+      "name": "avt",
+      "basis": "aug-cc-pVTZ"
+    },
+    {
+      "name": "avq",
+      "basis": "aug-cc-pVQZ"
+    },
+    {
+      "name": "av5",
+      "basis": "aug-cc-pV5Z"
+    },
+    {
+      "name": "avd_f12",
+      "basis": "avdz-f12"
+    },
+    {
+      "name": "avt_f12",
+      "basis": "avtz-f12"
+    },
+    {
+      "name": "avq_f12",
+      "basis": "avqz-f12"
+    },
+    {
+      "name": "av5_f12",
+      "basis": "av5z-f12"
+    }
+  ],
+  "scf_convergence": 1e-10,
+  "memory_mw": 1000,
+  "partition": "day-long-cpu",
+  "ppn": 8,
+  "coordinates": [
+    {
+      "name": "cs",
+      "bond": [
+        1,
+        2
+      ]
+    }
+  ],
+  "kinbot_input": "ch3s.json",
+  "probe_active_space": true,
+  "scan_policy": {
+    "asymptote_angstrom": 30.0,
+    "asymptote_tolerance_hartree": 1e-06,
+    "maximum_energy_step_hartree": 0.02,
+    "maximum_occupation_change": 0.2
+  },
+  "queue_job_limit": 10,
+  "orientation_probes": {
+    "distance_scales": [
+      1.0,
+      1.5,
+      2.5
+    ],
+    "angles_degrees": [
+      60.0
+    ],
+    "axes": [
+      "bond",
+      "perpendicular_1",
+      "perpendicular_2"
+    ],
+    "include_asymptote": true
+  }
+}

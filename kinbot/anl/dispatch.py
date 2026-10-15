@@ -1205,10 +1205,16 @@ def _run_ase_optimize(directory, record):
         raise RuntimeError('ASE geometry optimization did not converge.')
     energy_ev = float(atoms.get_potential_energy())
     write(directory / 'final.xyz', atoms)
-    return {'energy_ev': energy_ev, 'energy_hartree': energy_ev / Hartree,
-            'optimizer': profile.optimizer if len(atoms) > 2 else 'bfgs_or_atom',
-            'order': options.get('order', 0),
-            'generated_files': getattr(atoms.calc, 'generated_files', [])}
+    details = {
+        'energy_ev': energy_ev, 'energy_hartree': energy_ev / Hartree,
+        'optimizer': profile.optimizer if len(atoms) > 2 else 'bfgs_or_atom',
+        'order': options.get('order', 0),
+        'generated_files': getattr(atoms.calc, 'generated_files', []),
+    }
+    checkpoint = getattr(atoms.calc, 'orbital_checkpoint_model', None)
+    if checkpoint is not None:
+        details['orbital_checkpoint_model'] = checkpoint
+    return details
 
 
 def run_task(task_file):

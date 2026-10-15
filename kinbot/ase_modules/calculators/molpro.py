@@ -8,6 +8,8 @@ selected CASPT2-F12 or Davidson-corrected MRCI energy.
 """
 
 from pathlib import Path
+from copy import deepcopy
+import hashlib
 import re
 import shlex
 import subprocess
@@ -19,7 +21,9 @@ import numpy as np
 from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
 from kinbot.anl.results import validate_molpro_triples
 from kinbot.molpro import (
-    _vrc_multireference_method, vrc_multireference_energy_contract,
+    _vrc_multireference_method, stage_vrc_state_model,
+    validate_vrc_state_model,
+    vrc_multireference_energy_contract,
 )
 from kinbot.theory import fortran_threshold
 
@@ -67,6 +71,8 @@ def _caspt2_space(method, electron_count):
 def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                  mult=1, method='CCSD(T)', effective_method=None,
                  caspt2_shift=0.3, caspt2_ipea=0.25,
+                 state_model=None,
+                 orbital_file=None,
                  gradient_mode='auto', scf_convergence=1.e-10,
                  correlation_convergence=1.e-8):
     """Render a CCSD(T), CASPT2, or Davidson-corrected MRCI gradient.
@@ -113,6 +119,10 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
         _caspt2_space(
             f'caspt2({contract["active_electrons"]},'
             f'{contract["active_orbitals"]})', electron_count)
+        validate_vrc_state_model(
+            state_model, active_electrons=contract['active_electrons'],
+            active_orbitals=contract['active_orbitals'],
+            nelectron=electron_count, atom_count=len(atoms))
         if (analytic_caspt2 and
                 (gradient_name is None or not re.fullmatch(
                     r'[A-Za-z0-9][A-Za-z0-9_.-]*\.xyzgrad',
@@ -141,8 +151,17 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
             f'basis={basis}\nset,charge={charge}\nset,spin={mult - 1}\n'
             f'gthresh,energy={scf_threshold},coeff={correlation_threshold},'
             f'civec={correlation_threshold}\n')
+    selection = ((state_model or {}).get('orbital_selection')
+                 if isinstance(state_model, dict) else None)
+    if (orbital_file is not None
+            and not (isinstance(selection, dict)
+                     and selection.get('mode') == 'molpro_record')):
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.wfu', orbital_file):
+            raise ValueError('Molpro orbital checkpoint must be a safe WFU basename.')
+        header += f'file,2,{orbital_file}\n'
+    header += 'gprint,orbitals,orben,civector\n'
     if contract is not None:
-        if analytic_caspt2:
+        if analytic_caspt2 and state_model is None:
             active_electrons, active_orbitals, closed, occupied = \
                 _caspt2_space(requested_method, electron_count)
             method_block = (
@@ -156,7 +175,8 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
         else:
             method_block, selected = _vrc_multireference_method(
                 requested_method, electron_count, spin=mult - 1,
-                shift=caspt2_shift, ipea=caspt2_ipea)
+                shift=caspt2_shift, ipea=caspt2_ipea,
+                state_model=state_model)
         body = method_block + f'kb_geom_energy={selected}\n'
         if analytic_caspt2:
             body += f'forces\nput,xyzgrad,{gradient_name}\n'
@@ -343,6 +363,7 @@ class Molpro(Calculator):
                  charge=0, mult=1, nproc=1, stack_mw=256,
                  scratch_min_mb=4096, effective_method=None,
                  caspt2_shift=0.3, caspt2_ipea=0.25,
+                 state_model=None,
                  gradient_mode='auto', scf_convergence=1.e-10,
                  correlation_convergence=1.e-8):
         super().__init__()
@@ -382,6 +403,8 @@ class Molpro(Calculator):
         self.method = method
         self.caspt2_shift = caspt2_shift
         self.caspt2_ipea = caspt2_ipea
+        self.state_model = validate_vrc_state_model(state_model)
+        self._orbital_checkpoint_model = deepcopy(self.state_model)
         # Validate at construction so a bad public input never reaches the
         # scheduler, including conventional CC jobs that do not use CASPT2.
         fortran_threshold(scf_convergence, 'Molpro SCF convergence')
@@ -410,6 +433,11 @@ class Molpro(Calculator):
         self.evaluations = 0
         self.generated_files = []
 
+    @property
+    def orbital_checkpoint_model(self):
+        """Return the last hash-bound active-orbital model for provenance."""
+        return deepcopy(self._orbital_checkpoint_model)
+
     def calculate(self, atoms=None, properties=('energy',),
                   system_changes=all_changes):
         super().calculate(atoms, properties, system_changes)
@@ -421,6 +449,15 @@ class Molpro(Calculator):
         gradient_name = f'{stem}.xyzgrad' if self.analytic_caspt2 else None
         stdout_name = f'{stem}.stdout'
         stderr_name = f'{stem}.stderr'
+        state_model = stage_vrc_state_model(
+            self._orbital_checkpoint_model, self.work_directory, stem)
+        selection = ((state_model or {}).get('orbital_selection')
+                     if isinstance(state_model, dict) else None)
+        if (isinstance(selection, dict)
+                and selection.get('mode') == 'molpro_record'):
+            orbital_name = Path(selection['path']).name
+        else:
+            orbital_name = f'{stem}.orbitals.wfu'
         (self.work_directory / input_name).write_text(
             render_input(atoms, basis=self.basis, geometry_name=geometry_name,
                          gradient_name=gradient_name, method=self.method,
@@ -428,6 +465,8 @@ class Molpro(Calculator):
                          effective_method=self.effective_method,
                          caspt2_shift=self.caspt2_shift,
                          caspt2_ipea=self.caspt2_ipea,
+                         state_model=state_model,
+                         orbital_file=orbital_name,
                          gradient_mode=self.gradient_mode,
                          scf_convergence=self.scf_convergence,
                          correlation_convergence=
@@ -451,6 +490,8 @@ class Molpro(Calculator):
                                f'status {result.returncode}.')
         log_name = f'{stem}.log'
         required = [output_name, log_name, geometry_name]
+        if vrc_multireference_energy_contract(self.method) is not None:
+            required.append(orbital_name)
         if gradient_name is not None:
             required.append(gradient_name)
         for name in required:
@@ -459,6 +500,26 @@ class Molpro(Calculator):
                 raise RuntimeError(f'Molpro force evaluation {stem} lacks nonempty {name}.')
         check_process_count(self.work_directory / output_name, self.nproc)
         self.generated_files.extend(required)
+        if vrc_multireference_energy_contract(self.method) is not None:
+            checkpoint = self.work_directory / orbital_name
+            if not checkpoint.is_file() or not checkpoint.stat().st_size:
+                raise RuntimeError(
+                    f'Molpro force evaluation {stem} did not save its '
+                    'active-orbital checkpoint.')
+            updated = deepcopy(state_model) if state_model is not None else {
+                'state_average': [{
+                    'multiplicity': self.mult, 'roots': 1, 'weights': [1.],
+                }],
+                'selected_roots': {self.mult: 1},
+                'canonical_orbitals': True,
+            }
+            updated['orbital_selection'] = {
+                'mode': 'molpro_record',
+                'path': str(checkpoint.resolve()),
+                'record': '2140.2',
+                'sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+            }
+            self._orbital_checkpoint_model = validate_vrc_state_model(updated)
         xml_name = f'{stem}.xml'
         if (self.work_directory / xml_name).is_file():
             self.generated_files.append(xml_name)

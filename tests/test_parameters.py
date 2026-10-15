@@ -63,6 +63,25 @@ class TestBackendWarnings(unittest.TestCase):
             vrc_tst_correction_model='spin_splitting')
         self.assertEqual(spin['vrc_tst_correction_model'], 'spin_splitting')
 
+    def test_anl1_f12_vrc_preset_requires_only_one_user_option(self):
+        parameters = self.read_parameters(
+            vrc_tst_accuracy_preset='anl1-f12')
+        self.assertEqual(parameters['vrc_tst_active_space'], 'full_valence')
+        self.assertEqual(parameters['vrc_tst_scan_method'],
+                         'caspt2-f12b(2,2)')
+        self.assertEqual(parameters['vrc_tst_scan_gradient'], 'numerical')
+        self.assertEqual(parameters['vrc_tst_sample_basis'],
+                         ['avtz-f12', 'avqz-f12'])
+        self.assertEqual(parameters['vrc_tst_correction_model'],
+                         'spin_splitting')
+
+    def test_full_valence_rejects_nonaugmented_multireference_basis_early(self):
+        with self.assertRaisesRegex(ValueError, 'augmented orbital bases'):
+            self.read_parameters(
+                vrc_tst_active_space='full_valence',
+                vrc_tst_scan_method='caspt2-f12b(2,2)',
+                vrc_tst_scan_basis='vqz-f12')
+
     def test_invalid_spin_splitting_override_fails_during_input_read(self):
         with self.assertRaisesRegex(ValueError, 'adjacent'):
             self.read_parameters(

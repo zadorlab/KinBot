@@ -1,23 +1,51 @@
-# CH3S ANL1-F12 and VRC-TST example
+# CH3S orbital reconnaissance and CBH/ANL–VRC–MESS
 
-This ordinary KinBot input starts from neutral doublet methylthiyl. Reaction
-families, accepted products, the CBH rung, and feasible ANL tiers are selected
-by KinBot. The large barrier cutoff prevents energy pruning during this
-research validation.
+The requested dissociation is CH3S → CH3 + S. The reconnaissance covers
+aug-cc-pVDZ/TZ/QZ/5Z and aug-cc-pVDZ/TZ/QZ/5Z-F12, using Molpro's installed
+basis definitions and auxiliary defaults. KinBot supplies no revision suffix
+or replacement basis data.
 
-The VRC settings are intentionally expensive. The relaxed path and frozen
-sampling surface use a 13-electron, 8-orbital CASPT2-F12b model. Sampling is
-extrapolated from aug-cc-pVTZ-F12/aug-cc-pVQZ-F12. The trusted doublet curve is
-constructed from a quartet RHF/ROHF-UCCSD(T)-F12b reference plus doublet minus
-quartet CASPT2-F12b and Davidson-corrected MRCI-F12b+Q gaps. Each branch uses
-the 3.7-power QZ/5Z extrapolation and the distance-dependent CASPT2/MRCI
-weighting stored in the final correction record.
+`orbital_reconnaissance.json` defines the C–S bond by atom indices. The driver
+builds a dense near-bond grid, includes the reference geometry, extends to an
+initial 30 Å, and requests extra intervals/range when energies or occupations
+have not settled. There are initially 31 geometries (19 radial and 12 orientation probes)
+and 248 basis/geometry jobs, plus eight native pilot jobs. Adaptive refinement can add jobs. Each job uses one node; the supplied
+controller limit is ten jobs. See the [audit](../../../docs/ANL_workflow_audit.md)
+for the release gate and remaining chemistry checks.
 
-The ANL1-F12 electronic reference also opts into fully augmented F12 bases:
-aug-cc-pVQZ-F12/aug-cc-pV5Z-F12 is averaged with the conventional fully
-augmented aug-cc-pV5Z/aug-cc-pV6Z limit. Both branches use the 3.7 power.
+Probes produce ROHF orbitals, AVAS/CASCI natural occupations, all requested
+root energies, Molden files, and WFU records. Subsequent points use the
+preceding saved record with START/DIAB. Hashes bind results to their inputs
+and checkpoint sources. Reports list occupation-based candidate orbital
+indices and electron populations at each geometry. These diagnostics do not
+establish a minimal active space or certify wavefunction root continuity.
 
-The 13e,8o space is a deliberately broad high-accuracy CH3S space. Before a
-production calculation, inspect the natural occupations over the full scan;
-an active space is a scientific input and cannot be inferred safely from atom
-counts alone.
+The parent doublet and declared CH3(doublet) + S(3P) products determine the
+doublet/quartet coupling and three spatial roots per manifold. This follows
+input evidence, without a molecule-name branch in the implementation.
+These are probe/state-average counts. The number of reactive contributions
+at inner and outer bottlenecks must be established separately; see the audit's
+NH2O SI comparison. General multistate orchestration is implemented;
+the contributing sulfur states must be selected from the evidence.
+
+`ch3s.json` requests a **candidate** CAS(13,8). A count does not identify the
+orbitals. Production requires a reviewed, basis-specific
+`ch3s_state_model.json` and verified WFU records. Review must include the C–S
+bonding/antibonding and sulfur valence manifold throughout dissociation,
+larger-space sensitivity, and the CH3S Jahn–Teller/spin–orbit treatment.
+Update the requested CAS if the evidence calls for a different space.
+
+The input supplies atomic S fine-structure levels and a ground-term centroid
+correction. Its CH3S X(2E) declaration specifies spin-free spatial roots only,
+not a resolved molecular partition function or molecular SO correction.
+
+Primary references: [CH3S multistate and SO study](https://pmc.ncbi.nlm.nih.gov/articles/PMC5995305/),
+[Molpro AVAS](https://www.molpro.net/manual/doku.php?id=automated_construction_of_atomic_valence_active_spaces),
+[Molpro MULTI](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi).
+
+Use the [Blodgett commit/pull and launch runbook](../../../docs/Blodgett_workflow_runbook.md)
+to prepare both systems in one campaign. Preparation records available Molpro
+modules and each batch job loads its setup. Preflight and all-basis/channel
+native pilots precede bulk submission. The shared limit is ten nodes total.
+Full KinBot production follows review of these results. Automatic homolytic
+vdW-complex discovery is deferred under the present example scope.

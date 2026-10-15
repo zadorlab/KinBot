@@ -38,7 +38,7 @@ def test_core_valence_is_all_electron_cbs_minus_frozen_core_cbs():
 
 
 def test_recipe_pins_each_reference_pair_and_the_tq_corrections():
-    for name, cardinal in (('ANL0', 5), ('ANL0-F12', 4), ('ANL1', 6)):
+    for name, cardinal in (('ANL0', 5), ('ANL1', 6)):
         requirements = {item.key: item for item in recipe(name).requirements}
         assert requirements['reference_cbs'].settings['upper_cardinal'] == cardinal
         assert requirements['reference_cbs'].settings['extrapolation_power'] == 3.7
@@ -46,6 +46,16 @@ def test_recipe_pins_each_reference_pair_and_the_tq_corrections():
         assert requirements['core_valence_cbs'].method == \
             'CCSD(T,full)-CCSD(T,frozen-core)'
         assert requirements['scalar_relativistic'].basis == 'aug-cc-pCVTZ-DK'
+    for name, f12_cardinal, conventional_cardinal in (
+            ('ANL0-F12', 4, 5), ('ANL1-F12', 5, 6)):
+        requirements = {item.key: item for item in recipe(name).requirements}
+        reference = requirements['reference_cbs']
+        assert reference.settings['f12_upper_cardinal'] == f12_cardinal
+        assert (reference.settings['conventional_upper_cardinal'] ==
+                conventional_cardinal)
+        assert reference.settings['f12_extrapolation_power'] == 3.7
+        assert reference.settings['conventional_extrapolation_power'] == 3.7
+        assert requirements['core_valence_cbs'].settings['upper_cardinal'] == 4
     assert {item.key: item for item in recipe('ANL1').requirements}[
         'harmonic_zpe'].settings['upper_cardinal'] == 4
 

@@ -7,7 +7,7 @@ calc = {{
 'code': '{code}',
 'scratch': str(scratch),
 'method': '{method}',
-'basis': '{basis}',
+'basis': {basis},
 'mem': {mem},
 'processors': {processors},
 'queue': '{queue}',

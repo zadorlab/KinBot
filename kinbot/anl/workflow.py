@@ -292,6 +292,12 @@ def rank_exact_core_valence_component(
                    'all-electron and frozen-core CBS energies are identical'),
         'atomic_numbers': numbers,
     }
+    settings['basis_uncertainty_series'] = {
+        requirement.key: {
+            'lower_hartree': 0., 'upper_hartree': 0.,
+            'lower_basis': 'cc-pCVTZ', 'upper_basis': 'cc-pCVQZ',
+        },
+    }
     return ComponentResult(
         key=requirement.key, value_hartree=0.,
         quantity=requirement.quantity, method=requirement.method,
@@ -324,6 +330,15 @@ def atomic_zero_vibrational_component(
     }
     digest = hashlib.sha256(json.dumps(
         provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    settings = dict(requirement.settings)
+    if ('upper_cardinal' in settings
+            and 'extrapolation_power' in settings):
+        settings['basis_uncertainty_series'] = {
+            requirement.key: {
+                'lower_hartree': 0., 'upper_hartree': 0.,
+                'lower_basis': 'cc-pVTZ', 'upper_basis': 'cc-pVQZ',
+            },
+        }
     return ComponentResult(
         key=requirement.key, value_hartree=0.,
         quantity=requirement.quantity, method=requirement.method,
@@ -333,7 +348,7 @@ def atomic_zero_vibrational_component(
         geometry_sha256=geometry_sha256, source_sha256=digest,
         source=('exact zero: a monatomic species has no vibrational '
                 f'{requirement.key} contribution'),
-        settings=dict(requirement.settings))
+        settings=settings)
 
 
 def attach_task_vpt2_frequencies(species, run_dir, task_id, *,
@@ -413,6 +428,17 @@ def core_valence_task_component(
     }
     digest = hashlib.sha256(json.dumps(
         provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    settings = dict(requirement.settings)
+    settings['basis_uncertainty_series'] = {
+        requirement.key: {
+            'lower_hartree': float(
+                ae_lower.value_hartree - fc_lower.value_hartree),
+            'upper_hartree': float(
+                ae_upper.value_hartree - fc_upper.value_hartree),
+            'lower_basis': 'cc-pCVTZ',
+            'upper_basis': 'cc-pCVQZ',
+        },
+    }
     first = parts[0]
     return ComponentResult(
         key=requirement.key, value_hartree=value,
@@ -421,7 +447,7 @@ def core_valence_task_component(
         charge=first.charge, multiplicity=first.multiplicity,
         geometry_sha256=first.geometry_sha256, source_sha256=digest,
         source='core-valence(' + ','.join(part.source for part in parts) + ')',
-        settings=dict(requirement.settings))
+        settings=settings)
 
 
 def scalar_relativistic_task_component(
@@ -731,6 +757,14 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis,
     power = settings['extrapolation_power']
     value = two_point_cbs(lower.value_hartree, upper.value_hartree,
                           upper_cardinal=cardinal, power=power)
+    settings['basis_uncertainty_series'] = {
+        requirement.key: {
+            'lower_hartree': float(lower.value_hartree),
+            'upper_hartree': float(upper.value_hartree),
+            'lower_basis': lower_basis,
+            'upper_basis': upper_basis,
+        },
+    }
     provenance = {
         'formula': 'E_n + alpha_n*(E_n-E_(n-1))',
         'lower_sha256': lower.source_sha256,

@@ -57,6 +57,29 @@ def _species(name, smiles, atoms, multiplicity=1, energy=-1., zpe=.01):
         freq=[500., 1000.], source_job=name + '_high', source_row_id=7)
 
 
+def test_explicit_spin_orbit_correction_survives_l2_fallback_expression(tmp_path, monkeypatch):
+    from kinbot.anl.automatic import assemble_available_profiles
+    from kinbot.anl.cbh import zero_k_from_composite_record
+    molecule = {'symbols': ['S'], 'positions': [[0., 0., 0.]],
+                'charge': 0, 'multiplicity': 3, 'smiles': '[S]',
+                'source': {'geometry_sha256': 'a' * 64, 'record_sha256': 'b' * 64}}
+    source = {'molecule': molecule, 'smiles': '[S]', 'energy_hartree': -398.,
+              'harmonic_zpe_hartree': 0.,
+              'l2_theory': {'composite_method': 'B2PLYP-D3BJ', 'basis': 'cc-pVTZ',
+                            'label': 'B2PLYP-D3BJ/cc-pVTZ'},
+              'spin_orbit_correction': {'value_hartree': -.001,
+                                         'source': 'test complete-term centroid'}}
+    spec = {'name': 'anl-automatic-post-l2', 'molecule': molecule, 'tasks': []}
+    monkeypatch.setattr('kinbot.anl.automatic._load', lambda path: (tmp_path, spec, {'tasks': {}}))
+    profiles = assemble_available_profiles(tmp_path, source, tmp_path / 'profiles', state_id='sulfur')
+    for role in ('thermochemistry', 'barrier'):
+        for path in profiles[role].values():
+            record = json.loads(Path(path).read_text())
+            assert record['zero_k_hartree'] == pytest.approx(-398.001)
+            assert record['components']['spin_orbit']['source'] == 'test complete-term centroid'
+            assert zero_k_from_composite_record('[S]', path).hartree == pytest.approx(-398.001)
+
+
 def test_network_request_generates_recursive_cbh_states_without_user_species():
     acetaldehyde = _species(
         'acetaldehyde', 'CC=O', ['C', 'C', 'O', 'H', 'H', 'H', 'H'],

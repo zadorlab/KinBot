@@ -274,6 +274,55 @@ def test_zero_k_formation_uses_accepted_energies_and_atct_references():
         solve_formation_enthalpy(reaction, energies, table)
 
 
+def test_zero_k_formation_propagates_cbs_half_width_and_atct_uncertainty():
+    _, table = _table()
+    reaction = generate_cbh_reaction('CC', 0)
+    series = 'reference_cbs:f12'
+    energies = {
+        'CC': ZeroKEnergy(
+            'CC', -79., 'ANL0-F12', 'ethane-output',
+            basis_uncertainty_series={series: {
+                'lower_hartree': -79., 'upper_hartree': -79.001}}),
+        'C': ZeroKEnergy(
+            'C', -40., 'ANL0-F12', 'methane-output',
+            basis_uncertainty_series={series: {
+                'lower_hartree': -40., 'upper_hartree': -40.0002}}),
+        '[H][H]': ZeroKEnergy(
+            '[H][H]', -1., 'ANL0-F12', 'hydrogen-output',
+            basis_uncertainty_series={series: {
+                'lower_hartree': -1., 'upper_hartree': -1.}}),
+    }
+
+    result = solve_formation_enthalpy(reaction, energies, table)
+
+    cbs = .5 * .0006 * HARTREE_TO_KJ_MOL
+    atct = 2 * .1
+    assert result.uncertainty_components_kj_mol == pytest.approx({
+        f'cbs:{series}': cbs,
+        'atct:74-82-8*0': atct,
+        'atct:1333-74-0*0': 0.,
+    })
+    assert result.uncertainty_kj_mol == pytest.approx(
+        (cbs * cbs + atct * atct) ** .5)
+    assert formation_from_dict(asdict(result)) == result
+
+
+def test_zero_k_formation_rejects_incomplete_cbs_uncertainty_series():
+    _, table = _table()
+    reaction = generate_cbh_reaction('CC', 0)
+    energies = {
+        smiles: ZeroKEnergy(
+            smiles, value, 'ANL0-F12', smiles,
+            basis_uncertainty_series=(
+                {'reference_cbs': {
+                    'lower_hartree': value, 'upper_hartree': value}}
+                if smiles != '[H][H]' else {}))
+        for smiles, value in {'CC': -79., 'C': -40., '[H][H]': -1.}.items()
+    }
+    with pytest.raises(ValueError, match='missing CBS uncertainty series'):
+        solve_formation_enthalpy(reaction, energies, table)
+
+
 def _composite_record(path, electronic, zpe=0., *,
                       recipe='profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ'):
     components = {

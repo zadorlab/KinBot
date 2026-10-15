@@ -1,0 +1,164 @@
+{
+  "source_doi": "10.1021/acs.jpca.3c05181.s002",
+  "verification": "SI topology, explicit level counting and actual-table convolution; no native rate claim",
+  "network_sha256": "f76e0cdb130618f55850ade3e61f8268ea38e95c1ce877fb209f3d2b9e648403",
+  "entrance_barriers": {
+    "B1v": {
+      "endpoints": [
+        "W1v",
+        "P1"
+      ],
+      "components": [
+        {
+          "file": "ne_nh2Po_lr_e1.txt",
+          "zero_energy_kcal_mol": 0.0,
+          "symmetry_factor": 2.35,
+          "electronic_levels": [
+            {
+              "energy_cm_inverse": 0.0,
+              "degeneracy": 6
+            }
+          ]
+        },
+        {
+          "file": "ne_nh2Po_lr_e2.txt",
+          "zero_energy_kcal_mol": 0.0,
+          "symmetry_factor": 2.35,
+          "electronic_levels": [
+            {
+              "energy_cm_inverse": 0.0,
+              "degeneracy": 4
+            },
+            {
+              "energy_cm_inverse": 158.5,
+              "degeneracy": 2
+            }
+          ]
+        },
+        {
+          "file": "ne_nh2Po_lr_e3.txt",
+          "zero_energy_kcal_mol": 0.0,
+          "symmetry_factor": 2.35,
+          "electronic_levels": [
+            {
+              "energy_cm_inverse": 158.5,
+              "degeneracy": 4
+            },
+            {
+              "energy_cm_inverse": 226.5,
+              "degeneracy": 2
+            }
+          ]
+        }
+      ]
+    },
+    "B1": {
+      "endpoints": [
+        "W1v",
+        "W1"
+      ],
+      "components": [
+        {
+          "file": "ne_nh2Po_sr_e1.txt",
+          "zero_energy_kcal_mol": -0.53,
+          "symmetry_factor": 2.35,
+          "electronic_levels": [
+            {
+              "energy_cm_inverse": 0.0,
+              "degeneracy": 1
+            }
+          ]
+        },
+        {
+          "file": "ne_nh2Po_sr_e2.txt",
+          "zero_energy_kcal_mol": -0.53,
+          "symmetry_factor": 2.35,
+          "electronic_levels": [
+            {
+              "energy_cm_inverse": 0.0,
+              "degeneracy": 1
+            }
+          ]
+        }
+      ]
+    },
+    "B2v": {
+      "endpoints": [
+        "W2v",
+        "P3"
+      ],
+      "components": [
+        {
+          "file": "ne_nhPoh_lr_e1.txt",
+          "zero_energy_kcal_mol": -9.42,
+          "symmetry_factor": 1.17,
+          "electronic_levels": [
+            {
+              "energy_cm_inverse": 0.0,
+              "degeneracy": 6
+            }
+          ]
+        },
+        {
+          "file": "ne_nhPoh_lr_e2.txt",
+          "zero_energy_kcal_mol": -9.02,
+          "symmetry_factor": 1.17,
+          "electronic_levels": [
+            {
+              "energy_cm_inverse": 0.0,
+              "degeneracy": 6
+            }
+          ]
+        }
+      ]
+    },
+    "B2": {
+      "endpoints": [
+        "W2",
+        "W2v"
+      ],
+      "components": [
+        {
+          "file": "ne_nhPoh_sr.txt",
+          "zero_energy_kcal_mol": -11.56,
+          "symmetry_factor": 1.17,
+          "electronic_levels": [
+            {
+              "energy_cm_inverse": 0.0,
+              "degeneracy": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "outer_NH2_O_total_level_degeneracies": {
+    "0.0": 10,
+    "158.5": 6,
+    "226.5": 2
+  },
+  "canonical_level_counting_relative_errors": [
+    0.0001004572178602281,
+    0.00047731943571327484,
+    0.00028129396038001353
+  ],
+  "temperatures_kelvin": [
+    100.0,
+    300.0,
+    1000.0
+  ],
+  "files_sha256": {
+    "jp3c05181_si_002.txt": "f76e0cdb130618f55850ade3e61f8268ea38e95c1ce877fb209f3d2b9e648403",
+    "jp3c05181_si_003.txt": "ac31d2db58f1ad78b2402b9fa487015b5d7b957a9a355b3d80934a0cf6684b2a",
+    "jp3c05181_si_004.txt": "56cbba64d712d85b8e9da9090aeb161cfb4c6c8f946c44bd4aacc155b95c23f1",
+    "jp3c05181_si_005.txt": "0fe013981327e1e58b546e705465ae3e257a6ebd12ce1e96cae7f508b5c5f733",
+    "jp3c05181_si_006.txt": "8b2ff52ce2b81c35a67e927936af33e2139dc552f2c12d9671dc96228c28038e",
+    "jp3c05181_si_007.txt": "bfdd8a195a094faf3cca7e227264425a0bc944316ad658b50573314f41ddf2c5",
+    "jp3c05181_si_008.txt": "f7835b4a57e6c2da48b209429bd8cb3009efbade0b7c9182b5901a8897454e85",
+    "jp3c05181_si_009.txt": "2dc0fbc3406d6b79b22e3d4f6a817948c4afe3a31708d5ebb717b3783b7411fb",
+    "jp3c05181_si_010.txt": "26cc90fc510542b2f92ec3d53e5bde883ecedbd6e4c42aefced46a5f5c396901",
+    "jp3c05181_si_011.txt": "18d6ae3178ed8e41177c0ccc7668c355eda76f13c878f3ec8c22a19a5664bb83"
+  },
+  "deferred_for_sulfur_examples": "automatic homolytic vdW discovery/stabilization",
+  "status": "passed"
+}

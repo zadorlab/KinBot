@@ -1567,6 +1567,24 @@ def _dual_f12_reference_component(run_dir, requirement, *, state_id):
             or abs(math.fsum(weights) - 1.) > 1.e-12):
         raise ValueError('Dual-CBS reference weights must be two nonnegative values summing to one.')
     f12_weight, conventional_weight = map(float, weights)
+    uncertainty_series = {}
+    for prefix, component, weight in (
+            ('f12', f12, f12_weight),
+            ('conventional', conventional, conventional_weight)):
+        series = component.settings.get('basis_uncertainty_series', {})
+        if len(series) != 1:
+            raise ValueError(
+                f'Dual-CBS {prefix} reference lacks native endpoint data.')
+        endpoint = next(iter(series.values()))
+        uncertainty_series[f'{requirement.key}:{prefix}'] = {
+            'lower_hartree': weight * float(endpoint['lower_hartree']),
+            'upper_hartree': weight * float(endpoint['upper_hartree']),
+            'lower_basis': endpoint['lower_basis'],
+            'upper_basis': endpoint['upper_basis'],
+            'weight': weight,
+        }
+    result_settings = dict(settings)
+    result_settings['basis_uncertainty_series'] = uncertainty_series
     provenance = {
         'formula': (
             f'{f12_weight:g}*CBS(F12,{f12_pair[0]}/{f12_pair[1]})+'
@@ -1590,7 +1608,7 @@ def _dual_f12_reference_component(run_dir, requirement, *, state_id):
         geometry_sha256=f12.geometry_sha256,
         source_sha256=digest,
         source=f'mean({f12.source},{conventional.source})',
-        settings=settings)
+        settings=result_settings)
 
 
 def _assemble_profiled_anl(

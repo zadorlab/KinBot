@@ -10,38 +10,14 @@
   "theory_preset": "uma-b2plyp-anl",
   "composite_method": "ANL1-F12",
   "anl_f12_augmented": 1,
-  "vrc_tst_scan_method": "caspt2-f12b(13,8)",
-  "vrc_tst_scan_basis": "avtz-f12",
-  "vrc_tst_scan_gradient": "numerical",
-  "vrc_tst_sample_method": "caspt2-f12b(13,8)",
-  "vrc_tst_sample_basis": ["avtz-f12", "avqz-f12"],
-  "vrc_tst_correction_model": "spin_splitting",
-  "vrc_tst_spin_splitting": {
-    "target_multiplicity": 2,
-    "reference_multiplicity": 4,
-    "fragment_multiplicities": [2, 3],
-    "reference": {
-      "method": "uccsd(t)-f12b",
-      "basis": ["vqz-f12", "v5z-f12"],
-      "extrapolation_power": 3.7
-    },
-    "gap_levels": [
-      {
-        "label": "caspt2_f12",
-        "method": "caspt2-f12b(13,8)",
-        "basis": ["vqz-f12", "v5z-f12"],
-        "extrapolation_power": 3.7,
-        "shift": 0.3,
-        "ipea": 0.25
-      },
-      {
-        "label": "mrci_f12_q",
-        "method": "mrci-f12b+q(13,8)",
-        "basis": ["vqz-f12", "v5z-f12"],
-        "extrapolation_power": 3.7
-      }
-    ]
+  "vrc_tst_accuracy_preset": "anl1-f12",
+  "vrc_tst_active_space": {
+    "mode": "selected",
+    "active_electrons": 13,
+    "active_orbitals": 8,
+    "source": "candidate; requires orbital reconnaissance review: CH3S 6a-prime plus 2a-double-prime orbital manifold"
   },
+  "vrc_tst_state_model_file": "ch3s_state_model.json",
   "rotdpy_run": 1,
   "rotdpy_validation_profile": "production",
   "rotdpy_mess_mode": "production",
@@ -53,7 +29,44 @@
   "epsilon_unit": "K",
   "sigma": 4.5,
   "queuing": "slurm",
-  "queue_name": "day-long-cpu",
+  "queue_name": "month-long-cpu",
   "ppn": 8,
-  "queue_job_limit": 8
+  "queue_job_limit": 8,
+  "electronic_state_models": [
+    {
+      "smiles": "[S]",
+      "charge": 0,
+      "ground_multiplicity": 3,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 3,
+          "degeneracy": 5,
+          "label": "3P2"
+        },
+        {
+          "energy_cm_inverse": 396.055,
+          "multiplicity": 3,
+          "degeneracy": 3,
+          "label": "3P1"
+        },
+        {
+          "energy_cm_inverse": 573.64,
+          "multiplicity": 3,
+          "degeneracy": 1,
+          "label": "3P0"
+        }
+      ],
+      "source": "NIST S I levels: https://physics.nist.gov/PhysRefData/Handbook/Tables/sulfurtable5_a.htm",
+      "term_orbital_degeneracy": 3,
+      "spin_free_reference": "term_centroid"
+    },
+    {
+      "smiles": "[CH3][S]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 2,
+      "source": "CH3S spin-free X(2E) spatial components: https://pmc.ncbi.nlm.nih.gov/articles/PMC5995305/ ; resolved spin-vibronic levels are not supplied by this term declaration"
+    }
+  ]
 }

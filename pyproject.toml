@@ -8,6 +8,9 @@ exclude = ["build", "dist", "KinBot.egg-info", "graphics"]
 [tool.setuptools.package-data]
 "kinbot.tpl" = ["*.tpl.py", "*.tpl", "*.png"]
 
+[tool.pytest.ini_options]
+pythonpath = [".", "tests"]
+
 [project]
 name = "kinbot"
 version = "2.4.1"

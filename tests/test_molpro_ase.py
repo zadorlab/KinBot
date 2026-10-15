@@ -177,6 +177,7 @@ def test_sulfur_radical_active_spaces_support_doublet_and_quartet(
     assert 'forces,numerical' in deck.lower()
 
 
+@pytest.mark.parametrize('basis', ['aug-cc-pVTZ', 'aug-cc-pVTZ-F12'])
 @pytest.mark.parametrize(
     'method,program,variable', [
         ('CASPT2-F12(2,2)', 'rs2-f12', 'energy(2)'),
@@ -184,12 +185,14 @@ def test_sulfur_radical_active_spaces_support_doublet_and_quartet(
         ('MRCI-F12+Q(2,2)', 'mrci-f12', 'energd(2)'),
     ])
 def test_multireference_numerical_gradient_uses_selected_native_energy(
-        method, program, variable):
+        method, program, variable, basis):
     atoms = Atoms('CH2', positions=[[0., 0., 0.], [0., 0., 1.],
                                     [0., 1., 0.]])
     deck = render_input(
-        atoms, basis='aug-cc-pVTZ', geometry_name='step.xyz', method=method)
+        atoms, basis=basis,
+        geometry_name='step.xyz', method=method)
     lowered = deck.lower()
+    assert f'basis={basis}' in deck
     assert program in lowered
     assert f'kbvrcsel={variable}' in lowered
     assert f'kb_geom_energy=kbvrcsel' in lowered

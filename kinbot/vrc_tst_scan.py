@@ -21,15 +21,19 @@ from ase.units import Hartree
 from kinbot.utils import reorder_coord
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
-from kinbot.molpro import Molpro, vrc_multireference_energy_contract
+from kinbot.molpro import (Molpro, method_with_active_space,
+                           vrc_multireference_energy_contract)
 from kinbot.vrc_correction import (
+    active_space_settings,
     assemble_sampling_reference, assemble_spin_splitting_reference,
     correction_components,
     correction_model, coupled_multiplicities, expected_levels,
-    sampling_settings, spin_splitting_settings,
+    resolve_vrc_level, resolved_state_model, sampling_settings,
+    spin_splitting_settings,
 )
 from kinbot.utils import create_matplotlib_graph, NpEncoder
 from kinbot import constants
+from kinbot.electronic_states import apply_electronic_state_model, state_average_roots
 
 logger = logging.getLogger('KinBot')
 
@@ -126,6 +130,36 @@ class VTS:
         self.scan_reac = {}
         self.prod_chemids = []
 
+    @staticmethod
+    def _state_average_roots(products, multiplicities, parameters=None):
+        """Infer C1 roots from the separated ground electronic terms."""
+        return state_average_roots(products, multiplicities, parameters)
+
+    def _spin_context(self, reaction):
+        products = list(reaction.products)
+        parent = reaction.species
+        active_space = active_space_settings(
+            self.par, getattr(parent, 'atom', None),
+            getattr(parent, 'charge', 0))
+        if (active_space is not None
+                and active_space.get('selection')
+                == 'two_doublet_radical_pair'):
+            fragment_multiplicities = [int(product.mult)
+                                       for product in products]
+            if len(products) != 2 or fragment_multiplicities != [2, 2]:
+                raise ValueError(
+                    'vrc_tst_active_space=radical_pair is valid only for an '
+                    'accepted channel containing two doublet fragments; use '
+                    'full_valence or an explicit orbital model here.')
+        settings = spin_splitting_settings(
+            self.par, parent_multiplicity=int(reaction.species.mult),
+            fragment_multiplicities=[int(product.mult)
+                                     for product in products])
+        roots = self._state_average_roots(
+            products, (settings['target_multiplicity'],
+                       settings['reference_multiplicity']), self.par)
+        return settings, roots
+
     def calculate_correction_potentials(self):
         """
         The main driver for scanning the potential.
@@ -172,8 +206,19 @@ class VTS:
                     'VRC scan coordinate is unavailable for: '
                     + ', '.join(invalid))
             self.find_equiv(reactions)
-            self.do_scan(reactions, noscan=noscan)
-            self.energies(reactions, noscan=noscan)
+            from kinbot.vrc_multistate import channel_for_reaction, calculate_channel
+            scalar = []
+            for name in reactions:
+                selection = channel_for_reaction(self.par, self.scan_reac[name])
+                if selection is None:
+                    scalar.append(name)
+                else:
+                    if noscan:
+                        raise ValueError('State-resolved VRC requires correction scans.')
+                    calculate_channel(self, name, selection)
+            if scalar:
+                self.do_scan(scalar, noscan=noscan)
+                self.energies(scalar, noscan=noscan)
         if self.scan_reac:
             # A direct KinBot run has all information needed here.  Waiting
             # for a later PES aggregation step left single-well runs without
@@ -217,6 +262,8 @@ class VTS:
                         self.scan_reac[reac] = ro
                         self.scan_reac[reac].usym = [[], []]
                         for prod in self.scan_reac[reac].products:
+                            apply_electronic_state_model(prod, self.par)
+                            prod.name = routing_name(prod)
                             if routing_key(prod) in prod_chemid:
                                 continue
                             else:  # submit at vrc_tst level
@@ -303,6 +350,9 @@ class VTS:
             # find the fragments from the IRCs
             self.scan_reac[reac].parts, self.scan_reac[reac].maps = \
                 self.scan_reac[reac].irc_prod.start_multi_molecular()
+            for part in self.scan_reac[reac].parts:
+                apply_electronic_state_model(part, self.par)
+                part.name = routing_name(part)
             self.scan_reac[reac].parts[0].characterize()
             self.scan_reac[reac].parts[1].characterize()
             self.match_order(reac)
@@ -554,7 +604,8 @@ class VTS:
         return geom
 
     def _molpro_multireference_scan_task(
-            self, reaction, geom, distance, logical_name):
+            self, reaction, geom, distance, logical_name, *,
+            state_model_override=None):
         """Run one constrained Molpro multireference scan point."""
         from kinbot.anl.dispatch import (
             _load, preflight_until_scheduler_ready, prepare)
@@ -571,6 +622,25 @@ class VTS:
                     [pair[0], pair[1], float(distance)])
         method = str(self.par['vrc_tst_scan_method']).strip()
         basis = str(self.par['vrc_tst_scan_basis']).strip()
+        settings = roots = None
+        if correction_model(self.par) == 'spin_splitting':
+            settings, roots = self._spin_context(reaction)
+        elif len(reaction.products) == 2:
+            roots = self._state_average_roots(reaction.products,
+                [int(reaction.species.mult)], self.par)
+        active_space = active_space_settings(
+            self.par, reaction.species.atom, reaction.species.charge)
+        level = resolve_vrc_level(
+            {'method': method, 'basis': basis}, active_space)
+        method, basis = level['method'], level['basis']
+        state_model = (copy.deepcopy(state_model_override)
+                       if state_model_override is not None else
+                       self.par.get('vrc_tst_state_model')
+                       if active_space is None else
+                       resolved_state_model(
+                           self.par, reaction.species.atom,
+                           reaction.species.charge, settings, roots=roots,
+                           basis=basis))
         molecule = {
             'symbols': list(map(str, reaction.species.atom)),
             'positions': np.asarray(geom, dtype=float).tolist(),
@@ -591,6 +661,7 @@ class VTS:
                         'vrc_tst_scan_shift', 0.3),
                     'caspt2_ipea': self.par.get(
                         'vrc_tst_scan_ipea', 0.25),
+                    'state_model': state_model,
                     'gradient_mode': self.par.get(
                         'vrc_tst_scan_gradient', 'auto'),
                     'scf_convergence': self.par.get(
@@ -673,7 +744,41 @@ class VTS:
                 'Molpro VRC relaxed scan broke internal fragment bond(s): '
                 + detail)
         energy_ev = float(execution['details']['energy_ev'])
-        return atoms, energy_ev, run_dir, execution
+        recorded_model = execution.get('details', {}).get(
+            'orbital_checkpoint_model')
+        if isinstance(recorded_model, dict):
+            selection = recorded_model.get('orbital_selection', {})
+            checkpoint = Path(str(selection.get('path', '')))
+            if (selection.get('mode') != 'molpro_record'
+                    or not checkpoint.is_file()
+                    or hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+                    != selection.get('sha256')):
+                raise RuntimeError(
+                    f'Molpro VRC point has an invalid saved orbital record: '
+                    f'{run_dir}.')
+            return atoms, energy_ev, run_dir, execution, recorded_model
+        generated = execution.get('details', {}).get('generated_files', [])
+        checkpoints = [task_dir / Path(name).name for name in generated
+                       if str(name).endswith('.wfu')]
+        checkpoints = [path for path in checkpoints
+                       if path.is_file() and path.stat().st_size]
+        if not checkpoints:
+            raise RuntimeError(
+                f'Molpro VRC point did not publish an orbital checkpoint: '
+                f'{run_dir}.')
+        checkpoint = checkpoints[-1]
+        next_state_model = copy.deepcopy(state_model)
+        if next_state_model is None:
+            raise RuntimeError(
+                'A multireference scan completed without an electronic-state '
+                'model; orbital continuity cannot be certified.')
+        next_state_model['orbital_selection'] = {
+            'mode': 'molpro_record',
+            'path': str(checkpoint.resolve()),
+            'record': '2140.2',
+            'sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+        }
+        return atoms, energy_ev, run_dir, execution, next_state_model
 
     @staticmethod
     def _broken_scan_fragment_bonds(reaction, positions):
@@ -756,6 +861,21 @@ class VTS:
         completed = []
         for reac in reactions:
             reaction = self.scan_reac[reac]
+            settings = roots = None
+            if correction_model(self.par) == 'spin_splitting':
+                settings, roots = self._spin_context(reaction)
+            elif len(reaction.products) == 2:
+                roots = self._state_average_roots(reaction.products,
+                    [int(reaction.species.mult)], self.par)
+            active_space = active_space_settings(
+                self.par, reaction.species.atom, reaction.species.charge)
+            state_model = (self.par.get('vrc_tst_state_model')
+                           if active_space is None else
+                           resolved_state_model(
+                               self.par, reaction.species.atom,
+                               reaction.species.charge, settings,
+                               roots=roots,
+                               basis=self.par['vrc_tst_scan_basis']))
             geom = np.asarray(
                 reaction.irc_prod.geom if reaction.do_vdW
                 else reaction.species.geom, dtype=float)
@@ -774,9 +894,17 @@ class VTS:
                     energy_ev = 0.
                     run_dir = Path('vrctst/molpro_scan/asymptote_identity')
                 else:
-                    relaxed, energy_ev, run_dir, _ = \
-                        self._molpro_multireference_scan_task(
-                            reaction, geom, distance, base)
+                    kwargs = ({} if state_model is None else
+                              {'state_model_override': state_model})
+                    result = self._molpro_multireference_scan_task(
+                        reaction, geom, distance, base, **kwargs)
+                    if len(result) == 5:
+                        relaxed, energy_ev, run_dir, _, state_model = result
+                    else:
+                        # Preserve the established callback contract for
+                        # custom direct scans which do not use an orbital
+                        # checkpoint model.
+                        relaxed, energy_ev, run_dir, _ = result
                     geom = relaxed.positions.copy()
                 self._publish_scan_geometry(
                     reaction, base, relaxed, energy_ev, run_dir, frozen=False)
@@ -805,10 +933,12 @@ class VTS:
         records = {}
         pending = {}
         model = correction_model(self.par)
-        components = correction_components(self.par)
+        components_by_reaction = {}
+        context_by_reaction = {}
         for reac in reactions:
+            reaction = self.scan_reac[reac]
+            settings = roots = None
             if model == 'spin_splitting':
-                reaction = self.scan_reac[reac]
                 fragment_mults = [int(product.mult)
                                   for product in reaction.products]
                 parent_mult = int(reaction.species.mult)
@@ -816,7 +946,7 @@ class VTS:
                     raise ValueError(
                         'The spin-splitting VRC correction requires exactly '
                         'two separated fragments.')
-                settings = spin_splitting_settings(self.par)
+                settings, roots = self._spin_context(reaction)
                 declared = settings.get('fragment_multiplicities')
                 if declared is not None and fragment_mults != declared:
                     raise ValueError(
@@ -832,6 +962,16 @@ class VTS:
                     raise ValueError(
                         'The requested target/reference spin surfaces are '
                         'not allowed by the fragment multiplicities.')
+            elif len(reaction.products) == 2:
+                roots = self._state_average_roots(reaction.products,
+                    [int(reaction.species.mult)], self.par)
+            context_by_reaction[reac] = (settings, roots)
+            parent = reaction.species
+            components = correction_components(
+                self.par, symbols=getattr(parent, 'atom', None),
+                charge=getattr(parent, 'charge', 0), settings=settings,
+                state_roots=roots)
+            components_by_reaction[reac] = components
             records[reac] = []
             ndist = 1 if noscan else len(self.par['vrc_tst_scan_points']) + 1
             for step in range(ndist):
@@ -876,7 +1016,17 @@ class VTS:
             self._dispatch_molpro_corrections(pending)
 
         for reac in reactions:
+            reaction = self.scan_reac[reac]
+            settings, roots = context_by_reaction[reac]
+            components = components_by_reaction[reac]
+            parent = reaction.species
+            active_space = active_space_settings(
+                self.par, getattr(parent, 'atom', None),
+                getattr(parent, 'charge', 0))
             scan_method = self.par.get('vrc_tst_scan_method', 'unspecified')
+            if active_space is not None:
+                scan_method = method_with_active_space(
+                    scan_method, active_space)
             scan_basis = self.par.get('vrc_tst_scan_basis', 'unspecified')
             scan_contract = vrc_multireference_energy_contract(scan_method)
             energies = {component['role']: [] for component in components}
@@ -907,13 +1057,16 @@ class VTS:
             dist = ([30] if noscan
                     else self.par['vrc_tst_scan_points'] + [30])
             e_samp, sampling_cbs = assemble_sampling_reference(
-                dist, energies, sampling_settings(self.par))
+                dist, energies, sampling_settings(
+                    self.par, active_space=active_space))
             spin_splitting = None
             if model == 'direct':
-                e_high = energies['trusted']
+                from kinbot.vrc_correction import assemble_trusted_reference
+                e_high, trusted_cbs = assemble_trusted_reference(
+                    dist, energies, self.par, active_space=active_space)
             else:
                 e_high, spin_splitting = assemble_spin_splitting_reference(
-                    dist, energies, spin_splitting_settings(self.par))
+                    dist, energies, settings)
             ens = []  # energies for sample and high in kcal/mol
             asyms = []  # asymptotic energies in hartree
             for curve in (e_samp, e_high):
@@ -960,8 +1113,20 @@ class VTS:
                 'e_inf_samp': asyms[0],
                 'e_inf_high': asyms[1],
                 'correction_model': model,
-                'levels': expected_levels(self.par),
+                'levels': expected_levels(
+                    self.par, symbols=getattr(parent, 'atom', None),
+                    charge=getattr(parent, 'charge', 0), settings=settings,
+                    state_roots=roots),
                 'native_components': native_components,
+                'vrc_molecule': {
+                    'symbols': list(map(str, getattr(parent, 'atom', scan_spec.atom))),
+                    'charge': int(getattr(parent, 'charge', 0)),
+                    'multiplicity': int(parent.mult),
+                },
+                'sampling_atom_order': [int(index)
+                                        for mapping in reaction.maps
+                                        for index in mapping],
+                'state_average_roots': roots,
                 'relaxed_scan_level': {
                     'backend': ('molpro' if scan_contract is not None
                         else getattr(self.qc, 'qc', 'configured')),
@@ -990,6 +1155,8 @@ class VTS:
                 corr['spin_splitting'] = spin_splitting
             if sampling_cbs is not None:
                 corr['sampling_cbs'] = sampling_cbs
+            if model == 'direct' and trusted_cbs is not None:
+                corr['trusted_cbs'] = trusted_cbs
 
             with open(f'vrctst/corr_{reac}.json', 'w',
                       encoding='utf-8') as f:

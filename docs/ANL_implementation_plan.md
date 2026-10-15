@@ -344,10 +344,60 @@ Spin splitting is state neutral.  `target_multiplicity`,
 `reference_multiplicity`, and the two `fragment_multiplicities` are checked
 against angular-momentum coupling before any task is submitted.  This covers
 singlet/triplet surfaces from two doublets and doublet/quartet surfaces from a
-doublet plus a triplet.  CASPT2 and MRCI active electron/orbital counts are
-user inputs and are validated for electron parity at every requested spin.
+doublet plus a triplet. Explicit CASPT2 and MRCI active electron/orbital
+counts are preserved, while automatic policies replace template counts; both
+paths are validated for electron parity at every requested spin.
+Automatic reference selection uses the maximum allowed spin, including when
+fragment spins are declared in the input. An already-maximum-spin target
+requires direct correction or an explicit expert reference; it never silently
+uses a lower-spin CC anchor. Explicit settings cannot change the accepted
+parent or product spins.
 Unqualified F12 multireference methods select variant B; MRCI+Q selects the
 relaxed-reference Davidson energy (`ENERGD`).
+
+`vrc_tst_active_space` has four policies. `explicit` preserves the CAS in
+each method string. `full_valence` derives a whole-molecule main-group AVAS
+space from atom-labelled valence shells in C1 and replaces the template CAS
+in every scan, sampling, and spin-gap method. `radical_pair` is an opt-in
+CAS(2,2) shortcut accepted only for two doublet fragments on coupled singlet
+and triplet surfaces, such as CH3 + CH3. It is rejected for doublet + triplet
+and other fragment-spin combinations. The `anl1-f12` VRC accuracy preset uses
+`full_valence`; it never silently chooses `radical_pair`.
+
+The fourth policy, `selected`, supplies counted active electrons/orbitals
+and requires an explicit orbital model. The sulfur examples use provisional
+selected spaces with basis-specific external model files; their counts are
+not a certification of orbital identity. `electronic_state_models` supplies
+ground spins, optional resolved MESS levels and spin-free term degeneracies.
+A term-only record controls spatial root counts without inventing measured
+electronic level spacings. In particular, retaining CH3S X(2E) and S(3P)
+gives six spatial product components per coupled spin manifold.
+
+The [14 October audit](ANL_workflow_audit.md) describes the general adaptive
+reconnaissance, reviewed-record gate, software corrections, remaining
+chemistry acceptance checks, and the current default-F12 basis instruction.
+
+An expert orbital model can use a prior Molpro wavefunction instead of AVAS:
+
+```json
+"vrc_tst_state_model": {
+  "orbital_selection": {
+    "mode": "molpro_record",
+    "path": "/absolute/path/selected.wfu",
+    "record": "2140.2",
+    "sha256": "<64 lowercase hexadecimal characters>"
+  },
+  "state_average": [
+    {"multiplicity": 1, "roots": 1},
+    {"multiplicity": 3, "roots": 1}
+  ]
+}
+```
+
+KinBot validates the record and hash before submission, copies it atomically
+into each calculation directory, rechecks the hash, and emits Molpro `FILE`
+and `START` directives. This makes a manually selected orbital ordering
+reproducible without embedding molecule-specific orbital numbers in KinBot.
 
 Automatic ANL calculations use `anl_scf_convergence=1e-10` and
 `anl_cc_convergence=1e-8` by default.  The values are translated into native

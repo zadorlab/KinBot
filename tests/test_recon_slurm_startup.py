@@ -253,10 +253,10 @@ def test_controller_recovers_allocation_without_aborting_independent_work(tmp_pa
 
 def test_exclusions_preserve_site_hostlists_without_changing_parent_environment(monkeypatch):
     monkeypatch.setenv('SBATCH_EXCLUDE', 'site[01-03]')
-    env = recon._slurm_submission_environment(
+    options = recon._slurm_submission_options(
         '#!/bin/bash\n#SBATCH -x original\n#SBATCH --exclude=other[04-06]\ntrue\n',
         ['faulty-host'])
-    assert env['SBATCH_EXCLUDE'] == 'site[01-03],faulty-host,original,other[04-06]'
+    assert options == ['--exclude=site[01-03],faulty-host,original,other[04-06]']
     assert recon.os.environ['SBATCH_EXCLUDE'] == 'site[01-03]'
 
 
@@ -281,7 +281,7 @@ def test_shared_controller_retries_prestart_failure_adopts_live_jobs_and_honors_
         if command[0] == 'squeue':
             return SimpleNamespace(stdout='\n'.join(live), returncode=0)
         assert command[0] == 'sbatch'
-        assert 'faulty-host' in kwargs['env']['SBATCH_EXCLUDE']
+        assert '--exclude=faulty-host' in command
         identifier = str(100 + len(submitted))
         submitted.append(kwargs['cwd'])
         live.add(identifier)
@@ -365,3 +365,123 @@ def test_documented_incident_repair_preserves_live_and_started_jobs(tmp_path, mo
     assert retried == ['52907719', '52907720']
     assert all(json.loads(p.read_text())['slurm_excluded_nodes'] == ['node21'] for p in paths)
     assert json.loads(paths[2].read_text())['jobs'][0]['job_id'] == '52907721'
+
+
+def test_explicit_numerical_retry_preserves_live_peer_and_binds_actual_native_input(tmp_path, monkeypatch):
+    from copy import deepcopy
+    path, manifest, job, _ = _manifest(tmp_path)
+    directory = Path(job['directory'])
+    inp = directory / 'probe.inp'
+    original = ('***,test\nmemory,1000,m\nfile,2,probe.wfu\n'
+                'gthresh,energy=1.d-10,coeff=1.d-10\n'
+                '{rs2-f12,shift=0.3,ipea=0.25;state,1,3;option,maxiti=200;}\n')
+    inp.write_text(original)
+    job['input_sha256'] = file_sha256(inp)
+    job['ppn'] = 8
+    (directory / 'execution.json').write_text('{"status":"failed","error":"reference CI"}')
+    peer = deepcopy(job)
+    peer.update(name='peer', directory=str(tmp_path / 'peer'), job_id='72')
+    Path(peer['directory']).mkdir()
+    artifact = Path(peer['directory']) / 'execution.json'
+    artifact.write_text('{"status":"running","owner":"peer"}')
+    manifest['jobs'].append(peer)
+    atomic_json(path, manifest)
+    monkeypatch.setattr(recon, 'slurm_job_record', lambda _: {})
+    result = recon._retry_failed(path, job_ids={'71'}, live_job_ids={'72'}, max_reference_vectors=60)
+    assert result['retry_ready'] == ['probe']
+    assert artifact.read_text() == '{"status":"running","owner":"peer"}'
+    job = json.loads(path.read_text())['jobs'][0]
+    assert job['retry_max_reference_vectors'] == 60
+    assert inp.read_text() == original
+    assert json.loads((directory / 'attempts/1/execution.json').read_text())['status'] == 'failed'
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *a, **kw: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *a: None)
+    def native(command, **kwargs):
+        deck = (directory / command[-1]).read_text()
+        assert 'gthresh,energy=1.d-10,coeff=1.d-10' in deck
+        assert '{rs2-f12,shift=0.3,ipea=0.25;state,1,3;option,maxiti=200;option,maxvi=60;}' in deck
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', native)
+    recon._execute(job)
+    execution = json.loads((directory / 'execution.json').read_text())
+    assert execution['retry_max_reference_vectors'] == 60
+    assert recon._checkpoint_evidence(directory, job, execution)[1] is None
+    job['retry_max_reference_vectors'] = 61
+    assert 'override differs' in recon._checkpoint_evidence(directory, job, execution)[1]
+    job['retry_max_reference_vectors'] = 60
+    # Even a rehashed native file must actually contain the declared override.
+    native_path = Path(execution['native_input'])
+    native_path.write_text(native_path.read_text().replace('maxvi=60', 'maxvi=9'))
+    execution['native_input_sha256'] = file_sha256(native_path)
+    assert 'does not contain' in recon._checkpoint_evidence(directory, job, execution)[1]
+    assert inp.read_text() == original
+
+
+@pytest.mark.parametrize('value', [0, -1, 1.5, True])
+def test_numerical_retry_rejects_invalid_capacity_before_touching_files(tmp_path, value):
+    with pytest.raises(ValueError):
+        recon._retry_failed(tmp_path / 'missing.json', job_ids={'1'}, max_reference_vectors=value)
+
+
+def test_reference_capacity_override_cannot_change_an_unrelated_program():
+    text = '{multi;state,3;maxit,150;}\n{mrci-f12;state,1,3;option,maxvi=9,cluster=0;}\n'
+    expected = text.replace('maxvi=9', 'maxvi=60')
+    assert recon._reference_vector_override(text, 60) == expected
+    assert recon._reference_vector_override(expected, 60) == expected
+    with pytest.raises(ValueError, match='No supported'):
+        recon._reference_vector_override('{uccsd(t)-f12;}', 60)
+    with pytest.raises(ValueError, match='explicit MAXDAV'):
+        recon._reference_vector_override('{rs2;maxdav,4,9;}', 60)
+    with pytest.raises(ValueError, match='explicit --job-id'):
+        recon._retry_failed(Path('/missing'), max_reference_vectors=60)
+
+
+def test_campaign_explicit_recovery_covers_all_exhausted_startups_without_touching_qc_or_live(tmp_path, monkeypatch):
+    from kinbot import orbital_campaign as campaign
+    systems, paths, records = [], [], {}
+    for index in range(25):
+        path, manifest, job, record = _manifest(tmp_path / str(index), str(100 + index))
+        job['startup_retry_history'] = [{'job_id': 'old-1'}, {'job_id': 'old-2'}]
+        directory = Path(job['directory'])
+        if index in (21, 22):
+            (directory / 'execution.json').write_text('{"status":"failed","error":"reference CI"}')
+            (directory / 'probe.out').write_text('NO CONVERGENCE IN REFERENCE CI AFTER200 ITERATIONS')
+        elif index == 23:
+            record['JobState'] = 'RUNNING'
+            (directory / 'execution.json').write_text('{"status":"running"}')
+        elif index == 24:
+            record['JobState'] = 'CANCELLED'
+        records[str(100 + index)] = record
+        atomic_json(path, manifest)
+        paths.append(path)
+        systems.append({'pilot_manifest': str(path), 'manifest': str(path)})
+    atomic_json(tmp_path / 'campaign.json', {'systems': systems})
+    monkeypatch.setattr(campaign, '_validate_inputs', lambda record: None)
+    monkeypatch.setattr(recon, 'slurm_job_record', lambda identifier: records.get(identifier, {}))
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **kw:
+                        SimpleNamespace(stdout='123\n', returncode=0))
+    protected = {p: p.read_bytes() for i in (21, 22, 23) for p in paths[i].parent.rglob('*')
+                 if p.is_file() and p != paths[i]}
+    result = campaign.retry_startup_failures(tmp_path)
+    assert len(result['manual_retries']) == 21
+    for path in paths[:21]:
+        job = json.loads(path.read_text())['jobs'][0]
+        assert 'job_id' not in job and job['submission_status'] == 'retry_ready'
+        assert len(job['startup_retry_history']) == 2 and job['startup_retry_limit'] == 4
+        assert len(job['manual_startup_retry_history']) == 1
+        assert (path.parent / 'probe/attempts/1/probe.inp').read_text() == 'immutable chemistry\n'
+    for i in (21, 22, 23, 24):
+        assert json.loads(paths[i].read_text())['jobs'][0]['job_id'] == str(100+i)
+    assert all(p.read_bytes() == original for p, original in protected.items())
+    # An unchanged second invocation cannot reset budgets or retry these jobs twice.
+    assert campaign.retry_startup_failures(tmp_path)['manual_retries'] == []
+    path = paths[0]
+    manifest = json.loads(path.read_text())
+    job = manifest['jobs'][0]
+    assert job['startup_retry_limit'] == 4 and len(job['manual_startup_retry_history']) == 1
+    for attempt in range(3):
+        job.update(job_id=str(200+attempt), missing_since=0.)
+        records[str(200+attempt)] = dict(records['100'], JobId=str(200+attempt))
+        recon._recover_slurm_startup_failures(path, manifest, set())
+    assert len(job['startup_retry_history']) == 4 and job['job_id'] == '202'
+    assert 'retry limit (4) exhausted' in job['startup_failure']

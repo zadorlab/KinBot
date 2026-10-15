@@ -149,7 +149,8 @@ def test_submission_records_effective_resource_override(tmp_path, monkeypatch):
         saved = json.loads(path.read_text())['jobs'][0]
         assert saved['submission_status'] == 'submitting'
         assert saved['submission_overrides']['SBATCH_MEM_PER_NODE'] == '104000'
-        assert saved['submission_overrides']['SBATCH_EXCLUDE'] == 'unavailable'
+        assert '--exclude=unavailable' in command
+        assert saved['submission_command'] == command
         return SimpleNamespace(stdout='42\n', stderr='', returncode=0)
     monkeypatch.setattr(recon.subprocess, 'run', scheduler)
     assert recon.submit(path)['jobs'][0]['job_id'] == '42'

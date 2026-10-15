@@ -30,7 +30,7 @@ from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            _render_vrc_state_model, full_valence_active_space,
                            validate_input_blocks, compact_molpro_titles,
                            molpro_wfu_name, _vrc_multireference_method,
-                           vrc_multireference_energy_contract)
+                           vrc_multireference_energy_contract, validate_mr_correlation_options)
 from kinbot.theory import fortran_threshold
 from kinbot.execution import atomic_json, file_sha256, slurm_job_record, SLURM_TERMINAL_STATES
 from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
@@ -932,6 +932,34 @@ def execute(manifest_path, name):
         raise
 
 
+def _reference_vector_override(text, value):
+    """Explicit numerical retry: change only MR internal Davidson capacity.
+
+    Prepared inputs stay immutable. The override and transformed native hash
+    are recorded in execution.json and checked before accepting the result.
+    No tolerances, state definitions, shifts or reference policies change.
+    """
+    if value is None:
+        return text
+    validate_mr_correlation_options({'max_reference_vectors': value})
+    def change(match):
+        body = match[0][:-1].rstrip()
+        # Prepared KinBot decks use OPTION,MAXVI; refuse foreign MAXDAV
+        # cards rather than relying on precedence between two directives.
+        if re.search(r'(?:[;\n])\s*maxdav\s*,', body, re.I):
+            raise ValueError('Cannot override an explicit MAXDAV card; prepare a reviewed input.')
+        if re.search(r'\bmaxvi\s*=', body, re.I):
+            body = re.sub(r'\bmaxvi\s*=\s*[^,;\s}]+', f'maxvi={value}', body, flags=re.I)
+        else:
+            body += ('' if body.endswith(';') else ';') + f'option,maxvi={value};'
+        return body + '}'
+    result, count = re.subn(r'\{\s*(?:rs2(?:c|-f12)?|mrci(?:-f12)?)(?=[,;\s}])[^{}]*\}',
+                            change, text, flags=re.I)
+    if not count:
+        raise ValueError('No supported MR correlation block for max_reference_vectors override.')
+    return result
+
+
 def _execute(job):
     name = job['name']
     directory = Path(job['directory'])
@@ -954,6 +982,8 @@ def _execute(job):
                          r'put,xml,\1.orbitals.xml', inp.read_text())
     native_text = compact_molpro_titles(native_text)
     native_text, energy_repairs = _repair_legacy_energy_selectors(native_text)
+    vectors = job.get('retry_max_reference_vectors')
+    native_text = _reference_vector_override(native_text, vectors)
     checkpoint = directory / molpro_wfu_name(name)
     native_text, changed = re.subn(r'(?im)^file,2,[^\n]+$',
                                   f'file,2,{checkpoint.name}', native_text)
@@ -997,6 +1027,8 @@ def _execute(job):
                  'native_input_sha256': file_sha256(native),
                  'input_transform': 'native_xml_mr_state_energy_v4', 'orbital_exports': exports,
                  'legacy_mr_energy_selectors_repaired': energy_repairs}
+    if vectors is not None:
+        execution['retry_max_reference_vectors'] = vectors
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -1095,7 +1127,11 @@ def _checkpoint_evidence(directory, job, execution):
     """
     default = directory / (job['name'] + '.wfu')
     if execution is None:
+        if job.get('retry_max_reference_vectors') is not None:
+            return default, 'Numerical retry requires an execution record.'
         return default, None
+    if execution.get('retry_max_reference_vectors') != job.get('retry_max_reference_vectors'):
+        return default, 'Execution reference-vector override differs from the requested retry.'
     if execution.get('input_sha256') != job['input_sha256']:
         return default, 'Execution prepared-input SHA-256 is missing or differs from the manifest.'
     modern_fields = {'native_input', 'native_input_sha256', 'input_transform', 'orbital_exports'}
@@ -1110,9 +1146,17 @@ def _checkpoint_evidence(directory, job, execution):
             return default, 'Transformed execution record is missing its native_input_sha256.'
         if file_sha256(native) != execution['native_input_sha256']:
             return default, f'Native input SHA-256 mismatch: {native}.'
+        if job.get('retry_max_reference_vectors') is not None:
+            try:
+                if _reference_vector_override(native.read_text(), job['retry_max_reference_vectors']) != native.read_text():
+                    return default, 'Native input does not contain the requested reference-vector override.'
+            except ValueError as error:
+                return default, str(error)
     else:
         # Workers before the XML-export change did not create .native.inp.
         # Their command and input_sha256 bind execution to the original .inp.
+        if job.get('retry_max_reference_vectors') is not None:
+            return default, 'Numerical retry requires a hash-bound transformed native input.'
         native = directory / (job['name'] + '.inp')
         command = execution.get('command')
         if (execution.get('status') != 'complete' or execution.get('returncode') != 0
@@ -1565,15 +1609,21 @@ def submit(manifest_path, *, max_jobs=8):
         return _submit(manifest_path, max_jobs=max_jobs)
 
 
-def retry_failed(manifest_path, *, include_interrupted=False, job_ids=None):
+def retry_failed(manifest_path, *, include_interrupted=False, job_ids=None, max_reference_vectors=None):
     """Archive selected stopped attempts while preserving inputs and live peers."""
     path = Path(manifest_path).expanduser().resolve()
     with _manifest_lock(path.parent):
-        return _retry_failed(path, include_interrupted=include_interrupted, job_ids=job_ids)
+        return _retry_failed(path, include_interrupted=include_interrupted, job_ids=job_ids,
+                             max_reference_vectors=max_reference_vectors)
 
 
-def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids=None):
+def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids=None,
+                  max_reference_vectors=None):
     import shutil
+    if max_reference_vectors is not None:
+        validate_mr_correlation_options({'max_reference_vectors': max_reference_vectors})
+        if not job_ids:
+            raise ValueError('A numerical retry override requires explicit --job-id selection.')
     if live_job_ids is None:
         queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
                                 text=True, check=True, timeout=30)
@@ -1606,6 +1656,8 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
         inp = directory / (job['name'] + '.inp')
         if file_sha256(inp) != job['input_sha256']:
             raise ValueError('Failed probe input changed; do not retry under the old manifest.')
+        if max_reference_vectors is not None:
+            _reference_vector_override(inp.read_text(), max_reference_vectors)
         attempt = int(job.get('attempt', 1))
         archive = directory / 'attempts' / str(attempt)
         # A failed visualization export does not invalidate the preceding
@@ -1649,10 +1701,13 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
             'scheduler_record': job.get('scheduler_record'),
             'error': execution.get('error') or ('Explicitly retried interrupted allocation'
                                                if interrupted else None),
-            'input_sha256': job['input_sha256']})
+            'input_sha256': job['input_sha256'],
+            'retry_max_reference_vectors': job.get('retry_max_reference_vectors')})
         for key in ('job_id', 'missing_since', 'terminal_failure', 'scheduler_record'):
             job.pop(key, None)
         job.update(attempt=attempt + 1, submission_status='retry_ready', status='incomplete')
+        if max_reference_vectors is not None:
+            job['retry_max_reference_vectors'] = max_reference_vectors
         if recovery:
             job['recovered_scf'] = recovery
         retried.append(job['name'])
@@ -1722,8 +1777,11 @@ def _recover_slurm_startup_failures(path, manifest, live):
         if time.time() - job.setdefault('missing_since', time.time()) <= 60.:
             continue
         history = job.setdefault('startup_retry_history', [])
-        if len(history) >= 2:
-            job['startup_failure'] += ' Automatic startup retry limit (2) exhausted.'
+        limit = job.get('startup_retry_limit', 2)
+        if type(limit) is not int or limit < 0:
+            raise ValueError('Startup retry limit must be a nonnegative integer.')
+        if len(history) >= limit:
+            job['startup_failure'] += f' Automatic startup retry limit ({limit}) exhausted.'
             continue
         inp = directory / (job['name'] + '.inp')
         if file_sha256(inp) != job['input_sha256']:
@@ -1736,19 +1794,23 @@ def _recover_slurm_startup_failures(path, manifest, live):
             job.pop(key, None)
         job.update(status='incomplete', submission_status='retry_ready')
         print(f'{job["name"]}: retrying Slurm startup failure from job {identifier}; '
-              f'excluding {node} (retry {len(history)}/2).', flush=True)
+              f'excluding {node} (retry {len(history)}/{limit}).', flush=True)
     # Evidence and retry readiness are committed together, before sbatch.
     atomic_json(Path(path), manifest)
 
 
-def _slurm_submission_environment(batch, excluded):
-    """Add campaign exclusions without discarding environment/script choices."""
-    if not excluded:
-        return None  # Normal subprocess inheritance.
+def _slurm_submission_options(batch, excluded):
+    """Pass exclusions through Slurm's CLI, preserving script/site choices.
+
+    SBATCH_EXCLUDE is not a Slurm input variable. Read it only for compatibility
+    with older KinBot instructions and translate it into the real --exclude.
+    """
     if any(not isinstance(node, str) or not _SAFE.fullmatch(node) for node in excluded):
         raise ValueError('Invalid recorded Slurm exclusion node.')
     values = [os.environ.get('SBATCH_EXCLUDE', ''), *sorted(excluded)]
     for line in batch.splitlines():
+        if line.strip() and not line.lstrip().startswith('#'):
+            break  # Slurm stops reading directives at the first shell command.
         if not line.lstrip().startswith('#SBATCH '):
             continue
         tokens = shlex.split(line.lstrip()[len('#SBATCH '):])
@@ -1759,7 +1821,8 @@ def _slurm_submission_environment(batch, excluded):
                 values.append(token.split('=', 1)[1])
             elif token.startswith('-x') and len(token) > 2:
                 values.append(token[2:])
-    return {**os.environ, 'SBATCH_EXCLUDE': ','.join(v for v in values if v)}
+    value = ','.join(dict.fromkeys(v for v in values if v))
+    return ['--exclude=' + value] if value else []
 
 
 def _retry_allocation_failures(path, manifest, live, limit):
@@ -1898,17 +1961,15 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
         batch = Path(job['directory']) / (job['name'] + '.sbatch')
         batch.write_text(wrap_script(batch.read_text(), identity=job['name'],
                                      directories=[job['directory']]))
-        submission_env = _slurm_submission_environment(batch.read_text(),
-                                                       manifest.get('slurm_excluded_nodes', []))
-        effective_env = os.environ if submission_env is None else submission_env
-        job['submission_overrides'] = {key: effective_env[key] for key in
-            ('SBATCH_MEM_PER_NODE', 'SBATCH_MEM_PER_CPU', 'SBATCH_EXCLUDE') if key in effective_env}
+        options = _slurm_submission_options(batch.read_text(), manifest.get('slurm_excluded_nodes', []))
+        command = ['sbatch', '--export=ALL', '--parsable', *options, job['name'] + '.sbatch']
+        job['submission_command'] = command
+        job['submission_overrides'] = {key: os.environ[key] for key in
+            ('SBATCH_MEM_PER_NODE', 'SBATCH_MEM_PER_CPU') if key in os.environ}
         atomic_json(path, manifest)
         try:
             result = subprocess.run(
-                ['sbatch', '--export=ALL', '--parsable', job['name'] + '.sbatch'],
-                cwd=job['directory'], capture_output=True, text=True, timeout=30,
-                env=submission_env)
+                command, cwd=job['directory'], capture_output=True, text=True, timeout=30)
         except subprocess.TimeoutExpired as error:
             raise RuntimeError(f'{job["name"]}: sbatch timed out; submission outcome is '
                                'uncertain. Retain the submitting journal for scheduler '

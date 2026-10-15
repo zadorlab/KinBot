@@ -628,7 +628,7 @@ def validate_mr_correlation_options(options):
     tolerances. The explicit reference policy changes the correlated reference
     treatment and must be validated separately. Never expose IGNORE_ERROR.
     """
-    allowed = {'max_iterations', 'max_reference_iterations', 'reference_policy'}
+    allowed = {'max_iterations', 'max_reference_iterations', 'max_reference_vectors', 'reference_policy'}
     if not isinstance(options, dict) or set(options) - allowed:
         raise ValueError('Unknown reviewed correlation_options.')
     for key, value in options.items():
@@ -675,7 +675,8 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
     selected = contract['energy_variable'].casefold()
     controls = validate_mr_correlation_options((state_model or {}).get('correlation_options', {}))
     iteration_options = [f'{native}={controls[key]}' for key, native in (
-        ('max_iterations', 'maxit'), ('max_reference_iterations', 'maxiti')) if key in controls]
+        ('max_iterations', 'maxit'), ('max_reference_iterations', 'maxiti'),
+        ('max_reference_vectors', 'maxvi')) if key in controls]
     iteration_card = 'option,' + ','.join(iteration_options) + ';' if iteration_options else ''
     reference_card = ''
     if controls.get('reference_policy', 'selected_root') == 'state_average':

@@ -308,11 +308,12 @@ the VRC calculation must also deliver accurate relative interaction energies.
    count establishes orbital character; the user supplies these choices.
    See [MULTI initial-orbital exchanges](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#rotating_pairs_of_initial_orbitals).
    Optional `casscf_options` overrides the partition preparation's solver defaults;
-   optional `correlation_options` sets `max_iterations` and/or
-   `max_reference_iterations` for the correlated calls. Both limits must be
+   optional `correlation_options` sets `max_iterations`,
+   `max_reference_iterations`, and/or `max_reference_vectors` for correlated calls. These limits must be
    positive integers. The latter is Molpro's internal/reference-CI `MAXITI`,
    distinct from CASSCF macroiterations and from the correlated `MAXIT` limit.
-   These controls change iteration budgets without changing convergence
+   `max_reference_vectors` is Molpro's internal Davidson expansion capacity
+   (`OPTION,MAXVI`), independent of the iteration ceiling. These controls change solver budgets without changing convergence
    tolerances, the Hamiltonian, or the selected states. Omitted correlation
    controls retain native defaults. See the
    [Molpro MRCI iteration controls](https://www.molpro.net/manual/doku.php?id=the_mrci_program#maximum_number_of_iterations),
@@ -379,6 +380,41 @@ Campaign `collect` includes `scheduler_accounting.json`, queried with `sacct`
 for only the recorded allocation IDs and their prior attempts. This preserves
 states, exit codes/signals and restart counts alongside native diagnostics.
 An unavailable accounting service is recorded without blocking the export.
+
+`orbital_campaign monitor ROOT --details` reads one live `squeue` snapshot and
+bounded tails of current native/launcher/guard files without auditing, hashing,
+locking or modifying the run. It shows actual Slurm exclusions and requested
+memory, current stage/iteration, native CI parameters, output age and detected
+diagnostics. `--json` exports the same snapshot. A log match is not a terminal
+failure verdict; quiet output alone is not a stall. Requeued guard journals are
+selected by restart count; old archived attempts are not scanned as new errors.
+
+Exclusions are passed as actual `sbatch --exclude` arguments. `SBATCH_EXCLUDE`
+is not a Slurm input variable; KinBot translates that older instruction for
+compatibility. After stopping only the controller, use
+`orbital_campaign refresh-exclusions ROOT` to apply the campaign's recorded
+exclusions to its pending allocations, preserving existing exclusions and
+verifying Slurm's response. Running allocations remain in place.
+Repeat `--node HOST` to persist additional user-specified exclusions across
+all campaign panels. After repairing the infrastructure cause,
+`orbital_campaign retry-startup-failures ROOT` explicitly recovers stopped
+pre-shell I/O failures, including exhausted ones. It requires the same
+identity, signal, missing-worker-artifact and publication-grace evidence as
+automatic recovery. Old histories remain intact; recovered jobs receive two
+new automatic startup retries. Native solver failures, unknown disappearances,
+cancellations and running jobs are not selected by this operation.
+
+For a diagnosed reference-CI failure, an explicit in-place numerical retry is
+`orbital_campaign retry-failed ROOT --job-id ID --max-reference-vectors N`.
+The controller must be stopped and the selected allocation must have ended.
+It archives the old attempt, preserves the prepared input and original seed,
+and records the numerical override in the manifest and hash-bound executed
+native input. Completed and unrelated running jobs are preserved. The override
+changes internal Davidson capacity only; convergence requirements, active
+space, states, shifts and reference policy are unchanged. Acceptance still
+requires native convergence. Carry a successfully validated value into the
+reviewed production model's `correlation_options.max_reference_vectors`.
+
 For finite independent single-geometry validation panels,
 `orbital_review prepare-incomplete OLD_ROOT NEW_ROOT` prepares only incomplete
 pilots, preserving completed results in `OLD_ROOT`. Optional

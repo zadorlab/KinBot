@@ -5,6 +5,107 @@ This replaces the standalone incomplete-point repair commands in
 CASSCF reference panel is complete. Final CAS choices and native
 CBH/ANL–ROTD–MESS production remain unvalidated.
 
+## Current in-place repair: exclusions and internal CI capacity
+
+Use this block instead of the older restart blocks below for the current
+reference-check campaign. The two latest native failures are allocations
+52907740 and 52907745: both tilted S–S calculations completed CASSCF and the
+first two CASPT2 doublet roots, then exhausted 200 internal-CI iterations for
+root 3. Their printed internal Davidson capacity was `MAXVI=9`. The explicit
+retry below uses 60 internal vectors, retaining all accuracy thresholds,
+states, shifts, reference policies and active spaces. This is a documented
+solver adjustment whose effectiveness still requires a native run, not an
+acceptance of the failed energies. See [Molpro's internal Davidson controls](https://www.molpro.net/manual/doku.php?id=the_mrci_program#restricting_numbers_of_expansion_vectors).
+
+The empty pre-start jobs are a separate scheduler/I/O failure. Earlier KinBot
+code incorrectly used `SBATCH_EXCLUDE`, which Slurm does not recognize as an
+input variable. New submissions now use the actual CLI `--exclude`. The refresh
+command updates owned pending jobs and verifies the resulting exclusions;
+already running allocations retain their allocations. See [Slurm sbatch](https://slurm.schedmd.com/sbatch.html)
+and [scontrol](https://slurm.schedmd.com/scontrol.html).
+
+The 16:32 snapshot has 23 failures: 21 pre-shell I/O failures on node16 and
+the two reference-CI failures above. The node inventory additionally reports
+node1, node9, node10, node13, node14, node21, node23, node24, node30 and node33
+as draining, down or unknown. These example incident exclusions, plus node16,
+are explicitly persisted below; shared runtime code contains no node names.
+
+This block preserves completed results and running jobs, including the nested
+CAS(7,5) addition. It recovers all currently confirmed stopped pre-shell
+failures, including exhausted ones, preserving their history and granting two
+new bounded startup retries. It also archives and retries the two identified
+CI failures. Repeating it without new failures cannot replenish budgets or
+select replacement CI job IDs. The 104000M memory request remains below the
+reported 126000M node capacity; it is a reservation, not measured peak usage.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+RUN=/home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015
+"$KB_PY" -m kinbot.orbital_campaign stop-controller "$RUN"
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git -c submodule.recurse=false pull --ff-only origin composite
+"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
+"$KB_PY" -m kinbot.orbital_campaign monitor "$RUN" --details
+unset SBATCH_MEM_PER_CPU SBATCH_MEM_PER_GPU
+export SBATCH_MEM_PER_NODE=104000
+export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+mkdir -p "$KINBOT_MOLPRO_SCRATCH"
+"$KB_PY" -m kinbot.orbital_campaign refresh-exclusions "$RUN" \
+    --node node1 --node node9 --node node10 --node node13 --node node14 \
+    --node node16 --node node21 --node node23 --node node24 --node node30 --node node33
+"$KB_PY" - "$RUN" <<'PY'
+import json, subprocess, sys
+from pathlib import Path
+from kinbot.molpro_reconnaissance import _slurm_submission_options
+c = json.loads((Path(sys.argv[1]) / 'campaign.json').read_text())
+manifests = [json.loads(Path(s[k]).read_text()) for s in c['systems']
+             for k in ('pilot_manifest', 'manifest')]
+excluded = sorted({n for m in manifests for n in m.get('slurm_excluded_nodes', [])})
+j = manifests[0]['jobs'][0]
+batch = Path(j['directory']) / (j['name'] + '.sbatch')
+options = _slurm_submission_options(batch.read_text(), excluded)
+print('Slurm submission options:', options, flush=True)
+subprocess.run(['sbatch', '--test-only', '--mem=104000M', *options, batch.name],
+               cwd=j['directory'], check=True)
+PY
+"$KB_PY" -m kinbot.orbital_campaign retry-startup-failures "$RUN"
+"$KB_PY" -m kinbot.orbital_campaign retry-failed "$RUN" \
+    --job-id 52907740 --job-id 52907745 --max-reference-vectors 60
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$RUN" \
+    --pilot-only --probe-method casscf --max-jobs 20 --max-refinements 0 \
+    --keep-going --allocation-retries 2 \
+    >> "$RUN/controller.log" 2>&1 < /dev/null &
+printf '%s\n' "$!" > "$RUN/controller.pid"
+sleep 3
+kill -0 "$(cat "$RUN/controller.pid")" || { tail -n 40 "$RUN/controller.log"; exit 1; }
+"$KB_PY" -m kinbot.orbital_campaign monitor "$RUN" --details
+BASH
+```
+
+Monitor without requiring accounting or `rg`:
+
+```bash
+cd /home/hram/KinBot
+watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.orbital_campaign monitor /home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015 --details'
+```
+
+The `EXCL(SLURM)` column is the actual scheduler exclusion list. Older running
+allocations can still have a blank list; pending jobs updated by the refresh
+and newly submitted jobs must carry the recorded exclusions. `Native solver`
+shows the parameters Molpro actually printed, including `MAXVI`, when present
+in the current tail. If an error appears, save the monitor's `--json` snapshot
+and export the existing campaign evidence; do not delete attempts or treat
+MPI abort's cleanup signals as evidence of an out-of-memory cause.
+
+Once all campaign allocations have ended, collect the preserved evidence with
+`python -m kinbot.orbital_campaign collect RUN RUN.tar.gz`, replacing RUN with
+the full campaign path above. Collection does not require a working accounting
+service. A successful Batch A supplies the reference/space comparison panel;
+the sampling and final production validation steps below remain necessary.
+
 ## The 30 Å splitting
 
 Same total spin does not imply equal energy: roots can correlate to different

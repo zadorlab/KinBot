@@ -358,7 +358,8 @@ def test_prepare_incomplete_refuses_multigeometry_dependencies(tmp_path, monkeyp
 
 
 @pytest.mark.parametrize('options', [None, {'max_iterations': True},
-    {'max_reference_iterations': 0}, {'max_reference_iterations': 2.5}, {'ignore_error': True}])
+    {'max_reference_iterations': 0}, {'max_reference_iterations': 2.5},
+    {'max_reference_vectors': True}, {'max_reference_vectors': 0}, {'ignore_error': True}])
 def test_invalid_correlation_controls_cannot_enter_a_selection(tmp_path, options):
     from kinbot.molpro import validate_mr_correlation_options
     with pytest.raises(ValueError, match='correlation_options'):
@@ -464,7 +465,7 @@ def test_reviewed_averages_survive_production_resolution(tmp_path):
     controls = {'solver': 'so_sci', 'energy_convergence': 1e-8,
                 'gradient_convergence': 1e-5, 'quasi_newton': True,
                 'exact_diagonalization': True, 'max_iterations': 70}
-    correlation = {'max_iterations': 80, 'max_reference_iterations': 200}
+    correlation = {'max_iterations': 80, 'max_reference_iterations': 200, 'max_reference_vectors': 60}
     selection = _selected(tmp_path, casscf_options=controls, correlation_options=correlation)
     parameters = {'vrc_tst_active_space': json.loads(selection.read_text())['active_space'],
                   'vrc_tst_state_model_file': str(selection), 'mult': 2}
@@ -481,7 +482,7 @@ def test_reviewed_averages_survive_production_resolution(tmp_path):
         assert '{multi,so-sci,exact_diag=1,qn=1;' in deck
         assert 'accuracy,energy=1.d-8,gradient=1.d-5' in deck
         assert 'maxit,70;' in deck
-        assert 'option,maxit=80,maxiti=200;' in deck
+        assert 'option,maxit=80,maxiti=200,maxvi=60;' in deck
     parameters['vrc_tst_state_average_roots'] = {'2': 3}
     with pytest.raises(ValueError, match='conflict'):
         resolved_state_model(parameters, ['C', 'S', 'H', 'H', 'H'], 0,

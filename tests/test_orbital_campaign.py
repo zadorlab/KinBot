@@ -509,3 +509,58 @@ def test_basis_selection_checks_all_live_allocations_before_mutation(tmp_path, m
         campaign.exclude_bases(root, ['not_a_basis'])
     with pytest.raises(ValueError, match='manifest empty'):
         campaign.exclude_bases(root, ['aug-cc-pVTZ', 'av5z-f12'])
+
+
+@pytest.mark.parametrize('race', [False, True, 'finished', 'ignored'])
+def test_refresh_exclusions_updates_only_owned_pending_jobs(tmp_path, monkeypatch, race):
+    from types import SimpleNamespace
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    saved = json.loads(campaign.prepare(root, [source]).read_text())
+    path = Path(saved['systems'][0]['manifest'])
+    manifest = json.loads(path.read_text())
+    records = {}
+    for i, state in enumerate(('PENDING', 'RUNNING', 'PENDING')):
+        job = manifest['jobs'][i]
+        job['job_id'] = str(90 + i)
+        records[str(90+i)] = {'JobId': str(90+i), 'JobState': state,
+            'WorkDir': job['directory'] if i < 2 else '/unrelated', 'ExcNodeList': 'site[01-03]'}
+    manifest['slurm_excluded_nodes'] = ['bad-a', 'bad-b']
+    path.write_text(json.dumps(manifest))
+    original = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    monkeypatch.setattr(campaign.recon, 'slurm_job_record', lambda identifier: records[identifier].copy())
+    calls = []
+    def scheduler(command, **kwargs):
+        calls.append(command)
+        assert command[:2] == ['scontrol', 'update']
+        assert 'JobId=90' in command
+        assert command[-1] == 'ExcNodeList=site[01-03],bad-a,bad-b'
+        records['90'].update(JobState=('FAILED' if race == 'finished' else 'RUNNING') if race else 'PENDING',
+                             ExcNodeList='' if race == 'ignored' else 'site01,site02,site03,bad-a,bad-b')
+        return SimpleNamespace(returncode=int(bool(race) and race != 'ignored'), stderr='already started' if race else '')
+    monkeypatch.setattr(campaign.subprocess, 'run', scheduler)
+    if race == 'ignored':
+        with pytest.raises(RuntimeError, match='did not retain exclusions'):
+            campaign.refresh_exclusions(root)
+        return
+    result = campaign.refresh_exclusions(root)
+    assert len(calls) == 1 and len(result['jobs']) == 3
+    assert result['jobs'][0]['action'] == ('allocation_changed_during_update; preserved' if race else 'updated')
+    assert all(r['action'] == 'preserved' for r in result['jobs'][1:])
+    assert all(p.read_bytes() == contents for p, contents in original.items())
+
+
+def test_explicit_node_exclusions_persist_for_every_future_panel(tmp_path, monkeypatch):
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    saved = json.loads(campaign.prepare(root, [source]).read_text())
+    monkeypatch.setattr(campaign.recon, 'slurm_job_record', lambda identifier: pytest.fail('No allocations exist'))
+    result = campaign.refresh_exclusions(root, nodes=['bad-host', 'another-bad-host'])
+    assert result['excluded_nodes'] == ['another-bad-host', 'bad-host']
+    for record in saved['systems']:
+        for key in ('pilot_manifest', 'manifest'):
+            assert json.loads(Path(record[key]).read_text())['slurm_excluded_nodes'] == result['excluded_nodes']
+    with pytest.raises(ValueError, match='individual Slurm node names'):
+        campaign.refresh_exclusions(root, nodes=['bad-host --comment=anything'])

@@ -357,9 +357,131 @@ def progress(root, *, failures_only=False):
     return result
 
 
-def retry_failed(root, *, include_interrupted=False, job_ids=None):
+def refresh_exclusions(root, *, nodes=()):
+    """Apply recorded exclusions to this campaign's pending jobs only.
+
+    Requires a stopped controller. Running jobs keep their allocations; this
+    never cancels or requeues them. Preserve existing scheduler exclusions.
+    """
+    root = Path(root).expanduser().resolve()
+    if any(not isinstance(node, str) or not recon._SAFE.fullmatch(node) for node in nodes):
+        raise ValueError('Exclusions must be individual Slurm node names.')
+    with _lock(root), ExitStack() as locks:
+        campaign = json.loads((root / 'campaign.json').read_text())
+        paths = sorted({Path(record[key]).resolve() for record in campaign['systems']
+                        for key in ('pilot_manifest', 'manifest')})
+        for path in paths:
+            locks.enter_context(recon._manifest_lock(path.parent))
+        manifests = [json.loads(path.read_text()) for path in paths]
+        excluded = sorted(set(nodes) | {node for m in manifests for node in m.get('slurm_excluded_nodes', [])})
+        if any(not isinstance(node, str) or not recon._SAFE.fullmatch(node) for node in excluded):
+            raise ValueError('Invalid campaign exclusion node.')
+        if nodes:
+            for path, manifest in zip(paths, manifests):
+                manifest['slurm_excluded_nodes'] = excluded
+                atomic_json(path, manifest)
+        reports, seen = [], set()
+        for manifest in manifests:
+            for job in manifest['jobs'] + manifest.get('excluded_jobs', []):
+                identifier = str(job.get('job_id', ''))
+                if not identifier or identifier in seen:
+                    continue
+                seen.add(identifier)
+                record = recon.slurm_job_record(identifier)
+                entry = {'job_id': identifier, 'state': record.get('JobState', 'unavailable')}
+                reports.append(entry)
+                if (not excluded or record.get('JobId') != identifier
+                        or record.get('WorkDir') != job['directory'] or record.get('JobState') != 'PENDING'):
+                    entry['action'] = 'preserved'
+                    continue
+                old = record.get('ExcNodeList', '')
+                values = ([old] if old not in ('', '(null)', 'None') else []) + excluded
+                value = ','.join(dict.fromkeys(values))
+                result = subprocess.run(['scontrol', 'update', 'JobId=' + identifier, 'ExcNodeList=' + value],
+                    capture_output=True, text=True, check=False, timeout=15)
+                after = recon.slurm_job_record(identifier)
+                if result.returncode:
+                    if (after.get('JobId') == identifier and after.get('WorkDir') == job['directory']
+                            and after.get('JobState') in {'RUNNING', *recon.SLURM_TERMINAL_STATES}):
+                        entry['action'] = 'allocation_changed_during_update; preserved'
+                        continue
+                    raise RuntimeError(f'{identifier}: exclusion update failed: {result.stderr.strip()}')
+                if after.get('JobState') in ('PENDING', 'RUNNING'):
+                    if after.get('JobId') != identifier or after.get('WorkDir') != job['directory']:
+                        raise RuntimeError(f'{identifier}: scheduler identity changed after exclusion update.')
+                    actual = after.get('ExcNodeList', '')
+                    if '[' in actual:
+                        expanded = subprocess.run(['scontrol', 'show', 'hostnames', actual],
+                            capture_output=True, text=True, check=True, timeout=15)
+                        actual_nodes = set(expanded.stdout.split())
+                    else:
+                        actual_nodes = set(actual.split(','))
+                    if not set(excluded) <= actual_nodes:
+                        raise RuntimeError(f'{identifier}: Slurm did not retain exclusions: {actual!r}')
+                    entry.update(action='updated', requested=value, scheduler_exclusions=actual)
+                else:
+                    entry.update(action='allocation_left_queue; update_unverified', requested=value)
+        return {'excluded_nodes': excluded, 'jobs': reports}
+
+
+def retry_startup_failures(root):
+    """Explicit recovery after infrastructure repair; preserve retry evidence.
+
+    Reuse the controller's strict pre-shell classifier (scheduler identity,
+    signal 53, no worker/guard artifacts, publication grace). Grant two new
+    automatic startup retries only to explicitly recovered stopped jobs.
+    """
+    root = Path(root).expanduser().resolve()
+    with _lock(root):
+        campaign = json.loads((root / 'campaign.json').read_text())
+        queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                                 text=True, check=True, timeout=30)
+        live = set(queued.stdout.split())
+        reports, seen = [], set()
+        for record in campaign['systems']:
+            _validate_inputs(record)
+            for key in ('pilot_manifest', 'manifest'):
+                path = Path(record[key]).resolve()
+                if path in seen:
+                    continue
+                seen.add(path)
+                with recon._manifest_lock(path.parent):
+                    manifest = json.loads(path.read_text())
+                    recon._recover_slurm_startup_failures(path, manifest, live)
+                    selected = {str(j['job_id']): j['name'] for j in manifest['jobs']
+                        if j.get('startup_failure') and j.get('job_id')
+                        and str(j['job_id']) not in live
+                        and time.time() - j.get('missing_since', time.time()) > 60.}
+                    if not selected:
+                        continue
+                    result = recon._retry_failed(path, include_interrupted=True,
+                                                  job_ids=set(selected), live_job_ids=live)
+                    manifest = json.loads(path.read_text())
+                    for identifier, name in selected.items():
+                        if name not in result['retry_ready']:
+                            continue
+                        job = next(j for j in manifest['jobs'] if j['name'] == name)
+                        limit = len(job.get('startup_retry_history', [])) + 2
+                        job.setdefault('manual_startup_retry_history', []).append({
+                            'job_id': identifier, 'time': time.time(),
+                            'previous_limit': job.get('startup_retry_limit', 2), 'new_limit': limit})
+                        job['startup_retry_limit'] = limit
+                        job.pop('startup_failure', None)
+                    atomic_json(path, manifest)
+                    reports.append(result)
+        campaign['status'] = 'prepared_retry'
+        campaign.pop('error', None)
+        atomic_json(root / 'campaign.json', campaign)
+        return {'manual_retries': reports, 'running_jobs_preserved': True}
+
+
+def retry_failed(root, *, include_interrupted=False, job_ids=None, max_reference_vectors=None):
     """Reconcile failed native jobs without discarding successful probes."""
     root = Path(root).expanduser().resolve()
+    if max_reference_vectors is not None:
+        recon.validate_mr_correlation_options({'max_reference_vectors': max_reference_vectors})
+        if not job_ids:
+            raise ValueError('A numerical retry override requires explicit --job-id selection.')
     with _lock(root):
         campaign = json.loads((root / 'campaign.json').read_text())
         if job_ids is not None:
@@ -375,7 +497,8 @@ def retry_failed(root, *, include_interrupted=False, job_ids=None):
                     if not any(str(j.get('job_id')) in job_ids for j in manifest['jobs']):
                         continue
                 results.append(recon.retry_failed(record[key], include_interrupted=include_interrupted,
-                    **({'job_ids': job_ids} if job_ids is not None else {})))
+                    **({'job_ids': job_ids} if job_ids is not None else {}),
+                    **({'max_reference_vectors': max_reference_vectors} if max_reference_vectors is not None else {})))
         campaign['status'] = 'prepared_retry'
         campaign.pop('error', None)
         atomic_json(root / 'campaign.json', campaign)
@@ -601,6 +724,17 @@ def main(argv=None):
     report.add_argument('root')
     report.add_argument('--failures-only', action='store_true',
                         help='Show failed selected jobs without the full system inventory.')
+    monitor = commands.add_parser('monitor', help='Read scheduler facts and live native log tails; never modify jobs.')
+    monitor.add_argument('root')
+    monitor.add_argument('--details', action='store_true', help='Include native stage and latest iteration/output.')
+    monitor.add_argument('--json', action='store_true', help='Emit the read-only snapshot as JSON.')
+    refresh = commands.add_parser('refresh-exclusions', help='Apply campaign exclusions to pending allocations only.')
+    refresh.add_argument('root')
+    refresh.add_argument('--node', action='append', default=[],
+                         help='Persist an additional individual node exclusion across the campaign; repeat as needed.')
+    startup = commands.add_parser('retry-startup-failures',
+        help='Explicitly recover confirmed pre-shell I/O failures after infrastructure repair; preserve live jobs.')
+    startup.add_argument('root')
     check = commands.add_parser('preflight')
     check.add_argument('root')
     stop = commands.add_parser('stop-controller', help='Stop only the controller, keeping Slurm jobs running.')
@@ -611,6 +745,8 @@ def main(argv=None):
                        help='Also archive/retry stopped known allocations without a final execution record.')
     retry.add_argument('--job-id', action='append',
                        help='Retry only these allocation IDs; preserve unrelated running jobs. Repeat as needed.')
+    retry.add_argument('--max-reference-vectors', type=int,
+                       help='Explicit numerical retry: MR internal Davidson capacity (MAXVI); requires --job-id.')
     archive = commands.add_parser('archive-excluded')
     archive.add_argument('root')
     selection = commands.add_parser('exclude-bases')
@@ -621,6 +757,11 @@ def main(argv=None):
     bundle.add_argument('root')
     bundle.add_argument('destination')
     args = parser.parse_args(argv)
+    if args.action == 'monitor':
+        from kinbot.orbital_monitor import snapshot, render
+        result = snapshot(args.root)
+        print(json.dumps(result, indent=2) if args.json else render(result, details=args.details))
+        return 0
     if args.action == 'prepare':
         result = str(prepare(args.root, args.configurations))
     elif args.action == 'append':
@@ -636,8 +777,13 @@ def main(argv=None):
         result = preflight(args.root)
     elif args.action == 'stop-controller':
         result = stop_controller(args.root)
+    elif args.action == 'refresh-exclusions':
+        result = refresh_exclusions(args.root, nodes=args.node)
+    elif args.action == 'retry-startup-failures':
+        result = retry_startup_failures(args.root)
     elif args.action == 'retry-failed':
-        result = retry_failed(args.root, include_interrupted=args.include_interrupted, job_ids=args.job_id)
+        result = retry_failed(args.root, include_interrupted=args.include_interrupted, job_ids=args.job_id,
+                              max_reference_vectors=args.max_reference_vectors)
     elif args.action == 'archive-excluded':
         result = archive_excluded(args.root)
     elif args.action == 'exclude-bases':

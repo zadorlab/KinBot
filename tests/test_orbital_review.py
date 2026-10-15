@@ -183,6 +183,52 @@ def test_report_checks_equivalent_geometry_and_preserves_native_character_data(t
         review.report(campaign_file.parent, tmp_path / 'changed.json')
 
 
+@pytest.mark.parametrize('different_average', [False, True])
+def test_report_combines_repair_pilots_without_accepting_failed_attempts(tmp_path, different_average):
+    plan = review.plan(SOURCE, tmp_path / 'plan.json')
+    definition = json.loads(plan.read_text())
+    definition['variants'] = definition['variants'][1:2]
+    definition['models'][0]['anchors'] = definition['models'][0]['anchors'][:1]
+    atomic_json(plan, definition)
+    roots = [tmp_path / 'original', tmp_path / 'repair']
+    for index, root in enumerate(roots):
+        campaign = json.loads(review.prepare(plan, root).read_text())
+        record = campaign['systems'][0]
+        # An earlier full-panel success and a later pilot success are both
+        # usable, even though neither campaign has all attempts complete.
+        path = Path(record['pilot_manifest' if index else 'manifest'])
+        manifest = json.loads(path.read_text())
+        job = manifest['jobs'][0]
+        directory = Path(job['directory'])
+        out, wfu = directory / (job['name'] + '.out'), directory / 'test.wfu'
+        out.write_text('PROGRAM * MULTI\nCONVERGENCE REACHED!\nNATURAL ORBITALS\n')
+        wfu.write_bytes(b'valid orbitals')
+        job.update(status='complete', output_sha256=file_sha256(out), wfu=str(wfu),
+                   wfu_sha256=file_sha256(wfu), state_energies_hartree=[
+                       {'multiplicity': 2, 'root': 1, 'energy_hartree': -400. + index * 0.01}])
+        if index:
+            job['initial_record'] = {'path': '/old/casci.wfu', 'sha256': 'old-checkpoint-hash'}
+            if different_average:
+                job['state_model']['state_average'][0]['weights'] = [1., 0., 0.]
+        atomic_json(path, manifest)
+        other_path = Path(record['manifest' if index else 'pilot_manifest'])
+        other = json.loads(other_path.read_text())
+        other['jobs'][0].update(status='incomplete', validation_errors=['Native optimizer did not converge.'])
+        atomic_json(other_path, other)
+    output = review.report(roots[0], tmp_path / 'combined.json', additional_campaigns=[roots[1], roots[0]])
+    result = json.loads(output.read_text())
+    assert result['complete'] == 2 and result['total'] == 4
+    assert len(result['campaigns']) == 2
+    assert result['selection_status'] == 'user_review_required'
+    assert len([row for row in result['jobs'] if row.get('validation_errors')]) == 2
+    pilot = next(row for row in result['jobs'] if row['phase'] == 'pilot' and row['status'] == 'complete')
+    assert pilot['initialization'] == {'kind': 'external_checkpoint',
+                                     'path': '/old/casci.wfu', 'sha256': 'old-checkpoint-hash'}
+    assert len(result['equivalent_geometry_comparisons']) == (0 if different_average else 1)
+    assert {profile['phase'] for profile in result['radial_profiles']} == {'pilot', 'panel'}
+    assert all(len(profile['points']) == 1 for profile in result['radial_profiles'])
+
+
 @pytest.mark.parametrize('solver', ['second_order', 'so_sci'])
 def test_convergence_repair_preserves_completed_work_and_chemistry(tmp_path, monkeypatch, solver):
     from types import SimpleNamespace

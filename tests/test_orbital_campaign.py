@@ -332,6 +332,31 @@ def test_collection_keeps_binary_wavefunctions_on_cluster(tmp_path):
         assert not any(name.endswith('.wfu') for name in names)
 
 
+@pytest.mark.parametrize('hazard', ['live', 'uncertain', 'scheduler_failure'])
+def test_collection_rejects_owned_outputs_before_auditing(tmp_path, monkeypatch, hazard):
+    from types import SimpleNamespace
+    import subprocess
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    saved = json.loads(campaign.prepare(root, [source]).read_text())
+    path = Path(saved['systems'][0]['pilot_manifest'])
+    manifest = json.loads(path.read_text())
+    manifest['jobs'][0].update(job_id='123', submission_status='submitting' if hazard == 'uncertain' else 'submitted')
+    path.write_text(json.dumps(manifest))
+    before = path.read_bytes()
+    def queue(*args, **kwargs):
+        if hazard == 'scheduler_failure':
+            raise subprocess.CalledProcessError(1, args[0])
+        return SimpleNamespace(stdout='123\n')
+    monkeypatch.setattr(campaign.subprocess, 'run', queue)
+    monkeypatch.setattr(campaign.recon, '_audit', lambda *a, **k: pytest.fail('Must check all allocations first'))
+    with pytest.raises((RuntimeError, subprocess.CalledProcessError)):
+        campaign.collect(root, tmp_path / 'review.tar.gz')
+    assert path.read_bytes() == before
+    assert not (tmp_path / 'review.tar.gz').exists()
+
+
 def test_stopped_campaign_basis_selection_preserves_results_and_survives_refinement(tmp_path, monkeypatch):
     from types import SimpleNamespace
     source = tmp_path / 'input.json'

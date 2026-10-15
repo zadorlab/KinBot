@@ -24,7 +24,8 @@ findings, timings and verified artifact hashes.
 ## Completion status correction
 
 The old controller reported all 81 jobs complete. Native output inspection
-finds **15 that need repair**:
+finds **15 rejected attempts** (not all need to be rerun to review the
+converged CASSCF references):
 
 - Seven CASSCF jobs (five panel jobs and two pilots, all CH3S) print
   `NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!`.
@@ -389,3 +390,88 @@ BASH
 Both original and replacement archives are needed for review.
 No final active space, physical surface model, or production input is selected
 by this analysis or repair.
+
+## October 15, 11:11: consolidate evidence before further retries
+
+The `orbital_accuracy_20261015` campaign now has a converged fresh-AVAS
+orientation pilot. Its checkpoint-initialized compressed CH3S pilot still
+fails native MULTI convergence, with the intended local energy threshold
+`0.10E-09` (1e-10 Hartree) confirmed in the output. The earlier quadratic
+campaign reported the fresh compressed calculation complete. These successes
+can be reviewed together; a successful pilot does not need a duplicate panel
+run to become review evidence.
+
+The remaining initialization uses the original same-geometry CASCI checkpoint,
+preserved through each repair. It is not a restart from the latest failed
+CASSCF orbitals or necessarily a continuation from a neighboring converged
+CASSCF point. The latest failure's full native iterations are still needed
+before attributing it to numerical noise, a state/space issue, or a particular
+optimizer criterion. Do not increase iterations or loosen thresholds solely
+because earlier, different attempts printed small rounded gradients.
+
+The immediate next step supersedes the earlier restart instructions: **leave
+the stopped campaigns intact and export all four review/repair campaigns**.
+This submits no calculations. It checks for active recorded Slurm allocations
+before re-auditing each campaign, retains rejected native outputs, and makes
+one combined report including pilots, initialization provenance and matching
+geometry/state comparisons. WFU files stay at their original cluster paths.
+The successful alternative does not establish initialization independence or
+select a final production active space.
+
+On Blodgett (the child shell keeps failures from exiting the SSH shell):
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+/home/hram/KinBot/.venv/bin/python - <<'PY'
+import json
+import os
+import tarfile
+import tempfile
+from pathlib import Path
+from kinbot import orbital_campaign, orbital_review
+
+base = Path('/home/hram/kinbot-runs')
+roots = [base / ('ch3s_ch3ss_orbital_' + suffix + '_20261015')
+         for suffix in ('review', 'convergence', 'sosci', 'accuracy')]
+target = base / 'ch3s_ch3ss_orbital_diagnostics_20261015.tar.gz'
+if target.exists():
+    raise SystemExit(f'Preserving existing export: {target}')
+for root in roots:
+    if not (root / 'campaign.json').is_file():
+        raise SystemExit(f'Missing campaign: {root}')
+with tempfile.TemporaryDirectory(prefix='orbital-export-', dir=base) as temporary:
+    staging = Path(temporary)
+    for root in roots:
+        print('Collecting:', root, flush=True)
+        orbital_campaign.collect(root, staging / (root.name + '.tar.gz'))
+    report = orbital_review.report(roots[0], staging / 'combined_review.json',
+                                   additional_campaigns=roots[1:])
+    data = json.loads(report.read_text())
+    print('Validated attempts:', data['complete'], '/', data['total'])
+    print('Matched comparisons:', len(data['equivalent_geometry_comparisons']))
+    packed = staging / 'bundle.tar.gz'
+    members = sorted(staging.iterdir())
+    with tarfile.open(packed, 'w:gz') as archive:
+        for member in members:
+            archive.add(member, arcname=member.name, recursive=False)
+    # Publish only a finished archive; never replace an earlier export.
+    os.link(packed, target)
+print('Review bundle:', target)
+PY
+BASH
+```
+
+Then, from a local Mac terminal:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /Users/hrishikeshram/KinBot
+scp hram@blodgett.ca.sandia.gov:/home/hram/kinbot-runs/ch3s_ch3ss_orbital_diagnostics_20261015.tar.gz \
+    examples/anl/orbital_reviews/
+BASH
+```

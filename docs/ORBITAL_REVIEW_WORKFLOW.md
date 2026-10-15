@@ -33,6 +33,10 @@ the full reference panel.
    counts, AVAS targets, input hash and WFU hash must agree. Unavailable seeds
    fall back to radial propagation or a fresh start. Old energies are never
    relabeled as optimized results. Keep the old campaign at its original path.
+   In particular, the variant name `casscf_propagated` does not guarantee
+   neighboring-geometry continuation: a matching external CASCI checkpoint
+   overrides its radial predecessor. Reports expose the actual initialization
+   as `fresh`, `external_checkpoint` (with path/hash), or `predecessor`.
 5. Run with `orbital_campaign run`. Independent systems share one Slurm job
    limit; pilots run concurrently, then all ready full-panel probes can launch
    together after the pilots pass. Full panels do not repeat a redundant
@@ -94,6 +98,23 @@ the full reference panel.
    finite reference, not automatically certified as an asymptote. Native XML
    exports and the full outputs are included by `orbital_campaign collect`;
    binary WFU files remain on the cluster.
+   Reports include both pilots and full-panel attempts. Repeat
+   `--additional-campaign OTHER_ROOT` to compare the original panel with repair
+   campaigns, without rerunning a successful pilot just to put it in a panel.
+   Counts are attempts, not unique geometries. Failed and unsubmitted attempts
+   remain listed, and campaign/phase, solver settings and checkpoint provenance
+   are retained. Equivalent-geometry comparisons require matching active-space
+   definitions and state averages as well as atoms, basis, method and root labels.
+   Radial profiles remain separate by campaign and phase; combining evidence
+   does not silently splice unlike runs into a potential curve.
+   Collect each stopped campaign first to re-audit historical completion labels,
+   then generate the combined report. Collection and reporting hold the campaign
+   and manifest locks, reject uncertain submissions, and check recorded job IDs
+   against Slurm before reading native evidence. Scheduler-query failure aborts
+   the export instead of treating it as an empty queue.
+   A failed initialization comparison need not prevent inspection of a converged
+   alternative at that geometry. It does leave initialization robustness
+   unresolved; it is not a reason to approve a failed result or a production CAS.
 7. After orbital/initialization review, duplicate a plan into a fresh small
    correlated validation campaign. Each model may request `correlation_checks`,
    for example `[{"method":"caspt2-f12b(5,4)","shift":0.3,"ipea":0.25},

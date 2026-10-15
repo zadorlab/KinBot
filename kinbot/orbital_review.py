@@ -333,45 +333,70 @@ def repair_convergence(root, output, *, solver='second_order', probe_method=None
         return result
 
 
-def report(root, output):
-    """Read atomic snapshots; retain native tables and label diagnostic limits."""
-    root = Path(root).expanduser().resolve()
-    campaign = json.loads((root / 'campaign.json').read_text())
+def _review_rows(root):
+    """Include pilot evidence, retaining every attempt and its actual seed."""
+    from kinbot import orbital_campaign
     index = {item['title']: item for item in json.loads((root / 'review_index.json').read_text())['systems']}
-    rows, comparisons = [], []
-    for system in campaign['systems']:
-        metadata = index[system['title']]
-        manifest_path = Path(system['manifest'])
-        manifest = json.loads(manifest_path.read_text())
-        for job in manifest['jobs']:
-            row = {**deepcopy(job), 'review': metadata, 'manifest': str(manifest_path)}
-            if job.get('status') == 'complete':
-                directory = Path(job['directory'])
-                evidence = [(directory / (job['name'] + '.inp'), job['input_sha256']),
-                            (directory / (job['name'] + '.out'), job['output_sha256']),
-                            (Path(job['wfu']), job['wfu_sha256'])]
-                if any(not path.is_file() or file_sha256(path) != digest for path, digest in evidence):
-                    raise ValueError(f'{job["name"]}: completed evidence changed; audit before review.')
-                native = directory / (job['name'] + '.out')
-                text = native.read_text(errors='replace')
-                convergence = recon.convergence_diagnostics(text, job)
-                if convergence['errors']:
-                    raise ValueError(f'{job["directory"]}: ' + ' '.join(convergence['errors'])
-                                     + ' Re-audit this campaign before review.')
-                row['validation_warnings'] = convergence['warnings']
-                # Preserve complete native character/CI tables, avoiding assumptions
-                # about AO labels, symmetry, orbital rank identities or elements.
-                row['native_output'] = str(native)
-                row['native_orbital_and_ci_text'] = text[text.find('NATURAL ORBITALS'):] if 'NATURAL ORBITALS' in text else text
-                execution = directory / 'execution.json'
-                row['elapsed_seconds'] = (json.loads(execution.read_text()).get('elapsed_seconds')
-                                          if execution.is_file() else None)
-            rows.append(row)
+    rows = []
+    with orbital_campaign._stopped_snapshot(root) as (campaign, manifests):
+        for system in campaign['systems']:
+            orbital_campaign._validate_inputs(system)
+            metadata = index[system['title']]
+            configuration = json.loads(Path(system['configuration']).read_text())
+            for key in ('manifest', 'pilot_manifest'):
+                manifest_path = Path(system[key]).resolve()
+                for job in manifests[manifest_path]['jobs']:
+                    row = {**deepcopy(job), 'review': metadata, 'manifest': str(manifest_path),
+                           'campaign': str(root), 'phase': 'pilot' if key == 'pilot_manifest' else 'panel',
+                           'electron_count': manifests[manifest_path]['electron_count'],
+                           'solver_controls': {name: configuration.get(name) for name in
+                               ('scf_options', 'casscf_options', 'scf_convergence')}}
+                    row['initialization'] = (
+                        {'kind': 'external_checkpoint', **job['initial_record']} if job.get('initial_record') else
+                        {'kind': 'predecessor', 'job': job['orbital_predecessor']} if job.get('orbital_predecessor') else
+                        {'kind': 'fresh'})
+                    if job.get('status') == 'complete':
+                        directory = Path(job['directory'])
+                        evidence = [(directory / (job['name'] + '.inp'), job['input_sha256']),
+                                    (directory / (job['name'] + '.out'), job['output_sha256']),
+                                    (Path(job['wfu']), job['wfu_sha256'])]
+                        if any(not path.is_file() or file_sha256(path) != digest for path, digest in evidence):
+                            raise ValueError(f'{job["name"]}: completed evidence changed; audit before review.')
+                        native = directory / (job['name'] + '.out')
+                        text = native.read_text(errors='replace')
+                        convergence = recon.convergence_diagnostics(text, job)
+                        if convergence['errors']:
+                            raise ValueError(f'{job["directory"]}: ' + ' '.join(convergence['errors'])
+                                             + ' Re-audit this campaign before review.')
+                        row['validation_warnings'] = convergence['warnings']
+                        # Preserve native character/CI tables without assigning
+                        # orbital identities from energy order or occupation rank.
+                        row['native_output'] = str(native)
+                        row['native_orbital_and_ci_text'] = text[text.find('NATURAL ORBITALS'):] if 'NATURAL ORBITALS' in text else text
+                        execution = directory / 'execution.json'
+                        row['elapsed_seconds'] = (json.loads(execution.read_text()).get('elapsed_seconds')
+                                                  if execution.is_file() else None)
+                    rows.append(row)
+    return campaign, rows
+
+
+def report(root, output, *, additional_campaigns=()):
+    """Combine validated evidence without rerunning pilots or approving failures."""
+    roots = list(dict.fromkeys(Path(path).expanduser().resolve() for path in (root, *additional_campaigns)))
+    rows, comparisons, sources = [], [], []
+    for source in roots:
+        campaign, entries = _review_rows(source)
+        sources.append({'campaign': str(source), 'status': campaign.get('status'), 'error': campaign.get('error'),
+                        'selected_probe_method': campaign.get('selected_probe_method')})
+        rows.extend(entries)
     completed = [row for row in rows if row.get('status') == 'complete']
     for i, left in enumerate(completed):
         for right in completed[i + 1:]:
             if (left['basis'] != right['basis'] or left['review']['model'] != right['review']['model']
                     or left.get('probe_method') != right.get('probe_method')
+                    or left.get('probe_active_space') != right.get('probe_active_space')
+                    or left.get('state_model') != right.get('state_model')
+                    or left['electron_count'] != right['electron_count']
                     or left['symbols'] != right['symbols'] or _signature(left) != _signature(right)):
                 continue
             x, y = np.asarray(left['geometry_angstrom']), np.asarray(right['geometry_angstrom'])
@@ -387,12 +412,14 @@ def report(root, output):
     groups = {}
     for row in completed:
         if row.get('channel'):
-            groups.setdefault((row['review']['title'], row['basis'], row['channel']), []).append(row)
+            groups.setdefault((row['review']['title'], row['basis'], row['channel'],
+                               row['campaign'], row['phase']), []).append(row)
     profiles = []
     for key, group in groups.items():
         group.sort(key=lambda row: row['distance_angstrom'])
         far = group[-1]
         profiles.append({'system': key[0], 'basis': key[1], 'channel': key[2],
+            'campaign': key[3], 'phase': key[4],
             'reference_job': far['name'], 'reference_distance_angstrom': far['distance_angstrom'],
             'reference_status': 'finite separation; asymptotic adequacy requires review',
             'points': [{'job': row['name'], 'distance_angstrom': row['distance_angstrom'],
@@ -403,12 +430,16 @@ def report(root, output):
                     for state, reference in zip(row.get('correlated_energies_hartree', []),
                                                  far.get('correlated_energies_hartree', []))]}
                 for row in group]})
-    result = {'schema': 1, 'campaign': str(root), 'complete': len(completed), 'total': len(rows),
-        'selected_probe_method': campaign.get('selected_probe_method'),
+    result = {'schema': 1, 'campaign': str(roots[0]), 'campaigns': sources,
+        'complete': len(completed), 'total': len(rows),
+        'count_unit': 'attempts, including pilots; not unique geometries',
+        'selected_probe_method': sources[0]['selected_probe_method'],
         'selection_status': 'user_review_required', 'jobs': rows,
         'radial_profiles': profiles,
         'equivalent_geometry_comparisons': comparisons,
         'limitations': [
+            'Failed and unsubmitted attempts remain listed; successful alternatives do not establish initialization independence.',
+            'An external checkpoint may be a same-geometry CASCI seed, not radial CASSCF continuation.',
             'A finite panel does not prove coverage of the VRC bottleneck.',
             'CASCI occupations and CI weights are screening diagnostics, not correlated error bounds.',
             'Compare interaction energies relative to consistent separated limits, not total energies.',
@@ -502,6 +533,8 @@ def main(argv=None):
         if name == 'prepare':
             command.add_argument('--additional-plan', action='append', default=[])
             command.add_argument('--reuse-from')
+        if name == 'report':
+            command.add_argument('--additional-campaign', action='append', default=[])
         if name == 'repair-convergence':
             command.add_argument('--solver', choices=['second_order', 'so_sci'], default='second_order')
             command.add_argument('--probe-method', choices=['casci', 'casscf'])
@@ -520,6 +553,8 @@ def main(argv=None):
         print(prepare(args.source, args.output, additional_plans=args.additional_plan, reuse_from=args.reuse_from))
     elif args.command == 'repair-convergence':
         print(repair_convergence(args.source, args.output, solver=args.solver, probe_method=args.probe_method))
+    elif args.command == 'report':
+        print(report(args.source, args.output, additional_campaigns=args.additional_campaign))
     else:
         print({'plan': plan, 'prepare': prepare, 'report': report, 'repair-convergence': repair_convergence}
               [args.command](args.source, args.output))

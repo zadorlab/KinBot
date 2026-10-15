@@ -285,20 +285,46 @@ def retry_failed(root, *, include_interrupted=False):
         return results
 
 
+@contextmanager
+def _stopped_snapshot(root):
+    """Hold campaign/manifests stable and reject still-owned native outputs."""
+    with _lock(root), ExitStack() as locks:
+        data = json.loads((root / 'campaign.json').read_text())
+        manifests, jobs = {}, []
+        for record in data['systems']:
+            for key in ('pilot_manifest', 'manifest'):
+                path = Path(record[key]).resolve()
+                if path in manifests:
+                    continue
+                locks.enter_context(recon._manifest_lock(path.parent))
+                manifest = json.loads(path.read_text())
+                manifests[path] = manifest
+                jobs.extend(manifest['jobs'] + manifest.get('excluded_jobs', []))
+        if any(job.get('submission_status') == 'submitting' for job in jobs):
+            raise RuntimeError('Reconcile uncertain submissions before exporting or reviewing this campaign.')
+        recorded = {str(job['job_id']) for job in jobs if job.get('job_id')}
+        if recorded:
+            queue = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                                   text=True, check=True, timeout=30)
+            if recorded & set(queue.stdout.split()):
+                raise RuntimeError('Wait for campaign allocations to leave Slurm before exporting or reviewing.')
+        yield data, manifests
+
+
 def collect(root, destination):
     """Archive review evidence; large binary WFU records remain on the cluster."""
     root = Path(root).expanduser().resolve()
     destination = Path(destination).expanduser().resolve()
     if root == destination or root in destination.parents:
         raise ValueError('Collection archive must be outside the campaign tree.')
-    with _lock(root):
-        data = json.loads((root / 'campaign.json').read_text())
+    with _stopped_snapshot(root) as (data, _):
         paths = {root / 'campaign.json', root / 'review_plan.json', root / 'review_index.json'}
         paths.update(root.glob('review_report*.json'))
         for record in data['systems']:
             paths.update(Path(record['configuration']).parent.glob('*.json'))
             for key in ('pilot_manifest', 'manifest'):
-                manifest = recon.audit(record[key])
+                # _stopped_snapshot already holds every manifest lock.
+                manifest = recon._audit(record[key])
                 paths.add(Path(record[key]))
                 for job in manifest['jobs'] + manifest.get('excluded_jobs', []):
                     directory = Path(job.get('archived_directory', job['directory']))

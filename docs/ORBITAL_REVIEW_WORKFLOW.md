@@ -214,6 +214,23 @@ the VRC calculation must also deliver accurate relative interaction energies.
    controls retain native defaults. See the
    [Molpro MRCI iteration controls](https://www.molpro.net/manual/doku.php?id=the_mrci_program#maximum_number_of_iterations),
    which also apply to [RS2](https://www.molpro.net/manual/doku.php?id=multireference_rayleigh_schroedinger_perturbation_theory).
+   Separately, `correlation_options.reference_policy` accepts `selected_root`
+   (the default) or `state_average`. The latter adds `REFSTATE` for all roots
+   of the requested spin in the reviewed CASSCF average; CASPT2 also receives
+   that spin's weights, so its Fock operator uses the reference-averaged
+   density. A check can override this policy with its own `reference_policy`.
+   This changes the correlation treatment, not just the solver effort. It
+   does **not** enable XMS-CASPT2 or guarantee rotational/fragment invariance.
+   Test its asymptotes and interaction potentials independently. The same
+   explicit policy is retained through selection into production.
+   An optional `{"method":"uccsd(t)-f12b","multiplicity":4}` check supplies
+   a separate, explicitly requested ground-state spin anchor. The value 4 is
+   only an example. Such checks must follow the MR checks; they run a new
+   restricted HF reference in a separate orbital record, preserving the
+   CASSCF orbitals. They validate native F12b plus unscaled triples energies
+   and reject failed SCF/CC calculations. They cannot supply arbitrary
+   excited roots or replace a multireference low-spin surface. Their
+   usefulness depends on the reference character at the geometry examined.
    Source CASSCF convergence, hashes, geometry and basis are checked. Partitions
    reoptimize all closed and active orbitals and retain explicit source provenance.
    They cannot change basis. Optional `target_distance_angstrom` generates a new

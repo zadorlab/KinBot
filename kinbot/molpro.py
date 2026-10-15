@@ -625,12 +625,17 @@ def validate_mr_correlation_options(options):
     """Bounded numerical controls shared by native MRPT and MRCI.
 
     Iteration limits change solver effort, not the Hamiltonian or convergence
-    tolerances. Do not expose IGNORE_ERROR or unvalidated native input here.
+    tolerances. The explicit reference policy changes the correlated reference
+    treatment and must be validated separately. Never expose IGNORE_ERROR.
     """
-    allowed = {'max_iterations', 'max_reference_iterations'}
+    allowed = {'max_iterations', 'max_reference_iterations', 'reference_policy'}
     if not isinstance(options, dict) or set(options) - allowed:
         raise ValueError('Unknown reviewed correlation_options.')
     for key, value in options.items():
+        if key == 'reference_policy':
+            if value not in ('selected_root', 'state_average'):
+                raise ValueError('correlation_options.reference_policy must be selected_root or state_average.')
+            continue
         if type(value) is not int or value < 1:
             raise ValueError(f'correlation_options.{key} must be a positive integer.')
     return deepcopy(options)
@@ -672,6 +677,15 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
     iteration_options = [f'{native}={controls[key]}' for key, native in (
         ('max_iterations', 'maxit'), ('max_reference_iterations', 'maxiti')) if key in controls]
     iteration_card = 'option,' + ','.join(iteration_options) + ';' if iteration_options else ''
+    reference_card = ''
+    if controls.get('reference_policy', 'selected_root') == 'state_average':
+        reviewed = validate_vrc_state_model(state_model, active_electrons=active_electrons,
+                                            active_orbitals=active_orbitals, nelectron=int(nelectron))
+        entry = next(item for item in reviewed['state_average'] if item['multiplicity'] == int(spin) + 1)
+        reference_card = ('refstate,' + str(entry['roots']) + ','
+                          + ','.join(map(str, range(1, entry['roots'] + 1))) + ';')
+        if family == 'caspt2':
+            reference_card += 'weight,' + ','.join(f'{weight:.16g}' for weight in entry['weights']) + ';'
     if family == 'caspt2':
         program = ('rs2-f12' if f12
                    else ('rs2c' if int(spin) == 0 else 'rs2'))
@@ -689,7 +703,7 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         audit = (f'! KinBot energy contract: {contract["method"]} = '
                  f'{contract["energy_variable"]}\n'
                  f'KBVRCSEL={selected}\n')
-        body = command if not (state or iteration_card) else f'{command};{state}{iteration_card}'
+        body = command if not (state or iteration_card) else f'{command};{state}{reference_card}{iteration_card}'
         return avas + multi + f'{{{body}}}\n' + audit, 'KBVRCSEL'
     program = ('mrci-f12,scalf12=1,cabs_singles=1' if f12 else 'mrci')
     audit = (f'! KinBot energy contract: {contract["method"]} = '
@@ -700,7 +714,7 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
              f'wf,{int(nelectron)},1,{int(spin)};'
              f'state,1,{selected_root};')
     return (avas + multi
-            + f'{{{program};{state}{iteration_card}option,cluster=0;}}\n' + audit,
+            + f'{{{program};{state}{reference_card}{iteration_card}option,cluster=0;}}\n' + audit,
             'KBVRCSEL')
 
 

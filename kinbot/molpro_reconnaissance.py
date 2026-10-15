@@ -448,10 +448,24 @@ def _load(path):
         raise ValueError('correlation_checks must be a list.')
     if checks and data.get('probe_method') != 'casscf':
         raise ValueError('Correlated validation requires optimized CASSCF orbitals.')
+    single_reference_seen = False
     for check in checks:
-        if (not isinstance(check, dict) or set(check) - {'method', 'shift', 'ipea'}
+        if not isinstance(check, dict) or not isinstance(check.get('method'), str):
+            raise ValueError('Each correlation check requires a method string.')
+        if check['method'].lower() == 'uccsd(t)-f12b':
+            mult = check.get('multiplicity')
+            if (set(check) != {'method', 'multiplicity'} or type(mult) is not int or mult < 1
+                    or mult - 1 > electrons or (electrons - mult + 1) % 2):
+                raise ValueError('UCCSD(T)-F12b check needs an explicit compatible multiplicity and no MR controls.')
+            single_reference_seen = True
+            continue
+        if single_reference_seen:
+            raise ValueError('Single-reference checks must follow all multireference checks.')
+        if (not isinstance(check, dict) or set(check) - {'method', 'shift', 'ipea', 'reference_policy'}
                 or not vrc_multireference_energy_contract(check.get('method', ''))):
             raise ValueError('correlation_checks requires supported counted CASPT2 or MRCI+Q methods.')
+        if check.get('reference_policy', 'selected_root') not in ('selected_root', 'state_average'):
+            raise ValueError('Invalid correlated reference_policy.')
         contract = vrc_multireference_energy_contract(check['method'])
         if any(contract[key] != data['_probe_space'][key]
                for key in ('active_electrons', 'active_orbitals')):
@@ -502,6 +516,29 @@ def _probe_model(data, anchor):
     return automatic_vrc_state_model(
         data['symbols'], data['charge'], multiplicities,
         roots=context.get('roots'), active_space=data['_probe_space'])
+
+
+def _correlation_labels(checks, states):
+    return [{**check, **state} for check in checks for state in
+            ([{'multiplicity': check['multiplicity'], 'root': 1}]
+             if check['method'].lower() == 'uccsd(t)-f12b' else states)]
+
+
+def _validate_cc_check_energies(output, labels, values):
+    """Cross-check F12b markers against the native B energy and unscaled (T)."""
+    indices = [index for index, label in enumerate(labels, 1)
+               if label['method'].lower() == 'uccsd(t)-f12b']
+    if not indices:
+        return
+    from kinbot.anl.results import validate_molpro_triples
+    number = r'([-+0-9.]+(?:[EDed][-+]?\d+)?)'
+    bases = [float(s.replace('D', 'E').replace('d', 'e')) for s in re.findall(
+        r'(?im)^\s*!?RHF-UCCSD-F12b energy\s+' + number + r'\s*$', output)]
+    triples = validate_molpro_triples(output, scaled=False)
+    if len(bases) != len(indices) or len(triples) != len(indices):
+        raise ValueError('Single-reference checks lack uniquely matched native F12b/(T) energies.')
+    if any(abs(values[i] - base - trip) > 1e-7 for i, base, trip in zip(indices, bases, triples)):
+        raise ValueError('Single-reference marker differs from the native F12b plus (T) energy.')
 
 
 def _deck(data, basis, anchor, stem, previous=None):
@@ -595,9 +632,19 @@ def _deck(data, basis, anchor, stem, previous=None):
         # Davidson-corrected rather than variational MRCI energies.
         counter = 0
         for check in data.get('correlation_checks', []):
+            if check['method'].lower() == 'uccsd(t)-f12b':
+                counter += 1
+                # Fresh restricted reference for this explicitly requested spin.
+                # Preserve the reviewed MULTI orbital records for later selection.
+                deck += (f'{{{scf_command};wf,{data["_electrons"]},1,{check["multiplicity"] - 1};'
+                         'orbital,2150.2}\n{uccsd(t)-f12}\n'
+                         f'reconc{counter}=energy(2)\nshow,reconc{counter}\n')
+                continue
             for entry in model['state_average']:
                 for root in range(1, entry['roots'] + 1):
                     selected = deepcopy(model)
+                    if 'reference_policy' in check:
+                        selected.setdefault('correlation_options', {})['reference_policy'] = check['reference_policy']
                     selected['selected_roots'][entry['multiplicity']] = root
                     avas_prefix, multi_prefix, _ = _render_vrc_state_model(selected,
                         nelectron=data['_electrons'], active_electrons=space['active_electrons'],
@@ -1107,6 +1154,14 @@ def convergence_diagnostics(output_text, job):
         if re.search(r'NO CONVERGENCE\s*!|No convergence in (?:REFERENCE\s+CI|CI|MRCI|RS2|CASPT2)\b|'
                      r'(?:MCSCF|CI|MRCI|RS2|CASPT2)[^\n]*not converged', following, re.I):
             errors.append('Correlated validation contains an unconverged native calculation.')
+        if any(check['method'].lower() == 'uccsd(t)-f12b' for check in job['correlation_checks']):
+            from kinbot.molpro import validate_molpro_convergence
+            from kinbot.anl.results import validate_molpro_triples
+            try:
+                validate_molpro_convergence(following)
+                validate_molpro_triples(following)
+            except ValueError as error:
+                errors.append('Single-reference validation: ' + str(error))
     # RHF,SO reports the generic MULTI-style iteration-limit message in the
     # HF section, without the conventional "No convergence in rhfpr" line.
     if (re.search(r'No convergence in (?:rhfpr|[ru]?hf)|[RU]?HF[^\n]*not converged', output_text, re.I)
@@ -1288,7 +1343,7 @@ def _audit(manifest_path, *, live_job_ids=()):
                 values = {int(index): float(value.replace('D', 'E').replace('d', 'e'))
                     for index, value in re.findall(r'SETTING\s+RECONC(\d+)\s*=\s*'
                         r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+(?:AU|HARTREE)\b', output_text, re.I)}
-                labels = [{**check, **state} for check in checks for state in job['root_states']]
+                labels = _correlation_labels(checks, job['root_states'])
                 if (not values and execution and execution.get('returncode') == 0
                         and execution.get('native_input')):
                     try:
@@ -1310,9 +1365,15 @@ def _audit(manifest_path, *, live_job_ids=()):
                     errors.append('Missing/nonfinite correlated validation energies.')
                 else:
                     from kinbot.molpro import vrc_multireference_energy_contract
+                    try:
+                        _validate_cc_check_energies(output_text, labels, values)
+                    except ValueError as error:
+                        job['status'] = 'incomplete'
+                        errors.append(str(error))
                     job['correlated_energies_hartree'] = [
                         {**label, 'energy_hartree': values[index],
-                         'native_method': vrc_multireference_energy_contract(label['method'])['method']}
+                         'native_method': (vrc_multireference_energy_contract(label['method']) or
+                                           {'method': 'UCCSD(T)-F12b'})['method']}
                         for index, label in enumerate(labels, 1)]
                 if ('UNDEFINED, ASSUMING' in output_text and
                         job.get('correlated_energy_source', {}).get('kind') !=

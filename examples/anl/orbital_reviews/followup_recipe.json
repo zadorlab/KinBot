@@ -1,0 +1,26 @@
+{
+  "validation_recipe": "validation_candidates.json",
+  "casscf_max_iterations": 150,
+  "reference_max_iterations": 200,
+  "correlated_max_iterations": 150,
+  "long_distance_angstrom": 60.0,
+  "far_distance_angstrom": 30.0,
+  "basis": {"name": "avd_f12", "basis": "avdz-f12"},
+  "inner_average_cases": ["ch3s_cs", "ch3ss_ss"],
+  "inner_averages": [
+    [{"multiplicity": 2, "roots": 1}, {"multiplicity": 4, "roots": 1}],
+    [{"multiplicity": 2, "roots": 2}, {"multiplicity": 4, "roots": 2}]
+  ],
+  "fragment_controls": [
+    {"name": "sulfur_p", "symbols": ["S"], "geometry_angstrom": [[0, 0, 0]],
+     "charge": 0, "multiplicity": 3, "active_electrons": 4, "active_orbitals": 3,
+     "centers": [{"atom": 1, "orbitals": ["3p"]}],
+     "state_average": [{"multiplicity": 3, "roots": 3}],
+     "chemical_note": "Isolated sulfur 3P components, spin-free, for the asymptotic-degeneracy diagnostic."},
+    {"name": "sulfur_sp", "symbols": ["S"], "geometry_angstrom": [[0, 0, 0]],
+     "charge": 0, "multiplicity": 3, "active_electrons": 6, "active_orbitals": 4,
+     "centers": [{"atom": 1, "orbitals": ["3s", "3p"]}],
+     "state_average": [{"multiplicity": 3, "roots": 3}],
+     "chemical_note": "Isolated sulfur 3P with its occupied 3s extension; compare correlation-treatment invariance."}
+  ]
+}

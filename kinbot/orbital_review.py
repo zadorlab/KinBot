@@ -429,10 +429,14 @@ def _review_rows(root):
                                              + ' Re-audit this campaign before review.')
                         row['validation_warnings'] = list(dict.fromkeys(
                             job.get('validation_warnings', []) + convergence['warnings']))
+                        # Later MR/CC checks may print different orbital spaces.
+                        # Only MULTI establishes the checkpoint's CAS partition.
+                        multi = re.split(r'PROGRAM\s*\*\s*MULTI\b', text, flags=re.I)[-1]
+                        multi = re.split(r'PROGRAM\s*\*', multi, maxsplit=1, flags=re.I)[0]
                         counts = {int(value) for value in re.findall(
-                            r'Number of active\s+orbitals:\s+(\d+)', text)}
+                            r'Number of active\s+orbitals:\s+(\d+)', multi)}
                         electrons = {int(value) for value in re.findall(
-                            r'Number of active electrons:\s+(\d+)', text)}
+                            r'Number of active electrons:\s+(\d+)', multi)}
                         row['native_active_space'] = (
                             {'active_electrons': electrons.pop(), 'active_orbitals': counts.pop()}
                             if len(counts) == len(electrons) == 1 else None)
@@ -465,7 +469,7 @@ def _potential_profiles(completed):
             'variant': row['review'].get('variant'), 'orientation': row.get('orientation'),
             'symbols': row['symbols'], 'electron_count': row['electron_count'],
             'probe_method': row.get('probe_method'), 'active_space': row.get('probe_active_space'),
-            'state_model': row.get('state_model'), 'correlation_checks': row.get('correlation_checks', [])}
+            'state_model': row.get('state_model')}
         key = json.dumps(identity, sort_keys=True)
         groups.setdefault(key, (identity, []))[1].append(row)
 
@@ -498,6 +502,7 @@ def _potential_profiles(completed):
                 states.append(entry)
             points.append({'directory': row['directory'], 'distance_angstrom': row['distance_angstrom'],
                            'geometry_angstrom': row['geometry_angstrom'], 'states': states,
+                           'correlation_checks': row.get('correlation_checks', []),
                            'elapsed_seconds': row.get('elapsed_seconds')})
             previous = (row, values)
         profiles.append({**identity, 'points': points,

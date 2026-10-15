@@ -106,6 +106,106 @@ def test_correlation_checks_share_production_energy_contract(tmp_path):
     recon.validate_input_blocks(deck)
 
 
+def test_shared_reference_checks_and_explicit_high_spin_anchor(tmp_path):
+    from kinbot.molpro import _vrc_multireference_method
+    data = recon._load(SOURCE)
+    data.update(probe_method='casscf', correlation_checks=[
+        {'method': 'caspt2-f12(13,8)', 'shift': .3, 'ipea': 0., 'reference_policy': 'state_average'},
+        {'method': 'mrci-f12+q(13,8)', 'reference_policy': 'state_average'},
+        {'method': 'uccsd(t)-f12b', 'multiplicity': 4}])
+    deck = recon._deck(data, 'avtz-f12', data['anchors'][0], 'trial')
+    assert 'state,1,3;refstate,3,1,2,3;weight,' in deck
+    assert 'state,1,3;refstate,3,1,2,3;option,cluster=0;' in deck
+    assert deck.count('{multi,') == 1
+    assert 'wf,25,1,3;orbital,2150.2}\n{uccsd(t)-f12}\nreconc13=energy(2)' in deck
+    states = [{'multiplicity': m, 'root': r} for m in (2, 4) for r in (1, 2, 3)]
+    labels = recon._correlation_labels(data['correlation_checks'], states)
+    assert len(labels) == 13 and labels[-1]['multiplicity'] == 4 and labels[-1]['root'] == 1
+    model = recon._probe_model(data, data['anchors'][0])
+    model['correlation_options'] = {'reference_policy': 'state_average', 'max_reference_iterations': 200}
+    model['selected_roots'][2] = 2
+    production, _ = _vrc_multireference_method('caspt2-f12(13,8)', 25, 1, state_model=model)
+    assert 'state,1,2;refstate,3,1,2,3;weight,' in production
+    assert 'maxiti=200' in production
+    recon.validate_input_blocks(deck)
+
+
+def test_cc_anchor_rejects_failed_scf_and_wrong_f12_selector():
+    job = {'probe_method': 'casscf', 'correlation_checks': [{'method': 'uccsd(t)-f12b', 'multiplicity': 4}]}
+    output = ('PROGRAM * MULTI\n CONVERGENCE REACHED!\n'
+              'PROGRAM * Restricted Hartree-Fock\n NO CONVERGENCE!\n'
+              'PROGRAM * CCSD\n RHF-UCCSD-F12b energy -20.0\n Triples (T) contribution -0.1\n')
+    assert any('Single-reference' in error for error in recon.convergence_diagnostics(output, job)['errors'])
+    labels = recon._correlation_labels(job['correlation_checks'], [])
+    recon._validate_cc_check_energies(output, labels, {1: -20.1})
+    with pytest.raises(ValueError, match='differs'):
+        recon._validate_cc_check_energies(output, labels, {1: -20.2})
+
+
+def test_followup_preparation_keeps_new_basis_fresh_and_uses_basis_specific_seeds(
+        tmp_path, partition_source, monkeypatch):
+    import importlib.util
+    folder = SOURCE.parents[1] / 'orbital_reviews'
+    monkeypatch.syspath_prepend(str(folder))
+    spec = importlib.util.spec_from_file_location('example_followup', folder / 'prepare_followup.py')
+    followup = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(followup)
+    row, template = partition_source
+    original_campaign = json.loads((Path(row['campaign']) / 'campaign.json').read_text())
+    record = original_campaign['systems'][0]
+    def all_done(*args, **kwargs):
+        raise ValueError('All validation pilots are complete; no new campaign needed.')
+    monkeypatch.setattr(review, 'prepare_incomplete', all_done)
+    recipe = json.loads((folder / 'followup_recipe.json').read_text())
+    case = {'label': 'unrelated_channel', 'spaces': [
+        {'electrons': 5, 'orbitals': 4, 'close_lowest': 4, 'radial_neighbors': True},
+        {'electrons': 13, 'orbitals': 8, 'close_lowest': 0, 'radial_neighbors': False}]}
+    recipe['inner_average_cases'] = [case['label']]
+    original = []
+    for space in case['spaces']:
+        group = f'unrelated_channel_cas{space["electrons"]}_{space["orbitals"]}'
+        for point, distance in [('center', 3.), ('far', 30.), ('tilted', 3.), ('left', 2.8), ('right', 3.2)]:
+            if point in ('left', 'right') and not space['radial_neighbors']:
+                continue
+            original.append({**deepcopy(template), 'name': group + '_' + point, 'model': group,
+                'target_distance_angstrom': distance, 'close_lowest': space['close_lowest'],
+                'active_electrons': space['electrons'], 'active_orbitals': space['orbitals'],
+                'correlation_checks': [{'method': f'caspt2-f12({space["electrons"]},{space["orbitals"]})',
+                                        'shift': .3, 'ipea': .25}]})
+    prepared = followup.prepare_references(tmp_path / 'followup', tmp_path / 'old', original, [case], recipe)
+    saved = json.loads(prepared.read_text())
+    metadata = {r['title']: r for r in json.loads((prepared.parent / 'review_index.json').read_text())['systems']}
+    assert len(saved['systems']) == 14
+    basis_rows = []
+    for system in saved['systems']:
+        loaded = recon._load(system['configuration'])  # All temporary input/context paths survived copying.
+        manifest = json.loads(Path(system['pilot_manifest']).read_text())
+        job = manifest['jobs'][0]
+        if metadata[system['title']].get('purpose') == 'basis_reference':
+            assert job['basis'] == 'avdz-f12' and not job.get('initial_record')
+            assert '{avas' in Path(job['directory'], job['name'] + '.inp').read_text()
+            wfu = Path(job['directory']) / 'completed.wfu'
+            wfu.write_bytes(b'explicit synthetic DZ seed')
+            job.update(status='complete', phase='pilot', campaign=str(prepared.parent),
+                review=metadata[system['title']], electron_count=25, output_sha256='synthetic-output',
+                wfu=str(wfu), wfu_sha256=file_sha256(wfu), native_active_space={
+                    'active_electrons': 13, 'active_orbitals': 8})
+            basis_rows.append(job)
+    monkeypatch.setattr(review, '_review_rows', lambda root:
+                        (saved, basis_rows) if root == prepared.parent else (original_campaign, [row]))
+    second = followup.prepare_potentials(tmp_path / 'potentials', prepared.parent, original, [case], recipe)
+    systems = json.loads(second.read_text())['systems']
+    assert len(systems) == 20  # 8 DZ + 6 TZ + 6 reduced-average probes.
+    for system in systems:
+        manifest = json.loads(Path(system['pilot_manifest']).read_text())
+        job = manifest['jobs'][0]
+        if system['title'].endswith('_dz'):
+            assert job['basis'] == 'avdz-f12'
+            assert Path(job['initial_record']['path']).is_relative_to(prepared.parent)
+        else:
+            assert job['basis'] == 'avtz-f12' and job['initial_record']['path'] == row['wfu']
+
+
 @pytest.fixture
 def partition_source(tmp_path, monkeypatch):
     plan_path = review.plan(SOURCE, tmp_path / 'source_plan.json')
@@ -301,6 +401,22 @@ def test_potential_profiles_match_root_labels_and_keep_unlike_curves_separate():
     assert all(p['accuracy_status'].startswith('unreviewed') for p in profiles)
     duplicate = review._potential_profiles(rows + [rows[0]])[0]
     assert duplicate['reference_directory'] is None
+
+    # Additional far-point diagnostics do not split an otherwise matching
+    # curve, and a different IPEA/reference treatment cannot become its zero.
+    for index, row in enumerate(rows):
+        row['correlation_checks'] = [{'method': 'caspt2(2,2)', 'ipea': .25}]
+        row['correlated_energies_hartree'] = [{
+            **row['correlation_checks'][0], 'multiplicity': 1, 'root': 1,
+            'energy_hartree': -11. + index * .2}]
+    rows[-1]['correlation_checks'].append({'method': 'caspt2(2,2)', 'ipea': 0.})
+    rows[-1]['correlated_energies_hartree'].append({
+        **rows[-1]['correlation_checks'][-1], 'multiplicity': 1, 'root': 1,
+        'energy_hartree': -12.})
+    radial = review._potential_profiles(rows)[0]
+    assert len(radial['points']) == 3
+    assert radial['points'][0]['states'][-1]['relative_to_far_hartree'] == pytest.approx(-.4)
+    assert len(radial['points'][0]['states']) == 3  # No invented IPEA=0 energy.
 
 
 def _selected(tmp_path, electrons=5, orbitals=4, averages=None, casscf_options=None,

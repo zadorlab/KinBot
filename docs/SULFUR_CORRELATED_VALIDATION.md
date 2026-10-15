@@ -14,6 +14,12 @@ are still outstanding. The available outputs do not yet justify selecting a
 final production CAS for either example. Scheduler interruptions and iteration
 limits are not evidence that every candidate is chemically unsuitable.
 
+**Current next commands:** use
+[the finite follow-up batches](SULFUR_REMAINING_CHECKS_2026-10-15.md).
+They include the incomplete-point repair below, asymptotic-degeneracy
+diagnostics, independent-method comparisons, and matched DZ/TZ tests. Do not
+launch the older standalone repair in parallel with that combined follow-up.
+
 ## First native batch
 
 The acceptance target is **accurate interaction potentials and spin gaps, with

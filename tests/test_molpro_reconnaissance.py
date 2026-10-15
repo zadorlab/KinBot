@@ -130,6 +130,29 @@ def test_prepare_renders_c1_rohf_jobs_and_displaced_anchor(tmp_path):
     setup = (tmp_path / 'recon' / 'site_setup.sh').read_text()
     assert 'Generated from the environment visible during prepare' in setup
     assert 'KINBOT_BACKEND' in setup
+    batch = (tmp_path / 'recon' / 'avtz__equilibrium' / 'avtz__equilibrium.sbatch').read_text()
+    assert '#SBATCH --mem=104000M' in batch  # 8 ranks, 1000 MW + overhead, below 126000M.
+
+
+def test_submission_records_effective_resource_override(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    path = recon.prepare(source, tmp_path / 'recon')
+    monkeypatch.setenv('SBATCH_MEM_PER_NODE', '104000')
+    monkeypatch.setenv('SBATCH_EXCLUDE', 'unavailable')
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='', returncode=0)
+        assert command[0] == 'sbatch'
+        saved = json.loads(path.read_text())['jobs'][0]
+        assert saved['submission_status'] == 'submitting'
+        assert saved['submission_overrides']['SBATCH_MEM_PER_NODE'] == '104000'
+        assert saved['submission_overrides']['SBATCH_EXCLUDE'] == 'unavailable'
+        return SimpleNamespace(stdout='42\n', stderr='', returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    assert recon.submit(path)['jobs'][0]['job_id'] == '42'
 
 
 def test_audit_requires_native_output_wfu_and_molden(tmp_path):
@@ -522,6 +545,8 @@ def test_first_native_probe_gates_other_submissions_and_reports_its_failure(tmp_
     path = recon.prepare(source, tmp_path / 'recon')
     submitted = []
     def scheduler(command, **kwargs):
+        if command[0] == 'scontrol':
+            return SimpleNamespace(stdout='', returncode=1)
         if command[0] == 'squeue':
             return SimpleNamespace(stdout='', returncode=0)
         submitted.append(command)
@@ -888,6 +913,55 @@ def test_shared_campaign_capacity_reuses_live_jobs_and_keeps_dependencies(
     assert peaks[0] == (min(limit, jobs_count) if startup_checked and not chain else 2)
 
 
+@pytest.mark.parametrize('limit', [1, 20])
+def test_keep_going_isolates_failed_manifest_and_finishes_independent_work(tmp_path, monkeypatch, limit):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    paths = [prepare(source, tmp_path / f'recon{i}') for i in range(3)]
+    failed = json.loads(paths[0].read_text())
+    job = failed['jobs'][0]
+    job.update(job_id='7', submission_status='submitted')
+    (Path(job['directory']) / 'execution.json').write_text('{"status":"failed","error":"native failure"}')
+    paths[0].write_text(json.dumps(failed))
+    live, submitted = set(), []
+    ticks = [0]
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='\n'.join(live), returncode=0)
+        if command[0] == 'scontrol':
+            return SimpleNamespace(stdout='', returncode=1)
+        assert command[0] == 'sbatch'
+        assert Path(kwargs['cwd']).parent != paths[0].parent
+        identifier = str(100 + len(submitted))
+        submitted.append(identifier)
+        live.add(identifier)
+        assert len(live) <= limit
+        return SimpleNamespace(stdout=identifier, stderr='', returncode=0)
+    def advance(_):
+        ticks[0] += 1
+        assert ticks[0] < 10
+        for path in paths[1:]:
+            for job in json.loads(path.read_text())['jobs']:
+                if job.get('job_id') not in live:
+                    continue
+                directory, name = Path(job['directory']), job['name']
+                (directory / (name + '.out')).write_text('SETTING RECONDONE = 1\nMolpro calculation terminated\n')
+                (directory / (name + '.wfu')).write_bytes(b'finished checkpoint')
+                (directory / (name + '.molden')).write_text('[Molden Format]\n')
+        live.clear()
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    monkeypatch.setattr(recon.time, 'sleep', advance)
+    with pytest.raises(recon.ProbeFailure, match='native failure'):
+        recon.run_many(paths, max_jobs=limit, startup_checked=True, keep_going=True)
+    assert len(submitted) == 4
+    for path in paths[1:]:
+        assert all(j['status'] == 'complete' for j in json.loads(path.read_text())['jobs'])
+    failed = json.loads(paths[0].read_text())
+    assert failed['jobs'][0]['terminal_failure'] and not failed['jobs'][1].get('job_id')
+
+
 @pytest.mark.parametrize('failure', ['uncertain', 'scheduler'])
 def test_shared_scheduler_fails_before_any_submission(tmp_path, monkeypatch, failure):
     from kinbot import molpro_reconnaissance as recon
@@ -1017,7 +1091,7 @@ def test_retry_archives_known_failure_and_preserves_completed_probe(tmp_path, mo
     monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout='42\n'))
     with pytest.raises(RuntimeError, match='allocations'):
         recon.retry_failed(path)
-    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout=''))
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout='', returncode=0))
     result = recon.retry_failed(path)
     assert result['retry_ready'] == [failed['name']]
     after = json.loads(path.read_text())
@@ -1163,7 +1237,7 @@ def test_run_reports_specific_validation_failure(tmp_path, monkeypatch):
         'status': 'incomplete', 'directory': str(tmp_path), 'missing_since': 0.,
         'validation_errors': ['Missing or empty FILE,2 checkpoint: probe.wfu.']}]}
     monkeypatch.setattr(recon, '_submit', lambda *args, **kwargs: manifest)
-    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout=''))
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout='', returncode=0))
     with pytest.raises(RuntimeError, match='Missing or empty FILE,2 checkpoint'):
         recon._run(tmp_path / 'reconnaissance.json')
 
@@ -1191,7 +1265,7 @@ def test_export_only_failure_recovers_the_converged_scf_record(tmp_path, monkeyp
     (directory / (name + '.wfu')).write_bytes(b'converged RHF canonical record')
     (directory / 'execution.json').write_text(json.dumps({
         'status': 'failed', 'input_sha256': job['input_sha256'], 'error': 'orbital export'}))
-    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kw: SimpleNamespace(stdout=''))
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kw: SimpleNamespace(stdout='', returncode=0))
     assert recon.retry_failed(path)['retry_ready'] == [name]
     saved = json.loads(path.read_text())['jobs'][0]
     assert saved['recovered_scf']['record'] == '2100.2'
@@ -1235,7 +1309,7 @@ def test_retry_does_not_recover_unproven_export_only_scf(tmp_path, monkeypatch, 
     (directory / (name + '.wfu')).write_bytes(b'unverified checkpoint')
     (directory / 'execution.json').write_text(json.dumps({
         'status': 'failed', 'input_sha256': job['input_sha256']}))
-    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kw: SimpleNamespace(stdout=''))
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kw: SimpleNamespace(stdout='', returncode=0))
     assert recon.retry_failed(path)['retry_ready'] == [name]
     assert 'recovered_scf' not in json.loads(path.read_text())['jobs'][0]
 

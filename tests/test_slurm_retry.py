@@ -38,6 +38,21 @@ def test_retry_limit_is_bounded_and_can_be_disabled():
             retry_limit({'KINBOT_SLURM_IO_RETRIES': value})
 
 
+def test_directory_retry_does_not_copy_or_rollback_archived_attempts(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv('SLURM_JOB_ID', '43')
+    old = tmp_path / 'attempts/1/old.wfu'
+    old.parent.mkdir(parents=True)
+    old.write_bytes(b'previous failed native evidence')
+    Path('job.inp').write_text('immutable input')
+    command = [sys.executable, '-c', 'from pathlib import Path; Path("job.out").write_text("done")']
+    assert run(command, identity='job', directories=[tmp_path]) == 0
+    record = next(tmp_path.glob('.kinbot_slurm_io_retries/*/43/execution.json'))
+    assert set(json.loads(record.read_text())['initial_artifacts']) == {'job.inp'}
+    assert old.read_bytes() == b'previous failed native evidence'
+    assert not (record.parent / 'initial/attempts').exists()
+
+
 def test_requeued_allocation_archives_partial_products_and_restores_original_seed(tmp_path, monkeypatch):
     import hashlib
     import fcntl

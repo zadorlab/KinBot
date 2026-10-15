@@ -552,17 +552,22 @@ def report(root, output, *, additional_campaigns=()):
     for key, group in groups.items():
         group.sort(key=lambda row: row['distance_angstrom'])
         far = group[-1]
+        def relative_states(row, field):
+            # Different diagnostic points can request different method/shift
+            # controls. Positional zip would silently subtract unlike methods.
+            label = lambda s: json.dumps({k: v for k, v in s.items() if k != 'energy_hartree'}, sort_keys=True)
+            references = {label(state): state for state in far.get(field, [])}
+            return [{**state, **({'relative_to_far_hartree': state['energy_hartree']
+                                     - references[label(state)]['energy_hartree']}
+                                if label(state) in references else {})}
+                    for state in row.get(field, [])]
         profiles.append({'system': key[0], 'basis': key[1], 'channel': key[2],
             'campaign': key[3], 'phase': key[4],
             'reference_job': far['name'], 'reference_distance_angstrom': far['distance_angstrom'],
             'reference_status': 'finite separation; asymptotic adequacy requires review',
             'points': [{'job': row['name'], 'distance_angstrom': row['distance_angstrom'],
-                'states': [{**state, 'relative_to_far_hartree': state['energy_hartree'] - reference['energy_hartree']}
-                    for state, reference in zip(row.get('state_energies_hartree', []),
-                                                 far.get('state_energies_hartree', []))],
-                'correlated': [{**state, 'relative_to_far_hartree': state['energy_hartree'] - reference['energy_hartree']}
-                    for state, reference in zip(row.get('correlated_energies_hartree', []),
-                                                 far.get('correlated_energies_hartree', []))]}
+                'states': relative_states(row, 'state_energies_hartree'),
+                'correlated': relative_states(row, 'correlated_energies_hartree')}
                 for row in group]})
     result = {'schema': 1, 'campaign': str(roots[0]), 'campaigns': sources,
         'complete': len(completed), 'total': len(rows),
@@ -744,7 +749,8 @@ def prepare_partitions(source, output):
     for item in definition['models']:
         if (not isinstance(item, dict) or not required <= set(item)
                 or set(item) - required - {'state_average', 'target_distance_angstrom',
-                                          'casscf_options', 'correlation_options'}
+                                          'casscf_options', 'correlation_options', 'orbital_swaps',
+                                          'source_wfu_sha256'}
                 or any(not recon._SAFE.fullmatch(str(item[key])) for key in ('name', 'model'))
                 or item['name'] in names
                 or item['region'] not in ('diagnostic', 'single', 'inner', 'outer')):
@@ -764,6 +770,8 @@ def prepare_partitions(source, output):
             prior = rows.get(directory)
             if prior is None or prior['status'] != 'complete' or prior['probe_method'] != 'casscf':
                 raise ValueError(f'Partition source must be a completed optimized reference: {directory}')
+            if item.get('source_wfu_sha256', prior['wfu_sha256']) != prior['wfu_sha256']:
+                raise ValueError('Partition source checkpoint differs from the reviewed orbital identity.')
             if prior.get('native_active_space') != {key: prior['probe_active_space'][key]
                     for key in ('active_electrons', 'active_orbitals')}:
                 raise ValueError('Native source active counts do not confirm the declared orbital partition.')
@@ -812,7 +820,8 @@ def prepare_partitions(source, output):
                     'orbital_partition': {
                         'source_active_electrons': space['active_electrons'],
                         'source_active_orbitals': space['active_orbitals'],
-                        'close_lowest': item['close_lowest'], 'discard_highest': item['discard_highest']}})
+                        'close_lowest': item['close_lowest'], 'discard_highest': item['discard_highest'],
+                        **({'orbital_swaps': item['orbital_swaps']} if 'orbital_swaps' in item else {})}})
             target = Path(temporary) / (item['name'] + '.json')
             atomic_json(target, data)
             recon._load(target)

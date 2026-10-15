@@ -233,6 +233,78 @@ cd /home/hram/KinBot
 watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.orbital_campaign progress /home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015 --failures-only; squeue -u hram -o "%.18i %.10T %.48j %.10M %R"; tail -n 8 /home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015/controller.log'
 ```
 
+## Resume Batch A and add the CH3 + S2 CAS(7,5) comparison
+
+Use this block for the latest interrupted-worker failures. It stops only the
+controller, keeps healthy Slurm allocations running, reuses validated completed
+probes, and adopts five new CAS(7,5) probes under the same 20-job cap. Do not delete
+the earlier review campaign: its reviewed WFU files are required seeds.
+
+The added points are the matched center/left/right/tilted stencil and the 30 Å
+reference. They compare CASPT2-F12 IPEA/reference treatments and MRCI-F12+Q at TZ.
+The example recipe retains the methyl radical orbital and both S2 pi/pi* pairs;
+it freezes the sigma bond and excludes sigma*. The far checkpoint requires an
+explicit orbital exchange before partitioning. Checkpoint hashes bind that choice
+to the reviewed source. This is a candidate, not a production CAS approval.
+
+The request is **104000M per allocation**, below node2's reported **126000M**,
+leaving 22000M outside the allocation. Eight Molpro ranks retain 1000 MW each;
+the request includes program overhead and headroom. This is an allocation limit,
+not proof of the program's peak memory use. Slurm will only schedule on nodes
+meeting the request. The environment override also applies to older prepared
+80000M scripts; each new submission records it in the manifest. Existing live
+allocations keep their original resource limits.
+
+Confirmed native I/O failures are retried automatically. An interrupted worker
+with no final record is retried after the publication grace period. There are at
+most two controller retries, preserving every attempt; the existing batch I/O
+guard also has a bounded retry allowance. Explicit convergence failures and known
+OOM, timeout or cancellation remain failures. Independent probes continue, and
+the campaign reports failure at the end if any required probe remains invalid.
+Retained `scontrol` records are captured without requiring `sacct`.
+
+All shell settings below are confined to the child `bash`; an error leaves the
+SSH login shell connected. The block is repeatable. No healthy job is cancelled.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+RUN=/home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015
+"$KB_PY" -m kinbot.orbital_campaign stop-controller "$RUN"
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git -c submodule.recurse=false pull --ff-only origin composite
+"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
+"$KB_PY" examples/anl/orbital_reviews/prepare_cas75.py "$RUN/cas7_5_addition"
+"$KB_PY" -m kinbot.orbital_campaign append "$RUN" "$RUN/cas7_5_addition"
+unset SBATCH_MEM_PER_CPU SBATCH_MEM_PER_GPU
+export SBATCH_MEM_PER_NODE=104000
+export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+mkdir -p "$KINBOT_MOLPRO_SCRATCH"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$RUN"
+"$KB_PY" - "$RUN" <<'PY'
+import json, subprocess, sys
+from pathlib import Path
+c = json.loads((Path(sys.argv[1]) / 'campaign.json').read_text())
+m = json.loads(Path(c['systems'][0]['pilot_manifest']).read_text())
+j = m['jobs'][0]
+subprocess.run(['sbatch', '--test-only', '--mem=104000M', j['name'] + '.sbatch'],
+               cwd=j['directory'], check=True)
+PY
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$RUN" \
+    --pilot-only --probe-method casscf --max-jobs 20 --max-refinements 0 \
+    --keep-going --allocation-retries 2 \
+    >> "$RUN/controller.log" 2>&1 < /dev/null &
+printf '%s\n' "$!" > "$RUN/controller.pid"
+"$KB_PY" -m kinbot.orbital_campaign progress "$RUN" --failures-only
+BASH
+```
+
+Monitor with the compact `watch` command above. Export with the existing block
+below; the parent archive includes the nested addition and its review provenance.
+Do not start a separate controller inside `cas7_5_addition`.
+
 ## Run Batch B after A completes
 
 The status check prevents a second 20-job campaign from starting alongside A.
@@ -257,12 +329,15 @@ if c['status'] != 'selected_pilot_complete':
     raise SystemExit('Batch A has not completed; inspect/export it before starting Batch B.')
 PY
 "$KB_PY" examples/anl/orbital_reviews/prepare_followup.py potentials "$REF" "$RUN"
+unset SBATCH_MEM_PER_CPU SBATCH_MEM_PER_GPU
+export SBATCH_MEM_PER_NODE=104000
 export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
 export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
 mkdir -p "$KINBOT_MOLPRO_SCRATCH"
 "$KB_PY" -m kinbot.orbital_campaign preflight "$RUN"
 nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$RUN" \
     --pilot-only --probe-method casscf --max-jobs 20 --max-refinements 0 \
+    --keep-going --allocation-retries 2 \
     >> "$RUN/controller.log" 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$RUN/controller.pid"
 "$KB_PY" -m kinbot.orbital_campaign progress "$RUN"
@@ -343,11 +418,12 @@ BASH
    different campaigns or state averages; comparison of A/B points must retain
    their explicit provenance and match the full method labels.
    The [PCCP 2007 guidance](ORBITAL_REVIEW_WORKFLOW.md#what-accuracy-means-for-this-workflow)
-   also motivates a still-untested CH3 + S2 CAS(7,5) pi-manifold candidate.
-   Verify its orbital identities before constructing it and compare against
-   CAS(9,7) at matched radial/angular points. It is not included in the current
-   A/B recipes; their smallest CH3 + S2 space must not be presented as a
-   demonstrated minimum-cost choice.
+   also motivates the CH3 + S2 CAS(7,5) pi-manifold addition below. Its native
+   results remain unvalidated; the base A/B recipes do not automatically
+   install it or supply its DZ basis selection. If it survives the TZ checks,
+   verify the corresponding DZ orbital characters before testing DZ sampling.
+   CAS(9,7) must not be presented as a demonstrated minimum-cost choice merely
+   because it was the smallest candidate in the original recipe.
 4. Only surviving combinations warrant additional coverage of inner/outer
    anchors and, if the measured DZ/TZ difference or reference disagreement
    requires it, sparse QZ-F12 checks. There is no routine CBS or full QZ scan.

@@ -413,8 +413,9 @@ def _load(path):
             if partition is not None:
                 keys = {'source_active_electrons', 'source_active_orbitals',
                         'close_lowest', 'discard_highest'}
-                if (not isinstance(partition, dict) or set(partition) != keys
-                        or any(type(value) is not int or value < 0 for value in partition.values())
+                if (not isinstance(partition, dict) or not keys <= set(partition)
+                        or set(partition) - keys - {'orbital_swaps'}
+                        or any(type(partition[key]) is not int or partition[key] < 0 for key in keys)
                         or partition['source_active_electrons'] < 1
                         or partition['source_active_orbitals'] < 1
                         or partition['source_active_electrons'] > 2 * partition['source_active_orbitals']
@@ -426,6 +427,15 @@ def _load(path):
                         or data.get('probe_method') != 'casscf'):
                     raise ValueError('An orbital partition requires consistent source/target counts, '
                                      'optimized CASSCF and no competing orbital selector.')
+                swaps = partition.get('orbital_swaps', [])
+                if (not isinstance(swaps, list) or any(
+                        not isinstance(pair, list) or len(pair) != 2
+                        or any(type(i) is not int or not 1 <= i <= partition['source_active_orbitals']
+                               for i in pair) or pair[0] == pair[1] for pair in swaps)):
+                    raise ValueError('orbital_swaps must contain distinct one-based source-active index pairs.')
+                if (electrons - partition['source_active_electrons'] < 0
+                        or (electrons - partition['source_active_electrons']) % 2):
+                    raise ValueError('Source active electron count is incompatible with the molecule.')
             elif model.get('orbital_selection', {}).get('mode') != 'avas':
                 raise ValueError('A reconnaissance candidate requires explicit AVAS targets.')
             if data['multiplicity'] not in {entry['multiplicity'] for entry in model['state_average']}:
@@ -621,6 +631,14 @@ def _deck(data, basis, anchor, stem, previous=None):
             start = ('start,2140.2,type=natural' if method == 'casscf'
                      else 'start,2140.2')
             diab = ('' if space.get('orbital_partition') else '\ndiab,2140.2')
+            partition = space.get('orbital_partition', {})
+            if partition.get('orbital_swaps'):
+                source_closed = (data['_electrons'] - partition['source_active_electrons']) // 2
+                # Reorder the verified source before closing/discarding its
+                # ends. Occupation rank alone does not identify sigma/pi MOs.
+                # MULTI documents angle=0 as its explicit exchange operation.
+                start += ''.join(f'\nrotate,{source_closed + a}.1,{source_closed + b}.1,0'
+                                 for a, b in partition['orbital_swaps'])
             multi = multi.replace(opening, opening + f'\n{start}{diab}', 1)
             deck = '! Initial orbital checkpoint SHA-256: {{PREVIOUS_WFU_SHA256}}\n' + deck
         if method == 'casscf' and controls:
@@ -766,7 +784,11 @@ def _prepare(source, output):
         setup.write_text(render_site_setup({'molpro': {'molpro'}}))
     ppn = int(data.get('ppn', 8))
     partition = data.get('partition')
-    memory_mb = int(data.get('memory_mb', ppn * data.get('memory_mw', 1000) * 8 * 1.25))
+    # Molpro's MEMORY is a stack per rank, not the process's total RSS.
+    # Its parallel manual estimates another 300 MW/rank for the program;
+    # reserve 25% beyond that for auxiliary allocations and I/O buffering.
+    # This is a starting budget, not an upper bound on every MR calculation.
+    memory_mb = int(data.get('memory_mb', ppn * (data.get('memory_mw', 1000) + 300) * 8 * 1.25))
     walltime = str(data.get('walltime', '24:00:00'))
     if memory_mb < ppn * data.get('memory_mw', 1000) * 8:
         raise ValueError('Slurm memory_mb must cover every Molpro rank memory stack.')
@@ -1543,91 +1565,100 @@ def submit(manifest_path, *, max_jobs=8):
         return _submit(manifest_path, max_jobs=max_jobs)
 
 
-def retry_failed(manifest_path, *, include_interrupted=False):
-    """Archive known failed native attempts after every allocation has left.
-
-    Completed calculations and immutable inputs/checkpoint chains stay intact.
-    Unknown submissions and parser-only failures require reconciliation rather
-    than an automatic duplicate calculation.
-    """
-    import shutil
+def retry_failed(manifest_path, *, include_interrupted=False, job_ids=None):
+    """Archive selected stopped attempts while preserving inputs and live peers."""
     path = Path(manifest_path).expanduser().resolve()
     with _manifest_lock(path.parent):
+        return _retry_failed(path, include_interrupted=include_interrupted, job_ids=job_ids)
+
+
+def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids=None):
+    import shutil
+    if live_job_ids is None:
         queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
                                 text=True, check=True, timeout=30)
-        live = set(queued.stdout.split())
-        manifest = _audit(path, live_job_ids=live)
-        if any(str(job.get('job_id')) in live for job in manifest['jobs']):
-            raise RuntimeError('Wait for all manifest allocations to leave before retrying.')
-        if any(job.get('submission_status') == 'submitting' for job in manifest['jobs']):
-            raise RuntimeError('Reconcile uncertain Slurm submissions before retrying.')
-        retried = []
-        for job in manifest['jobs']:
-            if job['status'] == 'complete':
-                continue
-            directory = Path(job['directory'])
-            record = directory / 'execution.json'
-            execution = json.loads(record.read_text()) if record.is_file() else {}
-            interrupted = (include_interrupted and
-                           execution.get('status') in (None, 'running'))
-            if (not job.get('job_id') or
-                    execution.get('status') != 'failed' and not interrupted):
-                continue
-            inp = directory / (job['name'] + '.inp')
-            if file_sha256(inp) != job['input_sha256']:
-                raise ValueError('Failed probe input changed; do not retry under the old manifest.')
-            attempt = int(job.get('attempt', 1))
-            archive = directory / 'attempts' / str(attempt)
-            # A failed visualization export does not invalidate the preceding
-            # converged RHF record. Reuse only an explicitly evidenced record,
-            # bound to this exact input; never reuse a failed SCF calculation.
-            output = directory / (job['name'] + '.out')
-            output_text = output.read_text(errors='replace') if output.is_file() else ''
-            scf = re.search(r'(?i)\{rhf;[^{}]*orbital,(\d+\.\d+)\}', inp.read_text())
-            energies = re.findall(r'(?im)^\s*!RHF\s+STATE\s+\d+\.\d+\s+Energy\s+'
-                                  r'([-+0-9.]+(?:[EDed][-+]?\d+)?)', output_text)
-            wfu = directory / (job['name'] + '.wfu')
-            output_lower = output_text.lower()
-            xml_title_overflow = all(marker in output_lower for marker in (
-                'dump information in style xml', 'string overflow inserting',
-                'strings::string_insert'))
-            export_only = (('basis set contains h or higher' in output_lower
-                            or xml_title_overflow)
-                           and execution.get('input_sha256') == job['input_sha256']
-                           and scf and energies and wfu.is_file() and wfu.stat().st_size
-                           and re.search(r'PROGRAMS\s+\*[^\n]*RHF-SCF', output_text))
-            if energies:
-                scf_energy = float(energies[-1].replace('D', 'E').replace('d', 'e'))
-                export_only = export_only and np.isfinite(scf_energy)
-            recovery = None
-            if export_only:
-                recovery = {'path': str(archive / wfu.name),
-                            'sha256': file_sha256(wfu),
-                            'record': scf[1], 'input_sha256': job['input_sha256'],
-                            'energy_hartree': scf_energy}
-            archive.mkdir(parents=True, exist_ok=False)
-            keep = {job['name'] + '.inp', job['name'] + '.sbatch'}
-            for artifact in directory.iterdir():
-                if artifact.is_file():
-                    if artifact.name in keep:
-                        shutil.copy2(artifact, archive / artifact.name)
-                    else:
-                        artifact.rename(archive / artifact.name)
-            job.setdefault('attempt_history', []).append({
-                'attempt': attempt, 'job_id': job['job_id'],
-                'archive': str(archive),
-                'error': execution.get('error') or ('Explicitly retried interrupted allocation'
-                                                   if interrupted else None),
-                'input_sha256': job['input_sha256']})
-            for key in ('job_id', 'missing_since'):
-                job.pop(key, None)
-            job.update(attempt=attempt + 1, submission_status='retry_ready', status='incomplete')
-            if recovery:
-                job['recovered_scf'] = recovery
-            retried.append(job['name'])
-            atomic_json(path, manifest)
-        return {'manifest': str(path), 'retry_ready': retried,
-                'completed_preserved': sum(job['status'] == 'complete' for job in manifest['jobs'])}
+        live_job_ids = queued.stdout.split()
+    live = set(live_job_ids)
+    manifest = _audit(path, live_job_ids=live)
+    selected = [j for j in manifest['jobs'] if job_ids is None or str(j.get('job_id')) in job_ids]
+    if any(str(job.get('job_id')) in live for job in selected):
+        raise RuntimeError('Wait for all manifest allocations to leave before retrying.')
+    if any(job.get('submission_status') == 'submitting' for job in manifest['jobs']):
+        raise RuntimeError('Reconcile uncertain Slurm submissions before retrying.')
+    retried = []
+    for job in selected:
+        if job['status'] == 'complete':
+            continue
+        directory = Path(job['directory'])
+        record = directory / 'execution.json'
+        execution = json.loads(record.read_text()) if record.is_file() else {}
+        interrupted = (include_interrupted and
+                       execution.get('status') in (None, 'running'))
+        if (not job.get('job_id') or
+                execution.get('status') != 'failed' and not interrupted):
+            continue
+        scheduler = slurm_job_record(str(job['job_id']))
+        if scheduler.get('JobId') == str(job['job_id']):
+            if (scheduler.get('WorkDir') != str(directory)
+                    or scheduler.get('JobState') not in SLURM_TERMINAL_STATES):
+                raise RuntimeError('Slurm still owns the retry target, or its identity differs.')
+            job['scheduler_record'] = scheduler
+        inp = directory / (job['name'] + '.inp')
+        if file_sha256(inp) != job['input_sha256']:
+            raise ValueError('Failed probe input changed; do not retry under the old manifest.')
+        attempt = int(job.get('attempt', 1))
+        archive = directory / 'attempts' / str(attempt)
+        # A failed visualization export does not invalidate the preceding
+        # converged RHF record. Reuse only an explicitly evidenced record,
+        # bound to this exact input; never reuse a failed SCF calculation.
+        output = directory / (job['name'] + '.out')
+        output_text = output.read_text(errors='replace') if output.is_file() else ''
+        scf = re.search(r'(?i)\{rhf;[^{}]*orbital,(\d+\.\d+)\}', inp.read_text())
+        energies = re.findall(r'(?im)^\s*!RHF\s+STATE\s+\d+\.\d+\s+Energy\s+'
+                              r'([-+0-9.]+(?:[EDed][-+]?\d+)?)', output_text)
+        wfu = directory / (job['name'] + '.wfu')
+        output_lower = output_text.lower()
+        xml_title_overflow = all(marker in output_lower for marker in (
+            'dump information in style xml', 'string overflow inserting',
+            'strings::string_insert'))
+        export_only = (('basis set contains h or higher' in output_lower
+                        or xml_title_overflow)
+                       and execution.get('input_sha256') == job['input_sha256']
+                       and scf and energies and wfu.is_file() and wfu.stat().st_size
+                       and re.search(r'PROGRAMS\s+\*[^\n]*RHF-SCF', output_text))
+        if energies:
+            scf_energy = float(energies[-1].replace('D', 'E').replace('d', 'e'))
+            export_only = export_only and np.isfinite(scf_energy)
+        recovery = None
+        if export_only:
+            recovery = {'path': str(archive / wfu.name),
+                        'sha256': file_sha256(wfu),
+                        'record': scf[1], 'input_sha256': job['input_sha256'],
+                        'energy_hartree': scf_energy}
+        archive.mkdir(parents=True, exist_ok=False)
+        keep = {job['name'] + '.inp', job['name'] + '.sbatch'}
+        for artifact in directory.iterdir():
+            if artifact.is_file():
+                if artifact.name in keep:
+                    shutil.copy2(artifact, archive / artifact.name)
+                else:
+                    artifact.rename(archive / artifact.name)
+        job.setdefault('attempt_history', []).append({
+            'attempt': attempt, 'job_id': job['job_id'],
+            'archive': str(archive),
+            'scheduler_record': job.get('scheduler_record'),
+            'error': execution.get('error') or ('Explicitly retried interrupted allocation'
+                                               if interrupted else None),
+            'input_sha256': job['input_sha256']})
+        for key in ('job_id', 'missing_since', 'terminal_failure', 'scheduler_record'):
+            job.pop(key, None)
+        job.update(attempt=attempt + 1, submission_status='retry_ready', status='incomplete')
+        if recovery:
+            job['recovered_scf'] = recovery
+        retried.append(job['name'])
+        atomic_json(path, manifest)
+    return {'manifest': str(path), 'retry_ready': retried,
+            'completed_preserved': sum(job['status'] == 'complete' for job in manifest['jobs'])}
 
 
 def _recover_slurm_startup_failures(path, manifest, live):
@@ -1641,13 +1672,11 @@ def _recover_slurm_startup_failures(path, manifest, live):
     for job in manifest['jobs']:
         job.pop('startup_failure', None)
         identifier = str(job.get('job_id', ''))
-        if not identifier or identifier in live or job['status'] == 'complete':
+        if not identifier or identifier in live or job.get('status') == 'complete':
             continue
         directory = Path(job['directory'])
-        # Any runtime evidence rules out this narrow automatic recovery.
-        if any((directory / name).exists() for name in
-               ('execution.json', job['name'] + '.native.inp', job['name'] + '.out')):
-            continue
+        # Capture termination evidence for started jobs too. Accounting may
+        # be disabled and scontrol records can expire before manual review.
         record = slurm_job_record(identifier)
         if record.get('JobId') == identifier:
             job['scheduler_record'] = record
@@ -1666,6 +1695,11 @@ def _recover_slurm_startup_failures(path, manifest, live):
             # preceding squeue snapshot. Keep its allocation reserved.
             live.add(identifier)
             job.pop('missing_since', None)
+            continue
+        # Runtime evidence rules out this narrow automatic startup recovery,
+        # but must not prevent recording an OOM/cancellation/requeue above.
+        if any((directory / name).exists() for name in
+               ('execution.json', job['name'] + '.native.inp', job['name'] + '.out')):
             continue
         node = record.get('BatchHost', '')
         if (state != 'FAILED' or record.get('ExitCode') != '0:53'
@@ -1726,6 +1760,65 @@ def _slurm_submission_environment(batch, excluded):
             elif token.startswith('-x') and len(token) > 2:
                 values.append(token[2:])
     return {**os.environ, 'SBATCH_EXCLUDE': ','.join(v for v in values if v)}
+
+
+def _retry_allocation_failures(path, manifest, live, limit):
+    """Opt-in, bounded recovery after a worker/guard allocation is lost.
+
+    A finalized I/O failure or an unfinished known worker can be retried.
+    Cancellation, resource limits, explicit QC errors and uncertain sbatch
+    outcomes are never treated as transient I/O. Caller holds manifest lock.
+    """
+    from kinbot.slurm_retry import _text, io_failure
+    for name in [j['name'] for j in manifest['jobs']]:
+        job = next(j for j in manifest['jobs'] if j['name'] == name)
+        identifier = str(job.get('job_id', ''))
+        if not identifier or identifier in live or job.get('status') == 'complete':
+            continue
+        history = job.get('allocation_retry_history', [])
+        if len(history) >= limit:
+            continue
+        directory = Path(job['directory'])
+        execution_path = directory / 'execution.json'
+        if not execution_path.is_file():
+            continue  # Pre-shell failures have their own evidence-based path.
+        execution = json.loads(execution_path.read_text())
+        scheduler = job.get('scheduler_record', {})
+        if scheduler.get('JobState') in ('CANCELLED', 'TIMEOUT', 'OUT_OF_MEMORY', 'DEADLINE'):
+            continue
+        detail = '\n'.join(_text(directory / (job['name'] + suffix))
+                           for suffix in ('.out', '.stderr', '.launcher.stderr', '.launcher.stdout'))
+        explicit_io = execution.get('retryable_io') is True or io_failure(detail)
+        interrupted = execution.get('status') == 'running'
+        if not (explicit_io and execution.get('status') == 'failed' or interrupted):
+            continue
+        # An unfinished worker needs a publication grace period. A finalized
+        # I/O failure can be retried immediately after scheduler exit; waiting
+        # here would let _finished terminate a single-job campaign first.
+        if interrupted and time.time() - job.setdefault('missing_since', time.time()) <= 60.:
+            continue
+        if not explicit_io and re.search(
+                r'no convergence|not converged|error exit|\?\s*error|global error', detail, re.I):
+            continue
+        history = [*history, {'job_id': identifier, 'time': time.time(),
+            'reason': 'native_io' if explicit_io else 'interrupted_allocation',
+            'scheduler_record': deepcopy(scheduler)}]
+        job['allocation_retry_history'] = history
+        atomic_json(Path(path), manifest)
+        # Uses exactly the same archival/seed restoration as an explicit retry.
+        result = _retry_failed(Path(path), include_interrupted=True,
+                               job_ids={identifier}, live_job_ids=live)
+        manifest = json.loads(Path(path).read_text())
+        if job['name'] in result['retry_ready']:
+            print(f'{job["name"]}: retrying {history[-1]["reason"]} from job {identifier} '
+                  f'(allocation retry {len(history)}/{limit}).', flush=True)
+        else:
+            # A late valid result appeared during the second audit. It did
+            # not consume a retry and must not be announced as resubmitted.
+            current = next(j for j in manifest['jobs'] if j['name'] == name)
+            current['allocation_retry_history'] = history[:-1]
+            atomic_json(Path(path), manifest)
+    return manifest
 
 
 def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
@@ -1805,13 +1898,17 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
         batch = Path(job['directory']) / (job['name'] + '.sbatch')
         batch.write_text(wrap_script(batch.read_text(), identity=job['name'],
                                      directories=[job['directory']]))
+        submission_env = _slurm_submission_environment(batch.read_text(),
+                                                       manifest.get('slurm_excluded_nodes', []))
+        effective_env = os.environ if submission_env is None else submission_env
+        job['submission_overrides'] = {key: effective_env[key] for key in
+            ('SBATCH_MEM_PER_NODE', 'SBATCH_MEM_PER_CPU', 'SBATCH_EXCLUDE') if key in effective_env}
         atomic_json(path, manifest)
         try:
             result = subprocess.run(
                 ['sbatch', '--export=ALL', '--parsable', job['name'] + '.sbatch'],
                 cwd=job['directory'], capture_output=True, text=True, timeout=30,
-                env=_slurm_submission_environment(batch.read_text(),
-                                                  manifest.get('slurm_excluded_nodes', [])))
+                env=submission_env)
         except subprocess.TimeoutExpired as error:
             raise RuntimeError(f'{job["name"]}: sbatch timed out; submission outcome is '
                                'uncertain. Retain the submitting journal for scheduler '
@@ -1893,19 +1990,23 @@ def _finished(manifest_path, manifest, live):
 
 
 def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
-             capacity_manifests=()):
+             capacity_manifests=(), keep_going=False, allocation_retries=0):
     """Poll independent manifests under one journaled campaign-wide job cap.
 
     A campaign may waive the per-manifest startup check only after its native
     pilots pass. Existing jobs from another campaign phase also consume slots.
-    On probe failure, stop submitting and audit already submitted work before
-    raising all observed failures. Scheduler/journal errors still stop at once.
+    On probe failure, audit already submitted work before raising all observed
+    failures. keep_going also submits other independent manifests. Opt-in
+    allocation retries recover interrupted workers and explicit I/O failures.
+    Scheduler/journal errors still stop at once.
     No worker threads or competing manifest writers are created.
     """
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
         raise ValueError('max_jobs must be positive.')
     if not np.isfinite(interval) or not 0. < interval <= 60.:
         raise ValueError('Polling interval must be in (0, 60] seconds.')
+    if type(allocation_retries) is not int or not 0 <= allocation_retries <= 10:
+        raise ValueError('allocation_retries must be an integer from 0 to 10.')
     paths = [Path(p).expanduser().resolve() for p in manifest_paths]
     if not paths or len(set(paths)) != len(paths):
         raise ValueError('Expected distinct reconnaissance manifests.')
@@ -1923,11 +2024,17 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
             queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
                                     text=True, check=True, timeout=30)
             live = set(queued.stdout.split())
+            # Save ephemeral scheduler records before hashing large completed
+            # WFU/XML files. On sites without accounting they are the only
+            # evidence of an allocation-level termination.
+            for path, manifest in snapshots.items():
+                _recover_slurm_startup_failures(path, manifest, live)
             # Re-audit every phase before allocating slots. An apparently
             # finished output remains untrusted while its allocation is live.
             snapshots = {p: _audit(p, live_job_ids=live) for p in all_paths}
-            for path, manifest in snapshots.items():
-                _recover_slurm_startup_failures(path, manifest, live)
+            if allocation_retries:
+                snapshots = {p: _retry_allocation_failures(p, m, live, allocation_retries)
+                             for p, m in snapshots.items()}
             # Persist the union in all phases, so later phases and resumed
             # controllers also avoid identified failing nodes. No global
             # environment or cluster configuration is changed.
@@ -1944,7 +2051,7 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
                 except ProbeFailure as error:
                     finished[path] = False
                     failures.append(str(error))
-            if failures:
+            if failures and not keep_going:
                 for failure in failures:
                     if failure not in announced:
                         print('Probe failed; no new jobs will be submitted. '
@@ -1961,14 +2068,29 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
                     raise ProbeFailure('\n'.join(failures))
                 time.sleep(interval)
                 continue
-            if all(finished[p] for p in paths):
+            if failures and keep_going:
+                # A failed manifest is isolated; never run its dependent
+                # points. Other independent manifests retain the shared cap.
+                for failure in failures:
+                    if failure not in announced:
+                        print('Probe failed; continuing independent manifests.\n' + failure, flush=True)
+                        announced.add(failure)
+                unresolved = {p for p, m in snapshots.items()
+                              if any(j.get('terminal_failure') for j in m['jobs'])}
+                busy = any(str(j.get('job_id')) in live or
+                           j.get('job_id') and j['status'] != 'complete' and not j.get('terminal_failure')
+                           for m in snapshots.values() for j in m['jobs'] + m.get('excluded_jobs', []))
+                if not busy and all(finished[p] or p in unresolved for p in paths):
+                    raise ProbeFailure('\n'.join(failures))
+            if not failures and all(finished[p] for p in paths):
                 return [snapshots[p] for p in paths]
             reserved = {str(j['job_id']) for m in snapshots.values() for j in m['jobs']
-                        if j.get('job_id') and (str(j['job_id']) in live or j['status'] != 'complete')}
+                        if j.get('job_id') and (str(j['job_id']) in live or
+                            j['status'] != 'complete' and not j.get('terminal_failure'))}
             reserved.update(str(j['job_id']) for m in snapshots.values() for j in m.get('excluded_jobs', [])
                             if str(j.get('job_id')) in live)
             for path in paths:
-                if finished[path]:
+                if finished[path] or any(j.get('terminal_failure') for j in snapshots[path]['jobs']):
                     continue
                 before = {str(j['job_id']) for j in snapshots[path]['jobs'] if j.get('job_id')}
                 report = _submit(path, max_jobs=max_jobs, max_new_jobs=max(0, max_jobs - len(reserved)),

@@ -94,8 +94,14 @@ def _artifacts(prefixes, directories, journal):
     paths = set()
     for directory in directories:
         directory = Path(directory).resolve()
-        paths.update(path for path in directory.rglob('*')
-                     if path.is_file() and not path.is_symlink() and journal not in path.parents)
+        # Previous controller attempts are immutable evidence, not current
+        # seeds. Recursively copying them caused each subsequent allocation
+        # to snapshot all earlier WFU/output archives again.
+        for parent, folders, filenames in os.walk(directory):
+            folders[:] = [name for name in folders if name not in
+                          ('attempts', '.kinbot_slurm_io_retries')]
+            paths.update(path for name in filenames for path in [Path(parent) / name]
+                         if path.is_file() and not path.is_symlink() and journal not in path.parents)
     for prefix in prefixes:
         prefix = Path(prefix).absolute()
         if prefix.parent.is_dir():

@@ -86,6 +86,69 @@ def _validate_inputs(record):
         raise ValueError('Campaign electronic context changed; use a fresh campaign.')
 
 
+def append(root, addition):
+    """Adopt an unstarted nested campaign under the parent's single job cap.
+
+    The parent controller must be stopped; existing allocations keep running.
+    Child configurations, seeds and review provenance remain immutable.
+    """
+    root, addition = (Path(p).expanduser().resolve(strict=True) for p in (root, addition))
+    if root not in addition.parents:
+        raise ValueError('The addition must be prepared inside the parent campaign tree.')
+    with _lock(root), _lock(addition), ExitStack() as locks:
+        path = root / 'campaign.json'
+        parent = json.loads(path.read_text())
+        child = json.loads((addition / 'campaign.json').read_text())
+        if not child.get('systems') or len({s['title'] for s in child['systems']}) != len(child['systems']):
+            raise ValueError('Addition must contain distinct systems.')
+        existing = {s['configuration']: s for s in parent['systems']}
+        if all(all(existing.get(s['configuration'], {}).get(k) == s[k]
+                   for k in ('configuration', 'sha256', 'context_sha256', 'pilot_manifest', 'manifest', 'title'))
+               for s in child['systems']):
+            return {'added': 0, 'systems': len(parent['systems'])}
+        if child.get('adopted_by') not in (None, str(root)):
+            raise ValueError('This addition is already owned by another campaign.')
+        titles = {s['title'] for s in parent['systems']}
+        if any(s['title'] in titles or s['configuration'] in existing for s in child['systems']):
+            raise ValueError('Addition conflicts with existing campaign systems.')
+        index_path = root / 'review_index.json'
+        child_index = addition / 'review_index.json'
+        if index_path.is_file() != child_index.is_file():
+            raise ValueError('Both campaigns need review metadata, or neither: incomplete metadata breaks review exports.')
+        if index_path.is_file():
+            for owner, index_file in ((parent, index_path), (child, child_index)):
+                indexed = [s['title'] for s in json.loads(index_file.read_text())['systems']]
+                if len(indexed) != len(set(indexed)) or not {s['title'] for s in owner['systems']} <= set(indexed):
+                    raise ValueError('Review metadata must identify every campaign system uniquely.')
+        for record in child['systems']:
+            _validate_inputs(record)
+            for key in ('configuration', 'pilot_manifest', 'manifest'):
+                if addition not in Path(record[key]).resolve().parents:
+                    raise ValueError('Addition contains paths outside its own tree.')
+            for key in ('pilot_manifest', 'manifest'):
+                manifest_path = Path(record[key])
+                locks.enter_context(recon._manifest_lock(manifest_path.parent))
+                manifest = json.loads(manifest_path.read_text())
+                if any(j.get('job_id') or j.get('submission_status') or
+                       (Path(j['directory']) / 'execution.json').exists()
+                       for j in manifest['jobs'] + manifest.get('excluded_jobs', [])):
+                    raise ValueError('Only unstarted additions can be adopted.')
+        # Metadata is published first. Repeating after an interrupted write
+        # merges by title, so neither duplicate review entries nor jobs appear.
+        if child_index.is_file():
+            index = json.loads(index_path.read_text())
+            entries = {s['title']: s for s in index['systems']}
+            entries.update({s['title']: s for s in json.loads(child_index.read_text())['systems']})
+            index['systems'] = list(entries.values())
+            atomic_json(index_path, index)
+        child['adopted_by'] = str(root)
+        atomic_json(addition / 'campaign.json', child)
+        parent['systems'].extend(child['systems'])
+        parent.setdefault('additions', []).append(str(addition))
+        atomic_json(path, parent)
+        return {'added': len(child['systems']), 'systems': len(parent['systems'])}
+
+
 def stop_controller(root, *, timeout=30., proc=Path('/proc')):
     """Stop only this Linux campaign controller, preserving Slurm allocations."""
     root = Path(root).expanduser().resolve(strict=True)
@@ -151,7 +214,8 @@ def preflight(root):
     return {'status': 'ready_for_native_pilots', 'setups': setups}
 
 
-def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=None):
+def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=None,
+        keep_going=False, allocation_retries=0):
     root = Path(root).expanduser().resolve()
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
         raise ValueError('max_jobs must be positive.')
@@ -159,13 +223,18 @@ def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=
         raise ValueError('max_refinements must be nonnegative.')
     if probe_method not in (None, 'casci', 'casscf'):
         raise ValueError('probe_method must be casci or casscf.')
+    if type(allocation_retries) is not int or not 0 <= allocation_retries <= 10:
+        raise ValueError('allocation_retries must be an integer from 0 to 10.')
     with _lock(root):
         previous_directory = Path.cwd()
-        os.chdir(root)  # run-scoped cleanup can identify the live controller
         path = root / 'campaign.json'
         campaign = json.loads(path.read_text())
+        if campaign.get('adopted_by'):
+            raise ValueError('Run the owning campaign instead: ' + campaign['adopted_by'])
+        os.chdir(root)  # run-scoped cleanup can identify the live controller
         campaign.update(status='running', controller_pid=os.getpid(), max_jobs=max_jobs,
-                        selected_probe_method=probe_method)
+                        selected_probe_method=probe_method, keep_going=keep_going,
+                        allocation_retries=allocation_retries)
         campaign.pop('error', None)
         atomic_json(path, campaign)
         try:
@@ -200,7 +269,9 @@ def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=
             for record in selected:
                 print(f'Native pilot: {record["title"]}', flush=True)
             pilots = recon.run_many([record['pilot_manifest'] for record in selected],
-                                    max_jobs=max_jobs, capacity_manifests=all_manifests)
+                                    max_jobs=max_jobs, capacity_manifests=all_manifests,
+                                    **({'keep_going': True} if keep_going else {}),
+                                    **({'allocation_retries': allocation_retries} if allocation_retries else {}))
             for report in pilots:
                 if not all(job['status'] == 'complete' for job in report['jobs']):
                     raise RuntimeError('Native reconnaissance pilot did not complete.')
@@ -210,7 +281,9 @@ def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=
                     for record in pending:
                         print(f'Orbital reconnaissance: {record["title"]}', flush=True)
                     reports = recon.run_many([record['manifest'] for record in pending],
-                        max_jobs=max_jobs, startup_checked=True, capacity_manifests=all_manifests)
+                        max_jobs=max_jobs, startup_checked=True, capacity_manifests=all_manifests,
+                        **({'keep_going': True} if keep_going else {}),
+                        **({'allocation_retries': allocation_retries} if allocation_retries else {}))
                     refine = []
                     for record, report in zip(pending, reports):
                         record['status'] = report['status']
@@ -244,7 +317,7 @@ def progress(root, *, failures_only=False):
     data = json.loads((root / 'campaign.json').read_text())
     systems = []
     active_failures = []
-    excluded_nodes, startup_retries = set(), 0
+    excluded_nodes, startup_retries, allocation_retries = set(), 0, 0
     for record in data['systems']:
         item = {'title': record['title']}
         if data.get('selected_probe_method'):
@@ -255,6 +328,8 @@ def progress(root, *, failures_only=False):
             excluded_nodes.update(manifest.get('slurm_excluded_nodes', []))
             startup_retries += sum(len(job.get('startup_retry_history', []))
                                    for job in manifest['jobs'])
+            allocation_retries += sum(len(job.get('allocation_retry_history', []))
+                                      for job in manifest['jobs'])
             item[key] = {'status': manifest['status'], 'jobs': len(manifest['jobs']),
                          'complete': sum(job.get('status') == 'complete' for job in manifest['jobs'])}
             failures = [{'name': job['name'], 'directory': job['directory'],
@@ -269,26 +344,38 @@ def progress(root, *, failures_only=False):
                 item[key]['excluded_jobs'] = len(manifest['excluded_jobs'])
                 item[key]['excluded_bases'] = manifest['excluded_bases']
         systems.append(item)
-    status = 'draining_after_failure' if active_failures and data['status'] == 'running' else data['status']
+    status = data['status']
+    if active_failures and status == 'running':
+        status = 'running_with_failures' if data.get('keep_going') else 'draining_after_failure'
     result = {'status': status, 'max_jobs': data.get('max_jobs'),
             'selected_probe_method': data.get('selected_probe_method'),
             'error': data.get('error') or (active_failures[0]['reason'] if active_failures else None),
             'failed_jobs': len(active_failures), 'startup_retries': startup_retries,
+            'allocation_retries': allocation_retries,
             'slurm_excluded_nodes': sorted(excluded_nodes)}
     result.update({'failures': active_failures} if failures_only else {'systems': systems})
     return result
 
 
-def retry_failed(root, *, include_interrupted=False):
+def retry_failed(root, *, include_interrupted=False, job_ids=None):
     """Reconcile failed native jobs without discarding successful probes."""
     root = Path(root).expanduser().resolve()
     with _lock(root):
         campaign = json.loads((root / 'campaign.json').read_text())
+        if job_ids is not None:
+            job_ids = {str(identifier) for identifier in job_ids}
+            if not job_ids or any(not identifier.isdigit() for identifier in job_ids):
+                raise ValueError('Retry job IDs must be nonempty numeric Slurm IDs.')
         results = []
         for record in campaign['systems']:
             _validate_inputs(record)
             for key in ('pilot_manifest', 'manifest'):
-                results.append(recon.retry_failed(record[key], include_interrupted=include_interrupted))
+                if job_ids is not None:
+                    manifest = json.loads(Path(record[key]).read_text())
+                    if not any(str(j.get('job_id')) in job_ids for j in manifest['jobs']):
+                        continue
+                results.append(recon.retry_failed(record[key], include_interrupted=include_interrupted,
+                    **({'job_ids': job_ids} if job_ids is not None else {})))
         campaign['status'] = 'prepared_retry'
         campaign.pop('error', None)
         atomic_json(root / 'campaign.json', campaign)
@@ -330,6 +417,8 @@ def collect(root, destination):
     with _stopped_snapshot(root) as (data, snapshots):
         paths = {root / 'campaign.json', root / 'review_plan.json', root / 'review_index.json',
                  root / 'controller.log'}
+        for addition in data.get('additions', []):
+            paths.update(Path(addition) / name for name in ('campaign.json', 'review_plan.json', 'review_index.json'))
         # Native output cannot establish why Slurm killed/requeued a process.
         # Keep allocation and step accounting with the same stopped snapshot;
         # sites without sacct still get all native evidence and an explicit
@@ -494,11 +583,18 @@ def main(argv=None):
     create = commands.add_parser('prepare')
     create.add_argument('root')
     create.add_argument('configurations', nargs='+')
+    add = commands.add_parser('append', help='Adopt an unstarted nested campaign under the same job cap.')
+    add.add_argument('root')
+    add.add_argument('addition')
     drive = commands.add_parser('run')
     drive.add_argument('root')
     drive.add_argument('--max-jobs', type=int, default=10)
     drive.add_argument('--max-refinements', type=int, default=0)
     drive.add_argument('--pilot-only', action='store_true')
+    drive.add_argument('--keep-going', action='store_true',
+                       help='Finish independent manifests after a probe failure; still exit with failure.')
+    drive.add_argument('--allocation-retries', type=int, default=0,
+                       help='Bounded retries of finalized I/O failures or interrupted known workers (0–10).')
     drive.add_argument('--probe-method', choices=['casci', 'casscf'],
                        help='Run only this probe method; retain other systems as unresolved controls.')
     report = commands.add_parser('progress')
@@ -513,6 +609,8 @@ def main(argv=None):
     retry.add_argument('root')
     retry.add_argument('--include-interrupted', action='store_true',
                        help='Also archive/retry stopped known allocations without a final execution record.')
+    retry.add_argument('--job-id', action='append',
+                       help='Retry only these allocation IDs; preserve unrelated running jobs. Repeat as needed.')
     archive = commands.add_parser('archive-excluded')
     archive.add_argument('root')
     selection = commands.add_parser('exclude-bases')
@@ -525,10 +623,13 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.action == 'prepare':
         result = str(prepare(args.root, args.configurations))
+    elif args.action == 'append':
+        result = append(args.root, args.addition)
     elif args.action == 'run':
         result = run(args.root, max_jobs=args.max_jobs,
                      max_refinements=args.max_refinements, pilot_only=args.pilot_only,
-                     probe_method=args.probe_method)
+                     probe_method=args.probe_method, keep_going=args.keep_going,
+                     allocation_retries=args.allocation_retries)
     elif args.action == 'collect':
         result = collect(args.root, args.destination)
     elif args.action == 'preflight':
@@ -536,7 +637,7 @@ def main(argv=None):
     elif args.action == 'stop-controller':
         result = stop_controller(args.root)
     elif args.action == 'retry-failed':
-        result = retry_failed(args.root, include_interrupted=args.include_interrupted)
+        result = retry_failed(args.root, include_interrupted=args.include_interrupted, job_ids=args.job_id)
     elif args.action == 'archive-excluded':
         result = archive_excluded(args.root)
     elif args.action == 'exclude-bases':

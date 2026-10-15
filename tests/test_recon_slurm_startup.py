@@ -126,6 +126,131 @@ def test_cached_active_record_cannot_keep_a_missing_job_live_forever(tmp_path, m
         recon._finished(path, manifest, live)
 
 
+@pytest.mark.parametrize('state', ['OUT_OF_MEMORY', 'CANCELLED', 'PENDING'])
+def test_started_job_retains_scheduler_evidence_without_unproven_retry(tmp_path, monkeypatch, state):
+    path, manifest, job, record = _manifest(tmp_path)
+    execution = Path(job['directory']) / 'execution.json'
+    execution.write_text('{"status":"running"}')
+    record.update(JobState=state, ExitCode='0:9')
+    monkeypatch.setattr(recon, 'slurm_job_record', lambda _: record)
+    live = set()
+    recon._recover_slurm_startup_failures(path, manifest, live)
+    assert job['scheduler_record'] == record
+    assert job['job_id'] == '71' and not job.get('startup_retry_history')
+    assert execution.read_text() == '{"status":"running"}'
+    if state == 'PENDING':
+        assert live == {'71'}
+    else:
+        with pytest.raises(recon.ProbeFailure, match=state):
+            recon._finished(path, manifest, live)
+
+
+@pytest.mark.parametrize('kind,expected', [
+    ('interrupted', True), ('io', True), ('chemistry', False),
+    ('cancelled', False), ('oom', False), ('live', False), ('grace', False)])
+def test_allocation_recovery_is_bounded_and_preserves_native_evidence(tmp_path, monkeypatch, kind, expected):
+    path, manifest, job, _ = _manifest(tmp_path)
+    directory = Path(job['directory'])
+    output = 'interrupted during integral setup\n'
+    status = 'running'
+    if kind == 'io':
+        status, output = 'failed', 'ERROR WRITING 32768 WORDS AT OFFSET 1. TO FILE21\n'
+    elif kind == 'chemistry':
+        output = 'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n'
+    elif kind in ('cancelled', 'oom'):
+        job['scheduler_record'] = {'JobState': 'CANCELLED' if kind == 'cancelled' else 'OUT_OF_MEMORY'}
+    elif kind == 'grace':
+        job['missing_since'] = 100.
+    (directory / 'execution.json').write_text(json.dumps({'status': status}))
+    (directory / 'probe.out').write_text(output)
+    atomic_json(path, manifest)
+    monkeypatch.setattr(recon.time, 'time', lambda: 120.)
+    monkeypatch.setattr(recon, 'slurm_job_record', lambda _: {})
+    result = recon._retry_allocation_failures(path, manifest, {'71'} if kind == 'live' else set(), 1)
+    job = result['jobs'][0]
+    if expected:
+        assert 'job_id' not in job
+        assert job['submission_status'] == 'retry_ready'
+        assert (directory / 'attempts/1/probe.out').read_text() == output
+        assert (directory / 'probe.inp').read_text() == 'immutable chemistry\n'
+        assert len(job['allocation_retry_history']) == 1
+        # Resuming a controller does not replenish the retry allowance.
+        job.update(job_id='72', missing_since=0.)
+        (directory / 'execution.json').write_text('{"status":"running"}')
+        atomic_json(path, result)
+        after = recon._retry_allocation_failures(path, result, set(), 1)
+        assert after['jobs'][0]['job_id'] == '72'
+        assert (directory / 'execution.json').exists()
+    else:
+        assert job['job_id'] == '71' and not job.get('allocation_retry_history')
+        assert not (directory / 'attempts').exists()
+
+
+def test_retry_selected_interruption_preserves_a_running_peer(tmp_path, monkeypatch):
+    from copy import deepcopy
+    path, manifest, job, _ = _manifest(tmp_path)
+    (Path(job['directory']) / 'execution.json').write_text('{"status":"running"}')
+    peer = deepcopy(job)
+    peer.update(name='peer', directory=str(tmp_path / 'peer'), job_id='72')
+    Path(peer['directory']).mkdir()
+    artifact = Path(peer['directory']) / 'execution.json'
+    artifact.write_text('{"status":"running","owner":"peer"}')
+    manifest['jobs'].append(peer)
+    atomic_json(path, manifest)
+    monkeypatch.setattr(recon, 'slurm_job_record', lambda _: {})
+    result = recon._retry_failed(path, include_interrupted=True, job_ids={'71'}, live_job_ids={'72'})
+    assert result['retry_ready'] == ['probe']
+    assert artifact.read_text() == '{"status":"running","owner":"peer"}'
+    assert json.loads(path.read_text())['jobs'][1]['job_id'] == '72'
+
+
+@pytest.mark.parametrize('kind', ['io', 'interrupted'])
+def test_controller_recovers_allocation_without_aborting_independent_work(tmp_path, monkeypatch, kind):
+    paths = []
+    for index in range(3):
+        path, manifest, job, _ = _manifest(tmp_path / str(index), str(71 + index))
+        paths.append(path)
+        if index == 0:
+            job['missing_since'] = 100. if kind == 'io' else 0.
+            directory = Path(job['directory'])
+            (directory / 'execution.json').write_text(json.dumps({
+                'status': 'failed' if kind == 'io' else 'running'}))
+            (directory / 'probe.out').write_text('Input/output error' if kind == 'io' else 'integral setup')
+        elif index == 2:
+            job.pop('job_id')
+        atomic_json(path, manifest)
+    live, submitted = {'72'}, []
+    monkeypatch.setattr(recon.time, 'time', lambda: 120.)
+    monkeypatch.setattr(recon, 'slurm_job_record', lambda _: {})
+    monkeypatch.setattr(recon, '_audit', lambda path, **kw: json.loads(Path(path).read_text()))
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='\n'.join(live), returncode=0)
+        assert command[0] == 'sbatch'
+        identifier = str(100 + len(submitted))
+        submitted.append(kwargs['cwd'])
+        live.add(identifier)
+        assert len(live) <= 2
+        return SimpleNamespace(stdout=identifier, stderr='', returncode=0)
+    def complete_tick(_):
+        for path in paths:
+            manifest = json.loads(path.read_text())
+            job = manifest['jobs'][0]
+            if job.get('job_id') in live:
+                job['status'] = 'complete'
+                manifest['status'] = 'complete_review_required'
+                atomic_json(path, manifest)
+        live.clear()
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    monkeypatch.setattr(recon.time, 'sleep', complete_tick)
+    reports = recon.run_many(paths, max_jobs=2, startup_checked=True, allocation_retries=2)
+    assert len(submitted) == 2 and len(set(submitted)) == 2
+    assert reports[1]['jobs'][0]['job_id'] == '72'
+    assert reports[0]['jobs'][0]['allocation_retry_history'][0]['reason'] == (
+        'native_io' if kind == 'io' else 'interrupted_allocation')
+    assert (paths[0].parent / 'probe/attempts/1/execution.json').exists()
+
+
 def test_exclusions_preserve_site_hostlists_without_changing_parent_environment(monkeypatch):
     monkeypatch.setenv('SBATCH_EXCLUDE', 'site[01-03]')
     env = recon._slurm_submission_environment(

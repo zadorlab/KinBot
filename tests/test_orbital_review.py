@@ -279,6 +279,33 @@ def test_partition_iteration_controls_reach_every_correlated_root(tmp_path, part
     assert job['state_model']['correlation_options'] == item['correlation_options']
 
 
+def test_partition_orbital_exchange_is_source_relative_and_hash_bound(tmp_path, partition_source):
+    row, item = partition_source
+    item.update(orbital_swaps=[[2, 6]], source_wfu_sha256=row['wfu_sha256'])
+    source = tmp_path / 'swap.json'
+    atomic_json(source, {'schema': 1, 'models': [item]})
+    result = review.prepare_partitions(source, tmp_path / 'candidate')
+    system = json.loads(result.read_text())['systems'][0]
+    job = json.loads(Path(system['pilot_manifest']).read_text())['jobs'][0]
+    deck = Path(job['directory'], job['name'] + '.inp').read_text()
+    assert 'start,2140.2,type=natural\nrotate,8.1,12.1,0' in deck
+    assert 'occ,14\nclosed,10' in deck
+    item['source_wfu_sha256'] = 'different reviewed checkpoint'
+    atomic_json(source, {'schema': 1, 'models': [item]})
+    with pytest.raises(ValueError, match='orbital identity'):
+        review.prepare_partitions(source, tmp_path / 'changed')
+
+
+@pytest.mark.parametrize('swaps', [[[1, 1]], [[0, 2]], [[1, 9]], [[True, 2]], [[1]], '1,2'])
+def test_partition_rejects_invalid_orbital_exchanges(tmp_path, partition_source, swaps):
+    _, item = partition_source
+    item['orbital_swaps'] = swaps
+    source = tmp_path / 'swap.json'
+    atomic_json(source, {'schema': 1, 'models': [item]})
+    with pytest.raises(ValueError, match='orbital_swaps'):
+        review.prepare_partitions(source, tmp_path / 'candidate')
+
+
 def test_prepare_incomplete_preserves_complete_points_and_only_raises_limits(tmp_path, partition_source, monkeypatch):
     from types import SimpleNamespace
     _, item = partition_source
@@ -579,6 +606,29 @@ def test_report_combines_repair_pilots_without_accepting_failed_attempts(tmp_pat
     assert len(result['equivalent_geometry_comparisons']) == (0 if different_average else 1)
     assert {profile['phase'] for profile in result['radial_profiles']} == {'pilot', 'panel'}
     assert all(len(profile['points']) == 1 for profile in result['radial_profiles'])
+
+
+def test_radial_report_never_subtracts_unlike_correlated_controls(tmp_path, monkeypatch):
+    common = {'status': 'complete', 'basis': 'basis', 'probe_method': 'casscf',
+        'symbols': ['H', 'H'], 'electron_count': 2, 'campaign': str(tmp_path), 'phase': 'pilot',
+        'review': {'title': 'test', 'model': 'test'}, 'channel': 'bond',
+        'state_energies_hartree': []}
+    selected = {'method': 'caspt2-f12(2,2)', 'ipea': 0., 'multiplicity': 1, 'root': 1}
+    shifted = {**selected, 'ipea': .25}
+    missing = {**selected, 'shift': .1}
+    rows = [{**deepcopy(common), 'name': 'near', 'directory': '/near', 'distance_angstrom': 3.,
+             'geometry_angstrom': [[0, 0, 0], [3, 0, 0]],
+             'correlated_energies_hartree': [{**selected, 'energy_hartree': -10.1},
+                                             {**missing, 'energy_hartree': -10.2}]},
+            {**deepcopy(common), 'name': 'far', 'directory': '/far', 'distance_angstrom': 30.,
+             'geometry_angstrom': [[0, 0, 0], [30, 0, 0]],
+             'correlated_energies_hartree': [{**shifted, 'energy_hartree': -9.},
+                                             {**selected, 'energy_hartree': -10.}]}]
+    monkeypatch.setattr(review, '_review_rows', lambda _: ({}, rows))
+    result = json.loads(review.report(tmp_path, tmp_path / 'report.json').read_text())
+    states = result['radial_profiles'][0]['points'][0]['correlated']
+    assert states[0]['relative_to_far_hartree'] == pytest.approx(-.1)
+    assert 'relative_to_far_hartree' not in states[1]
 
 
 @pytest.mark.parametrize('solver', ['second_order', 'so_sci'])

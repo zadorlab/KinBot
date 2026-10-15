@@ -101,6 +101,65 @@ def test_campaign_snapshots_context_and_prepares_a_native_pilot(tmp_path):
         campaign.prepare(root, [source])
 
 
+def test_append_preserves_live_parent_jobs_and_adopts_one_cap(tmp_path, monkeypatch):
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    path = campaign.prepare(root, [source])
+    original = json.loads(path.read_text())
+    (root / 'review_index.json').write_text(json.dumps({'schema': 1, 'systems': [
+        {'title': original['systems'][0]['title']}]}))
+    pilot = Path(original['systems'][0]['pilot_manifest'])
+    m = json.loads(pilot.read_text())
+    m['jobs'][0].update(job_id='314', submission_status='submitted')
+    pilot.write_text(json.dumps(m))
+    original_bytes = pilot.read_bytes()
+    data = json.loads(source.read_text())
+    data['title'] = 'additional_candidate'
+    source.write_text(json.dumps(data))
+    addition = root / 'addition'
+    child = campaign.prepare(addition, [source])
+    (addition / 'review_index.json').write_text(json.dumps({'schema': 1, 'systems': [{'title': data['title']}]}))
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *a, **kw: pytest.fail('Adoption must not touch workers'))
+    assert campaign.append(root, addition)['added'] == 1
+    assert campaign.append(root, addition)['added'] == 0
+    assert pilot.read_bytes() == original_bytes
+    assert len(json.loads(path.read_text())['systems']) == 2
+    assert json.loads(child.read_text())['adopted_by'] == str(root)
+    previous = Path.cwd()
+    with pytest.raises(ValueError, match='owning campaign'):
+        campaign.run(addition)
+    assert Path.cwd() == previous
+    assert json.loads((root / 'review_index.json').read_text())['systems'] == [
+        {'title': original['systems'][0]['title']}, {'title': data['title']}]
+
+
+@pytest.mark.parametrize('conflict', ['started', 'duplicate_title', 'outside', 'missing_review_metadata'])
+def test_append_rejects_unsafe_additions_without_changing_parent(tmp_path, conflict):
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    path = campaign.prepare(root, [source])
+    before = path.read_bytes()
+    data = json.loads(source.read_text())
+    if conflict != 'duplicate_title':
+        data['title'] = 'additional'
+    source.write_text(json.dumps(data))
+    addition = (tmp_path if conflict == 'outside' else root) / 'addition'
+    child = json.loads(campaign.prepare(addition, [source]).read_text())
+    if conflict == 'missing_review_metadata':
+        (root / 'review_index.json').write_text(json.dumps({'schema': 1, 'systems': [
+            {'title': json.loads(before)['systems'][0]['title']}]}))
+    if conflict == 'started':
+        p = Path(child['systems'][0]['pilot_manifest'])
+        m = json.loads(p.read_text())
+        m['jobs'][0]['job_id'] = '999'
+        p.write_text(json.dumps(m))
+    with pytest.raises(ValueError):
+        campaign.append(root, addition)
+    assert path.read_bytes() == before
+
+
 def test_campaign_controller_has_one_global_cap_and_is_run_scoped(tmp_path, monkeypatch):
     monkeypatch.setattr(campaign, 'preflight', lambda root: None)
     configurations = []

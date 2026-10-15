@@ -179,6 +179,49 @@ the VRC calculation must also deliver accurate relative interaction energies.
    convergence failure and exhausted retries still require review. This
    mechanism needs no `sacct`; the batch-script retry guard cannot handle
    failures that occur before the shell starts.
+   Retained scheduler records are also saved for **started** workers, before
+   expensive output/checkpoint audits, so termination reasons can survive
+   `scontrol` expiry even when accounting is disabled. Missing records are not
+   evidence of a particular termination cause.
+
+   `run --allocation-retries 2` additionally opts into at most two replacement
+   allocations per probe for finalized native I/O failures or interrupted known
+   workers whose execution record remains `running`. The latter is labelled
+   `interrupted_allocation`, not assumed to be I/O. Interrupted workers wait for
+   the publication grace; finalized I/O failures can be retried after queue exit.
+   Recovery checks queue/scheduler ownership again, archives partial
+   products, and restores original seeds. History and limits survive controller
+   restarts. Native nonconvergence, known cancellation/time/memory limits and
+   uncertain submissions are not retried by this policy. The existing batch
+   guard separately allows two in-allocation I/O retries. With both limits at
+   two there can be at most nine native starts across three allocations for
+   one probe; reducing either limit is supported. Old `attempts/` archives
+   are retained but no longer copied into new retry seed snapshots.
+
+   `run --keep-going` finishes other independent manifests after a failure;
+   the failed manifest and its dependent points remain blocked. Progress is
+   `running_with_failures`, and unresolved failures still produce a failed
+   final status/nonzero exit. Full panels remain gated on successful pilots.
+   `retry-failed --include-interrupted --job-id ID` can explicitly recover a
+   particular stopped allocation while preserving live peers. Repeat the ID
+   flag to select several; replacement IDs are not affected by repeating the
+   same command.
+
+   To add comparisons without a second competing job cap, prepare an addition
+   **inside** the parent tree, stop only its controller, and use
+   `orbital_campaign append ROOT ROOT/ADDITION`. The addition must be unstarted
+   with distinct titles. Adoption is idempotent, carries its review metadata,
+   and prevents launching the child as a separate campaign. Resume the parent
+   to share its cap with preserved live jobs.
+
+   Default Slurm memory now includes Molpro's 300-MW/rank program-overhead
+   estimate in addition to the requested stack, then adds 25% headroom.
+   Eight ranks with `memory_mw=1000` request `104000M`; explicit `memory_mb`
+   remains supported. This estimate does not bound all GA/auxiliary allocations.
+   Existing batch files are unchanged; Slurm's `SBATCH_MEM_PER_NODE` can change
+   the resource request for their next submission without changing chemistry.
+   See [Molpro parallel memory](https://www.molpro.net/manual/doku.php?id=running_molpro_on_parallel_computers)
+   and [Slurm environment precedence](https://slurm.schedmd.com/sbatch.html#SECTION_INPUT-ENVIRONMENT-VARIABLES).
    For native convergence failures, `orbital_review repair-convergence OLD NEW`
    prepares only rejected anchors, preserving old evidence. Its default small-CAS
    repair uses quadratic RHF and exact CI without L-BFGS. If that also stalls,
@@ -255,6 +298,15 @@ the VRC calculation must also deliver accurate relative interaction energies.
    `model` (comparison group), `source_directory`, `region`, `chemical_note`,
    target `active_electrons`/`active_orbitals`, `close_lowest`, `discard_highest`,
    and `correlation_checks`; optional `state_average` defines a separate average.
+   Optional `orbital_swaps: [[i,j], ...]` exchanges explicitly reviewed orbitals
+   **before** closing/discarding the ends of the source-active block. Indices
+   are one-based within that source block, not absolute molecule-wide indices.
+   Exchanges are applied in order using MULTI's documented
+   `ROTATE,orb1.sym,orb2.sym,0` following `START`. Optional
+   `source_wfu_sha256` binds that identity decision to the previously reviewed
+   checkpoint and rejects replacement sources. Neither occupations nor a CAS
+   count establishes orbital character; the user supplies these choices.
+   See [MULTI initial-orbital exchanges](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#rotating_pairs_of_initial_orbitals).
    Optional `casscf_options` overrides the partition preparation's solver defaults;
    optional `correlation_options` sets `max_iterations` and/or
    `max_reference_iterations` for the correlated calls. Both limits must be

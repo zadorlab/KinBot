@@ -79,3 +79,33 @@ def test_validation_recipe_uses_requested_sampling_and_scan_grid():
             assert check['shift'] == parameters['vrc_tst_scan_shift']
             assert check['ipea'] == parameters['vrc_tst_scan_ipea']
             assert row['region'] == 'diagnostic'  # not an inferred inner/outer selection
+
+
+def test_cas75_addition_keeps_pi_pair_and_matches_the_existing_potential_stencil(monkeypatch):
+    root = Path(__file__).parents[1] / 'examples/anl/orbital_reviews'
+    monkeypatch.syspath_prepend(str(root))
+    from prepare_cas75 import definition
+    from prepare_validation import plan
+    result = definition(root / 'cas75_candidates.json')['models']
+    original = plan(json.loads((root / 'validation_candidates.json').read_text()), root)['models']
+    reference = {m['name'].rsplit('_', 1)[-1]: m for m in original
+                 if m['name'].startswith('ch3ss_cs_cas9_7_')}
+    assert len(result) == 5
+    for item in result:
+        point = item['name'].rsplit('_', 1)[-1]
+        assert item.get('target_distance_angstrom') == reference[point].get('target_distance_angstrom')
+        assert (item['active_electrons'], item['active_orbitals']) == (7, 5)
+        assert len(item['source_wfu_sha256']) == 64
+        assert item['close_lowest'] == 6 and item['discard_highest'] == 1
+        assert any(check['method'] == 'mrci-f12+q(7,5)' for check in item['correlation_checks'])
+        assert {check.get('ipea') for check in item['correlation_checks']} == {None, 0., .25}
+        if point == 'tilted':
+            assert 'orbital_swaps' not in item
+        else:
+            assert item['source_directory'].endswith('/avt_f12__cs_r_30')
+            # Source indices 12..23: close sigma #19, discard sigma* #23;
+            # retain the pi/pi* quartet and the methyl radical (#22).
+            order = list(range(12, 24))
+            for a, b in item['orbital_swaps']:
+                order[a-1], order[b-1] = order[b-1], order[a-1]
+            assert set(order[6:-1]) == {17, 18, 20, 21, 22}

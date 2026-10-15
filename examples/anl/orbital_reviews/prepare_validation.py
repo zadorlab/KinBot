@@ -48,6 +48,9 @@ def plan(recipe, base):
             if not vrc_multireference_energy_contract(level['method']):
                 raise ValueError('This example comparison needs a supported correlated MR sampling method.')
             for position, seed, distance in points:
+                choice = space.get('partition_seeds', {}).get(position, {})
+                if choice.get('anchor'):
+                    seed = source(choice['anchor'])
                 if level['basis'] != seed['basis']:
                     raise ValueError('Prepare basis-specific reviewed seeds before changing the sampling basis.')
                 item = {'name': name + '_' + position, 'model': name,
@@ -55,9 +58,13 @@ def plan(recipe, base):
                     'chemical_note': case['note'] + ' Reoptimize the reviewed natural-orbital partition; '
                         'test interaction accuracy, state character and continuity before selecting it.',
                     'active_electrons': electrons, 'active_orbitals': orbitals,
-                    'close_lowest': space['close_lowest'], 'discard_highest': 0,
+                    'close_lowest': space['close_lowest'], 'discard_highest': space.get('discard_highest', 0),
                     'correlation_checks': [{'method': level['method'],
                         'shift': parameters['vrc_tst_scan_shift'], 'ipea': parameters['vrc_tst_scan_ipea']}]}
+                if 'orbital_swaps' in choice:
+                    item['orbital_swaps'] = choice['orbital_swaps']
+                if space.get('bind_reviewed_checkpoint'):
+                    item['source_wfu_sha256'] = seed['wfu_sha256']
                 if distance is not None:
                     item['target_distance_angstrom'] = distance
                 models.append(item)

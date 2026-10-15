@@ -5,6 +5,27 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
+
+
+SLURM_TERMINAL_STATES = {
+    'BOOT_FAIL', 'CANCELLED', 'COMPLETED', 'DEADLINE', 'FAILED',
+    'NODE_FAIL', 'OUT_OF_MEMORY', 'PREEMPTED', 'TIMEOUT',
+}
+
+
+def slurm_job_record(job_id, *, timeout=15):
+    """Best-effort retained scheduler evidence; does not require accounting."""
+    try:
+        result = subprocess.run(
+            ['scontrol', 'show', 'job', '-o', str(job_id)],
+            capture_output=True, text=True, check=False, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if result.returncode or not result.stdout.strip():
+        return {}
+    return {match.group(1): match.group(2)
+            for match in re.finditer(r'(\w+)=([^\s]+)', result.stdout)}
 
 
 _SCHEDULER_UNAVAILABLE = re.compile(

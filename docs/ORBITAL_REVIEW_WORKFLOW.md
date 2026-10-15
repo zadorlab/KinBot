@@ -123,11 +123,28 @@ the VRC calculation must also deliver accurate relative interaction energies.
    already submitted campaign jobs (including other phases), then reports
    all observed failures together. `progress` shows `draining_after_failure`
    while this is happening, with failed job names, IDs and full directories.
+   The top-level `error` gives the first failure while draining;
+   `progress ROOT --failures-only` provides a compact list without the full
+   system inventory.
    Successful remaining jobs are retained; failed energies remain rejected.
    Unsubmitted jobs and descendants of failed checkpoints are not launched.
    The final campaign status is `failed`, requiring review before a repair.
    Uncertain submissions and scheduler errors still stop immediately, since
    allocation ownership cannot safely be inferred in those cases.
+   A separate controller-side recovery handles a retained `scontrol` record
+   identifying `FAILED`, `ExitCode=0:53` (Slurm batch I/O initialization), with
+   the matching job ID/work directory and a specific batch host. After the
+   60-second publication grace, it retries at most twice, only when there is
+   no native input/output, execution record, nonempty stdio, or current
+   retry-guard journal. It journals the old ID and scheduler evidence before
+   resubmission. The identified host is excluded across this campaign's
+   manifests and later phases, preserving site/user exclusions. No node name
+   is built into the runtime. Progress exposes `startup_retries` and
+   `slurm_excluded_nodes`. Live/requeued allocations retain their IDs and
+   consume the same global cap. Unknown disappearance, cancellation, native
+   convergence failure and exhausted retries still require review. This
+   mechanism needs no `sacct`; the batch-script retry guard cannot handle
+   failures that occur before the shell starts.
    For native convergence failures, `orbital_review repair-convergence OLD NEW`
    prepares only rejected anchors, preserving old evidence. Its default small-CAS
    repair uses quadratic RHF and exact CI without L-BFGS. If that also stalls,
@@ -270,7 +287,7 @@ missing/changed seeds and input-validation failures are retained. If a job
 never produced native output, audit reports the missing output and available
 batch/retry stderr rather than diagnosing missing occupations as CAS failures.
 Only the recorded allocation's latest restart journal is used. A scheduler
-interruption still needs Slurm accounting to establish its cause; a stale
+interruption needs retained `scontrol` evidence or Slurm accounting to establish its cause; a stale
 `status="running"` execution record is not proof of native nonconvergence.
 Campaign `collect` includes `scheduler_accounting.json`, queried with `sacct`
 for only the recorded allocation IDs and their prior attempts. This preserves

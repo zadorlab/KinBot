@@ -135,6 +135,104 @@ cd /home/hram/KinBot
 watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.orbital_campaign progress /home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015; squeue -u hram -o "%.18i %.10T %.48j %.10M %R"'
 ```
 
+## Resume Batch A after the node21 startup failures
+
+The retained records for jobs 52907719 and 52907720 both identify node21,
+`FAILED`, `ExitCode=0:53`, and zero/one second of runtime. Their directories
+contain only the prepared input and batch script. This is consistent with
+Slurm's batch I/O initialization failure before the shell/guard starts, not
+Molpro nonconvergence. Slurm uses `ESLURMD_IO_ERROR=4021`; its reported signal
+portion can be 53. See the upstream
+[error definitions](https://github.com/SchedMD/slurm/blob/master/slurm/slurm_errno.h)
+and [step manager](https://github.com/SchedMD/slurm/blob/master/src/slurmd/slurmstepd/mgr.c).
+The exact filesystem/stdio problem requires node-side diagnostics; the
+provided records do not establish a quota or permission cause. Job 52907713
+was separately requeued and was running on node16; it should be preserved.
+
+The controller now retains `scontrol` evidence and automatically handles this
+narrow startup failure with bounded retries and campaign-scoped host
+exclusions. This one-time block additionally authorizes retry of the **11
+reported empty attempts**, if their scheduler records have already expired.
+It skips live jobs, changed IDs, runtime evidence, and contradictory scheduler
+records. This explicit incident repair is distinct from the conservative
+automatic policy. Successful results, active workers, input chemistry and
+checkpoint sources are preserved. Do not recreate or clean the campaign.
+
+The block stops only the controller, updates code, then resumes the same
+campaign with a cap of 20. `set -e` applies to the child shell, not the SSH
+login shell. Repeating it does not retry replacement job IDs.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+RUN=/home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015
+"$KB_PY" -m kinbot.orbital_campaign stop-controller "$RUN"
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
+"$KB_PY" - "$RUN" <<'PY'
+import json, subprocess, sys
+from pathlib import Path
+from kinbot import orbital_campaign as campaign, molpro_reconnaissance as recon
+from kinbot.execution import atomic_json, slurm_job_record
+root = Path(sys.argv[1])
+reported = {str(i) for i in (52907719,52907720,52907721,52907722,52907723,
+                           52907724,52907725,52907727,52907728,52907729,52907730)}
+with campaign._lock(root):
+    data = json.loads((root / 'campaign.json').read_text())
+    live = set(subprocess.run(['squeue','-h','-o','%A'], check=True,
+               capture_output=True, text=True, timeout=30).stdout.split())
+    paths = {Path(s[k]) for s in data['systems'] for k in ('pilot_manifest','manifest')}
+    for path in sorted(paths):
+        m = json.loads(path.read_text())
+        # This host is from the supplied incident evidence, not a code default.
+        m['slurm_excluded_nodes'] = sorted(set(m.get('slurm_excluded_nodes', [])) | {'node21'})
+        atomic_json(path, m)
+        for j in m['jobs']:
+            jid = str(j.get('job_id', ''))
+            if jid not in reported or jid in live or j.get('status') == 'complete':
+                continue
+            d, name = Path(j['directory']), j['name']
+            artifacts = [d/'execution.json', d/(name+'.native.inp'), d/(name+'.out')]
+            streams = [d/(name+s) for s in ('.stdout','.stderr','.launcher.stdout','.launcher.stderr')]
+            if (any(p.exists() for p in artifacts) or
+                any(p.exists() and p.stat().st_size for p in streams) or
+                any((d/'.kinbot_slurm_io_retries').glob('*/'+jid))):
+                print('Preserving execution evidence:', jid, d)
+                continue
+            record = slurm_job_record(jid)
+            if record and (record.get('JobId') != jid or record.get('WorkDir') != str(d)
+                           or record.get('JobState') != 'FAILED' or record.get('ExitCode') != '0:53'):
+                print('Preserving allocation with different scheduler evidence:', jid, record)
+                continue
+            if len(m['jobs']) != 1:
+                raise SystemExit('Expected a single-probe incident manifest: '+str(path))
+            j['manual_startup_recovery'] = {'job_id': jid, 'scheduler_record': record,
+                'reason': 'Explicit retry of reported empty pre-start attempt; native files absent.'}
+            atomic_json(path, m)
+            print(recon.retry_failed(path, include_interrupted=True))
+PY
+export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+mkdir -p "$KINBOT_MOLPRO_SCRATCH"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$RUN"
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$RUN" \
+    --pilot-only --probe-method casscf --max-jobs 20 --max-refinements 0 \
+    >> "$RUN/controller.log" 2>&1 < /dev/null &
+printf '%s\n' "$!" > "$RUN/controller.pid"
+"$KB_PY" -m kinbot.orbital_campaign progress "$RUN" --failures-only
+BASH
+```
+
+Compact monitoring (Ctrl-C stops only `watch`):
+
+```bash
+cd /home/hram/KinBot
+watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.orbital_campaign progress /home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015 --failures-only; squeue -u hram -o "%.18i %.10T %.48j %.10M %R"; tail -n 8 /home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015/controller.log'
+```
+
 ## Run Batch B after A completes
 
 The status check prevents a second 20-job campaign from starting alongside A.

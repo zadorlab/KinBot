@@ -28,6 +28,7 @@ from kinbot import constants
 from kinbot import geometry
 from kinbot import exceptions
 from kinbot.execution import scheduler_unavailable as _scheduler_unavailable
+from kinbot.execution import slurm_job_record, SLURM_TERMINAL_STATES as _SLURM_TERMINAL_STATES
 from kinbot.theory import profiled_requested
 
 logger = logging.getLogger('KinBot')
@@ -40,10 +41,6 @@ _SLURM_NODE_STATE = '.kinbot_slurm_nodes.json'
 _SCHEDULER_QUERY_TIMEOUT = 15
 _SCHEDULER_QUERY_FAILURE_TIMEOUT = 60
 _SCHEDULER_SUBMIT_TIMEOUT = 30
-_SLURM_TERMINAL_STATES = {
-    'BOOT_FAIL', 'CANCELLED', 'COMPLETED', 'DEADLINE', 'FAILED',
-    'NODE_FAIL', 'OUT_OF_MEMORY', 'PREEMPTED', 'TIMEOUT',
-}
 _SUBMISSION_LOCK = threading.RLock()
 _QC_SITE_BACKENDS = {
     'gauss': ('gaussian', 'g16'),
@@ -198,19 +195,7 @@ def _save_slurm_node_failure(owner, node, job, job_id, record):
 
 def _slurm_job_record(job_id):
     """Return the retained one-line Slurm record for a completed job."""
-    try:
-        result = subprocess.run(
-            ['scontrol', 'show', 'job', '-o', str(job_id)],
-            capture_output=True, text=True, check=False,
-            timeout=_SCHEDULER_QUERY_TIMEOUT)
-    except (OSError, subprocess.TimeoutExpired):
-        return {}
-    if result.returncode or not result.stdout.strip():
-        return {}
-    return {
-        match.group(1): match.group(2)
-        for match in re.finditer(r'(\w+)=([^\s]+)', result.stdout)
-    }
+    return slurm_job_record(job_id, timeout=_SCHEDULER_QUERY_TIMEOUT)
 
 
 def _slurm_job_active(job_id):

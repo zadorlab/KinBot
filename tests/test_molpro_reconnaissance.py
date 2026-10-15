@@ -837,6 +837,8 @@ def test_shared_campaign_capacity_reuses_live_jobs_and_keeps_dependencies(
     def scheduler(command, **kwargs):
         if command[0] == 'squeue':
             return SimpleNamespace(stdout='\n'.join(sorted(live)), returncode=0)
+        if command[0] == 'scontrol':
+            return SimpleNamespace(stdout='', returncode=1)
         assert command[0] == 'sbatch'
         directory = Path(kwargs['cwd'])
         manifest = json.loads((directory.parent / 'reconnaissance.json').read_text())
@@ -954,6 +956,8 @@ def test_shared_failure_drains_other_phases_and_collects_all_results(
     protected = {p: p.read_bytes() for p in tmp_path.rglob('*.inp')}
     tick = [0]
     def scheduler(command, **kwargs):
+        if command[0] == 'scontrol':
+            return SimpleNamespace(stdout='', returncode=1)
         assert command[0] == 'squeue', 'No submissions or cancellations after probe failure'
         # Include an unrelated allocation: it must not delay campaign exit.
         return SimpleNamespace(stdout='2\n999\n' if tick[0] == 0 else '999\n')

@@ -164,9 +164,15 @@ def test_progress_distinguishes_draining_from_finished_failure(tmp_path):
         path.write_text(json.dumps(saved))
         result = campaign.progress(root)
         assert result['status'] == expected
+        assert result['error'] == 'CASSCF did not converge.'
+        assert result['failed_jobs'] == 1
         panel = result['systems'][0]['manifest']
         assert panel['failed'] == 1 and panel['failures'][0]['job_id'] == '42'
         assert panel['failures'][0]['directory'] == manifest['jobs'][0]['directory']
+        compact = campaign.progress(root, failures_only=True)
+        assert 'systems' not in compact
+        assert compact['failures'][0]['reason'] == result['error']
+        assert compact['failures'][0]['phase'] == 'manifest'
 
 
 @pytest.mark.parametrize('unselected_state', ['stopped', 'live', 'uncertain'])

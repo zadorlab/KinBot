@@ -238,12 +238,13 @@ def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False, probe_method=
         return campaign
 
 
-def progress(root):
+def progress(root, *, failures_only=False):
     """Read progress without fighting a live controller's manifest lock."""
     root = Path(root).expanduser().resolve()
     data = json.loads((root / 'campaign.json').read_text())
     systems = []
-    draining = False
+    active_failures = []
+    excluded_nodes, startup_retries = set(), 0
     for record in data['systems']:
         item = {'title': record['title']}
         if data.get('selected_probe_method'):
@@ -251,6 +252,9 @@ def progress(root):
             item['selected'] = method == data['selected_probe_method']
         for key in ('pilot_manifest', 'manifest'):
             manifest = json.loads(Path(record[key]).read_text())
+            excluded_nodes.update(manifest.get('slurm_excluded_nodes', []))
+            startup_retries += sum(len(job.get('startup_retry_history', []))
+                                   for job in manifest['jobs'])
             item[key] = {'status': manifest['status'], 'jobs': len(manifest['jobs']),
                          'complete': sum(job.get('status') == 'complete' for job in manifest['jobs'])}
             failures = [{'name': job['name'], 'directory': job['directory'],
@@ -258,15 +262,21 @@ def progress(root):
                         for job in manifest['jobs'] if job.get('terminal_failure')]
             if failures:
                 item[key].update(failed=len(failures), failures=failures)
-                draining |= item.get('selected', True)
+                if item.get('selected', True):
+                    active_failures.extend({'system': record['title'], 'phase': key, **failure}
+                                           for failure in failures)
             if manifest.get('excluded_jobs'):
                 item[key]['excluded_jobs'] = len(manifest['excluded_jobs'])
                 item[key]['excluded_bases'] = manifest['excluded_bases']
         systems.append(item)
-    status = 'draining_after_failure' if draining and data['status'] == 'running' else data['status']
-    return {'status': status, 'max_jobs': data.get('max_jobs'),
+    status = 'draining_after_failure' if active_failures and data['status'] == 'running' else data['status']
+    result = {'status': status, 'max_jobs': data.get('max_jobs'),
             'selected_probe_method': data.get('selected_probe_method'),
-            'error': data.get('error'), 'systems': systems}
+            'error': data.get('error') or (active_failures[0]['reason'] if active_failures else None),
+            'failed_jobs': len(active_failures), 'startup_retries': startup_retries,
+            'slurm_excluded_nodes': sorted(excluded_nodes)}
+    result.update({'failures': active_failures} if failures_only else {'systems': systems})
+    return result
 
 
 def retry_failed(root, *, include_interrupted=False):
@@ -327,7 +337,8 @@ def collect(root, destination):
         identifiers = set()
         for manifest in snapshots.values():
             for job in manifest['jobs'] + manifest.get('excluded_jobs', []):
-                for attempt in [job, *job.get('attempt_history', [])]:
+                for attempt in [job, *job.get('attempt_history', []),
+                                *job.get('startup_retry_history', [])]:
                     identifier = str(attempt.get('job_id', ''))
                     if identifier.isdigit():
                         identifiers.add(identifier)
@@ -492,6 +503,8 @@ def main(argv=None):
                        help='Run only this probe method; retain other systems as unresolved controls.')
     report = commands.add_parser('progress')
     report.add_argument('root')
+    report.add_argument('--failures-only', action='store_true',
+                        help='Show failed selected jobs without the full system inventory.')
     check = commands.add_parser('preflight')
     check.add_argument('root')
     stop = commands.add_parser('stop-controller', help='Stop only the controller, keeping Slurm jobs running.')
@@ -529,7 +542,7 @@ def main(argv=None):
     elif args.action == 'exclude-bases':
         result = exclude_bases(args.root, args.basis)
     else:
-        result = progress(args.root)
+        result = progress(args.root, failures_only=args.failures_only)
     print(json.dumps(result, indent=2))
     return 0
 

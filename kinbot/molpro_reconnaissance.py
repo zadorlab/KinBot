@@ -12,6 +12,7 @@ from copy import deepcopy
 import fcntl
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shlex
@@ -31,7 +32,7 @@ from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            molpro_wfu_name, _vrc_multireference_method,
                            vrc_multireference_energy_contract)
 from kinbot.theory import fortran_threshold
-from kinbot.execution import atomic_json, file_sha256
+from kinbot.execution import atomic_json, file_sha256, slurm_job_record, SLURM_TERMINAL_STATES
 from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
                                MolproScratchError, molpro_io_failure)
 
@@ -1629,6 +1630,104 @@ def retry_failed(manifest_path, *, include_interrupted=False):
                 'completed_preserved': sum(job['status'] == 'complete' for job in manifest['jobs'])}
 
 
+def _recover_slurm_startup_failures(path, manifest, live):
+    """Recover positively identified pre-shell I/O failures, never QC failures.
+
+    Slurm's ESLURMD_IO_ERROR (4021) can appear as ExitCode=0:53. The
+    batch-script retry guard cannot run when slurmstepd cannot open stdio.
+    Retain scontrol evidence before it expires; absence from squeue alone is
+    never authorization to resubmit. Caller holds the manifest lock.
+    """
+    for job in manifest['jobs']:
+        job.pop('startup_failure', None)
+        identifier = str(job.get('job_id', ''))
+        if not identifier or identifier in live or job['status'] == 'complete':
+            continue
+        directory = Path(job['directory'])
+        # Any runtime evidence rules out this narrow automatic recovery.
+        if any((directory / name).exists() for name in
+               ('execution.json', job['name'] + '.native.inp', job['name'] + '.out')):
+            continue
+        record = slurm_job_record(identifier)
+        if record.get('JobId') == identifier:
+            job['scheduler_record'] = record
+        else:
+            record = job.get('scheduler_record', {})
+            # A cached RUNNING/PENDING observation cannot keep a vanished
+            # allocation alive forever after the scheduler purges it.
+            if record.get('JobState') not in SLURM_TERMINAL_STATES:
+                record = {}
+        if (record.get('JobId') != identifier or
+                record.get('WorkDir') != str(directory)):
+            continue
+        state = record.get('JobState')
+        if state and state not in SLURM_TERMINAL_STATES:
+            # scontrol can already know about a requeue absent from the
+            # preceding squeue snapshot. Keep its allocation reserved.
+            live.add(identifier)
+            job.pop('missing_since', None)
+            continue
+        node = record.get('BatchHost', '')
+        if (state != 'FAILED' or record.get('ExitCode') != '0:53'
+                or not _SAFE.fullmatch(node) or node == 'None'):
+            continue
+        # Empty stdio files are possible when only one stream opened. A
+        # nonempty stream or retry-guard journal means the shell may have run.
+        if (any(p.is_file() and p.stat().st_size for suffix in
+                ('.stdout', '.stderr', '.launcher.stdout', '.launcher.stderr')
+                for p in [directory / (job['name'] + suffix)])
+                or any((directory / '.kinbot_slurm_io_retries').glob(
+                    '*/' + identifier))):
+            continue
+        manifest['slurm_excluded_nodes'] = sorted(
+            set(manifest.get('slurm_excluded_nodes', [])) | {node})
+        job['startup_failure'] = (
+            f'Slurm batch I/O initialization failed on {node} '
+            f'(job {identifier}, ExitCode=0:53); no native execution was started.')
+        # Allow filesystem publication before deciding the batch never ran.
+        if time.time() - job.setdefault('missing_since', time.time()) <= 60.:
+            continue
+        history = job.setdefault('startup_retry_history', [])
+        if len(history) >= 2:
+            job['startup_failure'] += ' Automatic startup retry limit (2) exhausted.'
+            continue
+        inp = directory / (job['name'] + '.inp')
+        if file_sha256(inp) != job['input_sha256']:
+            raise ValueError('Probe input changed; refusing automatic Slurm startup retry.')
+        history.append({'job_id': identifier, 'scheduler_record': deepcopy(record),
+                        'input_sha256': job['input_sha256'], 'time': time.time(),
+                        'reason': job['startup_failure']})
+        for key in ('job_id', 'missing_since', 'terminal_failure', 'startup_failure',
+                    'scheduler_record'):
+            job.pop(key, None)
+        job.update(status='incomplete', submission_status='retry_ready')
+        print(f'{job["name"]}: retrying Slurm startup failure from job {identifier}; '
+              f'excluding {node} (retry {len(history)}/2).', flush=True)
+    # Evidence and retry readiness are committed together, before sbatch.
+    atomic_json(Path(path), manifest)
+
+
+def _slurm_submission_environment(batch, excluded):
+    """Add campaign exclusions without discarding environment/script choices."""
+    if not excluded:
+        return None  # Normal subprocess inheritance.
+    if any(not isinstance(node, str) or not _SAFE.fullmatch(node) for node in excluded):
+        raise ValueError('Invalid recorded Slurm exclusion node.')
+    values = [os.environ.get('SBATCH_EXCLUDE', ''), *sorted(excluded)]
+    for line in batch.splitlines():
+        if not line.lstrip().startswith('#SBATCH '):
+            continue
+        tokens = shlex.split(line.lstrip()[len('#SBATCH '):])
+        for i, token in enumerate(tokens):
+            if token in ('--exclude', '-x') and i + 1 < len(tokens):
+                values.append(tokens[i + 1])
+            elif token.startswith('--exclude='):
+                values.append(token.split('=', 1)[1])
+            elif token.startswith('-x') and len(token) > 2:
+                values.append(token[2:])
+    return {**os.environ, 'SBATCH_EXCLUDE': ','.join(v for v in values if v)}
+
+
 def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
             live_job_ids=None, startup_checked=False, audited_manifest=None):
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
@@ -1651,6 +1750,8 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
     # The shared controller already audited under the same held locks and
     # scheduler snapshot; avoid rehashing every large checkpoint twice.
     manifest = audited_manifest if audited_manifest is not None else _audit(path, live_job_ids=live)
+    if audited_manifest is None:
+        _recover_slurm_startup_failures(path, manifest, live)
     active = sum(str(job.get('job_id')) in live for job in manifest['jobs'])
     # Validate one native probe before widening a fresh manifest's launch.
     # This catches shared input/runtime failures without duplicating them
@@ -1708,7 +1809,9 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
         try:
             result = subprocess.run(
                 ['sbatch', '--export=ALL', '--parsable', job['name'] + '.sbatch'],
-                cwd=job['directory'], capture_output=True, text=True, timeout=30)
+                cwd=job['directory'], capture_output=True, text=True, timeout=30,
+                env=_slurm_submission_environment(batch.read_text(),
+                                                  manifest.get('slurm_excluded_nodes', [])))
         except subprocess.TimeoutExpired as error:
             raise RuntimeError(f'{job["name"]}: sbatch timed out; submission outcome is '
                                'uncertain. Retain the submitting journal for scheduler '
@@ -1767,6 +1870,13 @@ def _finished(manifest_path, manifest, live):
             deadline = job.setdefault('missing_since', time.time())
             if not job.get('terminal_failure') and time.time() - deadline > 60.:
                 reason = '; '.join(job.get('validation_errors', [])) or 'No validated result was published.'
+                if job.get('startup_failure'):
+                    reason = job['startup_failure']
+                elif job.get('scheduler_record', {}).get('JobId') == str(job['job_id']):
+                    record = job['scheduler_record']
+                    reason += (f' Slurm: {record.get("JobState")}, '
+                               f'{record.get("Reason")}, ExitCode={record.get("ExitCode")}, '
+                               f'BatchHost={record.get("BatchHost")}.')
                 job['terminal_failure'] = (f'{job["name"]}: queued probe ended without '
                     f'valid output: {reason} Inspect {execution_path} '
                     'and native output before retrying.')
@@ -1816,6 +1926,17 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
             # Re-audit every phase before allocating slots. An apparently
             # finished output remains untrusted while its allocation is live.
             snapshots = {p: _audit(p, live_job_ids=live) for p in all_paths}
+            for path, manifest in snapshots.items():
+                _recover_slurm_startup_failures(path, manifest, live)
+            # Persist the union in all phases, so later phases and resumed
+            # controllers also avoid identified failing nodes. No global
+            # environment or cluster configuration is changed.
+            excluded = sorted({node for m in snapshots.values()
+                               for node in m.get('slurm_excluded_nodes', [])})
+            if excluded:
+                for path, manifest in snapshots.items():
+                    manifest['slurm_excluded_nodes'] = excluded
+                    atomic_json(path, manifest)
             finished, failures = {}, []
             for path, manifest in snapshots.items():
                 try:

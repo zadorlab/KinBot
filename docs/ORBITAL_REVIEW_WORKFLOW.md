@@ -116,6 +116,13 @@ cannot establish native convergence, active-space accuracy or rate accuracy.
 Run this block in the existing Blodgett SSH session. `set -e` is confined to a
 child shell, so a failed command does not exit the SSH login shell. It stops
 only the specified campaign trees. It does not remove old results or WFU files.
+Pull first to install the corrected cleanup command. Cancellation waits up to
+five minutes by default: Slurm can retain a job in `COMPLETING` while its
+processes and node epilog finish. The command prints progress and saves
+`cleanup_status.json`; a timeout reports the remaining jobs/processes, returns
+nonzero and leaves the directory in place. A repeated `--stop` is safe once
+the queue has drained. Use a longer `--timeout SECONDS` if needed; do not
+restart while scoped jobs remain.
 The fixed new campaign path makes a repeated launch resume the same work;
 use a new path if you edit the comparison plan.
 
@@ -128,12 +135,12 @@ OLD=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_20261014_193525
 NEW=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015
 PLANS=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015_inputs
 
-"$KB_PY" -m kinbot.run_cleanup "$OLD" --stop
-if [ -f "$NEW/campaign.json" ]; then
-    "$KB_PY" -m kinbot.run_cleanup "$NEW" --stop
-fi
 env -u LD_LIBRARY_PATH -u LD_PRELOAD \
     git -c submodule.recurse=false pull --ff-only origin composite
+"$KB_PY" -m kinbot.run_cleanup "$OLD" --stop --timeout 300
+if [ -f "$NEW/campaign.json" ]; then
+    "$KB_PY" -m kinbot.run_cleanup "$NEW" --stop --timeout 300
+fi
 "$KB_PY" -m pip install -e . --no-build-isolation --no-deps
 "$KB_PY" -m kinbot.orbital_review --help
 "$KB_PY" -m kinbot.orbital_campaign archive-excluded "$OLD"

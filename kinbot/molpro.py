@@ -935,6 +935,10 @@ class Molpro:
                         slurm_feature=self.par['slurm_feature'],
                         slurm_exclude_directive=slurm_exclude_directive,
                         walltime_directive=walltime_directive))
+        if self.par['queuing'] == 'slurm':
+            from kinbot.slurm_retry import wrap_script
+            path = Path(file_string)
+            path.write_text(wrap_script(path.read_text(), identity=fname, prefixes=[fname]))
         return 0
 
     def molpro_symm(self):

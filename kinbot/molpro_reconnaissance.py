@@ -30,7 +30,8 @@ from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            validate_input_blocks, compact_molpro_titles)
 from kinbot.theory import fortran_threshold
 from kinbot.execution import atomic_json
-from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
+from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
+                               MolproScratchError, molpro_io_failure)
 
 
 _SAFE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\Z')
@@ -514,6 +515,9 @@ def _prepare(source, output):
                 f'exec {shlex.quote(sys.executable)} -m kinbot.molpro_reconnaissance execute '
                 f'{shlex.quote(str(manifest_file))} {shlex.quote(stem)}\n')
             sbatch.chmod(0o700)
+            from kinbot.slurm_retry import wrap_script
+            sbatch.write_text(wrap_script(sbatch.read_text(), identity=stem,
+                                         directories=[str(directory)]))
             records.append({
                 **old_job,
                 'name': stem, 'basis': basis['basis'], 'anchor': anchor['name'],
@@ -611,7 +615,8 @@ def execute(manifest_path, name):
     atomic_json(record, execution)
     try:
         env, runtime = qc_runtime_environment('molpro', 'molpro', work_directory=directory,
-                                              scratch_min_mb=job.get('scratch_min_mb'))
+                                              scratch_min_mb=job.get('scratch_min_mb'),
+                                              avoid_scratch_roots=job.get('io_failed_scratch_roots', []))
         command = ['molpro', '-d', runtime['scratch_directory'], '-W', str(directory), '-t', '1',
                    '-n', str(job['ppn']), '-o', f'{name}.out', native.name]
         launcher_stdout = directory / f'{name}.launcher.stdout'
@@ -631,10 +636,13 @@ def execute(manifest_path, name):
                 tail = '\n'.join(path.read_text(errors='replace').splitlines()[-20:])
                 if tail.strip():
                     detail += f'\n{label}:\n{tail}'
+            execution['retryable_io'] = molpro_io_failure(detail)
             raise RuntimeError(f'{name}: Molpro exited with status {result.returncode}.{detail}')
         execution['status'] = 'complete'
     except BaseException as error:
         execution.update(status='failed', error=str(error))
+        if isinstance(error, MolproScratchError):
+            execution['retryable_io'] = error.retryable_io
         raise
     finally:
         atomic_json(record, execution)
@@ -1045,6 +1053,12 @@ def _submit(manifest_path, *, max_jobs=8):
             job['initial_wfu_sha256'] = prior['wfu_sha256']
             job['input_sha256'] = hashlib.sha256(inp.read_bytes()).hexdigest()
         job['submission_status'] = 'submitting'
+        # Existing snapshotted campaigns gain the shared batch retry guard
+        # without changing the chemically meaningful prepared input/hash.
+        from kinbot.slurm_retry import wrap_script
+        batch = Path(job['directory']) / (job['name'] + '.sbatch')
+        batch.write_text(wrap_script(batch.read_text(), identity=job['name'],
+                                     directories=[job['directory']]))
         atomic_json(path, manifest)
         result = subprocess.run(['sbatch', '--export=ALL', '--parsable', job['name'] + '.sbatch'],
                                 cwd=job['directory'], capture_output=True, text=True)

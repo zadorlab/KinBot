@@ -137,14 +137,42 @@ remain available for an explicitly chosen future comparison.
     path-separated `KINBOT_MOLPRO_SCRATCH_FALLBACKS` list. Each candidate must
     satisfy the same capacity floor. Host, selected root and rejected
     candidates are recorded; reconnaissance also retains launcher stdout and
-    stderr and includes their tails in errors. No automatic native retry is
-    added. A probe cannot prevent later filesystem failures or repair a mount.
+    stderr and includes their tails in errors. The shared Slurm I/O retry
+    policy below supersedes the earlier manual-only recovery. A probe cannot
+    prevent later filesystem failures or repair a mount.
     The follow-up native QZ-F12 record independently reports `Permission
     denied: /scratch/hram`. Usable scratch capacity on one node is not evidence
     of permissions or mount health on another. Nodes for jobs `52907311` and
     `52907317` require administrator lookup in the restricted controller log
     `/var/log/slurm-llnl/slurmctld.log`, then storage/mount and directory/ACL
     checks respectively. The underlying cause of EIO remains unresolved.
+13. **Shared automatic Slurm I/O recovery.** All KinBot batch generators now
+    use `kinbot.slurm_retry`: ordinary QC and its custom templates, independent
+    CBH/ANL tasks, orbital recon, ROTD samples, standalone Molpro single points,
+    MESS/UQ and MESMER. Two batch retries are enabled by default, configurable
+    through `KINBOT_SLURM_IO_RETRIES` (0 disables; maximum 10). Only explicit
+    failed OS/native I/O diagnostics or a classified scratch setup error
+    qualify. Syntax, basis, convergence, multiplicity and generic nonzero exits
+    do not qualify. A zero-exit ordinary QC worker with an error DB row and
+    I/O diagnostics is also eligible.
+    Retries stay inside the same allocation and retain its node/CPU/memory/time
+    limits; they never submit duplicate jobs or bypass the ten-node cap.
+    Failed job-owned results are archived and exact pre-job checkpoints are
+    restored, rather than consuming a WFU/CHK from a failed write. Shared DBs,
+    unrelated job files and Slurm-owned output streams are left in place.
+    Molpro retries prefer another explicitly allowed scratch root and create
+    a fresh isolated repository. Logs, seeds, host, allocation and attempt
+    outcomes remain in `.kinbot_slurm_io_retries`.
+    Ordinary QC publishes its final marker only after the guard finishes.
+    ROTD workers publish completed pickles atomically and repeat the original
+    random sequence on retry. This prevents partial completion consumption
+    and silently replacing the attempted Monte Carlo samples. Existing staged
+    recon/ANL scripts acquire the guard when next submitted, after their
+    existing provenance checks; running jobs are not altered.
+    Failures before Slurm starts the batch script, an unreadable working
+    filesystem that prevents journaling, and unknown submission outcomes
+    cannot be retried by this in-allocation guard. They remain explicit
+    scheduler/site failures; the guard is not a storage repair mechanism.
 
 All state routing follows input species/fragment terms and spin coupling;
 the implementation contains no CH3S/CH3SS name-dependent physics. Bond indices,
@@ -219,8 +247,8 @@ prove the same cause. The runbook's run-scoped stop/archive preserves those
 attempts and does not kill unrelated jobs or delete shared scratch.
 
 Current regression results are recorded in the runbook/release handoff.
-The final suite, including XML title-overflow and scratch-I/O recovery, passes **1267 tests
-and 391 subtests**, all 159
+The final suite, including shared Slurm I/O retries and atomic ROTD completion,
+passes **1295 tests and 391 subtests**, all 161
 non-template modules parse, and the diff and documented shell syntax checks
 pass. The actual SI verifier passes again. The only suite warnings are the
 existing deprecated `imp` import and Sella external-cache permissions.

@@ -2,7 +2,8 @@
 
 **Current procedure:** see [implementation and acceptance status](WORKFLOW_READINESS_2026-10-14.md).
 Preserve the existing campaign. Its reduced D/T/Q basis selection is retained.
-For the latest CH3SS scratch I/O failure, use the final recovery section below.
+For the latest CH3SS scratch I/O failure, use the shared-retry restart at the
+end of this runbook; it supersedes the earlier manual-only procedures.
 Conventional-5Z RHF completed
 using about 138 GB of scratch, then Molden rejected h functions. Use the
 published native XML/WFU recovery below after all campaign allocations finish.
@@ -435,8 +436,9 @@ permits alternatives, in order, separated by the platform's path separator
 (`:` on Blodgett). The same capacity requirement applies to every candidate.
 Reconnaissance records its host and launcher stdout/stderr, including stderr
 in controller errors even when Molpro produced no `.out` file. The shared
-runtime check also covers production Molpro paths. There is no automatic
-native retry or guarantee against a filesystem failing after its probe.
+runtime check also covers production Molpro paths. The shared automatic retry
+release below supersedes the earlier manual-only behavior; a probe still
+cannot guarantee that later filesystem operations succeed.
 
 Let the remaining job `52907312` finish. Wait for all campaign allocations to
 leave before running the following block. It preserves successful pilots and
@@ -497,3 +499,81 @@ stderr/host retention when native output is absent.
 The subsequent directory-permission regression also passes: all 41 targeted
 runtime/reconnaissance tests pass with that additional case. Runtime code is
 unchanged from the full-suite-tested version.
+
+## Shared automatic I/O retry and full in-place restart
+
+Every KinBot-generated Slurm job type now uses the same bounded retry guard:
+ordinary QC (including custom templates), CBH/ANL, reconnaissance, ROTD samples,
+standalone Molpro single points, MESS/UQ and MESMER. The default is two retries
+after the initial batch attempt. `KINBOT_SLURM_IO_RETRIES=0` disables them;
+values from 0 through 10 are accepted. Backend-specific chemistry recovery
+and convergence loops remain separate from these batch-level I/O retries.
+
+Only an unsuccessful job with explicit OS/native I/O evidence is retried.
+Permissions, syntax, missing basis, spin and convergence errors remain
+failures. A permission-denied scratch root may still be bypassed during
+ordinary scratch selection when a permitted healthy fallback exists.
+
+Each retry runs within the same allocation and existing walltime; it does not
+request another node or evade admission limits. Job-owned partial artifacts
+are archived and initial WFU/CHK/pickle seeds restored and hash checked.
+Native Molpro scratch is recreated and another permitted root is preferred.
+Shared databases, unrelated jobs and Slurm-managed streams are never rolled
+back. Logs, original seeds, host/allocation and per-attempt outcomes are under
+`.kinbot_slurm_io_retries` in the job working directory. Recon review collection
+includes these attempt records and text diagnostics, leaving binary WFU files
+on the cluster.
+
+Ordinary QC final markers are deferred until retries end. ROTD completion
+pickles are published atomically, and retries restore the original random
+sequence as well as the input flux. A failed write cannot become a completed
+sample or cause substitution of a fresh Monte Carlo batch.
+
+Let all current campaign allocations finish first, including `52907312` if
+it remains live. Existing successes, reduced D/T/Q selection and native input
+hashes are retained. This block updates the same campaign and loads the saved
+Molpro setup automatically in each allocation:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+.venv/bin/python -m pip install -e . --no-build-isolation --no-deps
+KB_PY=/home/hram/KinBot/.venv/bin/python
+"$KB_PY" -c 'from kinbot.slurm_retry import retry_limit; assert retry_limit({}) == 2'
+CAMPAIGN=$(cat /home/hram/kinbot-runs/last_sulfur_orbital_campaign.txt)
+export KINBOT_SLURM_IO_RETRIES=2
+export KINBOT_MOLPRO_SCRATCH="/scratch2/$USER/kinbot-molpro"
+export KINBOT_MOLPRO_SCRATCH_FALLBACKS="$HOME/.cache/kinbot/molpro"
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+"$KB_PY" -m kinbot.orbital_campaign retry-failed "$CAMPAIGN"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"
+cd "$CAMPAIGN"
+if [ -f controller.log ]; then
+    mv controller.log "controller.previous.$(date +%Y%m%d_%H%M%S).log"
+fi
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$CAMPAIGN" \
+    --max-jobs 10 --max-refinements 3 \
+    > controller.log 2>&1 < /dev/null &
+printf '%s\n' "$!" > controller.pid
+printf 'Campaign: %s\nController PID: %s\n' "$CAMPAIGN" "$!"
+BASH
+```
+
+The explicit `retry-failed` reconciles failures from the older release once.
+Subsequent qualifying I/O failures are handled automatically within the stated
+limit. A final failure after retries still stops the controller and retains
+all evidence. A batch script that Slurm cannot start, or a broken working
+filesystem that prevents journal/seed creation, needs scheduler/site recovery;
+the guard cannot execute before the job itself starts. The `/scratch` EIO
+and directory permission faults still need administrator diagnosis and repair.
+
+Shared-retry release validation: **1295 tests and 391 subtests pass**; all 161
+non-template Python modules parse and all eleven runbook Bash blocks pass
+syntax checks. Tests execute the real Bash guard, check recursion and ROTD's
+late template formatting, preserve exact initial checkpoints, reject unrelated
+failures, bound/disable retries, honor current pickles over historical DB rows,
+defer ordinary QC completion markers, select another allowed scratch root,
+and verify atomic ROTD publication and random-sequence replay.

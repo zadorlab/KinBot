@@ -350,6 +350,11 @@ class MESMER:
                 qu.write(tpl_head)
                 qu.write(tpl)
 
+        if self.par['queuing'] == 'slurm':
+            from pathlib import Path
+            from kinbot.slurm_retry import wrap_script
+            path = Path(submitscript)
+            path.write_text(wrap_script(path.read_text(), identity='mesmer', prefixes=['me/mesmer']))
         command = [constants.qsubmit[self.par['queuing']], submitscript]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()

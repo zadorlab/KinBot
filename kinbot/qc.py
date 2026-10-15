@@ -1661,6 +1661,11 @@ class QuantumChemistry:
             sys.exit()
 
         qu_file = '{}{}'.format(job, constants.qext[self.queuing])
+        if self.queuing == 'slurm':
+            from kinbot.slurm_retry import wrap_script
+            job_template = wrap_script(job_template, identity=job,
+                prefixes=[job, os.path.join('perm', job)],
+                exit_marker=f'{job}.exitcode', qc_job=job)
         with open(qu_file, 'w') as f_out_qu:
             f_out_qu.write(job_template)
 

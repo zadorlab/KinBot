@@ -141,6 +141,9 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
                          '#SBATCH --exclusive'
                          if par.get('rotdpy_exclusive') else ''))
     path = folder / 'qu.tpl'
+    from kinbot.slurm_retry import wrap_script
+    rendered = wrap_script(rendered, identity='surf{surf_id}_face{face_id}_samp{samp_id}',
+                           prefixes=['surf{surf_id}_face{face_id}_samp{samp_id}'], template=True)
     path.write_text(rendered)
     return str(path)
 

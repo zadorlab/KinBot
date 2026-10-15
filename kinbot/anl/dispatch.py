@@ -666,7 +666,9 @@ def _slurm_script(task, directory, python):
     elif _backend(task) == 'mrcc':
         lines.append(f'export MKL_NUM_THREADS={_omp_threads(task)}')
     lines.append(f'{shlex.quote(python)} -m kinbot.anl.dispatch run-task task.json')
-    return '\n'.join(lines) + '\n'
+    from kinbot.slurm_retry import wrap_script
+    return wrap_script('\n'.join(lines) + '\n', identity=task['id'],
+                       directories=[str(directory)], python=python)
 
 
 def _stage_task(run_dir, spec, state, task):
@@ -2208,6 +2210,17 @@ def advance(run_dir, submit=False, submit_only=None):
                 continue
             if not entry or entry['status'] != 'staged':
                 continue
+            # Migrate an older, verified staged script when it next submits;
+            # completed/running allocations and native input hashes stay put.
+            from kinbot.slurm_retry import wrap_script
+            directory = run_dir / 'tasks' / ident
+            script_path = directory / 'job.slurm'
+            original_script = script_path.read_text()
+            guarded = wrap_script(original_script, identity=ident,
+                                  directories=[str(directory)], python=state['python'])
+            if guarded != original_script:
+                script_path.write_text(guarded)
+                entry['job_sha256'] = _file_hash(script_path)
             entry['status'] = 'submitting'
             _atomic_json(run_dir / 'state.json', state)
             directory = run_dir / 'tasks' / ident

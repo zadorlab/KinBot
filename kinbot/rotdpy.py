@@ -642,6 +642,17 @@ def number_of_states_ground(source: str | Path) -> float:
     return rows[max(indices)][0]
 
 
+def _guard_slurm_template(path):
+    """Upgrade the existing KinBot/ROTD template before starting new workers."""
+    from kinbot.slurm_retry import wrap_script
+    path = Path(path)
+    contents = path.read_text()
+    stem = 'surf{surf_id}_face{face_id}_samp{samp_id}'
+    contents = contents.replace(' ' + stem + '.py\n', ' -m kinbot.rotdpy_worker ' + stem + '\n')
+    contents = wrap_script(contents, identity=stem, prefixes=[stem], template=True)
+    path.write_text(contents)
+
+
 def run(input_file: str | Path, python: str | Path | None = None) -> dict:
     """Execute one generated input with the active KinBot interpreter.
 
@@ -682,6 +693,7 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
             f'{input_file.stem}.rotdpy.stdout')
         stderr_file = input_file.with_name(
             f'{input_file.stem}.rotdpy.stderr')
+        _guard_slurm_template(input_file.with_name('qu.tpl'))
         command = [str(python or sys.executable), input_file.name]
         completed = _run_controller(command, input_file.parent)
         stdout_file.write_text(completed.stdout)

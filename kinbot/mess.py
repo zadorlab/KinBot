@@ -2028,6 +2028,11 @@ class MESS:
             else:
                 f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature'], slurm_exclude_directive=slurm_exclude_directive, walltime_directive=walltime_directive))
                 f.write(tpl)
+        if self.par['queuing'] == 'slurm':
+            from kinbot.slurm_retry import wrap_script
+            path = Path(submitscript)
+            path.write_text(wrap_script(path.read_text(), identity='mess_' + mess_iter,
+                                        prefixes=['me/mess_' + mess_iter]))
         return 0
 
 

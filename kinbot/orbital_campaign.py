@@ -214,11 +214,11 @@ def collect(root, destination):
                     paths.update(path for path in directory.glob(name + '.*')
                                  if path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin'))
                     paths.add(directory / 'execution.json')
-                    attempts = directory / 'attempts'
-                    if attempts.is_dir():
-                        paths.update(path for path in attempts.rglob('*') if path.is_file()
-                            and (path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin')
-                                 or path.name == 'execution.json'))
+                    for attempts in (directory / 'attempts', directory / '.kinbot_slurm_io_retries'):
+                        if attempts.is_dir():
+                            paths.update(path for path in attempts.rglob('*') if path.is_file()
+                                and (path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin')
+                                     or path.name in ('execution.json', 'stdout.txt', 'stderr.txt')))
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tarfile.open(destination, 'w:gz') as archive:
             for path in sorted(paths):

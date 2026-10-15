@@ -25,4 +25,4 @@ fi
 export I_MPI_FABRICS="${{I_MPI_FABRICS:-shm}}"
 export MPLCONFIGDIR="$PWD/.matplotlib"
 mkdir -p "$MPLCONFIGDIR"
-@PYTHON@ surf{surf_id}_face{face_id}_samp{samp_id}.py
+@PYTHON@ -m kinbot.rotdpy_worker surf{surf_id}_face{face_id}_samp{samp_id}

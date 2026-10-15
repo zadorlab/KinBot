@@ -13,6 +13,7 @@ preserving an explicit site or user selection.
 from __future__ import annotations
 
 import errno
+import json
 import os
 from pathlib import Path
 import re
@@ -22,10 +23,21 @@ import subprocess
 import sys
 import tempfile
 
+from kinbot.execution import atomic_json
+from kinbot.slurm_retry import io_failure as molpro_io_failure
+
 
 _MISSING = re.compile(r'^\s*(\S+)\s+=>\s+not found\s*$', re.MULTILINE)
 _FORTRAN = re.compile(r'libgfortran\.so\.\d+\Z')
 _DEFAULT_MOLPRO_SCRATCH_MB = 4096
+
+
+class MolproScratchError(RuntimeError):
+    """Scratch setup failed, with separately classified transient I/O evidence."""
+
+    def __init__(self, message, *, retryable_io=False):
+        super().__init__(message)
+        self.retryable_io = retryable_io
 
 
 def _positive_scratch_mb(value):
@@ -52,7 +64,7 @@ def _check_scratch_io(directory):
     probe.rmdir()
 
 
-def _molpro_scratch(child, work_directory, minimum_mb):
+def _molpro_scratch(child, work_directory, minimum_mb, *, avoid_roots=()):
     """Create and probe an isolated repository on a sufficiently large filesystem.
 
     An explicit root remains strict unless the user supplies an ordered,
@@ -93,14 +105,26 @@ def _molpro_scratch(child, work_directory, minimum_mb):
                 raise ValueError('KINBOT_MOLPRO_SCRATCH_FALLBACKS contains an empty path.')
             candidates.append(('KINBOT_MOLPRO_SCRATCH_FALLBACKS', Path(value).expanduser()))
 
+    def normalized(path):
+        path = Path(path).expanduser()
+        try:
+            return path.resolve()
+        except OSError:
+            return path.absolute()
+
+    inherited_avoid = json.loads(child.get('KINBOT_MOLPRO_AVOID_SCRATCH_ROOTS', '[]'))
+    if not isinstance(inherited_avoid, list) or any(not isinstance(path, str) or not path for path in inherited_avoid):
+        raise ValueError('KINBOT_MOLPRO_AVOID_SCRATCH_ROOTS must contain a JSON list of paths.')
+    avoided = {normalized(path) for path in [*avoid_roots, *inherited_avoid]}
+    # An automatic retry prefers another explicitly permitted filesystem.
+    # If none works, the old root may still be retried with a fresh repository.
+    candidates.sort(key=lambda candidate: normalized(candidate[1]) in avoided)
     usable = []
     seen = set()
     errors = []
+    retryable_io = False
     for source, root in candidates:
-        try:
-            root = root.resolve()
-        except OSError:
-            root = root.absolute()
+        root = normalized(root)
         if root in seen:
             continue
         seen.add(root)
@@ -117,6 +141,7 @@ def _molpro_scratch(child, work_directory, minimum_mb):
             scratch = Path(tempfile.mkdtemp(prefix='kinbot-molpro-', dir=root))
             _check_scratch_io(scratch)
         except OSError as exc:
+            retryable_io |= exc.errno in (errno.EIO, errno.ESTALE, errno.ETIMEDOUT)
             if scratch is not None:
                 shutil.rmtree(scratch, ignore_errors=True)
             errors.append(f'{source}={root} ({exc})')
@@ -130,6 +155,7 @@ def _molpro_scratch(child, work_directory, minimum_mb):
             'scratch_host': socket.gethostname(),
             'scratch_io_checked': True,
             'scratch_rejected_candidates': errors,
+            'scratch_previously_failed': root in avoided,
         }
 
     capacities = ', '.join(
@@ -137,11 +163,12 @@ def _molpro_scratch(child, work_directory, minimum_mb):
         for source, root, free_mb in usable)
     detail = '; '.join(filter(None, (capacities, ', '.join(errors))))
     if override:
-        raise RuntimeError('KINBOT_MOLPRO_SCRATCH cannot provide the required '
-                           f'{minimum_mb} MB: {detail or override}')
-    raise RuntimeError(f'No Molpro scratch filesystem has the required '
-                       f'{minimum_mb} MB free: {detail or "no usable candidates"}. '
-                       'Set KINBOT_MOLPRO_SCRATCH to a suitable directory.')
+        raise MolproScratchError('KINBOT_MOLPRO_SCRATCH cannot provide the required '
+                                 f'{minimum_mb} MB: {detail or override}', retryable_io=retryable_io)
+    raise MolproScratchError(f'No Molpro scratch filesystem has the required '
+                             f'{minimum_mb} MB free: {detail or "no usable candidates"}. '
+                             'Set KINBOT_MOLPRO_SCRATCH to a suitable directory.',
+                             retryable_io=retryable_io)
 
 
 def cleanup_qc_runtime(provenance):
@@ -199,7 +226,7 @@ def _runtime_candidates(soname, executable, env):
 
 
 def qc_runtime_environment(program, backend, env=None, *, work_directory=None,
-                           scratch_min_mb=None):
+                           scratch_min_mb=None, avoid_scratch_roots=()):
     """Return a child-only environment and selected runtime provenance.
 
     A loaded module or normal system runtime wins.  For CFOUR installations
@@ -215,9 +242,12 @@ def qc_runtime_environment(program, backend, env=None, *, work_directory=None,
                       if child.get('I_MPI_FABRICS') else {})
         if work_directory is not None:
             scratch, scratch_provenance = _molpro_scratch(
-                child, work_directory, scratch_min_mb)
+                child, work_directory, scratch_min_mb, avoid_roots=avoid_scratch_roots)
             child['TMPDIR'] = str(scratch)
             provenance.update(scratch_provenance)
+            attempt = child.get('KINBOT_SLURM_IO_ATTEMPT_DIRECTORY')
+            if attempt:
+                atomic_json(Path(attempt) / f'scratch-{scratch.name}.json', scratch_provenance)
         return child, provenance
     if backend != 'cfour':
         return child, {}

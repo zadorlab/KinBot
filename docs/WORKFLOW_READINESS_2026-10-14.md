@@ -71,6 +71,12 @@ remain available for an explicitly chosen future comparison.
    and WFU hashes establish that only the export failed. The same correction
    covers 5Z-F12. Production correction decks also export XML, after CASSCF,
    instead of invoking the same unsupported Molden path.
+   The first CH3SS XML pilot exposed a second export fault: its long generated
+   `***` title overflowed Molpro's XML string insertion. Execution now uses a
+   short deterministic ASCII title in both recon and production correction
+   decks. The original recon input/hash stays immutable; no chemistry changes.
+   Recovery also recognizes this specific XML failure, requiring the same
+   converged-RHF and exact-input/checkpoint evidence before reusing SCF.
 2. **Deferred full-PES loss of ROTD results.** Workers now save hash-bound
    per-UQ convolution contexts containing their modes, rotors, stoichiometry,
    electronic counting, and symmetry. Final PES assembly revalidates the
@@ -193,7 +199,8 @@ prove the same cause. The runbook's run-scoped stop/archive preserves those
 attempts and does not kill unrelated jobs or delete shared scratch.
 
 Current regression results are recorded in the runbook/release handoff.
-The final resumed suite passes **1251 tests and 391 subtests**, all 159
+The final suite, including XML title-overflow recovery, passes **1260 tests
+and 391 subtests**, all 159
 non-template modules parse, and the diff and documented shell syntax checks
 pass. The actual SI verifier passes again. The only suite warnings are the
 existing deprecated `imp` import and Sella external-cache permissions.

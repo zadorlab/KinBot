@@ -12,6 +12,7 @@ import pytest
 from kinbot.anl.extrapolation import two_point_cbs
 from kinbot.molpro import (Molpro, _vrc_multireference_method,
                            automatic_vrc_state_model,
+                           compact_molpro_titles,
                            full_valence_active_space,
                            stage_vrc_state_model,
                            validate_vrc_state_model,
@@ -643,7 +644,8 @@ def test_single_reference_anchor_cannot_silently_ignore_an_excited_cas_root():
     validate_vrc_single_reference_root('uccsd(t)-f12b', {'selected_roots': {4: 1}}, 4)
 
 
-def test_vrc_avastart_and_native_export_follow_the_requested_charged_state(tmp_path, monkeypatch):
+@pytest.mark.parametrize('name', ['ion', 'general_channel_name_' * 5])
+def test_vrc_avastart_and_native_export_follow_the_requested_charged_state(tmp_path, monkeypatch, name):
     monkeypatch.chdir(tmp_path)
     Path('vrctst/molpro').mkdir(parents=True)
     species = SimpleNamespace(atom=['Li', 'H'], geom=np.asarray([[0., 0., 0.], [1.6, 0., 0.]]),
@@ -653,12 +655,36 @@ def test_vrc_avastart_and_native_export_follow_the_requested_charged_state(tmp_p
             'orbital_selection': {'mode': 'avas', 'threshold': .1, 'minao_basis': 'MINAO',
                 'centers': [{'atom': 1, 'orbitals': ['2s', '2p']}]}})
     parameters = {'vrc_tst_scan_molpro_tpl': '', 'vrc_tst_scan_molpro_key': 'MYENERGY'}
-    Molpro(species, parameters).create_molpro_input(name='ion', VTS=True,
+    Molpro(species, parameters).create_molpro_input(name=name, VTS=True,
         vrc_level={'method': 'caspt2-f12b(1,4)', 'basis': 'av5z-f12', 'state_model': model})
-    deck = Path('vrctst/molpro/ion.inp').read_text()
+    deck = Path(f'vrctst/molpro/{name}.inp').read_text()
+    assert len(deck.splitlines()[0].split(',', 1)[1]) <= 32
     assert 'set,charge=1\nset,spin=1' in deck
     assert deck.index('{avas,') < deck.index('maxit,50;}') < deck.index('put,xml,') < deck.index('{rs2-f12')
     assert 'put,molden' not in deck
+
+
+@pytest.mark.parametrize('title', [
+    'ch3ss_orbital_reconnaissance_pilot orbital reconnaissance: avd__cs_r_1p636013716',
+    'arbitrary user input ' * 100,
+    '\u03c3 orbital diagnostic',
+    ' ' * 100 + 'short label',
+])
+def test_native_xml_titles_are_short_deterministic_and_leave_chemistry_intact(title):
+    body = '\r\nbasis=avtz-f12\r\n{rhf;wf,23,1,1}\r\nput,xml,orbitals.xml\r\n'
+    original = '***,' + title + body
+    shortened = compact_molpro_titles(original)
+    header = shortened.split('\r\n', 1)[0]
+    assert header.isascii() and len(header.split(',', 1)[1]) <= 32
+    assert shortened == compact_molpro_titles(original)
+    assert shortened == compact_molpro_titles(shortened)
+    assert shortened[shortened.index('\r\n'):] == body
+    assert shortened != compact_molpro_titles('***,' + title + 'different' + body)
+
+
+def test_short_legacy_molpro_titles_are_unchanged():
+    deck = '***,KinBot\n{rhf}\n***, second job\n{rhf}\n'
+    assert compact_molpro_titles(deck) == deck
 
 
 def test_spin_splitting_rejects_nonadjacent_cbs_pairs_and_bad_options():

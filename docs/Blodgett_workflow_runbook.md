@@ -1,8 +1,8 @@
 # Blodgett orbital reconnaissance checkpoint — 14 October 2026
 
 **Current procedure:** see [implementation and acceptance status](WORKFLOW_READINESS_2026-10-14.md).
-Preserve the existing campaign. For the latest cost-reduced restart use the
-final section below; it excludes both 5Z families without deleting evidence.
+Preserve the existing campaign. Its reduced D/T/Q basis selection is retained.
+For the latest CH3SS XML title failure, use the final recovery section below.
 Conventional-5Z RHF completed
 using about 138 GB of scratch, then Molden rejected h functions. Use the
 published native XML/WFU recovery below after all campaign allocations finish.
@@ -366,3 +366,55 @@ scalar and multistate assembly with UQ energy/mode changes, retained optional
 exit selection, reference-root contracts, native export rendering, runtime
 failure records, cost-reduced restart and preservation through refinement.
 Native Molpro/Slurm/MESS execution remains a cluster acceptance step.
+
+## Recover the CH3SS XML title overflow in the same campaign
+
+The reported `strings::string_insert` failure happened at the first XML export,
+after RHF and before AVAS/CASCI. The generated title exceeded the exporter's
+internal string capacity. Native recon and production correction decks now use
+short deterministic ASCII titles. This is a general execution safeguard, not
+a molecule-specific or basis-specific exception. Prepared recon inputs and
+their hashes remain unchanged. Completed legacy Molden results remain valid.
+
+After pulling this title-fix release, use the following block once all campaign
+allocations have left. The scheduler-checked retry preserves six completed
+CH3S pilots, the existing D/T/Q basis selection, and all failure evidence. It
+reuses the failed CH3SS pilot's RHF only if exact input, a finite native RHF
+energy, the RHF program summary and its archived WFU support recovery.
+Otherwise the failed probe starts again from its normal initialization.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+.venv/bin/python -m pip install -e . --no-build-isolation --no-deps
+KB_PY=/home/hram/KinBot/.venv/bin/python
+"$KB_PY" -c 'from kinbot.molpro import compact_molpro_titles; assert len(compact_molpro_titles("***," + "x" * 100).split(",", 1)[1]) <= 32'
+CAMPAIGN=$(cat /home/hram/kinbot-runs/last_sulfur_orbital_campaign.txt)
+export KINBOT_MOLPRO_SCRATCH="/scratch/$USER/kinbot-molpro"
+"$KB_PY" -m kinbot.orbital_campaign retry-failed "$CAMPAIGN"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"
+cd "$CAMPAIGN"
+if [ -f controller.log ]; then
+    mv controller.log "controller.previous.$(date +%Y%m%d_%H%M%S).log"
+fi
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$CAMPAIGN" \
+    --max-jobs 10 --max-refinements 3 \
+    > controller.log 2>&1 < /dev/null &
+printf '%s\n' "$!" > controller.pid
+printf 'Campaign: %s\nController PID: %s\n' "$CAMPAIGN" "$!"
+BASH
+```
+
+Preserved `site_setup.sh` files still load Molpro for each allocation.
+No new campaign, module guess, basis exclusion, or manual `.sbatch` submission
+is needed. The native retry is the acceptance check for this Molpro export
+path; local regression fixtures do not replace licensed execution.
+
+Title-fix release validation: **1260 tests and 391 subtests pass**, including
+reported-title execution, immutable-input preservation, SCF recovery from
+both known export failures, rejection of unproven SCF recovery, long production
+channel names, Unicode titles and padded user titles. All 159 non-template
+Python modules parse; all nine runbook Bash blocks pass `bash -n`.

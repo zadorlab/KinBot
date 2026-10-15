@@ -26,7 +26,7 @@ from ase.data import atomic_numbers
 from kinbot.anl.site import render_site_setup
 from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            _render_vrc_state_model, full_valence_active_space,
-                           validate_input_blocks)
+                           validate_input_blocks, compact_molpro_titles)
 from kinbot.theory import fortran_threshold
 from kinbot.execution import atomic_json
 from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
@@ -572,6 +572,7 @@ def execute(manifest_path, name):
     native = directory / f'{name}.native.inp'
     native_text = re.sub(r'(?i)put,molden,([^;\s}]+)\.molden',
                          r'put,xml,\1.orbitals.xml', inp.read_text())
+    native_text = compact_molpro_titles(native_text)
     recovery = job.get('recovered_scf')
     if recovery:
         source = Path(recovery['path'])
@@ -601,7 +602,7 @@ def execute(manifest_path, name):
                  'input_sha256': job['input_sha256'],
                  'native_input': str(native),
                  'native_input_sha256': hashlib.sha256(native.read_bytes()).hexdigest(),
-                 'input_transform': 'molden_to_native_xml_v1', 'orbital_exports': exports}
+                 'input_transform': 'native_xml_compact_title_v2', 'orbital_exports': exports}
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -939,7 +940,12 @@ def retry_failed(manifest_path):
             energies = re.findall(r'(?im)^\s*!RHF\s+STATE\s+\d+\.\d+\s+Energy\s+'
                                   r'([-+0-9.]+(?:[EDed][-+]?\d+)?)', output_text)
             wfu = directory / (job['name'] + '.wfu')
-            export_only = ('basis set contains h or higher' in output_text.lower()
+            output_lower = output_text.lower()
+            xml_title_overflow = all(marker in output_lower for marker in (
+                'dump information in style xml', 'string overflow inserting',
+                'strings::string_insert'))
+            export_only = (('basis set contains h or higher' in output_lower
+                            or xml_title_overflow)
                            and execution.get('input_sha256') == job['input_sha256']
                            and scf and energies and wfu.is_file() and wfu.stat().st_size
                            and re.search(r'PROGRAMS\s+\*[^\n]*RHF-SCF', output_text))

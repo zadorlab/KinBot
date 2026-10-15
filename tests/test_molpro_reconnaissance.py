@@ -447,6 +447,9 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
     from kinbot import molpro_reconnaissance as recon
     source = tmp_path / 'input.json'
     _coordinate_configuration(source)
+    data = json.loads(source.read_text())
+    data['title'] = 'ch3ss_orbital_reconnaissance_pilot'
+    source.write_text(json.dumps(data))
     path = prepare(source, tmp_path / 'recon')
     job = json.loads(path.read_text())['jobs'][0]
     directory, name = Path(job['directory']), job['name']
@@ -457,6 +460,8 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
         deck = (directory / command[-1]).read_text()
         assert 'put,molden' not in deck.lower()
         assert 'put,xml,' in deck.lower()
+        assert len(deck.splitlines()[0].split(',', 1)[1]) <= 32
+        assert 'ch3ss_orbital_reconnaissance_pilot orbital reconnaissance:' in original.decode()
         assert command[command.index('-o') + 1] == name + '.out'
         (directory / (name + '.out')).write_text(
             'NATURAL ORBITALS (STATE AVERAGED)\n===\n'
@@ -477,11 +482,20 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
     assert audited['occupation_source'] == 'native_state_averaged_table'
     assert len(audited['orbital_xml']) == 2
     assert (directory / (name + '.inp')).read_bytes() == original
+    execution = json.loads((directory / 'execution.json').read_text())
+    assert execution['input_transform'] == 'native_xml_compact_title_v2'
+    assert execution['input_sha256'] == hashlib.sha256(original).hexdigest()
     (directory / (name + '.natural.orbitals.xml')).write_text('incomplete XML')
     assert audit(path)['jobs'][0]['status'] == 'incomplete'
 
 
-def test_export_only_failure_recovers_the_converged_scf_record(tmp_path, monkeypatch):
+@pytest.mark.parametrize('failure', [
+    '? You have requested Molden output, but the basis set contains h or higher basis functions\n',
+    'Dump information in style XML to probe.orbitals.xml\n'
+    '? String overflow inserting 16 into ch3ss_orbital_reconnaissance_pilot orbital reconnaissance\n'
+    '? The problem occurs in strings::string_insert\n',
+])
+def test_export_only_failure_recovers_the_converged_scf_record(tmp_path, monkeypatch, failure):
     from types import SimpleNamespace
     from kinbot import molpro_reconnaissance as recon
     source = tmp_path / 'input.json'
@@ -494,11 +508,10 @@ def test_export_only_failure_recovers_the_converged_scf_record(tmp_path, monkeyp
     directory, name = Path(job['directory']), job['name']
     (directory / (name + '.out')).write_text(
         '!RHF STATE 1.1 Energy -437.09556216\n'
-        'PROGRAMS * TOTAL RHF-SCF INT FILE\n'
-        '? You have requested Molden output, but the basis set contains h or higher basis functions\n')
+        'PROGRAMS * TOTAL RHF-SCF INT FILE\n' + failure)
     (directory / (name + '.wfu')).write_bytes(b'converged RHF canonical record')
     (directory / 'execution.json').write_text(json.dumps({
-        'status': 'failed', 'input_sha256': job['input_sha256'], 'error': 'Molden export'}))
+        'status': 'failed', 'input_sha256': job['input_sha256'], 'error': 'orbital export'}))
     monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kw: SimpleNamespace(stdout=''))
     assert recon.retry_failed(path)['retry_ready'] == [name]
     saved = json.loads(path.read_text())['jobs'][0]
@@ -514,9 +527,38 @@ def test_export_only_failure_recovers_the_converged_scf_record(tmp_path, monkeyp
         assert 'orbital,2100.2,type=canonical' in deck
         assert 'reconenergy=-437.09556216' in deck
         assert '{multi,cas-ci;' in deck and 'wf,23,1,1' in deck
+        assert len(deck.splitlines()[0].split(',', 1)[1]) <= 32
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(recon.subprocess, 'run', native)
     recon.execute(path, name)
+
+
+@pytest.mark.parametrize('output', [
+    # A generic string overflow is not evidence of an XML-only failure.
+    '!RHF STATE 1.1 Energy -437.09556216\nPROGRAMS * TOTAL RHF-SCF INT FILE\n'
+    '? String overflow inserting 16\n? The problem occurs in strings::string_insert\n',
+    # An XML error without a converged RHF energy cannot recover a checkpoint.
+    'PROGRAMS * TOTAL RHF-SCF INT FILE\nDump information in style XML\n'
+    '? String overflow inserting 16\n? The problem occurs in strings::string_insert\n',
+])
+def test_retry_does_not_recover_unproven_export_only_scf(tmp_path, monkeypatch, output):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    manifest = json.loads(path.read_text())
+    job = manifest['jobs'][0]
+    job.update(job_id='42', submission_status='submitted')
+    path.write_text(json.dumps(manifest))
+    directory, name = Path(job['directory']), job['name']
+    (directory / (name + '.out')).write_text(output)
+    (directory / (name + '.wfu')).write_bytes(b'unverified checkpoint')
+    (directory / 'execution.json').write_text(json.dumps({
+        'status': 'failed', 'input_sha256': job['input_sha256']}))
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kw: SimpleNamespace(stdout=''))
+    assert recon.retry_failed(path)['retry_ready'] == [name]
+    assert 'recovered_scf' not in json.loads(path.read_text())['jobs'][0]
 
 
 def test_runtime_setup_failure_is_recorded_before_molpro_launch(tmp_path, monkeypatch):

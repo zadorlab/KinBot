@@ -18,6 +18,24 @@ import math
 logger = logging.getLogger('KinBot')
 
 
+def compact_molpro_titles(contents):
+    """Keep execution titles short enough for Molpro's native XML exporter.
+
+    Long generated job titles can overflow Molpro's internal XML strings even
+    after a successful electronic calculation. The 32-character bound leaves
+    conservative headroom; it is not a documented Molpro input-title limit.
+    Only title lines change. Full job identities remain in paths and metadata.
+    """
+    def compact(match):
+        title = match[2]
+        if len(title) <= 32 and title.isascii():
+            return match[0]
+        digest = hashlib.sha256(title.encode('utf-8')).hexdigest()[:16]
+        return match[1] + 'KinBot_' + digest
+
+    return re.sub(r'(?m)^([ \t]*\*\*\*[ \t]*,)([^\r\n]*)', compact, contents)
+
+
 def validate_input_blocks(contents, label='Molpro input'):
     """Reject unmatched generated program/geometry delimiters before launch.
 
@@ -804,13 +822,14 @@ class Molpro:
                         energy_expression = 'energy'
 
             with open('vrctst/molpro/' + fname + '.inp', 'w') as f:
-                    f.write(tpl.format(options=options,
-                                       fname=fname,
-                                       basis=basis,
-                                       geometry_block=geometry_block,
-                                       methods=method,
-                                       key=self.par['vrc_tst_scan_molpro_key'].upper(),
-                                       energy_expression=energy_expression))
+                contents = tpl.format(options=options,
+                                      fname=fname,
+                                      basis=basis,
+                                      geometry_block=geometry_block,
+                                      methods=method,
+                                      key=self.par['vrc_tst_scan_molpro_key'].upper(),
+                                      energy_expression=energy_expression)
+                f.write(compact_molpro_titles(contents))
                                        
         return 0
 

@@ -342,6 +342,12 @@ BASH
    report retains all method/reference labels. Profiles do not silently merge
    different campaigns or state averages; comparison of A/B points must retain
    their explicit provenance and match the full method labels.
+   The [PCCP 2007 guidance](ORBITAL_REVIEW_WORKFLOW.md#what-accuracy-means-for-this-workflow)
+   also motivates a still-untested CH3 + S2 CAS(7,5) pi-manifold candidate.
+   Verify its orbital identities before constructing it and compare against
+   CAS(9,7) at matched radial/angular points. It is not included in the current
+   A/B recipes; their smallest CH3 + S2 space must not be presented as a
+   demonstrated minimum-cost choice.
 4. Only surviving combinations warrant additional coverage of inner/outer
    anchors and, if the measured DZ/TZ difference or reference disagreement
    requires it, sparse QZ-F12 checks. There is no routine CBS or full QZ scan.

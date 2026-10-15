@@ -57,6 +57,40 @@ explicitly uses (2e,2o) for methyl + methyl, together with a high-level correcti
 Neither result assigns a universal kcal/mol error to CAS(2,2), or establishes
 that it suffices for resonance-stabilized radicals or open-shell atomic terms.
 
+The user-supplied passage from
+[Knepp et al., PCCP 2007, 9, 4315–4331](https://doi.org/10.1039/B705934E)
+provides a particularly direct statement of the chemical selection strategy.
+It reports CAS(2,2) for alkyl recombination, expansion to CAS(4,3) and state
+averaging for CH3 + OH, and inclusion of the relevant complete pi manifold
+for resonance-stabilized radicals. For alkyl + O2, its CAS(7,5) contains the
+alkyl radical orbital plus all four O2 pi/pi* orbitals; CAS(3,3) produced
+unphysical maxima. These are examples supporting chemically complete small
+spaces, not a molecule-to-CAS lookup table or a universal full-valence rule.
+
+The same passage describes inexpensive double-zeta orientational sampling
+with an orientation-independent correction from higher-level calculations.
+Its conventional TZ/QZ CBS correction removes a modest spurious saddle near
+2.2 angstrom in ethyl + O2. Therefore validate the **topology and magnitude of
+the corrected interaction potential**, including angular residuals and
+fragment relaxation, before judging a basis or space adequate. Conventional
+Dunning-basis results do not establish that F12 CBS is required, or that
+TZ-F12 automatically suffices. A sparse basis check can decide whether the
+correction is converged; separate fragment deformation from a frozen-fragment
+interaction comparison. Corrections transferred between chemically similar
+systems still require validation for the target event.
+
+For the present examples, CH3 + S(3P) motivates testing CAS(5,4): the methyl
+radical and all three sulfur 3p orbitals. By analogy with the O2 example,
+CH3 + S2 also warrants considering CAS(7,5), comprising the methyl radical
+and the complete S2 pi/pi* manifold. This is an **untested sulfur hypothesis**,
+not a result of the cited paper. The current CAS(9,7) candidate additionally
+retains the S2 3p-derived sigma/sigma* pair. Before preparing a smaller space,
+identify those orbitals from the native evidence and ensure the required
+states remain represented through the contributing approach geometries.
+Do not delete orbitals solely by their occupation rank. The CH3S + S channel
+requires its own fragment-state analysis. The current finite comparison
+batches have not yet tested this proposed CAS(7,5) reduction.
+
 Inner and outer models can require different spaces and averages. For example,
 the [NH2O study, section 2.2](https://doi.org/10.1021/acs.jpca.3c05181)
 uses (3e,3o) for inner NH + OH addition and (5e,4o) outside, where the additional

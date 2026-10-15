@@ -403,8 +403,7 @@ def test_anl1_f12_vrc_preset_is_augmented_and_preserves_overrides():
     assert parameters['vrc_tst_active_space'] == 'full_valence'
     assert parameters['vrc_tst_scan_basis'] == 'aug-cc-pVQZ'
     assert parameters['vrc_tst_scan_gradient'] == 'numerical'
-    assert parameters['vrc_tst_sample_basis'] == [
-        'avtz-f12', 'avqz-f12']
+    assert parameters['vrc_tst_sample_basis'] == 'avtz-f12'
     assert parameters['vrc_tst_spin_splitting']['reference']['basis'] == [
         'avtz-f12', 'avqz-f12']
 

@@ -209,7 +209,8 @@ def collect(root, destination):
                 for job in manifest['jobs']:
                     directory, name = Path(job['directory']), job['name']
                     paths.update(path for path in directory.glob(name + '.*')
-                                 if path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden'))
+                                 if path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin'))
+                    paths.add(directory / 'execution.json')
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tarfile.open(destination, 'w:gz') as archive:
             for path in sorted(paths):

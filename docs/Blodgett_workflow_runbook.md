@@ -255,3 +255,29 @@ archives only known failed native attempts, and clears only their old job IDs.
 It refuses live allocations or uncertain submissions. Do not resubmit `.sbatch`
 files manually or delete journals. A native failure after retry needs its own
 inspection; there is no unlimited automatic retry loop.
+
+## Molpro high-angular-momentum orbital exports
+
+The conventional 5Z RHF completed using about 138 GB of scratch, then its
+Molden export failed because Molpro's interface does not support h functions.
+This is not a 5Z-energy/VRC limitation. Execution now replaces only visualization
+exports with Molpro XML in a separately hashed native deck, preserving the
+original prepared input and all completed results. Native natural occupations,
+XML and WFU evidence are audited. An export-only failed attempt can reuse its
+converged RHF WFU if the native output, exact input hash and archived checkpoint
+establish that it completed; other failed SCF jobs cannot use this recovery.
+Wait until all pilot allocations leave before `retry-failed`. Keep using the
+existing campaign and the compute-node scratch override. No basis downgrade
+or removal of high-angular-momentum functions is performed.
+
+The default VRC production sampling level is now single-basis augmented TZ-F12.
+Correction-potential reference and spin-gap energies retain TZ/QZ-F12 CBS.
+Explicit legacy sampling-CBS requests still work but are no longer the preset.
+The existing sulfur reconnaissance retains all eight requested basis families,
+including conventional 5Z and 5Z-F12. Changing the production sampling preset
+does not change a campaign's snapshotted reconnaissance inputs.
+
+Recovery release validation: 1236 tests and 391 subtests pass. This includes
+native XML execution/auditing, old Molden acceptance, archived SCF recovery,
+and scalar/CBS sampling compatibility. Licensed Molpro XML execution still
+requires the next native retry; local tests verify the execution contract.

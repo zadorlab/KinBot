@@ -79,7 +79,7 @@ class TestBackendWarnings(unittest.TestCase):
                          'caspt2-f12b(2,2)')
         self.assertEqual(parameters['vrc_tst_scan_gradient'], 'numerical')
         self.assertEqual(parameters['vrc_tst_sample_basis'],
-                         ['avtz-f12', 'avqz-f12'])
+                         'avtz-f12')
         self.assertEqual(parameters['vrc_tst_correction_model'],
                          'spin_splitting')
 

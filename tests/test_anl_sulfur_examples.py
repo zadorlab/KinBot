@@ -34,7 +34,7 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert par['vrc_tst_state_model_file'] == f'{name}_state_model.json'
     assert par['vrc_tst_surface_model_file'] == f'{name}_surface_model.json'
     assert par['homolytic_bonds'] == {'initial': ([[0, 1]] if name == 'ch3s' else [[0, 1], [1, 2]])}
-    assert par['vrc_tst_sample_basis'] == ['avtz-f12', 'avqz-f12']
+    assert par['vrc_tst_sample_basis'] == 'avtz-f12'
     species = StationaryPoint(name, 0, 2, smiles=smiles)
     species.characterize()
     space = active_space_settings(par, species.atom, species.charge)

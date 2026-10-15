@@ -18,6 +18,7 @@ import shlex
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 
 import numpy as np
 from ase.data import atomic_numbers
@@ -555,11 +556,47 @@ def execute(manifest_path, name):
     if hashlib.sha256(inp.read_bytes()).hexdigest() != job['input_sha256']:
         raise ValueError(f'{name}: input changed before native execution.')
     validate_input_blocks(inp.read_text(), name)
+    # Molden cannot encode h and higher functions in Molpro 2024. Use the
+    # native XML exporter for every basis, without guessing a library's lmax.
+    # Keep the prepared input immutable so running/finished campaigns and
+    # refinement checkpoints retain their original fingerprints.
+    native = directory / f'{name}.native.inp'
+    native_text = re.sub(r'(?i)put,molden,([^;\s}]+)\.molden',
+                         r'put,xml,\1.orbitals.xml', inp.read_text())
+    recovery = job.get('recovered_scf')
+    if recovery:
+        source = Path(recovery['path'])
+        staged = directory / f'{name}.wfu'
+        if (recovery['input_sha256'] != job['input_sha256']
+                or not source.is_file() or not staged.is_file()
+                or hashlib.sha256(source.read_bytes()).hexdigest() != recovery['sha256']
+                or hashlib.sha256(staged.read_bytes()).hexdigest() != recovery['sha256']):
+            raise ValueError('Recovered SCF record no longer matches its archived source.')
+        native_text, changed = re.subn(r'(?i)\{rhf;[^{}]*\}',
+            '! Reusing converged SCF record from the archived export-only failure',
+            native_text, count=1)
+        if changed != 1:
+            raise ValueError('Cannot identify the original SCF block for recovery.')
+        native_text = native_text.replace('reconenergy=energy\n',
+            f'reconenergy={float(recovery["energy_hartree"])!r}\n', 1)
+        # Explicitly select the existing canonical record for the SCF export.
+        native_text = native_text.replace(f'put,xml,{name}.orbitals.xml',
+            f'{{put,xml,{name}.orbitals.xml;orbital,{recovery["record"]},type=canonical}}')
+    validate_input_blocks(native_text, name)
+    native.write_text(native_text)
+    exports = {'scf': str(directory / f'{name}.orbitals.xml')}
+    if job.get('natural_orbital_probe'):
+        exports['natural'] = str(directory / f'{name}.natural.orbitals.xml')
     env, runtime = qc_runtime_environment('molpro', 'molpro', work_directory=directory)
     command = ['molpro', '-d', runtime['scratch_directory'], '-W', str(directory), '-t', '1',
-               '-n', str(job['ppn']), inp.name]
+               '-n', str(job['ppn']), '-o', f'{name}.out', native.name]
     execution = {'schema': 1, 'status': 'running', 'command': command,
-                 'input_sha256': job['input_sha256'], 'runtime': runtime}
+                 'input_sha256': job['input_sha256'], 'runtime': runtime,
+                 'native_input': str(native),
+                 'native_input_sha256': hashlib.sha256(native.read_bytes()).hexdigest(),
+                 'input_transform': 'molden_to_native_xml_v1', 'orbital_exports': exports}
+    if recovery:
+        execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
     atomic_json(record, execution)
     try:
@@ -584,6 +621,43 @@ def audit(manifest_path):
         return _audit(manifest_path)
 
 
+def _native_occupations(text):
+    """Read the state-averaged native table, independently of export format."""
+    headers = list(re.finditer(r'NATURAL ORBITALS\s*\(STATE AVERAGED\)', text, re.I))
+    if not headers:
+        return []
+    table = re.split(r'Natural orbital dump', text[headers[-1].end():],
+                     maxsplit=1, flags=re.I)[0]
+    return [float(value.replace('D', 'E').replace('d', 'e')) for value in re.findall(
+        r'(?m)^\s*\d+\.\d+\s+([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+', table)]
+
+
+def _xml_evidence(directory, job):
+    record = directory / 'execution.json'
+    if not record.is_file():
+        return None
+    execution = json.loads(record.read_text())
+    native = Path(execution.get('native_input', directory / '__missing__'))
+    exports = execution.get('orbital_exports', {})
+    if (execution.get('status') != 'complete' or not native.is_file()
+            or hashlib.sha256(native.read_bytes()).hexdigest() != execution.get('native_input_sha256')
+            or execution.get('input_sha256') != job['input_sha256']
+            or 'scf' not in exports
+            or job.get('natural_orbital_probe') and 'natural' not in exports):
+        return None
+    evidence = {}
+    for kind, name in exports.items():
+        path = Path(name)
+        if path.parent.resolve() != directory.resolve() or not path.is_file() or not path.stat().st_size:
+            return None
+        try:
+            ET.parse(path)
+        except ET.ParseError:
+            return None
+        evidence[kind] = {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+    return evidence
+
+
 def _audit(manifest_path):
     path = Path(manifest_path).expanduser().resolve()
     manifest = json.loads(path.read_text())
@@ -591,7 +665,7 @@ def _audit(manifest_path):
     for job in manifest['jobs']:
         for key in ('energy_hartree', 'root_energies_hartree', 'state_energies_hartree',
                     'natural_occupations', 'natural_molden_sha256',
-                    'orbital_error'):
+                    'orbital_error', 'orbital_xml', 'occupation_source'):
             job.pop(key, None)
         directory = Path(job['directory'])
         stem = job['name']
@@ -601,14 +675,15 @@ def _audit(manifest_path):
         natural = directory / f'{stem}.natural.molden'
         inp = directory / f'{stem}.inp'
         output_text = output.read_text(errors='replace') if output.is_file() else ''
+        xml_evidence = _xml_evidence(directory, job)
         normal = (inp.is_file()
                   and hashlib.sha256(inp.read_bytes()).hexdigest() == job['input_sha256']
                   and 'Molpro calculation terminated' in output_text
                   and re.search(r'SETTING\s+RECONDONE\s*=\s*1(?:\.0*)?\s*(?:\n|$)', output_text)
                   and 'ERROR EXIT' not in output_text)
         job['status'] = ('complete' if normal and wfu.is_file()
-                         and wfu.stat().st_size and molden.is_file()
-                         and molden.stat().st_size else 'incomplete')
+                         and wfu.stat().st_size and (xml_evidence or
+                         molden.is_file() and molden.stat().st_size) else 'incomplete')
         energies = re.findall(r'SETTING\s+RECONENERGY\s*=\s*'
                               r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+(?:AU|HARTREE)\b',
                               output_text, re.IGNORECASE)
@@ -640,20 +715,27 @@ def _audit(manifest_path):
                            [float(value.replace('D', 'E').replace('d', 'e'))
                             for value in re.findall(r'(?im)^\s*Occup\s*=\s*'
                                 r'([-+0-9.]+(?:[EDed][-+]?\d+)?)', natural.read_text())])
+            if not occupations and xml_evidence:
+                occupations = _native_occupations(output_text)
             if (not occupations or any(not np.isfinite(value) or not 0. <= value <= 2.
                                        for value in occupations)
                     or abs(sum(occupations) - manifest['electron_count']) > .02):
                 job['status'] = 'incomplete'
             else:
                 job['natural_occupations'] = occupations
-                job['natural_molden_sha256'] = hashlib.sha256(natural.read_bytes()).hexdigest()
+                if natural.is_file():
+                    job['natural_molden_sha256'] = hashlib.sha256(natural.read_bytes()).hexdigest()
+                job['occupation_source'] = 'molden' if natural.is_file() else 'native_state_averaged_table'
         complete &= job['status'] == 'complete'
         if job['status'] == 'complete':
             job['output_sha256'] = hashlib.sha256(output.read_bytes()).hexdigest()
             job['wfu'] = str(wfu.resolve())
             job['wfu_sha256'] = hashlib.sha256(wfu.read_bytes()).hexdigest()
-            job['molden'] = str(molden.resolve())
-            job['molden_sha256'] = hashlib.sha256(molden.read_bytes()).hexdigest()
+            if molden.is_file() and molden.stat().st_size:
+                job['molden'] = str(molden.resolve())
+                job['molden_sha256'] = hashlib.sha256(molden.read_bytes()).hexdigest()
+            if xml_evidence:
+                job['orbital_xml'] = xml_evidence
         else:
             for key in ('output_sha256', 'wfu', 'wfu_sha256', 'molden',
                         'molden_sha256'):
@@ -679,7 +761,7 @@ def _audit(manifest_path):
     manifest['status'] = ('complete_review_required' if complete and sufficient else
                           'coverage_refinement_required' if complete else 'incomplete')
     manifest['review'] = ('Inspect orbital characters and occupations in every '
-                          'Molden/output pair; no active orbital identity is '
+                          'native XML/WFU or legacy Molden/output pair; no active orbital identity is '
                           'selected automatically.')
     atomic_json(path, manifest)
     return manifest
@@ -835,6 +917,28 @@ def retry_failed(manifest_path):
                 raise ValueError('Failed probe input changed; do not retry under the old manifest.')
             attempt = int(job.get('attempt', 1))
             archive = directory / 'attempts' / str(attempt)
+            # A failed visualization export does not invalidate the preceding
+            # converged RHF record. Reuse only an explicitly evidenced record,
+            # bound to this exact input; never reuse a failed SCF calculation.
+            output = directory / (job['name'] + '.out')
+            output_text = output.read_text(errors='replace') if output.is_file() else ''
+            scf = re.search(r'(?i)\{rhf;[^{}]*orbital,(\d+\.\d+)\}', inp.read_text())
+            energies = re.findall(r'(?im)^\s*!RHF\s+STATE\s+\d+\.\d+\s+Energy\s+'
+                                  r'([-+0-9.]+(?:[EDed][-+]?\d+)?)', output_text)
+            wfu = directory / (job['name'] + '.wfu')
+            export_only = ('basis set contains h or higher' in output_text.lower()
+                           and execution.get('input_sha256') == job['input_sha256']
+                           and scf and energies and wfu.is_file() and wfu.stat().st_size
+                           and re.search(r'PROGRAMS\s+\*[^\n]*RHF-SCF', output_text))
+            if energies:
+                scf_energy = float(energies[-1].replace('D', 'E').replace('d', 'e'))
+                export_only = export_only and np.isfinite(scf_energy)
+            recovery = None
+            if export_only:
+                recovery = {'path': str(archive / wfu.name),
+                            'sha256': hashlib.sha256(wfu.read_bytes()).hexdigest(),
+                            'record': scf[1], 'input_sha256': job['input_sha256'],
+                            'energy_hartree': scf_energy}
             archive.mkdir(parents=True, exist_ok=False)
             keep = {job['name'] + '.inp', job['name'] + '.sbatch'}
             for artifact in directory.iterdir():
@@ -850,6 +954,8 @@ def retry_failed(manifest_path):
             for key in ('job_id', 'missing_since'):
                 job.pop(key, None)
             job.update(attempt=attempt + 1, submission_status='retry_ready', status='incomplete')
+            if recovery:
+                job['recovered_scf'] = recovery
             retried.append(job['name'])
             atomic_json(path, manifest)
         return {'manifest': str(path), 'retry_ready': retried,
@@ -887,7 +993,14 @@ def _submit(manifest_path, *, max_jobs=8):
             raise RuntimeError(f'{job["name"]}: interrupted Slurm submission '
                                'requires scheduler reconciliation before resubmission.')
         predecessor = job.get('orbital_predecessor')
-        if predecessor:
+        if job.get('recovered_scf'):
+            import shutil
+            recovery = job['recovered_scf']
+            source = Path(recovery['path'])
+            if hashlib.sha256(source.read_bytes()).hexdigest() != recovery['sha256']:
+                raise RuntimeError('Archived SCF checkpoint changed before recovery.')
+            shutil.copyfile(source, Path(job['directory']) / (job['name'] + '.wfu'))
+        elif predecessor:
             prior = next(item for item in manifest['jobs'] if item['name'] == predecessor)
             if prior['status'] != 'complete':
                 continue

@@ -71,7 +71,7 @@ _VRC_ACCURACY_PRESETS = {
         'vrc_tst_scan_basis': 'avtz-f12',
         'vrc_tst_scan_gradient': 'numerical',
         'vrc_tst_sample_method': 'caspt2-f12b(2,2)',
-        'vrc_tst_sample_basis': ['avtz-f12', 'avqz-f12'],
+        'vrc_tst_sample_basis': 'avtz-f12',
         'vrc_tst_sample_extrapolation_power': ORIGINAL_ANL_POWER,
         'vrc_tst_high_method': 'mrci-f12b+q(2,2)',
         'vrc_tst_high_basis': ['avtz-f12', 'avqz-f12'],

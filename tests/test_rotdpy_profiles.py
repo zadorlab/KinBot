@@ -17,10 +17,12 @@ from kinbot.pes import (_rotdpy_sampling_calculator,
 from kinbot.vrc_correction import expected_levels, spin_splitting_settings
 
 
-def sulfur_correction(tmp_path, name='ch3s', roots=3):
+def sulfur_correction(tmp_path, name='ch3s', roots=3, sample_basis=None):
     source = (Path(__file__).parents[1] / 'examples' / 'anl' /
               f'{name}_anl1_f12' / f'{name}.json')
     par = Parameters(str(source), show_warnings=False).par
+    if sample_basis is not None:
+        par['vrc_tst_sample_basis'] = sample_basis
     par.update(input_file=str(tmp_path / 'input.json'), rotdpy_run=0,
                pp_orient='geometric',
                vrc_tst_scan={'parent': ['parent_hom_sci_1_2']})
@@ -76,16 +78,16 @@ def test_production_provenance_uses_the_actual_sulfur_channel(tmp_path, name, ro
     assert metadata['trusted_correction_level']['reference_multiplicity'] == 4
     calculator = _rotdpy_sampling_calculator(par, data, metadata)
     assert calculator['multiplicity'] == 2
-    assert calculator['basis'] == ['avtz-f12', 'avqz-f12']
+    assert calculator['basis'] == 'avtz-f12'
     for model in calculator['state_models_by_basis'].values():
         assert [entry['roots'] for entry in model['state_average']] == [roots, roots]
     # Resolving per-basis orbital models must not append correction bases to
     # the sampling basis list in the immutable provenance declaration.
-    assert data['levels']['sampling']['basis'] == ['avtz-f12', 'avqz-f12']
+    assert data['levels']['sampling']['basis'] == 'avtz-f12'
 
 
 def test_generated_cbs_input_is_valid_python_and_selects_worker_bridge(tmp_path, monkeypatch):
-    par, data, path = sulfur_correction(tmp_path)
+    par, data, path = sulfur_correction(tmp_path, sample_basis=['avtz-f12', 'avqz-f12'])
     monkeypatch.chdir(tmp_path)
     par['rotdpy_directory'] = 'custom_rotd'
     class SurfaceFixture:
@@ -111,11 +113,12 @@ def test_generated_cbs_input_is_valid_python_and_selects_worker_bridge(tmp_path,
     ('ch3ss', 1, 41, 'occ,23\nclosed,16', 12.),
     ('ch3ss', 6, 41, 'occ,23\nclosed,16', 3.),
 ])
+@pytest.mark.parametrize('sample_basis', ['avtz-f12', ['avtz-f12', 'avqz-f12']])
 def test_worker_evaluates_both_bases_with_correct_spin_and_parent_atom_order(
-        tmp_path, monkeypatch, name, roots, electrons, partition, sulfur_x):
+        tmp_path, monkeypatch, name, roots, electrons, partition, sulfur_x, sample_basis):
     pytest.importorskip('rotd_py')
     from kinbot.rotdpy_molpro import MolproSample, LegacyMolpro
-    par, data, path = sulfur_correction(tmp_path, name, roots)
+    par, data, path = sulfur_correction(tmp_path, name, roots, sample_basis)
     metadata = _rotdpy_validation_metadata(par, data, path, False, 4)
     model = _rotdpy_sampling_calculator(par, data, metadata)
     symbols = [symbol for fragment in data['frags_atom'] for symbol in fragment]
@@ -125,7 +128,8 @@ def test_worker_evaluates_both_bases_with_correct_spin_and_parent_atom_order(
     monkeypatch.chdir(tmp_path)
     sample = MolproSample('sample', atoms, calc)
     sample.create_input()
-    for index, basis in enumerate(model['basis']):
+    bases = model['basis'] if isinstance(model['basis'], list) else [model['basis']]
+    for index, basis in enumerate(bases):
         deck = (tmp_path / f'sample_basis_{index}.inp').read_text()
         assert f'basis={basis}\n' in deck
         assert f'wf,{electrons},1,1' in deck and f'wf,{electrons},1,3' in deck
@@ -146,11 +150,12 @@ def test_worker_evaluates_both_bases_with_correct_spin_and_parent_atom_order(
             'Molpro calculation terminated\n')
     monkeypatch.setattr(MolproSample, '_run_basis_job', native_run)
     sample.run()
-    assert calls == ['sample_basis_0', 'sample_basis_1']
-    assert sample.read_energy() / Hartree == pytest.approx(
-        two_point_cbs(-438., -438.1, upper_cardinal=4, power=3.7))
+    assert calls == [f'sample_basis_{index}' for index in range(len(bases))]
+    expected = (-438. if len(bases) == 1 else
+                two_point_cbs(-438., -438.1, upper_cardinal=4, power=3.7))
+    assert sample.read_energy() / Hartree == pytest.approx(expected)
     # A missing normal termination cannot create a valid sample energy.
-    Path('sample_basis_1.out').write_text('SETTING KB_GEOM_ENERGY = -438.1 AU\n')
+    Path(f'sample_basis_{len(bases) - 1}.out').write_text('SETTING KB_GEOM_ENERGY = -438.1 AU\n')
     with pytest.raises(ValueError, match='normally'):
         sample.read_energy()
 

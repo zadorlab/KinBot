@@ -440,3 +440,80 @@ def test_retry_archives_known_failure_and_preserves_completed_probe(tmp_path, mo
     assert (directory / 'attempts/1/execution.json').is_file()
     assert (directory / 'attempts/1' / (failed['name'] + '.inp')).is_file()
     assert recon.retry_failed(path)['retry_ready'] == []
+
+
+def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    job = json.loads(path.read_text())['jobs'][0]
+    directory, name = Path(job['directory']), job['name']
+    original = (directory / (name + '.inp')).read_bytes()
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *args, **kwargs: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *args: None)
+    def native(command, **kwargs):
+        deck = (directory / command[-1]).read_text()
+        assert 'put,molden' not in deck.lower()
+        assert 'put,xml,' in deck.lower()
+        assert command[command.index('-o') + 1] == name + '.out'
+        (directory / (name + '.out')).write_text(
+            'NATURAL ORBITALS (STATE AVERAGED)\n===\n'
+            + ''.join(f'{index}.1 2.00000 -1.0\n' for index in range(1, 12))
+            + '12.1 1.00000 -0.1\nNatural orbital dump\n'
+            'SETTING RECONENERGY = -436.1 HARTREE\n'
+            + ''.join(f'SETTING RECONR{index} = -436.1 HARTREE\n'
+                      for index in range(1, len(job['root_states']) + 1))
+            + 'SETTING RECONDONE = 1\nMolpro calculation terminated\n')
+        (directory / (name + '.wfu')).write_bytes(b'h functions retained in native WFU')
+        for suffix in ('.orbitals.xml', '.natural.orbitals.xml'):
+            (directory / (name + suffix)).write_text('<molpro><orbital occupation="1"/></molpro>')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', native)
+    recon.execute(path, name)
+    audited = audit(path)['jobs'][0]
+    assert audited['status'] == 'complete'
+    assert audited['occupation_source'] == 'native_state_averaged_table'
+    assert len(audited['orbital_xml']) == 2
+    assert (directory / (name + '.inp')).read_bytes() == original
+    (directory / (name + '.natural.orbitals.xml')).write_text('incomplete XML')
+    assert audit(path)['jobs'][0]['status'] == 'incomplete'
+
+
+def test_export_only_failure_recovers_the_converged_scf_record(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    manifest = json.loads(path.read_text())
+    job = manifest['jobs'][0]
+    job.update(job_id='42', submission_status='submitted')
+    path.write_text(json.dumps(manifest))
+    directory, name = Path(job['directory']), job['name']
+    (directory / (name + '.out')).write_text(
+        '!RHF STATE 1.1 Energy -437.09556216\n'
+        'PROGRAMS * TOTAL RHF-SCF INT FILE\n'
+        '? You have requested Molden output, but the basis set contains h or higher basis functions\n')
+    (directory / (name + '.wfu')).write_bytes(b'converged RHF canonical record')
+    (directory / 'execution.json').write_text(json.dumps({
+        'status': 'failed', 'input_sha256': job['input_sha256'], 'error': 'Molden export'}))
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kw: SimpleNamespace(stdout=''))
+    assert recon.retry_failed(path)['retry_ready'] == [name]
+    saved = json.loads(path.read_text())['jobs'][0]
+    assert saved['recovered_scf']['record'] == '2100.2'
+    assert saved['recovered_scf']['energy_hartree'] == -437.09556216
+    archive = Path(saved['recovered_scf']['path'])
+    (directory / (name + '.wfu')).write_bytes(archive.read_bytes())
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *args, **kw: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *args: None)
+    def native(command, **kwargs):
+        deck = (directory / command[-1]).read_text()
+        assert '{rhf;' not in deck
+        assert 'orbital,2100.2,type=canonical' in deck
+        assert 'reconenergy=-437.09556216' in deck
+        assert '{multi,cas-ci;' in deck and 'wf,23,1,1' in deck
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', native)
+    recon.execute(path, name)

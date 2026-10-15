@@ -54,3 +54,12 @@ vdW-complex discovery is deferred under the present example scope.
 The [current paused checkpoint](../../../docs/WORKFLOW_CHECKPOINT_2026-10-14.md)
 records native pilot feedback, scratch recovery, verified behavior and all
 remaining software/chemistry work. Full production is not yet released.
+
+Molpro's Molden interface rejects h and higher angular momenta. Recon execution
+now derives a hash-bound XML-export deck from the immutable prepared input;
+WFU/native orbital evidence retains the complete requested basis. Existing
+Molden results remain valid. Export-only failures with an evidenced converged
+RHF record can recover that record through the checked retry path.
+The production preset samples in one augmented TZ-F12 basis. CBS remains in
+the correction-potential reference/gap calculations; explicit sampling-CBS
+inputs remain supported for compatibility.

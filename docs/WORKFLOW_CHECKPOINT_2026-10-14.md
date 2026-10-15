@@ -1,5 +1,12 @@
 # Workflow checkpoint and pause — 14 October 2026
 
+**Resumed by the user.** This is the historical stopping record. Development
+has resumed; the current recovery and production-default changes are recorded
+in `Blodgett_workflow_runbook.md`. The existing eight-basis campaign remains
+unchanged by those updates. The subsequent conventional-5Z RHF completed,
+using about 138 GB of scratch, and failed only at the unsupported Molden
+export. The native XML/WFU recovery preserves that converged SCF evidence.
+
 Work pauses at the user's request after this checkpoint. The user runs all
 SSH. Existing and subsequently resumed Blodgett calculations may continue
 while development is paused. This document supersedes the earlier

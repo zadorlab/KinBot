@@ -491,8 +491,21 @@ def test_arithmetic_mean_reproduces_the_published_two_gap_average():
         'gap:mrci_f12_q:singlet': [-6.4],
         'gap:mrci_f12_q:triplet': [-6.0],
     }
-    result, _ = assemble_spin_splitting_reference([3.], energies, settings)
+    result, metadata = assemble_spin_splitting_reference([3.], energies, settings)
     assert result == pytest.approx([-10.35])
+    assert metadata['method_sensitivity']['absolute_spread'] == pytest.approx([.1])
+    assert metadata['method_sensitivity']['asymptote_referenced_spread'] == pytest.approx([0.])
+    assert 'not a statistical error bar' in metadata['method_sensitivity']['interpretation']
+
+
+def test_asymptote_is_input_driven_and_outside_the_scan_grid():
+    from kinbot.vrc_correction import asymptote_distance
+    assert asymptote_distance({'vrc_tst_asymptote_distance': 75.,
+                               'vrc_tst_scan_points': [3., 45.]}) == 75.
+    with pytest.raises(ValueError, match='exceed every'):
+        asymptote_distance({'vrc_tst_scan_points': [30.]})
+    with pytest.raises(ValueError, match='positive and finite'):
+        asymptote_distance({'vrc_tst_asymptote_distance': True})
 
 
 def test_molpro_spin_splitting_program_syntax_and_energy_variables(tmp_path):
@@ -579,6 +592,9 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
         generated = (directory / 'mrci.inp').read_text()
         assert 'KBVRCSEL=energd(2)' in generated
         assert 'MYENERGY = KBVRCSEL' in generated
+        assert 'put,xml,mrci.orbitals.xml' in generated
+        assert 'put,molden' not in generated
+        assert generated.index('maxit,50;}') < generated.index('put,xml,') < generated.index('{mrci-f12')
 
         # Values follow the structure of Molpro's published MRCI-F12 output:
         # ENERGY is variational; ENERGD is the CABS-inclusive +Q result.
@@ -616,6 +632,33 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
                 1, pytest.approx(-39.2))
     finally:
         os.chdir(previous)
+
+
+def test_single_reference_anchor_cannot_silently_ignore_an_excited_cas_root():
+    from kinbot.molpro import validate_vrc_single_reference_root
+    model = {'selected_roots': {2: 1, 4: 3}}
+    with pytest.raises(ValueError, match='cannot select excited CAS root 3'):
+        validate_vrc_single_reference_root('uccsd(t)-f12b', model, 4)
+    validate_vrc_single_reference_root('mrci-f12b+q(13,8)', model, 4)
+    validate_vrc_single_reference_root('uccsd(t)-f12b', {'selected_roots': {4: 1}}, 4)
+
+
+def test_vrc_avastart_and_native_export_follow_the_requested_charged_state(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    Path('vrctst/molpro').mkdir(parents=True)
+    species = SimpleNamespace(atom=['Li', 'H'], geom=np.asarray([[0., 0., 0.], [1.6, 0., 0.]]),
+        natom=2, name='ion', charge=1, mult=2)
+    model = automatic_vrc_state_model(['Li', 'H'], 1, [2],
+        active_space={'active_electrons': 1, 'active_orbitals': 4,
+            'orbital_selection': {'mode': 'avas', 'threshold': .1, 'minao_basis': 'MINAO',
+                'centers': [{'atom': 1, 'orbitals': ['2s', '2p']}]}})
+    parameters = {'vrc_tst_scan_molpro_tpl': '', 'vrc_tst_scan_molpro_key': 'MYENERGY'}
+    Molpro(species, parameters).create_molpro_input(name='ion', VTS=True,
+        vrc_level={'method': 'caspt2-f12b(1,4)', 'basis': 'av5z-f12', 'state_model': model})
+    deck = Path('vrctst/molpro/ion.inp').read_text()
+    assert 'set,charge=1\nset,spin=1' in deck
+    assert deck.index('{avas,') < deck.index('maxit,50;}') < deck.index('put,xml,') < deck.index('{rs2-f12')
+    assert 'put,molden' not in deck
 
 
 def test_spin_splitting_rejects_nonadjacent_cbs_pairs_and_bad_options():

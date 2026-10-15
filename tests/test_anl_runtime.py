@@ -97,3 +97,21 @@ def test_molpro_uses_large_home_scratch_when_tmp_is_too_small():
         assert provenance['scratch_minimum_mb'] == 1000
         cleanup_qc_runtime(provenance)
         assert not scratch.exists()
+
+
+def test_environment_can_raise_but_not_lower_a_molpro_task_disk_requirement(tmp_path):
+    from kinbot.anl.runtime import _molpro_scratch
+    unit = 1024 * 1024
+    def capacity(root):
+        return shutil._ntuple_diskusage(10000*unit, 5000*unit, 5000*unit)
+    environment = {'KINBOT_MOLPRO_SCRATCH': str(tmp_path),
+                   'KINBOT_MOLPRO_SCRATCH_MIN_MB': '6000'}
+    with patch('kinbot.anl.runtime.shutil.disk_usage', side_effect=capacity):
+        with pytest.raises(RuntimeError, match='6000 MB'):
+            _molpro_scratch(environment, tmp_path, 1000)
+        environment['KINBOT_MOLPRO_SCRATCH_MIN_MB'] = '1'
+        with pytest.raises(RuntimeError, match='7000 MB'):
+            _molpro_scratch(environment, tmp_path, 7000)
+        environment['KINBOT_MOLPRO_SCRATCH_MIN_MB'] = '1.5'
+        with pytest.raises(ValueError, match='positive integer'):
+            _molpro_scratch(environment, tmp_path, 1000)

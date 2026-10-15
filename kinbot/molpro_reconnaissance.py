@@ -296,7 +296,7 @@ def _load(path):
     if any(isinstance(value, bool) or not isinstance(value, int) or value < 1
            for value in (ppn, memory)):
         raise ValueError('ppn and memory_mw must be positive integers.')
-    for key in ('memory_mb', 'queue_job_limit'):
+    for key in ('memory_mb', 'queue_job_limit', 'scratch_min_mb'):
         if key in data and (isinstance(data[key], bool) or not isinstance(data[key], int)
                             or data[key] < 1):
             raise ValueError(f'{key} must be a positive integer.')
@@ -449,8 +449,9 @@ def _prepare(source, output):
     data = _load(source)
     root = Path(output).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
-    (root / 'site_setup.sh').write_text(
-        render_site_setup({'molpro': {'molpro'}}))
+    setup = root / 'site_setup.sh'
+    if not setup.is_file():
+        setup.write_text(render_site_setup({'molpro': {'molpro'}}))
     ppn = int(data.get('ppn', 8))
     partition = data.get('partition')
     memory_mb = int(data.get('memory_mb', ppn * data.get('memory_mw', 1000) * 8 * 1.25))
@@ -462,6 +463,12 @@ def _prepare(source, output):
     records = []
     manifest_file = root / 'reconnaissance.json'
     previous = (json.loads(manifest_file.read_text()) if manifest_file.is_file() else {})
+    # A stopped campaign may explicitly exclude costly basis families while
+    # retaining its immutable source configuration and all native evidence.
+    excluded_bases = previous.get('excluded_bases', [])
+    data['bases'] = [basis for basis in data['bases'] if basis['basis'] not in excluded_bases]
+    if not data['bases']:
+        raise ValueError('Basis selection would leave no reconnaissance jobs.')
     previous_jobs = {job['name']: job for job in previous.get('jobs', [])}
     predecessors = {}
     for basis in data['bases']:
@@ -526,10 +533,12 @@ def _prepare(source, output):
                 'basis_source': 'library',
                 'symbols': data['symbols'],
                 'ppn': ppn,
+                'scratch_min_mb': data.get('scratch_min_mb'),
             })
             if channel:
                 predecessors[(basis['name'], channel)] = stem
     manifest = {
+        **{key: previous[key] for key in ('excluded_bases', 'excluded_jobs') if key in previous},
         'schema': 1, 'source': data['_source'], 'title': data['title'],
         'electron_count': data['_electrons'], 'jobs': records,
         'scan_policy': data.get('scan_policy'),
@@ -587,11 +596,9 @@ def execute(manifest_path, name):
     exports = {'scf': str(directory / f'{name}.orbitals.xml')}
     if job.get('natural_orbital_probe'):
         exports['natural'] = str(directory / f'{name}.natural.orbitals.xml')
-    env, runtime = qc_runtime_environment('molpro', 'molpro', work_directory=directory)
-    command = ['molpro', '-d', runtime['scratch_directory'], '-W', str(directory), '-t', '1',
-               '-n', str(job['ppn']), '-o', f'{name}.out', native.name]
-    execution = {'schema': 1, 'status': 'running', 'command': command,
-                 'input_sha256': job['input_sha256'], 'runtime': runtime,
+    runtime = {}
+    execution = {'schema': 1, 'status': 'running',
+                 'input_sha256': job['input_sha256'],
                  'native_input': str(native),
                  'native_input_sha256': hashlib.sha256(native.read_bytes()).hexdigest(),
                  'input_transform': 'molden_to_native_xml_v1', 'orbital_exports': exports}
@@ -600,6 +607,12 @@ def execute(manifest_path, name):
     record = directory / 'execution.json'
     atomic_json(record, execution)
     try:
+        env, runtime = qc_runtime_environment('molpro', 'molpro', work_directory=directory,
+                                              scratch_min_mb=job.get('scratch_min_mb'))
+        command = ['molpro', '-d', runtime['scratch_directory'], '-W', str(directory), '-t', '1',
+                   '-n', str(job['ppn']), '-o', f'{name}.out', native.name]
+        execution.update(command=command, runtime=runtime)
+        atomic_json(record, execution)
         result = subprocess.run(command, cwd=directory, env=env, check=False)
         execution['returncode'] = result.returncode
         if result.returncode:
@@ -711,7 +724,7 @@ def _audit(manifest_path):
                         job['state_energies_hartree'] = [
                             {**state, 'energy_hartree': value}
                             for state, value in zip(job['root_states'], job['root_energies_hartree'])]
-            occupations = ([] if not natural.is_file() else
+            occupations = ([] if xml_evidence or not natural.is_file() else
                            [float(value.replace('D', 'E').replace('d', 'e'))
                             for value in re.findall(r'(?im)^\s*Occup\s*=\s*'
                                 r'([-+0-9.]+(?:[EDed][-+]?\d+)?)', natural.read_text())])
@@ -723,9 +736,9 @@ def _audit(manifest_path):
                 job['status'] = 'incomplete'
             else:
                 job['natural_occupations'] = occupations
-                if natural.is_file():
+                if not xml_evidence and natural.is_file():
                     job['natural_molden_sha256'] = hashlib.sha256(natural.read_bytes()).hexdigest()
-                job['occupation_source'] = 'molden' if natural.is_file() else 'native_state_averaged_table'
+                job['occupation_source'] = 'native_state_averaged_table' if xml_evidence else 'molden'
         complete &= job['status'] == 'complete'
         if job['status'] == 'complete':
             job['output_sha256'] = hashlib.sha256(output.read_bytes()).hexdigest()

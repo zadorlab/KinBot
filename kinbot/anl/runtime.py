@@ -36,6 +36,13 @@ def _molpro_scratch(child, work_directory, minimum_mb):
     """Create an isolated Molpro repository on a sufficiently large filesystem."""
     minimum_mb = _positive_scratch_mb(
         _DEFAULT_MOLPRO_SCRATCH_MB if minimum_mb is None else minimum_mb)
+    configured_minimum = child.get('KINBOT_MOLPRO_SCRATCH_MIN_MB')
+    if configured_minimum is not None:
+        if not re.fullmatch(r'[0-9]+', str(configured_minimum)) or int(configured_minimum) < 1:
+            raise ValueError('KINBOT_MOLPRO_SCRATCH_MIN_MB must be a positive integer.')
+        # The environment may raise a task's capacity requirement, never
+        # weaken an explicit resource request recorded with that task.
+        minimum_mb = max(minimum_mb, int(configured_minimum))
     override = child.get('KINBOT_MOLPRO_SCRATCH')
     if override:
         candidates = [('KINBOT_MOLPRO_SCRATCH', Path(override).expanduser())]

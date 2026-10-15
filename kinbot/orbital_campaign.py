@@ -4,7 +4,7 @@ System controllers run sequentially and wait for their Slurm allocations to
 leave, so max_jobs is a campaign-wide one-node job cap. No SSH is performed.
 """
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from copy import deepcopy
 import fcntl
 import json
@@ -171,6 +171,9 @@ def progress(root):
             manifest = json.loads(Path(record[key]).read_text())
             item[key] = {'status': manifest['status'], 'jobs': len(manifest['jobs']),
                          'complete': sum(job.get('status') == 'complete' for job in manifest['jobs'])}
+            if manifest.get('excluded_jobs'):
+                item[key]['excluded_jobs'] = len(manifest['excluded_jobs'])
+                item[key]['excluded_bases'] = manifest['excluded_bases']
         systems.append(item)
     return {'status': data['status'], 'max_jobs': data.get('max_jobs'),
             'error': data.get('error'), 'systems': systems}
@@ -206,17 +209,74 @@ def collect(root, destination):
             for key in ('pilot_manifest', 'manifest'):
                 manifest = recon.audit(record[key])
                 paths.add(Path(record[key]))
-                for job in manifest['jobs']:
+                for job in manifest['jobs'] + manifest.get('excluded_jobs', []):
                     directory, name = Path(job['directory']), job['name']
                     paths.update(path for path in directory.glob(name + '.*')
                                  if path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin'))
                     paths.add(directory / 'execution.json')
+                    attempts = directory / 'attempts'
+                    if attempts.is_dir():
+                        paths.update(path for path in attempts.rglob('*') if path.is_file()
+                            and (path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin')
+                                 or path.name == 'execution.json'))
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tarfile.open(destination, 'w:gz') as archive:
             for path in sorted(paths):
                 if path.is_file():
                     archive.add(path, arcname=str(path.relative_to(root)), recursive=False)
     return str(destination)
+
+
+def exclude_bases(root, bases):
+    """Reduce a stopped campaign without modifying/deleting its evidence.
+
+    Exact native basis identifiers are explicit user choices. Every manifest
+    is checked before any mutation; the selection persists during refinement.
+    Repeating the command is idempotent, including after an interrupted write.
+    """
+    root = Path(root).expanduser().resolve()
+    requested = set(bases)
+    if not requested or any(not isinstance(basis, str) or not basis.strip() for basis in requested):
+        raise ValueError('Specify at least one exact basis name.')
+    with _lock(root), ExitStack() as locks:
+        data = json.loads((root / 'campaign.json').read_text())
+        manifests = []
+        for record in data['systems']:
+            _validate_inputs(record)
+            for key in ('pilot_manifest', 'manifest'):
+                path = Path(record[key])
+                locks.enter_context(recon._manifest_lock(path.parent))
+                manifests.append((path, json.loads(path.read_text())))
+        queue = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                               text=True, check=True, timeout=30)
+        live = set(queue.stdout.split())
+        known = {job['basis'] for _, manifest in manifests
+                 for job in manifest['jobs'] + manifest.get('excluded_jobs', [])}
+        if requested - known:
+            raise ValueError('Unknown reconnaissance bases: ' + ', '.join(sorted(requested - known)))
+        for _, manifest in manifests:
+            if any(str(job.get('job_id')) in live for job in manifest['jobs']):
+                raise RuntimeError('Wait for all campaign allocations to leave before changing bases.')
+            if any(job.get('submission_status') == 'submitting' for job in manifest['jobs']):
+                raise RuntimeError('Reconcile uncertain Slurm submissions before changing bases.')
+            if not any(job['basis'] not in requested for job in manifest['jobs']):
+                raise ValueError('Basis selection would leave a manifest empty.')
+        reports = []
+        for path, manifest in manifests:
+            removed = [job for job in manifest['jobs'] if job['basis'] in requested]
+            manifest['jobs'] = [job for job in manifest['jobs'] if job['basis'] not in requested]
+            manifest.setdefault('excluded_jobs', []).extend(removed)
+            manifest['excluded_bases'] = sorted(set(manifest.get('excluded_bases', [])) | requested)
+            manifest['status'] = 'prepared_basis_selection'
+            atomic_json(path, manifest)
+            audited = recon._audit(path)
+            reports.append({'manifest': str(path), 'retained': len(manifest['jobs']),
+                            'newly_excluded': len(removed),
+                            'completed_preserved': sum(job['status'] == 'complete' for job in audited['jobs'])})
+        data['status'] = 'prepared_basis_selection'
+        data.pop('error', None)
+        atomic_json(root / 'campaign.json', data)
+        return reports
 
 
 def main(argv=None):
@@ -236,6 +296,10 @@ def main(argv=None):
     check.add_argument('root')
     retry = commands.add_parser('retry-failed')
     retry.add_argument('root')
+    selection = commands.add_parser('exclude-bases')
+    selection.add_argument('root')
+    selection.add_argument('--basis', action='append', required=True,
+                           help='Exact native basis identifier to exclude; repeat as needed.')
     bundle = commands.add_parser('collect')
     bundle.add_argument('root')
     bundle.add_argument('destination')
@@ -251,6 +315,8 @@ def main(argv=None):
         result = preflight(args.root)
     elif args.action == 'retry-failed':
         result = retry_failed(args.root)
+    elif args.action == 'exclude-bases':
+        result = exclude_bases(args.root, args.basis)
     else:
         result = progress(args.root)
     print(json.dumps(result, indent=2))

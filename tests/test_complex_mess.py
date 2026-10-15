@@ -411,6 +411,116 @@ class TestComplexMESS(unittest.TestCase):
         self.assertNotIn('Tunneling', output)
         self.assertNotIn('{blessname}', output)
 
+    def test_full_pes_stages_scalar_and_multistate_flux_after_network_energy_assignment(self):
+        from test_vrc_multistate import _completed_channel
+        root = Path.cwd()
+        for multistate in (False, True):
+            folder = root / ('multistate' if multistate else 'scalar')
+            folder.mkdir()
+            os.chdir(folder)
+            try:
+                parent, reactions = self.reactions(True)
+                reaction = reactions[0]
+                reaction.instance_name = 'r_hom_sci'
+                parent_name = routing_name(parent)
+                product_names = sorted(routing_name(p) for p in reaction.products)
+                product_key = '_'.join(product_names)
+                worker = folder / parent_name
+                worker.mkdir()
+                (worker / 'me').mkdir()
+                rotd = folder / 'rotdPy'
+                rotd.mkdir()
+                settings = dict(self.par, pes=1, smiles='C', uq_n=2,
+                    rotdpy_mess_mode='required', rotdpy_directory=str(rotd),
+                    vrc_tst_scan={parent_name: ['r_hom_sci']})
+                if multistate:
+                    manifest = _completed_channel(rotd)
+                    payload = json.loads(manifest.read_text())
+                    payload['reaction'] = reaction.instance_name
+                    manifest.unlink()
+                    (rotd / f'{reaction.instance_name}.multistate.json').write_text(json.dumps(payload))
+                    settings['vrc_tst_surface_model_file'] = str(rotd / 'surfaces.json')
+                else:
+                    (rotd / 'r_hom_sci.py').write_text('# generated scalar input\n')
+                    number = rotd / 'kb_r' / 'Ne_0.out'
+                    surface = rotd / 'kb_r' / 'output' / 'surface_0.dat'
+                    surface.parent.mkdir(parents=True)
+                    number.write_text('-186 0\n0 100\n100 200\n300 400\n')
+                    surface.write_text('native flux\n')
+                    files = [str(path.relative_to(rotd)) for path in (number, surface)]
+                    (rotd / 'r_hom_sci.rotdpy.json').write_text(json.dumps({
+                        'status': 'complete', 'surface_count': 1,
+                        'validation': {'dynamical_correction': .85,
+                            'dynamical_correction_application': 'number_of_states_flux'},
+                        'result_files': files, 'result_sha256': {
+                            name: hashlib.sha256((rotd/name).read_bytes()).hexdigest() for name in files}}))
+                def factor(parameter, iteration):
+                    if parameter in ('energy', 'barrier'):
+                        return 3. * iteration
+                    return 1. + .1 * iteration if parameter == 'freq' else 1.
+                with patch('kinbot.uncertaintyAnalysis.UQ.calc_factor', side_effect=factor):
+                    os.chdir(worker)
+                    MESS(settings, parent).write_input(None)
+                    original = {path.name: path.read_bytes() for path in worker.glob('*.mess')}
+                    os.chdir(folder)
+                    with patch('kinbot.pes.logger', logging.getLogger('KinBot'), create=True):
+                        pes.create_mess_input(settings, [parent_name], [product_key], [],
+                            [[parent_name, 'r_hom_sci', product_names, 0.]], [],
+                            {parent_name: 0.}, {product_key: 30.},
+                            {parent_name: parent_name, product_key: parent_name}, parent.mass, False)
+                for iteration in (0, 1):
+                    output = Path(f'me/mess_{iteration:04d}.inp').read_text()
+                    self.assertEqual(output.count('Core Rotd'), 2 if multistate else 1)
+                    self.assertNotIn('PhaseSpaceTheory', output)
+                    self.assertNotIn('kinbot_rotdpy_begin', output)
+                    self.assertNotIn('{ground_energy}', output)
+                    self.assertIn(str(1000 + 100*iteration), output)
+                    expected = 30. + 3.*iteration
+                    if not multistate:
+                        expected -= 186. * constants.AUtoKCAL / constants.AUtoCM
+                    self.assertTrue(any(abs(value-expected) < 1.e-7 for value in values(output, 'ZeroEnergy')))
+                    provenance = json.loads(Path(f'me/rotdpy_sources_{iteration:04d}.json').read_text())
+                    record = provenance['reactions']['r_hom_sci']
+                    self.assertEqual(record['network_ground_energy_kcal_mol'], 30.+3.*iteration)
+                    self.assertTrue(Path('me', record['staged_bottlenecks'][0]['file']
+                        if multistate else record['mess_file']).is_file())
+                self.assertEqual({path.name: path.read_bytes() for path in worker.glob('*.mess')}, original)
+                # Context tampering cannot change a final network convolution.
+                context = next((worker / 'me/rotdpy_models').glob('*.json'))
+                context.write_text('{}')
+                from kinbot.rotdpy_mess import resolve_models
+                # Check every UQ context; the first changed one must be rejected.
+                with self.assertRaisesRegex(ValueError, 'context changed'):
+                    for item in original.values():
+                        if b'kinbot_rotdpy_begin' in item:
+                            resolve_models(item.decode(), worker, settings, 30., {}, 'r_hom_sci')
+            finally:
+                os.chdir(root)
+
+    def test_required_rotd_does_not_require_unselected_optional_vdw_exits(self):
+        parent, _ = self.reactions()
+        settings = dict(self.par, rotdpy_mess_mode='production',
+            vrc_tst_scan={routing_name(parent): ['a_different_hom_sci']},
+            vrc_tst_surface_model_file='reviewed.json')
+        MESS(settings, parent).write_input(None)
+        self.assertIn('Core PhaseSpaceTheory', Path('me/mess_0000.inp').read_text())
+
+    def test_selected_geometry_rotd_cannot_silently_stand_for_a_conformer_union(self):
+        parent, reactions = self.reactions(True)
+        reaction = reactions[0]
+        fragment = reaction.products[0]
+        record = representative_record(fragment)
+        records = {0: record, 1: replace(record, index=1,
+            zero_energy_hartree=record.zero_energy_hartree+.001)}
+        folder = Path('rotdPy')
+        folder.mkdir()
+        (folder / f'{reaction.instance_name}.py').write_text('# exists\n')
+        (folder / f'{reaction.instance_name}.rotdpy.json').write_text('{}')
+        writer = MESS(dict(self.par, multi_conf_tst=1, rotdpy_mess_mode='required'), parent)
+        with patch('kinbot.mess.writer_members', side_effect=lambda point, *args: records if point is fragment else {}):
+            with self.assertRaisesRegex(NotImplementedError, 'separate sampled flux'):
+                writer._rotd_model(reaction.products, 'CH4', 0., 0., 1., 1., reaction)
+
     def test_homolysis_can_require_a_hash_verified_rotd_surface(self):
         parent, reactions = self.reactions(True)
         reaction = reactions[0]
@@ -470,6 +580,10 @@ class TestComplexMESS(unittest.TestCase):
         self.assertAlmostEqual(
             source['raw_flux_equivalent_mess_symmetry_factor'],
             source['mess_symmetry_factor'] / 0.85)
+        writer.par['rotdpy_mess_mode'] = 'off'
+        writer.write_input(None)
+        self.assertIn('Core PhaseSpaceTheory', Path('me/mess_0000.inp').read_text())
+        self.assertEqual(json.loads(Path('me/rotdpy_sources.json').read_text())['reactions'], {})
 
     def test_rotd_self_combination_includes_identical_fragment_factor(self):
         parent, reactions = self.reactions(True)

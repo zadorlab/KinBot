@@ -15,6 +15,7 @@ from kinbot.anl.extrapolation import (ORIGINAL_ANL_POWER,
 from kinbot.molpro import (automatic_vrc_state_model,
                            full_valence_active_space,
                            method_with_active_space,
+                           validate_vrc_single_reference_root,
                            validate_vrc_state_model,
                            vrc_multireference_energy_contract)
 
@@ -158,6 +159,22 @@ def coupled_multiplicities(first, second):
     twice_s_max = (first - 1) + (second - 1)
     return tuple(value + 1 for value in range(
         twice_s_min, twice_s_max + 1, 2))
+
+
+def asymptote_distance(parameters):
+    """Resolve the separated-fragment reference independently of job names.
+
+    Thirty angstrom is the legacy default, not a convergence certificate.
+    Reconnaissance can establish a different value for the production input.
+    """
+    value = parameters.get('vrc_tst_asymptote_distance', 30.)
+    if (isinstance(value, bool) or not isinstance(value, Real)
+            or not np.isfinite(value) or value <= 0.):
+        raise ValueError('vrc_tst_asymptote_distance must be positive and finite.')
+    points = parameters.get('vrc_tst_scan_points', [])
+    if any(float(point) >= value for point in points):
+        raise ValueError('vrc_tst_asymptote_distance must exceed every VRC scan point.')
+    return float(value)
 
 
 def spin_splitting_settings(parameters, *, parent_multiplicity=None,
@@ -793,6 +810,9 @@ def correction_components(parameters, *, symbols=None, charge=0,
     bases = reference['basis'] if isinstance(reference['basis'], list) \
         else [reference['basis']]
     for index, basis in enumerate(bases):
+        reference_model = state_model_for(basis)
+        validate_vrc_single_reference_root(reference['method'], reference_model,
+                                           settings['reference_multiplicity'])
         stem = 'triplet_reference' if legacy_states else 'reference'
         role = (stem if len(bases) == 1 else f'{stem}:{index}')
         suffix_stem = 'triplet_cc' if legacy_states else 'reference_cc'
@@ -802,7 +822,7 @@ def correction_components(parameters, *, symbols=None, charge=0,
             'role': role, 'suffix': suffix, 'geometry': 'relaxed',
             'method': reference['method'], 'basis': basis,
             'multiplicity': settings['reference_multiplicity'],
-            'state_model': state_model_for(basis),
+            'state_model': reference_model,
         })
     for original_level in settings['gap_levels']:
         level = _resolve_level(original_level, active_space)
@@ -984,6 +1004,8 @@ def spin_splitting_weights(distances, settings):
 def assemble_spin_splitting_reference(distances, energies, settings):
     """Reconstruct a target-spin surface from a reference and MR gaps."""
     distances = np.asarray(distances, dtype=float)
+    if distances.ndim != 1 or not len(distances) or not np.isfinite(distances).all():
+        raise ValueError('Spin-splitting distances must be a nonempty finite vector.')
     reference_settings = settings.get(
         'reference', settings.get('triplet_reference'))
     if reference_settings is None:
@@ -1053,6 +1075,14 @@ def assemble_spin_splitting_reference(distances, energies, settings):
             'reference_multiplicity', settings.get('triplet_multiplicity')),
         'weights': weights,
         'reconstructed_target_hartree': reconstructed,
+        'method_sensitivity': {
+            'energy_unit': 'hartree',
+            'asymptote_reference_distance_angstrom': float(distances[-1]),
+            'absolute_spread': np.ptp(np.asarray(list(reconstructed.values())), axis=0).tolist(),
+            'asymptote_referenced_spread': np.ptp(np.asarray([
+                np.asarray(curve) - curve[-1] for curve in reconstructed.values()]), axis=0).tolist(),
+            'interpretation': 'method disagreement diagnostic, not a statistical error bar',
+        },
     }
     if cbs_metadata is not None:
         metadata['reference_cbs'] = cbs_metadata

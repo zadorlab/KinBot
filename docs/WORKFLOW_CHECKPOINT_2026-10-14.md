@@ -2,8 +2,9 @@
 
 **Resumed by the user.** This is the historical stopping record. Development
 has resumed; the current recovery and production-default changes are recorded
-in `Blodgett_workflow_runbook.md`. The existing eight-basis campaign remains
-unchanged by those updates. The subsequent conventional-5Z RHF completed,
+in `Blodgett_workflow_runbook.md` and `WORKFLOW_READINESS_2026-10-14.md`.
+The latest cost-reduced restart records an explicit six-basis selection while
+preserving original inputs and all evidence. The subsequent conventional-5Z RHF completed,
 using about 138 GB of scratch, and failed only at the unsupported Molden
 export. The native XML/WFU recovery preserves that converged SCF evidence.
 

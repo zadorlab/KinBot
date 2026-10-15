@@ -25,6 +25,8 @@ _OVERRIDES = {
     'vrc_tst_high_basis', 'vrc_tst_correction_model', 'vrc_tst_spin_splitting',
     'vrc_tst_high_extrapolation_power',
     'vrc_tst_state_average_roots',
+    'vrc_tst_selected_roots',
+    'vrc_tst_asymptote_distance',
 }
 
 
@@ -172,7 +174,7 @@ def channel_for_reaction(parameters, reaction):
 
 def state_parameters(parameters, stage, state, fragment_multiplicities):
     """Resolve a scalar run while keeping the real accepted reaction intact."""
-    from kinbot.vrc_correction import coupled_multiplicities, correction_model
+    from kinbot.vrc_correction import coupled_multiplicities, correction_model, root_overrides
     par = deepcopy(parameters)
     par.update(deepcopy(stage['parameters']))
     par['vrc_tst_surface_model_file'] = ''  # scalar leaf, no recursive expansion
@@ -188,11 +190,11 @@ def state_parameters(parameters, stage, state, fragment_multiplicities):
     if (correction_model(par) == 'spin_splitting'
             and state['multiplicity'] == max(coupled_multiplicities(*fragment_multiplicities))):
         par['vrc_tst_correction_model'] = 'direct'
-    selected = {str(state['multiplicity']): state['root']}
-    if correction_model(par) == 'spin_splitting':
-        reference = spin.get('reference_multiplicity',
-            max(coupled_multiplicities(*fragment_multiplicities)))
-        selected[str(reference)] = 1
+    selected = {str(key): value for key, value in root_overrides(
+        par, 'vrc_tst_selected_roots').items()}
+    selected[str(state['multiplicity'])] = state['root']
+    # Do not overwrite the reviewed reference root. When absent, resolution
+    # preserves the external state model's root or the automatic ground root.
     par['vrc_tst_selected_roots'] = selected
     par['rotdpy_dist'] = list(stage['distances_angstrom'])
     par['_vrc_dividing_coordinate'] = stage['coordinate']

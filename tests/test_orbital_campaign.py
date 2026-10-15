@@ -6,7 +6,7 @@ import tarfile
 import pytest
 
 from kinbot import orbital_campaign as campaign
-from test_molpro_reconnaissance import _coordinate_configuration
+from test_molpro_reconnaissance import _coordinate_configuration, _complete_probes
 
 
 def test_preflight_and_batch_activate_the_molpro_backend(tmp_path, monkeypatch):
@@ -137,3 +137,63 @@ def test_collection_keeps_binary_wavefunctions_on_cluster(tmp_path):
         assert 'campaign.json' in names
         assert any(name.endswith('.out') for name in names)
         assert not any(name.endswith('.wfu') for name in names)
+
+
+def test_stopped_campaign_basis_selection_preserves_results_and_survives_refinement(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    config = json.loads(source.read_text())
+    config['bases'].append({'name': 'large', 'basis': 'av5z-f12'})
+    source.write_text(json.dumps(config))
+    root = tmp_path / 'campaign'
+    prepared = json.loads(campaign.prepare(root, [source]).read_text())
+    record = prepared['systems'][0]
+    for key in ('pilot_manifest', 'manifest'):
+        _complete_probes(Path(record[key]))
+    snapshots = {path: path.read_bytes() for path in root.rglob('*') if path.is_file()
+                 and path.suffix in ('.inp', '.wfu', '.out')}
+    fingerprint = Path(record['configuration']).read_bytes()
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout=''))
+    selected = campaign.exclude_bases(root, ['av5z-f12'])
+    assert [entry['retained'] for entry in selected] == [1, 4]
+    assert all(path.read_bytes() == contents for path, contents in snapshots.items())
+    assert Path(record['configuration']).read_bytes() == fingerprint
+    progress = campaign.progress(root)['systems'][0]
+    assert progress['pilot_manifest']['complete'] == 1
+    assert progress['manifest']['excluded_jobs'] == 4
+    assert all(entry['newly_excluded'] == 0 for entry in campaign.exclude_bases(root, ['av5z-f12']))
+    campaign.recon.refine(record['manifest'])
+    refined = json.loads(Path(record['manifest']).read_text())
+    assert len(refined['jobs']) > 4
+    assert {job['basis'] for job in refined['jobs']} == {'aug-cc-pVTZ'}
+    assert len(refined['excluded_jobs']) == 4
+    archive = campaign.collect(root, tmp_path / 'review.tar.gz')
+    with tarfile.open(archive) as stream:
+        assert any('/large__' in name and name.endswith('.out') for name in stream.getnames())
+        assert not any(name.endswith('.wfu') for name in stream.getnames())
+
+
+def test_basis_selection_checks_all_live_allocations_before_mutation(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    data = json.loads(source.read_text())
+    data['bases'].append({'name': 'large', 'basis': 'av5z-f12'})
+    source.write_text(json.dumps(data))
+    root = tmp_path / 'campaign'
+    saved = json.loads(campaign.prepare(root, [source]).read_text())
+    last = Path(saved['systems'][0]['manifest'])
+    manifest = json.loads(last.read_text())
+    manifest['jobs'][-1].update(job_id='77', submission_status='submitted')
+    last.write_text(json.dumps(manifest))
+    original = {path: path.read_bytes() for path in root.rglob('reconnaissance.json')}
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout='77\n'))
+    with pytest.raises(RuntimeError, match='all campaign allocations'):
+        campaign.exclude_bases(root, ['av5z-f12'])
+    assert all(path.read_bytes() == contents for path, contents in original.items())
+    monkeypatch.setattr(campaign.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout=''))
+    with pytest.raises(ValueError, match='Unknown reconnaissance'):
+        campaign.exclude_bases(root, ['not_a_basis'])
+    with pytest.raises(ValueError, match='manifest empty'):
+        campaign.exclude_bases(root, ['aug-cc-pVTZ', 'av5z-f12'])

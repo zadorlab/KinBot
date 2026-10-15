@@ -1,10 +1,9 @@
 # CBH/ANL, VRC-TST, ROTD_py, MESS audit — 14 October 2026
 
-**Paused checkpoint:** work is paused at the user's request. The native pilot
-feedback, scratch recovery and exact remaining implementation/chemistry work
-are recorded in [the current checkpoint](WORKFLOW_CHECKPOINT_2026-10-14.md).
-This supersedes the earlier pause record. Successful native pilots must be
-retained; the current 5Z scratch failure is not a chemistry-production pass.
+**Work resumed.** See [the current implementation and acceptance procedure](WORKFLOW_READINESS_2026-10-14.md).
+The earlier checkpoint is historical. Preserve successful native pilots and
+the existing eight-basis campaign. The latest 5Z failure occurred at Molden
+export after RHF completed; native XML/WFU recovery is published in `c14913f`.
 
 The current software is **not yet certified for the full CH3S/CH3SS production
 campaign**. The automated interfaces and diagnostic reconnaissance have been
@@ -35,7 +34,7 @@ generated stock-F12 calculation is rejected for lacking a revision tag.
 
 | Area | Defect or missing behavior | Result |
 | --- | --- | --- |
-| VRC levels | Preset demanded bases lacking matching reviewed orbital records | New preset consistently uses the requested augmented TZ/QZ-F12 pair; expert overrides remain available |
+| VRC levels | Expensive CBS sampling and inconsistent orbital records | Preset samples at augmented TZ-F12; TZ/QZ-F12 CBS is retained for the correction/reference energies; expert overrides remain available |
 | State routing | Connectivity-only S2 could be treated as a singlet and exported with an incompatible Lewis representation | User-declared electronic models apply before QC naming; validated same-connectivity aliases preserve the intended open-shell identity |
 | General spins | Fixed singlet/triplet assumptions did not cover arbitrary fragment coupling | Spins follow accepted parent/products; automatic reference uses maximum spin; an already-high-spin target requires direct correction or an explicit expert reference; overrides cannot relabel the accepted channel |
 | Spatial roots | Multiplicity alone omitted fragment orbital degeneracy | Root counts follow declared spin-free terms; CH3SS S–S cleavage retains six spatial product components when CH3S X(2E) and S(3P) are included |
@@ -81,7 +80,7 @@ the driver does not pretend that removing one ring edge separates fragments.
 
 With `probe_active_space: true`, each geometry produces a full-valence
 heavy-atom AVAS/CASCI diagnostic space, natural populations, all requested
-root energies, orbital listings, Molden files and WFU records. A light-atom
+root energies, orbital listings, native XML (or legacy Molden) and WFU records. A light-atom
 coordinate also includes independent light-atom projections. `probe_space`
 can request all light atoms or extra atom-labelled valence/polarization
 centres. The report lists occupation candidates and electron populations per
@@ -255,6 +254,17 @@ The final stopping checkpoint adds a scheduler-checked `retry-failed` command
 that archives known failed native attempts while retaining successful probes.
 The user supplied a compute-node `/scratch` mount with about 5.4 TB free;
 `KINBOT_MOLPRO_SCRATCH` selects it without embedding a site path in code.
-Required/multistate full-PES MESS handoff now fails explicitly instead of
-silently using PST; its implementation remains open. See the checkpoint for
-the full remaining procedure and exact scope.
+The former required/multistate full-PES guard has now been replaced by shared
+direct/PES staging: hash-bound worker/UQ convolution contexts are resolved
+after global ROTD execution and final network energies. Both scalar and
+multistate actual-assembly tests cover this path. Unselected optional exits
+retain PST, and old required worker artifacts lacking context fail with a
+regeneration instruction. Workers do not execute a duplicate ROTD campaign.
+
+The resumed audit also preserves reviewed reference-root selections, rejects
+an excited CAS root for a ground-state-only SCF/CC anchor, sets charge/spin
+before AVAS, replaces production VRC Molden exports with XML after CASSCF,
+makes the production asymptote configurable, reports MR method disagreement,
+and replaces stale/per-UQ ROTD provenance on model rewrites. True fragment
+conformer ensembles require separate sampled fluxes and remain future scope;
+explicit ROTD requests reject that combination instead of miscounting it.

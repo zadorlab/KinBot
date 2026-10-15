@@ -26,6 +26,18 @@ from kinbot.rotdpy import (_controller_lock, ensure_available, main,
 from kinbot.molpro import _vrc_multireference_method
 
 
+def test_full_pes_restores_automatic_homolytic_selection(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr('kinbot.pes._write_rotdpy_slurm_template', lambda *args: None)
+    par = {'rotdpy_run': 1, 'queuing': 'slurm',
+           'vrc_tst_scan': {}, 'vrc_tst_noscan': {}}
+    # The correction precondition is reached only if the accepted global
+    # homolytic channel was restored to the worker-independent selection.
+    with pytest.raises(KeyError, match='Results of scan'):
+        create_rotdpy_inputs(par, [['parent', 'parent_hom_sci_1_2', ['a', 'b'], 0.]], [])
+    assert par['vrc_tst_scan'] == {'parent': ['parent_hom_sci_1_2']}
+
+
 def test_generated_input_uses_configured_sampling_and_portable_scratch():
     with TemporaryDirectory() as temporary:
         previous = Path.cwd()

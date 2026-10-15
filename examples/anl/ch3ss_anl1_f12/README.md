@@ -51,9 +51,9 @@ native pilots precede bulk submission. The shared limit is ten nodes total.
 Full KinBot production follows review of these results. Automatic homolytic
 vdW-complex discovery is deferred under the present example scope.
 
-The [current paused checkpoint](../../../docs/WORKFLOW_CHECKPOINT_2026-10-14.md)
-records native pilot feedback, scratch recovery, verified behavior and all
-remaining software/chemistry work. Full production is not yet released.
+The [current implementation and acceptance procedure](../../../docs/WORKFLOW_READINESS_2026-10-14.md)
+records recovery, verified behavior, and the chemistry review/native checks
+required after reconnaissance. The earlier paused checkpoint is historical.
 
 Molpro's Molden interface rejects h and higher angular momenta. Recon execution
 now derives a hash-bound XML-export deck from the immutable prepared input;

@@ -2,6 +2,7 @@ from kinbot.species_routing import routing_name
 import os
 import logging
 import numpy as np
+from ase.data import atomic_numbers
 import re
 from copy import deepcopy
 from dataclasses import dataclass
@@ -576,6 +577,18 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
             'KBVRCSEL')
 
 
+def validate_vrc_single_reference_root(method, state_model, multiplicity):
+    """Do not label a ground-state SCF/CC result as an excited CAS root."""
+    if state_model is None or vrc_multireference_energy_contract(method) is not None:
+        return
+    roots = state_model.get('selected_roots', {})
+    selected = roots.get(multiplicity, roots.get(str(multiplicity), 1))
+    if selected != 1:
+        raise ValueError(f'Single-reference VRC method {method!r} cannot select '
+                         f'excited CAS root {selected} for multiplicity {multiplicity}. '
+                         'Use a root-resolved MR anchor, or a reviewed ground-root CC anchor.')
+
+
 
 class Molpro:
     """
@@ -622,7 +635,7 @@ class Molpro:
         for i, at in enumerate(self.species.atom):
             x, y, z = self.species.geom[i]
             geom += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
-            nelectron += constants.znumber[at]
+            nelectron += atomic_numbers[str(at)]
 
         geometry_block = 'geometry={ \n'
         geometry_block += f"{self.species.natom};\n{self.species.name};\n{geom}\n"
@@ -726,7 +739,8 @@ class Molpro:
                       f'civec={correlation_threshold}\n' \
                       'angstrom\n' \
                       'orient,noorient\n' \
-                      'nosym'
+                      'nosym\n' \
+                      f'set,charge={self.species.charge}\nset,spin={spin}'
 
             if vrc_level is None:
                 vrc_level = {
@@ -741,6 +755,7 @@ class Molpro:
                 'state_model', self.par.get('vrc_tst_state_model'))
             state_model = stage_vrc_state_model(
                 state_model, 'vrctst/molpro', fname)
+            validate_vrc_single_reference_root(l3_method, state_model, spin + 1)
 
             method = ''
             energy_expression = 'energy(1)'
@@ -752,10 +767,11 @@ class Molpro:
                 method, energy_expression = multireference
                 # Keep the orbitals used by the correction calculation for
                 # direct inspection of an external validation run.
-                first_program = method.find('\n\n')
-                method = (method[:first_program + 2]
-                          + f'put,molden,{fname}.mld\n\n'
-                          + method[first_program + 2:])
+                multi_start = method.index('{multi,')
+                multi_end = method.index('}', multi_start) + 1
+                method = (method[:multi_end]
+                          + f'\nput,xml,{fname}.orbitals.xml\n'
+                          + method[multi_end:])
             else:
                 match regex_in(str(l3_method).casefold()):
                     case "uwb97xd":
@@ -808,7 +824,7 @@ class Molpro:
         """
         fname = self.get_name(name, do_vdW)
         if (self.species.natom == 1 and self.species.charge ==
-                constants.znumber[str(self.species.atom[0])]):
+                atomic_numbers[str(self.species.atom[0])]):
             return 1, 0.0
         if not VTS:
             status = os.path.exists('molpro/' + fname + '.out')

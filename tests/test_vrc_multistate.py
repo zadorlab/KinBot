@@ -248,11 +248,24 @@ def test_requested_multistate_cannot_reuse_an_old_scalar_result(tmp_path):
         writer._rotd_model([], '', 0., 0., 1., 1., SimpleNamespace(instance_name='r'))
 
 
-def test_full_pes_assembly_refuses_to_discard_required_rotd():
-    from kinbot.pes import create_mess_input
-    with pytest.raises(ValueError, match='full-PES'):
-        create_mess_input({'pes': 1, 'rotdpy_mess_mode': 'production'},
-                          [], [], [], [], [], {}, {}, {}, 1., False)
+def test_full_pes_requires_worker_context_for_selected_rotd(tmp_path):
+    from kinbot.rotdpy_mess import resolve_models
+    with pytest.raises(ValueError, match='regenerate the PES worker'):
+        resolve_models('RRHO\nCore PhaseSpaceTheory\n', tmp_path,
+            {'rotdpy_mess_mode': 'production'}, 10., {}, 'r')
+
+
+def test_multistate_leaf_preserves_a_reviewed_reference_root(tmp_path):
+    from test_rotdpy_profiles import sulfur_correction
+    from kinbot.vrc_correction import resolved_state_model, spin_splitting_settings
+    par, _, _ = sulfur_correction(tmp_path)
+    stage = validate_surface_model(model())['channels'][0]['bottlenecks'][0]
+    stage['parameters']['vrc_tst_selected_roots'] = {'4': 3}
+    leaf = state_parameters(par, stage, stage['states'][1], [2, 3])
+    settings = spin_splitting_settings(leaf, parent_multiplicity=2, fragment_multiplicities=[2, 3])
+    resolved = resolved_state_model(leaf, ['C', 'S', 'H', 'H', 'H'], 0,
+        settings, roots={2: 3, 4: 3}, basis='avtz-f12')
+    assert resolved['selected_roots'] == {2: 2, 4: 3}
 
 
 def test_actual_scalar_templates_are_generated_for_each_state_and_coordinate(tmp_path, monkeypatch):

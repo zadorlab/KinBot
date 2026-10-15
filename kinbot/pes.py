@@ -1400,67 +1400,42 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                 # s.append(divider)
 
         # write the products and barrierless reactions
+        from kinbot.rotdpy_mess import resolve_models, write_sources
+        rotd_sources = {}
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
         for prod in products:
             linked_bless_wells = []
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod] + uq.calc_factor('energy', uq_iter)
             prod_energies_current[prod] = energy
-            fr_names = {}
-            for fr in prod.split('_'):
-                key = f'fr_name_{fr}'
-                value = fr_short[fr] + ' ! ' + fr
-                fr_names[key] = value
-            # check if is obtained by barrieless reaction
+            fr_names = {f'fr_name_{fr}': fr_short[fr] + ' ! ' + fr for fr in prod.split('_')}
+            def format_exit(worker, reaction, **names):
+                text = (Path(worker) / mess_filename(prod, uq_iter)).read_text().format(
+                    name=name, ground_energy=round(energy, 2), **fr_names, **names)
+                return resolve_models(text, worker, par, round(energy, 2),
+                                      rotd_sources, reaction)
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
-                if prod == bl_prod:
-                    if bl[0] in linked_bless_wells:
-                        continue
-                    linked_bless_wells.append(bl[0])
-                    with open(bl[0] + '/' + mess_filename(prod, uq_iter)) as f:
-                        if bless == 0:
-                            s.append(f.read().format(name=name,
-                                                     blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
-                                                     wellname=well_short[bl[0]],
-                                                     prodname=pr_short[prod],
-                                                     ground_energy=round(energy, 2),
-                                                     **fr_names))
-                            bless = 1
-                        else:
-                            stemp = (f.read().format(name=name,
-                                                     blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
-                                                     wellname=well_short[bl[0]],
-                                                     prodname=pr_short[prod],
-                                                     ground_energy=round(energy, 2),
-                                                     **fr_names))
-                            s.append(stemp[stemp.find('Barrier '):])
-            # check if is obtained by vdW dissociation
+                if prod != bl_prod or bl[0] in linked_bless_wells:
+                    continue
+                linked_bless_wells.append(bl[0])
+                block = format_exit(bl[0], bl[1],
+                    blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
+                    wellname=well_short[bl[0]], prodname=pr_short[prod])
+                s.append(block if not bless else block[block.find('Barrier '):])
+                bless = 1
             for vdw in exported_vdW:
                 bl_prod = f'{vdw[2][0]}_{vdw[2][1]}'
-                if prod == bl_prod:
-                    #Skip this vdW well is bless already added with similar well
-                    if min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"] in linked_bless_wells:
-                        continue
-                    linked_bless_wells.append(min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"])
-                    with open(vdw[0] + '/' + mess_filename(prod, uq_iter)) as f:
-                        if bless == 0:
-                            s.append(f.read().format(name=name,
-                                                     blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
-                                                     wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
-                                                     prodname=pr_short[prod],
-                                                     ground_energy=round(energy, 2),
-                                                     **fr_names))
-                            bless = 1
-                        else:
-                            stemp = (f.read().format(name=name,
-                                                     blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
-                                                     wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
-                                                     prodname=pr_short[prod],
-                                                     ground_energy=round(energy, 2),
-                                                     **fr_names))
-                            s.append(stemp[stemp.find('Barrier '):])
+                complex_key = f"{vdw[1]}{vdw[5].split('vdW')[1]}"
+                if prod != bl_prod or min_vdW[complex_key] in linked_bless_wells:
+                    continue
+                linked_bless_wells.append(min_vdW[complex_key])
+                block = format_exit(vdw[0], vdw[1],
+                    blessname=nobar_short[f'{complex_key}_{bl_prod}'],
+                    wellname=well_short[min_vdW[complex_key]], prodname=pr_short[prod])
+                s.append(block if not bless else block[block.find('Barrier '):])
+                bless = 1
             #The product is directly obtained after a reaction with a barrier
             if not bless:
                 source = parent[parent[prod]] if 'IRC' in parent[prod] else parent[prod]
@@ -1560,6 +1535,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
 
         from kinbot.mess_networks import write_network_inputs
         write_network_inputs(mess, contents, uq_iter)
+        write_sources(f'me/rotdpy_sources_{mess_iter}.json', par, rotd_sources)
+        if uq_iter == 0:
+            write_sources('me/rotdpy_sources.json', par, rotd_sources)
 
         #uq.format_uqtk_data() 
     if par['me']:
@@ -1596,6 +1574,17 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
         barrierless.append([reactant, reaction_name, products, barrier])
 
     created = []
+    if (par.get('rotdpy_run') and not par['vrc_tst_scan']
+            and not par['vrc_tst_noscan']):
+        # Workers select accepted homolytic exits after discovery. Repeat
+        # that selection from the accepted global list, so PES aggregation
+        # does not lose it with the worker's in-memory parameter dictionary.
+        automatic = {}
+        for reactant, name, _, _ in bless:
+            if re.search(r'_hom_sci(?:_|$)', name):
+                automatic.setdefault(reactant, []).append(name)
+        if automatic:
+            par['vrc_tst_scan'] = automatic
     for index, reac in enumerate(barrierless):
         # A failed or interrupted earlier reaction must not leak fragment names
         # into the next generated rotdPy input.

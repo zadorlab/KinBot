@@ -481,6 +481,8 @@ class Parameters:
             'vrc_tst_spin_splitting': None,
             # Parameters for the vrc_tst scan
             'vrc_tst_scan_points': list(np.arange(2.5, 20.0, 0.2)),
+            # Separated-fragment energy reference, reviewed against recon.
+            'vrc_tst_asymptote_distance': 30.,
             'vrc_tst_scan_molpro_key': 'MYENERGY',
             # Must be provided
             'vrc_tst_scan_molpro_tpl': '',
@@ -972,6 +974,8 @@ class Parameters:
                 self.par['vrc_tst_scan_points'] = tmp_dist
         except (TypeError, IndexError):
             pass
+        from kinbot.vrc_correction import asymptote_distance
+        asymptote_distance(self.par)
         try:
             if isinstance(self.par['rotdpy_dist'][0], list):
                 self.par['rotdpy_dist'][0][0]

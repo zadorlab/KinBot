@@ -24,7 +24,7 @@ from kinbot import geometry
 from kinbot.molpro import (Molpro, method_with_active_space,
                            vrc_multireference_energy_contract)
 from kinbot.vrc_correction import (
-    active_space_settings,
+    active_space_settings, asymptote_distance,
     assemble_sampling_reference, assemble_spin_splitting_reference,
     correction_components,
     correction_model, coupled_multiplicities, expected_levels,
@@ -231,7 +231,12 @@ class VTS:
                     reactant, name,
                     [routing_name(product) for product in reaction.products],
                     0.0])
-            create_rotdpy_inputs(self.par, barrierless, [],
+            # Full-PES aggregation owns sampling after all worker corrections
+            # are ready. A worker must not run a duplicate ROTD campaign.
+            rotd_parameters = dict(self.par)
+            if self.par.get('pes'):
+                rotd_parameters['rotdpy_run'] = 0
+            create_rotdpy_inputs(rotd_parameters, barrierless, [],
                                  correction_root='.')
         return
 
@@ -524,7 +529,7 @@ class VTS:
                             dist_AB)
                         asymptote = False
                     else:
-                        shift = vec_AB * (30. - dist_AB)
+                        shift = vec_AB * (asymptote_distance(self.par) - dist_AB)
                         asymptote = True
                     for mi in self.scan_reac[reac].maps[1]:
                         geoms[ri][mi] = [gi + shift[i]
@@ -879,14 +884,15 @@ class VTS:
             geom = np.asarray(
                 reaction.irc_prod.geom if reaction.do_vdW
                 else reaction.species.geom, dtype=float)
-            distances = ([30.] if noscan else
-                         [*map(float, self.par['vrc_tst_scan_points']), 30.])
+            separation = asymptote_distance(self.par)
+            distances = ([separation] if noscan else
+                         [*map(float, self.par['vrc_tst_scan_points']), separation])
             for step, distance in enumerate(distances):
                 geom = self._shift_scan_geometry(reaction, geom, distance)
                 base = (f'{reac}_vts_pt_asymptote'
-                        if distance == 30. and step == len(distances) - 1
+                        if step == len(distances) - 1
                         else f'{reac}_vts_pt{step:02d}')
-                if distance == 30.:
+                if step == len(distances) - 1:
                     # At the asymptote there is no intermolecular geometry to
                     # relax.  The correction energies are evaluated later at
                     # this explicitly separated structure.
@@ -1054,8 +1060,8 @@ class VTS:
                                  if item['role'] == role)),
                 })
 
-            dist = ([30] if noscan
-                    else self.par['vrc_tst_scan_points'] + [30])
+            dist = ([asymptote_distance(self.par)] if noscan
+                    else self.par['vrc_tst_scan_points'] + [asymptote_distance(self.par)])
             e_samp, sampling_cbs = assemble_sampling_reference(
                 dist, energies, sampling_settings(
                     self.par, active_space=active_space))

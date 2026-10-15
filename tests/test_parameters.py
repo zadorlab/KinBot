@@ -56,12 +56,11 @@ class TestBackendWarnings(unittest.TestCase):
                     ValueError, message):
                 self.read_parameters(**options)
 
-    def test_required_rotd_is_never_silently_dropped_by_full_pes_assembly(self):
+    def test_full_pes_accepts_deferred_required_rotd_models(self):
         for mode in ('required', 'production'):
-            with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, 'full-PES'):
-                self.read_parameters(pes=1, rotdpy_mess_mode=mode)
-        with self.assertRaisesRegex(ValueError, 'full-PES'):
-            self.read_parameters(pes=1, vrc_tst_surface_model_file='reviewed.json')
+            with self.subTest(mode=mode):
+                self.assertEqual(self.read_parameters(pes=1, rotdpy_mess_mode=mode)['rotdpy_mess_mode'], mode)
+        self.read_parameters(pes=1, vrc_tst_surface_model_file='reviewed.json')
         self.assertEqual(self.read_parameters(pes=1)['rotdpy_mess_mode'], 'auto')
 
     def test_spin_splitting_is_additive_and_defaults_to_tz_qz_cbs(self):

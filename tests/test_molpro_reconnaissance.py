@@ -517,3 +517,20 @@ def test_export_only_failure_recovers_the_converged_scf_record(tmp_path, monkeyp
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(recon.subprocess, 'run', native)
     recon.execute(path, name)
+
+
+def test_runtime_setup_failure_is_recorded_before_molpro_launch(tmp_path, monkeypatch):
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    job = json.loads(path.read_text())['jobs'][0]
+    def unavailable(*args, **kwargs):
+        raise RuntimeError('scratch capacity requirement not met')
+    monkeypatch.setattr(recon, 'qc_runtime_environment', unavailable)
+    with pytest.raises(RuntimeError, match='scratch capacity'):
+        recon.execute(path, job['name'])
+    record = json.loads((Path(job['directory']) / 'execution.json').read_text())
+    assert record['status'] == 'failed'
+    assert record['error'] == 'scratch capacity requirement not met'
+    assert record['input_sha256'] == job['input_sha256']

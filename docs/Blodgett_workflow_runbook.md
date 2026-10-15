@@ -1,30 +1,34 @@
 # Blodgett orbital reconnaissance checkpoint — 14 October 2026
 
-**Current stopping point:** see [the complete checkpoint](WORKFLOW_CHECKPOINT_2026-10-14.md).
-The existing campaign has validated native pilots and a conventional-5Z scratch
-I/O failure. Preserve it; use the retry procedure below. Do not prepare another
-campaign merely to fix the parser or scratch environment.
+**Current procedure:** see [implementation and acceptance status](WORKFLOW_READINESS_2026-10-14.md).
+Preserve the existing campaign. For the latest cost-reduced restart use the
+final section below; it excludes both 5Z families without deleting evidence.
+Conventional-5Z RHF completed
+using about 138 GB of scratch, then Molden rejected h functions. Use the
+published native XML/WFU recovery below after all campaign allocations finish.
 
 Run all commands on Blodgett yourself. No SSH or cluster job has been started
 by this development session. Use the existing `composite` checkout and its
 `.venv`; no SCP or replacement source directory is required. The orbital
-campaign can run while the remaining MESS audit continues. Do not start the
+campaign can run independently of MESS development. Do not start the
 full KinBot chemistry campaign until the reconnaissance has been reviewed.
 
 ## Pull and install
 
 The checkout confirmed by the user's Blodgett output is `/home/hram/KinBot`.
 Run each block in a child Bash shell if using `set -e`; an optional command
-must not terminate the SSH login shell. Commit `4793a0f` contains the tested
-reconnaissance implementation; checking only `4bd1d25` is insufficient.
+must not terminate the SSH login shell. Commit `c14913f` contains the tested
+native export recovery; checking only `4bd1d25` is insufficient.
 
 ```bash
+bash <<'BASH'
+set -euo pipefail
 cd /home/hram/KinBot
 KB_REPO=/home/hram/KinBot
 env -u LD_LIBRARY_PATH -u LD_PRELOAD \
     git -c submodule.recurse=false pull --ff-only origin composite
 
-RECON_COMMIT=4793a0f
+RECON_COMMIT=c14913f
 git merge-base --is-ancestor "$RECON_COMMIT" HEAD || {
     echo 'Required reconnaissance checkpoint is missing'
     exit 1
@@ -33,6 +37,7 @@ git merge-base --is-ancestor "$RECON_COMMIT" HEAD || {
 .venv/bin/python -m pip install -e . --no-build-isolation --no-deps
 KB_PY="$KB_REPO/.venv/bin/python"
 "$KB_PY" -c 'import kinbot, kinbot.orbital_campaign; print(kinbot.__file__)'
+BASH
 ```
 
 Preparation discovers Molpro from the current environment, configured
@@ -88,17 +93,25 @@ Do not place optional accounting queries unguarded under `set -e`.
 
 ## Prepare and launch both systems with ten nodes total
 
+For the current campaign use the final restart section instead. This fresh
+campaign block applies the recommended six-basis selection explicitly.
 This block initializes its own paths. Preparation is local input generation,
 not submission. Use a fresh path.
 
 ```bash
+bash <<'BASH'
+set -euo pipefail
 cd /home/hram/KinBot
 KB_REPO=/home/hram/KinBot
 KB_PY=/home/hram/KinBot/.venv/bin/python
 CAMPAIGN="/home/hram/kinbot-runs/ch3s_ch3ss_orbital_$(date +%Y%m%d_%H%M%S)"
+export KINBOT_MOLPRO_SCRATCH="/scratch/$USER/kinbot-molpro"
 "$KB_PY" -m kinbot.orbital_campaign prepare "$CAMPAIGN" \
     "$KB_REPO/examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json" \
     "$KB_REPO/examples/anl/ch3ss_anl1_f12/orbital_reconnaissance.json"
+
+"$KB_PY" -m kinbot.orbital_campaign exclude-bases "$CAMPAIGN" \
+    --basis aug-cc-pV5Z --basis av5z-f12
 
 "$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN" || {
     echo 'Site setup failed; do not launch this campaign'
@@ -112,12 +125,13 @@ nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$CAMPAIGN" \
 printf '%s\n' "$!" > "$CAMPAIGN/controller.pid"
 "$KB_PY" -m kinbot.orbital_campaign progress "$CAMPAIGN"
 tail -n 40 "$CAMPAIGN/controller.log"
+BASH
 ```
 
 Each fresh manifest first submits one probe and waits for its validated
 completion before widening submission. The controller then completes all
-native pilots: 8 CH3S jobs and 16 CH3SS jobs,
-covering all eight bases for each dissociation. Any invalid native basis,
+native pilots: 6 CH3S jobs and 12 CH3SS jobs,
+covering the six selected bases for each dissociation. Any invalid native basis,
 AVAS/CASCI block, root output, or missing orbital artifact stops progression
 before bulk scans. Successful pilots are followed by CH3S then CH3SS scans;
 the controller waits for allocations to leave before switching systems.
@@ -130,14 +144,16 @@ on `day-long-cpu`. These are explicit example resource settings. If that
 partition has changed, edit the example resource fields **before preparing a
 fresh campaign**. A rejected pilot submission stops before bulk work.
 
-There are initially 248 full CH3S probes and 600 full CH3SS probes, plus the
-24 pilots: **872 native jobs**, never all submitted simultaneously. Dense
+There are initially 186 full CH3S probes and 450 full CH3SS probes, plus the
+18 pilots: **654 native jobs**, never all submitted simultaneously. Dense
 radial grids, rigid-fragment orientation probes and a 30 Å initial endpoint
 replace the old three-distance approach. All requested root energies and
 natural occupations drive interval/range refinement, up to three passes.
 An unresolved plateau is reported explicitly; it is not silently accepted.
-The eight native bases are augmented conventional D/T/Q/5Z and augmented
-F12 D/T/Q/5Z, with Molpro's default definitions and no rev2 override. Actual
+The selected bases are augmented conventional D/T/QZ and augmented
+F12 D/T/QZ, with Molpro's default definitions and no rev2 override. The
+original example configurations retain eight bases; omitting `exclude-bases`
+in a fresh campaign explicitly requests the 872-job comparison. Actual
 availability is checked by the installed Molpro in the pilots.
 
 ## Monitor, resume, and collect
@@ -145,6 +161,7 @@ availability is checked by the installed Molpro in the pilots.
 In a later shell, start in the same checkout and restore these variables:
 
 ```bash
+cd /home/hram/KinBot
 KB_REPO=$(git rev-parse --show-toplevel)
 KB_PY=/home/hram/KinBot/.venv/bin/python
 CAMPAIGN=$(cat "$HOME/kinbot-runs/last_sulfur_orbital_campaign.txt")
@@ -165,11 +182,14 @@ Once the controller has finished (including an explicit unresolved-coverage
 status), collect review evidence:
 
 ```bash
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+CAMPAIGN=$(cat /home/hram/kinbot-runs/last_sulfur_orbital_campaign.txt)
 "$KB_PY" -m kinbot.orbital_campaign collect "$CAMPAIGN" "$CAMPAIGN.review.tar.gz"
 ```
 
 The archive includes immutable input/context snapshots, manifests, input
-decks, native outputs, stdout/stderr and Molden files. Binary WFU records stay
+decks, native outputs, stdout/stderr, XML/sidecars and legacy Molden files. Binary WFU records stay
 on Blodgett and must be retained: the eventual reviewed active-space models
 reference them by path and SHA-256. Share the review archive/results before
 launching the full KinBot campaigns. No automatic minimal-CAS or reactive
@@ -224,6 +244,8 @@ output, accepts the completed probe, and continues the remaining pilots.
 
 ## Recover the existing scratch-failed campaign
 
+This older recovery sequence retains all bases. Use the final section for the
+latest requested cost-reduced restart.
 The compute-node inventory supplied by the user shows `/scratch` has about
 5.4 TB free; `/tmp` has about 37 GB. The login node has no `/scratch` mount.
 Set `KINBOT_MOLPRO_SCRATCH="/scratch/$USER/kinbot-molpro"` before starting the
@@ -281,3 +303,66 @@ Recovery release validation: 1236 tests and 391 subtests pass. This includes
 native XML execution/auditing, old Molden acceptance, archived SCF recovery,
 and scalar/CBS sampling compatibility. Licensed Molpro XML execution still
 requires the next native retry; local tests verify the execution contract.
+
+## Recommended cost-reduced restart of the existing campaign
+
+The last reported live allocation was `52907305`. Stop it with the following
+command if it is still running, then wait for it to leave `squeue`. A job
+already gone need not be cancelled. Do not delete or archive the campaign.
+
+```bash
+cd /home/hram/KinBot
+scancel 52907305
+```
+
+After pulling the release containing `exclude-bases`, this block preserves the
+six validated CH3S pilots and the original 5Z output/WFU evidence. It selects
+six bases in all four manifests and preserves that choice through adaptive
+refinement. The remaining initial counts are 186/450 full probes and 6/12
+pilots, or 654 jobs total before refinements. The command refuses live
+campaign allocations, uncertain submissions, unknown bases or an empty plan.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+
+git merge-base --is-ancestor c14913f HEAD
+.venv/bin/python -m pip install -e . --no-build-isolation --no-deps
+
+KB_PY=/home/hram/KinBot/.venv/bin/python
+CAMPAIGN=$(cat /home/hram/kinbot-runs/last_sulfur_orbital_campaign.txt)
+export KINBOT_MOLPRO_SCRATCH="/scratch/$USER/kinbot-molpro"
+
+"$KB_PY" -m kinbot.orbital_campaign exclude-bases "$CAMPAIGN" \
+    --basis aug-cc-pV5Z --basis av5z-f12
+"$KB_PY" -m kinbot.orbital_campaign retry-failed "$CAMPAIGN"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"
+
+cd "$CAMPAIGN"
+if [ -f controller.log ]; then
+    mv controller.log "controller.previous.$(date +%Y%m%d_%H%M%S).log"
+fi
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$CAMPAIGN" \
+    --max-jobs 10 --max-refinements 3 \
+    > controller.log 2>&1 < /dev/null &
+printf '%s\n' "$!" > controller.pid
+printf 'Campaign: %s\nController PID: %s\n' "$CAMPAIGN" "$!"
+BASH
+```
+
+Each allocated job loads the preserved Molpro site setup automatically.
+There is no new guessed module name or basis data to install. An optional
+positive integer `KINBOT_MOLPRO_SCRATCH_MIN_MB` raises the compute-node free
+capacity floor if desired; it cannot weaken a task's requested minimum.
+
+Final resumed checkpoint validation: **1251 tests and 391 subtests pass**;
+all **159 non-template Python modules** parse and `git diff --check` passes.
+The actual NH2O SI verification also passes again. Tests cover direct/PES
+scalar and multistate assembly with UQ energy/mode changes, retained optional
+exit selection, reference-root contracts, native export rendering, runtime
+failure records, cost-reduced restart and preservation through refinement.
+Native Molpro/Slurm/MESS execution remains a cluster acceptance step.

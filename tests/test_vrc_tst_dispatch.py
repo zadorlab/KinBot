@@ -16,6 +16,24 @@ from kinbot.vrc_tst_scan import VTS, _drive_vrc_dispatch
 from kinbot.fragments import Fragment
 
 
+@pytest.mark.parametrize('pes,execute', [(0, 1), (1, 0)])
+def test_pes_workers_prepare_rotd_inputs_without_duplicate_sampling(tmp_path, monkeypatch, pes, execute):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr('kinbot.rotdpy.ensure_available', lambda: None)
+    seen = []
+    monkeypatch.setattr('kinbot.pes.create_rotdpy_inputs',
+        lambda parameters, *args, **kwargs: seen.append(parameters['rotdpy_run']))
+    well = SimpleNamespace(wellorts=1, name='parent', chemid='parent', reac_obj=[])
+    par = {'pes': pes, 'pp_orient': 'geometric', 'rotdpy_run': 1,
+           'vrc_tst_scan': {}, 'vrc_tst_noscan': {}}
+    vts = VTS(well, par, None)
+    vts.scan_reac['r'] = SimpleNamespace(products=[
+        SimpleNamespace(wellorts=1, name='a'), SimpleNamespace(wellorts=1, name='b')])
+    vts.calculate_correction_potentials()
+    assert seen == [execute]
+    assert par['rotdpy_run'] == 1
+
+
 def test_homo_oriented_vrc_fails_before_submission_without_gaussian_tools(
         monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
@@ -70,13 +88,14 @@ class _FakeMolpro:
         return 1, (-10. if name.endswith('_fr') else -11.)
 
 
-def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
+@pytest.mark.parametrize('separation', [30., 55.])
+def test_noscan_uses_distinct_sampling_and_high_level_asymptotes(separation):
     with TemporaryDirectory() as temporary:
         previous = Path.cwd()
         os.chdir(temporary)
         try:
             Path('vrctst/molpro').mkdir(parents=True)
-            atoms = Atoms('H2', positions=[[0., 0., 0.], [0., 0., 30.]])
+            atoms = Atoms('H2', positions=[[0., 0., 0.], [0., 0., separation]])
             connect('kinbot.db').write(
                 atoms, name='vrctst/r_vts_pt_asymptote_fr',
                 data={'status': 'normal'})
@@ -85,6 +104,7 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
                                                    [0., 0., .74]]))
             parameters = {
                 'vrc_tst_scan_points': [2.5],
+                'vrc_tst_asymptote_distance': separation,
                 'vrc_tst_scan_molpro_key': 'MYENERGY',
                 'vrc_tst_sample_method': 'caspt2(2,2)',
                 'vrc_tst_sample_basis': 'vdz',
@@ -95,7 +115,7 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
             product_a = SimpleNamespace(
                 atom=['H'], geom=[[0., 0., 0.]], mult=2)
             product_b = SimpleNamespace(
-                atom=['H'], geom=[[0., 0., 30.]], mult=2)
+                atom=['H'], geom=[[0., 0., separation]], mult=2)
             vts.scan_reac['r'] = SimpleNamespace(
                 usym=[[[0]], [[0]]], equiv=[[0], [1]],
                 maps=[np.asarray([0]), np.asarray([1])],
@@ -121,7 +141,7 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
                 'r_vts_pt_asymptote_fr', 'r_vts_pt_asymptote'}
             correction = json.loads(
                 Path('vrctst/corr_r.json').read_text())
-            assert correction['dist'] == [30]
+            assert correction['dist'] == [separation]
             assert correction['e_samp'] == [0.]
             assert correction['e_high'] == [0.]
             assert correction['e_inf_samp'] == -10.

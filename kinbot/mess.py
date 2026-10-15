@@ -932,6 +932,7 @@ class MESS:
         """
         require_supported_identity(self.species)
         uq = UQ(self.par)
+        self.rotdpy_sources = {}
         self.mess_jobs = []
         self.product_complexes = {}
 
@@ -1021,6 +1022,7 @@ class MESS:
         self._check_optical_models(ts_all, ts_unique)
         # write the mess input for the different blocks
         for uq_iter in range(self.par['uq_n']):
+            self.rotdpy_sources = {}
             well_blocks = {}
             ts_blocks = {}
             bimolec_blocks = {}
@@ -1224,17 +1226,10 @@ class MESS:
                 from kinbot.mess_networks import write_network_inputs
                 write_network_inputs(self, contents, uq_iter)
 
-        if self.rotdpy_sources:
-            destination = Path('me/rotdpy_sources.json')
-            destination.write_text(json.dumps({
-                'schema': 1,
-                'selection_policy': {
-                    'mode': self.par.get('rotdpy_mess_mode', 'auto'),
-                    'energy_index': self.par.get(
-                        'rotdpy_mess_energy_index', -1),
-                },
-                'reactions': self.rotdpy_sources,
-            }, indent=2, sort_keys=True) + '\n')
+            from kinbot.rotdpy_mess import write_sources
+            write_sources(f'me/rotdpy_sources_{mess_iter}.json', self.par, self.rotdpy_sources)
+            if uq_iter == 0:
+                write_sources('me/rotdpy_sources.json', self.par, self.rotdpy_sources)
 
         if formation_metadata:
             pf_manifest = self.write_partition_function_inputs()
@@ -1572,126 +1567,73 @@ class MESS:
 
     def _rotd_model(self, products, stoich, ground_energy, reference_shift,
                     freq_factor, symmetry_factor, reaction):
-        """Stage a verified ROTD_py surface and render MESS ``Core Rotd``.
-
-        ``auto`` uses ROTD_py only when the matching completed manifest is
-        present. ``required`` makes a missing or invalid result fatal, while
-        ``production`` also rejects reduced interface samples. PES worker
-        files retain their deferred phase-space model because their final
-        filesystem location is not known until network assembly.
-        """
-        mode = str(self.par.get('rotdpy_mess_mode', 'auto')).casefold()
-        if mode not in ('auto', 'required', 'production', 'off'):
-            raise ValueError('rotdpy_mess_mode must be auto, required, '
-                             'production, or off.')
+        """Convolve verified flux directly, or defer it to final PES assembly."""
         from kinbot.rotdpy import validate_mess_handoff
+        from kinbot.rotdpy_mess import (build_model, defer_model, locate_result,
+                                        selected_reaction)
         validate_mess_handoff(self.par)
-        if mode == 'off' or self.par['pes'] or reaction is None:
+        mode = str(self.par.get('rotdpy_mess_mode', 'auto')).casefold()
+        if mode == 'off' or reaction is None:
             return None
-        directory = Path(self.par.get('rotdpy_directory', 'rotdPy'))
-        input_file = directory / f'{reaction.instance_name}.py'
-        manifest = input_file.with_name(
-            f'{reaction.instance_name}.rotdpy.json')
-        multistate_manifest = directory / f'{reaction.instance_name}.multistate.json'
-        multistate = multistate_manifest.is_file()
-        if self.par.get('vrc_tst_surface_model_file') and not multistate:
-            raise FileNotFoundError(f'{reaction.instance_name}: state-resolved ROTD results are required.')
-        if (not multistate and (not input_file.is_file() or not manifest.is_file())):
-            if mode in ('required', 'production'):
-                raise FileNotFoundError(
-                    f'{reaction.instance_name}: completed ROTD_py input and '
-                    f'manifest are required under {directory}.')
+        name = reaction.instance_name
+        if selected_reaction(self.par, name) is False:
             return None
-        from kinbot.rotdpy import (number_of_states_file,
-                                   stage_number_of_states_file)
-        try:
-            if multistate:
-                from kinbot.vrc_multistate import stage_channel
-                provenance = stage_channel(multistate_manifest, 'me',
-                    required_profile='production' if mode == 'production' else None)
-            else:
-                source, provenance = number_of_states_file(
-                    input_file, self.par.get('rotdpy_mess_energy_index', -1),
-                    required_profile=('production' if mode == 'production' else None))
-        except (OSError, RuntimeError, ValueError) as error:
-            if multistate or mode in ('required', 'production'):
-                raise RuntimeError(
-                    f'{reaction.instance_name}: cannot use ROTD_py result: '
-                    f'{error}') from error
-            logger.warning('%s: invalid ROTD_py result; using phase-space '
-                           'fallback: %s', reaction.instance_name, error)
+        if not self.par.get('pes') and locate_result(self.par, name) is None:
             return None
-
-        provenance = dict(provenance)
-        if not multistate:
-            safe_name = re.sub(r'[^A-Za-z0-9_.-]+', '_', reaction.instance_name)
-            destination = Path('me') / (
-                f'rotd_{safe_name}_Ne_{provenance["energy_index"]}.out')
-            preprocessing = stage_number_of_states_file(source, destination)
-            provenance['mess_file'] = destination.name
-            provenance['mess_file_sha256'] = preprocessing.pop('mess_file_sha256')
-            provenance['mess_preprocessing'] = preprocessing
-
-        modes = []
-        rotors = []
+        # A selected-structure flux cannot represent a union of independent
+        # conformers. Preserve the existing PST union in auto mode; explicit
+        # ROTD requests require conformer-specific sampling before convolution.
+        conformer_union = False
+        if self.par.get('multi_conf_tst'):
+            for species in products:
+                if getattr(species, 'natom', 0) <= 1:
+                    continue
+                members = writer_members(species, self.par.get('optical_population', 'specified'))
+                if len(members) > 1:
+                    conformer_union = True
+                elif members:
+                    record = next(iter(members.values()))
+                    conformer_union |= (
+                        not np.allclose(record.geometry, species.geom, atol=1.e-8, rtol=0.)
+                        or abs(record.zero_energy_hartree - species.energy - species.zpe) > 1.e-8
+                        or not np.array_equal(record.frequencies_cm1, species.freq)
+                        or abs(record.sigma_ext / record.remaining_optical_weight
+                               - self._parent_symmetry(species)) > 1.e-8)
+        if conformer_union:
+            message = (f'{name}: multi-conformer VRC requires a separate sampled flux '
+                       'for each fragment conformer combination; the selected-structure '
+                       'flux cannot be convolved with a conformer union.')
+            if mode in ('required', 'production') or self.par.get('vrc_tst_surface_model_file'):
+                raise NotImplementedError(message)
+            logger.warning('%s Using the existing phase-space conformer union.', message)
+            return None
+        modes, rotors = [], []
         for species in products:
             modes.extend(self._stable_frequencies(species))
             rotors.append(self.make_rotors(species, freq_factor, bless=True))
-        zero = round(float(ground_energy) - reference_shift, 2)
-        if not multistate:
-            from kinbot.rotdpy import number_of_states_ground
-            threshold = number_of_states_ground(destination)
-            zero += threshold * constants.AUtoKCAL / constants.AUtoCM
-            provenance['transitional_ground_cm_inverse'] = threshold
         identities = Counter(routing_key(species) for species in products)
-        indistinguishability = math.prod(
-            math.factorial(count) for count in identities.values())
-        rotational_symmetry = math.prod(
-            self._parent_symmetry(species) for species in products)
-        rotd_symmetry = (rotational_symmetry * indistinguishability
-                         * symmetry_factor)
-        provenance['rotational_symmetry_product'] = rotational_symmetry
-        provenance['indistinguishability_factor'] = indistinguishability
-        provenance['uncertainty_factor'] = symmetry_factor
-        provenance['mess_symmetry_factor'] = rotd_symmetry
-        provenance['fragment_multiplicities'] = [
-            int(species.mult) for species in products]
-        provenance['reactive_surface_multiplicity'] = int(self.species.mult)
-        # ROTD_py has already multiplied Ne(E) by kappa. Ram et al. leave the
-        # flux raw and divide the MESS symmetry factor by kappa instead. Store
-        # that algebraically equivalent value for review without applying the
-        # correction a second time.
-        dynamical_correction = provenance.get('dynamical_correction')
-        if dynamical_correction is not None:
-            provenance['raw_flux_equivalent_mess_symmetry_factor'] = (
-                rotd_symmetry / dynamical_correction)
-        self.rotdpy_sources[reaction.instance_name] = provenance
-
-        if multistate:
-            from kinbot.vrc_multistate import render_mess
-            zero += (provenance['baseline_cm_inverse']
-                     * constants.AUtoKCAL / constants.AUtoCM)
-            # Multiplicity is already present in the summed electronic flux.
-            # Fragment resolved levels remain in their partition functions.
-            def rrho(stage):
-                return self.rotdrrhotpl.format(
-                    stoich=stoich, file=stage['file'], symmetry=rotd_symmetry,
-                    nfreq=len(modes), freq=self.make_freq(modes, freq_factor, 0),
-                    hinderedrotor='\n'.join(rotors), nelec=1,
-                    electronic_levels='            0 1', zeroenergy=(zero + stage['ground_cm_inverse']
-                        * constants.AUtoKCAL / constants.AUtoCM),
-                    provenance_sha256=stage['source_sha256'])
-            return render_mess(provenance, rrho)
-
-        electronic = self._electronic_fields(
-            self.species, '            ', ground_only=True)
-        return self.rotdrrhotpl.format(
-            stoich=stoich, file=destination.name,
-            symmetry=rotd_symmetry, nfreq=len(modes),
-            freq=self.make_freq(modes, freq_factor, 0),
-            hinderedrotor='\n'.join(rotors), **electronic,
-            zeroenergy=zero,
-            provenance_sha256=provenance['source_sha256'])
+        indistinguishability = math.prod(math.factorial(count) for count in identities.values())
+        rotational_symmetry = math.prod(self._parent_symmetry(species) for species in products)
+        context = {
+            'schema': 1, 'reaction': name, 'stoich': stoich,
+            'reference_shift': float(reference_shift), 'nfreq': len(modes),
+            'freq': self.make_freq(modes, freq_factor, 0),
+            'hinderedrotor': '\n'.join(rotors), 'template': self.rotdrrhotpl,
+            'electronic': self._electronic_fields(self.species, '            ', ground_only=True),
+            'rotational_symmetry_product': rotational_symmetry,
+            'indistinguishability_factor': indistinguishability,
+            'uncertainty_factor': symmetry_factor,
+            'mess_symmetry_factor': rotational_symmetry * indistinguishability * symmetry_factor,
+            'fragment_multiplicities': [int(species.mult) for species in products],
+            'reactive_surface_multiplicity': int(self.species.mult),
+        }
+        if self.par.get('pes'):
+            return defer_model(context, self._phase_space_models(products, stoich,
+                ground_energy, reference_shift, freq_factor, symmetry_factor))
+        model, provenance = build_model(self.par, context, ground_energy)
+        if provenance is not None:
+            self.rotdpy_sources[name] = provenance
+        return model
 
     def _phase_space_models(self, products, stoich, ground_energy, reference_shift,
                             freq_factor, symmetry_factor):

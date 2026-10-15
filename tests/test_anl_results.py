@@ -461,6 +461,16 @@ def test_molpro_f12b_selects_exact_total_energy():
                             basis='cc-pVQZ-F12')
 
 
+def test_molpro_hartree_unit_and_repeated_show_preserve_f12_validation():
+    output = _MOLPRO_F12.replace(' AU', ' HARTREE') + '\n KB_F12B = -40.45490620 HARTREE\n'
+    result = parse_molpro_energy(output, method='CCSD(T)-F12b', basis='cc-pVTZ-F12')
+    assert result['energy_hartree'] == pytest.approx(-40.454906199189)
+    with pytest.raises(ValueError, match='stored F12b'):
+        parse_molpro_energy(output.replace('SETTING KB_F12B = -40.45490620',
+                                          'SETTING KB_F12B = -40.45843499'),
+                            method='CCSD(T)-F12b', basis='cc-pVTZ-F12')
+
+
 def test_molpro_conventional_anl0_accepts_full_augmented_basis():
     basis = 'aug-cc-pVQZ'
     output = _MOLPRO_OPEN_CCSD_T.replace('basis=cc-pVDZ', f'basis={basis}')

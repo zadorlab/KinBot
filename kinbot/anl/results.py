@@ -591,10 +591,11 @@ def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
             raise ValueError('Molpro output contains restricted F12 coupled '
                              'cluster evidence.')
         stored = re.findall(
-            rf'^\s*(?:SETTING\s+)?KB_F12B\s*=\s*({_NUMBER})(?:\s+AU)?\s*$',
+            rf'^\s*(?:SETTING\s+)?KB_F12B\s*=\s*({_NUMBER})(?:\s+(?:AU|HARTREE))?\s*$',
             output, re.IGNORECASE | re.MULTILINE)
-        if stored and (len(stored) != 1
-                       or abs(_number(stored[0]) - energy) > 1e-7):
+        # Assignment and SHOW may both print the same saved value. Every
+        # occurrence must agree with the one native correlated energy.
+        if any(abs(_number(value) - energy) > 1e-7 for value in stored):
             raise ValueError('Molpro stored F12b energy disagrees with the '
                              'native total energy.')
     result = {'kind': 'molpro_energy', 'method': method, 'basis': basis,

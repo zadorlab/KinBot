@@ -240,3 +240,12 @@ these contracts. A new campaign first validates one native probe before
 widening its queue. A native execution record reports Molpro errors directly.
 The failed campaign must be archived and regenerated; it is not relabeled as
 a successful native test. Native success remains to be demonstrated.
+
+The replacement Blodgett augmented-DZ probe has now completed natively with
+all six requested states and all three orbital artifacts. Its first audit
+was a false negative because Molpro prints `HARTREE` instead of `AU` for
+the saved variables. Readers now accept both atomic-energy labels, with a
+regression based on the supplied native root energies and occupations.
+The corresponding ASE/VRC reader and ANL F12 validation were corrected too;
+consistent assignment/SHOW duplicates are allowed while mismatches still
+fail. This does not validate other bases, geometries or production correlation.

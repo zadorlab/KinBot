@@ -610,7 +610,8 @@ def _audit(manifest_path):
                          and wfu.stat().st_size and molden.is_file()
                          and molden.stat().st_size else 'incomplete')
         energies = re.findall(r'SETTING\s+RECONENERGY\s*=\s*'
-                              r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+AU', output_text)
+                              r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+(?:AU|HARTREE)\b',
+                              output_text, re.IGNORECASE)
         if energies:
             value = float(energies[-1].replace('D', 'E').replace('d', 'e'))
             if np.isfinite(value):
@@ -620,7 +621,8 @@ def _audit(manifest_path):
         if job.get('natural_orbital_probe'):
             roots = {int(index): float(value.replace('D', 'E').replace('d', 'e'))
                      for index, value in re.findall(r'SETTING\s+RECONR(\d+)\s*=\s*'
-                         r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+AU', output_text)}
+                         r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+(?:AU|HARTREE)\b',
+                         output_text, re.IGNORECASE)}
             expected = sum((job.get('spin_context') or {}).get('roots', {}).values())
             if (not roots or any(not np.isfinite(value) for value in roots.values())
                     or (expected and sorted(roots) != list(range(1, expected + 1)))):

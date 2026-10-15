@@ -92,6 +92,8 @@ def test_documented_molpro_force_input_and_parser_contract():
                           ' Triples (T) contribution -0.006123456789\n'
                           ' Molpro calculation terminated\n')
         assert parse_output(output) == pytest.approx(-40.123456789 * Hartree)
+        output.write_text(output.read_text().replace(' AU', ' HARTREE'))
+        assert parse_output(output) == pytest.approx(-40.123456789 * Hartree)
         geometry = Path(temporary) / 'step.xyz'
         geometry.write_text(
             '3\nMolpro XYZ\n'

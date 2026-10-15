@@ -30,7 +30,7 @@ from kinbot.theory import fortran_threshold
 
 _ENERGY = re.compile(
     r'^\s*SETTING\s+KB_GEOM_ENERGY\s*=\s*'
-    r'([-+]?\d+(?:\.\d*)?(?:[EeDd][-+]?\d+)?)\s+AU\b',
+    r'([-+]?\d+(?:\.\d*)?(?:[EeDd][-+]?\d+)?)\s+(?:AU|HARTREE)\b',
     re.IGNORECASE | re.MULTILINE,
 )
 _SAFE_BASIS = re.compile(r'[A-Za-z0-9_+./*()-]+\Z')

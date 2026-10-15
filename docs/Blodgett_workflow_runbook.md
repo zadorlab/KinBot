@@ -201,3 +201,18 @@ widening a fresh manifest. Preserve the failed campaign using
 `kinbot.run_cleanup --stop --archive`, and prepare a fresh campaign from the
 corrected code. Its changed input hashes must not be written over the old
 submission history. The initial 872-job count is unchanged.
+
+## Successful native pilot with a parser rejection
+
+The replacement CH3S augmented-DZ pilot completed normally, returned zero,
+saved both Molden files and its job-local WFU, and printed all three doublet
+and three quartet energies. Its variable assignments use the unit label
+`HARTREE`, while the initial reconnaissance reader required `AU`. The reader
+now accepts both equivalent labels. The same unit handling is corrected in
+the ASE gradient/sampling parser and the ANL stored-F12-energy validation;
+repeated assignment/SHOW values must agree with the native total energy.
+
+This is a reader-only correction: **preserve and resume this campaign in
+place** after pulling it. Do not archive or regenerate the successful pilot,
+and do not resubmit its job manually. The controller re-audits its existing
+output, accepts the completed probe, and continues the remaining pilots.

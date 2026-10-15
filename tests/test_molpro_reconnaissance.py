@@ -69,6 +69,31 @@ def test_audit_requires_native_output_wfu_and_molden(tmp_path):
     assert all(job['wfu_sha256'] for job in result['jobs'])
 
 
+def test_real_blodgett_hartree_output_is_accepted_without_rerunning(tmp_path):
+    source = (Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json')
+    path = prepare(source, tmp_path / 'recon')
+    job = json.loads(path.read_text())['jobs'][0]
+    directory, name = Path(job['directory']), job['name']
+    energies = [-436.30070077, -436.30070077, -436.14287849,
+                -435.90611238, -435.76240012, -435.76240011]
+    (directory / (name + '.out')).write_text(
+        ' SETTING RECONENERGY    =      -436.30070077  HARTREE\n'
+        + ''.join(f' SETTING RECONR{index}        =      {energy:.8f}  HARTREE\n'
+                  for index, energy in enumerate(energies, 1))
+        + ' SETTING RECONDONE      =         1.00000000\n'
+        ' Molpro calculation terminated\n')
+    (directory / (name + '.wfu')).write_bytes(b'completed native WFU')
+    (directory / (name + '.molden')).write_text('[Molden Format]\n')
+    occupations = [2.] * 6 + [1.99814, 1.99213, 1.99109, 1.99109,
+                              1.50808, 1.50808, 1.49864, .51273]
+    (directory / (name + '.natural.molden')).write_text(
+        '[MO]\n' + ''.join(f'Occup= {value}\n' for value in occupations))
+    result = audit(path)['jobs'][0]
+    assert result['status'] == 'complete'
+    assert result['root_energies_hartree'] == energies
+    assert result['state_energies_hartree'][3]['multiplicity'] == 4
+
+
 def test_select_hash_binds_a_reviewed_active_orbital_record(tmp_path):
     wfu = tmp_path / 'reviewed.wfu'
     wfu.write_bytes(b'reviewed active orbitals')

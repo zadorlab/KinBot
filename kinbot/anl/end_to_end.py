@@ -27,7 +27,7 @@ from kinbot.anl.atct import _canonical_smiles
 from kinbot.anl.cbh import (HARTREE_TO_KJ_MOL, formation_from_dict,
                             formation_species, solve_composite_records,
                             zero_k_from_composite_record)
-from kinbot.anl.kinetics import audit_methyl_recombination
+from kinbot.anl.kinetics import audit_rate_tables
 from kinbot.anl.literature import compare_formation, compare_run
 from kinbot.anl.thermochemistry import audit_messpf_run
 from kinbot.anl.validation import (assemble_profiled_anl0_f12,
@@ -680,7 +680,7 @@ def _chemistry_report(base, data):
 
 
 def _mess_rotd_statistical_factors(path, staged_name):
-    """Read the statistical factors from the rendered methyl MESS input."""
+    """Read the statistical factors for one rendered scalar ROTD barrier."""
     path = Path(path)
     text = path.read_text(errors='replace')
     number = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?'
@@ -693,6 +693,7 @@ def _mess_rotd_statistical_factors(path, staged_name):
         raise ValueError(
             'Expected one MESS ROTD barrier using the staged surface.')
     barrier = barriers[0]
+    endpoints = barrier.splitlines()[0].split()[2:]
     core = re.search(
         rf'(?ms)Core\s+Rotd\b.*?SymmetryFactor\s+({number}).*?'
         r'End(?:\s*!\s*Core)?', barrier)
@@ -706,6 +707,8 @@ def _mess_rotd_statistical_factors(path, staged_name):
         r'(?ms)^[ \t]*Bimolecular\s+.*?' + top, text)
     candidates = []
     for block in bimolecular:
+        if block.splitlines()[0].split()[1] not in endpoints:
+            continue
         fragments = re.findall(
             r'(?ms)^[ \t]*Fragment\s+.*?'
             r'(?=^[ \t]*(?:Fragment\s|GroundEnergy\b))', block)
@@ -713,7 +716,7 @@ def _mess_rotd_statistical_factors(path, staged_name):
             candidates.append(fragments)
     if len(candidates) != 1:
         raise ValueError(
-            'Expected one two-fragment MESS bimolecular model.')
+            'Expected one two-fragment MESS model connected to the selected ROTD barrier.')
     symmetries = []
     multiplicities = []
     for fragment in candidates[0]:
@@ -758,9 +761,7 @@ def audit(source):
                 f'{ident}: MESSPF has no accepted hindered-rotor block.')
     handoff = _audit_handoff(base, data, run_dir)
     chemistry = _chemistry_report(base, data)
-    kinetics = audit_methyl_recombination(
-        run_dir, job=data['mess'].get('job', 'mess_0000'),
-        max_factor=float(data['mess'].get('maximum_rate_factor', 1.5)))
+    kinetics = audit_rate_tables(run_dir, job=data['mess'].get('job', 'mess_0000'))
     sources_path = run_dir / 'me' / 'rotdpy_sources.json'
     sources = _read_json(sources_path, 'MESS ROTD_py provenance')
     reaction = data['rotdpy'].get('reaction')
@@ -774,25 +775,27 @@ def audit(source):
     staged_name = consumed.get('mess_file')
     staged = run_dir / 'me' / str(staged_name)
     preprocessing = consumed.get('mess_preprocessing')
+    boundary = preprocessing.get('row') if isinstance(preprocessing, dict) else None
     if (not isinstance(staged_name, str)
             or Path(staged_name).name != staged_name
             or not staged.is_file()
             or consumed.get('mess_file_sha256') != _sha256(staged)
             or not isinstance(preprocessing, dict)
             or preprocessing.get('name') != 'explicit_zero_flux_origin'
-            or preprocessing.get('row') != [0., 0.]):
+            or not isinstance(boundary, list) or len(boundary) != 2
+            or any(not isinstance(value, (int, float)) or not math.isfinite(value) for value in boundary)
+            or boundary[1] != 0.):
         raise ValueError(
             'MESS-facing ROTD_py surface provenance is incomplete.')
     first_row = next((line.split() for line in staged.read_text().splitlines()
                       if line.split()), None)
     try:
-        explicit_origin = ([float(value) for value in first_row]
-                           == [0., 0.])
+        explicit_origin = ([float(value) for value in first_row] == boundary)
     except (TypeError, ValueError):
         explicit_origin = False
     if not explicit_origin:
         raise ValueError(
-            'MESS-facing ROTD_py surface lacks an explicit zero-flux origin.')
+            'MESS-facing ROTD_py surface differs from its declared zero-flux boundary.')
     job = data['mess'].get('job', 'mess_0000')
     mess_input = run_dir / 'me' / f'{job}.inp'
     rendered_factors = _mess_rotd_statistical_factors(

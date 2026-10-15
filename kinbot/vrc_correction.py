@@ -45,17 +45,10 @@ _SPIN_SPLITTING_DEFAULTS = {
             'extrapolation_power': ORIGINAL_ANL_POWER,
         },
     ],
-    # Historical interpolation retained for archived inputs. Its distances
-    # and weights are not a general chemistry model; the new accuracy preset
-    # uses an arithmetic mean and still requires method-sensitivity checks.
-    'weighting': {
-        'model': 'distance_switch',
-        'distance_knots_angstrom': [2.5, 3.125, 3.75, 4.375, 5.0],
-        'weights': {
-            'caspt2_f12': [0.2, 0.4, 0.5, 0.6, 0.8],
-            'mrci_f12_q': [0.8, 0.6, 0.5, 0.4, 0.2],
-        },
-    },
+    # No molecule-specific preference as a function of separation. An equal
+    # mean remains a model to validate, not an accuracy guarantee. A distance
+    # switch is supported only with explicit user-supplied knots and weights.
+    'weighting': {'model': 'arithmetic_mean'},
 }
 
 

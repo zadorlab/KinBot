@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from kinbot.anl.kinetics import (audit_methyl_recombination,
+                                 audit_rate_tables,
                                  methyl_recombination_experimental_fit,
                                  methyl_recombination_legacy_fit,
                                  methyl_recombination_theory_fit,
@@ -66,6 +67,15 @@ def test_methyl_recombination_audit_uses_hash_and_network(tmp_path):
     assert all(row['similar_vrc_theory_rate'] > 0.
                and row['legacy_1996_rate'] > 0.
                for row in audit['rates'])
+    # The general audit permits arbitrary networks and rate trends; no
+    # implicit fit or methyl statistical factor is an acceptance criterion.
+    (directory / 'mess_networks.json').write_text(json.dumps([{
+        'stem': 'mess_0000', 'wells': ['w_1', 'w_2'], 'products': ['b_1', 'b_2'],
+    }]))
+    generic = audit_rate_tables(tmp_path)
+    assert generic['status'] == 'passed'
+    assert generic['accuracy_status'] == 'not_assessed' and 'source' not in generic
+    assert len(generic['rates']) == 4
     native.write_text(native.read_text() + '\nchanged\n')
     with pytest.raises(ValueError, match='hash'):
         audit_methyl_recombination(tmp_path)

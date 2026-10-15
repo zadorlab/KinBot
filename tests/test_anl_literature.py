@@ -130,6 +130,17 @@ def test_prepare_one_off_methyl_uhf_source_reproduction(
     del unpinned['intent']['source_reference_validation']
     with pytest.raises(ValueError, match='reference conflicts'):
         validate_spec(unpinned)
+    # A source reproduction is explicit provenance, never a molecule-name or
+    # doublet-only exception inside the general dispatcher.
+    generic = json.loads(json.dumps(spec))
+    generic['molecule']['multiplicity'] = 4
+    generic['tasks'][0]['source_reference_validation'] = 'another-source-UHF'
+    generic['intent']['source_reference_validation'] = 'another-source-UHF'
+    generic['intent']['literature_benchmark']['name'] = 'another-source'
+    validate_spec(generic)
+    generic['intent']['claim'] = 'automatic-cbh-anl-production'
+    with pytest.raises(ValueError, match='reference conflicts'):
+        validate_spec(generic)
 
 
 def test_methyl_current_profile_compares_to_published_targets(monkeypatch):

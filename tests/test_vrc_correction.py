@@ -112,7 +112,11 @@ def test_explicit_spin_settings_cannot_relabel_the_accepted_channel(override, me
 
 
 def test_distance_switch_prefers_mrci_short_and_caspt2_long_range():
-    settings = spin_splitting_settings(_parameters())
+    settings = spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
+        'weighting': {'model': 'distance_switch',
+                     'distance_knots_angstrom': [2.5, 3.125, 3.75, 4.375, 5.0],
+                     'weights': {'caspt2_f12': [.2, .4, .5, .6, .8],
+                                 'mrci_f12_q': [.8, .6, .5, .4, .2]}}}))
     weights = spin_splitting_weights([2., 2.5, 3.125, 3.75, 4.375, 5., 8.],
                                      settings)
     assert weights['caspt2_f12'] == pytest.approx(
@@ -121,6 +125,16 @@ def test_distance_switch_prefers_mrci_short_and_caspt2_long_range():
         [.8, .8, .6, .5, .4, .2, .2])
     assert np.asarray(weights['caspt2_f12']) + np.asarray(
         weights['mrci_f12_q']) == pytest.approx(np.ones(7))
+
+
+def test_default_weights_have_no_molecule_specific_distance_preference():
+    settings = spin_splitting_settings(_parameters())
+    assert settings['weighting'] == {'model': 'arithmetic_mean'}
+    weights = spin_splitting_weights([1., 5., 50.], settings)
+    assert weights['caspt2_f12'] == pytest.approx([.5, .5, .5])
+    with pytest.raises(ValueError):
+        spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
+            'weighting': {'model': 'distance_switch'}}))
 
 
 def test_sulfur_radical_spin_couplings_and_high_accuracy_active_spaces():
@@ -474,8 +488,7 @@ def test_spin_splitting_extrapolates_triplet_and_both_gap_states():
         two_point_cbs(-5.30, -5.35, upper_cardinal=4)
         - two_point_cbs(-5.00, -5.03, upper_cardinal=4),
     ])
-    expected = triplet + np.asarray([.2, .8]) * cas_gap \
-        + np.asarray([.8, .2]) * mrci_gap
+    expected = triplet + .5 * (cas_gap + mrci_gap)
     assert result == pytest.approx(expected)
     assert metadata['triplet_cbs']['power'] == pytest.approx(3.7)
     assert set(metadata['gap_cbs']) == {'caspt2_f12', 'mrci_f12_q'}

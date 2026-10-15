@@ -1,5 +1,11 @@
 # CH3SS orbital reconnaissance and CBH/ANL–VRC–MESS
 
+The repaired CASSCF reference panel is complete. Continue with the
+[finite correlated validation batch](../../../docs/SULFUR_CORRELATED_VALIDATION.md):
+both channels, verified natural-orbital partitions, CASPT2-F12b comparisons,
+and a shared 20-job cap. The dense scan and ten-job settings below are
+historical, not the current launch.
+
 The reconnaissance treats the two dissociations separately:
 
 | Coordinate | Products | Coupled multiplicities | Spin-free spatial roots per multiplicity |

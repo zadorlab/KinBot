@@ -668,6 +668,32 @@ def test_automatic_final_report_is_self_contained_and_idempotent(tmp_path):
     assert report['network']['stable_species'] == ['root']
 
 
+def test_automatic_audit_handles_multistate_stages_and_only_selected_reactions(tmp_path):
+    from kinbot.anl.automatic import _audit_rotd_results
+    from kinbot.vrc_multistate import stage_channel
+    from test_vrc_multistate import _completed_channel
+    rotd = tmp_path / 'rotdPy'
+    rotd.mkdir()
+    manifest = _completed_channel(rotd)
+    me = tmp_path / 'me'
+    provenance = stage_channel(manifest, me, required_profile='interface')
+    (me / 'rotdpy_sources.json').write_text(json.dumps({'reactions': {'r': provenance}}))
+    plan = {'network': {'reactions': [{'name': 'r', 'barrierless': True},
+                                      {'name': 'unselected', 'barrierless': True}]}}
+    parameters = {'me': 1, 'rotdpy_mess_mode': 'required',
+                  'vrc_tst_scan': {'parent': ['r']}}
+    report = _audit_rotd_results(plan, parameters, tmp_path)
+    assert set(report) == {'r'}
+    assert report['r']['kind'] == 'multistate'
+    assert {s['name'] for s in report['r']['bottlenecks']} == {'inner', 'outer'}
+    assert sum(len(s['states']) for s in report['r']['bottlenecks']) == 4
+    assert not (rotd / 'r.py').exists()  # only scalar physical-state leaves exist
+    table = me / provenance['staged_bottlenecks'][0]['file']
+    table.write_text(table.read_text() + '\n')
+    with pytest.raises(ValueError, match='flux table changed'):
+        _audit_rotd_results(plan, parameters, tmp_path)
+
+
 def test_automatic_report_resolves_and_verifies_mess_paths_from_run_root(
         tmp_path):
     automatic_dir = tmp_path / 'anl_automatic'

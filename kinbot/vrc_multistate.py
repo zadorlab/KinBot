@@ -332,8 +332,8 @@ def assemble_states(entries, destination, *, baseline_cm_inverse):
             'spin_counting': 'explicit_levels_or_multiplicity_in_flux; MESS_electronic_degeneracy=1'}
 
 
-def stage_channel(manifest_file, destination, *, required_profile=None):
-    """Revalidate every source and derive one MESS table per bottleneck."""
+def channel_sources(manifest_file, *, required_profile=None):
+    """Revalidate every physical-state source without writing MESS tables."""
     from kinbot.rotdpy import number_of_states_file
     path = Path(manifest_file).resolve()
     payload = json.loads(path.read_text())
@@ -356,6 +356,18 @@ def stage_channel(manifest_file, destination, *, required_profile=None):
                 raise ValueError('State input or correction changed after multistate assembly.')
             table, provenance = number_of_states_file(inp, -1, required_profile=required_profile)
             entries.append({**state, 'source': str(table), 'provenance': provenance})
+        stages.append({**stage, 'states': entries})
+    return {**payload, 'bottlenecks': stages, 'baseline_cm_inverse': baseline,
+            'manifest_sha256': file_sha256(path)}
+
+
+def stage_channel(manifest_file, destination, *, required_profile=None):
+    """Revalidate every source and derive one MESS table per bottleneck."""
+    payload = channel_sources(manifest_file, required_profile=required_profile)
+    baseline = payload['baseline_cm_inverse']
+    stages = []
+    for stage in payload['bottlenecks']:
+        entries = stage['states']
         destination = Path(destination)
         target = destination / f'rotd_{payload["reaction"]}_{stage["name"]}.out'
         if not _SAFE.fullmatch(target.name):
@@ -363,8 +375,7 @@ def stage_channel(manifest_file, destination, *, required_profile=None):
         info = assemble_states(entries, target, baseline_cm_inverse=baseline)
         stages.append({'name': stage['name'], 'file': target.name, **info, 'states': entries})
     return {**payload, 'staged_bottlenecks': stages,
-            'baseline_cm_inverse': baseline,
-            'manifest_sha256': file_sha256(path)}
+            'baseline_cm_inverse': baseline}
 
 
 def render_mess(provenance, render_rrho):

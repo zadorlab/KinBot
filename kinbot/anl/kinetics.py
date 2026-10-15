@@ -172,15 +172,12 @@ def methyl_recombination_legacy_fit(temperature_k):
     return 8.78e-11 * math.exp(-temperature / 723.)
 
 
-def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=1.5):
-    """Audit a completed CH3 + CH3 MESS result against a published fit.
+def audit_rate_tables(run_dir, *, job='mess_0000'):
+    """Verify a completed MESS network without assuming its chemistry or fit.
 
-    Network metadata determines the separated bimolecular reactant and bound
-    product names. The comparison is diagnostic for the complete ROTD/MESS
-    setup; the empirical fit is never used to construct an input or rate.
+    Passing verifies execution/provenance and parseable native rates. It is
+    deliberately not a claim of agreement with experiment or rate accuracy.
     """
-    if not math.isfinite(max_factor) or max_factor < 1.:
-        raise ValueError('max_factor must be finite and at least one.')
     root = Path(run_dir).resolve()
     directory = root if root.name == 'me' else root / 'me'
     execution_path = directory / 'mess_execution.json'
@@ -209,6 +206,21 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=1.5):
     if len(matches) != 1:
         raise ValueError(f'{job}: expected one MESS network record.')
     network = matches[0]
+    points = parse_high_pressure_rates(output_path)
+    return {'schema': 1, 'status': 'passed', 'job': job,
+            'execution_job_key': execution_job, 'output': str(output_path),
+            'output_sha256': observed_hash, 'network': network,
+            'rates': [asdict(point) for point in points],
+            'accuracy_status': 'not_assessed',
+            'note': 'Native execution and rate-table audit; no empirical fit is applied.'}
+
+
+def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=1.5):
+    """Explicit literature diagnostic; never invoked by general orchestration."""
+    if not math.isfinite(max_factor) or max_factor < 1.:
+        raise ValueError('max_factor must be finite and at least one.')
+    native = audit_rate_tables(run_dir, job=job)
+    network = native['network']
     if len(network.get('wells', ())) != 1 or len(network.get('products', ())) != 1:
         raise ValueError(
             f'{job}: methyl recombination audit requires one well and one '
@@ -216,7 +228,7 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=1.5):
     reactant = network['products'][0]
     product = network['wells'][0]
     series = rate_series(
-        parse_high_pressure_rates(output_path), reactant, product)
+        (HighPressureRate(**point) for point in native['rates']), reactant, product)
     minimum_temperature, maximum_temperature = (
         METHYL_RECOMBINATION_SOURCE['temperature_range_k'])
     comparison = []
@@ -259,9 +271,9 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=1.5):
         'status': ('passed' if monotone and all(
             item['within_factor'] for item in compared) else 'failed'),
         'job': job,
-        'execution_job_key': execution_job,
-        'output': str(output_path),
-        'output_sha256': observed_hash,
+        'execution_job_key': native['execution_job_key'],
+        'output': native['output'],
+        'output_sha256': native['output_sha256'],
         'reaction': f'{reactant}->{product}',
         'units': 'cm^3 s^-1',
         'maximum_accepted_factor': float(max_factor),
@@ -281,6 +293,9 @@ def main(argv=None):
     commands = parser.add_subparsers(dest='action', required=True)
     parse = commands.add_parser('parse-high-pressure')
     parse.add_argument('output', type=Path)
+    audit = commands.add_parser('audit-rates')
+    audit.add_argument('run_dir', type=Path)
+    audit.add_argument('--job', default='mess_0000')
     compare = commands.add_parser('compare-methyl-recombination')
     compare.add_argument('run_dir', type=Path)
     compare.add_argument('--job', default='mess_0000')
@@ -289,6 +304,9 @@ def main(argv=None):
     if args.action == 'parse-high-pressure':
         print(json.dumps([asdict(point) for point in
                           parse_high_pressure_rates(args.output)], indent=2))
+        return 0
+    if args.action == 'audit-rates':
+        print(json.dumps(audit_rate_tables(args.run_dir, job=args.job), indent=2))
         return 0
     result = audit_methyl_recombination(
         args.run_dir, job=args.job, max_factor=args.max_factor)

@@ -67,6 +67,29 @@ def test_plan_does_not_accept_stale_chemistry(tmp_path):
         review.prepare(path, tmp_path / 'campaign')
 
 
+def test_plan_exposes_requested_rotd_controls_and_unreviewed_stages(tmp_path):
+    context = json.loads((SOURCE.parent / 'ch3s.json').read_text())
+    context.update(title='arbitrary_title', vrc_tst_sample_basis='avdz-f12',
+                   vrc_tst_scan_points=[4., 4.3, 4.6], rotdpy_dist=[6., 7.],
+                   vrc_tst_surface_model_file='surfaces.json')
+    atomic_json(tmp_path / 'context.json', context)
+    stages = {'schema': 1, 'reviewed': False, 'channels': [{'bond': [1, 2],
+        'bottlenecks': [{'name': 'outer', 'coordinate': 'com',
+                        'parameters': {'vrc_tst_sample_basis': 'avtz-f12'}}]}]}
+    atomic_json(tmp_path / 'surfaces.json', stages)
+    data = json.loads(SOURCE.read_text())
+    data['kinbot_input'] = 'context.json'
+    atomic_json(tmp_path / 'source.json', data)
+    result = json.loads(review.plan(tmp_path / 'source.json', tmp_path / 'plan.json').read_text())
+    target = result['rotd_target']
+    assert target['parameters']['vrc_tst_sample_basis'] == 'avdz-f12'
+    assert target['parameters']['vrc_tst_scan_points'] == [4., 4.3, 4.6]
+    assert target['parameters']['rotdpy_dist'] == [6., 7.]
+    assert target['surface_model']['model'] == stages  # never approves it
+    assert target['surface_model']['sha256'] == file_sha256(tmp_path / 'surfaces.json')
+    assert {'accuracy', 'continuity', 'chemistry', 'cost', 'kinetics'} <= set(target['acceptance_checks'])
+
+
 def test_correlation_checks_share_production_energy_contract(tmp_path):
     data = recon._load(SOURCE)
     data.update(probe_method='casscf', avas_reference='rhf', correlation_checks=[
@@ -75,14 +98,137 @@ def test_correlation_checks_share_production_energy_contract(tmp_path):
     deck = recon._deck(data, 'avtz-f12', data['anchors'][0], 'trial')
     assert deck.count('{multi,') == 1
     assert 'cas-ci' not in deck
-    assert 'rs2-f12,shift=0.2,ipea=0.25;wf,25,1,1;state,1,3;' in deck
-    assert 'mrci-f12,scalf12=1,cabs_singles=1;wf,25,1,3;state,1,3;' in deck
+    assert 'canonical,2141.2\n' in deck and 'natorb,2140.2\n' in deck
+    assert 'rs2-f12,shift=0.2,ipea=0.25;orbital,2141.2,type=canonical;wf,25,1,1;state,1,3;' in deck
+    assert 'mrci-f12,scalf12=1,cabs_singles=1;orbital,2140.2,type=natural;wf,25,1,3;state,1,3;' in deck
     assert 'KBVRCSEL=energd(2)' in deck
     assert 'reconc12=KBVRCSEL' in deck
     recon.validate_input_blocks(deck)
 
 
-def _selected(tmp_path, electrons=5, orbitals=4, averages=None):
+@pytest.fixture
+def partition_source(tmp_path, monkeypatch):
+    plan_path = review.plan(SOURCE, tmp_path / 'source_plan.json')
+    plan = json.loads(plan_path.read_text())
+    plan['variants'] = [plan['variants'][1]]
+    plan['models'][0]['anchors'] = plan['models'][0]['anchors'][:1]
+    atomic_json(plan_path, plan)
+    campaign_path = review.prepare(plan_path, tmp_path / 'original')
+    campaign = json.loads(campaign_path.read_text())
+    manifest = json.loads(Path(campaign['systems'][0]['manifest']).read_text())
+    row = manifest['jobs'][0]
+    wfu = Path(row['directory']) / 'reviewed.wfu'
+    wfu.write_bytes(b'verified source natural orbitals')
+    metadata = json.loads((campaign_path.parent / 'review_index.json').read_text())['systems'][0]
+    row.update(status='complete', campaign=str(campaign_path.parent), review=metadata,
+               wfu=str(wfu), wfu_sha256=file_sha256(wfu), output_sha256='source-output-hash',
+               electron_count=manifest['electron_count'],
+               native_active_space={key: row['probe_active_space'][key]
+                                    for key in ('active_electrons', 'active_orbitals')})
+    monkeypatch.setattr(review, '_review_rows', lambda root: (campaign, [row]))
+    item = {'name': 'trial_near', 'model': 'trial', 'source_directory': row['directory'],
+            'region': 'diagnostic', 'chemical_note': 'Radical and complete sulfur p manifold',
+            'active_electrons': 5, 'active_orbitals': 4, 'close_lowest': 4, 'discard_highest': 0,
+            'correlation_checks': [{'method': 'caspt2-f12b(5,4)', 'shift': .3, 'ipea': .25}]}
+    return row, item
+
+
+def test_partition_reoptimizes_reviewed_natural_orbitals_without_avas_or_basis_change(tmp_path, partition_source):
+    row, item = partition_source
+    source_bytes = Path(row['wfu']).read_bytes()
+    specification = tmp_path / 'partition.json'
+    atomic_json(specification, {'schema': 1, 'models': [item]})
+    result = review.prepare_partitions(specification, tmp_path / 'candidate')
+    campaign = json.loads(result.read_text())
+    for key in ('pilot_manifest', 'manifest'):
+        manifest = json.loads(Path(campaign['systems'][0][key]).read_text())
+        assert len(manifest['jobs']) == 1
+        job = manifest['jobs'][0]
+        assert job['basis'] == row['basis'] and job['geometry_angstrom'] == row['geometry_angstrom']
+        assert job['root_states'] == row['root_states']
+        assert job['initial_record'] == {'path': row['wfu'], 'sha256': row['wfu_sha256']}
+        assert job['orbital_predecessor'] is None
+        deck = Path(job['directory'], job['name'] + '.inp').read_text()
+        assert deck.count('file,2,') == 1 and deck.count('{multi,') == 1
+        assert 'occ,14\nclosed,10\n' in deck
+        assert 'start,2140.2,type=natural' in deck and '{avas' not in deck and 'diab,' not in deck
+        assert 'accuracy,energy=1.d-8' in deck
+        assert 'orbital,2141.2,type=canonical' in deck
+        assert 'cas-ci' not in deck and job.get('status') != 'complete'
+    assert Path(row['wfu']).read_bytes() == source_bytes
+    config = json.loads(Path(campaign['systems'][0]['configuration']).read_text())
+    config.pop('initial_records')
+    atomic_json(tmp_path / 'unseeded.json', config)
+    with pytest.raises(ValueError, match='own verified'):
+        recon.prepare(tmp_path / 'unseeded.json', tmp_path / 'unseeded')
+
+
+@pytest.mark.parametrize('invalid', ['count', 'native_count', 'basis', 'incomplete', 'casci'])
+def test_partition_refuses_incompatible_or_unvalidated_sources(tmp_path, partition_source, invalid):
+    row, item = partition_source
+    if invalid == 'count':
+        item['close_lowest'] = 3
+    elif invalid == 'native_count':
+        row['native_active_space']['active_orbitals'] -= 1
+    elif invalid == 'basis':
+        item['basis'] = 'avdz-f12'
+    elif invalid == 'casci':
+        row['probe_method'] = 'casci'
+    else:
+        row['status'] = 'incomplete'
+    specification = tmp_path / 'partition.json'
+    atomic_json(specification, {'schema': 1, 'models': [item]})
+    with pytest.raises(ValueError):
+        review.prepare_partitions(specification, tmp_path / 'candidate')
+
+
+def test_partition_can_seed_a_new_radial_distance_without_relabeling_source(tmp_path, partition_source):
+    import numpy as np
+    row, item = partition_source
+    original_geometry = deepcopy(row['geometry_angstrom'])
+    item['target_distance_angstrom'] = 3.3
+    specification = tmp_path / 'partition.json'
+    atomic_json(specification, {'schema': 1, 'models': [item]})
+    result = review.prepare_partitions(specification, tmp_path / 'candidate')
+    system = json.loads(result.read_text())['systems'][0]
+    job = json.loads(Path(system['pilot_manifest']).read_text())['jobs'][0]
+    xyz = np.array(job['geometry_angstrom'])
+    assert np.linalg.norm(xyz[1] - xyz[0]) == pytest.approx(3.3)
+    assert job['initial_record']['path'] == row['wfu']
+    assert job.get('status') != 'complete' and row['geometry_angstrom'] == original_geometry
+    metadata = json.loads((result.parent / 'review_index.json').read_text())['systems'][0]
+    assert metadata['source_geometry_angstrom'] == original_geometry
+    item['target_distance_angstrom'] = float('nan')
+    atomic_json(specification, {'schema': 1, 'models': [item]})
+    with pytest.raises(ValueError, match='positive and finite'):
+        review.prepare_partitions(specification, tmp_path / 'invalid')
+
+
+def test_potential_profiles_match_root_labels_and_keep_unlike_curves_separate():
+    base = {'review': {'model': 'candidate', 'region': 'inner', 'channel': 'reaction'},
+            'basis': 'basis', 'campaign': 'campaign', 'phase': 'pilot', 'symbols': ['H', 'H'],
+            'electron_count': 2, 'probe_method': 'casscf', 'state_model': {},
+            'probe_active_space': {'active_electrons': 2, 'active_orbitals': 2}}
+    rows = []
+    for distance, values in [(2., [-10., -9.]), (3., [-9.5, -8.9]), (30., [-9.4, -8.8])]:
+        states = [{'multiplicity': 1, 'root': r + 1, 'energy_hartree': e} for r, e in enumerate(values)]
+        if distance == 30.:
+            states.reverse()  # A list order cannot determine the energy pairing.
+        rows.append({**deepcopy(base), 'directory': str(distance), 'distance_angstrom': distance,
+                     'geometry_angstrom': [[0, 0, 0], [0, 0, distance]], 'state_energies_hartree': states})
+    tilted = deepcopy(rows[0])
+    tilted['orientation'] = {'axis': 'bond', 'angle_degrees': 60.}
+    profiles = review._potential_profiles(rows + [tilted])
+    radial = profiles[0]
+    assert radial['points'][0]['states'][0]['relative_to_far_hartree'] == pytest.approx(-.6)
+    assert radial['points'][1]['states'][0]['secant_from_previous_hartree_per_angstrom'] == pytest.approx(.5)
+    assert profiles[1]['reference_directory'] is None  # no fake zero interaction for a lone orientation
+    assert all(p['accuracy_status'].startswith('unreviewed') for p in profiles)
+    duplicate = review._potential_profiles(rows + [rows[0]])[0]
+    assert duplicate['reference_directory'] is None
+
+
+def _selected(tmp_path, electrons=5, orbitals=4, averages=None, casscf_options=None):
     wfu = tmp_path / f'space{electrons}.wfu'
     wfu.write_bytes(b'reviewed checkpoint ' + str(electrons).encode())
     return recon.select_record(wfu, tmp_path / f'space{electrons}.json', record='2140.2',
@@ -90,12 +236,16 @@ def _selected(tmp_path, electrons=5, orbitals=4, averages=None):
         state_average=averages or [{'multiplicity': 2, 'roots': 2, 'weights': [0.7, 0.3]},
                                    {'multiplicity': 4, 'roots': 1}],
         selected_roots={2: 1, 4: 1}, review_note='Reviewed candidate interaction energies and characters',
-        basis='avtz-f12')
+        basis='avtz-f12', casscf_options=casscf_options)
 
 
 def test_reviewed_averages_survive_production_resolution(tmp_path):
     from kinbot.vrc_correction import resolved_state_model
-    selection = _selected(tmp_path)
+    from kinbot.molpro import stage_vrc_state_model, _vrc_multireference_method
+    controls = {'solver': 'so_sci', 'energy_convergence': 1e-8,
+                'gradient_convergence': 1e-5, 'quasi_newton': True,
+                'exact_diagonalization': True, 'max_iterations': 70}
+    selection = _selected(tmp_path, casscf_options=controls)
     parameters = {'vrc_tst_active_space': json.loads(selection.read_text())['active_space'],
                   'vrc_tst_state_model_file': str(selection), 'mult': 2}
     settings = {'target_multiplicity': 2, 'reference_multiplicity': 4}
@@ -103,6 +253,13 @@ def test_reviewed_averages_survive_production_resolution(tmp_path):
                                 settings, roots={2: 3, 4: 3}, basis='avtz-f12')
     assert model['state_average'][0] == {'multiplicity': 2, 'roots': 2, 'weights': [0.7, 0.3]}
     assert model['state_average'][1]['roots'] == 1
+    assert model['casscf_options'] == controls
+    staged = stage_vrc_state_model(model, tmp_path / 'native', 'job')
+    for method in ('caspt2-f12b(5,4)', 'mrci-f12b+q(5,4)'):
+        deck, _ = _vrc_multireference_method(method, 25, 1, state_model=staged)
+        assert '{multi,so-sci,exact_diag=1,qn=1;' in deck
+        assert 'accuracy,energy=1.d-8,gradient=1.d-5' in deck
+        assert 'maxit,70;' in deck
     parameters['vrc_tst_state_average_roots'] = {'2': 3}
     with pytest.raises(ValueError, match='conflict'):
         resolved_state_model(parameters, ['C', 'S', 'H', 'H', 'H'], 0,

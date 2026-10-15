@@ -1,5 +1,11 @@
 # CH3S orbital reconnaissance and CBH/ANL–VRC–MESS
 
+The repaired CASSCF reference panel is complete. Continue with the
+[finite correlated validation batch](../../../docs/SULFUR_CORRELATED_VALIDATION.md):
+verified natural-orbital partitions, CASPT2-F12b comparisons, a shared 20-job
+cap, and explicit steps through production acceptance. The dense scan and
+ten-job settings described below are historical, not the current launch.
+
 Use the [current chemical orbital-review workflow](../../../docs/ORBITAL_REVIEW_WORKFLOW.md)
 for fresh AVAS/CASSCF comparisons, verified checkpoint reuse, explicit
 inner/outer selections and the contained Blodgett restart/export commands.

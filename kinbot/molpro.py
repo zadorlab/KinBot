@@ -27,7 +27,9 @@ def validate_molpro_convergence(output, *, allow_scf_guess_failure=False):
     subsequent MULTI optimization explicitly converged. Check every program
     invocation, including displaced geometries in a numerical force job.
     """
-    failure = r'NO CONVERGENCE\s*!|No convergence in (?:[ru]?hf(?:pr)?|multi|mcscf|[ru]?ccsd)\b|(?:[RU]?HF|MCSCF|[RU]?CCSD)[^\n]*not converged'
+    failure = (r'NO CONVERGENCE\s*!|No convergence in '
+               r'(?:[ru]?hf(?:pr)?|multi|mcscf|[ru]?ccsd|ci|mrci|rs2|caspt2)\b|'
+               r'(?:[RU]?HF|MCSCF|[RU]?CCSD|MRCI|RS2|CASPT2|\bCI)[^\n]*not converged')
     programs = list(re.finditer(r'PROGRAM\s*\*\s*([^\r\n]+)', output, re.I))
     scf_header = r'(?:[RU]?HF\b|(?:Restricted|Unrestricted)\s+Hartree.Fock\b)'
     sections = [output[:programs[0].start()]] if programs else [output]
@@ -272,7 +274,7 @@ def validate_vrc_state_model(model, *, active_electrons=None,
     if not isinstance(model, dict):
         raise ValueError('vrc_tst_state_model must be an object.')
     allowed = {'orbital_selection', 'state_average', 'selected_roots',
-               'canonical_orbitals'}
+               'canonical_orbitals', 'casscf_options'}
     unknown = set(model) - allowed
     if unknown:
         raise ValueError('Unknown vrc_tst_state_model option(s): '
@@ -283,6 +285,25 @@ def validate_vrc_state_model(model, *, active_electrons=None,
     if not isinstance(canonical, bool):
         raise ValueError('canonical_orbitals must be true or false.')
     result['canonical_orbitals'] = canonical
+    if 'casscf_options' in result:
+        options = result['casscf_options']
+        allowed_options = {'solver', 'max_iterations', 'exact_diagonalization',
+                           'quasi_newton', 'energy_convergence', 'gradient_convergence', 'verbosity'}
+        if not isinstance(options, dict) or set(options) - allowed_options:
+            raise ValueError('Unknown reviewed casscf_options.')
+        if options.get('solver', 'second_order') not in ('second_order', 'so_sci'):
+            raise ValueError('casscf_options.solver must be second_order or so_sci.')
+        for key in ('exact_diagonalization', 'quasi_newton'):
+            if key in options and not isinstance(options[key], bool):
+                raise ValueError(f'casscf_options.{key} must be boolean.')
+        if 'max_iterations' in options and (type(options['max_iterations']) is not int or options['max_iterations'] < 1):
+            raise ValueError('casscf_options.max_iterations must be a positive integer.')
+        if 'verbosity' in options and (type(options['verbosity']) is not int or not 0 <= options['verbosity'] <= 4):
+            raise ValueError('casscf_options.verbosity must be an integer from 0 to 4.')
+        for key in ('energy_convergence', 'gradient_convergence'):
+            if key in options:
+                fortran_threshold(options[key], f'casscf_options.{key}')
+        result['casscf_options'] = deepcopy(options)
 
     averages = result.get('state_average')
     if not isinstance(averages, list) or not averages:
@@ -536,7 +557,20 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
                                         for value in entry['weights']) + '\n')
     if model['canonical_orbitals']:
         multi += 'canonical,2140.2\n'
-    multi += 'maxit,50;}\n\n'
+    options = model.get('casscf_options', {})
+    controls = []
+    if 'solver' in options:
+        controls.append({'second_order': 'so', 'so_sci': 'so-sci'}[options['solver']])
+    for key, option in (('exact_diagonalization', 'exact_diag'), ('quasi_newton', 'qn'), ('verbosity', 'verbosity')):
+        if key in options:
+            controls.append(f'{option}={int(options[key])}')
+    if controls:
+        multi = multi.replace('{multi,', '{multi,' + ','.join(controls) + ';', 1)
+    accuracy = [key.removesuffix('_convergence') + '=' + fortran_threshold(options[key], key)
+                for key in ('energy_convergence', 'gradient_convergence') if key in options]
+    if accuracy:
+        multi += 'accuracy,' + ','.join(accuracy) + '\n'
+    multi += f'maxit,{options.get("max_iterations", 50)};}}\n\n'
     return avas, multi, model['selected_roots'][multiplicity]
 
 

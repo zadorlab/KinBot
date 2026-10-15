@@ -1,6 +1,8 @@
 # CBH/ANL, VRC-TST, ROTD_py, MESS audit — 14 October 2026
 
-**Latest follow-up:** [TZ-F12 restart, additional bug fixes, and active-space review](SULFUR_TZ_RESTART_2026-10-14.md).
+**Current generality/handoff audit:** [15 October findings and fixes](GENERALITY_AUDIT_2026-10-15.md).
+
+**Earlier follow-up:** [TZ-F12 restart, additional bug fixes, and active-space review](SULFUR_TZ_RESTART_2026-10-14.md).
 The user selected single-basis TZ-F12 VRC and recon. Earlier multi-basis counts
 and restart procedures below are historical. CBH/ANL recipe improvements and
 RHF/ROHF-UCC conventions remain intentional and unchanged.

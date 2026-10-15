@@ -405,9 +405,10 @@ def validate_spec(spec, *, allow_obsolete=False):
         raise ValueError('tasks must be a list.')
     if not tasks:
         rank_exact = spec.get('intent', {}).get('rank_exact_higher_order')
-        if (spec.get('name') != 'anl1-higher-order-interface-validation'
-                or not isinstance(rank_exact, dict)
+        electrons = int(sum(atoms.numbers)) - spec['molecule'].get('charge', 0)
+        if (not isinstance(rank_exact, dict)
                 or rank_exact.get('electron_count') not in (1, 2)
+                or rank_exact.get('electron_count') != electrons
                 or rank_exact.get('correction_hartree') != 0.):
             raise ValueError('tasks may be empty only for a rank-exact '
                              'higher-order workflow.')
@@ -434,19 +435,22 @@ def validate_spec(spec, *, allow_obsolete=False):
                                   'molpro_energy') and 'reference' in parser:
             multiplicity = spec['molecule'].get('multiplicity', 1)
             reference = parser['reference']
-            pinned_methyl_uhf = (
+            # Explicit historical-reference reproductions are diagnostics.
+            # Validate their declared provenance, never a particular molecule
+            # or benchmark name. Automatic ANL still emits RHF/ROHF throughout.
+            intent = spec.get('intent', {})
+            benchmark = intent.get('literature_benchmark', {})
+            source_validation = task.get('source_reference_validation')
+            declared_source_uhf = (
                 parser.get('kind') == 'mrcc_energy'
                 and reference == 'UHF'
-                and task.get('source_reference_validation') ==
-                'methyl-qz-2017-UHF'
-                and spec.get('intent', {}).get(
-                    'source_reference_validation') ==
-                'methyl-qz-2017-UHF'
-                and spec.get('intent', {}).get(
-                    'literature_benchmark', {}).get('name') ==
-                'methyl-qz-2017'
-                and multiplicity == 2)
-            if (not pinned_methyl_uhf
+                and isinstance(source_validation, str) and bool(source_validation.strip())
+                and intent.get('source_reference_validation') == source_validation
+                and intent.get('claim') == 'pinned-literature-source-reference-validation-only'
+                and isinstance(benchmark, dict) and bool(benchmark.get('name'))
+                and bool(benchmark.get('source'))
+                and multiplicity > 1)
+            if (not declared_source_uhf
                     and (reference not in ('RHF', 'ROHF')
                     or (reference == 'RHF' and multiplicity != 1)
                     or (reference == 'ROHF' and multiplicity == 1))):

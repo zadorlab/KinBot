@@ -1496,6 +1496,59 @@ def _audit_automatic_graph(path):
     }
 
 
+def _audit_rotd_results(plan, parameters, run_dir):
+    """Audit selected scalar or state/stage-resolved ROTD calculations."""
+    from kinbot.rotdpy import read_result, result_path
+    from kinbot.rotdpy_mess import locate_result
+    from kinbot.vrc_multistate import channel_sources
+    required = parameters.get('rotdpy_validation_profile', 'interface')
+    par = {**parameters, 'rotdpy_directory': str(
+        run_dir / parameters.get('rotdpy_directory', 'rotdPy'))}
+
+    def scalar(input_path, correction):
+        result = read_result(input_path, required_profile=required)
+        return {'input': _artifact(input_path, 'ROTD_py input'),
+                'result': _artifact(result_path(input_path), 'ROTD_py result'),
+                'correction': _artifact(correction, 'VRC correction'),
+                'surface_count': result['surface_count'], 'validation': result.get('validation')}
+
+    result = {}
+    for reaction in plan['network']['reactions']:
+        if not reaction['barrierless']:
+            continue
+        name = reaction['name']
+        located = locate_result(par, name)
+        if located is None:
+            continue  # same explicit selection/optional fallback policy as MESS
+        input_path, multistate = located
+        if multistate is None:
+            result[name] = scalar(input_path, run_dir / 'vrctst' / f'corr_{name}.json')
+            continue
+        payload = channel_sources(multistate, required_profile=required)
+        result[name] = {'kind': 'multistate', 'manifest': _artifact(multistate, 'ROTD channel'),
+            'correction': _artifact(payload['correction'], 'VRC multistate correction'),
+            'surface_model': _artifact(payload['surface_model']['source'], 'reviewed surface model'),
+            'combination': payload['combination'], 'bottlenecks': [
+                {'name': stage['name'], 'coordinate': stage['coordinate'], 'states': [
+                    {**{key: state[key] for key in ('multiplicity', 'root', 'energy_offset_cm_inverse')},
+                     **scalar(multistate.parent / state['input'], state['correction'])}
+                    for state in stage['states']]} for stage in payload['bottlenecks']]}
+        if parameters.get('me') and parameters.get('rotdpy_mess_mode') != 'off':
+            consumed = _read_json(run_dir / 'me' / 'rotdpy_sources.json', 'MESS ROTD provenance')
+            consumed = consumed.get('reactions', {}).get(name, {})
+            if consumed.get('manifest_sha256') != payload['manifest_sha256']:
+                raise ValueError(f'{name}: MESS consumed a different multistate ROTD manifest.')
+            stages = consumed.get('staged_bottlenecks', [])
+            if {s['name'] for s in stages} != {s['name'] for s in payload['bottlenecks']}:
+                raise ValueError(f'{name}: MESS bottleneck provenance is incomplete.')
+            for stage in stages:
+                path = run_dir / 'me' / stage['file']
+                if not path.is_file() or _file_hash(path) != stage['source_sha256']:
+                    raise ValueError(f'{name}: MESS multistate flux table changed.')
+            result[name]['mess_provenance'] = consumed
+    return result
+
+
 def finalize_automatic_run(automatic, parameters, *, run_dir='.'):
     """Write the self-contained audit record for a one-input automatic run.
 
@@ -1597,22 +1650,7 @@ def finalize_automatic_run(automatic, parameters, *, run_dir='.'):
 
     rotdpy = {}
     if parameters.get('rotdpy_run'):
-        from kinbot.rotdpy import read_result, result_path
-        required = parameters.get('rotdpy_validation_profile', 'interface')
-        directory = run_dir / parameters.get('rotdpy_directory', 'rotdPy')
-        for reaction in plan['network']['reactions']:
-            if not reaction['barrierless']:
-                continue
-            input_path = directory / f'{reaction["name"]}.py'
-            result = read_result(input_path, required_profile=required)
-            correction = run_dir / 'vrctst' / f'corr_{reaction["name"]}.json'
-            rotdpy[reaction['name']] = {
-                'input': _artifact(input_path, 'ROTD_py input'),
-                'result': _artifact(result_path(input_path), 'ROTD_py result'),
-                'correction': _artifact(correction, 'VRC correction'),
-                'surface_count': result['surface_count'],
-                'validation': result.get('validation'),
-            }
+        rotdpy = _audit_rotd_results(plan, parameters, run_dir)
 
     report = {
         'schema': 1, 'status': 'complete',

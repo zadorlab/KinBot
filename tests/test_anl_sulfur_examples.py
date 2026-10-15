@@ -1,6 +1,8 @@
 """High-accuracy sulfur examples exercise open-shell VRC input contracts."""
 
 from pathlib import Path
+import importlib.util
+import json
 
 import pytest
 
@@ -55,3 +57,25 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
 
     reconnaissance = path.with_name('orbital_reconnaissance.json')
     assert reconnaissance.is_file()
+
+
+def test_validation_recipe_uses_requested_sampling_and_scan_grid():
+    root = Path(__file__).parents[1] / 'examples/anl/orbital_reviews'
+    spec = importlib.util.spec_from_file_location('example_validation', root / 'prepare_validation.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    recipe = json.loads((root / 'validation_candidates.json').read_text())
+    definition = module.plan(recipe, root)
+    assert len(definition['models']) == 39
+    for case in recipe['cases']:
+        rows = [m for m in definition['models'] if m['name'].startswith(case['label'] + '_')]
+        assert len(rows) == 13
+        parameters = Parameters(str((root / case['kinbot_input']).resolve())).par
+        assert all(m['target_distance_angstrom'] in parameters['vrc_tst_scan_points']
+                   for m in rows if 'target_distance_angstrom' in m)
+        for row in rows:
+            check = row['correlation_checks'][0]
+            assert check['method'] == f'caspt2-f12b({row["active_electrons"]},{row["active_orbitals"]})'
+            assert check['shift'] == parameters['vrc_tst_scan_shift']
+            assert check['ipea'] == parameters['vrc_tst_scan_ipea']
+            assert row['region'] == 'diagnostic'  # not an inferred inner/outer selection

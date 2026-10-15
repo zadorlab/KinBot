@@ -50,6 +50,9 @@ Barrier vrc b_1 w_1
 End
 ''')
 
+    with source.open('a') as stream:
+        stream.write('Bimolecular another_channel\n  Fragment x\n    RRHO\n'
+                     '  Fragment y\n    RRHO\n  GroundEnergy[kcal/mol] 0.0\nEnd\n')
     factors = _mess_rotd_statistical_factors(
         source, 'rotd_channel_Ne_0.out')
 

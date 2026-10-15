@@ -123,13 +123,14 @@ E_S(R) = E_T,CC,CBS(R)
        + w_MRCI(R)[E_S,MRCI,CBS(R) - E_T,MRCI,CBS(R)].
 ```
 
-The default distance switch uses CASPT2/MRCI weights `0.2/0.8`, `0.4/0.6`,
-`0.5/0.5`, `0.6/0.4`, and `0.8/0.2` at 2.5, 3.125, 3.75, 4.375, and 5.0
-angstrom, with endpoint weights held outside that range.  This gives the more
-complete CI gap greater weight at short range and the size-consistent CASPT2
-gap greater weight at long range.  Linear interpolation avoids a discontinuity.
-Setting the weighting model to `arithmetic_mean` reproduces the equal average
-used by Ram et al.
+The default is now `arithmetic_mean`, the equal-average model used by Ram
+et al.; method sensitivity must still be checked. The previously implicit
+distance preference was specific to a validation example and has been removed.
+`distance_switch` remains available only with explicit
+`distance_knots_angstrom` and per-level `weights`. Archived, fully specified
+correction records remain readable. A restart from an input that omitted its
+weights now has a different correction definition and must regenerate that
+correction rather than reuse an incompatible cache.
 
 The correction is the reconstructed relaxed-path interaction minus the rigid
 CASPT2/cc-pVDZ sampling interaction, after each curve is referenced to its

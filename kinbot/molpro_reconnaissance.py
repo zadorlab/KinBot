@@ -394,8 +394,10 @@ def _load(path):
                 symbols, data['charge'], additional_centers=controls.get('additional_centers'),
                 include_light_atoms=controls.get('include_light_atoms', hydrogen_coordinate))
         if definition is not None:
-            if (not isinstance(definition, dict) or set(definition) != {
-                    'active_electrons', 'active_orbitals', 'state_model', 'chemical_note'}
+            required_definition = {
+                'active_electrons', 'active_orbitals', 'state_model', 'chemical_note'}
+            if (not isinstance(definition, dict) or not required_definition <= set(definition)
+                    or set(definition) - required_definition - {'orbital_partition'}
                     or not isinstance(definition['chemical_note'], str)
                     or not definition['chemical_note'].strip()
                     or any(isinstance(definition[key], bool)
@@ -406,14 +408,39 @@ def _load(path):
                 active_electrons=definition['active_electrons'],
                 active_orbitals=definition['active_orbitals'], nelectron=electrons,
                 atom_count=len(symbols))
-            if model.get('orbital_selection', {}).get('mode') != 'avas':
+            partition = definition.get('orbital_partition')
+            if partition is not None:
+                keys = {'source_active_electrons', 'source_active_orbitals',
+                        'close_lowest', 'discard_highest'}
+                if (not isinstance(partition, dict) or set(partition) != keys
+                        or any(type(value) is not int or value < 0 for value in partition.values())
+                        or partition['source_active_electrons'] < 1
+                        or partition['source_active_orbitals'] < 1
+                        or partition['source_active_electrons'] > 2 * partition['source_active_orbitals']
+                        or partition['source_active_electrons'] - 2 * partition['close_lowest']
+                            != definition['active_electrons']
+                        or partition['source_active_orbitals'] - partition['close_lowest']
+                            - partition['discard_highest'] != definition['active_orbitals']
+                        or model.get('orbital_selection') is not None
+                        or data.get('probe_method') != 'casscf'):
+                    raise ValueError('An orbital partition requires consistent source/target counts, '
+                                     'optimized CASSCF and no competing orbital selector.')
+            elif model.get('orbital_selection', {}).get('mode') != 'avas':
                 raise ValueError('A reconnaissance candidate requires explicit AVAS targets.')
             if data['multiplicity'] not in {entry['multiplicity'] for entry in model['state_average']}:
                 raise ValueError('Probe multiplicity must occur in its requested state average.')
             data['_probe_model'] = model
             data['_probe_space'] = {key: definition[key] for key in
                                     ('active_electrons', 'active_orbitals', 'chemical_note')}
-            data['_probe_space']['orbital_selection'] = model['orbital_selection']
+            if partition is None:
+                data['_probe_space']['orbital_selection'] = model['orbital_selection']
+            else:
+                data['_probe_space']['orbital_partition'] = partition
+                seeds = data.get('initial_records', {})
+                if not isinstance(seeds, dict) or any(
+                        not seeds.get(basis['name'] + '__' + anchor['name'])
+                        for basis in data['bases'] for anchor in anchors):
+                    raise ValueError('Every partitioned candidate needs its own verified natural-orbital checkpoint.')
     elif data.get('probe_definition') or data.get('correlation_checks'):
         raise ValueError('Candidate and correlation checks require probe_active_space=true.')
     checks = data.get('correlation_checks', [])
@@ -507,6 +534,9 @@ def _deck(data, basis, anchor, stem, previous=None):
     if data.get('probe_active_space', False):
         space = data['_probe_space']
         model = _probe_model(data, anchor)
+        # The recon renderer adds its natural exports and local controls below.
+        # Inherit reviewed production controls without rendering them twice.
+        inherited_options = model.pop('casscf_options', {})
         if previous is not None:
             model.pop('orbital_selection', None)
         avas, multi, _ = _render_vrc_state_model(
@@ -519,7 +549,13 @@ def _deck(data, basis, anchor, stem, previous=None):
         # Always emit natural orbitals, including when canonical_orbitals=false.
         multi = multi.replace('canonical,2140.2\n', '')
         multi = multi.replace('maxit,50;', 'natorb,2140.2\nmaxit,50;')
-        options = data.get('casscf_options', {})
+        if data.get('correlation_checks'):
+            # A reused WFU can contain canonical orbitals for an older/larger
+            # space. Save this optimization separately and select it explicitly
+            # for CASPT2 (especially important with the non-invariant IPEA shift).
+            multi = multi.replace('natorb,2140.2\n',
+                                  'canonical,2141.2\nnatorb,2140.2\n')
+        options = {**inherited_options, **data.get('casscf_options', {})}
         if method == 'casscf':
             # SO-SCI derives a 100x tighter energy target from GTHRESH than
             # second-order MULTI. Set the intended local target explicitly;
@@ -546,7 +582,8 @@ def _deck(data, basis, anchor, stem, previous=None):
         if previous is not None:
             start = ('start,2140.2,type=natural' if method == 'casscf'
                      else 'start,2140.2')
-            multi = multi.replace(opening, opening + f'\n{start}\ndiab,2140.2', 1)
+            diab = ('' if space.get('orbital_partition') else '\ndiab,2140.2')
+            multi = multi.replace(opening, opening + f'\n{start}{diab}', 1)
             deck = '! Initial orbital checkpoint SHA-256: {{PREVIOUS_WFU_SHA256}}\n' + deck
         if method == 'casscf' and controls:
             multi = multi.replace('{multi,', '{multi,' + ','.join(controls) + ';', 1)
@@ -572,7 +609,11 @@ def _deck(data, basis, anchor, stem, previous=None):
                     if not body.startswith(prefix):
                         raise ValueError('Unexpected production multireference renderer prefix.')
                     counter += 1
-                    deck += body[len(prefix):] + f'reconc{counter}={variable}\nshow,reconc{counter}\n'
+                    correlation = body[len(prefix):]
+                    orbital = ('2141.2,type=canonical' if check['method'].lower().startswith('caspt2')
+                               else '2140.2,type=natural')
+                    correlation = correlation.replace(';wf,', f';orbital,{orbital};wf,', 1)
+                    deck += correlation + f'reconc{counter}={variable}\nshow,reconc{counter}\n'
     return deck + 'recondone=1\nshow,recondone\n'
 
 
@@ -625,6 +666,8 @@ def _prepare(source, output):
                            if channel and data.get('probe_active_space')
                            and data.get('orbital_initialization', 'propagated') == 'propagated' else None)
             seed = data.get('initial_records', {}).get(stem)
+            if data.get('_probe_space', {}).get('orbital_partition') and not seed:
+                raise ValueError('Every partitioned candidate needs its own verified natural-orbital checkpoint.')
             if seed:
                 if (set(seed) != {'path', 'sha256'} or data.get('probe_method') != 'casscf'
                         or not Path(seed['path']).is_file() or file_sha256(seed['path']) != seed['sha256']):
@@ -943,6 +986,18 @@ def convergence_diagnostics(output_text, job):
         thresholds = re.search(r'(?im)^\s*Convergence thresholds[^\r\n]*', multi)
         if thresholds:
             errors[-1] += ' Native ' + thresholds[0].strip() + '.'
+    if (job.get('probe_active_space') or {}).get('orbital_partition'):
+        space = job['probe_active_space']
+        orbitals = re.search(r'Number of active\s+orbitals:\s+(\d+)', multi)
+        electrons = re.findall(r'Number of active electrons:\s+(\d+)', multi)
+        if (not orbitals or int(orbitals[1]) != space['active_orbitals'] or not electrons
+                or any(int(value) != space['active_electrons'] for value in electrons)):
+            errors.append('Native CASSCF orbital partition does not match the requested candidate.')
+    if job.get('correlation_checks') and blocks:
+        following = output_text[blocks[-1].end():]
+        if re.search(r'NO CONVERGENCE\s*!|No convergence in (?:CI|MRCI|RS2|CASPT2)\b|'
+                     r'(?:CI|MRCI|RS2|CASPT2)[^\n]*not converged', following, re.I):
+            errors.append('Correlated validation contains an unconverged native calculation.')
     # RHF,SO reports the generic MULTI-style iteration-limit message in the
     # HF section, without the conventional "No convergence in rhfpr" line.
     if (re.search(r'No convergence in (?:rhfpr|[ru]?hf)|[RU]?HF[^\n]*not converged', output_text, re.I)
@@ -1563,7 +1618,7 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
 
 def select_record(wfu, output, *, record, active_electrons, active_orbitals,
                   state_average, selected_roots, review_note, basis=None,
-                  state_average_policy='reviewed'):
+                  state_average_policy='reviewed', casscf_options=None):
     path = Path(wfu).expanduser().resolve()
     if not path.is_file() or not path.stat().st_size:
         raise FileNotFoundError(f'Reviewed Molpro WFU is unavailable: {path}.')
@@ -1580,6 +1635,7 @@ def select_record(wfu, output, *, record, active_electrons, active_orbitals,
         'state_average': state_average,
         'selected_roots': selected_roots,
         'canonical_orbitals': True,
+        **({'casscf_options': casscf_options} if casscf_options is not None else {}),
     }, active_electrons=active_electrons,
        active_orbitals=active_orbitals)
     active_space = {
@@ -1646,6 +1702,7 @@ def main(argv=None):
     select.add_argument('--active-orbitals', type=int, required=True)
     select.add_argument('--state-average-json', required=True)
     select.add_argument('--selected-roots-json', default='{}')
+    select.add_argument('--casscf-options-json', help='Reviewed CASSCF solver/tolerances to preserve in production.')
     select.add_argument('--review-note', required=True)
     select.add_argument('--state-average-policy', choices=['reviewed', 'channel_derived'], default='reviewed')
     args = parser.parse_args(argv)
@@ -1676,6 +1733,7 @@ def main(argv=None):
             state_average=json.loads(args.state_average_json),
             selected_roots=json.loads(args.selected_roots_json),
             review_note=args.review_note, basis=args.basis,
+            casscf_options=json.loads(args.casscf_options_json) if args.casscf_options_json else None,
             state_average_policy=args.state_average_policy))
     return 0
 

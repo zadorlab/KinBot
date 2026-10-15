@@ -120,6 +120,21 @@ def test_so_sci_failure_reports_its_actual_threshold_after_converged_rhf():
     assert '0.10E-11 (energy)' in result['errors'][0]
 
 
+def test_partition_requires_native_counts_and_correlated_convergence():
+    from kinbot.molpro_reconnaissance import convergence_diagnostics
+    text = ('PROGRAM * MULTI\nNumber of active  orbitals: 4\n'
+            'Number of active electrons: 5\nCONVERGENCE REACHED!\n'
+            'PROGRAM * RS2-F12\nSETTING RECONC1 = -1 HARTREE\n'
+            'Molpro calculation terminated\n')
+    job = {'probe_method': 'casscf', 'probe_active_space': {'active_electrons': 5,
+           'active_orbitals': 4, 'orbital_partition': {'close_lowest': 4}},
+           'correlation_checks': [{'method': 'caspt2-f12b(5,4)'}]}
+    assert not convergence_diagnostics(text, job)['errors']
+    assert 'partition' in ' '.join(convergence_diagnostics(text.replace('orbitals: 4', 'orbitals: 8'), job)['errors'])
+    for failure in ('NO CONVERGENCE!', '?No convergence in CI', 'RS2 not converged'):
+        assert 'Correlated' in ' '.join(convergence_diagnostics(text + failure, job)['errors'])
+
+
 @pytest.mark.parametrize('solver', ['second_order', 'so_sci'])
 @pytest.mark.parametrize('custom', [False, True])
 def test_casscf_sets_local_energy_accuracy_independently_of_solver(tmp_path, solver, custom):

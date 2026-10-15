@@ -4,12 +4,26 @@ The general entry point is `python -m kinbot.orbital_review`. It uses the
 existing Molpro/Slurm execution machinery. There are no molecule-name branches
 or prescribed sulfur active spaces in the implementation.
 
+The target is the **requested eventual ROTD calculation**: chemically adequate
+states, accurate interfragment potentials and spin gaps, continuity throughout
+the contributing geometries, and affordable sampling. These requirements are
+joint. A smooth small-space curve can be inaccurate; a larger space or a lower
+total energy is not automatically a better reference. Compare chemically
+motivated alternatives and justified correlated references before accepting
+cost savings. Orbital occupations and CASCI projections guide hypotheses;
+they do not certify an error bound or replace reaction-specific chemistry.
+
 The [October 15 native review](SULFUR_ORBITAL_REVIEW_2026-10-15.md) identifies
 solver failures hidden by the original completion checks, gives candidate
 spaces from the actual orbital data, and now combines the successful repairs
 with the original panel. All eight geometries in each sulfur channel have
 converged fresh and checkpoint-initialized references. Use that combined
 evidence for candidate selection; no further reference-panel restart is needed.
+The [sulfur correlated validation](SULFUR_CORRELATED_VALIDATION.md) now gives
+the finite next batch, 20-job launch/monitor/export commands and the remaining
+checks required to complete the examples.
+
+See also the [generality and automatic handoff audit](GENERALITY_AUDIT_2026-10-15.md).
 
 ## Procedure
 
@@ -17,6 +31,12 @@ evidence for candidate selection; no further reference-panel restart is needed.
    reconnaissance configuration and linked KinBot input. It exposes all
    radial/orientation anchors and selects a small finite comparison panel.
    The initial model is a diagnostic valence reference, not a production choice.
+   `rotd_target` records resolved sampling/correction methods and bases, the
+   actual scan and dividing-surface grids, temperature controls and available
+   surface-model stage overrides. Missing/unreviewed stage choices stay explicit.
+   Scan distances are reactive atom-pair distances; outer COM surface distances
+   are not interchangeable with them. The linked surface-model hash is checked
+   before preparing the plan.
 2. Edit/duplicate models to state the chemical purpose, AVAS targets, electron
    and orbital counts, state averages/weights, channel, and region (`diagnostic`,
    `single`, `inner`, `outer`). Retain radical orbitals, the forming/breaking
@@ -117,6 +137,12 @@ evidence for candidate selection; no further reference-panel restart is needed.
    definitions and state averages as well as atoms, basis, method and root labels.
    Radial profiles remain separate by campaign and phase; combining evidence
    does not silently splice unlike runs into a potential curve.
+   `potential_profiles` additionally joins explicitly named comparison models
+   across single-geometry systems, keeping basis, stage, orientation, space,
+   state average and correlation controls separate. It supplies finite-reference
+   energies, root-labelled secant slopes and timings. Duplicate distances or a
+   single isolated point receive no manufactured interaction reference. These
+   are inspection data: slopes alone neither certify continuity nor accuracy.
    Collect each stopped campaign first to re-audit historical completion labels,
    then generate the combined report. Collection and reporting hold the campaign
    and manifest locks, reject uncertain submissions, and check recorded job IDs
@@ -133,6 +159,22 @@ evidence for candidate selection; no further reference-panel restart is needed.
    production F12B and Davidson-energy selectors. They are disabled by default
    on the larger reference spaces. Inspect interaction energies, spin gaps,
    intruder/shift sensitivity and rate sensitivity before a final selection.
+   For an explicit partition of reviewed natural orbitals, use
+   `prepare-partitions SPEC.json ROOT`. Each `models` entry supplies `name`,
+   `model` (comparison group), `source_directory`, `region`, `chemical_note`,
+   target `active_electrons`/`active_orbitals`, `close_lowest`, `discard_highest`,
+   and `correlation_checks`; optional `state_average` defines a separate average.
+   Source CASSCF convergence, hashes, geometry and basis are checked. Partitions
+   reoptimize all closed and active orbitals and retain explicit source provenance.
+   They cannot change basis. Optional `target_distance_angstrom` generates a new
+   point on the source's declared dissociation coordinate, retaining its fragment
+   orientation and reoptimizing from the reviewed seed. Source/target geometry
+   and the checkpoint hash are retained separately. This permits small stencils
+   in the actual requested scan region without repeating a large-space recon.
+   Each entry is a single-geometry system, so run this
+   finite campaign with `--pilot-only` to avoid repeating its panel duplicate.
+   Correlated checks write/select current pseudo-canonical orbitals explicitly
+   for CASPT2 and natural orbitals for MRCI; stale WFU orbital sets are not used.
 8. The user chooses the final space, orbital ordering and states. Register the
    actual reviewed WFU with `molpro_reconnaissance select --basis ...`; supply
    the reviewed counts, average and root choices. The command does not reorder
@@ -141,6 +183,15 @@ evidence for candidate selection; no further reference-panel restart is needed.
    and rejects conflicting count overrides. Old files without this field retain
    the legacy channel-derived policy; recreate them to preserve a reviewed
    average explicitly.
+   `select --casscf-options-json '{...}'` records the solver and tolerances
+   validated during recon in the selected state model. The general model field
+   `casscf_options` supports `solver` (`so_sci`/`second_order`),
+   `energy_convergence`, `gradient_convergence`, `max_iterations`,
+   `exact_diagonalization`, `quasi_newton`, and `verbosity`. Production correction,
+   sampling and geometry calculations share this renderer, so the selection need
+   not silently revert to numerical controls that failed during recon. Omitting
+   the field retains legacy defaults; choosing tolerances still needs numerical
+   validation, independently of active-space accuracy.
 
 AVAS/CASCI occupation inspection follows the
 [Molpro recommendation](https://www.molpro.net/manual/doku.php?id=automated_construction_of_atomic_valence_active_spaces).

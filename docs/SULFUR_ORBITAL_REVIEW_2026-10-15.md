@@ -81,6 +81,12 @@ pilot before expanding expensive methods. DZ-F12 sampling/TZ-F12 correction
 is a candidate cost reduction, not yet an accuracy finding; QZ-F12 remains an
 optional spot check rather than another full reconnaissance campaign.
 
+The user subsequently requested all necessary accuracy/cost comparisons for
+both examples. The [correlated validation workflow](SULFUR_CORRELATED_VALIDATION.md)
+implements explicit reviewed natural-orbital partitions and supplies the first
+18-job CASPT2-F12b launch, monitor and export commands, plus the remaining
+acceptance checks before production. No further reference repair is needed.
+
 ## Original export and repair history
 
 The sections below retain the original findings and commands for provenance.

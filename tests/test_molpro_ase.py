@@ -133,6 +133,15 @@ def test_native_nonconvergence_invalidates_energy_even_after_normal_exit(tmp_pat
         parse_output(path, method=method)
 
 
+@pytest.mark.parametrize('failure', ['?No convergence in CI', 'MRCI not converged', 'RS2 not converged'])
+def test_correlated_failure_is_not_recovered_by_earlier_converged_casscf(tmp_path, failure):
+    path = tmp_path / 'bad_correlated.out'
+    path.write_text('PROGRAM * MULTI\nCONVERGENCE REACHED!\nPROGRAM * RS2-F12\n'
+                    + failure + '\nSETTING KB_GEOM_ENERGY = -40.0 AU\nMolpro calculation terminated\n')
+    with pytest.raises(ValueError, match='unconverged'):
+        parse_output(path, method='CASPT2-F12b(2,2)')
+
+
 @pytest.mark.parametrize('header', ['RHF-SCF', 'Restricted Hartree-Fock'])
 @pytest.mark.parametrize('failure', ['?No convergence in rhfpr',
     'NO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!'])

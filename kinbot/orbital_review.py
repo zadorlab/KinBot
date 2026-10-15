@@ -7,6 +7,7 @@ import argparse
 from copy import deepcopy
 import json
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 
@@ -26,6 +27,47 @@ def _fresh(path):
         raise FileExistsError(f'Preserving existing evidence: choose a fresh output: {path}')
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _rotd_target(context_path):
+    """Record the requested production problem, including resolved presets.
+
+    This is planning context, not approval of a missing/unreviewed surface model.
+    Keep stage overrides explicit; a correction bond coordinate is not a COM
+    dividing-surface distance. No molecular identity enters this description.
+    """
+    if context_path is None:
+        return {'status': 'unlinked', 'limitation': 'Link kinbot_input before assessing ROTD coverage.'}
+    from kinbot.parameters import Parameters
+    context_path = Path(context_path).resolve()
+    par = Parameters(str(context_path), show_warnings=False).par
+    keys = ('vrc_tst_scan_method', 'vrc_tst_scan_basis', 'vrc_tst_scan_points',
+            'vrc_tst_asymptote_distance', 'vrc_tst_sample_method', 'vrc_tst_sample_basis',
+            'vrc_tst_high_method', 'vrc_tst_high_basis', 'vrc_tst_scan_shift',
+            'vrc_tst_scan_ipea', 'vrc_tst_correction_model', 'vrc_tst_spin_splitting',
+            'vrc_tst_active_space', 'vrc_tst_state_model_file', 'vrc_tst_state_model',
+            'vrc_tst_state_average_roots', 'vrc_tst_selected_roots',
+            'rotdpy_dist', 'rotdpy_temperature_grid', 'pp_on_COM', 'pp_on_atom', 'pp_oriented')
+    target = {'status': 'linked', 'input': str(context_path), 'sha256': file_sha256(context_path),
+              'parameters': {key: deepcopy(par.get(key)) for key in keys},
+              'coordinates': {'vrc_tst_scan_points': 'reactive atom-pair distance, angstrom',
+                              'rotdpy_dist': 'dividing-surface distance, angstrom; depends on pivots/stage'},
+              'active_space_status': 'Counts in method strings/presets do not approve a candidate CAS.',
+              'surface_model': None}
+    name = par.get('vrc_tst_surface_model_file')
+    if name:
+        path = (context_path.parent / name).resolve()
+        target['surface_model'] = {'path': str(path), 'available': path.is_file(),
+            'sha256': file_sha256(path) if path.is_file() else None,
+            'model': json.loads(path.read_text()) if path.is_file() else None}
+    target['acceptance_checks'] = {
+        'chemistry': 'Retain reacting, radical, resonance and required degenerate fragment manifolds.',
+        'accuracy': 'Compare interaction potentials and spin gaps with justified references; test reference adequacy.',
+        'continuity': 'Check radial/orientation curves, state character and initialization dependence in each requested region.',
+        'cost': 'Measure the eventual correlated methods, bases and root counts; SCF/CASSCF timing is insufficient.',
+        'kinetics': 'Check corrected-surface and flux/rate sensitivity over the requested temperature range.',
+        'selection': 'User review required; smoothness, a larger CAS or lower total energy alone cannot approve a space.'}
+    return target
 
 
 def plan(source, output):
@@ -76,6 +118,7 @@ def plan(source, output):
     payload = {'schema': 1, 'source': str(source), 'source_sha256': file_sha256(source),
         'context_sha256': file_sha256(context_path) if context_path else None,
         'purpose': 'User-aided chemical orbital/state selection; no automatic production approval.',
+        'rotd_target': _rotd_target(context_path),
         'models': models,
         'variants': [
             {'name': 'casci_fresh', 'probe_method': 'casci', 'orbital_initialization': 'independent'},
@@ -119,6 +162,10 @@ def prepare(plan_file, output, *, additional_plans=(), reuse_from=None):
         if file_sha256(context) != definition.get('context_sha256'):
             raise ValueError('Electronic context changed since planning; regenerate the plan.')
         data['kinbot_input'] = str(context)
+    surface = (definition.get('rotd_target', {}).get('surface_model') or {})
+    if surface.get('available') and (not Path(surface['path']).is_file()
+            or file_sha256(surface['path']) != surface['sha256']):
+        raise ValueError('Requested ROTD surface model changed since planning; regenerate the plan.')
     anchors = {a['name']: a for a in data['anchors']}
     models, variants = definition.get('models'), definition.get('variants')
     if not isinstance(models, list) or not models or not isinstance(variants, list) or not variants:
@@ -202,6 +249,7 @@ def prepare(plan_file, output, *, additional_plans=(), reuse_from=None):
                 index.append({'title': title, 'model': model['name'], 'channel': model['channel'],
                               'region': model['region'], 'chemical_note': model['chemical_note'],
                               'variant': variant, 'bond': selected[0]['bond'],
+                              'rotd_target': definition.get('rotd_target'),
                               'reused_checkpoint_count': len(seeds)})
         result = orbital_campaign.prepare(output, configurations)
     root = result.parent
@@ -380,6 +428,13 @@ def _review_rows(root):
                             raise ValueError(f'{job["directory"]}: ' + ' '.join(convergence['errors'])
                                              + ' Re-audit this campaign before review.')
                         row['validation_warnings'] = convergence['warnings']
+                        counts = {int(value) for value in re.findall(
+                            r'Number of active\s+orbitals:\s+(\d+)', text)}
+                        electrons = {int(value) for value in re.findall(
+                            r'Number of active electrons:\s+(\d+)', text)}
+                        row['native_active_space'] = (
+                            {'active_electrons': electrons.pop(), 'active_orbitals': counts.pop()}
+                            if len(counts) == len(electrons) == 1 else None)
                         # Preserve native character/CI tables without assigning
                         # orbital identities from energy order or occupation rank.
                         row['native_output'] = str(native)
@@ -389,6 +444,68 @@ def _review_rows(root):
                                                   if execution.is_file() else None)
                     rows.append(row)
     return campaign, rows
+
+
+def _potential_profiles(completed):
+    """Expose relative potentials and secants without claiming smoothness/accuracy.
+
+    Explicit model identity joins single-geometry partition systems. Retain
+    campaign, phase, orientation, state average and method controls so unlike
+    calculations cannot silently become a curve. Match energies by labels,
+    never by list position. Labels still require a chemical state assignment.
+    """
+    groups = {}
+    for row in completed:
+        if row.get('distance_angstrom') is None:
+            continue
+        identity = {'model': row['review']['model'], 'basis': row['basis'],
+            'channel': row['review'].get('channel'), 'region': row['review'].get('region'),
+            'campaign': row['campaign'], 'phase': row['phase'],
+            'variant': row['review'].get('variant'), 'orientation': row.get('orientation'),
+            'symbols': row['symbols'], 'electron_count': row['electron_count'],
+            'probe_method': row.get('probe_method'), 'active_space': row.get('probe_active_space'),
+            'state_model': row.get('state_model'), 'correlation_checks': row.get('correlation_checks', [])}
+        key = json.dumps(identity, sort_keys=True)
+        groups.setdefault(key, (identity, []))[1].append(row)
+
+    def energies(row):
+        states = [{**s, 'method': row['probe_method']} for s in row.get('state_energies_hartree', [])]
+        states += row.get('correlated_energies_hartree', [])
+        return {json.dumps({k: v for k, v in s.items() if k != 'energy_hartree'}, sort_keys=True): s
+                for s in states}
+
+    profiles = []
+    for identity, group in groups.values():
+        group.sort(key=lambda row: row['distance_angstrom'])
+        distances = [row['distance_angstrom'] for row in group]
+        unique = len(set(distances)) == len(distances)
+        usable = unique and len(group) >= 2
+        far = group[-1]
+        reference = energies(far) if usable else {}
+        points, previous = [], None
+        for row in group:
+            values = energies(row)
+            states = []
+            for label, state in values.items():
+                entry = dict(state)
+                if label in reference:
+                    entry['relative_to_far_hartree'] = state['energy_hartree'] - reference[label]['energy_hartree']
+                if usable and previous and label in previous[1]:
+                    step = row['distance_angstrom'] - previous[0]['distance_angstrom']
+                    entry['secant_from_previous_hartree_per_angstrom'] = (
+                        state['energy_hartree'] - previous[1][label]['energy_hartree']) / step
+                states.append(entry)
+            points.append({'directory': row['directory'], 'distance_angstrom': row['distance_angstrom'],
+                           'geometry_angstrom': row['geometry_angstrom'], 'states': states,
+                           'elapsed_seconds': row.get('elapsed_seconds')})
+            previous = (row, values)
+        profiles.append({**identity, 'points': points,
+            'reference_directory': far['directory'] if usable else None,
+            'reference_status': ('finite separation; verify fragment states and asymptotic convergence'
+                                 if usable else 'unavailable: need at least two unique distances'),
+            'continuity_status': 'unreviewed; secants and root numbers do not establish state continuity',
+            'accuracy_status': 'unreviewed; compare with independently justified reference potentials'})
+    return profiles
 
 
 def report(root, output, *, additional_campaigns=()):
@@ -447,12 +564,14 @@ def report(root, output, *, additional_campaigns=()):
         'selected_probe_method': sources[0]['selected_probe_method'],
         'selection_status': 'user_review_required', 'jobs': rows,
         'radial_profiles': profiles,
+        'potential_profiles': _potential_profiles(completed),
         'equivalent_geometry_comparisons': comparisons,
         'limitations': [
             'Failed and unsubmitted attempts remain listed; successful alternatives do not establish initialization independence.',
             'An external checkpoint may be a same-geometry CASCI seed, not radial CASSCF continuation.',
             'A finite panel does not prove coverage of the VRC bottleneck.',
             'CASCI occupations and CI weights are screening diagnostics, not correlated error bounds.',
+            'Smoothness, low cost and lower total energy do not establish accuracy; larger CAS results also require validation.',
             'Compare interaction energies relative to consistent separated limits, not total energies.',
             'Root character, intruder sensitivity and rate sensitivity require review.',
             'Inner/outer state contributions, spin-orbit treatment and equilibration are user choices.']}
@@ -534,10 +653,114 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
     return output
 
 
+def prepare_partitions(source, output):
+    """Reoptimize explicit natural-orbital partitions of completed references.
+
+    Each specification selects an existing seed and optionally a new distance
+    along its configured dissociation coordinate. No cross-basis
+    WFU reuse, inferred orbital identities, or production approval is implied.
+    Single-anchor systems can all run once with campaign --pilot-only.
+    """
+    from kinbot import orbital_campaign
+    definition = json.loads(Path(source).read_text())
+    if (definition.get('schema') != 1 or set(definition) != {'schema', 'models'}
+            or not isinstance(definition['models'], list) or not definition['models']):
+        raise ValueError('Partition plan requires schema 1 and nonempty models.')
+    required = {'name', 'model', 'source_directory', 'region', 'chemical_note',
+                'active_electrons', 'active_orbitals', 'close_lowest', 'discard_highest',
+                'correlation_checks'}
+    names = set()
+    for item in definition['models']:
+        if (not isinstance(item, dict) or not required <= set(item)
+                or set(item) - required - {'state_average', 'target_distance_angstrom'}
+                or any(not recon._SAFE.fullmatch(str(item[key])) for key in ('name', 'model'))
+                or item['name'] in names
+                or item['region'] not in ('diagnostic', 'single', 'inner', 'outer')):
+            raise ValueError('Invalid or duplicate partition model specification.')
+        names.add(item['name'])
+    roots = sorted({Path(m['source_directory']).expanduser().resolve().parents[1]
+                    for m in definition['models']})
+    rows, systems = {}, {}
+    for root in roots:
+        campaign, entries = _review_rows(root)  # stopped snapshot, native/hash checks
+        rows.update({entry['directory']: entry for entry in entries})
+        systems.update({(str(root), s['title']): s for s in campaign['systems']})
+    configurations, metadata, targets = [], [], {}
+    with tempfile.TemporaryDirectory(prefix='kinbot-orbital-partitions-') as temporary:
+        for item in definition['models']:
+            directory = str(Path(item['source_directory']).expanduser().resolve())
+            prior = rows.get(directory)
+            if prior is None or prior['status'] != 'complete' or prior['probe_method'] != 'casscf':
+                raise ValueError(f'Partition source must be a completed optimized reference: {directory}')
+            if prior.get('native_active_space') != {key: prior['probe_active_space'][key]
+                    for key in ('active_electrons', 'active_orbitals')}:
+                raise ValueError('Native source active counts do not confirm the declared orbital partition.')
+            record = systems[(prior['campaign'], prior['review']['title'])]
+            loaded = recon._load(record['configuration'])
+            if record['configuration'] not in targets:
+                targets[record['configuration']] = prior['review'].get('rotd_target') or _rotd_target(
+                    (Path(record['configuration']).parent / loaded['kinbot_input']).resolve()
+                    if loaded.get('kinbot_input') else None)
+            anchor = next(a for a in loaded['anchors'] if a['name'] == prior['anchor'])
+            if (prior['symbols'] != loaded['symbols']
+                    or prior['electron_count'] != loaded['_electrons']
+                    or not np.allclose(prior['geometry_angstrom'], recon._anchor_geometry(loaded, anchor),
+                                       atol=1e-12, rtol=0.)):
+                raise ValueError('Partition checkpoint geometry/electrons differ from its configuration.')
+            anchor = deepcopy(anchor)
+            if 'target_distance_angstrom' in item:
+                distance = item['target_distance_angstrom']
+                if (type(distance) not in (int, float) or not np.isfinite(distance) or distance <= 0
+                        or not {'bond', 'moving_atoms', 'distance_angstrom'} <= set(anchor)):
+                    raise ValueError('Target distance must be positive and finite on a dissociation coordinate.')
+                anchor.update(name=item['name'], distance_angstrom=float(distance))
+            data = {key: deepcopy(value) for key, value in loaded.items()
+                    if not key.startswith('_') and key not in ('coordinates', 'scan_policy', 'orientation_probes')}
+            basis = next(b for b in data['bases'] if b['basis'] == prior['basis'])
+            state_model = deepcopy(prior['state_model'])
+            state_model.pop('orbital_selection', None)
+            if 'state_average' in item:
+                state_model.update(state_average=item['state_average'], selected_roots={})
+            space = prior['probe_active_space']
+            data.update(title=item['name'], anchors=[anchor], bases=[basis],
+                probe_method='casscf', orbital_initialization='independent',
+                multiplicity=state_model['state_average'][0]['multiplicity'],
+                correlation_checks=item['correlation_checks'],
+                scf_options={'solver': 'so_sci', 'max_iterations': 100},
+                casscf_options={'solver': 'so_sci', 'energy_convergence': 1e-8,
+                    'quasi_newton': True, 'exact_diagonalization': item['active_orbitals'] <= 8},
+                initial_records={basis['name'] + '__' + anchor['name']:
+                    {'path': prior['wfu'], 'sha256': prior['wfu_sha256']}},
+                probe_definition={
+                    **{key: item[key] for key in ('active_electrons', 'active_orbitals', 'chemical_note')},
+                    'state_model': state_model,
+                    'orbital_partition': {
+                        'source_active_electrons': space['active_electrons'],
+                        'source_active_orbitals': space['active_orbitals'],
+                        'close_lowest': item['close_lowest'], 'discard_highest': item['discard_highest']}})
+            target = Path(temporary) / (item['name'] + '.json')
+            atomic_json(target, data)
+            recon._load(target)
+            configurations.append(target)
+            metadata.append({'title': item['name'], 'model': item['model'],
+                'channel': prior['review']['channel'], 'region': item['region'],
+                'chemical_note': item['chemical_note'], 'bond': prior['review']['bond'],
+                'variant': {'name': 'casscf_partition', 'probe_method': 'casscf',
+                            'orbital_initialization': 'independent'},
+                'source_directory': directory, 'source_output_sha256': prior['output_sha256'],
+                'source_geometry_angstrom': prior['geometry_angstrom'],
+                'rotd_target': targets[record['configuration']],
+                'reused_checkpoint_count': 1})
+        result = orbital_campaign.prepare(output, configurations)
+    atomic_json(result.parent / 'review_index.json', {'schema': 1, 'systems': metadata})
+    atomic_json(result.parent / 'review_plan.json', definition)
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='python -m kinbot.orbital_review')
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('plan', 'prepare', 'report', 'repair-convergence'):
+    for name in ('plan', 'prepare', 'prepare-partitions', 'report', 'repair-convergence'):
         command = commands.add_parser(name)
         command.add_argument('source')
         command.add_argument('output')
@@ -571,6 +794,8 @@ def main(argv=None):
                                 energy_convergence=args.energy_convergence, verbosity=args.verbosity))
     elif args.command == 'report':
         print(report(args.source, args.output, additional_campaigns=args.additional_campaign))
+    elif args.command == 'prepare-partitions':
+        print(prepare_partitions(args.source, args.output))
     else:
         print({'plan': plan, 'prepare': prepare, 'report': report, 'repair-convergence': repair_convergence}
               [args.command](args.source, args.output))

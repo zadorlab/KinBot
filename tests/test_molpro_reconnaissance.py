@@ -69,7 +69,10 @@ def test_audit_requires_native_output_wfu_and_molden(tmp_path):
     assert all(job['wfu_sha256'] for job in result['jobs'])
 
 
-def test_real_blodgett_hartree_output_is_accepted_without_rerunning(tmp_path):
+@pytest.mark.parametrize('execution_format', ['none', 'legacy', 'wrong_hash',
+    'missing_hash', 'wrong_command', 'nonzero_returncode', 'partial_modern',
+    'null_native_path', 'missing_native_hash', 'wrong_native_hash'])
+def test_real_blodgett_molden_pilot_execution_evidence(tmp_path, monkeypatch, execution_format):
     source = (Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json')
     path = prepare(source, tmp_path / 'recon')
     job = json.loads(path.read_text())['jobs'][0]
@@ -88,10 +91,58 @@ def test_real_blodgett_hartree_output_is_accepted_without_rerunning(tmp_path):
                               1.50808, 1.50808, 1.49864, .51273]
     (directory / (name + '.natural.molden')).write_text(
         '[MO]\n' + ''.join(f'Occup= {value}\n' for value in occupations))
+    if execution_format != 'none':
+        # Schema emitted before native XML input copies were introduced.
+        execution = {'schema': 1, 'status': 'complete', 'returncode': 0,
+                     'command': ['molpro', '-d', str(tmp_path / 'scratch'),
+                                 '-W', str(directory), '-t', '1', '-n', '8', name + '.inp'],
+                     'input_sha256': job['input_sha256'], 'runtime': {}}
+        if execution_format == 'wrong_hash':
+            execution['input_sha256'] = '0' * 64
+        elif execution_format == 'missing_hash':
+            execution.pop('input_sha256')
+        elif execution_format == 'wrong_command':
+            execution['command'][-1] = 'other.inp'
+        elif execution_format == 'nonzero_returncode':
+            execution['returncode'] = 1
+        elif execution_format == 'partial_modern':
+            execution['input_transform'] = 'native_xml_compact_title_v2'
+        elif execution_format == 'null_native_path':
+            execution['native_input'] = None
+        elif execution_format in ('missing_native_hash', 'wrong_native_hash'):
+            execution['native_input'] = str(directory / (name + '.inp'))
+            if execution_format == 'wrong_native_hash':
+                execution['native_input_sha256'] = '0' * 64
+        (directory / 'execution.json').write_text(json.dumps(execution))
     result = audit(path)['jobs'][0]
+    if execution_format not in ('none', 'legacy'):
+        assert result['status'] == 'incomplete'
+        assert result['validation_errors']
+        assert 'wfu_sha256' not in result
+        return
     assert result['status'] == 'complete'
     assert result['root_energies_hartree'] == energies
     assert result['state_energies_hartree'][3]['multiplicity'] == 4
+    if execution_format == 'legacy':
+        from types import SimpleNamespace
+        from kinbot import molpro_reconnaissance as recon
+        # Reproduce the stopped pilot manifest after the erroneous rejection.
+        # A restart must return completion without submitting or rewriting it.
+        manifest = json.loads(path.read_text())
+        manifest['jobs'] = [dict(result, status='incomplete', job_id='52907000', missing_since=0.)]
+        manifest.pop('scan_policy', None)
+        manifest['status'] = 'incomplete'
+        path.write_text(json.dumps(manifest))
+        evidence = {file: file.read_bytes() for file in directory.iterdir()
+                    if file.suffix in ('.inp', '.wfu') or file.name == 'execution.json'}
+        def scheduler(command, **kwargs):
+            assert command[0] == 'squeue', 'Completed legacy pilot must never be resubmitted'
+            return SimpleNamespace(stdout='', returncode=0)
+        monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+        resumed = recon.run(path)
+        assert resumed['status'] == 'complete_review_required'
+        assert 'missing_since' not in resumed['jobs'][0]
+        assert all(file.read_bytes() == original for file, original in evidence.items())
 
 
 def test_select_hash_binds_a_reviewed_active_orbital_record(tmp_path):
@@ -681,7 +732,7 @@ def test_native_checkpoint_recovery_rejects_ambiguous_or_unbound_files(tmp_path)
         (tmp_path / name[:length]).write_bytes(b'checkpoint')
     assert 'Ambiguous' in _checkpoint_evidence(tmp_path, job, execution)[1]
     native.write_text('changed native input')
-    assert 'hashes' in _checkpoint_evidence(tmp_path, job, execution)[1]
+    assert 'SHA-256 mismatch' in _checkpoint_evidence(tmp_path, job, execution)[1]
 
 
 def test_run_reports_specific_validation_failure(tmp_path, monkeypatch):

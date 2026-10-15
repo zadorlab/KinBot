@@ -682,7 +682,10 @@ def _xml_evidence(directory, job):
     if not record.is_file():
         return None
     execution = json.loads(record.read_text())
-    native = Path(execution.get('native_input', directory / '__missing__'))
+    native_name = execution.get('native_input')
+    if not isinstance(native_name, str) or not native_name:
+        return None
+    native = Path(native_name)
     exports = execution.get('orbital_exports', {})
     if (execution.get('status') != 'complete' or not native.is_file()
             or file_sha256(native) != execution.get('native_input_sha256')
@@ -708,16 +711,38 @@ def _checkpoint_evidence(directory, job, execution):
 
     Never guess from a glob: a leftover staged predecessor is not evidence of
     this calculation's final orbitals. Legacy recovery requires a completed,
-    hash-bound native input and an unambiguous 31/32-character FILE basename.
+    hash-bound executed input and an unambiguous 31/32-character FILE basename.
+    Pre-XML workers executed the prepared input itself; later workers recorded
+    a separate transformed native input. Never downgrade partial modern records.
     """
     default = directory / (job['name'] + '.wfu')
     if execution is None:
         return default, None
-    native = Path(execution.get('native_input', directory / '__missing__'))
-    if (execution.get('input_sha256') != job['input_sha256']
-            or not native.is_file()
-            or file_sha256(native) != execution.get('native_input_sha256')):
-        return default, 'Execution input hashes do not match the prepared/native inputs.'
+    if execution.get('input_sha256') != job['input_sha256']:
+        return default, 'Execution prepared-input SHA-256 is missing or differs from the manifest.'
+    modern_fields = {'native_input', 'native_input_sha256', 'input_transform', 'orbital_exports'}
+    if modern_fields.intersection(execution):
+        name = execution.get('native_input')
+        if not isinstance(name, str) or not name:
+            return default, 'Transformed execution record is missing its native_input path.'
+        native = Path(name)
+        if not native.is_file():
+            return default, f'Recorded native input is missing: {native}.'
+        if not execution.get('native_input_sha256'):
+            return default, 'Transformed execution record is missing its native_input_sha256.'
+        if file_sha256(native) != execution['native_input_sha256']:
+            return default, f'Native input SHA-256 mismatch: {native}.'
+    else:
+        # Workers before the XML-export change did not create .native.inp.
+        # Their command and input_sha256 bind execution to the original .inp.
+        native = directory / (job['name'] + '.inp')
+        command = execution.get('command')
+        if (execution.get('status') != 'complete' or execution.get('returncode') != 0
+                or not isinstance(command, list) or not command
+                or command[-1] not in (native.name, str(native.resolve()))):
+            return default, 'Legacy execution does not confirm successful use of the prepared input.'
+        if not native.is_file() or file_sha256(native) != job['input_sha256']:
+            return default, f'Legacy executed input is missing or its SHA-256 changed: {native}.'
     names = re.findall(r'(?im)^\s*file\s*,\s*2\s*,\s*([A-Za-z0-9_.-]+)\s*$',
                        native.read_text())
     if len(names) != 1:
@@ -845,6 +870,7 @@ def _audit(manifest_path, *, live_job_ids=()):
                 job['occupation_source'] = 'native_state_averaged_table' if xml_evidence else 'molden'
         complete &= job['status'] == 'complete'
         if job['status'] == 'complete':
+            job.pop('missing_since', None)
             job['output_sha256'] = file_sha256(output)
             job['wfu'] = str(wfu.resolve())
             job['wfu_sha256'] = file_sha256(wfu)

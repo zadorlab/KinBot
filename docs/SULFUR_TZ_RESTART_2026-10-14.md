@@ -26,7 +26,76 @@ No cluster action was performed from the development machine.
   in that same campaign, records their location, and keeps all evidence.
   It does not reclaim disk space or delete shared scratch.
 
-## Stop, update, archive unused bases, and restart on Blodgett
+## Resume after the legacy CH3S pilot rejection
+
+The first TZ-only restart exposed a compatibility regression in `ba4beef`.
+The completed CH3S pilot `avt_f12__cs_r_1p599154942` used the original Molden
+worker: its command ran the prepared `.inp`, and its execution record never
+contained `native_input` or `native_input_sha256`. The user verified that the
+manifest, execution record and actual prepared input all have SHA-256
+`8d2af27a5d011a5f26da685592324f256a4a34b3b0fe25b419dbe2ab67f97035`.
+Requiring a later-format `.native.inp` incorrectly rejected this valid result.
+
+The compatibility fix validates that older command/input pair, then applies
+the existing termination, Molden, occupations, roots and WFU checks. It never
+treats a partial modern record as legacy or replaces a mismatched hash. Valid
+completion clears the old publication timeout. The regression test reproduces
+the legacy record and verifies that restarting neither submits nor rewrites
+the completed pilot. The affected recon/campaign suite passes 60 tests.
+
+The campaign is already TZ-only and its excluded directories are archived.
+Use this shorter block after pulling the compatibility fix. It verifies all
+three retained pilots before launching; it does not repeat cleanup of artifacts
+or rerun successful calculations. Failures stay inside the child Bash process.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+CAMPAIGN=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_20261014_193525
+test -f "$CAMPAIGN/campaign.json"
+"$KB_PY" -m kinbot.run_cleanup "$CAMPAIGN" --stop
+test "$(git branch --show-current)" = composite
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+    git -c submodule.recurse=false pull --ff-only origin composite
+"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
+
+"$KB_PY" - <<'PY'
+import json
+from pathlib import Path
+from kinbot.molpro_reconnaissance import audit
+root = Path('/home/hram/kinbot-runs/ch3s_ch3ss_orbital_20261014_193525')
+for system in json.loads((root / 'campaign.json').read_text())['systems']:
+    for key in ('pilot_manifest', 'manifest'):
+        report = audit(system[key])
+        assert {j['basis'] for j in report['jobs']} == {'avtz-f12'}
+        completed = sum(j['status'] == 'complete' for j in report['jobs'])
+        print(system['title'], key, completed, '/', len(report['jobs']), 'complete')
+        if key == 'pilot_manifest' and completed != len(report['jobs']):
+            failures = {j['name']: j.get('validation_errors', [])
+                        for j in report['jobs'] if j['status'] != 'complete'}
+            raise SystemExit('Pilot validation failed; controller remains stopped: ' + json.dumps(failures))
+PY
+
+export KINBOT_SLURM_IO_RETRIES=2
+export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+export KINBOT_MOLPRO_SCRATCH_FALLBACKS=/scratch2/hram/kinbot-molpro
+export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
+"$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"
+cd /home/hram/kinbot-runs/ch3s_ch3ss_orbital_20261014_193525
+if [ -f controller.log ]; then
+    mv controller.log "controller.previous.$(date +%Y%m%d_%H%M%S).log"
+fi
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$CAMPAIGN" \
+    --max-jobs 10 --max-refinements 3 \
+    > controller.log 2>&1 < /dev/null &
+printf '%s\n' "$!" > controller.pid
+printf 'Campaign: %s\nController PID: %s\n' "$CAMPAIGN" "$!"
+BASH
+```
+
+## Initial stop, update, archive unused bases, and restart on Blodgett
 
 Paste this **whole block on Blodgett**, after the changes have been published
 to `origin/composite`. Every path is explicit. `set -e` and `exit` run inside

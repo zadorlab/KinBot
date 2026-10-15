@@ -92,7 +92,6 @@ class IntraHMigration(GeneralReac):
         elif step == self.dihstep + 1:
             self.release_angles(release)
             if len(self.instance) == 5:
-                self.keep_ring_pucker(geom, fix, self.ring5_pucker)
                 self.release_dihedrals(release, start=1)
             else:
                 self.release_dihedrals(release)
@@ -112,6 +111,13 @@ class IntraHMigration(GeneralReac):
             else: 
                 fval = 1.35
             self.set_bond(-2, -1, fval, change)
+
+            if len(self.instance) == 5:
+                # Last on purpose: modify_coordinates refines distances after
+                # every change and only keeps a dihedral through its current
+                # 1-4 distance, so a pucker set before the bond changes is
+                # flattened again by them.
+                self.keep_ring_pucker(geom, change, self.ring5_pucker)
 
         self.clean_constraints(change, fix)
         

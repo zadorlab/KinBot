@@ -171,14 +171,16 @@ class GeneralReac:
                 constraint.append(self.instance[dih + i] + 1)
             release.append(constraint)
 
-    def keep_ring_pucker(self, geom, fix, pucker):
-        """Fix the first ring dihedral at `pucker` degrees, keeping its current sign.
+    def keep_ring_pucker(self, geom, change, pucker):
+        """Set the first ring dihedral to `pucker` degrees, keeping its current sign.
 
-        The entry carries its value ([a, b, c, d, degrees]) so the job script
-        sets the dihedral instead of freezing whatever the geometry has.
+        The entry goes into the geometry changes: carry_out_reaction moves the
+        starting geometry to that dihedral and then freezes the four atoms, so
+        every backend receives a plain frozen coordinate at the requested value.
+        (A Gaussian ModRedundant line with a value and F does not hold it.)
         """
         idx = [self.instance[i] for i in range(4)]
         current = geometry.calc_dihedral(*[geom[i] for i in idx])[0]
         sign = -1. if current < 0. else 1.
-        fix.append([i + 1 for i in idx] + [sign * pucker])
+        change.append([i + 1 for i in idx] + [sign * pucker])
 

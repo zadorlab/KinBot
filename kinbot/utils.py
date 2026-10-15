@@ -327,19 +327,13 @@ def get_unique_list_of_lists(list_of_lists):
     """
     Returns a new list containing only the unique sub-lists from the input list of lists.
     A bond [i, j] is the same in either order. An angle or dihedral is the same
-    only when its atoms are reversed, so their order is kept. A trailing value
-    (a dihedral with a requested angle, [a, b, c, d, degrees]) is part of the
-    coordinate.
+    only when its atoms are reversed, so their order is kept.
     """
     unique_list_of_lists = []
     seen = set()
     for sublist in list_of_lists:
-        natoms = 4 if len(sublist) == 5 else len(sublist)
-        atoms = tuple(sublist[:natoms])
-        if natoms == 2:
-            key = (tuple(sorted(atoms)), tuple(sublist[natoms:]))
-        else:
-            key = (min(atoms, atoms[::-1]), tuple(sublist[natoms:]))
+        atoms = tuple(sublist)
+        key = tuple(sorted(atoms)) if len(atoms) == 2 else min(atoms, atoms[::-1])
         if key not in seen:
             seen.add(key)
             unique_list_of_lists.append(list(sublist))

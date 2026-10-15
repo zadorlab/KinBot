@@ -2,16 +2,23 @@
 
 With every bond frozen at its reactant value the flat ring is the constrained
 minimum, and a TS search started in a plane cannot leave it (C2H5OO 1,5-H shift
-was never found with Sella). The last constrained step therefore keeps the
-first ring dihedral at a small angle with its current sign, carried as a
-value in the fix list so the job script sets it rather than freezing whatever
-the geometry has.
+was never found with Sella). The last constrained step therefore sets the
+first ring dihedral to a small angle with its current sign as a geometry
+change: the starting geometry is moved there and the four atoms are then
+frozen, which every backend holds (a Gaussian ModRedundant line carrying a
+value and F does not).
 """
 
+import ast
+import os
 import unittest
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 import numpy as np
 
+from kinbot import geometry, modify_geom
+from kinbot.reac_family import carry_out_reaction
 from kinbot.reactions.reac_intra_H_migration import IntraHMigration
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.utils import get_unique_list_of_lists
@@ -43,28 +50,77 @@ class TestRingPucker(unittest.TestCase):
         rxn = reaction([1, 0, 2, 3, 6])
         step, fix, change, release = rxn.get_constraints(rxn.dihstep + 1, STEP13)
         self.assertEqual(step, rxn.dihstep + 1)
-        self.assertIn([2, 1, 3, 4, 15.], fix)
+        self.assertIn([2, 1, 3, 4, 15.], change)
+        self.assertFalse([f for f in fix if len(f) > 4])
         self.assertNotIn([2, 1, 3, 4], release)
         self.assertIn([1, 3, 4, 7], release)
-        self.assertEqual(sorted(change), [[2, 7, 1.2], [4, 7, 1.35]])
+        self.assertEqual(change, [[2, 7, 1.2], [4, 7, 1.35], [2, 1, 3, 4, 15.]])  # pucker last
 
     def test_sign_follows_the_current_dihedral(self):
         rxn = reaction([1, 0, 2, 3, 6])
         mirrored = STEP13 * np.array([1., 1., -1.])
-        _, fix, _, _ = rxn.get_constraints(rxn.dihstep + 1, mirrored)
-        self.assertIn([2, 1, 3, 4, -15.], fix)
+        _, _, change, _ = rxn.get_constraints(rxn.dihstep + 1, mirrored)
+        self.assertIn([2, 1, 3, 4, -15.], change)
 
     def test_other_ring_sizes_release_every_dihedral(self):
         rxn = reaction([1, 0, 2, 4])  # 1,3-shift, four-membered ring
-        _, fix, _, release = rxn.get_constraints(rxn.dihstep + 1, WELL)
-        self.assertFalse([f for f in fix if len(f) == 5])
+        _, _, change, release = rxn.get_constraints(rxn.dihstep + 1, WELL)
+        self.assertFalse([c for c in change if len(c) == 5])
         self.assertEqual(release[-1], [2, 1, 3, 5])
+
+    def test_the_changes_move_the_geometry_to_the_pucker_and_the_bond_targets(self):
+        rxn = reaction([1, 0, 2, 3, 6])
+        _, _, change, _ = rxn.get_constraints(rxn.dihstep + 1, STEP13)
+        zero_based = [[c - 1 for c in ci[:-1]] + [ci[-1]] for ci in change]
+        success, moved = modify_geom.modify_coordinates(
+            rxn.species, 'test', STEP13.copy(), zero_based, rxn.species.bond)
+        self.assertEqual(success, 1)
+        self.assertAlmostEqual(geometry.calc_dihedral(*moved[[1, 0, 2, 3]])[0], 15., delta=0.2)
+        self.assertAlmostEqual(np.linalg.norm(moved[1] - moved[6]), 1.2, delta=0.03)
+        self.assertAlmostEqual(np.linalg.norm(moved[3] - moved[6]), 1.35, delta=0.03)
+        # The same changes with the pucker first lose it to the bond refinement.
+        _, flat = modify_geom.modify_coordinates(
+            rxn.species, 'test', STEP13.copy(), zero_based[-1:] + zero_based[:-1], rxn.species.bond)
+        self.assertLess(abs(geometry.calc_dihedral(*flat[[1, 0, 2, 3]])[0]), 5.)
+
+    def test_gaussian_job_starts_at_the_pucker_and_freezes_it_without_a_value(self):
+        rxn = reaction([1, 0, 2, 3, 6])
+        rxn.qc = SimpleNamespace(
+            qc='gauss', use_sella=False, ppn=1,
+            check_qc=lambda name: 'normal',
+            is_in_database=lambda name: False,
+            get_qc_arguments=lambda *args, **kwargs: {'opt': 'ModRedun,CalcFC'},
+            get_qc_geom=lambda name, natom, **kwargs: (0, STEP13.copy()),
+            submit_qc=lambda *args, **kwargs: 1)
+        rxn.par = {'sella_kwargs': {}, 'sella_fmax': 0.01, 'sella_steps': 100, 'calc_kwargs': {},
+                   'fc_model_path': '', 'fc_task_name': '', 'fc_device': ''}
+        with TemporaryDirectory() as directory:
+            previous = os.getcwd()
+            os.chdir(directory)
+            try:
+                carry_out_reaction(rxn, rxn.dihstep + 1, 'g16')
+                script = open(rxn.instance_name + '.py').read()
+            finally:
+                os.chdir(previous)
+        kwargs = geom = None
+        for node in ast.parse(script).body:
+            if isinstance(node, ast.Assign) and any(getattr(t, 'id', '') == 'kwargs' for t in node.targets):
+                kwargs = ast.literal_eval(node.value)
+            if (isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+                    and getattr(node.value.func, 'id', None) == 'Atoms'):
+                geom = np.array([ast.literal_eval(k.value) for k in node.value.keywords
+                                 if k.arg == 'positions'][0])
+        lines = kwargs['addsec'].splitlines()
+        self.assertIn('2 1 3 4 F', lines)
+        self.assertFalse([line for line in lines if '15.0' in line])
+        self.assertIn('1 3 4 7 A', lines)
+        self.assertAlmostEqual(geometry.calc_dihedral(*geom[[1, 0, 2, 3]])[0], 15., delta=0.2)
+        self.assertAlmostEqual(np.linalg.norm(geom[1] - geom[6]), 1.2, delta=0.03)
 
     def test_unique_fix_entries_keep_angle_and_dihedral_order(self):
         unique = get_unique_list_of_lists([[4, 2], [2, 4], [2, 1, 3, 4], [4, 3, 1, 2],
-                                           [1, 2, 3, 4], [2, 1, 3, 4, 15.], [2, 1, 3, 4, -15.]])
-        self.assertEqual(unique, [[4, 2], [2, 1, 3, 4], [1, 2, 3, 4],
-                                  [2, 1, 3, 4, 15.], [2, 1, 3, 4, -15.]])
+                                           [1, 2, 3, 4], [1, 2, 3], [3, 2, 1], [1, 3, 2]])
+        self.assertEqual(unique, [[4, 2], [2, 1, 3, 4], [1, 2, 3, 4], [1, 2, 3], [1, 3, 2]])
 
 
 if __name__ == '__main__':

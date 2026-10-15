@@ -733,6 +733,68 @@ def test_shared_capacity_includes_allocations_from_another_phase(tmp_path, monke
     assert json.loads(paths[2].read_text())['jobs'][0]['job_id'] == '77'
 
 
+@pytest.mark.parametrize('initial_failure', ['validation', 'execution'])
+@pytest.mark.parametrize('remaining_result', ['valid', 'invalid', 'missing'])
+def test_shared_failure_drains_other_phases_and_collects_all_results(
+        tmp_path, monkeypatch, initial_failure, remaining_result):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    paths = [prepare(source, tmp_path / f'recon{i}') for i in range(2)]
+    for i, path in enumerate(paths):
+        manifest = json.loads(path.read_text())
+        manifest['jobs'][0].update(job_id=str(i + 1), submission_status='submitted')
+        if i == 0:
+            manifest['jobs'][0]['missing_since'] = 0.
+            if initial_failure == 'execution':
+                (Path(manifest['jobs'][0]['directory']) / 'execution.json').write_text(
+                    json.dumps({'status': 'failed', 'error': 'Native runtime failed.'}))
+        path.write_text(json.dumps(manifest))
+    protected = {p: p.read_bytes() for p in tmp_path.rglob('*.inp')}
+    tick = [0]
+    def scheduler(command, **kwargs):
+        assert command[0] == 'squeue', 'No submissions or cancellations after probe failure'
+        # Include an unrelated allocation: it must not delay campaign exit.
+        return SimpleNamespace(stdout='2\n999\n' if tick[0] == 0 else '999\n')
+    def advance(_):
+        tick[0] += 1
+        assert tick[0] < 8, 'controller waited for unsubmitted work or an unrelated job'
+        if tick[0] != 2 or remaining_result == 'missing':
+            return
+        # Queue exit preceded file publication by one polling cycle.
+        job = json.loads(paths[1].read_text())['jobs'][0]
+        directory, name = Path(job['directory']), job['name']
+        (directory / (name + '.out')).write_text(
+            ('No convergence in rhfpr\n' if remaining_result == 'invalid' else '')
+            + 'SETTING RECONDONE = 1\nMolpro calculation terminated\n')
+        (directory / (name + '.wfu')).write_bytes(b'completed checkpoint')
+        (directory / (name + '.molden')).write_text('[Molden Format]\n')
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    monkeypatch.setattr(recon.time, 'sleep', advance)
+    monkeypatch.setattr(recon.time, 'time', lambda: 100. + 20. * tick[0])
+    # Simulate restarting at the pilot phase while full-panel jobs still run.
+    with pytest.raises(recon.ProbeFailure) as error:
+        recon.run_many(paths[:1], capacity_manifests=paths, startup_checked=True)
+    first, second = [json.loads(p.read_text()) for p in paths]
+    assert first['status'] == 'failed'
+    assert first['jobs'][0]['terminal_failure']
+    assert all('job_id' not in m['jobs'][1] for m in (first, second))
+    assert all(p.read_bytes() == content for p, content in protected.items())
+    job = second['jobs'][0]
+    if remaining_result == 'valid':
+        assert tick[0] == 2
+        assert job['status'] == 'complete' and job['wfu_sha256']
+        assert 'terminal_failure' not in job
+        assert str(paths[1].parent) not in str(error.value)
+    else:
+        assert tick[0] == 5  # Publication grace retained for the second probe.
+        assert job['status'] == 'incomplete' and job['terminal_failure']
+        assert 'wfu_sha256' not in job
+        assert str(paths[0].parent) in str(error.value)
+        assert str(paths[1].parent) in str(error.value)
+
+
 def test_retry_archives_known_failure_and_preserves_completed_probe(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from kinbot import molpro_reconnaissance as recon

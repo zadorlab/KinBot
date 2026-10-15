@@ -166,6 +166,31 @@ convergence thresholds or substituting unconverged CASCI energies.
 
 ### Solver repair and restart
 
+The subsequent repair rejected
+`02_recon/avt_f12__cs_orient_f1_bond_a60_r1p776838825` for both RHF and
+CASSCF nonconvergence. Two other Slurm allocations were still running when
+the controller exited. Their shortened names are insufficient to identify
+the initialization; `squeue ... %Z` confirmed both are in `03_recon`.
+The supplied native output confirms both iteration-limit failures despite
+return code zero. RHF reached a gradient of about 4.4e-7 at iteration 100;
+the CASSCF state-averaged energy remained -436.99904561 Eh at the displayed
+precision through iterations 40–50, with small residuals. This suggests a
+numerical stopping issue, but does not prove convergence or identify the
+unmet criterion. Check the printed native thresholds and column headers
+before choosing another solver change; normal termination and printed
+energies do not supersede the convergence requirement. Molpro documents
+separate [MCSCF energy and orbital-gradient criteria](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#convergence_thresholds).
+
+Failure handling now stops new submissions but monitors already submitted
+jobs until they leave the queue and their outputs validate or fail. This also
+works when a restarted controller encounters a full-panel failure while
+rechecking its pilots. `progress` displays `draining_after_failure`, then
+`failed` with all observed failures; completed counterparts remain reusable.
+The controller-only update below adopts any surviving allocations without
+retrying the rejected calculation. It is a monitoring repair, not a claim that
+the electronic convergence problem has been solved. Do not repeat the same
+solver repair or relax convergence thresholds without inspecting the output.
+
 **Scheduling follow-up:** all six repaired CASSCF panel jobs have no checkpoint
 predecessor; the three checkpoint-initialized probes each have their own seed.
 The previous one-at-a-time behavior came from sequential system controllers
@@ -199,6 +224,7 @@ nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$RUN" \
 printf '%s\n' "$!" > "$RUN/controller.pid"
 "$KB_PY" -m kinbot.orbital_campaign progress "$RUN"
 tail -n 30 "$RUN/controller.log"
+squeue -u hram -o '%.18i %.10T %.48j %.10M %Z'
 BASH
 ```
 

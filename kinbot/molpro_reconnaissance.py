@@ -39,6 +39,10 @@ from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
 _SAFE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\Z')
 
 
+class ProbeFailure(RuntimeError):
+    """A submitted probe ended without a validated scientific result."""
+
+
 @contextmanager
 def _manifest_lock(root):
     root = Path(root).expanduser().resolve()
@@ -934,7 +938,7 @@ def _audit(manifest_path, *, live_job_ids=()):
         for key in ('energy_hartree', 'root_energies_hartree', 'state_energies_hartree',
                     'natural_occupations', 'natural_molden_sha256',
                     'orbital_error', 'orbital_xml', 'occupation_source', 'validation_errors',
-                    'validation_warnings',
+                    'validation_warnings', 'terminal_failure',
                     'correlated_energies_hartree'):
             job.pop(key, None)
         directory = Path(job['directory'])
@@ -1421,24 +1425,34 @@ def _finished(manifest_path, manifest, live):
     if (manifest['status'] in ('complete_review_required', 'coverage_refinement_required')
             and not any(str(job.get('job_id')) in live for job in manifest['jobs'])):
         return True
+    failures = []
     for job in manifest['jobs']:
+        job.pop('terminal_failure', None)
         if job.get('job_id') and str(job['job_id']) not in live and job['status'] != 'complete':
             execution_path = Path(job['directory']) / 'execution.json'
             if execution_path.is_file():
                 execution = json.loads(execution_path.read_text())
                 if execution.get('status') == 'failed':
-                    raise RuntimeError(execution.get('error') or f'{job["name"]}: native execution failed.')
+                    reason = execution.get('error') or 'Native execution failed.'
+                    job['terminal_failure'] = (f'{job["name"]}: {reason} '
+                                               f'Inspect {execution_path}.')
             # Allow shared-filesystem publication after queue exit. Until it
             # validates, a missing allocation still reserves campaign capacity.
             deadline = job.setdefault('missing_since', time.time())
-            if time.time() - deadline > 60.:
+            if not job.get('terminal_failure') and time.time() - deadline > 60.:
                 reason = '; '.join(job.get('validation_errors', [])) or 'No validated result was published.'
-                raise RuntimeError(f'{job["name"]}: queued probe ended without '
-                                   f'valid output: {reason} Inspect {job["directory"]}/execution.json '
-                                   'and native output before retrying.')
+                job['terminal_failure'] = (f'{job["name"]}: queued probe ended without '
+                    f'valid output: {reason} Inspect {execution_path} '
+                    'and native output before retrying.')
+            if job.get('terminal_failure'):
+                failures.append(job['terminal_failure'])
         else:
             job.pop('missing_since', None)
+    if failures:
+        manifest['status'] = 'failed'
     atomic_json(Path(manifest_path), manifest)
+    if failures:
+        raise ProbeFailure('\n'.join(failures))
     return False
 
 
@@ -1448,6 +1462,8 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
 
     A campaign may waive the per-manifest startup check only after its native
     pilots pass. Existing jobs from another campaign phase also consume slots.
+    On probe failure, stop submitting and audit already submitted work before
+    raising all observed failures. Scheduler/journal errors still stop at once.
     No worker threads or competing manifest writers are created.
     """
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
@@ -1458,6 +1474,7 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
     if not paths or len(set(paths)) != len(paths):
         raise ValueError('Expected distinct reconnaissance manifests.')
     all_paths = list(dict.fromkeys(paths + [Path(p).expanduser().resolve() for p in capacity_manifests]))
+    announced = set()
     with ExitStack() as locks:
         for parent in sorted({p.parent for p in all_paths}):
             locks.enter_context(_manifest_lock(parent))
@@ -1473,7 +1490,30 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
             # Re-audit every phase before allocating slots. An apparently
             # finished output remains untrusted while its allocation is live.
             snapshots = {p: _audit(p, live_job_ids=live) for p in all_paths}
-            finished = {p: _finished(p, m, live) for p, m in snapshots.items()}
+            finished, failures = {}, []
+            for path, manifest in snapshots.items():
+                try:
+                    finished[path] = _finished(path, manifest, live)
+                except ProbeFailure as error:
+                    finished[path] = False
+                    failures.append(str(error))
+            if failures:
+                for failure in failures:
+                    if failure not in announced:
+                        print('Probe failed; no new jobs will be submitted. '
+                              'Monitoring remaining allocations.\n' + failure, flush=True)
+                        announced.add(failure)
+                # Include other phases and excluded live allocations, but do
+                # not wait for unsubmitted probes or failed predecessors.
+                waiting = any(j.get('job_id') and (str(j['job_id']) in live or
+                              j['status'] != 'complete' and not j.get('terminal_failure'))
+                              for m in snapshots.values() for j in m['jobs'])
+                waiting |= any(str(j.get('job_id')) in live
+                               for m in snapshots.values() for j in m.get('excluded_jobs', []))
+                if not waiting:
+                    raise ProbeFailure('\n'.join(failures))
+                time.sleep(interval)
+                continue
             if all(finished[p] for p in paths):
                 return [snapshots[p] for p in paths]
             reserved = {str(j['job_id']) for m in snapshots.values() for j in m['jobs']

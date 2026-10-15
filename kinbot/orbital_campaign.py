@@ -243,6 +243,7 @@ def progress(root):
     root = Path(root).expanduser().resolve()
     data = json.loads((root / 'campaign.json').read_text())
     systems = []
+    draining = False
     for record in data['systems']:
         item = {'title': record['title']}
         if data.get('selected_probe_method'):
@@ -252,11 +253,18 @@ def progress(root):
             manifest = json.loads(Path(record[key]).read_text())
             item[key] = {'status': manifest['status'], 'jobs': len(manifest['jobs']),
                          'complete': sum(job.get('status') == 'complete' for job in manifest['jobs'])}
+            failures = [{'name': job['name'], 'directory': job['directory'],
+                         'job_id': job.get('job_id'), 'reason': job['terminal_failure']}
+                        for job in manifest['jobs'] if job.get('terminal_failure')]
+            if failures:
+                item[key].update(failed=len(failures), failures=failures)
+                draining |= item.get('selected', True)
             if manifest.get('excluded_jobs'):
                 item[key]['excluded_jobs'] = len(manifest['excluded_jobs'])
                 item[key]['excluded_bases'] = manifest['excluded_bases']
         systems.append(item)
-    return {'status': data['status'], 'max_jobs': data.get('max_jobs'),
+    status = 'draining_after_failure' if draining and data['status'] == 'running' else data['status']
+    return {'status': status, 'max_jobs': data.get('max_jobs'),
             'selected_probe_method': data.get('selected_probe_method'),
             'error': data.get('error'), 'systems': systems}
 

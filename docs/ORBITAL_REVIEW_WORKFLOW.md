@@ -53,6 +53,16 @@ the full reference panel.
    and waits for its campaign lock to release, preserving running Slurm jobs.
    A new controller adopts their recorded job IDs. This differs from
    `run_cleanup --stop`, which also cancels the scoped calculations.
+   If a submitted probe fails native execution or scientific validation,
+   the shared controller stops new submissions, continues monitoring all
+   already submitted campaign jobs (including other phases), then reports
+   all observed failures together. `progress` shows `draining_after_failure`
+   while this is happening, with failed job names, IDs and full directories.
+   Successful remaining jobs are retained; failed energies remain rejected.
+   Unsubmitted jobs and descendants of failed checkpoints are not launched.
+   The final campaign status is `failed`, requiring review before a repair.
+   Uncertain submissions and scheduler errors still stop immediately, since
+   allocation ownership cannot safely be inferred in those cases.
 6. `report ROOT OUTPUT.json` supplies geometry, chemical rationale, requested
    state averages, occupations, complete native orbital/CI text, root energies,
    elapsed times and hash-bound artifact paths. It compares geometrically

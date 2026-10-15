@@ -148,6 +148,27 @@ def test_failed_pilot_stops_before_full_jobs_and_records_failure(tmp_path, monke
     assert json.loads((root / 'campaign.json').read_text())['status'] == 'failed'
 
 
+def test_progress_distinguishes_draining_from_finished_failure(tmp_path):
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    root = tmp_path / 'campaign'
+    path = campaign.prepare(root, [source])
+    saved = json.loads(path.read_text())
+    manifest_path = Path(saved['systems'][0]['manifest'])
+    manifest = json.loads(manifest_path.read_text())
+    manifest.update(status='failed')
+    manifest['jobs'][0].update(terminal_failure='CASSCF did not converge.', job_id='42')
+    manifest_path.write_text(json.dumps(manifest))
+    for state, expected in [('running', 'draining_after_failure'), ('failed', 'failed')]:
+        saved['status'] = state
+        path.write_text(json.dumps(saved))
+        result = campaign.progress(root)
+        assert result['status'] == expected
+        panel = result['systems'][0]['manifest']
+        assert panel['failed'] == 1 and panel['failures'][0]['job_id'] == '42'
+        assert panel['failures'][0]['directory'] == manifest['jobs'][0]['directory']
+
+
 @pytest.mark.parametrize('unselected_state', ['stopped', 'live', 'uncertain'])
 def test_method_scoped_resume_keeps_unselected_controls_unresolved(tmp_path, monkeypatch, unselected_state):
     from types import SimpleNamespace

@@ -25,6 +25,18 @@ from kinbot.execution import file_sha256 as _sha256
 SUPPORTED_REVISION = 'f3352c8eea9d51d26f631d3238e24e304b5be7de'
 
 
+def validate_mess_handoff(parameters):
+    """Do not silently discard required ROTD data in deferred PES assembly."""
+    mode = str(parameters.get('rotdpy_mess_mode', 'auto')).casefold()
+    if (parameters.get('pes') and mode != 'off'
+            and (mode in ('required', 'production')
+                 or parameters.get('vrc_tst_surface_model_file'))):
+        raise ValueError('Required/multistate ROTD_py MESS handoff is not yet '
+                         'implemented for deferred full-PES assembly. Use '
+                         'pes=0 for the supported single-well workflow; '
+                         'full-PES assembly must not silently substitute PST.')
+
+
 @contextmanager
 def _controller_lock(input_file: Path):
     """Allow only one local controller for a generated ROTD_py input."""

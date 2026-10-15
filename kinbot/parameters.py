@@ -831,6 +831,8 @@ class Parameters:
                 'auto', 'required', 'production', 'off'):
             raise ValueError('rotdpy_mess_mode must be auto, required, '
                              'production, or off')
+        from kinbot.rotdpy import validate_mess_handoff
+        validate_mess_handoff(self.par)
         if self.par['rotdpy_validation_profile'] not in (
                 'interface', 'production'):
             raise ValueError('rotdpy_validation_profile must be interface '

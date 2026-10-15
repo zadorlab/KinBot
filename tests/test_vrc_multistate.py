@@ -248,6 +248,13 @@ def test_requested_multistate_cannot_reuse_an_old_scalar_result(tmp_path):
         writer._rotd_model([], '', 0., 0., 1., 1., SimpleNamespace(instance_name='r'))
 
 
+def test_full_pes_assembly_refuses_to_discard_required_rotd():
+    from kinbot.pes import create_mess_input
+    with pytest.raises(ValueError, match='full-PES'):
+        create_mess_input({'pes': 1, 'rotdpy_mess_mode': 'production'},
+                          [], [], [], [], [], {}, {}, {}, 1., False)
+
+
 def test_actual_scalar_templates_are_generated_for_each_state_and_coordinate(tmp_path, monkeypatch):
     from test_rotdpy_profiles import sulfur_correction
     from kinbot.pes import create_rotdpy_inputs

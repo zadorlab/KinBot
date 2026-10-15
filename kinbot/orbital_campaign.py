@@ -176,6 +176,22 @@ def progress(root):
             'error': data.get('error'), 'systems': systems}
 
 
+def retry_failed(root):
+    """Reconcile failed native jobs without discarding successful probes."""
+    root = Path(root).expanduser().resolve()
+    with _lock(root):
+        campaign = json.loads((root / 'campaign.json').read_text())
+        results = []
+        for record in campaign['systems']:
+            _validate_inputs(record)
+            for key in ('pilot_manifest', 'manifest'):
+                results.append(recon.retry_failed(record[key]))
+        campaign['status'] = 'prepared_retry'
+        campaign.pop('error', None)
+        atomic_json(root / 'campaign.json', campaign)
+        return results
+
+
 def collect(root, destination):
     """Archive review evidence; large binary WFU records remain on the cluster."""
     root = Path(root).expanduser().resolve()
@@ -217,6 +233,8 @@ def main(argv=None):
     report.add_argument('root')
     check = commands.add_parser('preflight')
     check.add_argument('root')
+    retry = commands.add_parser('retry-failed')
+    retry.add_argument('root')
     bundle = commands.add_parser('collect')
     bundle.add_argument('root')
     bundle.add_argument('destination')
@@ -230,6 +248,8 @@ def main(argv=None):
         result = collect(args.root, args.destination)
     elif args.action == 'preflight':
         result = preflight(args.root)
+    elif args.action == 'retry-failed':
+        result = retry_failed(args.root)
     else:
         result = progress(args.root)
     print(json.dumps(result, indent=2))

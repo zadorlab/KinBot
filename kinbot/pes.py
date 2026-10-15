@@ -1301,6 +1301,8 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
     others are corrected with their DeltaL2 energies.
     """
 
+    from kinbot.rotdpy import validate_mess_handoff
+    validate_mess_handoff(par)
     min_vdW = find_min_vdW(vdW, well_energies)
     selected_wells = [well for well in wells if min_vdW.get(well, well) == well]
     skip_complexes = bool(par.get('me_skip_vdW', 0))

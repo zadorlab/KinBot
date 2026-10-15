@@ -1584,6 +1584,8 @@ class MESS:
         if mode not in ('auto', 'required', 'production', 'off'):
             raise ValueError('rotdpy_mess_mode must be auto, required, '
                              'production, or off.')
+        from kinbot.rotdpy import validate_mess_handoff
+        validate_mess_handoff(self.par)
         if mode == 'off' or self.par['pes'] or reaction is None:
             return None
         directory = Path(self.par.get('rotdpy_directory', 'rotdPy'))

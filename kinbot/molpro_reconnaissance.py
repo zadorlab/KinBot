@@ -801,6 +801,61 @@ def submit(manifest_path, *, max_jobs=8):
         return _submit(manifest_path, max_jobs=max_jobs)
 
 
+def retry_failed(manifest_path):
+    """Archive known failed native attempts after every allocation has left.
+
+    Completed calculations and immutable inputs/checkpoint chains stay intact.
+    Unknown submissions and parser-only failures require reconciliation rather
+    than an automatic duplicate calculation.
+    """
+    import shutil
+    path = Path(manifest_path).expanduser().resolve()
+    with _manifest_lock(path.parent):
+        manifest = _audit(path)
+        queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                                text=True, check=True, timeout=30)
+        live = set(queued.stdout.split())
+        if any(str(job.get('job_id')) in live for job in manifest['jobs']):
+            raise RuntimeError('Wait for all manifest allocations to leave before retrying.')
+        if any(job.get('submission_status') == 'submitting' for job in manifest['jobs']):
+            raise RuntimeError('Reconcile uncertain Slurm submissions before retrying.')
+        retried = []
+        for job in manifest['jobs']:
+            if job['status'] == 'complete':
+                continue
+            directory = Path(job['directory'])
+            record = directory / 'execution.json'
+            if not record.is_file():
+                continue
+            execution = json.loads(record.read_text())
+            if execution.get('status') != 'failed' or not job.get('job_id'):
+                continue
+            inp = directory / (job['name'] + '.inp')
+            if hashlib.sha256(inp.read_bytes()).hexdigest() != job['input_sha256']:
+                raise ValueError('Failed probe input changed; do not retry under the old manifest.')
+            attempt = int(job.get('attempt', 1))
+            archive = directory / 'attempts' / str(attempt)
+            archive.mkdir(parents=True, exist_ok=False)
+            keep = {job['name'] + '.inp', job['name'] + '.sbatch'}
+            for artifact in directory.iterdir():
+                if artifact.is_file():
+                    if artifact.name in keep:
+                        shutil.copy2(artifact, archive / artifact.name)
+                    else:
+                        artifact.rename(archive / artifact.name)
+            job.setdefault('attempt_history', []).append({
+                'attempt': attempt, 'job_id': job['job_id'],
+                'archive': str(archive), 'error': execution.get('error'),
+                'input_sha256': job['input_sha256']})
+            for key in ('job_id', 'missing_since'):
+                job.pop(key, None)
+            job.update(attempt=attempt + 1, submission_status='retry_ready', status='incomplete')
+            retried.append(job['name'])
+            atomic_json(path, manifest)
+        return {'manifest': str(path), 'retry_ready': retried,
+                'completed_preserved': sum(job['status'] == 'complete' for job in manifest['jobs'])}
+
+
 def _submit(manifest_path, *, max_jobs=8):
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
         raise ValueError('max_jobs must be positive.')
@@ -848,7 +903,7 @@ def _submit(manifest_path, *, max_jobs=8):
             job['input_sha256'] = hashlib.sha256(inp.read_bytes()).hexdigest()
         job['submission_status'] = 'submitting'
         atomic_json(path, manifest)
-        result = subprocess.run(['sbatch', '--parsable', job['name'] + '.sbatch'],
+        result = subprocess.run(['sbatch', '--export=ALL', '--parsable', job['name'] + '.sbatch'],
                                 cwd=job['directory'], capture_output=True, text=True)
         if result.returncode:
             job['submission_status'] = 'failed'

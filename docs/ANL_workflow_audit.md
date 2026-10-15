@@ -1,9 +1,10 @@
 # CBH/ANL, VRC-TST, ROTD_py, MESS audit — 14 October 2026
 
-**Reconnaissance checkpoint released:** work resumed at the user's request.
-The first Blodgett pilot exposed a generated extra brace; see the correction below and use
-[the commit-and-pull runbook](Blodgett_workflow_runbook.md). The MESS audit
-continues while those jobs run. The earlier pause record is historical.
+**Paused checkpoint:** work is paused at the user's request. The native pilot
+feedback, scratch recovery and exact remaining implementation/chemistry work
+are recorded in [the current checkpoint](WORKFLOW_CHECKPOINT_2026-10-14.md).
+This supersedes the earlier pause record. Successful native pilots must be
+retained; the current 5Z scratch failure is not a chemistry-production pass.
 
 The current software is **not yet certified for the full CH3S/CH3SS production
 campaign**. The automated interfaces and diagnostic reconnaissance have been
@@ -196,7 +197,7 @@ for the exact recorded run path and scoped stop/archive commands.
 
 ## Evidence and references
 
-The checkpoint suite passes **1220 tests and 389 subtests**, with two warnings
+The final stopping-checkpoint suite passes **1231 tests and 391 subtests**, with two warnings
 (an existing deprecated `imp` import and denied access to Sella's external
 compilation-cache directory). `git diff --check` passes. The module-selection fix additionally has an
 executed batch-shell regression test and the campaign has a no-submission
@@ -249,3 +250,11 @@ regression based on the supplied native root energies and occupations.
 The corresponding ASE/VRC reader and ANL F12 validation were corrected too;
 consistent assignment/SHOW duplicates are allowed while mismatches still
 fail. This does not validate other bases, geometries or production correlation.
+
+The final stopping checkpoint adds a scheduler-checked `retry-failed` command
+that archives known failed native attempts while retaining successful probes.
+The user supplied a compute-node `/scratch` mount with about 5.4 TB free;
+`KINBOT_MOLPRO_SCRATCH` selects it without embedding a site path in code.
+Required/multistate full-PES MESS handoff now fails explicitly instead of
+silently using PST; its implementation remains open. See the checkpoint for
+the full remaining procedure and exact scope.

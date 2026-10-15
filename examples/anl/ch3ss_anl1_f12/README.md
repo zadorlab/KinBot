@@ -50,3 +50,7 @@ modules and each batch job loads its setup. Preflight and all-basis/channel
 native pilots precede bulk submission. The shared limit is ten nodes total.
 Full KinBot production follows review of these results. Automatic homolytic
 vdW-complex discovery is deferred under the present example scope.
+
+The [current paused checkpoint](../../../docs/WORKFLOW_CHECKPOINT_2026-10-14.md)
+records native pilot feedback, scratch recovery, verified behavior and all
+remaining software/chemistry work. Full production is not yet released.

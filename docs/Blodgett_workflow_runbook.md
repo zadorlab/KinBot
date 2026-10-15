@@ -1,5 +1,10 @@
 # Blodgett orbital reconnaissance checkpoint — 14 October 2026
 
+**Current stopping point:** see [the complete checkpoint](WORKFLOW_CHECKPOINT_2026-10-14.md).
+The existing campaign has validated native pilots and a conventional-5Z scratch
+I/O failure. Preserve it; use the retry procedure below. Do not prepare another
+campaign merely to fix the parser or scratch environment.
+
 Run all commands on Blodgett yourself. No SSH or cluster job has been started
 by this development session. Use the existing `composite` checkout and its
 `.venv`; no SCP or replacement source directory is required. The orbital
@@ -216,3 +221,37 @@ This is a reader-only correction: **preserve and resume this campaign in
 place** after pulling it. Do not archive or regenerate the successful pilot,
 and do not resubmit its job manually. The controller re-audits its existing
 output, accepts the completed probe, and continues the remaining pilots.
+
+## Recover the existing scratch-failed campaign
+
+The compute-node inventory supplied by the user shows `/scratch` has about
+5.4 TB free; `/tmp` has about 37 GB. The login node has no `/scratch` mount.
+Set `KINBOT_MOLPRO_SCRATCH="/scratch/$USER/kinbot-molpro"` before starting the
+controller. The worker creates/checks it on its allocated node, and submission
+explicitly exports that environment. No login-node scratch mkdir is needed.
+
+After pulling the final checkpoint and reinstalling in `/home/hram/KinBot`,
+with all campaign allocations gone, run:
+
+```bash
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+CAMPAIGN=$(cat /home/hram/kinbot-runs/last_sulfur_orbital_campaign.txt)
+export KINBOT_MOLPRO_SCRATCH="/scratch/$USER/kinbot-molpro"
+"$KB_PY" -m kinbot.orbital_campaign retry-failed "$CAMPAIGN"
+"$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"
+cd "$CAMPAIGN"
+if [ -f controller.log ]; then
+    mv controller.log "controller.previous.$(date +%Y%m%d_%H%M%S).log"
+fi
+nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$CAMPAIGN" \
+    --max-jobs 10 --max-refinements 3 \
+    > controller.log 2>&1 < /dev/null &
+printf '%s\n' "$!" > controller.pid
+```
+
+`retry-failed` re-audits completed outputs, preserves successful probes,
+archives only known failed native attempts, and clears only their old job IDs.
+It refuses live allocations or uncertain submissions. Do not resubmit `.sbatch`
+files manually or delete journals. A native failure after retry needs its own
+inspection; there is no unlimited automatic retry loop.

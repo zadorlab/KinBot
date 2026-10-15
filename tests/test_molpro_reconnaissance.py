@@ -408,3 +408,35 @@ def test_completed_controller_waits_for_allocations_before_next_system(tmp_path,
     monkeypatch.setattr(recon.time, 'sleep', lambda delay: sleeps.append(delay))
     assert recon._run(path) is result
     assert sleeps == [20.]
+
+
+def test_retry_archives_known_failure_and_preserves_completed_probe(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    _complete_probes(path)
+    report = audit(path)
+    first, failed = report['jobs'][:2]
+    completed_wfu = Path(first['wfu']).read_bytes()
+    directory = Path(failed['directory'])
+    (directory / (failed['name'] + '.out')).write_text('I/O error. Perhaps full disk?\n')
+    (directory / 'execution.json').write_text(json.dumps({'status': 'failed', 'error': 'scratch I/O'}))
+    report['jobs'][1].update(job_id='42', submission_status='submitted')
+    path.write_text(json.dumps(report))
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout='42\n'))
+    with pytest.raises(RuntimeError, match='allocations'):
+        recon.retry_failed(path)
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout=''))
+    result = recon.retry_failed(path)
+    assert result['retry_ready'] == [failed['name']]
+    after = json.loads(path.read_text())
+    assert after['jobs'][0]['status'] == 'complete'
+    assert Path(first['wfu']).read_bytes() == completed_wfu
+    assert 'job_id' not in after['jobs'][1]
+    assert after['jobs'][1]['input_sha256'] == failed['input_sha256']
+    assert after['jobs'][1]['orbital_predecessor'] == failed['orbital_predecessor']
+    assert (directory / 'attempts/1/execution.json').is_file()
+    assert (directory / 'attempts/1' / (failed['name'] + '.inp')).is_file()
+    assert recon.retry_failed(path)['retry_ready'] == []

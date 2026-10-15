@@ -17,6 +17,34 @@ import math
 logger = logging.getLogger('KinBot')
 
 
+def validate_input_blocks(contents, label='Molpro input'):
+    """Reject unmatched generated program/geometry delimiters before launch.
+
+    This is a structural check, not a replacement for Molpro's input parser.
+    Quoted paths and comments are ignored while counting block delimiters.
+    """
+    depth = 0
+    for number, line in enumerate(contents.splitlines(), 1):
+        quote = None
+        for character in line:
+            if quote:
+                if character == quote:
+                    quote = None
+                continue
+            if character in ('"', "'"):
+                quote = character
+            elif character == '!':
+                break
+            elif character == '{':
+                depth += 1
+            elif character == '}':
+                depth -= 1
+                if depth < 0:
+                    raise ValueError(f'{label}: unmatched closing brace at line {number}.')
+    if depth:
+        raise ValueError(f'{label}: {depth} unclosed Molpro input block(s).')
+
+
 _VRC_MULTIREFERENCE = re.compile(
     r'(caspt2|mrci)(?:-f12([ab])?)?(\+q)?\((\d+),(\d+)\)')
 

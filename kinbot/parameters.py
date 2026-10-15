@@ -684,6 +684,19 @@ class Parameters:
         if self.par['families'] != ['all'] and self.par['skip_families'] != ['none']:
             err = 'Only one of the "families" or "skip_families" parameters can be defined.'
 
+        homolytic = self.par['homolytic_bonds']
+        if not isinstance(homolytic, dict):
+            raise ValueError('homolytic_bonds must be an object.')
+        for key, bonds in homolytic.items():
+            if (not isinstance(key, str) or not key.strip() or not isinstance(bonds, list)
+                    or any(not isinstance(bond, list) or len(bond) != 2
+                           or any(isinstance(atom, bool) or not isinstance(atom, int)
+                                  or atom < 0 for atom in bond)
+                           or bond[0] == bond[1] for bond in bonds)):
+                raise ValueError('homolytic_bonds entries require zero-based atom pairs.')
+            if len({tuple(sorted(bond)) for bond in bonds}) != len(bonds):
+                raise ValueError('homolytic_bonds contains a duplicate bond.')
+
         selected = self.par['selected_reactions']
         if not isinstance(selected, dict):
             raise ValueError('selected_reactions must be an object.')

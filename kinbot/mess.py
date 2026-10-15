@@ -1592,9 +1592,9 @@ class MESS:
             f'{reaction.instance_name}.rotdpy.json')
         multistate_manifest = directory / f'{reaction.instance_name}.multistate.json'
         multistate = multistate_manifest.is_file()
+        if self.par.get('vrc_tst_surface_model_file') and not multistate:
+            raise FileNotFoundError(f'{reaction.instance_name}: state-resolved ROTD results are required.')
         if (not multistate and (not input_file.is_file() or not manifest.is_file())):
-            if self.par.get('vrc_tst_surface_model_file'):
-                raise FileNotFoundError(f'{reaction.instance_name}: state-resolved ROTD results are required.')
             if mode in ('required', 'production'):
                 raise FileNotFoundError(
                     f'{reaction.instance_name}: completed ROTD_py input and '

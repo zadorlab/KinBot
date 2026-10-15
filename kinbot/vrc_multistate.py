@@ -12,7 +12,6 @@ import re
 
 import numpy as np
 
-from kinbot import constants
 from kinbot.execution import atomic_json, file_sha256
 
 
@@ -283,6 +282,10 @@ def _table(path):
             or np.any(values[:, 1] < 0.) or np.any(np.diff(values[:, 0]) <= 0.)):
         raise ValueError(f'Invalid state number-of-states table: {path}')
     # Same explicit zero-flux convention as the scalar MESS handoff.
+    if values[0, 1] == 0.:
+        return values
+    if values[0, 0] < 0.:
+        raise ValueError(f'{path}: negative-energy table needs a zero-flux lower boundary.')
     if values[0, 0] == 0. and values[0, 1] > 0.:
         values[0, 0] = min(.01, values[1, 0] / 2.)
     if values[0, 0] > 0.:

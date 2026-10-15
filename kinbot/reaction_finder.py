@@ -2190,11 +2190,14 @@ class ReactionFinder:
             for instance in instances: 
                 if not self.species.cycle[instance[0]] or not self.species.cycle[instance[1]]:
                     rxns += [instance]
-        else: 
-            try:
-                rxns = configured_selection(self.par['homolytic_bonds'], self.species, [])
-            except KeyError:
-                pass
+        else:
+            # Retain configured stereochemical/legacy ChemID precedence,
+            # with the same stable initial-well alias as reaction selection.
+            selected = configured_selection(self.par['homolytic_bonds'], self.species)
+            if selected is None:
+                selected = configured_reaction_selection(
+                    self.par['homolytic_bonds'], self.species)
+            rxns = [] if selected is None else selected
                 
 
         self.new_reaction(rxns, name, a=0, b=1, cross=True, aid=True)

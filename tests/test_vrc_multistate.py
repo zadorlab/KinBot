@@ -155,6 +155,15 @@ def test_single_bottleneck_never_requires_or_creates_a_complex():
     assert 'Well' not in result and 'Variational' not in result
 
 
+def test_unbounded_negative_state_flux_cannot_be_staged(tmp_path):
+    source = tmp_path / 'Ne.out'
+    source.write_text('-186 100\n0 200\n100 300\n')
+    with pytest.raises(ValueError, match='zero-flux lower boundary'):
+        assemble_states([{'source': source, 'multiplicity': 2,
+                         'energy_offset_cm_inverse': 0.}],
+                        tmp_path / 'sum.out', baseline_cm_inverse=0.)
+
+
 def _completed_channel(tmp_path):
     model_file = tmp_path / 'surfaces.json'
     model_file.write_text(json.dumps(model()))
@@ -225,6 +234,18 @@ def test_mess_handoff_uses_unit_electronic_degeneracy_for_summed_flux(tmp_path, 
     assert block.count('            0 1') == 2
     assert '2TSMethod statistical' in block
     assert writer.rotdpy_sources['r']['kind'] == 'multistate'
+
+
+def test_requested_multistate_cannot_reuse_an_old_scalar_result(tmp_path):
+    from kinbot.mess import MESS
+    writer = MESS.__new__(MESS)
+    writer.par = {'rotdpy_mess_mode': 'auto', 'pes': 0,
+                  'rotdpy_directory': str(tmp_path),
+                  'vrc_tst_surface_model_file': 'reviewed.json'}
+    (tmp_path / 'r.py').write_text('# old scalar input\n')
+    (tmp_path / 'r.rotdpy.json').write_text('{}')
+    with pytest.raises(FileNotFoundError, match='state-resolved'):
+        writer._rotd_model([], '', 0., 0., 1., 1., SimpleNamespace(instance_name='r'))
 
 
 def test_actual_scalar_templates_are_generated_for_each_state_and_coordinate(tmp_path, monkeypatch):

@@ -109,7 +109,9 @@ printf '%s\n' "$!" > "$CAMPAIGN/controller.pid"
 tail -n 40 "$CAMPAIGN/controller.log"
 ```
 
-The controller runs all native pilots first: 8 CH3S jobs and 16 CH3SS jobs,
+Each fresh manifest first submits one probe and waits for its validated
+completion before widening submission. The controller then completes all
+native pilots: 8 CH3S jobs and 16 CH3SS jobs,
 covering all eight bases for each dissociation. Any invalid native basis,
 AVAS/CASCI block, root output, or missing orbital artifact stops progression
 before bulk scans. Successful pilots are followed by CH3S then CH3SS scans;
@@ -182,3 +184,20 @@ current scope; existing inherited optional-well behavior is unchanged.
 The ongoing MESS work and actual NH2O SI verification are recorded in
 [the audit](ANL_workflow_audit.md) and
 [the SI-derived contract report](NH2O_SI_verification.json).
+
+## First native pilot failure and correction
+
+The 19:26 campaign ended at Molpro input parsing: its generated ROHF line
+had an extra closing brace (`UNMATCHED }`). This was a generator error,
+not evidence that the requested basis was unavailable. The correction removes
+the extra brace and structurally validates every generated deck before it
+can be submitted. The native output also confirmed the default WFU repository
+was `/home/hram/wfu`; execution now passes `-W` with each job's own directory
+so checkpoint staging and artifact auditing use the same location.
+
+The controller now writes a native `execution.json`, includes the final
+Molpro output in failure diagnostics, and checks a single first probe before
+widening a fresh manifest. Preserve the failed campaign using
+`kinbot.run_cleanup --stop --archive`, and prepare a fresh campaign from the
+corrected code. Its changed input hashes must not be written over the old
+submission history. The initial 872-job count is unchanged.

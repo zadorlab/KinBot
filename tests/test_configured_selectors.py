@@ -41,6 +41,26 @@ def test_vrc_explicit_centres_accept_configured_keys():
     assert 0 in explicit
 
 
+def test_homolytic_initial_alias_preserves_other_families_and_exact_keys():
+    from types import SimpleNamespace
+    for short_name, mapping, expected in (
+        ('w1', {'initial': [[0, 1]]}, [[0, 1]]),
+        ('p1', {'initial': [[0, 1]]}, []),
+        ('w1', {'initial': [[0, 1]], '123': [[1, 2]]}, [[1, 2]]),
+        ('w1', {'initial': [[0, 1]], '123': []}, []),
+    ):
+        finder = object.__new__(ReactionFinder)
+        finder.species = SimpleNamespace(name='123', chemid=123, short_name=short_name)
+        finder.par = {'homolytic_bonds': mapping}
+        finder.reactions = {'other': [[2, 3]]}
+        finder.new_reaction = Mock()
+        with patch('kinbot.reaction_finder.configured_selection',
+                   side_effect=lambda values, point: values.get('123')):
+            finder.search_hom_sci(4, None, None, None)
+        assert finder.new_reaction.call_args.args[0] == expected
+        assert finder.reactions['other'] == [[2, 3]]
+
+
 def test_vrc_scan_overrides_agree_before_qc_and_pes_export(tmp_path, monkeypatch):
     import logging
     from types import SimpleNamespace

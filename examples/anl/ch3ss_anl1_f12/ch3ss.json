@@ -31,7 +31,7 @@
   "queuing": "slurm",
   "queue_name": "month-long-cpu",
   "ppn": 8,
-  "queue_job_limit": 8,
+  "queue_job_limit": 10,
   "electronic_state_models": [
     {
       "smiles": "[S]",
@@ -83,5 +83,18 @@
       "term_orbital_degeneracy": 2,
       "source": "CH3S spin-free X(2E) spatial components: https://pmc.ncbi.nlm.nih.gov/articles/PMC5995305/ ; resolved spin-vibronic levels are not supplied by this term declaration"
     }
-  ]
+  ],
+  "homolytic_bonds": {
+    "initial": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  "vrc_tst_surface_model_file": "ch3ss_surface_model.json"
 }

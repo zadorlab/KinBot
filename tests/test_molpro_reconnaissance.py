@@ -127,11 +127,71 @@ def test_sulfur_recon_covers_all_eight_bases_and_derives_channel_states(tmp_path
         assert 'orbital,2140.2,type=natural' in deck
         assert f'basis={job["basis"]}\n' in deck
         assert '(rev2)' not in deck
+        from kinbot.molpro import validate_input_blocks
+        validate_input_blocks(deck, job['name'])
     job = jobs[0]
     batch = (Path(job['directory']) / (job['name'] + '.sbatch')).read_text()
     assert batch.index('#SBATCH --mem=') < batch.index('set -euo pipefail')
     assert batch.index('export KINBOT_BACKEND=molpro') < batch.index('source ')
     assert 'molpro_reconnaissance run' in (tmp_path / name / 'submit.sh').read_text()
+
+
+def test_generated_rohf_block_is_balanced_and_malformed_deck_is_rejected(tmp_path, monkeypatch):
+    from kinbot import molpro_reconnaissance as recon
+    from kinbot.molpro import validate_input_blocks
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    data = recon._load(source)
+    deck = recon._deck(data, data['bases'][0]['basis'], data['anchors'][0], 'probe')
+    validate_input_blocks(deck)
+    with pytest.raises(ValueError, match='unmatched closing brace'):
+        validate_input_blocks(deck.replace('orbital,2100.2}', 'orbital,2100.2}}'))
+    original = recon._deck
+    monkeypatch.setattr(recon, '_deck', lambda *args, **kwargs: original(*args, **kwargs) + '}')
+    with pytest.raises(ValueError, match='unmatched closing brace'):
+        recon.prepare(source, tmp_path / 'invalid')
+
+
+def test_execute_selects_its_own_wavefunction_repository(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = recon.prepare(source, tmp_path / 'recon')
+    manifest = json.loads(path.read_text())
+    job = manifest['jobs'][0]
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *args, **kwargs: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *args: None)
+    def execute(command, **kwargs):
+        assert command[command.index('-W') + 1] == job['directory']
+        assert kwargs['cwd'] == Path(job['directory'])
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', execute)
+    recon.execute(path, job['name'])
+    assert json.loads((Path(job['directory']) / 'execution.json').read_text())['status'] == 'complete'
+
+
+def test_first_native_probe_gates_other_submissions_and_reports_its_failure(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    path = recon.prepare(source, tmp_path / 'recon')
+    submitted = []
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='', returncode=0)
+        submitted.append(command)
+        return SimpleNamespace(stdout='42\n', stderr='', returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    report = recon.submit(path, max_jobs=10)
+    assert len(submitted) == 1
+    first = report['jobs'][0]
+    (Path(first['directory']) / 'execution.json').write_text(json.dumps({
+        'status': 'failed', 'error': 'Molpro: UNMATCHED }'}))
+    with pytest.raises(RuntimeError, match='UNMATCHED'):
+        recon.submit(path, max_jobs=10)
+    assert len(submitted) == 1
 
 
 def _coordinate_configuration(source):

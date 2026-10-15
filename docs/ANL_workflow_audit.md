@@ -1,7 +1,7 @@
 # CBH/ANL, VRC-TST, ROTD_py, MESS audit — 14 October 2026
 
 **Reconnaissance checkpoint released:** work resumed at the user's request.
-The orbital campaign is ready for native Blodgett pilots and scans; use
+The first Blodgett pilot exposed a generated extra brace; see the correction below and use
 [the commit-and-pull runbook](Blodgett_workflow_runbook.md). The MESS audit
 continues while those jobs run. The earlier pause record is historical.
 
@@ -226,3 +226,17 @@ results and input-less MESS fixtures is intentional provenance enforcement.
 - [CH3S spin–vibronic spectroscopy](https://www.sciencedirect.com/science/article/abs/pii/S0009261411008153)
 - [NIST atomic sulfur levels](https://physics.nist.gov/PhysRefData/Handbook/Tables/sulfurtable5_a.htm)
 - [Slurm SBATCH directive processing](https://slurm.schedmd.com/sbatch.html)
+
+## Native Blodgett pilot feedback
+
+The first CH3S pilot produced a Molpro `UNMATCHED }` error from an extra
+ROHF closing brace. Local fixture assertions had checked only substrings
+and missed it. The generator is corrected and every generated deck now has
+a structural delimiter check before preparation/execution. The job command
+also explicitly sets its WFU repository (`-W`) rather than inheriting
+Molpro's observed `/home/hram/wfu` default. An executed batch-shell test,
+all-example deck sweep, malformed-deck regression, and WFU-command test cover
+these contracts. A new campaign first validates one native probe before
+widening its queue. A native execution record reports Molpro errors directly.
+The failed campaign must be archived and regenerated; it is not relabeled as
+a successful native test. Native success remains to be demonstrated.

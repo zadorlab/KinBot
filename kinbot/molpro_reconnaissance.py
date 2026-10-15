@@ -24,7 +24,8 @@ from ase.data import atomic_numbers
 
 from kinbot.anl.site import render_site_setup
 from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
-                           _render_vrc_state_model, full_valence_active_space)
+                           _render_vrc_state_model, full_valence_active_space,
+                           validate_input_blocks)
 from kinbot.theory import fortran_threshold
 from kinbot.execution import atomic_json
 from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
@@ -410,10 +411,10 @@ def _deck(data, basis, anchor, stem, previous=None):
         f'geometry={{\n{len(data["symbols"])}\n{stem}\n{rows}\n}}\n'
         + basis_input +
         f'gthresh,energy={scf},coeff={scf}\n'
-        'gprint,orbitals,orben\n'
+        'gprint,orbitals,orben,civector\n'
         f'{{rhf;wf,{data["_electrons"]},1,{data["multiplicity"] - 1};'
-        'orbital,2100.2}}\n'
-        'gprint,orbitals,orben\n'
+        'orbital,2100.2}\n'
+        'gprint,orbitals,orben,civector\n'
         f'put,molden,{stem}.molden\n'
         'reconenergy=energy\nshow,reconenergy\n')
     if data.get('probe_active_space', False):
@@ -479,6 +480,7 @@ def _prepare(source, output):
                            predecessors.get((basis['name'], channel))
                            if channel and data.get('probe_active_space') else None)
             deck = _deck(data, basis['basis'], anchor, stem, previous=predecessor)
+            validate_input_blocks(deck, stem)
             digest = hashlib.sha256(deck.encode()).hexdigest()
             if old_job and old_job.get('template_sha256', old_job['input_sha256']) != digest:
                 raise ValueError(f'{stem}: probe definition changed; choose a '
@@ -552,14 +554,28 @@ def execute(manifest_path, name):
     inp = directory / f'{name}.inp'
     if hashlib.sha256(inp.read_bytes()).hexdigest() != job['input_sha256']:
         raise ValueError(f'{name}: input changed before native execution.')
+    validate_input_blocks(inp.read_text(), name)
     env, runtime = qc_runtime_environment('molpro', 'molpro', work_directory=directory)
-    command = ['molpro', '-d', runtime['scratch_directory'], '-t', '1',
+    command = ['molpro', '-d', runtime['scratch_directory'], '-W', str(directory), '-t', '1',
                '-n', str(job['ppn']), inp.name]
+    execution = {'schema': 1, 'status': 'running', 'command': command,
+                 'input_sha256': job['input_sha256'], 'runtime': runtime}
+    record = directory / 'execution.json'
+    atomic_json(record, execution)
     try:
         result = subprocess.run(command, cwd=directory, env=env, check=False)
+        execution['returncode'] = result.returncode
         if result.returncode:
-            raise RuntimeError(f'{name}: Molpro exited with status {result.returncode}.')
+            output = directory / (name + '.out')
+            detail = ('\n' + '\n'.join(output.read_text(errors='replace').splitlines()[-20:])
+                      if output.is_file() else f' No native output found at {output}.')
+            raise RuntimeError(f'{name}: Molpro exited with status {result.returncode}.{detail}')
+        execution['status'] = 'complete'
+    except BaseException as error:
+        execution.update(status='failed', error=str(error))
+        raise
     finally:
+        atomic_json(record, execution)
         cleanup_qc_runtime(runtime)
 
 
@@ -792,7 +808,22 @@ def _submit(manifest_path, *, max_jobs=8):
                             text=True, check=True)
     live = set(queued.stdout.split())
     active = sum(str(job.get('job_id')) in live for job in manifest['jobs'])
+    # Validate one native probe before widening a fresh manifest's launch.
+    # This catches shared input/runtime failures without duplicating them
+    # across every basis. It adds no jobs and retains the configured cap.
+    startup = None
+    if not any(job['status'] == 'complete' for job in manifest['jobs']):
+        startup = manifest['jobs'][0]['name']
+        max_jobs = min(max_jobs, 1)
     for job in manifest['jobs']:
+        record = Path(job['directory']) / 'execution.json'
+        if job.get('job_id') and str(job['job_id']) not in live and record.is_file():
+            execution = json.loads(record.read_text())
+            if execution.get('status') == 'failed':
+                raise RuntimeError(execution.get('error') or f'{job["name"]}: native execution failed.')
+    for job in manifest['jobs']:
+        if startup is not None and job['name'] != startup:
+            continue
         if job['status'] == 'complete' or job.get('job_id') or active >= max_jobs:
             continue
         if job.get('submission_status') == 'submitting':

@@ -326,6 +326,10 @@ def _main():
     masterpar = Parameters(input_file, show_warnings=True)
     par = masterpar.par
     input_file = masterpar.input_file
+    if par.get('vrc_tst_surface_model_file'):
+        # Validate reviewed chemistry inputs before expensive discovery/QC.
+        from kinbot.vrc_multistate import load_surface_model
+        load_surface_model(par)
     automatic_run_requested = automatic_cbh_anl_requested(par)
     automatic_queue_root = _configure_automatic_queue_admission(
         par, automatic_run_requested)

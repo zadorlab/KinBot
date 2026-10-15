@@ -136,7 +136,7 @@ def test_worker_evaluates_both_bases_with_correct_spin_and_parent_atom_order(
         assert partition in deck
         assert f'state,{roots}' in deck
         assert 'start,2140.2' in deck and 'diab,2140.2' in deck
-        assert 'KBVRCSEL=energy(2)' in deck
+        assert 'KBVRCSEL=energy(1)' in deck
         assert 'set,spin=1' in deck
         sulfur_line = [line for line in deck.splitlines() if line.startswith('S ')][0]
         assert float(sulfur_line.split()[1]) == sulfur_x

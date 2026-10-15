@@ -161,12 +161,46 @@ def run(command, *, identity, prefixes=(), directories=(), exit_marker=None, qc_
     journal = root / '.kinbot_slurm_io_retries'
     token = hashlib.sha256(identity.encode()).hexdigest()[:20]
     allocation = re.sub(r'[^A-Za-z0-9_.-]', '_', os.environ.get('SLURM_JOB_ID', f'local-{os.getpid()}'))
-    folder = journal / token / allocation
-    folder.mkdir(parents=True, exist_ok=True)
-    with (folder / 'lock').open('a+') as lock:
+    allocation_folder = journal / token / allocation
+    allocation_folder.mkdir(parents=True, exist_ok=True)
+    restart = os.environ.get('SLURM_RESTART_COUNT', '0')
+    if not re.fullmatch(r'[0-9]+', restart):
+        raise ValueError('SLURM_RESTART_COUNT must be a nonnegative integer.')
+    restart = int(restart)
+    folder = allocation_folder if not restart else allocation_folder / f'restart-{restart}'
+    original_seed = None
+    # A Slurm requeue keeps its job ID. Serialize all incarnations of that
+    # allocation, while retaining a separate journal for each restart count.
+    with (allocation_folder / 'lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        folder.mkdir(exist_ok=True)
         if (folder / 'execution.json').exists():
             raise RuntimeError('This Slurm allocation already has a retry journal; refusing duplicate execution.')
+        if restart and (allocation_folder / 'execution.json').is_file():
+            original = json.loads((allocation_folder / 'execution.json').read_text())
+            if original['identity'] != identity or original['command'] != list(command):
+                raise RuntimeError('Slurm requeue command differs from the original allocation.')
+            original_seed = original.get('random_seed')
+            restored = {}
+            for relative, digest in original['initial_artifacts'].items():
+                target = (root / relative).resolve()
+                saved = allocation_folder / 'initial' / relative
+                if root not in target.parents or not saved.is_file() or file_sha256(saved) != digest:
+                    raise RuntimeError('Slurm requeue initial artifacts changed; refusing restart.')
+                restored[target] = saved
+            # Preserve interrupted products, then reset to the pre-allocation
+            # inputs/checkpoints. A partial WFU is never a new starting guess.
+            for current in _artifacts(prefixes, directories, journal):
+                if root not in current.parents:
+                    raise ValueError('Slurm retry artifact scopes must lie inside the job working tree.')
+                if current in restored and file_sha256(current) == original['initial_artifacts'][str(current.relative_to(root))]:
+                    continue
+                destination = folder / 'interrupted' / current.relative_to(root)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                current.rename(destination)
+            for target, saved in restored.items():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(saved, target)
         seeds = _artifacts(prefixes, directories, journal)
         # Scopes must be inside the submission working tree; never roll back
         # external data, a library, or another run's absolute checkpoint.
@@ -181,9 +215,13 @@ def run(command, *, identity, prefixes=(), directories=(), exit_marker=None, qc_
             baseline[path] = {'saved': str(saved), 'sha256': file_sha256(saved)}
         env = dict(os.environ, KINBOT_SLURM_RETRY_CHILD=guard_token or token,
                    KINBOT_SLURM_RETRY_ACTIVE='1')
-        env.setdefault('KINBOT_SLURM_IO_RETRY_SEED', str(secrets.randbits(32)))
+        if original_seed is not None:
+            env['KINBOT_SLURM_IO_RETRY_SEED'] = original_seed
+        else:
+            env.setdefault('KINBOT_SLURM_IO_RETRY_SEED', str(secrets.randbits(32)))
         record = {'schema': 1, 'identity': identity, 'command': list(command),
                   'host': socket.gethostname(), 'slurm_job_id': os.environ.get('SLURM_JOB_ID'),
+                  'slurm_restart_count': restart,
                   'initial_artifacts': {str(path.relative_to(root)): seed['sha256']
                                         for path, seed in baseline.items()},
                   'retry_limit': limit, 'random_seed': env['KINBOT_SLURM_IO_RETRY_SEED'],

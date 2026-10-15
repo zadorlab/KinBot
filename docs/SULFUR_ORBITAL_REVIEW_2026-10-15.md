@@ -84,7 +84,7 @@ optional spot check rather than another full reconnaissance campaign.
 The user subsequently requested all necessary accuracy/cost comparisons for
 both examples. The [correlated validation workflow](SULFUR_CORRELATED_VALIDATION.md)
 implements explicit reviewed natural-orbital partitions and supplies the first
-18-job CASPT2-F12b launch, monitor and export commands, plus the remaining
+39-job CASPT2-F12 comparison and recovery, monitor and export commands, plus the remaining
 acceptance checks before production. No further reference repair is needed.
 
 ## Original export and repair history

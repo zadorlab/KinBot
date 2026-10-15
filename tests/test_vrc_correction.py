@@ -51,7 +51,7 @@ def test_default_spin_splitting_uses_tz_qz_cbs_for_all_three_branches():
                for level in [settings['triplet_reference'],
                              *settings['gap_levels']])
     assert [level['method'] for level in settings['gap_levels']] == [
-        'caspt2-f12b(2,2)', 'mrci-f12b+q(2,2)']
+        'caspt2-f12(2,2)', 'mrci-f12+q(2,2)']
     components = correction_components(_parameters())
     assert len(components) == 11
     assert {component['multiplicity'] for component in components[1:]} == {
@@ -534,28 +534,31 @@ def test_molpro_spin_splitting_program_syntax_and_energy_variables(tmp_path):
     cas, cas_energy = _vrc_multireference_method(
         'caspt2-f12(2,2)', 18, spin=0, shift=.2, ipea=.25)
     assert '{rs2-f12,shift=0.2,ipea=0.25}' in cas
-    assert 'KBVRCSEL=energy(2)' in cas
+    assert 'KBVRCSEL=energy(1)' in cas
     assert cas_energy == 'KBVRCSEL'
     mrci, mrci_energy = _vrc_multireference_method(
         'mrci-f12+q(2,2)', 18, spin=2)
     assert 'wf,18,1,2' in mrci
     assert '{mrci-f12,scalf12=1,cabs_singles=1;option,cluster=0;}' in mrci
-    assert 'KBVRCVAR=energy(2)' in mrci
-    assert 'KBVRCSEL=energd(2)' in mrci
+    assert 'KBVRCVAR=energy(1)' in mrci
+    assert 'KBVRCSEL=energd(1)' in mrci
     assert mrci_energy == 'KBVRCSEL'
 
-    cas_a, _ = _vrc_multireference_method('caspt2-f12a(2,2)', 18)
-    mrci_a, _ = _vrc_multireference_method('mrci-f12a+q(2,2)', 18)
-    assert 'KBVRCSEL=energy(1)' in cas_a
-    assert 'KBVRCSEL=energd(1)' in mrci_a
+    for method in ('caspt2-f12a(2,2)', 'mrci-f12a+q(2,2)'):
+        with pytest.raises(ValueError, match='no F12A/B variants'):
+            _vrc_multireference_method(method, 18)
+    legacy, _ = _vrc_multireference_method('caspt2-f12b(2,2)', 18, shift=.2, ipea=.25)
+    assert legacy == cas
 
     contract = vrc_multireference_energy_contract('mrci-f12+q(2,2)')
     assert contract == {
-        'method': 'MRCI-F12B+Q',
+        'method': 'MRCI-F12+Q',
         'active_electrons': 2,
         'active_orbitals': 2,
-        'f12_variant': 'B',
-        'energy_variable': 'ENERGD(2)',
+        'f12_variant': None,
+        'explicitly_correlated': True,
+        'legacy_alias': None,
+        'energy_variable': 'ENERGD(1)',
         'cabs_singles_included': True,
         'davidson_correction': 'relaxed_reference',
         'molpro_cluster_option': 0,
@@ -612,7 +615,7 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
             vrc_level={'method': 'mrci-f12b+q(2,2)',
                        'basis': 'avtz-f12', 'multiplicity': 1})
         generated = (directory / 'mrci.inp').read_text()
-        assert 'KBVRCSEL=energd(2)' in generated
+        assert 'KBVRCSEL=energd(1)' in generated
         assert 'MYENERGY = KBVRCSEL' in generated
         assert 'put,xml,mrci.orbitals.xml' in generated
         assert 'put,molden' not in generated
@@ -650,7 +653,7 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
             vrc_level={'method': 'caspt2-f12b(2,2)',
                        'basis': 'avtz-f12', 'multiplicity': 1,
                        'shift': .2, 'ipea': .25})
-        assert 'KBVRCSEL=energy(2)' in (
+        assert 'KBVRCSEL=energy(1)' in (
             directory / 'caspt2.inp').read_text()
         (directory / 'caspt2.out').write_text(
             ' SETTING F12A     = -39.100000000000 AU\n'

@@ -427,7 +427,8 @@ def _review_rows(root):
                         if convergence['errors']:
                             raise ValueError(f'{job["directory"]}: ' + ' '.join(convergence['errors'])
                                              + ' Re-audit this campaign before review.')
-                        row['validation_warnings'] = convergence['warnings']
+                        row['validation_warnings'] = list(dict.fromkeys(
+                            job.get('validation_warnings', []) + convergence['warnings']))
                         counts = {int(value) for value in re.findall(
                             r'Number of active\s+orbitals:\s+(\d+)', text)}
                         electrons = {int(value) for value in re.findall(

@@ -31,9 +31,9 @@ do not extend the present CH3S chain to 115 Å just to satisfy its plateau flag.
   **31 CH3S + 75 CH3SS = 106 full probes**, plus **1 + 2 = 3 pilots**.
   Adaptive refinement can add probes. This is one sixth of the former
   six-basis initial job count; wall-time reduction is not exactly proportional.
-- The `anl1-f12` VRC preset uses `avtz-f12` for relaxed CASPT2-F12b paths,
-  sampling, the ROHF-UCCSD(T)-F12b high-spin anchor, both CASPT2-F12b and
-  MRCI-F12b+Q gaps, and direct MRCI-F12b+Q high-spin leaves. The two gap
+- The `anl1-f12` VRC preset uses `avtz-f12` for relaxed CASPT2-F12 paths,
+  sampling, the ROHF-UCCSD(T)-F12b high-spin anchor, both CASPT2-F12 and
+  MRCI-F12+Q gaps, and direct MRCI-F12+Q high-spin leaves. The two gap
   estimators are still averaged. Routine VRC calculations do not extrapolate.
 - Explicit user CBS overrides and historical defaults remain supported.
   The **CBH/ANL1-F12 thermochemistry recipe is unchanged**, including its
@@ -333,7 +333,7 @@ it does not reorder orbitals or validate the proposed space chemically.
 ## Performance check after reconnaissance
 
 Recon runs ROHF/AVAS followed by CASCI, not the production CASSCF plus
-CASPT2-F12b, MRCI-F12b+Q or ROHF-UCCSD(T)-F12b calculations. An F12 orbital
+CASPT2-F12, MRCI-F12+Q or ROHF-UCCSD(T)-F12b calculations. An F12 orbital
 basis name does not add an explicitly correlated calculation. Its short runtime
 therefore does not establish production throughput. Molpro describes these as
 [separate methods](https://www.molpro.net/manual/doku.php?id=explicitly_correlated_methods).

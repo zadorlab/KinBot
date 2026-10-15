@@ -2,7 +2,7 @@
 
 The repaired CASSCF reference panel is complete. Continue with the
 [finite correlated validation batch](../../../docs/SULFUR_CORRELATED_VALIDATION.md):
-verified natural-orbital partitions, CASPT2-F12b comparisons, a shared 20-job
+verified natural-orbital partitions, CASPT2-F12 comparisons, a shared 20-job
 cap, and explicit steps through production acceptance. The dense scan and
 ten-job settings described below are historical, not the current launch.
 

@@ -591,8 +591,8 @@ def _deck(data, basis, anchor, stem, previous=None):
                  'reconenergy=energy(1)\nshow,reconenergy\n')
         for index in range(1, sum(entry['roots'] for entry in model['state_average']) + 1):
             deck += f'reconr{index}=energy({index})\nshow,reconr{index}\n'
-        # Reuse the production method/selected-root energy contract; never
-        # mistake F12A for F12B or variational MRCI for Davidson-corrected MRCI.
+        # Reuse the production selected-state energy contract, including
+        # Davidson-corrected rather than variational MRCI energies.
         counter = 0
         for check in data.get('correlation_checks', []):
             for entry in model['state_average']:
@@ -615,6 +615,93 @@ def _deck(data, basis, anchor, stem, previous=None):
                     correlation = correlation.replace(';wf,', f';orbital,{orbital};wf,', 1)
                     deck += correlation + f'reconc{counter}={variable}\nshow,reconc{counter}\n'
     return deck + 'recondone=1\nshow,recondone\n'
+
+
+def _repair_legacy_energy_selectors(text):
+    """Correct only the old generated MR contract in an immutable input copy.
+
+    CCSD-F12's A/B indexing never applied to RS2-F12/MRCI-F12. Keep prepared
+    inputs and their hashes intact; execution records bind this native copy.
+    """
+    pattern = (r'(?im)^! KinBot energy contract: (CASPT2|MRCI)-F12B(\+Q)? = '
+               r'(ENERGY|ENERGD)\(2\)(; Davidson relaxed reference)?\n'
+               r'(?:KBVRCVAR=energy\(2\)\n)?KBVRCSEL=(?:energy|energd)\(2\)\n')
+
+    def replace(match):
+        mrci = match[1].upper() == 'MRCI'
+        if (mrci != bool(match[2]) or mrci != (match[3].upper() == 'ENERGD')
+                or mrci != bool(match[4])):
+            raise ValueError('Inconsistent legacy multireference energy contract.')
+        variable = 'energd' if mrci else 'energy'
+        method = 'MRCI-F12+Q' if mrci else 'CASPT2-F12'
+        return (f'! KinBot energy contract: {method} = {variable.upper()}(1)'
+                + ('; Davidson relaxed reference' if mrci else '') + '\n'
+                + ('KBVRCVAR=energy(1)\n' if mrci else '')
+                + f'KBVRCSEL={variable}(1)\n')
+
+    return re.subn(pattern, replace, text)
+
+
+def _recover_legacy_caspt2_energies(output, native_input, labels, electron_count):
+    """Recover printed CASPT2 states only for the exact historical selector bug.
+
+    Callers still require successful execution, immutable input hashes,
+    convergence, exports and checkpoint evidence. Never modify native output
+    or use an unlabelled final energy as a substitute for a requested root.
+    """
+    from kinbot.molpro import vrc_multireference_energy_contract
+    if not labels or any(not label['method'].lower().startswith('caspt2-f12') for label in labels):
+        raise ValueError('Legacy recovery supports only labelled RS2-F12 results.')
+    _, repairs = _repair_legacy_energy_selectors(native_input)
+    if repairs != len(labels):
+        raise ValueError('Not the known generated CASPT2 energy-selector defect.')
+    undefined = re.findall(r'(?im)^\s*VARIABLE\s+(\w+)\s+UNDEFINED,\s*ASSUMING\s+0', output)
+    if undefined != ['ENERGY'] * len(labels):
+        raise ValueError('Unexpected undefined variables in legacy output.')
+    commands = re.findall(r'(?is)\{(rs2-f12\b[^{}]*)\}', native_input)
+    sections = re.split(r'(?im)^\s*PROGRAM\s*\*\s*', output)[1:]
+    blocks = [section for section in sections if re.match(r'RS2-F12\b', section, re.I)]
+    if len(commands) != len(labels) or len(blocks) != len(labels):
+        raise ValueError('Native CASPT2 invocation count differs from the requested roots.')
+    spins = ('Singlet', 'Doublet', 'Triplet', 'Quartet', 'Quintet', 'Sextet',
+             'Septet', 'Octet', 'Nonet', 'Decet')
+    values = {}
+    number = r'([-+0-9.]+(?:[EDed][-+]?\d+)?)'
+    for index, (command, block, label) in enumerate(zip(commands, blocks, labels), 1):
+        contract = vrc_multireference_energy_contract(label['method'])
+        mult, root = label['multiplicity'], label['root']
+        wf = re.search(r'(?i)\bwf,(\d+),1,(\d+)\s*;', command)
+        state = re.search(r'(?i)\bstate,1,(\d+)\s*;', command)
+        energy = re.findall(r'(?m)^\s*!RSPT2 STATE\s+(\d+)\.1\s+Energy\s+' + number + r'\s*$', block)
+        roots = re.search(r'Number of optimized states:\s*1\s+Roots:\s*(\d+)\s*\n', block)
+        electrons = re.search(r'(?m)^\s*Number of electrons:\s*(\d+)\s*$', block)
+        active = re.search(r'Number of active\s+orbitals:\s*(\d+)', block)
+        core = re.search(r'Number of core orbitals:\s*(\d+)', block)
+        closed = re.search(r'Number of closed-shell orbitals:\s*(\d+)', block)
+        if (not wf or tuple(map(int, wf.groups())) != (electron_count, mult - 1)
+                or not state or int(state[1]) != root or not roots or int(roots[1]) != root
+                or not electrons or int(electrons[1]) != electron_count
+                or not active or int(active[1]) != contract['active_orbitals']
+                # Molpro omits a zero-sized core/closed block entirely.
+                or electron_count - 2 * ((int(core[1]) if core else 0)
+                                        + (int(closed[1]) if closed else 0)) != contract['active_electrons']
+                or not 1 <= mult <= len(spins)
+                or not re.search(r'Reference symmetry:\s*1\s+' + spins[mult - 1] + r'\b', block)
+                or len(energy) != 1 or int(energy[0][0]) != root):
+            raise ValueError(f'Native CASPT2 state identity mismatch at check {index}.')
+        for option, heading, default in (('shift', 'Level shift', .3), ('ipea', 'IPEA shift', 0.)):
+            requested = float(label.get(option, default))
+            specified = re.search(r'(?i)\b' + option + r'=' + number, command)
+            printed = re.search(heading + r'\s*=\s*' + number, block)
+            for found in (specified, printed):
+                actual = float(found[1].replace('D', 'E').replace('d', 'e')) if found else 0.
+                if not np.isclose(actual, requested, rtol=0., atol=1e-10):
+                    raise ValueError(f'Native CASPT2 {option} mismatch at check {index}.')
+        value = float(energy[0][1].replace('D', 'E').replace('d', 'e'))
+        if not np.isfinite(value):
+            raise ValueError('Nonfinite native CASPT2 energy.')
+        values[index] = value
+    return values
 
 
 def prepare(source, output):
@@ -776,6 +863,7 @@ def execute(manifest_path, name):
     native_text = re.sub(r'(?i)put,molden,([^;\s}]+)\.molden',
                          r'put,xml,\1.orbitals.xml', inp.read_text())
     native_text = compact_molpro_titles(native_text)
+    native_text, energy_repairs = _repair_legacy_energy_selectors(native_text)
     checkpoint = directory / molpro_wfu_name(name)
     native_text, changed = re.subn(r'(?im)^file,2,[^\n]+$',
                                   f'file,2,{checkpoint.name}', native_text)
@@ -817,7 +905,8 @@ def execute(manifest_path, name):
                  'input_sha256': job['input_sha256'],
                  'native_input': str(native),
                  'native_input_sha256': file_sha256(native),
-                 'input_transform': 'native_xml_short_wfu_v3', 'orbital_exports': exports}
+                 'input_transform': 'native_xml_mr_state_energy_v4', 'orbital_exports': exports,
+                 'legacy_mr_energy_selectors_repaired': energy_repairs}
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -1021,7 +1110,7 @@ def _audit(manifest_path, *, live_job_ids=()):
                     'natural_occupations', 'natural_molden_sha256',
                     'orbital_error', 'orbital_xml', 'occupation_source', 'validation_errors',
                     'validation_warnings', 'terminal_failure',
-                    'correlated_energies_hartree'):
+                    'correlated_energies_hartree', 'correlated_energy_source'):
             job.pop(key, None)
         directory = Path(job['directory'])
         execution_path = directory / 'execution.json'
@@ -1128,14 +1217,36 @@ def _audit(manifest_path, *, live_job_ids=()):
                     for index, value in re.findall(r'SETTING\s+RECONC(\d+)\s*=\s*'
                         r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+(?:AU|HARTREE)\b', output_text, re.I)}
                 labels = [{**check, **state} for check in checks for state in job['root_states']]
+                if (not values and execution and execution.get('returncode') == 0
+                        and execution.get('native_input')):
+                    try:
+                        values = _recover_legacy_caspt2_energies(output_text,
+                            Path(execution['native_input']).read_text(), labels, manifest['electron_count'])
+                    except (ValueError, OSError) as error:
+                        errors.append('Native energy recovery unavailable: ' + str(error))
+                    else:
+                        job['correlated_energy_source'] = {
+                            'kind': 'native_rspt2_state_lines_legacy_selector_recovery',
+                            'output_sha256': file_sha256(output),
+                            'native_input_sha256': file_sha256(execution['native_input'])}
+                        job['validation_warnings'].append(
+                            'Recovered printed CASPT2-F12 state energies after the legacy ENERGY(2) bug; '
+                            'the historical F12b spelling is not a distinct Molpro MR approximation.')
                 if (sorted(values) != list(range(1, len(labels) + 1))
                         or not all(np.isfinite(value) for value in values.values())):
                     job['status'] = 'incomplete'
                     errors.append('Missing/nonfinite correlated validation energies.')
                 else:
+                    from kinbot.molpro import vrc_multireference_energy_contract
                     job['correlated_energies_hartree'] = [
-                        {**label, 'energy_hartree': values[index]}
+                        {**label, 'energy_hartree': values[index],
+                         'native_method': vrc_multireference_energy_contract(label['method'])['method']}
                         for index, label in enumerate(labels, 1)]
+                if ('UNDEFINED, ASSUMING' in output_text and
+                        job.get('correlated_energy_source', {}).get('kind') !=
+                        'native_rspt2_state_lines_legacy_selector_recovery'):
+                    job['status'] = 'incomplete'
+                    errors.append('Native output used an undefined energy variable.')
         complete &= job['status'] == 'complete'
         if job['status'] == 'complete':
             job.pop('missing_since', None)

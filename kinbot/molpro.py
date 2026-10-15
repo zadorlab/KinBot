@@ -27,6 +27,8 @@ def validate_molpro_convergence(output, *, allow_scf_guess_failure=False):
     subsequent MULTI optimization explicitly converged. Check every program
     invocation, including displaced geometries in a numerical force job.
     """
+    if re.search(r'(?im)^\s*VARIABLE\s+\w+\s+UNDEFINED,\s*ASSUMING\s+0', output):
+        raise ValueError('Molpro used an undefined variable; energy selection is invalid.')
     failure = (r'NO CONVERGENCE\s*!|No convergence in '
                r'(?:[ru]?hf(?:pr)?|multi|mcscf|[ru]?ccsd|ci|mrci|rs2|caspt2)\b|'
                r'(?:[RU]?HF|MCSCF|[RU]?CCSD|MRCI|RS2|CASPT2|\bCI)[^\n]*not converged')
@@ -577,12 +579,12 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
 def vrc_multireference_energy_contract(method):
     """Return the exact Molpro energy selected for a VRC MR method.
 
-    Molpro stores the F12A and F12B results of an unqualified F12 command in
-    indices 1 and 2, respectively.  The literature shorthand ``CASPT2-F12``
-    and ``MRCI-F12+Q`` is interpreted as F12B here.  Users can still request
-    F12A explicitly.  MRCI ``+Q`` always means the relaxed-reference Davidson
-    correction (``OPTION,CLUSTER=0``), including the default CABS-singles
-    correction in an F12 calculation.
+    RS2-F12 and MRCI-F12 return energies indexed by calculated state, not
+    the CCSD-F12 A/B approximations. Each generated call computes one state,
+    so its energy is element 1 even when STATE,1 selects an excited root.
+    The historical KinBot -F12B spelling is a compatibility alias only; it
+    does not denote a distinct MR approximation. -F12A is rejected.
+    MRCI +Q uses the relaxed-reference Davidson correction (CLUSTER=0).
     """
     source = str(method).strip().casefold()
     match = _VRC_MULTIREFERENCE.fullmatch(source)
@@ -595,19 +597,20 @@ def vrc_multireference_energy_contract(method):
     if family == 'mrci' and correction != '+q':
         return None
     f12 = '-f12' in source
-    variant = variant.upper() if f12 and variant else ('B' if f12 else None)
-    index = 2 if variant == 'B' else 1
+    if variant and variant.lower() == 'a':
+        raise ValueError('Molpro RS2-F12/MRCI-F12 have no F12A/B variants; use -F12.')
     root = 'CASPT2' if family == 'caspt2' else 'MRCI'
-    label = root + (f'-F12{variant}' if f12 else '')
+    label = root + ('-F12' if f12 else '')
     if family == 'mrci':
         label += '+Q'
     return {
         'method': label,
         'active_electrons': int(electrons_text),
         'active_orbitals': int(orbitals_text),
-        'f12_variant': variant,
-        'energy_variable': (f'ENERGD({index})' if family == 'mrci'
-                            else f'ENERGY({index})'),
+        'f12_variant': None,
+        'explicitly_correlated': f12,
+        'legacy_alias': source if variant else None,
+        'energy_variable': 'ENERGD(1)' if family == 'mrci' else 'ENERGY(1)',
         'cabs_singles_included': (
             True if f12 and family == 'mrci' else (False if not f12 else None)),
         'davidson_correction': (
@@ -646,7 +649,7 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         state_model, nelectron=int(nelectron),
         active_electrons=active_electrons,
         active_orbitals=active_orbitals, spin=int(spin))
-    f12 = contract['f12_variant'] is not None
+    f12 = contract['explicitly_correlated']
     selected = contract['energy_variable'].casefold()
     if family == 'caspt2':
         program = ('rs2-f12' if f12
@@ -668,10 +671,9 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         body = command if not state else f'{command};{state}'
         return avas + multi + f'{{{body}}}\n' + audit, 'KBVRCSEL'
     program = ('mrci-f12,scalf12=1,cabs_singles=1' if f12 else 'mrci')
-    variant_index = 2 if contract['f12_variant'] == 'B' else 1
     audit = (f'! KinBot energy contract: {contract["method"]} = '
              f'{contract["energy_variable"]}; Davidson relaxed reference\n'
-             f'KBVRCVAR=energy({variant_index})\n'
+             'KBVRCVAR=energy(1)\n'
              f'KBVRCSEL={selected}\n')
     state = ('' if selected_root is None else
              f'wf,{int(nelectron)},1,{int(spin)};'

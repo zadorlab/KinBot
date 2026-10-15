@@ -320,9 +320,9 @@ def test_spin_splitting_dispatches_all_cbs_components_and_records_provenance():
             mrci_native = correction['native_components'][
                 'gap:mrci_f12_q:singlet:1'][0]
             assert mrci_native['energy_contract']['method'] == \
-                'MRCI-F12B+Q'
+                'MRCI-F12+Q'
             assert mrci_native['energy_contract']['energy_variable'] == \
-                'ENERGD(2)'
+                'ENERGD(1)'
             assert mrci_native['energy_contract'][
                 'davidson_correction'] == 'relaxed_reference'
         finally:

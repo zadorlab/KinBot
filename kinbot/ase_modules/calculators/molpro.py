@@ -101,7 +101,7 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                          'numerical.')
     analytic_available = (
         contract is not None and contract['method'] == 'CASPT2'
-        and contract['f12_variant'] is None)
+        and not contract['explicitly_correlated'])
     if gradient_mode == 'analytic' and not analytic_available:
         raise ValueError(
             f'{requested_method} has no supported analytic Molpro gradient.')
@@ -185,11 +185,10 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
             body += f'forces\nput,xyzgrad,{gradient_name}\n'
         else:
             # Differentiate the selected native variable directly.  For
-            # MRCI this is ENERGD(1/2), never ENERGY, so the geometry path
+            # MRCI this is ENERGD(1), never ENERGY, so the geometry path
             # includes the relaxed-reference Davidson correction.
-            # Conventional single-state MRCI exposes the Davidson-corrected
-            # surface through the scalar ENERGD alias.  F12 computes A and B
-            # together, so those paths must retain the explicit array index.
+            # Each MR call computes one selected state. F12 uses the same
+            # state indexing as conventional MRCI, without CCSD A/B variants.
             gradient_variable = (
                 'energd' if contract['method'] == 'MRCI+Q'
                 else contract['energy_variable'].casefold())
@@ -333,7 +332,7 @@ def parse_output(path, *, method='CCSD(T)', effective_method=None):
     contract = vrc_multireference_energy_contract(method)
     validate_molpro_convergence(output, allow_scf_guess_failure=contract is not None)
     if contract is not None:
-        f12 = contract['f12_variant'] is not None
+        f12 = contract['explicitly_correlated']
         if contract['method'].startswith('CASPT2'):
             marker = r'RS2-F12\b' if f12 else r'RS2(?=\s|\()'
         else:
@@ -423,7 +422,7 @@ class Molpro(Calculator):
         contract = vrc_multireference_energy_contract(method)
         analytic_available = (
             contract is not None and contract['method'] == 'CASPT2'
-            and contract['f12_variant'] is None)
+            and not contract['explicitly_correlated'])
         if gradient_mode == 'analytic' and not analytic_available:
             raise ValueError(
                 f'{method} has no supported analytic Molpro gradient.')

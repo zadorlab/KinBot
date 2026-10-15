@@ -336,7 +336,7 @@ ANL recipes; `vrc_tst_sample_extrapolation_power` defaults to 3.7.  Thus a
 high-accuracy input can request, for example,
 
 ```json
-"vrc_tst_sample_method": "caspt2-f12b(9,7)",
+"vrc_tst_sample_method": "caspt2-f12(9,7)",
 "vrc_tst_sample_basis": ["avtz-f12", "avqz-f12"]
 ```
 

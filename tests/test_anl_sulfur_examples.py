@@ -75,7 +75,7 @@ def test_validation_recipe_uses_requested_sampling_and_scan_grid():
                    for m in rows if 'target_distance_angstrom' in m)
         for row in rows:
             check = row['correlation_checks'][0]
-            assert check['method'] == f'caspt2-f12b({row["active_electrons"]},{row["active_orbitals"]})'
+            assert check['method'] == f'caspt2-f12({row["active_electrons"]},{row["active_orbitals"]})'
             assert check['shift'] == parameters['vrc_tst_scan_shift']
             assert check['ipea'] == parameters['vrc_tst_scan_ipea']
             assert row['region'] == 'diagnostic'  # not an inferred inner/outer selection

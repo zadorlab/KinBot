@@ -89,19 +89,26 @@ this validation input.  For this test its three reference branches all use
 TZ/QZ two-point CBS values:
 
 - RHF-UCCSD(T)-F12b/aug-cc-pV{T,Q}Z-F12 for the triplet interaction;
-- CASPT2-F12b(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies, with
+- CASPT2-F12(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies, with
   real shift 0.20 and IPEA shift 0.25; and
-- MRCI-F12b+Q(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies.
+- MRCI-F12+Q(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies.
 
-The explicit `b` labels remove a Molpro output ambiguity.  An unqualified
-F12 command computes both variants: `ENERGY(1)`/`ENERGD(1)` are F12A and
-`ENERGY(2)`/`ENERGD(2)` are F12B.  KinBot therefore selects `ENERGY(2)` for
-CASPT2-F12b and `ENERGD(2)` for MRCI-F12b+Q.  The latter is generated with
-`OPTION,CLUSTER=0`, so `+Q` is the relaxed-reference Davidson correction;
-the F12 CABS-singles correction remains included.  The generated input binds
-that value to `KBVRCSEL`, and the reader verifies that the public energy key
-matches it.  The unqualified `caspt2-f12` and `mrci-f12+q` spellings default
-to F12b.  Explicit F12a method names remain available when requested.
+**Corrected 2026-10-15 after native Molpro validation:** the CCSD-F12
+A/B convention does not apply to RS2-F12 or MRCI-F12. Each generated MR call
+calculates one requested state (`STATE,1,root`) and reads `ENERGY(1)` for
+CASPT2-F12 or `ENERGD(1)` for MRCI-F12+Q. The latter uses
+`OPTION,CLUSTER=0`, the relaxed-reference Davidson correction, with the
+specified CABS-singles correction. Historical KinBot `-f12b` MR names remain
+compatibility aliases, recorded as such in the method contract; new presets
+use `-f12`. MR `-f12a` is rejected because it has no implemented native meaning.
+CCSD(T)-F12b retains its established convention unchanged.
+
+See the [native failure/recovery audit](SULFUR_CORRELATED_VALIDATION.md#native-selector-failure-and-recovery)
+and the Molpro [RS2](https://www.molpro.net/manual/doku.php?id=multireference_rayleigh_schroedinger_perturbation_theory)
+and [MRCI](https://www.molpro.net/manual/doku.php?id=the_mrci_program) manuals.
+The earlier tests reproduced an incorrect array-index assumption and did not
+constitute native validation. The regression suite now includes the supplied
+native output that exposed it.
 
 Every lower/upper pair uses the same ANL extrapolation:
 

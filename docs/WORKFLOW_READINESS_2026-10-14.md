@@ -19,11 +19,11 @@ The default VRC production preset now uses:
 
 | Calculation | Level |
 | --- | --- |
-| Relaxed correction path | Selected-root CASPT2-F12b / aug-cc-pVTZ-F12, numerical gradient |
-| ROTD sampling | Selected-root CASPT2-F12b / aug-cc-pVTZ-F12; one basis at each sample |
+| Relaxed correction path | Selected-root CASPT2-F12 / aug-cc-pVTZ-F12, numerical gradient |
+| ROTD sampling | Selected-root CASPT2-F12 / aug-cc-pVTZ-F12; one basis at each sample |
 | High-spin anchor for a lower-spin target | ROHF–UCCSD(T)-F12b / aug-cc-pVTZ-F12 |
-| First spin-gap estimator | Selected-root CASPT2-F12b / aug-cc-pVTZ-F12 |
-| Second spin-gap estimator | Selected-root MRCI-F12b+Q / aug-cc-pVTZ-F12 |
+| First spin-gap estimator | Selected-root CASPT2-F12 / aug-cc-pVTZ-F12 |
+| Second spin-gap estimator | Selected-root MRCI-F12+Q / aug-cc-pVTZ-F12 |
 | Combination | CC high-spin energy plus the arithmetic mean of the two target-minus-high-spin MR gaps |
 
 The default correction branches now use a single TZ-F12 basis. Explicit

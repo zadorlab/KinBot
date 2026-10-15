@@ -219,9 +219,9 @@ def test_sulfur_radical_active_spaces_support_doublet_and_quartet(
 @pytest.mark.parametrize('basis', ['aug-cc-pVTZ', 'aug-cc-pVTZ-F12'])
 @pytest.mark.parametrize(
     'method,program,variable', [
-        ('CASPT2-F12(2,2)', 'rs2-f12', 'energy(2)'),
+        ('CASPT2-F12(2,2)', 'rs2-f12', 'energy(1)'),
         ('MRCI+Q(2,2)', 'mrci', 'energd'),
-        ('MRCI-F12+Q(2,2)', 'mrci-f12', 'energd(2)'),
+        ('MRCI-F12+Q(2,2)', 'mrci-f12', 'energd(1)'),
     ])
 def test_multireference_numerical_gradient_uses_selected_native_energy(
         method, program, variable, basis):
@@ -264,7 +264,7 @@ def test_conventional_mrci_output_cannot_satisfy_f12_request():
             ' PROGRAM * CI (Multireference internally contracted CI)\n'
             ' SETTING KB_GEOM_ENERGY = -39.123456789 AU\n'
             ' Molpro calculation terminated\n')
-        with pytest.raises(ValueError, match='MRCI-F12B'):
+        with pytest.raises(ValueError, match='MRCI-F12'):
             parse_output(output, method='MRCI-F12B+Q(2,2)')
 
 

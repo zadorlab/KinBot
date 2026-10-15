@@ -9,6 +9,84 @@ import pytest
 from kinbot.molpro_reconnaissance import audit, prepare, select_record
 
 
+def test_native_caspt2_selector_recovery_checks_every_state_and_rejects_mismatches():
+    import gzip
+    from kinbot.molpro_reconnaissance import (
+        _recover_legacy_caspt2_energies, _repair_legacy_energy_selectors)
+    from kinbot.molpro import validate_molpro_convergence
+    fixture = Path(__file__).parent / 'fixtures/molpro_recon/caspt2_native_legacy_selector'
+    output = gzip.decompress(fixture.with_suffix('.out.gz').read_bytes()).decode()
+    native = fixture.with_suffix('.inp').read_text()
+    labels = [{'method': 'caspt2-f12b(5,4)', 'shift': .3, 'ipea': .25, 'multiplicity': mult, 'root': root}
+              for mult in (2, 4) for root in (1, 2, 3)]
+    result = _recover_legacy_caspt2_energies(output, native, labels, 25)
+    assert list(result.values()) == pytest.approx([
+        -437.411329714362, -437.411329712602, -437.390527642967,
+        -437.393882831489, -437.392072924848, -437.392072923605], abs=1e-12)
+    fixed, count = _repair_legacy_energy_selectors(native)
+    assert count == 6 and fixed.count('KBVRCSEL=energy(1)') == 6
+    assert _repair_legacy_energy_selectors(fixed) == (fixed, 0)
+    assert _repair_legacy_energy_selectors('uccsd(t)-f12\nx=energy(2)\n')[1] == 0
+    # Production must reject the old assignments even though Molpro exits 0.
+    with pytest.raises(ValueError, match='undefined variable'):
+        validate_molpro_convergence(output)
+    for bad_output, bad_native, bad_labels in (
+            (output.replace('!RSPT2 STATE 2.1', '!RSPT2 STATE 1.1', 1), native, labels),
+            (output.replace('Doublet', 'Quartet'), native, labels),
+            (output.replace('VARIABLE ENERGY UNDEFINED', 'VARIABLE ENERGD UNDEFINED', 1), native, labels),
+            (output, native.replace('wf,25,1,3;state,1,1;', 'wf,25,1,1;state,1,1;'), labels),
+            (output, native, labels[:-1]),
+            (output, fixed, labels)):
+        with pytest.raises(ValueError):
+            _recover_legacy_caspt2_energies(bad_output, bad_native, bad_labels, 25)
+
+
+def test_recovered_native_energies_still_require_hashes_convergence_and_checkpoint(tmp_path):
+    import gzip
+    from kinbot.execution import file_sha256
+    fixture = Path(__file__).parent / 'fixtures/molpro_recon/caspt2_native_legacy_selector'
+    text = gzip.decompress(fixture.with_suffix('.out.gz').read_bytes()).decode()
+    native = tmp_path / 'probe.native.inp'
+    native.write_bytes(fixture.with_suffix('.inp').read_bytes())
+    inp, output = tmp_path / 'probe.inp', tmp_path / 'probe.out'
+    inp.write_bytes(native.read_bytes())
+    output.write_text(text)
+    # Binary checkpoints are not exported. This is an explicit file-integrity
+    # stand-in; the fixture's native output is real, not a mock energy table.
+    checkpoint = tmp_path / 'kb_3798c0cafa4dab5b55d1.wfu'
+    checkpoint.write_bytes(b'synthetic checkpoint for audit test')
+    exports = {kind: str(tmp_path / f'{kind}.xml') for kind in ('scf', 'natural')}
+    for path in exports.values():
+        Path(path).write_text('<orbitals/>')
+    execution = {'status': 'complete', 'returncode': 0, 'input_sha256': file_sha256(inp),
+        'native_input': str(native), 'native_input_sha256': file_sha256(native),
+        'orbital_exports': exports, 'input_transform': 'native_xml_short_wfu_v3'}
+    (tmp_path / 'execution.json').write_text(json.dumps(execution))
+    job = {'name': 'probe', 'directory': str(tmp_path), 'input_sha256': file_sha256(inp),
+        'natural_orbital_probe': True, 'probe_method': 'casscf', 'avas_reference': 'rhf',
+        'root_states': [{'multiplicity': mult, 'root': root}
+                        for mult in (2, 4) for root in (1, 2, 3)],
+        'probe_active_space': {'active_electrons': 5, 'active_orbitals': 4,
+                               'orbital_partition': {'close_lowest': 4}},
+        'correlation_checks': [{'method': 'caspt2-f12b(5,4)', 'shift': .3, 'ipea': .25}]}
+    path = tmp_path / 'reconnaissance.json'
+    path.write_text(json.dumps({'electron_count': 25, 'jobs': [job]}))
+    result = audit(path)['jobs'][0]
+    assert result['status'] == 'complete'
+    assert result['correlated_energies_hartree'][0]['energy_hartree'] == -437.411329714362
+    assert result['correlated_energies_hartree'][0]['native_method'] == 'CASPT2-F12'
+    assert result['correlated_energy_source']['output_sha256'] == file_sha256(output)
+    assert output.read_text() == text and inp.read_bytes() == native.read_bytes()
+    output.write_text(text.replace('CONVERGENCE REACHED!', 'NO CONVERGENCE!'))
+    assert audit(path)['jobs'][0]['status'] == 'incomplete'
+    output.write_text(text)
+    native.write_text(native.read_text() + '\n! changed\n')
+    assert audit(path)['jobs'][0]['status'] == 'incomplete'
+    native.write_bytes(fixture.with_suffix('.inp').read_bytes())
+    checkpoint.unlink()
+    assert audit(path)['jobs'][0]['status'] == 'incomplete'
+
+
 def _configuration(path):
     path.write_text(json.dumps({
         'schema': 1,
@@ -952,7 +1030,7 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
     assert len(audited['orbital_xml']) == 2
     assert (directory / (name + '.inp')).read_bytes() == original
     execution = json.loads((directory / 'execution.json').read_text())
-    assert execution['input_transform'] == 'native_xml_short_wfu_v3'
+    assert execution['input_transform'] == 'native_xml_mr_state_energy_v4'
     assert execution['input_sha256'] == hashlib.sha256(original).hexdigest()
     (directory / (name + '.natural.orbitals.xml')).write_text('incomplete XML')
     assert audit(path)['jobs'][0]['status'] == 'incomplete'

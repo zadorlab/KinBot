@@ -318,7 +318,8 @@ def collect(root, destination):
     if root == destination or root in destination.parents:
         raise ValueError('Collection archive must be outside the campaign tree.')
     with _stopped_snapshot(root) as (data, _):
-        paths = {root / 'campaign.json', root / 'review_plan.json', root / 'review_index.json'}
+        paths = {root / 'campaign.json', root / 'review_plan.json', root / 'review_index.json',
+                 root / 'controller.log'}
         paths.update(root.glob('review_report*.json'))
         for record in data['systems']:
             paths.update(Path(record['configuration']).parent.glob('*.json'))
@@ -330,12 +331,12 @@ def collect(root, destination):
                     directory = Path(job.get('archived_directory', job['directory']))
                     name = job['name']
                     paths.update(path for path in directory.glob(name + '.*')
-                                 if path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin'))
+                                 if path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin', '.sbatch'))
                     paths.add(directory / 'execution.json')
                     for attempts in (directory / 'attempts', directory / '.kinbot_slurm_io_retries'):
                         if attempts.is_dir():
                             paths.update(path for path in attempts.rglob('*') if path.is_file()
-                                and (path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin')
+                                and (path.suffix in ('.inp', '.out', '.stdout', '.stderr', '.molden', '.xml', '.bin', '.sbatch')
                                      or path.name in ('execution.json', 'stdout.txt', 'stderr.txt')))
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tarfile.open(destination, 'w:gz') as archive:

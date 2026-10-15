@@ -153,10 +153,10 @@ See also the [generality and automatic handoff audit](GENERALITY_AUDIT_2026-10-1
    unresolved; it is not a reason to approve a failed result or a production CAS.
 7. After orbital/initialization review, duplicate a plan into a fresh small
    correlated validation campaign. Each model may request `correlation_checks`,
-   for example `[{"method":"caspt2-f12b(5,4)","shift":0.3,"ipea":0.25},
-   {"method":"mrci-f12b+q(5,4)"}]`. Counts must match that model. Checks run
+   for example `[{"method":"caspt2-f12(5,4)","shift":0.3,"ipea":0.25},
+   {"method":"mrci-f12+q(5,4)"}]`. Counts must match that model. Checks run
    only with optimized CASSCF, for every requested spin/root, and use the
-   production F12B and Davidson-energy selectors. They are disabled by default
+   production selected-state and Davidson-energy selectors. They are disabled by default
    on the larger reference spaces. Inspect interaction energies, spin gaps,
    intruder/shift sensitivity and rate sensitivity before a final selection.
    For an explicit partition of reviewed natural orbitals, use

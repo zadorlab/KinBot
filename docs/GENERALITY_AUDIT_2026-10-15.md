@@ -68,6 +68,16 @@ Local regression success cannot replace those calculations. The next finite
 39-job batch, 20-job cap, monitoring and export commands are in
 [SULFUR_CORRELATED_VALIDATION.md](SULFUR_CORRELATED_VALIDATION.md).
 
+## Native follow-up
+
+The first correlated batch exposed a shared MR energy-selector bug that the
+mocked tests had missed. The [failure and recovery audit](SULFUR_CORRELATED_VALIDATION.md#native-selector-failure-and-recovery)
+corrects the method contract, documents the native evidence and provides an
+in-place resume preserving 18 completed calculations. Production readers now
+reject undefined-variable assignments. The supplied complete native output
+is a regression fixture. The scheduler retry guard also handles requeues
+using Slurm's restart count rather than rejecting every repeated job ID.
+
 ## Verification
 
 The complete local suite passed **1,434 tests and 391 subtests**. The subsequent

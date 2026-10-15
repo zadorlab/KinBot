@@ -219,7 +219,7 @@ and the orbital space before drawing a basis-set conclusion. Test additional
 starts and both scan directions around 3.7–3.9, 5.5–5.7 and 15.0–15.7 Å,
 where the present diagnostic occupations change appreciably.
 
-Only then compare CASPT2-F12b and MRCI-F12b+Q interaction energies and spin
+Only then compare CASPT2-F12 and MRCI-F12+Q interaction energies and spin
 gaps for the reduced/reference spaces, referenced to consistent separated
 limits. This can supply the requested actual-method timing panel too.
 Near-2 occupations and small printed CI norms do not bound dynamic-correlation

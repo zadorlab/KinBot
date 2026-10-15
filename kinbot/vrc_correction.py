@@ -32,7 +32,7 @@ _SPIN_SPLITTING_DEFAULTS = {
     'gap_levels': [
         {
             'label': 'caspt2_f12',
-            'method': 'caspt2-f12b(2,2)',
+            'method': 'caspt2-f12(2,2)',
             'basis': ['avtz-f12', 'avqz-f12'],
             'extrapolation_power': ORIGINAL_ANL_POWER,
             'shift': 0.2,
@@ -40,7 +40,7 @@ _SPIN_SPLITTING_DEFAULTS = {
         },
         {
             'label': 'mrci_f12_q',
-            'method': 'mrci-f12b+q(2,2)',
+            'method': 'mrci-f12+q(2,2)',
             'basis': ['avtz-f12', 'avqz-f12'],
             'extrapolation_power': ORIGINAL_ANL_POWER,
         },
@@ -61,13 +61,13 @@ _VRC_ACCURACY_PRESETS = {
     # active spaces in the input layer.
     'anl1-f12': {
         'vrc_tst_active_space': 'full_valence',
-        'vrc_tst_scan_method': 'caspt2-f12b(2,2)',
+        'vrc_tst_scan_method': 'caspt2-f12(2,2)',
         'vrc_tst_scan_basis': 'avtz-f12',
         'vrc_tst_scan_gradient': 'numerical',
-        'vrc_tst_sample_method': 'caspt2-f12b(2,2)',
+        'vrc_tst_sample_method': 'caspt2-f12(2,2)',
         'vrc_tst_sample_basis': 'avtz-f12',
         'vrc_tst_sample_extrapolation_power': ORIGINAL_ANL_POWER,
-        'vrc_tst_high_method': 'mrci-f12b+q(2,2)',
+        'vrc_tst_high_method': 'mrci-f12+q(2,2)',
         'vrc_tst_high_basis': 'avtz-f12',
         'vrc_tst_correction_model': 'spin_splitting',
         'vrc_tst_spin_splitting': {
@@ -80,7 +80,7 @@ _VRC_ACCURACY_PRESETS = {
             'gap_levels': [
                 {
                     'label': 'caspt2_f12',
-                    'method': 'caspt2-f12b(2,2)',
+                    'method': 'caspt2-f12(2,2)',
                     'basis': 'avtz-f12',
                     'extrapolation_power': ORIGINAL_ANL_POWER,
                     'shift': 0.2,
@@ -88,7 +88,7 @@ _VRC_ACCURACY_PRESETS = {
                 },
                 {
                     'label': 'mrci_f12_q',
-                    'method': 'mrci-f12b+q(2,2)',
+                    'method': 'mrci-f12+q(2,2)',
                     'basis': 'avtz-f12',
                     'extrapolation_power': ORIGINAL_ANL_POWER,
                 },

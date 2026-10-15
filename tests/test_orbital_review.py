@@ -101,7 +101,7 @@ def test_correlation_checks_share_production_energy_contract(tmp_path):
     assert 'canonical,2141.2\n' in deck and 'natorb,2140.2\n' in deck
     assert 'rs2-f12,shift=0.2,ipea=0.25;orbital,2141.2,type=canonical;wf,25,1,1;state,1,3;' in deck
     assert 'mrci-f12,scalf12=1,cabs_singles=1;orbital,2140.2,type=natural;wf,25,1,3;state,1,3;' in deck
-    assert 'KBVRCSEL=energd(2)' in deck
+    assert 'KBVRCSEL=energd(1)' in deck
     assert 'reconc12=KBVRCSEL' in deck
     recon.validate_input_blocks(deck)
 

@@ -38,6 +38,49 @@ def test_retry_limit_is_bounded_and_can_be_disabled():
             retry_limit({'KINBOT_SLURM_IO_RETRIES': value})
 
 
+def test_requeued_allocation_archives_partial_products_and_restores_original_seed(tmp_path, monkeypatch):
+    import hashlib
+    import fcntl
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv('SLURM_JOB_ID', '42')
+    monkeypatch.setenv('SLURM_RESTART_COUNT', '0')
+    Path('job.inp').write_text('file,2,kb_seed.wfu\n')
+    Path('kb_seed.wfu').write_text('valid seed')
+    command = [sys.executable, '-c',
+               'from pathlib import Path; assert Path("kb_seed.wfu").read_text()=="valid seed"; '
+               'assert not Path("job.out").exists(); Path("job.out").write_text("complete")']
+    def interrupted(*args, **kwargs):
+        Path('kb_seed.wfu').write_text('partial corrupt seed')
+        Path('job.out').write_text('partial output')
+        raise KeyboardInterrupt
+    real_run = subprocess.run
+    monkeypatch.setattr('kinbot.slurm_retry.subprocess.run', interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        run(command, identity='job', prefixes=['job'])
+    token = hashlib.sha256(b'job').hexdigest()[:20]
+    folder = Path('.kinbot_slurm_io_retries') / token / '42'
+    original_record = (folder / 'execution.json').read_bytes()
+    monkeypatch.setattr('kinbot.slurm_retry.subprocess.run', real_run)
+    monkeypatch.setenv('SLURM_RESTART_COUNT', '1')
+    with (folder / 'lock').open('a+') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BlockingIOError):
+            run(command, identity='job', prefixes=['job'])
+        assert Path('job.out').read_text() == 'partial output'
+    assert run(command, identity='job', prefixes=['job']) == 0
+    assert (folder / 'execution.json').read_bytes() == original_record
+    assert (folder / 'restart-1/interrupted/kb_seed.wfu').read_text() == 'partial corrupt seed'
+    assert (folder / 'restart-1/interrupted/job.out').read_text() == 'partial output'
+    assert Path('job.out').read_text() == 'complete'
+    assert json.loads((folder / 'restart-1/execution.json').read_text())['random_seed'] == json.loads(original_record)['random_seed']
+    with pytest.raises(RuntimeError, match='duplicate execution'):
+        run(command, identity='job', prefixes=['job'])
+    monkeypatch.setenv('SLURM_RESTART_COUNT', '2')
+    (folder / 'initial/kb_seed.wfu').write_text('tampered')
+    with pytest.raises(RuntimeError, match='initial artifacts changed'):
+        run(command, identity='job', prefixes=['job'])
+
+
 @pytest.mark.parametrize('checkpoint', ['job.wfu', 'kb_1234.wfu'])
 def test_batch_retries_io_and_restores_exact_checkpoint_without_touching_other_jobs(tmp_path, monkeypatch, checkpoint):
     monkeypatch.chdir(tmp_path)

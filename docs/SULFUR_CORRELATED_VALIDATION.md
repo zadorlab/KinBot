@@ -3,7 +3,7 @@
 The [combined CASSCF reference panel](SULFUR_ORBITAL_REVIEW_2026-10-15.md)
 is complete. The user requested all tests needed for high accuracy at minimum
 cost, followed by completed CBH/ANL–ROTD–MESS examples. The next native batch
-is a finite CASPT2-F12b comparison, not another reconnaissance expansion.
+is a finite CASPT2-F12 comparison, not another reconnaissance expansion.
 No smaller space or cheaper production basis is approved by its preparation.
 
 ## First native batch
@@ -16,7 +16,7 @@ A CAS(2,2) shortcut is not inferred from the presence of two radical fragments.
 
 | Channel | Candidate CAS spaces | Larger diagnostic space | Radial stencil (Å) |
 | --- | --- | --- | --- |
-| CH3S C–S | (5,4), (9,6) | (13,8) | 3.1, 3.3, 3.5 |
+| CH3S C–S | (5,4), (9,6) | (13,8) | 2.9, 3.1, 3.3 |
 | CH3SS C–S | (9,7), (13,9) | (19,12) | 3.1, 3.3, 3.5 |
 | CH3SS S–S | (9,7), (13,9) | (19,12) | 3.5, 3.7, 3.9 |
 
@@ -33,7 +33,7 @@ All chemical hypotheses and seed choices are editable data in
 The preparation script reads the requested sampling method, basis, shift,
 IPEA and scan grid from each linked KinBot input. It takes three neighboring
 scan points near the reviewed intermediate-distance seed. For the present
-inputs these resolve to CASPT2-F12b/aug-cc-pVTZ-F12, shift 0.3 Eh and IPEA
+inputs these resolve to CASPT2-F12/aug-cc-pVTZ-F12, shift 0.3 Eh and IPEA
 0.25 Eh. Counts in preset method strings are replaced by each candidate's
 counts. These shifts are method parameters, not convergence tolerances.
 
@@ -78,14 +78,79 @@ Explicit CI/RS2/MRCI nonconvergence also invalidates the result, even if the
 program exits normally and prints energies. Shared production energy readers
 now reject those failure messages as well.
 
-## Launch on Blodgett
+## Native selector failure and recovery
 
-Keep the five reference/repair campaigns at their current paths: their binary
-WFUs are the inputs. The following block runs the 39 new pilot calculations, at most 20
-concurrently. It does not restart the old failed attempts. Rerunning the block
-stops only this new controller and adopts its live allocations and completed
-jobs. It never automatically retries a scientifically failed calculation.
-`set -e` is confined to the child shell, so failure preserves the SSH session.
+The first batch exported at 13:22 on 15 October launched 20 of 39 jobs.
+Eighteen finished CASSCF and all requested RS2-F12 calls (84 correlated root
+energies). The generated `KBVRCSEL=energy(2)` read an undefined second element,
+so Molpro assigned zero without energy units and KinBot rejected the results.
+This was a shared implementation error, not evidence of failed CAS choices.
+Two jobs (52907669 and 52907677) stopped mid-calculation; their batch stderr
+reports an existing allocation retry journal. That is consistent with a Slurm
+requeue, which retains its job ID. The export does not establish why Slurm
+restarted those jobs. Nineteen jobs had not been submitted.
+
+The old code incorrectly transferred the CCSD-F12 A/B convention to Molpro's
+MR programs. **CASPT2-F12 and MRCI-F12 have no corresponding A/B choice here.**
+For `STATE,1,root`, `ENERGY(1)` and `ENERGD(1)` select the sole calculated
+state, including an excited root. `+Q` remains relaxed-reference Davidson
+with `OPTION,CLUSTER=0`. The native method is now named accurately in contracts
+and presets. Old MR `-f12b` names are explicitly recorded compatibility aliases;
+`-f12a` requests are rejected. CCSD(T)-F12b is unchanged. See Molpro's
+[RS2 state selection](https://www.molpro.net/manual/doku.php?id=multireference_rayleigh_schroedinger_perturbation_theory)
+and [MRCI variables and F12 options](https://www.molpro.net/manual/doku.php?id=the_mrci_program).
+
+Recovery validates each printed `!RSPT2 STATE` energy against the exact native
+input and output program, electron count, active partition, multiplicity, root,
+level shift and IPEA. Normal execution, convergence, input hashes, XML exports
+and checkpoint checks remain required. It records recovery provenance and the
+native method, leaving the original outputs and prepared inputs untouched.
+Only this identifiable legacy selector defect permits recovery; generic
+undefined variables still fail production validation. New executions of old
+prepared decks correct the selector in the separately hashed native input.
+
+The Slurm retry guard now distinguishes scheduler restart counts under one
+allocation lock, archives interrupted products, verifies and restores original
+seeds, and retains each restart's journal. Duplicate execution of the same
+restart count is still rejected. This follows Slurm's
+[requeue and SLURM_RESTART_COUNT semantics](https://slurm.schedmd.com/sbatch.html).
+Collection now also includes batch scripts and the controller log.
+
+### Preliminary scientific diagnostic from the recovered data
+
+For CH3S at 30 Å, the three roots within each spin block span about
+0.00015 kcal/mol at CASSCF, but **1.078, 1.177 and 1.176 kcal/mol** at CASPT2-F12
+for CAS(5,4), (9,6) and (13,8), respectively. These are raw root-index spreads,
+not a proven assignment of every correlated state to a particular fragment
+term. They flag an unresolved asymptotic/state-treatment problem; increasing
+CAS size alone has not removed it. The diagnostic panel remains useful, but
+no candidate can be accepted solely on smooth curves or relative agreement.
+The later MRCI+Q, root-character, rotational/term consistency and shift/state-
+treatment checks must resolve this before a production surface is selected.
+Do not hide the splitting by averaging or applying unvalidated offsets.
+
+Recovery was replayed against all 18 native outputs (84 labelled energies),
+and all 40 prepared/native input hashes from the 20 attempted jobs matched.
+The local audit replay used explicit synthetic checkpoint placeholders because
+binary WFU files are not in the export; Blodgett must verify the real files.
+The full local suite passed 1,438 tests and 391 subtests; a final focused run
+passed 126 tests after tightening recovery's successful-return-code check.
+The only full-suite warnings were the existing deprecated `imp` import and
+unwritable external Sella cache. No new native Molpro job ran locally.
+
+## Resume on Blodgett
+
+Keep the existing campaign and all five reference/repair campaign directories;
+the original binary WFUs are still required. The archive intentionally omits
+WFUs, so the full checkpoint audit happens on Blodgett. No completed Molpro
+calculation needs to be repeated for this selector repair.
+
+This block re-audits the 18 recoverable results, archives only the two
+interrupted attempts, and resumes the remaining **21 jobs**, at most 20 at a
+time. It uses the existing immutable plan and prepared campaign. The commands
+stop this campaign's controller; if any allocation remains live, the retry
+command refuses to alter it. In the supplied snapshot there were no live jobs.
+All exits are inside a child shell and preserve the SSH session.
 
 ```bash
 bash <<'BASH'
@@ -95,15 +160,9 @@ env -u LD_LIBRARY_PATH -u LD_PRELOAD \
     git -c submodule.recurse=false pull --ff-only origin composite
 KB_PY=/home/hram/KinBot/.venv/bin/python
 RUN=/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015
-PLAN=/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015.plan.json
 "$KB_PY" -m pip install -e . --no-build-isolation --no-deps
-if [ ! -f "$RUN/campaign.json" ]; then
-    if [ ! -f "$PLAN" ]; then
-        "$KB_PY" examples/anl/orbital_reviews/prepare_validation.py "$PLAN"
-    fi
-    "$KB_PY" -m kinbot.orbital_review prepare-partitions "$PLAN" "$RUN"
-fi
 "$KB_PY" -m kinbot.orbital_campaign stop-controller "$RUN"
+"$KB_PY" -m kinbot.orbital_campaign retry-failed "$RUN" --include-interrupted
 export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
 export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
 mkdir -p "$KINBOT_MOLPRO_SCRATCH"
@@ -177,7 +236,7 @@ BASH
    CH3SS S–S CAS(7,5) is only worth an additional comparison if the measured
    savings justify it; the compressed high-state failure of its projection
    does not by itself decide an outer-only model.
-3. Benchmark MRCI-F12b+Q against CASPT2-F12b on the surviving spaces, including
+3. Benchmark MRCI-F12+Q against CASPT2-F12 on the surviving spaces, including
    shift/IPEA sensitivity where indicated. Test ROHF-UCCSD(T)-F12b for the
    high-spin anchor and the production spin-splitting correction. Do not
    replace a multireference low-spin dissociation by a single-reference CC

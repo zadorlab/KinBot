@@ -8,17 +8,18 @@ full KinBot chemistry campaign until the reconnaissance has been reviewed.
 
 ## Pull and install
 
-Start in your existing KinBot Git checkout. Use the checkpoint commit supplied
-in the accompanying handoff as `RECON_COMMIT` below. It must be an ancestor
-of the updated checkout; checking only the older `4bd1d25` is insufficient.
+The checkout confirmed by the user's Blodgett output is `/home/hram/KinBot`.
+Run each block in a child Bash shell if using `set -e`; an optional command
+must not terminate the SSH login shell. Commit `4793a0f` contains the tested
+reconnaissance implementation; checking only `4bd1d25` is insufficient.
 
 ```bash
-KB_REPO=$(git rev-parse --show-toplevel)
-cd "$KB_REPO"
+cd /home/hram/KinBot
+KB_REPO=/home/hram/KinBot
 env -u LD_LIBRARY_PATH -u LD_PRELOAD \
     git -c submodule.recurse=false pull --ff-only origin composite
 
-RECON_COMMIT=REPLACE_WITH_HANDOFF_COMMIT
+RECON_COMMIT=4793a0f
 git merge-base --is-ancestor "$RECON_COMMIT" HEAD || {
     echo 'Required reconnaissance checkpoint is missing'
     exit 1
@@ -48,18 +49,19 @@ an unrelated Conda library directory to `LD_LIBRARY_PATH`.
 ## Preserve the acetaldehyde failure evidence and clean its active path
 
 The cluster restart explains the dead driver/jobs and stale `running` labels.
-The monitor alone cannot identify the earlier Molpro attempt's failure. HIR
+The archived execution record identifies Molpro exit 255 at the first force
+evaluation; its native stdout/stderr/output are needed for the cause. HIR
 harmonic fallbacks and the optional vdW-well failure were nonfatal decisions.
 
 ```bash
+cd /home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
 RUN=/home/hram/kinbot-runs/acetaldehyde_anl0_f12_day
 POINT="$RUN/vrctst/molpro_scan/441041030570000000001_hom_sci_1_2_vts_pt00_5914412a7cd7e609"
 if [ -d "$POINT/attempts/relaxed_scan/1" ]; then
     cat "$POINT/attempts/relaxed_scan/1/execution.json"
     find "$POINT/attempts/relaxed_scan/1" -maxdepth 2 -type f -print
 fi
-sacct -u "$USER" -S 2026-10-14 \
-    --format=JobID,JobName%45,State,ExitCode,Reason,Start,End,NodeList
 
 cd /home/hram/kinbot-runs
 "$KB_PY" -m kinbot.run_cleanup "$RUN"
@@ -75,13 +77,20 @@ archive during a scheduler-query failure or while work remains alive. It
 does not delete shared scratch or terminate unrelated jobs. Keep this archive
 for diagnosis of the earlier transient failure.
 
+Blodgett reports `Slurm accounting storage is disabled`. No `sacct` command
+is required. Cleanup and monitoring query the live scheduler with `squeue`.
+Do not place optional accounting queries unguarded under `set -e`.
+
 ## Prepare and launch both systems with ten nodes total
 
-Run in the same shell as the update commands so `KB_REPO` and `KB_PY` remain
-set. Preparation is local input generation, not submission. Use a fresh path.
+This block initializes its own paths. Preparation is local input generation,
+not submission. Use a fresh path.
 
 ```bash
-CAMPAIGN="$HOME/kinbot-runs/ch3s_ch3ss_orbital_$(date +%Y%m%d_%H%M%S)"
+cd /home/hram/KinBot
+KB_REPO=/home/hram/KinBot
+KB_PY=/home/hram/KinBot/.venv/bin/python
+CAMPAIGN="/home/hram/kinbot-runs/ch3s_ch3ss_orbital_$(date +%Y%m%d_%H%M%S)"
 "$KB_PY" -m kinbot.orbital_campaign prepare "$CAMPAIGN" \
     "$KB_REPO/examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json" \
     "$KB_REPO/examples/anl/ch3ss_anl1_f12/orbital_reconnaissance.json"
@@ -130,7 +139,7 @@ In a later shell, start in the same checkout and restore these variables:
 
 ```bash
 KB_REPO=$(git rev-parse --show-toplevel)
-KB_PY="$KB_REPO/.venv/bin/python"
+KB_PY=/home/hram/KinBot/.venv/bin/python
 CAMPAIGN=$(cat "$HOME/kinbot-runs/last_sulfur_orbital_campaign.txt")
 "$KB_PY" -m kinbot.orbital_campaign progress "$CAMPAIGN"
 tail -n 60 "$CAMPAIGN/controller.log"

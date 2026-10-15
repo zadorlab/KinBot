@@ -191,6 +191,8 @@ OLD=/home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_20261015
 REF=/home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015
 POT=/home/hram/kinbot-runs/ch3s_ch3ss_sampling_checks_20261015
 STAMP=$(date +%Y%m%d_%H%M%S)
+"$KB_PY" -m kinbot.orbital_campaign collect "$OLD" \
+    /home/hram/kinbot-runs/ch3s_ch3ss_potential_validation_latest_20261015.tar.gz
 "$KB_PY" -m kinbot.orbital_review report "$REF" "$REF/review_report_$STAMP.json" \
     --additional-campaign "$OLD"
 "$KB_PY" -m kinbot.orbital_campaign collect "$REF" \

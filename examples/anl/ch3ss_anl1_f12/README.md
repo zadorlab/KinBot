@@ -65,4 +65,15 @@ CC high-spin anchor, both MR gaps, and direct MR leaves. There is no routine
 VRC CBS extrapolation; explicit expert overrides remain supported. The CBH/ANL
 thermochemistry recipe is independent and unchanged.
 
+Finish the current TZ recon before choosing alternative production bases.
+The [post-recon performance check](../../../docs/SULFUR_TZ_RESTART_2026-10-14.md#performance-check-after-reconnaissance)
+will test actual correlated costs; DZ sampling or additional QZ recon is
+conditional on those results. The present TZ settings remain the baseline.
+
 See the [current safe Blodgett stop/update/restart commands and active-space guide](../../../docs/SULFUR_TZ_RESTART_2026-10-14.md).
+# Current orbital review
+
+Use the [general chemical orbital-review workflow](../../../docs/ORBITAL_REVIEW_WORKFLOW.md)
+for optimized comparisons and independent C–S/S–S and inner/outer selections.
+Its Blodgett commands run both sulfur systems under one ten-job cap and reuse
+verified old checkpoints without treating frozen-CASCI energies as CASSCF.

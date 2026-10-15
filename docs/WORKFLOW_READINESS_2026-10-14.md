@@ -5,6 +5,13 @@ See [the complete safe Blodgett restart and active-space review](SULFUR_TZ_RESTA
 It supersedes the earlier six/eight-basis restart instructions and preserves
 completed retained-basis jobs. No SSH or cluster calculation was performed here.
 
+The latest decision is to finish this recon and review the orbitals before a
+small correlated performance check. Current TZ-F12 production settings remain
+the benchmark baseline. DZ-F12 sampling and QZ-F12 corrections are conditional
+alternatives, not changes already applied. See the
+[post-recon benchmark plan](SULFUR_TZ_RESTART_2026-10-14.md#performance-check-after-reconnaissance).
+No restart or additional basis recon is needed now.
+
 ## Theory and cost policy
 
 The examples request **ANL1-F12** for CBH/ANL, with augmented F12 bases.
@@ -181,11 +188,16 @@ and `tests/verify_nh2o_si.py` for hashes and reproducibility.
 This verifies the counting/staging approach, not the paper's full rates. The
 original names of every SI Ne table cannot be unambiguously mapped to the
 publisher-numbered files. The SI retains entrance complexes. These must not
-be imposed on the sulfur examples: automatic hom_sci complex characterization
-is deferred by the user. Reduced statistical/minimum two-bottleneck models
+be imposed on the sulfur examples. The current inner/outer route works for
+hom_sci without invoking the IRC-based complex identifier. Reduced statistical/minimum two-bottleneck models
 are identified as reductions, not reproductions of that retained-well network.
 
 ## Exact next procedure
+
+**Superseded restart steps:** the current [orbital-review procedure](ORBITAL_REVIEW_WORKFLOW.md)
+uses finite AVAS/CASCI and optimized CASSCF comparisons, preserves explicit
+reviewed state averages, and supports different selections per bottleneck.
+Use its stop/update/reuse/restart block instead of restarting adaptive CASCI.
 
 1. Use the [current stop/update/archive/restart block](SULFUR_TZ_RESTART_2026-10-14.md)
    to switch the existing campaign to TZ-F12 only. The latest supplied snapshot

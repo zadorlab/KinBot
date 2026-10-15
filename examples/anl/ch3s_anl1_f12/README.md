@@ -1,5 +1,11 @@
 # CH3S orbital reconnaissance and CBH/ANL–VRC–MESS
 
+Use the [current chemical orbital-review workflow](../../../docs/ORBITAL_REVIEW_WORKFLOW.md)
+for fresh AVAS/CASSCF comparisons, verified checkpoint reuse, explicit
+inner/outer selections and the contained Blodgett restart/export commands.
+The legacy dense CASCI scan described below remains evidence for comparison;
+automatic refinement is now opt-in.
+
 The requested dissociation is CH3S → CH3 + S. The reconnaissance uses
 aug-cc-pVTZ-F12 (`avtz-f12`), with Molpro's installed
 basis definition and auxiliary defaults. KinBot supplies no revision suffix
@@ -35,6 +41,18 @@ bonding/antibonding and sulfur valence manifold throughout dissociation,
 larger-space sensitivity, and the CH3S Jahn–Teller/spin–orbit treatment.
 Update the requested CAS if the evidence calls for a different space.
 
+The [completed CH3S evidence review](../../../docs/CH3S_RECON_REVIEW_2026-10-15.md)
+recommends testing the chemical CAS(5,4) baseline against CAS(9,6) and CAS(13,8).
+The frozen-orbital probes do not establish the best CAS, and propagated/fresh
+CASCI orbitals give different
+asymptotic energies. Optimized-orbital validation is required before selecting
+a production record; the candidate input remains CAS(13,8).
+
+Once CH3S probes finish, its review can proceed while CH3SS runs. Use the
+[CH3S-only evidence export](../../../docs/SULFUR_TZ_RESTART_2026-10-14.md#review-completed-ch3s-while-ch3ss-continues)
+instead of the campaign-wide collector, which requires the controller lock.
+Remaining coverage flags must be examined before approving the selected space.
+
 The input supplies atomic S fine-structure levels and a ground-term centroid
 correction. Its CH3S X(2E) declaration specifies spin-free spatial roots only,
 not a resolved molecular partition function or molecular SO correction.
@@ -63,5 +81,10 @@ The production preset uses augmented TZ-F12 for the relaxed path, sampling,
 CC high-spin anchor, both MR gaps, and direct MR leaves. There is no routine
 VRC CBS extrapolation; explicit expert overrides remain supported. The CBH/ANL
 thermochemistry recipe is independent and unchanged.
+
+Finish the current TZ recon before choosing alternative production bases.
+The [post-recon performance check](../../../docs/SULFUR_TZ_RESTART_2026-10-14.md#performance-check-after-reconnaissance)
+will test actual correlated costs; DZ sampling or additional QZ recon is
+conditional on those results. The present TZ settings remain the baseline.
 
 See the [current safe Blodgett stop/update/restart commands and active-space guide](../../../docs/SULFUR_TZ_RESTART_2026-10-14.md).

@@ -28,7 +28,8 @@ from kinbot.anl.site import render_site_setup
 from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            _render_vrc_state_model, full_valence_active_space,
                            validate_input_blocks, compact_molpro_titles,
-                           molpro_wfu_name)
+                           molpro_wfu_name, _vrc_multireference_method,
+                           vrc_multireference_energy_contract)
 from kinbot.theory import fortran_threshold
 from kinbot.execution import atomic_json, file_sha256
 from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
@@ -305,6 +306,12 @@ def _load(path):
             raise ValueError(f'{key} must be a positive integer.')
     if not isinstance(data.get('probe_active_space', False), bool):
         raise ValueError('probe_active_space must be a boolean.')
+    for key, choices, default in (
+            ('probe_method', ('casci', 'casscf'), 'casci'),
+            ('avas_reference', ('atomic', 'rhf'), 'atomic'),
+            ('orbital_initialization', ('propagated', 'independent'), 'propagated')):
+        if data.get(key, default) not in choices:
+            raise ValueError(f'{key} must be one of {choices}.')
     if data.get('partition') is not None and not _SAFE.fullmatch(str(data['partition'])):
         raise ValueError('partition must be a safe Slurm partition name.')
     if 'coordinates' in data:
@@ -354,9 +361,51 @@ def _load(path):
         # compact default, with a user-controlled all-atom extension.
         hydrogen_coordinate = any(any(symbols[index - 1] in ('H', 'He')
                                      for index in anchor.get('bond', [])) for anchor in anchors)
-        data['_probe_space'] = full_valence_active_space(
-            symbols, data['charge'], additional_centers=controls.get('additional_centers'),
-            include_light_atoms=controls.get('include_light_atoms', hydrogen_coordinate))
+        definition = data.get('probe_definition')
+        if definition is None:
+            data['_probe_space'] = full_valence_active_space(
+                symbols, data['charge'], additional_centers=controls.get('additional_centers'),
+                include_light_atoms=controls.get('include_light_atoms', hydrogen_coordinate))
+        if definition is not None:
+            if (not isinstance(definition, dict) or set(definition) != {
+                    'active_electrons', 'active_orbitals', 'state_model', 'chemical_note'}
+                    or not isinstance(definition['chemical_note'], str)
+                    or not definition['chemical_note'].strip()
+                    or any(isinstance(definition[key], bool)
+                           or not isinstance(definition[key], int) or definition[key] < 1
+                           for key in ('active_electrons', 'active_orbitals'))):
+                raise ValueError('probe_definition needs counted orbitals, state_model and chemical_note.')
+            model = validate_vrc_state_model(definition['state_model'],
+                active_electrons=definition['active_electrons'],
+                active_orbitals=definition['active_orbitals'], nelectron=electrons,
+                atom_count=len(symbols))
+            if model.get('orbital_selection', {}).get('mode') != 'avas':
+                raise ValueError('A reconnaissance candidate requires explicit AVAS targets.')
+            if data['multiplicity'] not in {entry['multiplicity'] for entry in model['state_average']}:
+                raise ValueError('Probe multiplicity must occur in its requested state average.')
+            data['_probe_model'] = model
+            data['_probe_space'] = {key: definition[key] for key in
+                                    ('active_electrons', 'active_orbitals', 'chemical_note')}
+            data['_probe_space']['orbital_selection'] = model['orbital_selection']
+    elif data.get('probe_definition') or data.get('correlation_checks'):
+        raise ValueError('Candidate and correlation checks require probe_active_space=true.')
+    checks = data.get('correlation_checks', [])
+    if not isinstance(checks, list):
+        raise ValueError('correlation_checks must be a list.')
+    if checks and data.get('probe_method') != 'casscf':
+        raise ValueError('Correlated validation requires optimized CASSCF orbitals.')
+    for check in checks:
+        if (not isinstance(check, dict) or set(check) - {'method', 'shift', 'ipea'}
+                or not vrc_multireference_energy_contract(check.get('method', ''))):
+            raise ValueError('correlation_checks requires supported counted CASPT2 or MRCI+Q methods.')
+        contract = vrc_multireference_energy_contract(check['method'])
+        if any(contract[key] != data['_probe_space'][key]
+               for key in ('active_electrons', 'active_orbitals')):
+            raise ValueError('Correlation method counts must match the probe space.')
+        for key in ('shift', 'ipea'):
+            if key in check and (isinstance(check[key], bool)
+                    or not isinstance(check[key], (float, int)) or not np.isfinite(check[key])):
+                raise ValueError('Correlation shifts must be finite numbers.')
     data = deepcopy(data)
     data['_source'] = str(path)
     data['_electrons'] = electrons
@@ -390,6 +439,8 @@ def _anchor_geometry(data, anchor):
 
 def _probe_model(data, anchor):
     """Keep native energy-array order and reported electronic labels together."""
+    if data.get('_probe_model'):
+        return deepcopy(data['_probe_model'])
     context = anchor.get('_context', {})
     multiplicities = context.get('multiplicities', [data['multiplicity']])
     multiplicities = [data['multiplicity'], *[mult for mult in multiplicities
@@ -430,16 +481,42 @@ def _deck(data, basis, anchor, stem, previous=None):
             model, nelectron=data['_electrons'],
             active_electrons=space['active_electrons'],
             active_orbitals=space['active_orbitals'], spin=data['multiplicity'] - 1)
-        multi = multi.replace('{multi,', '{multi,cas-ci;').replace(
-            'canonical,2140.2', 'natorb,2140.2')
+        method = data.get('probe_method', 'casci')
+        opening = '{multi,cas-ci;' if method == 'casci' else '{multi,'
+        multi = multi.replace('{multi,', opening)
+        # Always emit natural orbitals, including when canonical_orbitals=false.
+        multi = multi.replace('canonical,2140.2\n', '')
+        multi = multi.replace('maxit,50;', 'natorb,2140.2\nmaxit,50;')
+        if avas and data.get('avas_reference') == 'rhf':
+            avas = avas.replace('}\n', 'start,2100.2\n}\n', 1)
         if previous is not None:
-            multi = multi.replace('{multi,cas-ci;',
-                                  '{multi,cas-ci;\nstart,2140.2\ndiab,2140.2')
+            start = ('start,2140.2,type=natural' if method == 'casscf'
+                     else 'start,2140.2')
+            multi = multi.replace(opening, opening + f'\n{start}\ndiab,2140.2', 1)
             deck = '! Initial orbital checkpoint SHA-256: {{PREVIOUS_WFU_SHA256}}\n' + deck
         deck += (avas + multi + f'{{put,molden,{stem}.natural.molden;orbital,2140.2,type=natural}}\n'
                  'reconenergy=energy(1)\nshow,reconenergy\n')
         for index in range(1, sum(entry['roots'] for entry in model['state_average']) + 1):
             deck += f'reconr{index}=energy({index})\nshow,reconr{index}\n'
+        # Reuse the production method/selected-root energy contract; never
+        # mistake F12A for F12B or variational MRCI for Davidson-corrected MRCI.
+        counter = 0
+        for check in data.get('correlation_checks', []):
+            for entry in model['state_average']:
+                for root in range(1, entry['roots'] + 1):
+                    selected = deepcopy(model)
+                    selected['selected_roots'][entry['multiplicity']] = root
+                    avas_prefix, multi_prefix, _ = _render_vrc_state_model(selected,
+                        nelectron=data['_electrons'], active_electrons=space['active_electrons'],
+                        active_orbitals=space['active_orbitals'], spin=entry['multiplicity'] - 1)
+                    body, variable = _vrc_multireference_method(check['method'], data['_electrons'],
+                        entry['multiplicity'] - 1, state_model=selected,
+                        shift=check.get('shift'), ipea=check.get('ipea'))
+                    prefix = avas_prefix + multi_prefix
+                    if not body.startswith(prefix):
+                        raise ValueError('Unexpected production multireference renderer prefix.')
+                    counter += 1
+                    deck += body[len(prefix):] + f'reconc{counter}={variable}\nshow,reconc{counter}\n'
     return deck + 'recondone=1\nshow,recondone\n'
 
 
@@ -489,8 +566,17 @@ def _prepare(source, output):
             # probes must retain the checkpoint they actually consumed.
             predecessor = (old_job.get('orbital_predecessor') if old_job else
                            predecessors.get((basis['name'], channel))
-                           if channel and data.get('probe_active_space') else None)
-            deck = _deck(data, basis['basis'], anchor, stem, previous=predecessor)
+                           if channel and data.get('probe_active_space')
+                           and data.get('orbital_initialization', 'propagated') == 'propagated' else None)
+            seed = data.get('initial_records', {}).get(stem)
+            if seed:
+                if (set(seed) != {'path', 'sha256'} or data.get('probe_method') != 'casscf'
+                        or not Path(seed['path']).is_file() or file_sha256(seed['path']) != seed['sha256']):
+                    raise ValueError('Initial CASSCF record requires a verified checkpoint.')
+                predecessor = None
+            deck = _deck(data, basis['basis'], anchor, stem, previous=seed or predecessor)
+            if seed:
+                deck = deck.replace('{{PREVIOUS_WFU_SHA256}}', seed['sha256'])
             validate_input_blocks(deck, stem)
             digest = hashlib.sha256(deck.encode()).hexdigest()
             if old_job and old_job.get('template_sha256', old_job['input_sha256']) != digest:
@@ -526,6 +612,7 @@ def _prepare(source, output):
                 'input_sha256': file_sha256(inp),
                 'template_sha256': digest,
                 'orbital_predecessor': predecessor,
+                'initial_record': seed,
                 'channel': anchor.get('_channel'),
                 'orientation': anchor.get('_orientation'),
                 'distance_angstrom': anchor.get('distance_angstrom'),
@@ -536,6 +623,11 @@ def _prepare(source, output):
                     if data.get('probe_active_space') else []),
                 'natural_orbital_probe': bool(data.get('probe_active_space', False)),
                 'probe_active_space': data.get('_probe_space'),
+                'probe_method': data.get('probe_method', 'casci'),
+                'avas_reference': data.get('avas_reference', 'atomic'),
+                'geometry_angstrom': _anchor_geometry(data, anchor).tolist(),
+                'state_model': (_probe_model(data, anchor) if data.get('probe_active_space') else None),
+                'correlation_checks': data.get('correlation_checks', []),
                 'basis_source': 'library',
                 'symbols': data['symbols'],
                 'ppn': ppn,
@@ -567,6 +659,12 @@ def execute(manifest_path, name):
     if job is None:
         raise ValueError(f'Unknown reconnaissance job: {name}.')
     directory = Path(job['directory'])
+    if job.get('initial_record'):
+        import shutil
+        seed = job['initial_record']
+        if file_sha256(seed['path']) != seed['sha256']:
+            raise ValueError('Initial CASSCF checkpoint changed before execution.')
+        shutil.copyfile(seed['path'], directory / f'{name}.wfu')
     inp = directory / f'{name}.inp'
     if file_sha256(inp) != job['input_sha256']:
         raise ValueError(f'{name}: input changed before native execution.')
@@ -625,6 +723,7 @@ def execute(manifest_path, name):
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
     atomic_json(record, execution)
+    started = time.monotonic()
     try:
         env, runtime = qc_runtime_environment('molpro', 'molpro', work_directory=directory,
                                               scratch_min_mb=job.get('scratch_min_mb'),
@@ -657,6 +756,7 @@ def execute(manifest_path, name):
             execution['retryable_io'] = error.retryable_io
         raise
     finally:
+        execution['elapsed_seconds'] = time.monotonic() - started
         atomic_json(record, execution)
         cleanup_qc_runtime(runtime)
 
@@ -771,7 +871,8 @@ def _audit(manifest_path, *, live_job_ids=()):
     for job in manifest['jobs']:
         for key in ('energy_hartree', 'root_energies_hartree', 'state_energies_hartree',
                     'natural_occupations', 'natural_molden_sha256',
-                    'orbital_error', 'orbital_xml', 'occupation_source', 'validation_errors'):
+                    'orbital_error', 'orbital_xml', 'occupation_source', 'validation_errors',
+                    'correlated_energies_hartree'):
             job.pop(key, None)
         directory = Path(job['directory'])
         execution_path = directory / 'execution.json'
@@ -806,6 +907,11 @@ def _audit(manifest_path, *, live_job_ids=()):
             errors.append('Native output lacks RECONDONE=1.')
         if 'ERROR EXIT' in output_text:
             errors.append('Native output contains ERROR EXIT.')
+        optimization_failed = (job.get('probe_method') == 'casscf' and re.search(
+            r'No orbitals (?:are )?optimized|No convergence in MULTI|MCSCF.*not converged',
+            output_text, re.I))
+        if optimization_failed:
+            errors.append('Requested CASSCF orbital optimization did not complete.')
         if checkpoint_error:
             errors.append(checkpoint_error)
         if not wfu.is_file() or not wfu.stat().st_size:
@@ -816,7 +922,7 @@ def _audit(manifest_path, *, live_job_ids=()):
                   and file_sha256(inp) == job['input_sha256']
                   and 'Molpro calculation terminated' in output_text
                   and re.search(r'SETTING\s+RECONDONE\s*=\s*1(?:\.0*)?\s*(?:\n|$)', output_text)
-                  and 'ERROR EXIT' not in output_text)
+                  and 'ERROR EXIT' not in output_text and not optimization_failed)
         job['status'] = ('complete' if normal and not checkpoint_error and wfu.is_file()
                          and wfu.stat().st_size and (xml_evidence or
                          molden.is_file() and molden.stat().st_size) else 'incomplete')
@@ -835,7 +941,8 @@ def _audit(manifest_path, *, live_job_ids=()):
                      for index, value in re.findall(r'SETTING\s+RECONR(\d+)\s*=\s*'
                          r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+(?:AU|HARTREE)\b',
                          output_text, re.IGNORECASE)}
-            expected = sum((job.get('spin_context') or {}).get('roots', {}).values())
+            expected = (len(job.get('root_states', [])) or
+                        sum((job.get('spin_context') or {}).get('roots', {}).values()))
             if (not roots or any(not np.isfinite(value) for value in roots.values())
                     or (expected and sorted(roots) != list(range(1, expected + 1)))):
                 job['status'] = 'incomplete'
@@ -868,6 +975,20 @@ def _audit(manifest_path, *, live_job_ids=()):
                 if not xml_evidence and natural.is_file():
                     job['natural_molden_sha256'] = file_sha256(natural)
                 job['occupation_source'] = 'native_state_averaged_table' if xml_evidence else 'molden'
+            checks = job.get('correlation_checks', [])
+            if checks:
+                values = {int(index): float(value.replace('D', 'E').replace('d', 'e'))
+                    for index, value in re.findall(r'SETTING\s+RECONC(\d+)\s*=\s*'
+                        r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+(?:AU|HARTREE)\b', output_text, re.I)}
+                labels = [{**check, **state} for check in checks for state in job['root_states']]
+                if (sorted(values) != list(range(1, len(labels) + 1))
+                        or not all(np.isfinite(value) for value in values.values())):
+                    job['status'] = 'incomplete'
+                    errors.append('Missing/nonfinite correlated validation energies.')
+                else:
+                    job['correlated_energies_hartree'] = [
+                        {**label, 'energy_hartree': values[index]}
+                        for index, label in enumerate(labels, 1)]
         complete &= job['status'] == 'complete'
         if job['status'] == 'complete':
             job.pop('missing_since', None)
@@ -1238,12 +1359,15 @@ def _run(manifest_path, *, max_jobs=8, interval=20.):
 
 
 def select_record(wfu, output, *, record, active_electrons, active_orbitals,
-                  state_average, selected_roots, review_note, basis=None):
+                  state_average, selected_roots, review_note, basis=None,
+                  state_average_policy='reviewed'):
     path = Path(wfu).expanduser().resolve()
     if not path.is_file() or not path.stat().st_size:
         raise FileNotFoundError(f'Reviewed Molpro WFU is unavailable: {path}.')
     if not str(review_note).strip():
         raise ValueError('A nonempty orbital review note is required.')
+    if state_average_policy not in ('reviewed', 'channel_derived'):
+        raise ValueError('Unknown state_average_policy.')
     model = validate_vrc_state_model({
         'orbital_selection': {
             'mode': 'molpro_record', 'path': str(path),
@@ -1282,6 +1406,9 @@ def select_record(wfu, output, *, record, active_electrons, active_orbitals,
             payload = {'schema': 2, 'active_space': active_space,
                        'basis_models': {}}
         payload['basis_models'][basis] = model
+    if payload.get('state_average_policy', state_average_policy) != state_average_policy:
+        raise ValueError('Existing state-model policy differs from this selection.')
+    payload['state_average_policy'] = state_average_policy
     atomic_json(destination, payload)
     return destination
 
@@ -1304,7 +1431,7 @@ def main(argv=None):
     drive.add_argument('manifest')
     drive.add_argument('--max-jobs', type=int, default=8)
     drive.add_argument('--interval', type=float, default=20.)
-    drive.add_argument('--max-refinements', type=int, default=3)
+    drive.add_argument('--max-refinements', type=int, default=0)
     densify = commands.add_parser('refine')
     densify.add_argument('manifest')
     select = commands.add_parser('select')
@@ -1317,6 +1444,7 @@ def main(argv=None):
     select.add_argument('--state-average-json', required=True)
     select.add_argument('--selected-roots-json', default='{}')
     select.add_argument('--review-note', required=True)
+    select.add_argument('--state-average-policy', choices=['reviewed', 'channel_derived'], default='reviewed')
     args = parser.parse_args(argv)
     if args.command == 'prepare':
         print(prepare(args.configuration, args.output))
@@ -1344,7 +1472,8 @@ def main(argv=None):
             active_orbitals=args.active_orbitals,
             state_average=json.loads(args.state_average_json),
             selected_roots=json.loads(args.selected_roots_json),
-            review_note=args.review_note, basis=args.basis))
+            review_note=args.review_note, basis=args.basis,
+            state_average_policy=args.state_average_policy))
     return 0
 
 

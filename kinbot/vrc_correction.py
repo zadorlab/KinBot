@@ -649,6 +649,7 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
     selected_overrides = root_overrides(parameters, 'vrc_tst_selected_roots')
     explicit = deepcopy(parameters.get('vrc_tst_state_model'))
     external = False
+    average_policy = 'channel_derived'
     state_file = parameters.get('vrc_tst_state_model_file', '')
     if explicit is not None and isinstance(state_file, str) and state_file.strip():
         raise ValueError('Configure either vrc_tst_state_model or '
@@ -670,6 +671,9 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
                 or not isinstance(payload.get('active_space'), dict)):
             raise ValueError('Reviewed VRC state-model file has an invalid '
                              'schema.')
+        average_policy = payload.get('state_average_policy', 'channel_derived')
+        if average_policy not in ('reviewed', 'channel_derived'):
+            raise ValueError('Unknown reviewed state_average_policy.')
         active_space = active_space_settings(parameters, symbols, charge)
         declared = payload['active_space']
         if (declared.get('active_electrons')
@@ -712,7 +716,7 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
         # lets one reviewed orbital model cover, for example, both C-S and
         # S-S cleavage without imposing the atomic-P three-root average on a
         # nondegenerate molecular fragment channel.
-        if external:
+        if external and average_policy == 'channel_derived':
             multiplicities = ([settings['target_multiplicity'], settings['reference_multiplicity']]
                               if settings is not None else [int(parameters.get('mult', 1))])
             counts = {} if roots is None else {
@@ -732,6 +736,15 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
                                           selected.get(multiplicity, 1))
                 for multiplicity in multiplicities
             }
+        elif external:
+            counts = {entry['multiplicity']: entry['roots'] for entry in explicit['state_average']}
+            overrides = root_overrides(parameters, 'vrc_tst_state_average_roots')
+            if any(counts.get(mult) != count for mult, count in overrides.items()):
+                raise ValueError('Root-count overrides conflict with the reviewed state average.')
+            required = ([settings['target_multiplicity'], settings['reference_multiplicity']]
+                        if settings is not None else [int(parameters.get('mult', 1))])
+            if any(mult not in counts for mult in required):
+                raise ValueError('Reviewed state average omits a required target/reference multiplicity.')
         if selected_overrides:
             chosen = {int(key): value for key, value in explicit.get('selected_roots', {}).items()}
             chosen.update(selected_overrides)

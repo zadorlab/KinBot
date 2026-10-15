@@ -1,9 +1,28 @@
 # Sulfur TZ-F12 restart and review — 14 October 2026
 
+**Current restart:** use the [optimized orbital-review workflow and contained
+Blodgett commands](ORBITAL_REVIEW_WORKFLOW.md#blodgett-stop-update-reuse-and-restart).
+It preserves the old campaign and reuses verified WFU records as optimized
+starting guesses. The adaptive frozen-CASCI restart below is historical.
+
 This is the current procedure, superseding the multi-basis restart blocks in
 `Blodgett_workflow_runbook.md`. The user requested stopping the broad recon,
 using augmented TZ-F12 for VRC production, and removing routine VRC CBS work.
 No cluster action was performed from the development machine.
+
+Latest decision: let the current TZ-F12 recon finish, review its active spaces,
+then benchmark the actual correlated calculations before choosing production
+bases. DZ-F12 sampling and QZ-F12 corrections remain alternatives to test;
+neither has been enabled. The existing TZ settings are the benchmark baseline.
+No stop, update, cleanup or restart is needed for this decision; the recovery
+commands below apply only if recovery is needed.
+
+Update after the CH3S archive arrived: the
+[15 October evidence review](CH3S_RECON_REVIEW_2026-10-15.md) finds off-axis
+participation outside CAS(5,4) and a large propagated/fresh CASCI discrepancy.
+Test the chemical CAS(5,4) baseline against CAS(9,6) and CAS(13,8), with optimized
+orbitals and appropriate state averages, before final selection;
+do not extend the present CH3S chain to 115 Å just to satisfy its plateau flag.
 
 ## What changes
 
@@ -223,6 +242,130 @@ BASH
 The archive includes excluded-basis text/export evidence at its relocated
 paths. Large WFU files remain on Blodgett. Do not delete `archived_excluded`
 until the old diagnostics and any useful basis comparisons have been reviewed.
+
+## Review completed CH3S while CH3SS continues
+
+At the supplied 23:38:25 Blodgett snapshot, all 65 CH3S probes were complete
+and the controller had advanced to CH3SS. `coverage_refinement_required`
+means that the refinement budget ended with unresolved diagnostics; it does
+not mean those 65 calculations failed. Inspect the remaining intervals and
+the asymptotic plateau before approving a production space. There is no need
+to wait for CH3SS to start reviewing CH3S.
+
+Do not use the campaign-wide `collect` command during this run: it takes the
+campaign lock held by the controller. The following export instead takes a
+shared lock on the completed CH3S manifest only, reads its active jobs, and
+creates a separate review archive. It does not audit/rewrite a manifest,
+submit jobs, touch CH3SS, or copy large WFU binaries. The manifest retains
+the WFU paths and accepted hashes for later selection on Blodgett. This block
+uses the standard library and needs no pull or code update.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+/home/hram/KinBot/.venv/bin/python - <<'PY'
+import fcntl
+import json
+import tarfile
+import tempfile
+from pathlib import Path
+
+root = Path('/home/hram/kinbot-runs/ch3s_ch3ss_orbital_20261014_193525')
+manifest_path = root / '01_recon/reconnaissance.json'
+with (manifest_path.parent / '.reconnaissance.lock').open('r') as lock:
+    fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    manifest = json.loads(manifest_path.read_text())
+    jobs = manifest['jobs']
+    if not jobs or any(j['status'] != 'complete' for j in jobs):
+        raise SystemExit('CH3S is not fully complete; no archive created.')
+    paths = {manifest_path, Path(manifest['source'])}
+    paths.update((root / 'inputs/01').glob('*.json'))
+    for job in jobs:
+        directory = Path(job['directory'])
+        paths.add(directory / 'execution.json')
+        paths.update(p for p in directory.glob(job['name'] + '.*')
+                     if p.suffix in {'.inp', '.out', '.xml', '.molden',
+                                     '.stdout', '.stderr'})
+    paths = sorted(p for p in paths if p.is_file())
+    for path in paths:
+        path.resolve().relative_to(root.resolve())
+    with tempfile.NamedTemporaryFile(prefix='ch3s_tzf12_review_',
+                                    suffix='.tar.gz', dir=root.parent,
+                                    delete=False) as stream:
+        destination = Path(stream.name)
+        try:
+            with tarfile.open(fileobj=stream, mode='w:gz', dereference=True) as archive:
+                for path in paths:
+                    archive.add(path, arcname=str(path.relative_to(root)), recursive=False)
+        except BaseException:
+            destination.unlink(missing_ok=True)
+            raise
+print('Review archive:', destination)
+print('Completed probes:', len(jobs), 'Coverage status:', manifest['status'])
+for name, coverage in manifest.get('coverage', {}).items():
+    print(name, json.dumps({key: coverage.get(key) for key in (
+        'asymptote_plateau', 'suggested_midpoints_angstrom',
+        'suggested_far_distance_angstrom')}))
+PY
+BASH
+```
+
+Transfer the printed archive for review of all occupations, root energies,
+native CI/orbital tables and XML or legacy Molden coefficients. It is an
+evidence snapshot, not a new audit or approval. Start with the candidate
+CAS(5,4) versus the diagnostic CAS(13,8), retaining the three sulfur p
+components and the methyl radical orbital. Check the characters across the
+whole path and orientation probes; raw orbital indices or occupations alone
+cannot establish that selection. Preserve the three-doublet/three-quartet
+diagnostic average when isolating initialization differences. Choose production
+averages for the physically required states in each region, then compare spaces
+consistently within that model. The custom recon is a screening tool, not a
+published VRC-TST best-CAS selection algorithm; see the
+[literature basis and limits](CH3S_RECON_REVIEW_2026-10-15.md#literature-basis-and-limits).
+
+After character review, prepare a separate WFU copy with the intended orbital
+ordering, compare reduced/larger-space correlated interaction energies and
+gaps at representative and flagged geometries, then register the reviewed
+record using `molpro_reconnaissance select`. That command records a selection;
+it does not reorder orbitals or validate the proposed space chemically.
+
+## Performance check after reconnaissance
+
+Recon runs ROHF/AVAS followed by CASCI, not the production CASSCF plus
+CASPT2-F12b, MRCI-F12b+Q or ROHF-UCCSD(T)-F12b calculations. An F12 orbital
+basis name does not add an explicitly correlated calculation. Its short runtime
+therefore does not establish production throughput. Molpro describes these as
+[separate methods](https://www.molpro.net/manual/doku.php?id=explicitly_correlated_methods).
+
+After reviewing the TZ orbitals, use a small timing panel for each of the three
+channels: a near-region geometry, an interaction-region geometry, an off-axis
+interaction geometry, and the separated reference. Keep the reviewed active
+space, state average, selected roots, thresholds, CPU allocation, memory and
+scratch policy consistent with the intended production calculation.
+
+1. Time actual TZ-F12 CASPT2 sampling calls and each correction component,
+   including CASSCF initialization, both spins for each MR gap, and the CC
+   high-spin anchor. Record elapsed time, peak memory, scratch use, convergence
+   and retries. Include both initial and subsequent orbital starts. Estimate
+   total sampling cost using all required surfaces and samples; account
+   separately for the repeated energy calls in numerical-gradient paths.
+2. If TZ sampling is affordable, retain it and try a few QZ-F12 recon pilots
+   and correlated correction points. Review the QZ orbital subspaces before
+   using them. If their cost and accuracy benefit justify QZ production,
+   extend reconnaissance to QZ in a separate campaign, preserving the TZ
+   results. Do not launch a full QZ grid just to measure its cost.
+3. If TZ sampling is too costly, test DZ-F12 sampling with TZ-F12 corrections,
+   preparing and reviewing the needed DZ orbital records then. Compare
+   interaction energies relative to each basis's separated reference and
+   angular differences; a radial correction alone cannot establish that
+   angular sampling errors are negligible.
+
+Compare spin gaps and the corrected potential as well as timings. A short
+sampling/rate sensitivity check is needed before claiming negligible accuracy
+loss. QZ and CBS are not prerequisites: retain TZ corrections if the extra
+cost or the measured benefit does not justify QZ. No correlated timing or
+basis-convergence result has yet been supplied for this panel.
 
 ## Active spaces and remaining accuracy questions
 

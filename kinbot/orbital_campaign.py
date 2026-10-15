@@ -112,7 +112,7 @@ def preflight(root):
     return {'status': 'ready_for_native_pilots', 'setups': setups}
 
 
-def run(root, *, max_jobs=10, max_refinements=3, pilot_only=False):
+def run(root, *, max_jobs=10, max_refinements=0, pilot_only=False):
     root = Path(root).expanduser().resolve()
     if isinstance(max_jobs, bool) or not isinstance(max_jobs, int) or max_jobs < 1:
         raise ValueError('max_jobs must be positive.')
@@ -203,7 +203,8 @@ def collect(root, destination):
         raise ValueError('Collection archive must be outside the campaign tree.')
     with _lock(root):
         data = json.loads((root / 'campaign.json').read_text())
-        paths = {root / 'campaign.json'}
+        paths = {root / 'campaign.json', root / 'review_plan.json', root / 'review_index.json'}
+        paths.update(root.glob('review_report*.json'))
         for record in data['systems']:
             paths.update(Path(record['configuration']).parent.glob('*.json'))
             for key in ('pilot_manifest', 'manifest'):
@@ -340,7 +341,7 @@ def main(argv=None):
     drive = commands.add_parser('run')
     drive.add_argument('root')
     drive.add_argument('--max-jobs', type=int, default=10)
-    drive.add_argument('--max-refinements', type=int, default=3)
+    drive.add_argument('--max-refinements', type=int, default=0)
     drive.add_argument('--pilot-only', action='store_true')
     report = commands.add_parser('progress')
     report.add_argument('root')

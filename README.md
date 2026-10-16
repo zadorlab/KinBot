@@ -226,7 +226,6 @@ differences with Sella/BFGS. Gaussian also supports `native_hessian` after Sella
 Q-Chem profiles require `optimizer: "native"` and use Q-Chem Hessians.
 Sella/BFGS with Q-Chem is rejected because those workers do not yet request
 force-only calculations. Ordinary inputs without profiles are unchanged.
-NWChem profiles are rejected because their calculation workers are not supported.
 Q-Chem can optimize ordinary conformers, but it cannot prepare ring conformers.
 For calculations that need ring preparation, select Gaussian or FairChem at L0;
 Q-Chem can still supply L1 or L2. An attempted Q-Chem ring preparation stops with

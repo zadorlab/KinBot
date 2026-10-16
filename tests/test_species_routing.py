@@ -181,7 +181,7 @@ class TestSpeciesRouting(unittest.TestCase):
         self.assertIs(candidates[1], self.a)
 
     def test_backend_writers_and_conformer_readers_use_the_same_namespace(self):
-        for backend in ('gauss', 'qchem', 'nwchem', 'fc', 'orca'):
+        for backend in ('gauss', 'qchem', 'fc', 'orca'):
             par = dict(self.par, qc=backend, use_sella=int(backend != 'gauss'))
             qc = QuantumChemistry(par)
             qc.submit_qc = Mock()

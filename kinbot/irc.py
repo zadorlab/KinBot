@@ -147,11 +147,6 @@ class IRC:
                     copyfile(instance_name + '.chk', irc_name + '.chk')
                 else:
                     start_from_geometry = 1
-            elif self.qc.qc == 'nwchem':
-                code = 'nwchem'  # Sella
-                Code = 'NWChem'  # Sella
-                if direction == 'Reverse':
-                    direction = 'Backward'
             elif self.qc.qc == 'qchem':
                 code = 'qchem'  # Sella
                 Code = 'QChem'  # Sella

@@ -28,13 +28,11 @@ _QC_NAMES = {
     'fairchem': 'fc',
     'gaussian': 'gauss',
     'qchem': 'qchem',
-    'nwchem': 'nwchem',
     'orca': 'orca',
 }
 _DEFAULT_COMMANDS = {
     'gaussian': 'g16',
     'qchem': 'qchem',
-    'nwchem': 'nwchem',
     'orca': 'orca',
 }
 

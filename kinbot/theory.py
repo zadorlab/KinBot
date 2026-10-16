@@ -162,12 +162,9 @@ def resolve_profiles(par):
         if values['calculator'] == 'fairchem':
             values['method'], values['basis'] = '', ''
         profile = TheoryProfile.from_dict(level, values)
-        if profile.calculator == 'nwchem':
-            raise ValueError(f'{context}: NWChem calculation workers are not '
-                             'supported by the profile workflow. Select Gaussian, '
-                             'FairChem, or Q-Chem with optimizer=native instead.')
         if profile.calculator not in ('gaussian', 'qchem', 'orca', 'fairchem'):
-            raise ValueError(f'{context} has unsupported calculator {profile.calculator!r}.')
+            raise ValueError(f'{context} has unsupported calculator {profile.calculator!r}; '
+                             'select gaussian, qchem, orca or fairchem.')
         if profile.calculator == 'qchem' and profile.optimizer != 'native':
             raise ValueError(f'{context} Q-Chem requires optimizer=native; '
                              'its Sella/BFGS workers do not support force-only calculations.')

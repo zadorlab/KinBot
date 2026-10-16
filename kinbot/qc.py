@@ -1736,8 +1736,10 @@ class QuantumChemistry:
                     log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
-                if (self.theory_level is not None and self.use_sella
-                        and '_freq_recovery_' not in job and not job.startswith('vrctst/')):
+                # The Sella templates stamp 'done' in {job}_sella.log, the
+                # other templates in the QC program's output. With use_sella both
+                # kinds of job run, so take the Sella log when it is there.
+                if getattr(self, 'use_sella', False) and os.path.exists(job + '_sella.log'):
                     log_file = job + '_sella.log'
                 if self.qc != 'nn_pes':
                     log_file_exists = os.path.exists(log_file)

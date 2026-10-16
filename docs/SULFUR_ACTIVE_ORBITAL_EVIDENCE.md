@@ -120,6 +120,26 @@ CH3S pair and four on atomic sulfur. Both CH3S electronic components and all
 three sulfur components are retained: six spatial roots per coupled spin,
 not six degenerate states of atomic sulfur alone.
 
+The reason for retaining the bound-sulfur pair is the two-component CH3S
+ground electronic manifold, not a rule to include every lone pair. At C3v
+the ground term is 2E; its spin-free components split when the symmetry is
+lowered. The two sulfur-dominated orbitals support the complementary
+three-electron arrangements `(2,1)` and `(1,2)`, and their mixtures. Calling
+one a lone pair and the other the radical orbital describes one component,
+not a permanent chemical distinction between them. Equal component averaging
+explains the approximately `(1.5,1.5)` occupations. The 2E/Jahn–Teller framework
+is supported by the primary study
+[Jahn–Teller Effect versus Spin–Orbit Coupling in X2E CH3S](https://doi.org/10.1021/jp040443f);
+assigning the native indices is based on our retained coefficients.
+
+Freezing one of these two orbitals doubly occupied would remove the other
+hole configuration from a common CAS reference. A single-component model
+could describe a restricted geometry/state, but would not retain the complete
+fragment manifold used for these angular and state-averaged calculations.
+The deeper sulfur 3s lone pair is a different orbital and remains inactive.
+This is the chemical reason for CAS(7,5) rather than a CAS(5,4) made from
+atomic S 3p plus only one CH3S radical orbital.
+
 The confirmed far occupations are `(1.50000, 1.50000, 1.33333, 1.33333,
 1.33333)` in both bases. At the aTZ center they are `(1.52827, 1.50110,
 1.33332, 1.33221, 1.30511)`; at the inner point `(1.71816, 1.63491,
@@ -134,6 +154,20 @@ and 0.316 kcal/mol, respectively. Thus the evidence does not establish
 uniform sub-0.1 kcal/mol agreement over every diagnostic quantity. It
 supports the minimum space for the specified corrected-VRC construction;
 absolute equality to the larger CAS is not its selection criterion.
+
+For the user's factor-of-two kinetics target, the present evidence does not
+require promotion to CAS(9,7). Retain (7,5) pending the native MRCI audit and
+production rate checks. As an energy-scale comparison only, a uniform change
+in activation free energy corresponding to a factor of two is `RT ln(2)`:
+0.413 kcal/mol at 300 K, 1.377 at 1000 K, and 2.755 at 2000 K. The observed
+angular residuals are smaller than these scales, but they are not measured
+activation-free-energy errors. VRC rates depend on angular phase space,
+variational bottlenecks and electronic-state treatment, and the full workflow
+has additional thermochemical/master-equation uncertainties. No factor-of-two
+rate bound follows from the sparse electronic comparisons, and choosing
+(9,7) would not establish such a bound either. If a production sensitivity
+check is needed, compare the corrected potentials/rates in the geometries
+that control the flux before deciding whether a larger sampling CAS is useful.
 
 ## Continuity, states, and reproducibility
 

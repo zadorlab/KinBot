@@ -304,17 +304,11 @@ class Conformers:
                         self.info = False
 
                     # skipping generation if done
-                    if self.cyc_conf > 1:
-                        nrandconf = int(round(self.nconfs / self.cyc_conf) + 2)
-                    else:
-                        nrandconf = self.nconfs
-                    if (os.path.exists(self.get_job_name(nrandconf - 1) + self.log_ext(self.get_job_name(nrandconf - 1)))
-                            and os.path.exists(self.low_log())):
-                        rows = self.db.select(name=self.get_job_name(nrandconf - 1))
-                        for row in rows:
-                            self.conf = nrandconf
-                            logger.debug('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
-                            return 1
+                    completed = self.completed_conformers()
+                    if completed:
+                        self.conf = completed
+                        logger.debug('\t{} finished conformers found in kinbot.db, generation is skipped for {}.'.format(completed, name))
+                        return 1
 
                 self.generate_conformers_random_sampling(cart)
                 return 0
@@ -328,15 +322,13 @@ class Conformers:
             return 0
 
         # skipping generation if done
-        if (os.path.exists(self.get_job_name(theoretical_confs - 1) + self.log_ext(self.get_job_name(theoretical_confs - 1)))
-                and os.path.exists(self.low_log())):
-            rows = self.db.select(name=self.get_job_name(theoretical_confs - 1))
-            for row in rows:
-                self.conf = theoretical_confs
-                if print_warning:
-                    logger.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
-                    logger.info('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
-                return 1
+        completed = self.completed_conformers()
+        if completed:
+            self.conf = completed
+            if print_warning:
+                logger.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                logger.info('\t{} finished conformers found in kinbot.db, generation is skipped for {}.'.format(completed, name))
+            return 1
 
         cart = np.asarray(cart)
         zmat_atom, zmat_ref, zmat, zmatorder = zmatrix.make_zmat_from_cart(self.species, rotor, cart, 1)
@@ -663,10 +655,10 @@ class Conformers:
             geom (_type_): cartesian geometry of the lowest energy point along all hir
         """
         self.qc.qc_conf(self.species, geom, self.conf, semi_emp=self.semi_emp)
-        low = self.low_log()
-        if os.path.exists(low):
-            logger.debug(f'Removing file {low}')
-            os.remove(low)
+        for low in (self.low_log(), self.low_vib()):
+            if os.path.exists(low):
+                logger.debug(f'Removing file {low}')
+                os.remove(low)
         self.conf += 1
 
 
@@ -868,14 +860,39 @@ class Conformers:
         job = self.get_job_name(0, add='semi_emp_' if self.semi_emp else '')
         return f'conf/{self.get_name()}_low{self.log_ext(job)}'
 
+    def completed_conformers(self):
+        """Number of conformers of a finished search, or 0 if it did not finish.
+
+        conf/<name>_low<ext> is written only after every conformer was checked,
+        so the consecutive conformer jobs in kinbot.db are the complete search
+        whatever the number of starting geometries (ring conformers) or random
+        samples was.
+        """
+        if not os.path.exists(self.low_log()):
+            return 0
+        add = 'semi_emp_' if self.semi_emp else ''
+        count = 0
+        while self.db.count(name=self.get_job_name(count, add=add)):
+            count += 1
+        return count
+
     def copy_low_log(self, lowest_job):
-        """Copy the selected conformer's output to conf/<name>_low<ext>."""
+        """Copy the selected conformer's outputs to conf/<name>_low<ext>.
+
+        For a saddle point the imaginary mode of a Sella job is in
+        <job>_vib.xyz, which the L2 comparison reads from the _low copy.
+        """
         source = lowest_job + self.log_ext(lowest_job)
         if os.path.isfile(source):
             copyfile(source, self.low_log())
         else:
             logger.warning('%s is missing; %s not written, so a restart will '
                            'check every conformer again.', source, self.low_log())
+        if os.path.isfile(lowest_job + '_vib.xyz'):
+            copyfile(lowest_job + '_vib.xyz', self.low_vib())
+
+    def low_vib(self):
+        return f'conf/{self.get_name()}_low_vib.xyz'
 
     def get_job_name(self, idx, cyc=0, add=''):
         name = str(self.get_name())

@@ -521,6 +521,9 @@ class Parameters:
             print('B3LYP is not recommended as L1 for bimolecular reactions.')
             print('Choose for instance M06-2X.')
 
+        if self.par['qc'] == 'nn_pes':
+            raise ValueError('The nn_pes calculator was removed; use qc "fc" (FairChem/UMA) instead.')
+
         if self.par['bimol'] and len(self.par['structure']) != 2:
             err = 'For bimolecular reactions two fragments need to be defined.'
 

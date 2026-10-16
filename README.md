@@ -229,8 +229,10 @@ request vibrational perturbation theory or anharmonic corrections.
 For a continuation that must not submit any new L1 jobs, set
 `profiled_l1_reuse_only: 1` (default 0) and retain the original theory profiles.
 Completed L1 results remain available; running jobs are awaited and failed
-jobs retain their error status. A missing or incomplete L1 result stops the
-continuation with its job name. L0 and L2 submissions remain enabled. This
+jobs retain their error status. A missing or incomplete L1 result during a
+reaction search marks that reaction as failed and logs the missing job.
+Other reactions continue, and the skipped reaction's files are kept. A missing
+initial reactant result still stops the run. L0 and L2 submissions remain enabled. This
 option requires profiles and does not convert an unrecorded run to profiles.
 
 Each generated worker uses its assigned model, command and calculator keywords.
@@ -250,6 +252,8 @@ they do not add method tracking to older calculations made without profiles.
 The comparison also includes ORCA's `orcasimpleinput` and `orcablocks`, the
 NNPES `nn_model`, Gaussian integration-grid and electronic-guess settings,
 and the existing scan-method settings used by the selected calculator.
+Scan and barrierless-saddle method changes require a fresh directory even
+when no corresponding job has been recorded.
 Records from earlier versions that omitted these settings are rejected even
 with unchanged input, because they cannot establish how the saved energies
 were calculated. Keep those results unchanged and use a fresh directory for

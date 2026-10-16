@@ -38,7 +38,10 @@ Each KinBot and PES run starts its log with the KinBot and RDKit versions.
   selects that optimizer; Sella/BFGS is rejected before a worker can request an
   internal Q-Chem optimization in place of a force evaluation.
 - Accept `profiled_l1_reuse_only: 1` for continuations that must not submit
-  replacement L1 jobs. Report missing L1 results; keep L0 and L2 enabled.
+  replacement L1 jobs. A missing or incomplete L1 result during a reaction
+  search now fails only that reaction, with its job name in the log. Keep its
+  files and continue other reactions. A missing initial reactant result still
+  stops the run. L0 and L2 remain enabled.
 - Refuse unsupported optimizer combinations before submission. ORCA, FairChem
   and NNPES require Sella or BFGS. Errors identify settings inherited from the
   main input when no profile was supplied for the affected level.

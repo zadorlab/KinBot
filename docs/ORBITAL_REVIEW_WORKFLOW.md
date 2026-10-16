@@ -452,12 +452,24 @@ they do not infer physical root identities or certify unsampled smoothness.
    does **not** enable XMS-CASPT2 or guarantee rotational/fragment invariance.
    Test its asymptotes and interaction potentials independently. The same
    explicit policy is retained through selection into production.
+   `correlation_options.state_policy` accepts `independent` (unchanged default)
+   or `simultaneous`. The latter requires MRCI and `reference_policy="state_average"`;
+   all declared same-spin roots are calculated together with matching STATE,
+   REFSTATE and NSTATI. REFSTATE alone does not prevent separately optimized
+   roots from reaching the same solution. Explicit NOSWAP gives variational
+   MRCI energy order; selected root i reads relaxed-Davidson `ENERGD(i)` and
+   uses the matching numerical-gradient slot. This is correlated eigenstate
+   rank, not guaranteed continuity of a CASSCF root's character through a crossing.
+   Recon records that convention and computes one common call per spin.
+   Validate the native spectrum and root character before production.
+   Use separate stage models: this MRCI-only policy is rejected for CASPT2.
    For MRCI-F12 only, `correlation_options.cabs_singles` accepts integer 1
    (singles CI, unchanged default), 2 (perturbational), or 3 (coupled).
    This is a method choice requiring consistent reference curves and matched
    relative-energy checks, not an automatic I/O retry or numerical override.
    It is rejected for CASPT2 and non-F12 MRCI. The relaxed-Davidson selector
-   still reads the final `ENERGD(1)` after the entire command completes.
+   still reads the final `ENERGD(1)` for an independent call, or the requested
+   `ENERGD(i)` for simultaneous roots, after the entire command completes.
    An optional `{"method":"uccsd(t)-f12b","multiplicity":4}` check supplies
    a separate, explicitly requested ground-state spin anchor. The value 4 is
    only an example. Such checks must follow the MR checks; they run a new
@@ -628,7 +640,7 @@ The scientific JSON already provides these controls when preparing a new panel:
 | Recon input `scf_options` | `solver`, `max_iterations` |
 | Recon input `scf_convergence` | SCF energy threshold, independent of CI coefficients |
 | Recon input `casscf_options` | `solver`, `max_iterations`, `exact_diagonalization`, `quasi_newton`, `energy_convergence`, `gradient_convergence`, `verbosity` |
-| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `max_external_vectors`, `energy_convergence`, `coefficient_convergence`, `reference_policy`, MRCI-F12-only `cabs_singles` |
+| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `max_external_vectors`, `energy_convergence`, `coefficient_convergence`, `reference_policy`, MRCI `state_policy`, MRCI-F12-only `cabs_singles` |
 | Each recon `correlation_checks` entry | `method`, `shift`, `ipea`, optional `reference_policy` |
 | Recon input resources | `ppn`, `memory_mw` per Molpro rank, `memory_mb` per node, `partition`, `walltime`, `scratch_min_mb` |
 | Partition recipe model | `casscf_options`, `correlation_options` |

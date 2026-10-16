@@ -1,0 +1,867 @@
+{
+  "cabs3": [
+    {
+      "chain": "ch3s_cs_atz_mrci_cabs3_gate",
+      "energy_selector_checks": [
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -437.44426647,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -437.44426647,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -437.44426647,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -437.44426647,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -437.44426642,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -437.44426642,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -437.44420258,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -437.44420258,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -437.44420258,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -437.44420258,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -437.44420253,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -437.44420253,
+          "separate_cabs_correction": null
+        }
+      ],
+      "native_alerts": [],
+      "output_sha256": "e7a6fc64dbcb75cff2c2583c05045b2eea591e61638c18a9e743537cbc7674b7",
+      "roots": 6,
+      "same_component_D_minus_Q_kcal": [
+        -0.040091580284417616,
+        -0.040091580284417616,
+        -0.0400915803200874
+      ],
+      "sulfur_component_spans_kcal": [
+        3.137546292300438e-05,
+        3.1375498592788255e-05
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_atz_mrci_cabs3_gate",
+      "energy_selector_checks": [
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.22056256,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.22056256,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.22056239,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.22056239,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.22056219,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.22056219,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.21859396,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.21859396,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.21859381,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.21859381,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.21859356,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.21859356,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.22043382,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.22043382,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.22043365,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.22043365,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.22043345,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.22043345,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.21846533,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.21846533,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.21846519,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.21846519,
+          "separate_cabs_correction": null
+        },
+        {
+          "cabs_singles": 3,
+          "identity": "coupled_relaxed_davidson",
+          "printed_relaxed_davidson": -835.21846494,
+          "rounding_residual_hartree": 0.0,
+          "selected_energy": -835.21846494,
+          "separate_cabs_correction": null
+        }
+      ],
+      "native_alerts": [],
+      "output_sha256": "776c81985981c15da894444183fdf80f9337d096568ef3a1d24ab9245e5188a8",
+      "roots": 12,
+      "same_component_D_minus_Q_kcal": [
+        -0.0807855696424398,
+        -0.08078556971377937,
+        -0.08078556971377937,
+        -0.08071654368821479,
+        -0.08071026858849624,
+        -0.08071026858849624
+      ],
+      "sulfur_component_spans_kcal": [
+        0.00023217847556792986,
+        0.0002510037747236028,
+        0.0002321785469074976,
+        0.0002447286750050452
+      ]
+    }
+  ],
+  "caspt2": [
+    {
+      "active_labels": [
+        "11.1",
+        "12.1",
+        "13.1",
+        "14.1"
+      ],
+      "chain": "ch3s_cs_adz_caspt2_shared_reference",
+      "far_fragment_gaps_kcal": [],
+      "far_sulfur_component_spans_kcal": [
+        3.1375498592788255e-05,
+        3.137546292300438e-05
+      ],
+      "points": [
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": 0.0,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.005227153927863594,
+          "name": "adz__far",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "bb8d7692aa72b4b8a4356c3b4bf5b60656d63ef18b15740e258361a1a309e550",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 30.69
+        },
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": -9.545743145485705,
+          "lowest_doublet_minus_lowest_quartet_kcal": -11.261667802330672,
+          "name": "adz__center",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "76e177958fcc1a43cd1accd5e5c66960282e5772f3d97b3d4abd58e5970d762a",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 23.96
+        },
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": -54.44392678787845,
+          "lowest_doublet_minus_lowest_quartet_kcal": -107.80559426096869,
+          "name": "adz__inner",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "b7d6beca2d416a49749d8308e44b99bfdb72d4562ee219f72378f867a4a7b63a",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 33.68
+        },
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": -9.545743145485705,
+          "lowest_doublet_minus_lowest_quartet_kcal": -11.261667802330672,
+          "name": "adz__return",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "5fd3e2ed41217bf824b87a40eeb5f2e4bcd7ea84d23d223b5a126b330a0f4c0d",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 26.63
+        },
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": -7.882008451623033,
+          "lowest_doublet_minus_lowest_quartet_kcal": -10.096865891298597,
+          "name": "adz__tilted",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "cfea11cd71f8a67d79c0770bbe1deed1d2383d6bffeb2be202c42bc82ed3fbdf",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 26.68
+        }
+      ],
+      "return_check": {
+        "active_absolute_overlap": [
+          [
+            0.9999999999999988,
+            9.225018034501946e-10,
+            4.1742776771067764e-10,
+            1.4667382079724955e-08
+          ],
+          [
+            7.341872127614169e-10,
+            0.3767036907492188,
+            0.9263338109860372,
+            4.2478488998867747e-10
+          ],
+          [
+            6.972980040598209e-10,
+            0.9263338109860383,
+            0.37670369074921844,
+            3.642189674857299e-10
+          ],
+          [
+            1.4667379570095082e-08,
+            4.974072190298576e-10,
+            2.562902858078346e-10,
+            0.9999999999999963
+          ]
+        ],
+        "active_singular_values": [
+          1.0000000000000002,
+          0.9999999999999991,
+          0.9999999999999988,
+          0.9999999999999968
+        ],
+        "chain": "ch3s_cs_adz_caspt2_shared_reference",
+        "definition": "Same-geometry MO expansion; assumes native MO normalization",
+        "max_casscf_difference_kcal": 6.275099718557651e-06,
+        "max_correlated_difference_kcal": 6.275099718557651e-06,
+        "reconstruction_max_error": 3.907985046680551e-14,
+        "unitarity_max_error": 1.015754262527466e-13
+      }
+    },
+    {
+      "active_labels": [
+        "11.1",
+        "12.1",
+        "13.1",
+        "14.1"
+      ],
+      "chain": "ch3s_cs_atz_caspt2_shared_reference",
+      "far_fragment_gaps_kcal": [],
+      "far_sulfur_component_spans_kcal": [
+        2.5100363204446733e-05,
+        2.5100363204446733e-05
+      ],
+      "points": [
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": 0.0,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.005346380715506838,
+          "name": "atz__far",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "0fd0c3b03decc4ab401fd889fe7ea51debb1a8e3549b4ce79bb3ba5d76777493",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 67.14
+        },
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": -9.520278811052567,
+          "lowest_doublet_minus_lowest_quartet_kcal": -11.294580674244227,
+          "name": "atz__center",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "bbadbddafd89a296317a18b7926304c6cc96856cb91e949e0bf53ce4fbb60c92",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 84.69
+        },
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": -54.59410235524157,
+          "lowest_doublet_minus_lowest_quartet_kcal": -107.79347077794327,
+          "name": "atz__inner",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "61ed9f7f16e21fa0f2f62230106d6d7e9d9465d8d7a9204794dc9f8ab8e99c4e",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 88.51
+        },
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": -9.520285086116616,
+          "lowest_doublet_minus_lowest_quartet_kcal": -11.294586949308275,
+          "name": "atz__return",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "b7a66c128b498a4cf37bf1e6c7727de78bdf9ed4534e81986b6d6a9d2353a7c8",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 74.46
+        },
+        {
+          "frozen_core_counts": [
+            6
+          ],
+          "lowest_doublet_interaction_kcal": -7.86615756232539,
+          "lowest_doublet_minus_lowest_quartet_kcal": -10.042874976159538,
+          "name": "atz__tilted",
+          "native_reference_weights": [
+            "0.333333  0.333333  0.333333"
+          ],
+          "output_sha256": "d8c7dd116af76ed146b6b1d4b5978e0acdb5b847815e440f6fc46fa9ebef47d0",
+          "reference_counts": [
+            3
+          ],
+          "wall_seconds": 81.05
+        }
+      ],
+      "return_check": {
+        "active_absolute_overlap": [
+          [
+            0.9999999999999863,
+            6.32383024255518e-10,
+            5.019300458052631e-10,
+            8.709739105286496e-09
+          ],
+          [
+            6.845639307154205e-10,
+            0.3345416336309308,
+            0.9423809714587503,
+            3.545188552445122e-10
+          ],
+          [
+            4.280345279605857e-10,
+            0.942380971458751,
+            0.33454163363092415,
+            3.304754647021069e-11
+          ],
+          [
+            8.709751837939969e-09,
+            8.745321090561364e-11,
+            3.4512143837206466e-10,
+            1.0000000000000018
+          ]
+        ],
+        "active_singular_values": [
+          1.0000000000000073,
+          0.9999999999999962,
+          0.9999999999999868,
+          0.9999999999999863
+        ],
+        "chain": "ch3s_cs_atz_caspt2_shared_reference",
+        "definition": "Same-geometry MO expansion; assumes native MO normalization",
+        "max_casscf_difference_kcal": 0.0,
+        "max_correlated_difference_kcal": 6.275099718557651e-06,
+        "reconstruction_max_error": 3.3718249040784016e-13,
+        "unitarity_max_error": 1.87391281157543e-13
+      }
+    },
+    {
+      "active_labels": [
+        "18.1",
+        "19.1",
+        "20.1",
+        "21.1",
+        "22.1"
+      ],
+      "chain": "ch3ss_ss_adz_caspt2_shared_reference",
+      "far_fragment_gaps_kcal": [
+        1.2997896573852006,
+        1.299724814783228
+      ],
+      "far_sulfur_component_spans_kcal": [
+        0.00026982907387927577,
+        0.0002886543730349487,
+        0.00026982907387927577,
+        0.0002886543730349487
+      ],
+      "points": [
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": 0.0,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.003432476835147461,
+          "name": "adz__far",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "14705eb0d3254b4cf6faa15b1a00d8c3ac5c33ce2668e7514ace7413a0597c94",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 211.65
+        },
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": -2.9515347369570075,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.8722067935297927,
+          "name": "adz__center",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "28d72ada88a52b02e5146f9990818b5e8beae77eb55f01c5b4ef723ed2295368",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 211.49
+        },
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": -72.66761767699792,
+          "lowest_doublet_minus_lowest_quartet_kcal": -76.23172088741568,
+          "name": "adz__inner",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "dc706b29134d99f70c4235a7d45a2c0415b75cfdeff89da1be19691fbefb3ffa",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 208.79
+        },
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": -2.9515410119853867,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.8722067934584532,
+          "name": "adz__return",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "61e57b30749ac8f55068c71466aa209ef24dcef057ec4e566c4ee48e8519ac10",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 204.49
+        },
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": -2.7863679682442983,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.7731920735441961,
+          "name": "adz__tilted",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "e1d3086945900aa497090c01f0c72d6f9d0740ad350024ef112daea8d47fe4c8",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 204.89
+        }
+      ],
+      "return_check": {
+        "active_absolute_overlap": [
+          [
+            0.9999999999999478,
+            1.2575857445250999e-09,
+            1.9819594316433653e-08,
+            7.276678065713891e-10,
+            6.462402541915213e-09
+          ],
+          [
+            1.2575804286818482e-09,
+            0.9999999999999942,
+            3.2301123928379916e-10,
+            3.839491497225353e-09,
+            1.806062010015208e-10
+          ],
+          [
+            1.981959423490165e-08,
+            3.230123070060986e-10,
+            0.9999999999999972,
+            4.1410741557839845e-09,
+            4.9234368958497865e-08
+          ],
+          [
+            7.276670039094157e-10,
+            3.839488416437775e-09,
+            4.141075933550287e-09,
+            0.999999999999999,
+            3.1746761504358734e-09
+          ],
+          [
+            6.462440345009202e-09,
+            1.8060728607105503e-10,
+            4.923436581170948e-08,
+            3.1746765810809763e-09,
+            0.9999999999999888
+          ]
+        ],
+        "active_singular_values": [
+          0.9999999999999993,
+          0.9999999999999991,
+          0.9999999999999974,
+          0.9999999999999937,
+          0.9999999999999403
+        ],
+        "chain": "ch3ss_ss_adz_caspt2_shared_reference",
+        "definition": "Same-geometry MO expansion; assumes native MO normalization",
+        "max_casscf_difference_kcal": 0.0,
+        "max_correlated_difference_kcal": 1.2550199437115302e-05,
+        "reconstruction_max_error": 7.223156136067632e-14,
+        "unitarity_max_error": 6.100273119416351e-14
+      }
+    },
+    {
+      "active_labels": [
+        "18.1",
+        "19.1",
+        "20.1",
+        "21.1",
+        "22.1"
+      ],
+      "chain": "ch3ss_ss_atz_caspt2_shared_reference",
+      "far_fragment_gaps_kcal": [
+        1.2857355368920698,
+        1.2856686025426316
+      ],
+      "far_sulfur_component_spans_kcal": [
+        0.0002447287463446129,
+        0.0002510037747236028,
+        0.0002447286750050452,
+        0.00025727887444216044
+      ],
+      "points": [
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": 0.0,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.003476402533177364,
+          "name": "atz__far",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "7b279d67567f5bc2f3e9668842d7e149d5f9ae1b83fdad3d4c07b4f2ee3075ab",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 533.32
+        },
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": -2.94850386614715,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.980784757781798,
+          "name": "atz__center",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "a72949e9c0561d892bf50ed0618547a4d683c8501598d1768d9129e728a6f7d8",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 558.67
+        },
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": -74.60992892679192,
+          "lowest_doublet_minus_lowest_quartet_kcal": -76.92964947464671,
+          "name": "atz__inner",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "cd6e7a11afdb181cd9bd948fc8e8d9f8464995eda7bde297af42be400c6ff6b9",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 563.81
+        },
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": -2.9485101412468686,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.980784757781798,
+          "name": "atz__return",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "7af3c6700b3c0e885b62c2abb20c02890c992a314baa8afb4b0494d1a35dc0e9",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 678.98
+        },
+        {
+          "frozen_core_counts": [
+            11
+          ],
+          "lowest_doublet_interaction_kcal": -2.789235686532813,
+          "lowest_doublet_minus_lowest_quartet_kcal": -0.8749552849949944,
+          "name": "atz__tilted",
+          "native_reference_weights": [
+            "0.166667  0.166667  0.166667  0.166667  0.166667  0.166667"
+          ],
+          "output_sha256": "d6bf240326f55814c32ece669f63f4330db631127d4523e79d4c8c59bfaefa5a",
+          "reference_counts": [
+            6
+          ],
+          "wall_seconds": 692.12
+        }
+      ],
+      "return_check": {
+        "active_absolute_overlap": [
+          [
+            0.9999999999999623,
+            4.308033025392276e-09,
+            3.192679540143725e-08,
+            1.1620818847132841e-09,
+            2.19561005334126e-08
+          ],
+          [
+            4.308045786858422e-09,
+            0.9999999999999835,
+            1.0091100161968396e-09,
+            2.228979970825902e-09,
+            1.5456814521884465e-09
+          ],
+          [
+            3.19267874616079e-08,
+            1.0091264182783555e-09,
+            0.9999999999999958,
+            1.1181976020417563e-08,
+            7.493437577865344e-08
+          ],
+          [
+            1.1620801786127455e-09,
+            2.228979015250765e-09,
+            1.1181977924656049e-08,
+            1.0000000000000029,
+            4.994404185793694e-09
+          ],
+          [
+            2.1956141132420046e-08,
+            1.5456726157239004e-09,
+            7.493438086985e-08,
+            4.994404059240195e-09,
+            0.9999999999999866
+          ]
+        ],
+        "active_singular_values": [
+          1.0000000000000027,
+          1.0000000000000024,
+          0.9999999999999957,
+          0.9999999999999883,
+          0.9999999999999497
+        ],
+        "chain": "ch3ss_ss_atz_caspt2_shared_reference",
+        "definition": "Same-geometry MO expansion; assumes native MO normalization",
+        "max_casscf_difference_kcal": 0.0,
+        "max_correlated_difference_kcal": 0.0019076288163106033,
+        "reconstruction_max_error": 2.0654983799717197e-13,
+        "unitarity_max_error": 2.597266894085662e-13
+      }
+    }
+  ],
+  "gate_complete_points": 2,
+  "gates_verified_files": 58,
+  "mrci_root_collapse": {
+    "calls": [
+      {
+        "dipole_au": [
+          -0.27843455,
+          -0.00599403,
+          -0.00050563
+        ],
+        "initial_internal_energy_hartree": -437.0850618,
+        "iterations": 9,
+        "variational_hartree": -437.416293893695
+      },
+      {
+        "dipole_au": [
+          -0.27468053,
+          -0.00785742,
+          0.00367059
+        ],
+        "initial_internal_energy_hartree": -437.08506591,
+        "iterations": 20,
+        "variational_hartree": -437.416361952422
+      },
+      {
+        "dipole_au": [
+          -0.27467631,
+          -0.00784734,
+          0.0036549
+        ],
+        "initial_internal_energy_hartree": -437.06788916,
+        "iterations": 23,
+        "variational_hartree": -437.416361952497
+      },
+      {
+        "dipole_au": [
+          -0.03953868,
+          0.01780972,
+          -0.02430947
+        ],
+        "initial_internal_energy_hartree": -437.07053133,
+        "iterations": 14,
+        "variational_hartree": -437.400882693972
+      },
+      {
+        "dipole_au": [
+          -0.0558361,
+          0.01057367,
+          -0.01517238
+        ],
+        "initial_internal_energy_hartree": -437.07187806,
+        "iterations": 8,
+        "variational_hartree": -437.400679591416
+      },
+      {
+        "dipole_au": [
+          -0.03953761,
+          0.01776849,
+          -0.02434222
+        ],
+        "initial_internal_energy_hartree": -437.07149204,
+        "iterations": 14,
+        "variational_hartree": -437.400882714922
+      }
+    ],
+    "duplicate_pairs": [
+      {
+        "calls": [
+          2,
+          3
+        ],
+        "dipole_max_component_difference_au": 1.569000000000006e-05,
+        "initial_internal_energy_separation_hartree": 0.017176750000032825,
+        "native_variational_difference_hartree": -7.503331289626658e-11
+      },
+      {
+        "calls": [
+          4,
+          6
+        ],
+        "dipole_max_component_difference_au": 4.122999999999974e-05,
+        "initial_internal_energy_separation_hartree": -0.0009607100000152968,
+        "native_variational_difference_hartree": -2.094998308166396e-08
+      }
+    ],
+    "interpretation": "Separate requested roots reach effectively duplicate variational energies and dipoles after distinct initial energies. Numerical convergence does not establish distinct eigenstates; simultaneous same-spin roots are required for the next native check.",
+    "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_atz_mrci_maxdav20/atz__tilted/atz__tilted.out",
+    "output_sha256": "a8d2c229a3877deb88da958631c40b52c68849fc14c5f9c2a863a30afc611e44"
+  },
+  "production_ready": false,
+  "recovery_complete_points": 21,
+  "recovery_verified_files": 539,
+  "remaining": [
+    "Simultaneous MRCI roots at the interacting geometries, with native state/energy checks.",
+    "Consistent CABS3 far/center/tilted interactions and matched CABS1 tilted control.",
+    "Install accepted basis-specific models in production JSON, then user-run end-to-end checks."
+  ],
+  "schema": 1
+}

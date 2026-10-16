@@ -1,27 +1,23 @@
 # Minimal native transfer confirmation
 
-**Current result: 35/39 original points validated; targeted recovery and
-shared-reference CASPT2 confirmation are running. Both CABS=2 asymptote trials
-failed after converged MRCI.** Start with
-[the current handoff](../../../../MOLPRO_CONFIRMATION_HANDOFF.md) and
-[the evidence/resolution record](../../../../docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
-Use `probe_cabs3_on_blodgett.sh` for the two isolated coupled-CABS tests;
-leave the running recovery alone. Do not rerun the historical full-restart
-or recovery-launch commands. The catalogue
-currently proposes (5,4), (7,5), (7,5) for CH3S C–S, CH3SS C–S and CH3SS S–S.
-All local minimum-space inward/return checks are complete. These files do
-not install or approve a production orbital/surface model.
+**Current result:** 20 shared-reference CASPT2 recovery points and both CABS=3
+asymptote gates pass independent native review. The tilted MAXDAV20 MRCI retry
+completed numerically but contains duplicate-root evidence. The new seven-point
+MRCI-only supplement uses simultaneous same-spin roots and matched CABS=3
+far/center/tilted energies. Start with the
+[current handoff](../../../../MOLPRO_CONFIRMATION_HANDOFF.md) and
+[native review](../../../../docs/MOLPRO_RECOVERY_REVIEW_2026-10-16.md).
+Run `resolve_mrci_on_blodgett.sh`; do not relaunch historical recovery/full
+restart/gate scripts. All previous results are preserved. The selected spaces
+remain (5,4), (7,5), (7,5); full KinBot production is still pending final native
+reference acceptance and model installation.
 
-The 11:42:40 PDT user monitor reports the CABS=3 CH3S far point validated and
-S–S far still running. `run_confirmation.py monitor RUN --roots` now shows
-current correlated call/spin/root and completed selected-energy markers;
-`--all` also lists completed points and waiting predecessors. Detailed views
-include per-chain counts. These read-only displays preserve all allocations
-and do not replace the native energy/orbital review of a collected export.
-The monitor change passed 86 focused monitor/campaign/confirmation tests,
-including ignored restart variables, long CI logs, unfinished CABS corrections
-and read-only completed/waiting summaries. Its marker counts were also checked
-against four retained native `_r2` outputs (completed and failed cases).
+`run_confirmation.py monitor RUN --roots` reports correlated calls and emitted
+energy markers, including grouped simultaneous roots; `--all` adds successful
+points and waiting predecessors. These read-only displays do not substitute
+for scientific review. The older calculation definitions below remain a
+reproducibility record; their independent-root/CABS policies are superseded
+where the new plan explicitly says so.
 
 This is a fixed-geometry backend check. It does not repeat optimizations or the
 production relaxed/frozen correction scans. Nuclear coordinates are the exact
@@ -71,7 +67,8 @@ variant). The minimum-space `_r2` run reproduced the error. The recovery
 trial of 2 then failed in both asymptotes with `strange..` in the same routine;
 matching reference counts and converged MRCI were confirmed in both. The
 separate `cabs3_gate_plan.json` now tests 3 at those two geometries only, for
-all requested roots, before any further scans. It is not yet a proven remedy.
+all requested roots, before any further scans. Both gates have now passed; matched interacting energies and simultaneous
+root protection are the remaining checks.
 The earlier decision to leave the default alone has been superseded by this
 native evidence and the user's request for a resolution. The official minimum-space far-point
 gates must establish actual success. If they reproduce this failure, retain

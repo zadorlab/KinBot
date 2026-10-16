@@ -17,7 +17,7 @@ on Blodgett, and the assistant helps diagnose and fix issues through completion*
 The user handles all SSH and transfers. Preparation and unit/integration tests
 must never be described as completed native production calculations.
 
-## 1. Literature-grounded minimum active-space decisions — local decision complete; native transfer pending
+## 1. Literature-grounded minimum active-space decisions — supported locally and by native CASPT2
 
 - [x] Recommend a space separately for all three bond channels, including its
   actual orbitals, chemical role, state average, and physical surfaces.
@@ -32,7 +32,9 @@ must never be described as completed native production calculations.
   or other expansions only where evidence warrants them. These are candidates,
   not predetermined answers. Prefer the smallest adequate space; do not
   promote a larger CAS just because its TZ timing is similar.
-- [ ] Report native sampling cost at the sampling basis after Molpro confirmation.
+- [x] Report native sampling cost at the sampling basis after Molpro confirmation.
+  Recovery timings: CH3S aDZ 24–34 s; CH3SS S–S aDZ 204–212 s for all
+  requested roots on eight ranks. These are point costs, not Monte Carlo totals.
 - [x] Separate numerical convergence, model adequacy, reference uncertainty,
   and statistical Monte Carlo uncertainty. An assistant-chosen screening flag
   is not a user-approved universal accuracy requirement.
@@ -90,62 +92,36 @@ return differences are 0.00000986, 0.00001097 and 0.00008911 kcal/mol, respectiv
 See [the decision and caveats](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md).
 No extra full-valence expansion is needed merely to match absolute energies.
 
-## 3. Minimal one-time Molpro confirmation — 35/39 validated; targeted resolution running
+## 3. Minimal one-time Molpro confirmation — CASPT2 accepted; MRCI root resolution pending
 
-- [x] Supply reproducible commands/configuration for **aDZ-F12 and aTZ-F12**
-  CASPT2-F12 confirmation of the selected spaces on the same fixed geometries.
-- [ ] Establish basis-specific orbital initialization and ordering, correct
-  states/asymptotes, active-orbital continuity, and representative radial,
-  angular and return behavior. Reuse valid evidence where possible.
-- [x] Include only the sparse requested **aTZ-F12 MRCI-F12+Q** checks needed
-  for the reference/spin-splitting comparison, plus explicit acceptance review.
-- [ ] Record every method, shift, frozen-core, state and basis convention;
-  resolve material differences between local screening and production.
+- [x] Supply reproducible aDZ-F12/aTZ-F12 CASPT2-F12 checks of the selected spaces.
+- [x] Establish basis-specific orbital initialization, states/asymptotes,
+  active-space continuity and representative radial/angular/return behavior
+  for CASPT2, reusing the original CH3SS C–S results.
+- [x] Supply sparse aTZ-F12 MRCI-F12+Q checks and explicit acceptance review.
+- [ ] Finish correlated MRCI root protection and matched coupled-CABS interactions;
+  then install final reference-stage settings.
 
-This is a transfer check, not another broad campaign, geometry optimization,
-or duplicate of the production relaxed scans. Do not reuse a TZ orbital file
-as an unverified DZ orbital model. A count such as (7,5) alone is insufficient
-to identify the intended orbital subspace. Catalogue:
-[Molpro seeds and geometries](../examples/anl/orbital_reviews/molpro_confirmation/geometry_and_seed_catalog.json).
-The [prepared transfer recipe](../examples/anl/orbital_reviews/molpro_confirmation/README.md)
-contains 30 CASPT2-F12 points across both bases and nine sparse aTZ-F12
-MRCI-F12+Q points. Preparation, input propagation and resume checks pass;
-the `_r2` run has now completed 35 points. The first submission exposed
-cross-basis record collisions, inherited RHF state inconsistencies, and an
-MRCI-F12 excited-reference restriction. The [manual/input audit](MOLPRO_CONFIRMATION_INPUT_AUDIT_2026-10-16.md)
-records repairs, native evidence, and the preserved full restart. Local tests
-alone did not establish handoff readiness. The
-[current resolution record](MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md)
-verifies all 35 outputs, gives basis-specific natural/canonical orbital
-orderings, confirms the existing relaxed-Davidson selector, and distinguishes
-the two failures from their two unsubmitted dependents. Existing control data
-demonstrate that shared-reference CASPT2 removes the large CH3S splitting at
-IPEA 0.25/shift 0.3. The supplemental plan tests that policy on the current
-CH3S/S–S geometries in both bases and completes targeted MRCI recovery.
-These behaviours require demonstrated closure, not an indefinitely recorded warning.
-At 09:45:56 PDT on October 16 the user reports 10/26 supplemental points
-validated, five running, ten waiting and one failed CABS=2 CH3S control.
-The subsequent native report confirms **both** CABS=2 far points failed:
-CH3S quartet root 1 and S–S doublet root 1, after converged MRCI with matching
-NSTATI/NSTATR. CABS=2 is rejected for production in these conditions. Exact
-internal cause of `strange..` remains unavailable; no cluster fault is shown.
-The MAXDAV20 retry had progressed to root 2. Existing completed points and
-other running chains remain in place. A separate two-point CABS=3 test is
-prepared using the same spaces/references/thresholds, all 18 roots and no
-dependent scans. Native success and relative-energy checks remain required;
-neither the final CABS settings nor production readiness is claimed.
-At 10:12:32 PDT, the new monitor reports 19/26 validated, two failed, four
-waiting and one running (S–S aTZ CASPT2 return). The plan/count accounting
-indicates MAXDAV20 completed; native energies await export review. Three
-waiting points are blocked CABS dependents; the fourth is the last CASPT2
-tilted successor. Allow that chain to finish.
-At 11:42:40 PDT the CABS=3 monitor reports CH3S far validated (six requested
-roots), S–S far running (twelve requested roots), and no failed gates. The
-new monitor displays per-chain successes and optional spin/root progress.
-Full repair/CABS native exports remain to be reviewed locally; there is no
-new claim that all scientific acceptance conditions have passed.
+The original run completed 35/39 points. The subsequent recovery completed
+20 CASPT2 points plus the MAXDAV20 MRCI point, with two CABS=2 failures and
+three blocked dependents. Both separate CABS=3 gates then completed all 18
+requested roots. All 597 files in the two new export inventories verify.
 
-## 4. General user controls in KinBot JSON — locally audited and tested; native pending
+Shared-reference CASPT2 retains IPEA 0.25/shift 0.3, restores equivalent sulfur
+components to within 0.000289 kcal/mol, preserves physical fragment gaps,
+and reproduces return active spaces. The largest root-energy return difference
+is 0.001908 kcal/mol. Minimum spaces remain (5,4), (7,5), (7,5).
+
+MAXDAV20 resolved iterative stagnation but separate MRCI calls reached duplicate
+solutions. The new explicit simultaneous same-spin policy is tested locally;
+seven MRCI-only points will verify the native eigenspectrum and matched CABS=3
+interactions. No new CASPT2 or active-space survey is needed. See the
+[current native review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md),
+[historical diagnosis](MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md), and
+[submission handoff](../MOLPRO_CONFIRMATION_HANDOFF.md). No native success of
+these seven new calculations is claimed before execution and review.
+
+## 4. General user controls in KinBot JSON — audited; simultaneous MRCI native check pending
 
 - [x] Verify per-reaction and per-stage CAS counts, exact orbital selection or
   reviewed ordered records, basis-specific initialization, state averages,
@@ -154,6 +130,10 @@ new claim that all scientific acceptance conditions have passed.
   scheduler controls with validation and documented defaults.
 - [x] Verify that the chosen controls reach native inputs and survive restarts.
   No molecule, bond, node name or local path may be hardcoded in shared logic.
+
+Explicit MRCI `correlation_options.state_policy="simultaneous"` computes the
+full same-spin manifold, records energy-order labels and selects the matching
+relaxed-Davidson array/gradient slot. The default independent policy is unchanged.
 
 ## 5. General orbital reconnaissance procedure — revised and locally tested
 
@@ -198,7 +178,9 @@ Procedure: [ORBITAL_REVIEW_WORKFLOW.md](ORBITAL_REVIEW_WORKFLOW.md).
 - [x] Record the audit's actual coverage and remaining native verification;
   do not claim every changed line or external program has been certified.
 
-Latest recovery regression: 1,652 tests and 391 subtests pass. This includes
+Earlier recovery regression: 1,652 tests and 391 subtests pass. The current
+root-protection change passes 400 targeted tests, including seven new native-input
+transformations, energy/gradient indexing and simultaneous-call monitoring. This includes
 all 39 original and 26 supplemental native-input transformation paths, not
 new native calculations. See
 [the audit](GENERALITY_AUDIT_2026-10-15.md) for coverage and native limitations.
@@ -242,7 +224,7 @@ Refresh after native production; no cleanup has been performed.
   equivalent evidence, and what remains before a normal end-to-end run.
 - [x] Include the cleanup inventory and link this maintained checklist.
 
-## 12. Preserve and retire previous Blodgett work — adapter tested; user execution pending
+## 12. Preserve and retire previous Blodgett work — subsequent native runs retained
 
 - [x] Account for the current old campaign: user snapshot reports 59 validated,
   two failed and seven running expanded-space S–S MRCI jobs.
@@ -253,16 +235,18 @@ Refresh after native production; no cleanup has been performed.
   dimensions alone do not justify reusing old numerical energies.
 - [x] Diagnose both reported failures: reference-CI nonconvergence and CABS
   singles orthogonalization after converged MRCI. Do not accept partial energies.
-- [ ] User runs the transition and one-time confirmation on Blodgett. Check
-  the actual final preservation counts and queued controls from that run.
+- [x] User ran the transition and one-time confirmation; native exports and
+  subsequent recovery/gate outputs are retained with hashes.
+- [ ] Reconcile the original broad campaign retirement inventory at production
+  handoff; the later confirmation exports do not by themselves count every
+  earlier allocation or preserved job.
 
-The default MRCI convention remains `CABS_SINGLES=1`, `CLUSTER=0` (relaxed
-Davidson), selecting the final `ENERGD(1)` after CABS processing. The repeated
-minimum-space CABS failure persisted in the CABS=2 recovery/control trial;
-the two-point CABS=3 test now isolates the remaining documented coupled
-treatment. The stalled external CI has a separate MAXDAV=20 trial. Neither
-changes the Davidson selector. All original run/results are preserved.
-Actual native completion and energy review are required before approval.
+General defaults remain CABS=1 and relaxed Davidson. Both CABS=3 gates now
+pass native review. The MRCI supplement explicitly chooses simultaneous roots,
+energy-ordered `ENERGD(i)` and matched coupled-CABS interactions; no old
+calculation is silently assigned those new conventions. MAXDAV20 completed
+numerically but did not protect separate roots from collapse. This new
+submission cancels/deletes nothing and preserves independently running work.
 
 ## Maintenance record
 
@@ -290,3 +274,9 @@ Actual native completion and energy review are required before approval.
   splitting persisted at zero IPEA is withdrawn. Prepared a targeted 26-point
   supplement: four unresolved MRCI points, two CABS controls, and twenty
   corrected-reference CASPT2 points. Existing results are not discarded.
+
+- 2026-10-16: verified all 597 files in the recovery and CABS3 exports. Accepted
+  the twenty shared-reference CASPT2 checks and both CABS3 asymptote tests;
+  identified duplicate roots in the completed MAXDAV20 MRCI output. Prepared
+  seven MRCI-only simultaneous-root checks. Minimum CAS choices are unchanged;
+  complete production configuration remains pending native reference closure.

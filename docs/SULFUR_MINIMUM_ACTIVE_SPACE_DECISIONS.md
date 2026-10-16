@@ -4,9 +4,11 @@
 
 The completed local evidence supports **CAS(5,4) for CH3S C–S and CAS(7,5)
 for both CH3SS C–S and S–S**. All minimum-space inward and exact-return
-checks are complete. Native
-Molpro confirmation and installation of basis-specific orbital/state records
-remain outstanding. These are minimum-space recommendations for corrected
+checks are complete. The native shared-reference CASPT2 aDZ/aTZ confirmation
+now supports these choices, including asymptotes and active-subspace returns.
+MRCI simultaneous-root and matched coupled-CABS reference checks remain before
+installation of the final production models. See the
+[native recovery review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md). These are minimum-space recommendations for corrected
 VRC sampling, not claims of full-valence total-energy accuracy or completed
 production kinetics.
 

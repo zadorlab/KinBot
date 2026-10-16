@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "purpose": "Resolve separate-call MRCI root collapse with simultaneous same-spin roots and finish consistent coupled-CABS interaction checks. Reuse all CASPT2 results; never relabel old single-root outputs as distinct correlated eigenstates.",
+  "chains": [
+    {
+      "title": "ch3s_cs_atz_mrci_simultaneous_control",
+      "source_chain": "ch3s_cs_atz_mrci",
+      "points": ["tilted"],
+      "seed_from_completed": "center",
+      "correlation_options": {
+        "state_policy": "simultaneous",
+        "reference_policy": "state_average",
+        "max_external_vectors": 20,
+        "cabs_singles": 1
+      },
+      "reason": "At unchanged CABS=1/MAXDAV=20, optimize all three roots of each spin together. Independent doublet calls 2/3 and quartet calls 1/3 reached effectively duplicate states; more iterations alone cannot enforce their orthogonality. Select energy-ordered ENERGD(1..3), retaining relaxed Davidson."
+    },
+    {
+      "title": "ch3s_cs_atz_mrci_simultaneous_cabs3",
+      "source_chain": "ch3s_cs_atz_mrci",
+      "points": ["far", "center", "tilted"],
+      "correlation_options": {
+        "state_policy": "simultaneous",
+        "reference_policy": "state_average",
+        "max_external_vectors": 20,
+        "cabs_singles": 3
+      },
+      "reason": "Matched coupled-CABS interactions and spin gaps with protected distinct roots. Repeat far because the simultaneous eigensolve is a new native configuration; compare it against the completed CABS3 gate. Compare tilted directly with the simultaneous CABS1 control."
+    },
+    {
+      "title": "ch3ss_ss_atz_mrci_simultaneous_cabs3",
+      "source_chain": "ch3ss_ss_atz_mrci",
+      "points": ["far", "center", "tilted"],
+      "correlation_options": {
+        "state_policy": "simultaneous",
+        "reference_policy": "state_average",
+        "max_external_vectors": 20,
+        "cabs_singles": 3
+      },
+      "reason": "The independent CABS3 far gate completed all twelve roots. Protect all six roots per spin at interacting geometries and complete the previously blocked center/tilted checks with a consistent far zero and coupled-CABS treatment."
+    }
+  ]
+}

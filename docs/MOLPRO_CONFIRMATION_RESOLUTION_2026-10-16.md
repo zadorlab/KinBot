@@ -1,5 +1,16 @@
 # Molpro confirmation: evidence, resolved cause and targeted recovery
 
+**Current outcome:** both new exports are reviewed. All 20 shared-reference
+CASPT2 points and both CABS=3 asymptotes pass. The completed MAXDAV20 tilted
+MRCI retry has duplicate-root evidence and is superseded by the explicit
+simultaneous-root remedy. See the [current native review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md)
+and [seven-point submission](../MOLPRO_CONFIRMATION_HANDOFF.md).
+
+## Historical diagnosis and submission record
+
+The dated snapshots below record what was known before the complete exports.
+Their running/pending descriptions are historical, not the current status.
+
 **CABS=3 update at 11:42:40 PDT:** the controller validates the CH3S six-root
 far point; the S–S twelve-root far point is running with output age 18 s and
 no reported error. Its last line does not identify which root is active.

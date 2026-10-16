@@ -590,8 +590,10 @@ def vrc_multireference_energy_contract(method):
     """Return the exact Molpro energy selected for a VRC MR method.
 
     RS2-F12 and MRCI-F12 return energies indexed by calculated state, not
-    the CCSD-F12 A/B approximations. Each generated call computes one state,
+    the CCSD-F12 A/B approximations. The default call computes one state,
     so its energy is element 1 even when STATE,1 selects an excited root.
+    Explicit simultaneous MRCI uses the requested energy-ordered array slot;
+    the renderer records that slot in KBVRCSEL.
     The historical KinBot -F12B spelling is a compatibility alias only; it
     does not denote a distinct MR approximation. -F12A is rejected.
     MRCI +Q uses the relaxed-reference Davidson correction (CLUSTER=0).
@@ -638,11 +640,15 @@ def validate_mr_correlation_options(options):
     separate validation and are not automatic retry controls. Never expose IGNORE_ERROR.
     """
     allowed = {'max_iterations', 'max_reference_iterations', 'max_reference_vectors',
-               'max_external_vectors', 'reference_policy', 'cabs_singles',
+               'max_external_vectors', 'reference_policy', 'cabs_singles', 'state_policy',
                'energy_convergence', 'coefficient_convergence'}
     if not isinstance(options, dict) or set(options) - allowed:
         raise ValueError('Unknown reviewed correlation_options.')
     for key, value in options.items():
+        if key == 'state_policy':
+            if value not in ('independent', 'simultaneous'):
+                raise ValueError('correlation_options.state_policy must be independent or simultaneous.')
+            continue
         if key == 'cabs_singles':
             if type(value) is not int or value not in (1, 2, 3):
                 raise ValueError('correlation_options.cabs_singles must be 1 (singles CI), '
@@ -693,6 +699,11 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
     f12 = contract['explicitly_correlated']
     selected = contract['energy_variable'].casefold()
     controls = validate_mr_correlation_options((state_model or {}).get('correlation_options', {}))
+    simultaneous = controls.get('state_policy', 'independent') == 'simultaneous'
+    if simultaneous and (family != 'mrci' or selected_root is None
+                         or controls.get('reference_policy') != 'state_average'):
+        raise ValueError('Simultaneous correlated states require MRCI, an explicit '
+                         'selected root and reference_policy="state_average".')
     if 'cabs_singles' in controls and not (family == 'mrci' and f12):
         raise ValueError('correlation_options.cabs_singles is specific to MRCI-F12.')
     iteration_options = [f'{native}={controls[key]}' for key, native in (
@@ -737,14 +748,21 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         body = command if not (state or iteration_card) else f'{command};{state}{reference_card}{iteration_card}'
         return avas + multi + f'{{{body}}}\n' + audit, 'KBVRCSEL'
     program = (f'mrci-f12,scalf12=1,cabs_singles={controls.get("cabs_singles", 1)}' if f12 else 'mrci')
+    energy_index = selected_root if simultaneous else 1
+    selected = f'energd({energy_index})'
+    if simultaneous:
+        program += ',noswap'
     program += ',' + ','.join(f'{k}={v}' for k, v in mr_thresholds(controls).items())
     audit = (f'! KinBot energy contract: {contract["method"]} = '
-             f'{contract["energy_variable"]}; Davidson relaxed reference\n'
-             'KBVRCVAR=energy(1)\n'
+             f'{selected.upper()}; Davidson relaxed reference\n'
+             f'KBVRCVAR=energy({energy_index})\n'
              f'KBVRCSEL={selected}\n')
     state = ('' if selected_root is None else
              f'wf,{int(nelectron)},1,{int(spin)};'
              f'state,1,{selected_root};')
+    if simultaneous:
+        state = (f'wf,{int(nelectron)},1,{int(spin)};state,{entry["roots"]},'
+                 + ','.join(map(str, range(1, entry['roots'] + 1))) + ';')
     return (avas + multi
             + f'{{{program};{state}{reference_card}{iteration_card}option,cluster=0;}}\n' + audit,
             'KBVRCSEL')

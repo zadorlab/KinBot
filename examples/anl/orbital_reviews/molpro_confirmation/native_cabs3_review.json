@@ -1,0 +1,732 @@
+{
+  "captured_utc": "2026-10-16T19:36:58.724222+00:00",
+  "production_approved": false,
+  "return_checks": [],
+  "schema": 1,
+  "source_directory": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates",
+  "status_counts": {
+    "complete": 2
+  },
+  "systems": [
+    {
+      "active_labels": [
+        "11.1",
+        "12.1",
+        "13.1",
+        "14.1"
+      ],
+      "active_space": [
+        5,
+        4
+      ],
+      "inactive": 10,
+      "jobs": [
+        {
+          "canonical_active_table": [
+            {
+              "energy_hartree": -0.28316,
+              "occupation": 1.33333,
+              "orbital": "11.1",
+              "printed_coefficients": "2  2  py   0.76444    2  2  pz  -0.65472"
+            },
+            {
+              "energy_hartree": -0.28316,
+              "occupation": 1.33333,
+              "orbital": "12.1",
+              "printed_coefficients": "2  2  py   0.65468    2  2  pz   0.76460"
+            },
+            {
+              "energy_hartree": -0.28316,
+              "occupation": 1.33333,
+              "orbital": "13.1",
+              "printed_coefficients": "2  2  px   1.00646"
+            },
+            {
+              "energy_hartree": -0.1104,
+              "occupation": 1.0,
+              "orbital": "14.1",
+              "printed_coefficients": "1  1  px   0.90320"
+            }
+          ],
+          "casscf_hartree": [
+            -437.07991353,
+            -437.07991352,
+            -437.07991347,
+            -437.07991353,
+            -437.07991352,
+            -437.07991347
+          ],
+          "completion_marker": true,
+          "convergence": {
+            "errors": [],
+            "warnings": []
+          },
+          "correlated_hartree": [
+            -437.44426647,
+            -437.44426647,
+            -437.44426642,
+            -437.44420258,
+            -437.44420258,
+            -437.44420253
+          ],
+          "correlated_labels": [
+            {
+              "energy_hartree": -437.44426647,
+              "method": "mrci-f12+q(5,4)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 1
+            },
+            {
+              "energy_hartree": -437.44426647,
+              "method": "mrci-f12+q(5,4)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 2
+            },
+            {
+              "energy_hartree": -437.44426642,
+              "method": "mrci-f12+q(5,4)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 3
+            },
+            {
+              "energy_hartree": -437.44420258,
+              "method": "mrci-f12+q(5,4)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 1
+            },
+            {
+              "energy_hartree": -437.44420258,
+              "method": "mrci-f12+q(5,4)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 2
+            },
+            {
+              "energy_hartree": -437.44420253,
+              "method": "mrci-f12+q(5,4)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 3
+            }
+          ],
+          "diabatic_displaced_overlap_diagonal": [],
+          "execution_status": "complete",
+          "input_sha256": "67c015a68fe591db49702d46d408c7b44e8b487bf1bd3e71184e8ee9a4aca5f6",
+          "job_id": "52908197",
+          "mrci_energy_checks": [
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -437.44426647,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -437.44426647,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -437.44426647,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -437.44426647,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -437.44426642,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -437.44426642,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -437.44420258,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -437.44420258,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -437.44420258,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -437.44420258,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -437.44420253,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -437.44420253,
+              "separate_cabs_correction": null
+            }
+          ],
+          "name": "atz__far",
+          "native_alerts": [],
+          "native_counts": {
+            "active_electrons": [
+              "5",
+              "5"
+            ],
+            "active_orbitals": [
+              "4"
+            ],
+            "closed": [
+              "10"
+            ]
+          },
+          "native_output": "ch3s_cs_atz_mrci_cabs3_gate/atz__far/atz__far.out",
+          "native_states": [
+            {
+              "multiplicity": 2,
+              "root": 1
+            },
+            {
+              "multiplicity": 2,
+              "root": 2
+            },
+            {
+              "multiplicity": 2,
+              "root": 3
+            },
+            {
+              "multiplicity": 4,
+              "root": 1
+            },
+            {
+              "multiplicity": 4,
+              "root": 2
+            },
+            {
+              "multiplicity": 4,
+              "root": 3
+            }
+          ],
+          "natural_active_table": [
+            {
+              "energy_hartree": -0.28316,
+              "occupation": 1.33333,
+              "orbital": "11.1",
+              "printed_coefficients": "2  2  py   0.81244    2  2  pz  -0.59432"
+            },
+            {
+              "energy_hartree": -0.28316,
+              "occupation": 1.33333,
+              "orbital": "12.1",
+              "printed_coefficients": "2  2  px   1.00597"
+            },
+            {
+              "energy_hartree": -0.28316,
+              "occupation": 1.33333,
+              "orbital": "13.1",
+              "printed_coefficients": "2  2  py   0.59406    2  2  pz   0.81184"
+            },
+            {
+              "energy_hartree": -0.1104,
+              "occupation": 1.0,
+              "orbital": "14.1",
+              "printed_coefficients": "1  1  px   0.90320"
+            }
+          ],
+          "normal_termination": true,
+          "orbital_xml": {
+            "natural": {
+              "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates/ch3s_cs_atz_mrci_cabs3_gate/atz__far/atz__far.natural.orbitals.xml",
+              "sha256": "a025614979df862fbd256245eeb40f1eed0ee47d99589438d4061ce39f713ed5"
+            },
+            "scf": {
+              "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates/ch3s_cs_atz_mrci_cabs3_gate/atz__far/atz__far.orbitals.xml",
+              "sha256": "e5f6fe68237e1e53950720fed6098502e4ee8f7a31526cdc65b3b7bacdbe3590"
+            }
+          },
+          "output_sha256": "e7a6fc64dbcb75cff2c2583c05045b2eea591e61638c18a9e743537cbc7674b7",
+          "predecessor": null,
+          "returncode": 0,
+          "status": "complete",
+          "version": [
+            "Version 2024.1 linked Wed Jan 31 05:33:13 2024"
+          ],
+          "wfu": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates/ch3s_cs_atz_mrci_cabs3_gate/atz__far/atz__far.wfu",
+          "wfu_sha256": "0cce4050a0bbd4495b15a55c69b7615cb2a3eb79c973e1d10aa7a363b252dfd1"
+        }
+      ],
+      "occupied": 14,
+      "state_model": {
+        "canonical_orbitals": true,
+        "correlation_options": {
+          "cabs_singles": 3,
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 3,
+            "weights": [
+              0.3333333333333333,
+              0.3333333333333333,
+              0.3333333333333333
+            ]
+          },
+          {
+            "multiplicity": 4,
+            "roots": 3,
+            "weights": [
+              0.3333333333333333,
+              0.3333333333333333,
+              0.3333333333333333
+            ]
+          }
+        ]
+      },
+      "title": "ch3s_cs_atz_mrci_cabs3_gate"
+    },
+    {
+      "active_labels": [
+        "18.1",
+        "19.1",
+        "20.1",
+        "21.1",
+        "22.1"
+      ],
+      "active_space": [
+        7,
+        5
+      ],
+      "inactive": 17,
+      "jobs": [
+        {
+          "canonical_active_table": [
+            {
+              "energy_hartree": -0.28315,
+              "occupation": 1.33333,
+              "orbital": "18.1",
+              "printed_coefficients": "3  2  px   1.00579"
+            },
+            {
+              "energy_hartree": -0.28315,
+              "occupation": 1.33333,
+              "orbital": "19.1",
+              "printed_coefficients": "3  2  pz   0.99893"
+            },
+            {
+              "energy_hartree": -0.28315,
+              "occupation": 1.33333,
+              "orbital": "20.1",
+              "printed_coefficients": "3  2  py   0.99967"
+            },
+            {
+              "energy_hartree": -0.2795,
+              "occupation": 1.5,
+              "orbital": "21.1",
+              "printed_coefficients": "2  2  pz   0.98206"
+            },
+            {
+              "energy_hartree": -0.27742,
+              "occupation": 1.5,
+              "orbital": "22.1",
+              "printed_coefficients": "2  2  px  -0.61112    2  2  py   0.77174"
+            }
+          ],
+          "casscf_hartree": [
+            -834.65646608,
+            -834.65646588,
+            -834.65646567,
+            -834.65458177,
+            -834.65458162,
+            -834.65458135,
+            -834.65646608,
+            -834.65646588,
+            -834.65646567,
+            -834.65458177,
+            -834.65458162,
+            -834.65458135
+          ],
+          "completion_marker": true,
+          "convergence": {
+            "errors": [],
+            "warnings": []
+          },
+          "correlated_hartree": [
+            -835.22056256,
+            -835.22056239,
+            -835.22056219,
+            -835.21859396,
+            -835.21859381,
+            -835.21859356,
+            -835.22043382,
+            -835.22043365,
+            -835.22043345,
+            -835.21846533,
+            -835.21846519,
+            -835.21846494
+          ],
+          "correlated_labels": [
+            {
+              "energy_hartree": -835.22056256,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 1
+            },
+            {
+              "energy_hartree": -835.22056239,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 2
+            },
+            {
+              "energy_hartree": -835.22056219,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 3
+            },
+            {
+              "energy_hartree": -835.21859396,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 4
+            },
+            {
+              "energy_hartree": -835.21859381,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 5
+            },
+            {
+              "energy_hartree": -835.21859356,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 2,
+              "native_method": "MRCI-F12+Q",
+              "root": 6
+            },
+            {
+              "energy_hartree": -835.22043382,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 1
+            },
+            {
+              "energy_hartree": -835.22043365,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 2
+            },
+            {
+              "energy_hartree": -835.22043345,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 3
+            },
+            {
+              "energy_hartree": -835.21846533,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 4
+            },
+            {
+              "energy_hartree": -835.21846519,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 5
+            },
+            {
+              "energy_hartree": -835.21846494,
+              "method": "mrci-f12+q(7,5)",
+              "multiplicity": 4,
+              "native_method": "MRCI-F12+Q",
+              "root": 6
+            }
+          ],
+          "diabatic_displaced_overlap_diagonal": [],
+          "execution_status": "complete",
+          "input_sha256": "f52221cc70d7bdf8efae8b8d87d8c0fa5619a95b123c34522f56200d8dbdca51",
+          "job_id": "52908198",
+          "mrci_energy_checks": [
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.22056256,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.22056256,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.22056239,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.22056239,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.22056219,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.22056219,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.21859396,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.21859396,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.21859381,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.21859381,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.21859356,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.21859356,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.22043382,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.22043382,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.22043365,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.22043365,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.22043345,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.22043345,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.21846533,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.21846533,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.21846519,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.21846519,
+              "separate_cabs_correction": null
+            },
+            {
+              "cabs_singles": 3,
+              "identity": "coupled_relaxed_davidson",
+              "printed_relaxed_davidson": -835.21846494,
+              "rounding_residual_hartree": 0.0,
+              "selected_energy": -835.21846494,
+              "separate_cabs_correction": null
+            }
+          ],
+          "name": "atz__far",
+          "native_alerts": [],
+          "native_counts": {
+            "active_electrons": [
+              "7",
+              "7"
+            ],
+            "active_orbitals": [
+              "5"
+            ],
+            "closed": [
+              "17"
+            ]
+          },
+          "native_output": "ch3ss_ss_atz_mrci_cabs3_gate/atz__far/atz__far.out",
+          "native_states": [
+            {
+              "multiplicity": 2,
+              "root": 1
+            },
+            {
+              "multiplicity": 2,
+              "root": 2
+            },
+            {
+              "multiplicity": 2,
+              "root": 3
+            },
+            {
+              "multiplicity": 2,
+              "root": 4
+            },
+            {
+              "multiplicity": 2,
+              "root": 5
+            },
+            {
+              "multiplicity": 2,
+              "root": 6
+            },
+            {
+              "multiplicity": 4,
+              "root": 1
+            },
+            {
+              "multiplicity": 4,
+              "root": 2
+            },
+            {
+              "multiplicity": 4,
+              "root": 3
+            },
+            {
+              "multiplicity": 4,
+              "root": 4
+            },
+            {
+              "multiplicity": 4,
+              "root": 5
+            },
+            {
+              "multiplicity": 4,
+              "root": 6
+            }
+          ],
+          "natural_active_table": [
+            {
+              "energy_hartree": -0.27844,
+              "occupation": 1.5,
+              "orbital": "18.1",
+              "printed_coefficients": "2  2  px  -0.40873    2  2  py   0.46996    2  2  pz  -0.77019"
+            },
+            {
+              "energy_hartree": -0.27848,
+              "occupation": 1.5,
+              "orbital": "19.1",
+              "printed_coefficients": "2  2  px  -0.45608    2  2  py   0.62311    2  2  pz   0.62030"
+            },
+            {
+              "energy_hartree": -0.28315,
+              "occupation": 1.33333,
+              "orbital": "20.1",
+              "printed_coefficients": "3  2  px  -0.25717    3  2  py  -0.55794    3  2  pz   0.79740"
+            },
+            {
+              "energy_hartree": -0.28315,
+              "occupation": 1.33333,
+              "orbital": "21.1",
+              "printed_coefficients": "3  2  px   0.90474    3  2  py  -0.44097"
+            },
+            {
+              "energy_hartree": -0.28315,
+              "occupation": 1.33333,
+              "orbital": "22.1",
+              "printed_coefficients": "3  2  px   0.35860    3  2  py   0.71242    3  2  pz   0.61413"
+            }
+          ],
+          "normal_termination": true,
+          "orbital_xml": {
+            "natural": {
+              "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates/ch3ss_ss_atz_mrci_cabs3_gate/atz__far/atz__far.natural.orbitals.xml",
+              "sha256": "f842e7f370a3185097ba6d26fd60e5e7fde28bfa085c1c4671e339aedd6514c4"
+            },
+            "scf": {
+              "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates/ch3ss_ss_atz_mrci_cabs3_gate/atz__far/atz__far.orbitals.xml",
+              "sha256": "85d93b87d998c0a0914f284b6a16a25938ba1c63cf4302925717098042d5bf8e"
+            }
+          },
+          "output_sha256": "776c81985981c15da894444183fdf80f9337d096568ef3a1d24ab9245e5188a8",
+          "predecessor": null,
+          "returncode": 0,
+          "status": "complete",
+          "version": [
+            "Version 2024.1 linked Wed Jan 31 05:33:13 2024"
+          ],
+          "wfu": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates/ch3ss_ss_atz_mrci_cabs3_gate/atz__far/atz__far.wfu",
+          "wfu_sha256": "25a383b254dc1aab75c2e8dca9e822419d5f902627ab019096ee0d283b0f74cc"
+        }
+      ],
+      "occupied": 22,
+      "state_model": {
+        "canonical_orbitals": true,
+        "correlation_options": {
+          "cabs_singles": 3,
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 6,
+            "weights": [
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666
+            ]
+          },
+          {
+            "multiplicity": 4,
+            "roots": 6,
+            "weights": [
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666
+            ]
+          }
+        ]
+      },
+      "title": "ch3ss_ss_atz_mrci_cabs3_gate"
+    }
+  ],
+  "verified_files": 58
+}

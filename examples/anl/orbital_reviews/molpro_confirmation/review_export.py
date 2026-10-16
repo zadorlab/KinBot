@@ -78,6 +78,43 @@ def orbital_table(text, title, stop):
     return result
 
 
+def mrci_energy_checks(text, native):
+    """Check relaxed Davidson against final selectors, respecting CABS method.
+
+    CABS=1/2 add a separately printed correction. CABS=3 includes coupling in
+    the eigensolve, so adding that old correction would count it twice.
+    No execution parser or Davidson convention is changed by this review.
+    """
+    commands = re.findall(r'\{(mrci-f12\b[^{}]*)\}', native, re.I)
+    blocks = re.split(r'PROGRAM\s*\*\s*MRCI-F12\b', text, flags=re.I)[1:]
+    if len(commands) != len(blocks):
+        # Interrupted outputs may stop before later declared calls.
+        if len(blocks) > len(commands):
+            raise ValueError('More native MRCI programs than input commands')
+    checks = []
+    for command, block in zip(commands, blocks):
+        match = re.search(r'cabs_singles\s*=\s*([123])', command, re.I)
+        cabs = int(match[1]) if match else 1
+        q = re.findall(r'Cluster corrected energies\s+('+NUMBER+r')\s*\(Davidson, relaxed reference\)', block)
+        singles = re.findall(r'- singles correction\s+for state\s+\d+\s+('+NUMBER+')', block)
+        selected = re.findall(r'(?m)^\s*SETTING KBVRCSEL\s*=\s*('+NUMBER+')', block)
+        state = re.search(r'(?:^|;)\s*state\s*,\s*(\d+)', command, re.I)
+        expected = int(state[1]) if state else 1
+        if selected and len(q) != expected:
+            raise ValueError('Ambiguous relaxed-Davidson printout; review native state sections before indexing')
+        for i, value in enumerate(selected):
+            if i >= len(q) or (cabs != 3 and i >= len(singles)):
+                raise ValueError('Selected MRCI energy lacks the declared Davidson/CABS evidence')
+            correction = 0.0 if cabs == 3 else float(singles[i])
+            checks.append({'cabs_singles': cabs,
+                'identity': 'coupled_relaxed_davidson' if cabs == 3 else 'relaxed_davidson_plus_cabs',
+                'printed_relaxed_davidson': float(q[i]),
+                'separate_cabs_correction': None if cabs == 3 else correction,
+                'selected_energy': float(value),
+                'rounding_residual_hartree': float(value)-float(q[i])-correction})
+    return checks
+
+
 def review(root):
     root = Path(root).resolve()
     inventory = json.loads((root/'export_inventory.json').read_text())
@@ -150,16 +187,7 @@ def review(root):
             row['casscf_hartree'] = [float(x) for x in re.findall(r'(?m)^\s*RECONR\d+\s*=\s*('+NUMBER+')', result_text)]
             row['correlated_hartree'] = [float(x) for x in re.findall(r'(?m)^\s*RECONC\d+\s*=\s*('+NUMBER+')', result_text)]
             row['correlated_labels'] = job.get('correlated_energies_hartree', [])
-            row['mrci_energy_checks'] = []
-            for block in re.split(r'PROGRAM\s*\*\s*MRCI-F12\b', text, flags=re.I)[1:]:
-                q = re.findall(r'Cluster corrected energies\s+('+NUMBER+r')\s*\(Davidson, relaxed reference\)', block)
-                singles = re.findall(r'- singles correction\s+for state\s+\d+\s+('+NUMBER+')', block)
-                selected = re.findall(r'(?m)^\s*SETTING KBVRCSEL\s*=\s*('+NUMBER+')', block)
-                if q and singles and selected:
-                    residual = float(selected[0])-float(q[0])-float(singles[0])
-                    row['mrci_energy_checks'].append({'relaxed_davidson_before_cabs': float(q[0]),
-                        'cabs_correction': float(singles[0]), 'selected_energy': float(selected[0]),
-                        'rounding_residual_hartree': residual})
+            row['mrci_energy_checks'] = mrci_energy_checks(text, native)
             if job['status'] == 'complete':
                 if (not row['normal_termination'] or not row['completion_marker'] or
                     row['convergence']['errors'] or execution['status'] != 'complete' or execution['returncode'] != 0):

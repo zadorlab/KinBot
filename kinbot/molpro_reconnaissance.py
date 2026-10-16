@@ -557,10 +557,15 @@ def _probe_model(data, anchor):
         roots=context.get('roots'), active_space=data['_probe_space'])
 
 
-def _correlation_labels(checks, states):
-    return [{**check, **state} for check in checks for state in
+def _correlation_labels(checks, states, state_model=None):
+    labels = [{**check, **state} for check in checks for state in
             ([{'multiplicity': check['multiplicity'], 'root': 1}]
              if check['method'].lower() == 'uccsd(t)-f12b' else states)]
+    if (state_model or {}).get('correlation_options', {}).get('state_policy') == 'simultaneous':
+        for label in labels:
+            if label['method'].lower().startswith('mrci'):
+                label['root_convention'] = 'correlated_variational_energy_order'
+    return labels
 
 
 def _validate_cc_check_energies(output, labels, values):
@@ -708,7 +713,12 @@ def _deck(data, basis, anchor, stem, previous=None):
                          f'reconc{counter}=energy(2)\nshow,reconc{counter}\n')
                 continue
             for entry in model['state_average']:
-                for root in range(1, entry['roots'] + 1):
+                simultaneous = (model.get('correlation_options', {}).get('state_policy')
+                                == 'simultaneous')
+                # One common eigensolve per spin protects the requested roots
+                # from collapse into separately optimized lower solutions.
+                roots = [1] if simultaneous else range(1, entry['roots'] + 1)
+                for root in roots:
                     selected = deepcopy(model)
                     if 'reference_policy' in check:
                         selected.setdefault('correlation_options', {})['reference_policy'] = check['reference_policy']
@@ -728,6 +738,12 @@ def _deck(data, basis, anchor, stem, previous=None):
                                else '2140.2,type=natural')
                     correlation = correlation.replace(';wf,', f';orbital,{orbital};wf,', 1)
                     deck += correlation + f'reconc{counter}={variable}\nshow,reconc{counter}\n'
+                    if simultaneous:
+                        for slot in range(2, entry['roots'] + 1):
+                            counter += 1
+                            deck += (f'! Simultaneous MRCI energy-ordered state {slot}; relaxed Davidson\n'
+                                     f'KBVRCVAR=energy({slot})\nKBVRCSEL=energd({slot})\n'
+                                     f'reconc{counter}=KBVRCSEL\nshow,reconc{counter}\n')
     return deck + 'recondone=1\nshow,recondone\n'
 
 
@@ -1526,7 +1542,7 @@ def _audit(manifest_path, *, live_job_ids=()):
                 values = {int(index): float(value.replace('D', 'E').replace('d', 'e'))
                     for index, value in re.findall(r'SETTING\s+RECONC(\d+)\s*=\s*'
                         r'([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+(?:AU|HARTREE)\b', output_text, re.I)}
-                labels = _correlation_labels(checks, job['root_states'])
+                labels = _correlation_labels(checks, job['root_states'], job.get('state_model'))
                 if (not values and execution and execution.get('returncode') == 0
                         and execution.get('native_input')):
                     try:

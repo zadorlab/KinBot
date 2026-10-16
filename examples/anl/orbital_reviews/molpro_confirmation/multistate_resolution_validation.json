@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "date": "2026-10-16",
+  "scope": "Simultaneous MRCI-only state protection and matched coupled-CABS supplement",
+  "native_new_plan_executed": false,
+  "native_molpro_available_locally": false,
+  "production_approved": false,
+  "plan_sha256": "16c4a1b2838a3a2023ef89c08328012fa28cc61678228a5d998bbf71b2f356b4",
+  "points": 7,
+  "chains": 3,
+  "memory_mb": 104000,
+  "pytest_runs": [
+    {
+      "files": [
+        "tests/test_mrci_simultaneous.py",
+        "tests/test_vrc_correction.py",
+        "tests/test_molpro_confirmation_recovery.py",
+        "tests/test_orbital_monitor.py",
+        "tests/test_molpro_ase.py"
+      ],
+      "passed": 104
+    },
+    {
+      "files": [
+        "tests/test_molpro_reconnaissance.py",
+        "tests/test_orbital_review.py",
+        "tests/test_vrc_multistate.py",
+        "tests/test_kb_vrc_selection.py",
+        "tests/test_molpro_confirmation_package.py",
+        "tests/test_molpro_solver.py",
+        "tests/test_orbital_campaign.py"
+      ],
+      "passed": 296
+    }
+  ],
+  "final_review_parser_guard_check": {
+    "files": [
+      "tests/test_mrci_simultaneous.py"
+    ],
+    "passed": 7,
+    "note": "Repeated after adding rejection of ambiguous relaxed-Davidson printed state counts."
+  },
+  "native_review": {
+    "recovery_files_verified": 539,
+    "cabs3_files_verified": 58,
+    "recovery_completed_points": 21,
+    "cabs3_completed_points": 2,
+    "maxdav20_root_identity_accepted": false
+  },
+  "preservation": "New sibling directory only; no source results edited or jobs cancelled.",
+  "method_reference": "https://www.molpro.net/manual/doku.php?id=the_mrci_program"
+}

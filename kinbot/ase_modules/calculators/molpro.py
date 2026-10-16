@@ -30,6 +30,14 @@ from kinbot.theory import fortran_threshold
 from kinbot.execution import file_sha256
 
 
+def _mr_gradient_variable(contract, state_model, mult):
+    if ((state_model or {}).get('correlation_options', {}).get('state_policy') == 'simultaneous'
+            and contract['method'].startswith('MRCI')):
+        roots = state_model['selected_roots']
+        return f'ENERGD({roots.get(mult, roots.get(str(mult)))})'
+    return 'ENERGD' if contract['method'] == 'MRCI+Q' else contract['energy_variable']
+
+
 _ENERGY = re.compile(
     r'^\s*SETTING\s+KB_GEOM_ENERGY\s*=\s*'
     r'([-+]?\d+(?:\.\d*)?(?:[EeDd][-+]?\d+)?)\s+(?:AU|HARTREE)\b',
@@ -187,11 +195,9 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
             # Differentiate the selected native variable directly.  For
             # MRCI this is ENERGD(1), never ENERGY, so the geometry path
             # includes the relaxed-reference Davidson correction.
-            # Each MR call computes one selected state. F12 uses the same
-            # state indexing as conventional MRCI, without CCSD A/B variants.
-            gradient_variable = (
-                'energd' if contract['method'] == 'MRCI+Q'
-                else contract['energy_variable'].casefold())
+            # Match the selected calculated-state slot, including explicitly
+            # requested simultaneous MRCI roots. F12 has no CCSD A/B variants here.
+            gradient_variable = _mr_gradient_variable(contract, state_model, mult).casefold()
             body += (f'forces,numerical,variable={gradient_variable},'
                      'startcmd=multi\n')
         body += f'put,xyz,{geometry_name}\n'
@@ -429,9 +435,7 @@ class Molpro(Calculator):
         self.analytic_caspt2 = (
             analytic_available and gradient_mode != 'numerical')
         self.gradient_variable = (
-            'ENERGD' if contract is not None
-            and contract['method'] == 'MRCI+Q'
-            else contract['energy_variable'] if contract is not None
+            _mr_gradient_variable(contract, self.state_model, self.mult) if contract is not None
             and not self.analytic_caspt2 else 'KB_GEOM_ENERGY')
         self.evaluations = 0
         self.generated_files = []

@@ -38,7 +38,19 @@ def _native_progress(directory, job):
     not hide the root's program header outside the normal bounded log tail.
     """
     from kinbot.molpro_reconnaissance import _correlation_labels
-    labels = _correlation_labels(job.get('correlation_checks', []), job.get('root_states', []))
+    labels = _correlation_labels(job.get('correlation_checks', []), job.get('root_states', []), job.get('state_model'))
+    calls = [[i] for i in range(1, len(labels) + 1)]
+    if (job.get('state_model') or {}).get('correlation_options', {}).get('state_policy') == 'simultaneous':
+        calls = []
+        offset = 0
+        for check in job.get('correlation_checks', []):
+            states = ([{'multiplicity': check['multiplicity'], 'root': 1}]
+                      if check['method'].lower() == 'uccsd(t)-f12b' else job.get('root_states', []))
+            for state in states:
+                offset += 1
+                if state['root'] == 1:
+                    calls.append([])
+                calls[-1].append(offset)
     result = {'expected': len(labels), 'printed': 0, 'calls_started': 0,
               'current': None, 'last_selected': None, 'stage': None, 'iteration': '',
               'solver_parameters': {}}
@@ -81,8 +93,11 @@ def _native_progress(directory, job):
         return result
     result['printed'] = len(values)
     call = result['calls_started']
-    if 1 <= call <= len(labels) and call not in values:
-        result['current'] = {'index': call, **labels[call-1]}
+    if 1 <= call <= len(calls) and any(i not in values for i in calls[call-1]):
+        group = calls[call-1]
+        result['current'] = {'index': call, **labels[group[0]-1]}
+        if len(group) > 1:
+            result['current']['root'] = ','.join(str(labels[i-1]['root']) for i in group) + ' (simultaneous)'
     if values:
         last = max(values)
         result['last_selected'] = {'index': last, **labels[last-1], 'energy_hartree': values[last]}

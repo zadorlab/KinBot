@@ -44,6 +44,7 @@ Each KinBot and PES run starts its log with the KinBot and RDKit versions.
   main input when no profile was supplied for the affected level.
 - Save each job's level before submission. Refuse rotor results without that
   record instead of inferring their method from the current `high_level` flag.
+  The HIR description names the calculator used for the scans, including L2.
 - Preserve the optimized product's chemical information when a profiled
   calculation is saved under its final species name.
 - PES and MESS describe the selected L1/L2 settings and retain explicit labels.
@@ -69,7 +70,8 @@ These corrections also apply to inputs without theory profiles:
   retain other Gaussian guess options. These corrections include PR #117.
 - Record a failed first Gaussian energy call as an error result in the Sella
   well worker. Use BFGS for order-zero optimizations when requested, while TS
-  optimizations continue to use Sella.
+  optimizations continue to use Sella. A failed TS frequency calculation also
+  writes an error result before the completion stamp.
 
 ## Job results
 

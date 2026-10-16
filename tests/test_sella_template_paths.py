@@ -65,7 +65,7 @@ class TestSellaTemplatePaths(unittest.TestCase):
                 ns = run_header(template, 'Gaussian', 'conf/x_0001', {'method': 'am1'})
                 self.assertEqual(ns['basename'], 'conf/x_0001')
                 text = render(template, 'Gaussian', 'conf/x_0001')
-                self.assertIn("open(f'{output_label}_sella.log', 'a')", text)
+                self.assertIn("open(f'{basename}_sella.log', 'a')", text)
 
     def test_orca_jobs_keep_the_base_name_for_the_scratch_copy(self):
         for template in TEMPLATES:

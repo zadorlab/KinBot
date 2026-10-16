@@ -22,6 +22,16 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     worker_par = qc.par
     command = qc.qc_command
     ts = True
+    reuse_only = worker_par.get('profiled_l1_reuse_only', 0)
+    if reuse_only:
+        status = qc.check_qc(rxn.instance_name)
+        if status == 'running':
+            return step
+        if status == 'error':
+            return -1
+        if status != 'normal':
+            raise FileNotFoundError(f'{rxn.instance_name}: completed L1 TS result is '
+                                    'required by profiled_l1_reuse_only; no job was submitted.')
     if step > 0:
         status = qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error':
@@ -30,7 +40,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     kwargs = qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge,
                                      rxn.species.nel, ts=ts, step=step, 
                                      max_step=rxn.max_step, scan=rxn.scan)
-    if step == 0:
+    if step == 0 or reuse_only:
         if qc.is_in_database(rxn.instance_name):
             if qc.check_qc(rxn.instance_name) == 'normal':  # log file is present and is in the db
                 err, freq = qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
@@ -38,6 +48,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                     err, geom = qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
                     step = rxn.max_step + 1  # this shortcuts the search, jumps to the end
                     return step
+                if reuse_only:
+                    raise FileNotFoundError(f'{rxn.instance_name}: L1 TS search is incomplete '
+                                            '(final frequencies are missing); '
+                                            'profiled_l1_reuse_only prevents further steps.')
             if qc.check_qc(rxn.instance_name) == 'error':  # log file is not present
                 err, geom = qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
                 if np.sum(geom) == 0:

@@ -1226,3 +1226,86 @@ def test_gaussian_checkpoint_remains_relative_after_directory_move(workspace, jo
     calculator = Gaussian(**kwargs)
     relocated = Path('/another/run')
     assert relocated / calculator.directory / kwargs['chk'] == relocated / job
+
+
+@pytest.mark.parametrize('calculator', ['fc', 'orca', 'qchem', 'nn_pes'])
+def test_flat_l0_backend_switch_has_same_optimizer_as_alias(workspace, calculator):
+    flat = resolve_profiles(parameters(l0_qc=calculator, calc_kwargs={'gaussian_only': 1}))
+    alias = resolve_profiles(parameters(l0=calculator, calc_kwargs={'gaussian_only': 1}))
+    assert flat['l0'].optimizer == alias['l0'].optimizer
+    assert flat['l0'].calculator == alias['l0'].calculator
+    assert flat['l0'].calculator_kwargs == alias['l0'].calculator_kwargs == {}
+
+
+@pytest.mark.parametrize('status', ['normal', 'error', 'running', 'incomplete', 'missing'])
+@pytest.mark.parametrize('step', [0, 1])
+def test_reuse_only_reaction_search_finishes_or_reports_missing_ts(
+        workspace, monkeypatch, status, step):
+    submit = Mock(side_effect=AssertionError('reuse-only must not submit'))
+    monkeypatch.setattr(QuantumChemistry, 'submit_qc', submit)
+    par = profile_parameters(profiled_l1_reuse_only=1, queuing='local')
+    qc = QuantumChemistry(par)
+    rxn = reaction(qc, par)
+    job = rxn.instance_name
+    qc._record(job, 'l1')
+    if status != 'missing':
+        frequencies = [-100., 100.] if status == 'normal' else []
+        qc.db.write(molecule('CH3OH'), name=job, data=dict(
+            status='error' if status == 'error' else 'normal',
+            energy=-10., frequencies=frequencies))
+        Path(job + '_sella.log').write_text('done\n')
+    if status == 'running':
+        qc.l1.check_qc = Mock(return_value='running')
+    if status in ('missing', 'incomplete'):
+        with pytest.raises(FileNotFoundError, match='completed L1 TS|L1 TS search is incomplete'):
+            carry_out_reaction(rxn, step, '')
+    else:
+        result = carry_out_reaction(rxn, step, '')
+        assert result == {'normal': rxn.max_step+1, 'error': -1, 'running': step}[status]
+    assert not Path(job + '.py').exists()
+    submit.assert_not_called()
+
+
+@pytest.mark.parametrize('high_level', [0, 1])
+def test_hir_description_names_the_calculator_used_for_scans(workspace, high_level):
+    from kinbot.hindered_rotors import HIR, recover_hir_model
+    par = profile_parameters(high_level=high_level, conformer_search=1, rotor_scan=1)
+    qc = QuantumChemistry(par)
+    point = methanol()
+    point.hir = HIR(point, qc, par)
+    Path('hir').mkdir()
+    point.hir.generate_hir_geoms(point.geom, False)
+    expected = 'gauss' if high_level else 'fc'
+    assert point.hir.scan_reference['backend'] == expected
+    for job in point.hir.scan_jobs[0]:
+        assert qc.for_job(job).qc == expected
+    point.hir.scan_reference['source_job'] = 'outdated_reference'
+    recover_hir_model(point, qc, par)
+    assert point.hir.scan_reference['backend'] == expected
+
+
+def test_failed_ts_frequency_calculation_writes_error_and_completion(workspace, monkeypatch):
+    import runpy
+    import sella
+    from ase.io import write
+    from kinbot import frequencies
+    from kinbot.ase_modules.calculators.gaussian import Gaussian
+    par = profile_parameters(l1_profile=dict(gaussian(), optimizer='sella'))
+    qc = QuantumChemistry(par)
+    rxn = reaction(qc, par)
+    qc.l1.check_qc = Mock(return_value='normal')
+    qc.l1.get_qc_geom = Mock(return_value=(0, rxn.species.geom))
+    carry_out_reaction(rxn, rxn.max_step, '')
+    class Converged:
+        def __init__(self, mol, trajectory, **kwargs):
+            self.mol, self.trajectory = mol, trajectory
+        def run(self, **kwargs):
+            write(self.trajectory, self.mol)
+            return True
+    monkeypatch.setattr(sella, 'Sella', Converged)
+    monkeypatch.setattr(Gaussian, 'get_potential_energy', lambda *a, **k: -1.)
+    monkeypatch.setattr(frequencies, 'profile_vibrations',
+                        Mock(side_effect=RuntimeError('frequency calculation failed')))
+    runpy.run_path(rxn.instance_name + '.py')
+    assert qc.db.get(name=rxn.instance_name).data['status'] == 'error'
+    assert Path(rxn.instance_name + '_sella.log').read_text().endswith('done\n')

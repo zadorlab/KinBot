@@ -30,12 +30,11 @@ mol.calc = {Code}(**kwargs)
 
 # ORCA copies scratch files back; other jobs retain their conf/ or hir/ path.
 basename = os.path.basename('{label}') if '{Code}' == 'ORCA' else '{label}'
-output_label = basename
 # Finite-difference frequencies use a temporary folder without the job path.
 vibration_label = os.path.basename('{label}')
 
-if os.path.isfile(f'{{output_label}}_sella.log'):
-    os.remove(f'{{output_label}}_sella.log')
+if os.path.isfile(f'{{basename}}_sella.log'):
+    os.remove(f'{{basename}}_sella.log')
 
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
@@ -51,7 +50,7 @@ if len(mol) == 1:
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
 
-    with open(f'{{output_label}}_sella.log', 'a') as f:
+    with open(f'{{basename}}_sella.log', 'a') as f:
         f.write('Sella optimization is not needed for atoms.\ndone\n')
 else:
     order = {order}
@@ -70,16 +69,16 @@ else:
         if len(mol.symbols) > 2 and not ('{optimizer}' == 'bfgs' and order == 0):
             opt = Sella(mol,
                         order=order,
-                        trajectory=f'{{output_label}}.traj',
-                        logfile=f'{{output_label}}_sella.log',
+                        trajectory=f'{{basename}}.traj',
+                        logfile=f'{{basename}}_sella.log',
                         **sella_kwargs)
         else:
             opt = BFGS(mol,
-                       trajectory=f'{{output_label}}.traj',
-                       logfile=f'{{output_label}}_sella.log')
+                       trajectory=f'{{basename}}.traj',
+                       logfile=f'{{basename}}_sella.log')
         converged = opt.run(fmax={fmax}, steps={steps})
-        traj = read(f'{{output_label}}.traj', index=':')
-        write(f'{{output_label}}.xyz', traj, format='xyz')
+        traj = read(f'{{basename}}.traj', index=':')
+        write(f'{{basename}}.xyz', traj, format='xyz')
     except Exception as error:
         print(f'{label}: energy calculation or optimization failed: {{error}}', file=sys.stderr)
         converged = False
@@ -113,9 +112,9 @@ else:
         shutil.rmtree(f'{{basename}}')
 
     if {profiled} and os.path.exists(f'{{vibration_label}}_vib/vib.xyz'):
-        shutil.copy2(f'{{vibration_label}}_vib/vib.xyz', f'{{output_label}}_vib.xyz')
+        shutil.copy2(f'{{vibration_label}}_vib/vib.xyz', f'{{basename}}_vib.xyz')
     if os.path.isdir(f'{{vibration_label}}_vib'):
         shutil.rmtree(f'{{vibration_label}}_vib')
 
-    with open(f'{{output_label}}_sella.log', 'a') as f:
+    with open(f'{{basename}}_sella.log', 'a') as f:
         f.write('done\n')

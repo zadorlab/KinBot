@@ -87,6 +87,9 @@ def _legacy_profile(par, level):
                       method=par['l0_method'], basis=par.get('l0_basis', ''),
                       calculator_kwargs=deepcopy(par.get('l0_calc_kwargs') or
                                                  par.get('calc_kwargs', {})))
+        if values['calculator'] != calculator:
+            values['calculator_kwargs'] = deepcopy(par.get('l0_calc_kwargs') or {})
+            values['optimizer'] = 'native' if values['calculator'] == 'qchem' else 'sella'
         values['command'] = par.get('l0_qc_command') or (
             par['qc_command'] if values['calculator'] == calculator else '')
         if values['calculator'] == 'fairchem' and values['method'].lower() != 'am1':
@@ -144,6 +147,7 @@ def resolve_profiles(par):
                                    else 'sella')
             values['calculator_kwargs'] = {}
         context = (f'{level}_profile' if override else f'{level}={alias}' if alias
+                   else f'l0_qc={par["l0_qc"]}' if level == 'l0' and par.get('l0_qc')
                    else f'{level.upper()} settings inherited from qc/use_sella')
         values = _merge(values, override)
         values['calculator'] = _ALIASES.get(values['calculator'].lower(),

@@ -47,6 +47,16 @@ class TestVibrationWorkingDirectory(unittest.TestCase):
         self.assertEqual(zpe, 0.5 * frequencies.EVtoHARTREE)
         np.testing.assert_allclose(hess, np.eye(9) / 97.17370087)
 
+    def test_gaussian_guess_read_leaves_with_the_checkpoint(self):
+        # The Sella templates set guess=Read after the first energy; the
+        # displaced points run without a chk file, where Gaussian aborts
+        # on Guess=Read ("No data on chk file" in l301).
+        self.molecule.calc.parameters = {'chk': 'well', 'guess': 'Read', 'method': 'b3lyp'}
+        with patch.object(frequencies, 'Vibrations', side_effect=RuntimeError('stop')):
+            frequencies.calc_vibrations(self.molecule, 'guess')
+        self.assertEqual(self.molecule.calc.parameters, {'method': 'b3lyp'})
+        self.assertEqual(self.molecule.calc.label, 'guess_vib')
+
 
 if __name__ == '__main__':
     unittest.main()

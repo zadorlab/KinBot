@@ -424,8 +424,11 @@ def skip_rotor(name, rot):
 def calc_vibrations(mol, label):
     # this is a frequency calculator when ASE is used
     mol.calc.label = f'{label}_vib'
-    if 'chk' in mol.calc.parameters:
-        del mol.calc.parameters['chk']
+    # The Sella templates switch Gaussian to guess=Read after the first
+    # energy; without the checkpoint file that is an l301 error ("No data
+    # on chk file"), so the two go together.
+    for key in ('chk', 'guess'):
+        mol.calc.parameters.pop(key, None)
     # Compute frequencies in a separate temporary directory to avoid
     # conflicts accessing the cache in parallel calculations.
     if not os.path.isdir(f'{label}_vib'):

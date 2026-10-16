@@ -308,7 +308,8 @@ class Conformers:
                         nrandconf = int(round(self.nconfs / self.cyc_conf) + 2)
                     else:
                         nrandconf = self.nconfs
-                    if os.path.exists('{}.log'.format(self.get_job_name(nrandconf - 1))) and os.path.exists('conf/{}_low.log'.format(name)):
+                    if (os.path.exists(self.get_job_name(nrandconf - 1) + self.log_ext(self.get_job_name(nrandconf - 1)))
+                            and os.path.exists(self.low_log())):
                         rows = self.db.select(name=self.get_job_name(nrandconf - 1))
                         for row in rows:
                             self.conf = nrandconf
@@ -327,7 +328,8 @@ class Conformers:
             return 0
 
         # skipping generation if done
-        if os.path.exists('{}.log'.format(self.get_job_name(theoretical_confs - 1))) and os.path.exists('conf/{}_low.log'.format(name)):
+        if (os.path.exists(self.get_job_name(theoretical_confs - 1) + self.log_ext(self.get_job_name(theoretical_confs - 1)))
+                and os.path.exists(self.low_log())):
             rows = self.db.select(name=self.get_job_name(theoretical_confs - 1))
             for row in rows:
                 self.conf = theoretical_confs
@@ -462,18 +464,7 @@ class Conformers:
                     if not parent_allowed:
                         from kinbot.stereo_routing import StereoRoutingError
                         raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
-                    backend = self.qc.for_job(lowest_job)
-                    if getattr(backend, 'theory_level', None) and backend.use_sella:
-                        ext = '_sella.log'
-                    elif backend.qc == 'gauss':
-                        ext = '.log'
-                    elif backend.qc == 'qchem':
-                        ext = '.out'
-                    elif backend.qc == 'fc' or backend.qc == 'orca':
-                        ext = '_sella.log'
-                    else:
-                        raise NotImplementedError(f'Code {backend.qc} not available.')
-                    copyfile(f'{lowest_job}{ext}', f'conf/{name}_low{ext}')
+                    self.copy_low_log(lowest_job)
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
                             'frequencies': last_row.data.get('frequencies'),
@@ -631,17 +622,7 @@ class Conformers:
                 for lrow in low_rows:
                     low_row = lrow
                 try:
-                    backend = self.qc.for_job(lowest_job)
-                    if getattr(backend, 'theory_level', None) and backend.use_sella:
-                        copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
-                    elif backend.qc == 'gauss':
-                        copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
-                    elif backend.qc == 'qchem':
-                        copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
-                    elif backend.qc == 'fc' or backend.qc == 'orca':
-                        copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
-                    else:
-                        raise NotImplementedError(f'Code {backend.qc} not available.')
+                    self.copy_low_log(lowest_job)
                     rows = self.db.select(name='{}'.format(lowest_job))
                     logger.debug(f'Looking at {name} in conformers')
                     for row in rows:
@@ -682,9 +663,10 @@ class Conformers:
             geom (_type_): cartesian geometry of the lowest energy point along all hir
         """
         self.qc.qc_conf(self.species, geom, self.conf, semi_emp=self.semi_emp)
-        if os.path.exists(f'conf/{self.get_name()}_low.log'):
-            logger.debug(f'Removing file conf/{self.get_name()}_low.log')
-            os.remove(f'conf/{self.get_name()}_low.log')
+        low = self.low_log()
+        if os.path.exists(low):
+            logger.debug(f'Removing file {low}')
+            os.remove(low)
         self.conf += 1
 
 
@@ -866,6 +848,34 @@ class Conformers:
         else:
             name = routing_key(self.species)
         return name
+
+    def log_ext(self, job):
+        """Extension of the output file that marks a finished job of this backend."""
+        backend = self.qc.for_job(job)
+        if getattr(backend, 'theory_level', None) and backend.use_sella:
+            return '_sella.log'
+        if backend.qc == 'gauss':
+            return '.log'
+        if backend.qc == 'qchem':
+            return '.out'
+        if backend.qc in ('fc', 'orca'):
+            return '_sella.log'
+        raise NotImplementedError(f'Code {backend.qc} not available.')
+
+    def low_log(self):
+        """Output file copied for the selected conformer; its presence lets a
+        restart skip the conformer search and read conf/<name>_low directly."""
+        job = self.get_job_name(0, add='semi_emp_' if self.semi_emp else '')
+        return f'conf/{self.get_name()}_low{self.log_ext(job)}'
+
+    def copy_low_log(self, lowest_job):
+        """Copy the selected conformer's output to conf/<name>_low<ext>."""
+        source = lowest_job + self.log_ext(lowest_job)
+        if os.path.isfile(source):
+            copyfile(source, self.low_log())
+        else:
+            logger.warning('%s is missing; %s not written, so a restart will '
+                           'check every conformer again.', source, self.low_log())
 
     def get_job_name(self, idx, cyc=0, add=''):
         name = str(self.get_name())

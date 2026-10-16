@@ -2,6 +2,16 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## Conformer restart shortcut for every QC code
+
+A finished conformer search is recognised on restart by the output file
+copied for the selected conformer, `conf/<name>_low.<ext>`, together with
+the last conformer's output. Both were looked up under Gaussian's `.log`
+name, so Q-Chem and the Sella-driven codes repeated the whole conformer
+sweep on every restart. The lookup, the copy and the removal that forces
+a new search after a lower rotor point now use each code's own output
+name (`.log`, `.out`, `_sella.log`).
+
 ## Remove the NNPES surrogate calculator
 
 The `nn_pes` calculator depended on a private package that is not available

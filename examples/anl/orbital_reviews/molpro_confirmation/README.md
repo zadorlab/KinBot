@@ -12,6 +12,17 @@ currently proposes (5,4), (7,5), (7,5) for CH3S C–S, CH3SS C–S and CH3SS S�
 All local minimum-space inward/return checks are complete. These files do
 not install or approve a production orbital/surface model.
 
+The 11:42:40 PDT user monitor reports the CABS=3 CH3S far point validated and
+S–S far still running. `run_confirmation.py monitor RUN --roots` now shows
+current correlated call/spin/root and completed selected-energy markers;
+`--all` also lists completed points and waiting predecessors. Detailed views
+include per-chain counts. These read-only displays preserve all allocations
+and do not replace the native energy/orbital review of a collected export.
+The monitor change passed 86 focused monitor/campaign/confirmation tests,
+including ignored restart variables, long CI logs, unfinished CABS corrections
+and read-only completed/waiting summaries. Its marker counts were also checked
+against four retained native `_r2` outputs (completed and failed cases).
+
 This is a fixed-geometry backend check. It does not repeat optimizations or the
 production relaxed/frozen correction scans. Nuclear coordinates are the exact
 local comparison coordinates, including the C3v/Cs reference cuts and the

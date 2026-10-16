@@ -147,9 +147,12 @@ if __name__ == '__main__':
     p.add_argument('command', choices=['run', 'monitor', 'collect'])
     p.add_argument('root', type=Path)
     p.add_argument('--output', type=Path, help='Fresh archive outside the run tree, for collect.')
+    p.add_argument('--roots', action='store_true', help='Monitor: scan native output for spin/root progress (read only).')
+    p.add_argument('--all', action='store_true', help='Monitor: also list validated and waiting points.')
     args = p.parse_args()
     if args.command == 'monitor':
-        print(render(snapshot(args.root, registry=args.root / 'confirmation.json'), details=True))
+        print(render(snapshot(args.root, registry=args.root / 'confirmation.json',
+                              roots=args.roots, include_all=args.all), details=True))
     elif args.command == 'run':
         print(json.dumps(run(args.root), indent=2))
     else:

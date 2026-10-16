@@ -139,6 +139,11 @@ waiting and one running (S–S aTZ CASPT2 return). The plan/count accounting
 indicates MAXDAV20 completed; native energies await export review. Three
 waiting points are blocked CABS dependents; the fourth is the last CASPT2
 tilted successor. Allow that chain to finish.
+At 11:42:40 PDT the CABS=3 monitor reports CH3S far validated (six requested
+roots), S–S far running (twelve requested roots), and no failed gates. The
+new monitor displays per-chain successes and optional spin/root progress.
+Full repair/CABS native exports remain to be reviewed locally; there is no
+new claim that all scientific acceptance conditions have passed.
 
 ## 4. General user controls in KinBot JSON — locally audited and tested; native pending
 

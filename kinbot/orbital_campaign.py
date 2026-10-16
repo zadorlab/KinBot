@@ -844,6 +844,8 @@ def main(argv=None):
     monitor.add_argument('root')
     monitor.add_argument('--details', action='store_true', help='Include native stage and latest iteration/output.')
     monitor.add_argument('--json', action='store_true', help='Emit the read-only snapshot as JSON.')
+    monitor.add_argument('--roots', action='store_true', help='Scan native output for spin/root progress; implies detailed text.')
+    monitor.add_argument('--all', action='store_true', help='Also list validated and waiting points.')
     refresh = commands.add_parser('refresh-exclusions', help='Apply campaign exclusions to pending allocations only.')
     refresh.add_argument('root')
     refresh.add_argument('--node', action='append', default=[],
@@ -879,8 +881,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.action == 'monitor':
         from kinbot.orbital_monitor import snapshot, render
-        result = snapshot(args.root)
-        print(json.dumps(result, indent=2) if args.json else render(result, details=args.details))
+        result = snapshot(args.root, roots=args.roots, include_all=args.all)
+        print(json.dumps(result, indent=2) if args.json else render(result, details=args.details or args.roots))
         return 0
     if args.action == 'prepare':
         result = str(prepare(args.root, args.configurations))

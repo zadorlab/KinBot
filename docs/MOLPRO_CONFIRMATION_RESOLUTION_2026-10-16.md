@@ -1,5 +1,12 @@
 # Molpro confirmation: evidence, resolved cause and targeted recovery
 
+**CABS=3 update at 11:42:40 PDT:** the controller validates the CH3S six-root
+far point; the S–S twelve-root far point is running with output age 18 s and
+no reported error. Its last line does not identify which root is active.
+The optional `monitor --roots` view now scans emitted energy markers and
+program headers to show that context. Full recovery and CABS=3 native exports
+are not yet present locally; independent energy review remains pending.
+
 **Latest native-tail update, October 16:** both CABS=2 asymptotes have failed
 after converged MRCI. CH3S completes three doublet calls and fails on quartet
 root 1; S–S fails on doublet root 1. Both report `strange..` in

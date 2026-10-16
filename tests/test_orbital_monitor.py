@@ -137,3 +137,82 @@ def test_monitor_surfaces_native_input_limit_before_mpi_abort(tmp_path, monkeypa
     assert row['log_matches'][0]['line'] == 'MAXITER IS LIMITED TO999'
     assert 'Illegal input value' in monitor.render({'jobs':[row], **{
         k:v for k,v in monitor.snapshot(tmp_path).items() if k != 'jobs'}}, details=True)
+
+
+def test_full_root_progress_ignores_restart_values_and_survives_long_ci_output(tmp_path, monkeypatch):
+    jobs = _campaign(tmp_path)
+    manifest_path = tmp_path/'reconnaissance.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['jobs'][0].update(correlation_checks=[{'method':'mrci-f12+q(5,4)'}],
+        root_states=[{'multiplicity':m,'root':r} for m in (2,4) for r in (1,2)])
+    manifest_path.write_text(json.dumps(manifest))
+    directory = Path(jobs[0]['directory'])
+    (directory/'probe.out').write_text(
+        'reconc1=energy(1)\n PROGRAM * RESTART\n RECONC4 = -99.0 AU\n'
+        ' PROGRAM * MULTI\n PROGRAM * MRCI-F12\n RECONC1 = -1.2345 AU\n'
+        ' PROGRAM * MRCI-F12\n RECONC2 = -1.2344D+00 AU\n'
+        ' PROGRAM * MRCI-F12\n MAXDAV=20 MAXVI=60\n'+(' CI working\n'*15000)+
+        ' 8 1 1 1.15 -0.48 -835.14 0.00000000\n'
+        ' CPU time for F12 integral evaluation (CABS singles) 1.62 seconds\n')
+    monkeypatch.setattr(monitor, '_queue', lambda: ({}, None))
+    before = {p:p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    data = monitor.snapshot(tmp_path, roots=True)
+    row = next(r for r in data['jobs'] if r['job_id']=='10')
+    assert row['tail_truncated']
+    assert row['stage']=='MRCI-F12'
+    assert row['solver_parameters']['MAXDAV']=='20'
+    progress = row['root_progress']
+    assert progress['expected']==4 and progress['printed']==2
+    assert progress['calls_started']==3
+    assert progress['current']['multiplicity']==4 and progress['current']['root']==1
+    assert progress['last_selected']['energy_hartree']==pytest.approx(-1.2344)
+    rendered = monitor.render(data, details=True)
+    assert 'multiplicity=4, root=1' in rendered
+    assert 'Correlated energy markers: 2/4' in rendered
+    assert 'not validated results' in rendered
+    assert {p:p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}==before
+
+
+def test_root_progress_does_not_accept_precabs_energy_or_reuse_previous_multi(tmp_path):
+    job={'name':'probe','correlation_checks':[{'method':'mrci-f12+q(7,5)'}],
+         'root_states':[{'multiplicity':2,'root':1}]}
+    p=tmp_path/'probe.out'
+    p.write_text(' PROGRAM * MULTI\n PROGRAM * MRCI-F12\n RECONC1 = -1.0 AU\n'
+                 ' PROGRAM * MULTI\n PROGRAM * MRCI-F12\n'
+                 ' !CI-F12 STATE 1.1 Energy -835.14\n'
+                 ' Cluster corrected energies -835.21 (Davidson, relaxed reference)\n'
+                 ' ? strange..\n')
+    result=monitor._native_progress(tmp_path,job)
+    assert result['printed']==0 and result['last_selected'] is None
+    assert result['current']['root']==1 and result['calls_started']==1
+    p.write_text(p.read_text()+' RECONC1 = -835.22 AU\n')
+    result=monitor._native_progress(tmp_path,job)
+    assert result['printed']==1 and result['current'] is None
+    # Markers are display evidence, even if an earlier error exists. Only the
+    # controller validates completion; the monitor must not relabel a job.
+    p.write_text(p.read_text()+' PROGRAM * RESTART\n RECONC1 = -835.22 AU\n')
+    result=monitor._native_progress(tmp_path,job)
+    assert result['printed']==0 and result['calls_started']==0
+
+
+def test_all_view_lists_completed_roots_and_blocked_predecessor_without_reading_completed_output(tmp_path, monkeypatch):
+    _campaign(tmp_path)
+    p=tmp_path/'reconnaissance.json'
+    m=json.loads(p.read_text())
+    for i,j in enumerate(m['jobs']): j['name']='point'+str(i)
+    m['jobs'][0]['terminal_failure']='failed native solve'
+    m['jobs'][2]['correlated_energies_hartree']=[{'energy_hartree':-1.0}]*6
+    m['jobs'][3]['orbital_predecessor']='point0'
+    p.write_text(json.dumps(m))
+    monkeypatch.setattr(monitor,'_queue',lambda: ({},None))
+    def scan(directory, job):
+        assert job['status']!='complete'
+        return None
+    monkeypatch.setattr(monitor,'_native_progress',scan)
+    data=monitor.snapshot(tmp_path,include_all=True,roots=True)
+    assert len(data['jobs'])==4
+    assert data['chains'][0]['counts']['VALIDATED']==1
+    rendered=monitor.render(data,details=True)
+    assert '1/4 validated' in rendered
+    assert '6 correlated roots recorded' in rendered
+    assert 'predecessor=point0 (FAILED)' in rendered

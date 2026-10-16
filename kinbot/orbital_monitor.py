@@ -1,11 +1,14 @@
-"""Read-only live campaign view: scheduler facts and bounded native log tails.
+"""Read-only campaign view: scheduler facts, bounded tails, optional root scan.
 
-No audits, hashes, locks, retries or manifest writes. Log matches are evidence
+No audits, hashes, locks, retries or manifest writes. The optional root scan
+streams live/failed native output; completed-point summaries use manifests.
+Log matches are evidence
 to inspect, not a replacement for the controller's convergence validation.
 """
 from collections import Counter
 from datetime import datetime
 import json
+import math
 from pathlib import Path
 import re
 import subprocess
@@ -22,6 +25,68 @@ _ERROR = re.compile(
     r'\?\s*i/o error|traceback \(most recent|mpi_abort|segmentation fault|'
     r'out.of.memory|oom.kill|killed by signal|bad termination|permission denied', re.I)
 _PROGRAM = re.compile(r'^\s*PROGRAM\s*\*\s*(.+)', re.I)
+_CORRELATED_PROGRAM = re.compile(r'^(?:MRCI|RS2|CI|U?CCSD)(?:\b|-)', re.I)
+_SELECTED = re.compile(r'^\s*RECONC(\d+)\s*=\s*([-+\d.]+(?:[DdEe][-+]?\d+)?)\s+(?:AU|HARTREE)\b', re.I)
+_SOLVER = re.compile(r'\b(MAXIT|MAXITI|MAXVI|MAXDAV|THRVAR|THRDEN)\s*=\s*(\S+)')
+
+
+def _native_progress(directory, job):
+    """Optional streaming scan of native markers, not convergence validation.
+
+    RESTART can print inherited variables. Only observe markers after MULTI;
+    reset if a later MULTI starts. Use full output so a long CI iteration does
+    not hide the root's program header outside the normal bounded log tail.
+    """
+    from kinbot.molpro_reconnaissance import _correlation_labels
+    labels = _correlation_labels(job.get('correlation_checks', []), job.get('root_states', []))
+    result = {'expected': len(labels), 'printed': 0, 'calls_started': 0,
+              'current': None, 'last_selected': None, 'stage': None, 'iteration': '',
+              'solver_parameters': {}}
+    if not labels:
+        return result
+    values, started = {}, False
+    try:
+        with (directory/(job['name']+'.out')).open(errors='replace') as stream:
+            for line in stream:
+                program = _PROGRAM.match(line)
+                if program:
+                    stage = program[1].strip()
+                    if re.match(r'RESTART\b', stage, re.I):
+                        started = False
+                        values.clear()
+                        result['calls_started'] = 0
+                    if re.match(r'MULTI\b', stage, re.I):
+                        started = True
+                        values.clear()
+                        result['calls_started'] = 0
+                    result['stage'], result['iteration'] = stage, ''
+                    result['solver_parameters'] = {}
+                    if started and _CORRELATED_PROGRAM.match(stage):
+                        result['calls_started'] += 1
+                if not started:
+                    continue
+                result['solver_parameters'].update(_SOLVER.findall(line))
+                selected = _SELECTED.match(line)
+                if selected:
+                    index = int(selected[1])
+                    value = float(selected[2].replace('D', 'E').replace('d', 'e'))
+                    if 1 <= index <= len(labels) and math.isfinite(value):
+                        values[index] = value
+                if re.match(r'^\s*\d+\s+\d+\s+\d+\s+[-+\d]+\.\d+', line):
+                    result['iteration'] = line.strip()
+    except FileNotFoundError:
+        return result
+    except (OSError, ValueError) as error:
+        result['read_error'] = str(error)
+        return result
+    result['printed'] = len(values)
+    call = result['calls_started']
+    if 1 <= call <= len(labels) and call not in values:
+        result['current'] = {'index': call, **labels[call-1]}
+    if values:
+        last = max(values)
+        result['last_selected'] = {'index': last, **labels[last-1], 'energy_hartree': values[last]}
+    return result
 
 
 def _read_json(path):
@@ -74,7 +139,7 @@ def _queue():
     return rows, None
 
 
-def snapshot(root, *, now=None, registry=None):
+def snapshot(root, *, now=None, registry=None, roots=False, include_all=False):
     root = Path(root).expanduser().resolve()
     now = time.time() if now is None else now
     campaign, error = _read_json(Path(registry) if registry is not None else root / 'campaign.json')
@@ -82,6 +147,7 @@ def snapshot(root, *, now=None, registry=None):
         raise ValueError(error or f'Campaign missing: {root}')
     queue, queue_error = _queue()
     rows, counts, warnings, excluded, retries = [], {}, [], set(), Counter()
+    chains = []
     if queue_error:
         warnings.append('SCHEDULER UNAVAILABLE: ' + queue_error)
     for system in campaign['systems']:
@@ -99,6 +165,9 @@ def snapshot(root, *, now=None, registry=None):
                 continue
             excluded.update(manifest.get('slurm_excluded_nodes', []))
             count = counts.setdefault(phase, Counter())
+            chain_count = Counter()
+            chains.append({'system': system['title'], 'phase': phase, 'counts': chain_count})
+            jobs_by_name = {j['name']: j for j in manifest['jobs']}
             for job in manifest['jobs']:
                 identifier = str(job.get('job_id', ''))
                 q = queue.get(identifier, {})
@@ -114,12 +183,24 @@ def snapshot(root, *, now=None, registry=None):
                     'LEFT-QUEUE' if identifier else 'WAITING')
                 count['total'] += 1
                 count[state] += 1
+                chain_count['total'] += 1
+                chain_count[state] += 1
                 retries['startup'] += len(job.get('startup_retry_history', []))
                 retries['manual_startup'] += len(job.get('manual_startup_retry_history', []))
                 retries['allocation'] += len(job.get('allocation_retry_history', []))
                 # Unsubmitted duplicate panels stay in the totals, not the
                 # live table. Completed files were validated by the controller.
                 if state in ('WAITING', 'VALIDATED'):
+                    if include_all:
+                        predecessor = job.get('orbital_predecessor')
+                        parent = jobs_by_name.get(predecessor, {})
+                        rows.append({'system': system['title'], 'phase': phase, 'name': job['name'],
+                            'relative_directory': str(directory.relative_to(root)),
+                            'job_id': identifier, 'state': state, 'brief': True,
+                            'predecessor': predecessor,
+                            'predecessor_status': ('FAILED' if parent.get('terminal_failure') else parent.get('status')),
+                            'correlated_roots': len(job.get('correlated_energies_hartree', [])),
+                            'alerts': [], 'log_matches': []})
                     continue
                 execution, error = _read_json(directory / 'execution.json')
                 if error:
@@ -139,8 +220,15 @@ def snapshot(root, *, now=None, registry=None):
                         stage, iteration = match[1].strip(), ''
                     elif re.match(r'^\s*\d+\s+\d+\s+\d+\s+[-+\d]+\.\d+', line):
                         iteration = line.strip()
-                    for key, value in re.findall(r'\b(MAXIT|MAXITI|MAXVI|THRVAR|THRDEN)\s*=\s*(\S+)', line):
+                    for key, value in _SOLVER.findall(line):
                         solver[key] = value
+                progress = _native_progress(directory, job) if roots else None
+                if progress:
+                    if progress.get('read_error'):
+                        alerts.append('Native progress scan: ' + progress['read_error'])
+                    elif progress.get('stage'):
+                        stage, iteration = progress['stage'], progress['iteration']
+                        solver = progress['solver_parameters']
                 guard_status, guard_retries, slurm_restarts = '-', 0, 0
                 logs = [(name + '.out', output)]
                 for suffix in ('.stderr', '.stdout', '.launcher.stderr', '.launcher.stdout'):
@@ -192,6 +280,7 @@ def snapshot(root, *, now=None, registry=None):
                     'allocation_retries': len(job.get('allocation_retry_history', [])),
                     'startup_retries': len(job.get('startup_retry_history', [])),
                     'stage': stage, 'iteration': iteration,
+                    'root_progress': progress,
                     'solver_parameters': solver,
                     'last_output': next((s.strip() for s in reversed(lines) if s.strip()), ''),
                     'output_bytes': output['bytes'], 'output_age_seconds': output['age_seconds'],
@@ -204,6 +293,7 @@ def snapshot(root, *, now=None, registry=None):
         warnings.append('controller.log: ' + controller['read_error'])
     return {'root': str(root), 'timestamp': now, 'status': campaign['status'],
             'max_jobs': campaign.get('max_jobs'), 'counts': counts, 'jobs': rows,
+            'chains': chains,
             'retries': retries,
             'excluded_nodes': sorted(excluded), 'warnings': warnings,
             'controller_tail': [line[:300] for line in controller['text'].splitlines()[-6:]]}
@@ -217,8 +307,22 @@ def render(data, *, details=False):
     lines.append('Campaign excluded nodes: ' + (','.join(data['excluded_nodes']) or 'none'))
     lines.append('Campaign retries (cumulative): ' + '  '.join(f'{key}={value}' for key, value in data['retries'].items()))
     lines.extend('WARNING: ' + warning for warning in data['warnings'])
+    if details:
+        lines.append('Chains (VALIDATED = controller completion checks):')
+        for chain in data.get('chains', []):
+            if chain['counts'].get('total'):
+                count = chain['counts']
+                states = ' '.join(f'{k}={v}' for k, v in count.items() if k not in ('total', 'VALIDATED'))
+                lines.append(f'  {chain["system"]} [{chain["phase"]}]: '
+                             f'{count.get("VALIDATED", 0)}/{count["total"]} validated  {states}'.rstrip())
     lines.append('JOB       STATE          HOST       ELAPSED    OUT-AGE  MEM-REQ  EXCL(SLURM)  NATIVE/GUARD(RETRIES)')
     for row in data['jobs']:
+        if row.get('brief'):
+            description = (f'{row["correlated_roots"]} correlated roots recorded'
+                           if row['state'] == 'VALIDATED' else
+                           f'predecessor={row["predecessor"] or "none"} ({row["predecessor_status"] or "not submitted"})')
+            lines.append(f'{row["job_id"] or "-":<9} {row["state"]:<14} {row["relative_directory"]}  {description}')
+            continue
         q = row['scheduler']
         age = row['output_age_seconds']
         age = '-' if age is None else f'{int(age)}s'
@@ -234,6 +338,19 @@ def render(data, *, details=False):
                 lines.append('  On-disk diagnostics below may precede a pending requeue.')
         elif details:
             lines.append('  Stage: ' + row['stage'])
+            progress = row.get('root_progress')
+            if progress and progress['expected']:
+                lines.append(f'  Correlated energy markers: {progress["printed"]}/{progress["expected"]}; '
+                             f'calls started: {progress["calls_started"]}')
+                current = progress.get('current')
+                if current:
+                    lines.append(f'  Current call {current["index"]}: {current["method"]}, '
+                                 f'multiplicity={current.get("multiplicity", "?")}, root={current.get("root", "?")} '
+                                 '(label from declared call order)')
+                last = progress.get('last_selected')
+                if last:
+                    lines.append(f'  Last selected energy: #{last["index"]} '
+                                 f'{last["energy_hartree"]:.10f} Eh')
             if row['solver_parameters']:
                 lines.append('  Native solver: ' + '  '.join(f'{k}={v}' for k, v in row['solver_parameters'].items()))
             lines.append('  ' + ('Iteration: ' + row['iteration'] if row['iteration']
@@ -244,6 +361,8 @@ def render(data, *, details=False):
             lines.append(f'  LOG [{match["file"]}]: {match["line"]}')
     lines.append('OUT-AGE = seconds since output write; quiet output alone does not prove a stall.')
     lines.append('LOG = diagnostic in current file tails (128 KiB/file), not a terminal-failure verdict.')
+    if any(row.get('root_progress') for row in data['jobs']):
+        lines.append('Root markers show printed energies, not validated results or a time-to-finish estimate.')
     lines.append('Controller tail:')
     lines.extend(data['controller_tail'])
     return '\n'.join(lines)

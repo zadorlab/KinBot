@@ -1,10 +1,16 @@
 # Molpro confirmation: targeted resolution handoff
 
+**11:42:40 PDT CABS=3 monitor:** CH3S far is validated; S–S far is still
+running with recent output and no reported failure. This is successful
+completion of the six-root CH3S point according to the controller; the
+coupled-CABS energies still require independent native review. The S–S
+twelve-root point remains unresolved. Preserve it and the recovery results.
+
 **Latest native report:** both CABS=2 far points failed after converged MRCI.
-The proposed perturbational remedy is not accepted for production. Two
-isolated tests of the documented coupled treatment, CABS=3, are ready;
-native success is not yet established. Keep the running shared-reference
-CASPT2 calculations and all completed results, including MAXDAV20. See the updated
+The proposed perturbational remedy is not accepted for production. The two
+isolated tests of the documented coupled treatment, CABS=3, have been submitted;
+S–S native completion remains pending. Preserve the recovery calculations
+and all completed results, including MAXDAV20. See the updated
 [resolution record](docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
 
 **10:12:32 PDT monitor:** 19/26 validated, two failed, four waiting, one
@@ -27,9 +33,10 @@ tests this policy on the current geometries/bases and on S–S, including the
 requirement to preserve physical fragment excitation gaps. See the
 [evidence, causal analysis and literature](docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
 
-## Run only the two CABS tests on Blodgett
+## Existing CABS submission (already launched)
 
-The user handles SSH. On the existing `composite` checkout:
+The user handles SSH. The launch commands below are retained for reproducibility.
+**Do not rerun them while the CABS tests are running.** Use the monitor below.
 
 ```bash
 cd /home/hram/KinBot
@@ -53,8 +60,41 @@ is documented, but the manual does not promise it avoids the internal error.
 The exact `strange..` guard cannot be diagnosed from the available output.
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates --roots'
 ```
+
+`--roots` streams native output to show the number of selected correlated
+energies printed, the current call's declared multiplicity/root and the latest
+iteration, even when the program header lies outside the normal log tail.
+It ignores inherited RESTART variables and does not treat pre-CABS MRCI or
+Davidson numbers as completed selected energies. These are progress markers,
+not a convergence verdict or time-to-finish estimate. Output scans are optional;
+the default monitor keeps its bounded log-tail reads.
+
+Every detailed monitor now gives per-chain completion counts. To list every
+successful repair point, recorded root count and waiting predecessor:
+
+```bash
+/home/hram/KinBot/.venv/bin/python \
+  examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor \
+  /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery --all --roots
+```
+
+This command reads files and scheduler state only; it changes no running job
+or result. Completed-point summaries come from manifests without rescanning
+all their native outputs. To inspect the last lines directly while S–S runs:
+
+```bash
+tail -n 40 -F /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates/ch3ss_ss_atz_mrci_cabs3_gate/atz__far/atz__far.out
+```
+
+The recovery's successful native results must still be exported using `collect`
+below and transferred locally for review. At this update only the original
+`_r2` native export is present locally. Required review covers all repaired
+CASPT2 asymptotes, angular/radial energies, same-geometry return orbital spaces,
+and the MAXDAV20 MRCI energy selection. A successful job count alone does not
+answer those scientific checks. Collecting one stopped run is independent of
+the other CABS run's live allocations.
 
 For native review after the two tests stop:
 
@@ -125,7 +165,7 @@ THRDEN=1e-8 and THRVAR=1e-10. Only the stalled external solve adds MAXDAV=20.
 |---|---|---|
 | 1 | Literature-grounded minimum active spaces | Local choices complete; unchanged by this method diagnosis |
 | 2 | ORCA chemical/radial/angular/return checks | Complete; 47 curated points retained |
-| 3 | aDZ/aTZ native Molpro confirmation | 35/39 original points reviewed; 19/26 recovery points validated by monitor, native review pending; two CABS3 tests ready |
+| 3 | aDZ/aTZ native Molpro confirmation | 35/39 original points reviewed; 19/26 recovery points in last recovery snapshot; CABS3 CH3S complete/S–S running; new native review pending |
 | 4 | General JSON controls | Orbital/state controls retained; explicit MAXDAV and MRCI CABS controls added/tested |
 | 5 | General orbital reconnaissance | Procedure updated; chemistry remains example data |
 | 6 | Complete production inputs | Counts configured; final orbital/surface/reference installation follows native closure |

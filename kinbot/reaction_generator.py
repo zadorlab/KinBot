@@ -1,6 +1,6 @@
 from kinbot.species_routing import (routing_key, routing_name, same_species,
-                                   reusable_cached_product, matches_name,
-                                   register_optimized_product)
+                                   matches_name,
+                                   register_optimized_product, prepare_initial_product)
 import os, sys
 import shutil
 import time
@@ -315,7 +315,7 @@ class ReactionGenerator:
                             # make the geom of products in frag_unique the one from the multi_molecular (not optimized)
                             self.equate_unique(obj.products, frag_unique)
                             obj.products = self.initial_product_copies(obj.products)
-                            obj.products = [reusable_cached_product(self.qc, product)
+                            obj.products = [prepare_initial_product(self.qc, product)
                                             for product in obj.products]
                             self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
                             obj.prod_done = 1
@@ -332,7 +332,8 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 product_cache_failed = True
                                 break
-                            e, _ = self.qc.get_qc_geom(routing_name(frag) + '_well', frag.natom) # check if finished without updating geom
+                            suffix = '_well' if getattr(frag, '_initial_product_complete', False) else '_product'
+                            e, _ = self.qc.get_qc_geom(routing_name(frag) + suffix, frag.natom) # check if finished without updating geom
                             if e == 1:  # it's running
                                 continue
 
@@ -353,7 +354,8 @@ class ReactionGenerator:
                             elif not obj.valid_prod[fragii]:
                                 ndone += 1
                                 continue
-                            source_job = routing_name(frag) + '_well'
+                            initial_product = not getattr(frag, '_initial_product_complete', False)
+                            source_job = routing_name(frag) + ('_product' if initial_product else '_well')
                             requested_fragment = copy.copy(frag)
                             # OpenBabel handles cannot be deep-copied; only freeze
                             # the arrays that define the requested configuration.
@@ -380,23 +382,23 @@ class ReactionGenerator:
                                 frag.reset_order()
                                 self._debug_fragment_freqs(f"{obj.instance_name}:after_start_multi_molecular", frag)
                                 # Identify the actual product after its first optimization.
-                                if not same_species(frag, requested_fragment):
+                                if initial_product:
                                     frag.__dict__.pop('optical_reference', None)
                                     newfrags, _ = frag.start_multi_molecular(vary_charge=True)
                                     self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                     for product in newfrags:
                                         require_supported_identity(product)
+                                    self.equate_identical(newfrags)
+                                    self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
+                                    newfrags = self.initial_product_copies(newfrags)
                                     if len(newfrags) == 1:
                                         newfrags[0] = register_optimized_product(
                                             self.qc, requested_fragment, newfrags[0], source_job)
-                                    self.equate_identical(newfrags)
-                                    self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
-                                    self.equate_unique(newfrags, frag_unique)
-                                    newfrags = self.initial_product_copies(newfrags)
-                                    newfrags = [reusable_cached_product(self.qc, product)
-                                                for product in newfrags]
-                                    if len(newfrags) == 1:
-                                        newfrags[0]._initial_product_complete = True
+                                    else:
+                                        self.equate_unique(newfrags, frag_unique)
+                                        newfrags = self.initial_product_copies(newfrags)
+                                        newfrags = [prepare_initial_product(self.qc, product)
+                                                    for product in newfrags]
                                     self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                     logger.info('Product calculation %s optimized to %s in reaction %s',
                                                 source_job, [routing_name(nf) for nf in newfrags],

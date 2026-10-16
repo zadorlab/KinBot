@@ -23,6 +23,13 @@ reactant. Later well and conformer calculations retain their stereoisomer
 checks. A product that splits into fragments requires separate fragment
 calculations; its original frequencies and energy are not copied to them.
 
+First product optimizations use `<initial_name>_product`. Accepted wells use
+`<optimized_name>_well`. If the first calculation from A produces B and the
+first calculation from B produces C, both results remain available. A restart
+keeps each reaction's original product calculation. Existing verified wells
+can supply a first product result without another QC job. This separation uses
+calculation format v4; directories made with v3 require a fresh run.
+
 ### Assign axial stereochemistry from coordinates
 
 KinBot now distinguishes the two orientations of substituted cumulenes. The

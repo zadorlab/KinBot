@@ -788,7 +788,7 @@ class QuantumChemistry:
             if high_level:
                 job = f'{species.name}_high'
         elif ext is None:
-            job = routing_name(species) + '_well'
+            job = routing_name(species) + ('_product' if initial_product else '_well')
             if high_level:
                 job = routing_name(species) + '_well_high'
             if mp2:

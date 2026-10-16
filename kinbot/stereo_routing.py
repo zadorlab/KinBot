@@ -226,7 +226,9 @@ def guard_well_job(qc, species, geom, job, initial_product=False):
                                [requested, cached])
         else:
             require_cache_atom_order(requested, cached, job)
-        if not initial_product and cached.chemid == species.chemid:
+            if cached.chemid != requested.chemid:
+                refuse_routing(f'{job}: completed well has different connectivity',
+                               [requested, cached])
             require_same_configuration(requested, cached, f'{job}: completed cache')
     if reference is None:
         reference = qc.db.get(_write_reference(qc, requested, name, identity))

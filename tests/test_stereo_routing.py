@@ -199,18 +199,24 @@ class TestStereoRouting(unittest.TestCase):
         self.assertIn('unreported', unknown.calculation_state_evidence['charge']['source'])
         self.assertEqual(unknown.calculation_state_evidence['charge']['observations'], [])
 
-    def test_compatible_cache_and_existing_connectivity_change_path_remain_available(self):
+    def test_only_first_product_results_can_change_connectivity(self):
         db = connect('kinbot.db')
         job = f'{self.first.chemid}_well'
         db.write(Atoms(self.first.atom, positions=self.first.geom), name=job, data={'status': 'normal'})
         guard_well_job(SimpleNamespace(db=db), self.first, self.first.geom, job)
         guard_well_job(SimpleNamespace(db=db), self.first, self.first.geom, job)
         self.assertEqual(len(list(db.select(name=f'stereochemistry/{job}'))), 1)
-        # Existing fragment dissociation handling is not a stereo-cache collision.
+        # A first product optimization may split; an established well may not.
         separated = self.first.geom.copy()
         separated[-1] += 20.
         db.write(Atoms(self.first.atom, positions=separated), name=job, data={'status': 'normal'})
-        guard_well_job(SimpleNamespace(db=db), self.first, self.first.geom, job)
+        with self.assertRaisesRegex(StereoRoutingError, 'different connectivity'):
+            guard_well_job(SimpleNamespace(db=db), self.first, self.first.geom, job)
+        product_job = f'{self.first.chemid}_product'
+        db.write(Atoms(self.first.atom, positions=separated), name=product_job,
+                 data={'status': 'normal'})
+        guard_well_job(SimpleNamespace(db=db), self.first, self.first.geom,
+                       product_job, initial_product=True)
 
     def test_pes_input_is_not_overwritten_with_another_configuration(self):
         path = Path('well.json')

@@ -88,7 +88,7 @@ def same_species(first, second, context='species reuse'):
             and left['mirror_id'] == right['id'])
 
 
-def reusable_cached_product(qc, species):
+def reusable_cached_product(qc, species, job=None):
     """Adopt a verified product's saved atom ordering before optimization.
 
     A product reached by another H-transfer path may have the same configured
@@ -99,7 +99,7 @@ def reusable_cached_product(qc, species):
     if not hasattr(qc, 'db') or getattr(species, 'wellorts', 0):
         return species
     from kinbot.stereo_routing import _row_species
-    job = routing_name(species) + '_well'
+    job = job or routing_name(species) + '_well'
     references = list(qc.db.select(name='stereochemistry/' + job))
     rows = list(qc.db.select(name=job))
     reference = references[-1] if references else None
@@ -124,6 +124,31 @@ def reusable_cached_product(qc, species):
         '%s: reusing the verified product in its saved atom order; the original '
         'IRC endpoint is retained separately.', job)
     return saved
+
+
+def prepare_initial_product(qc, species):
+    """Keep the first optimization separate from the accepted product well.
+
+    A previous B_product calculation may have produced C. A later B_well
+    must not change that reaction's product on restart. Reuse a completed
+    well only when the first product job has not yet been created.
+    """
+    from kinbot.stereo_routing import guard_well_job
+    job = routing_name(species) + '_product'
+    status = qc.check_qc(job)
+    source = next(qc.db.select(name=job, sort='-id', limit=1), None)
+    reference = next(qc.db.select(name='stereochemistry/' + job,
+                                 sort='-id', limit=1), None)
+    if status != 'running' and source is None and reference is None:
+        well = routing_name(species) + '_well'
+        if qc.check_qc(well) == 'normal':
+            species = reusable_cached_product(qc, species)
+            guard_well_job(qc, species, species.geom, well)
+            source = next(qc.db.select(name=well, sort='-id', limit=1))
+            qc.publish_result(source, job)
+    species = reusable_cached_product(qc, species, job=job)
+    species._initial_product_complete = False
+    return species
 
 
 def require_cache_atom_order(requested, observed, context):
@@ -178,14 +203,18 @@ def register_optimized_product(qc, requested, product, source_job):
         getattr(qc, 'par', {}).get('optical_population', 'specified'))
     product.name = routing_name(product)
     target = product.name + '_well'
+    target_status = qc.check_qc(target)
     target_row = next(qc.db.select(name=target, sort='-id', limit=1), None)
     target_reference = next(qc.db.select(name='stereochemistry/' + target,
                                         sort='-id', limit=1), None)
-    if target_row is None and target_reference is None and qc.check_qc(target) == 0:
+    if (target_reference is None and target_status != 'running'
+            and (target_row is None or target_row.data.get('reason') ==
+                 'Publishing accepted optimization result')):
         qc.publish_result(source, target, chemical_context=_chemical_context(product))
         guard_well_job(qc, product, product.geom, target)
     else:
         product = reusable_cached_product(qc, product)
+        guard_well_job(qc, product, product.geom, target)
     # A product already identified after optimization is an ordinary well.
     product._initial_product_complete = True
     return product

@@ -29,6 +29,40 @@ def point(smiles):
     return species
 
 
+def accept_product(qc, par, initial, family, copies, monkeypatch):
+    submissions = []
+    def submit(species, geometry, initial_product=False):
+        submissions.append((routing_name(species), initial_product))
+        suffix = '_product' if initial_product else '_well'
+        guard_well_job(qc, species, geometry, routing_name(species)+suffix,
+                       initial_product=initial_product)
+    qc.qc_opt = submit
+    parent = point('CCO')
+    parent.energy, parent.zpe = -100., .02
+    parent.start_energy, parent.start_zpe = parent.energy, parent.zpe
+    endpoint = copy.copy(initial)
+    endpoint.name = routing_name(initial) + '_product'
+    endpoint.start_multi_molecular = Mock(return_value=([initial]*copies, None))
+    reaction = SimpleNamespace(instance_name=family+'_fixture', species=parent,
+        instance=[0, 1], products=[], prod_opt=[], do_vdW=False, irc_prod=endpoint)
+    parent.reac_obj, parent.reac_inst = [reaction], [[0, 1]]
+    parent.reac_type, parent.reac_name = [family], [reaction.instance_name]
+    parent.reac_step, parent.reac_ts_done = [0], [2]
+    class ReadyForConformers(Exception):
+        pass
+    read_geometry = qc.get_qc_geom
+    def read(name, *args, **kwargs):
+        if parent.reac_ts_done[0] == 3:
+            raise ReadyForConformers
+        return read_geometry(name, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setattr(qc, 'get_qc_geom', read)
+        patch.setattr('kinbot.reaction_generator.time.sleep', lambda _: None)
+        with pytest.raises(ReadyForConformers):
+            ReactionGenerator(parent, par, qc, 'input.json').generate()
+    return reaction, submissions
+
+
 @pytest.mark.parametrize('family', ['hom_sci', 'intra_H_migration'])
 @pytest.mark.parametrize('copies', [1, 2])
 def test_first_product_optimization_identifies_final_structure(tmp_path, monkeypatch, family, copies):
@@ -44,7 +78,7 @@ def test_first_product_optimization_identifies_final_structure(tmp_path, monkeyp
     initial = point('C[C@H](O)CC')
     initial.optical_population = 'specified'
     initial.optical_reference = canonical_identity(initial)
-    source_job = routing_name(initial) + '_well'
+    source_job = routing_name(initial) + '_product'
     guard_well_job(qc, initial, initial.geom, source_job)
     final = StationaryPoint('optimized product', 0, 1, atom=initial.atom,
                             geom=initial.geom * [-1., 1., 1.])
@@ -57,35 +91,9 @@ def test_first_product_optimization_identifies_final_structure(tmp_path, monkeyp
     source_row = qc.db.write(Atoms(final.atom, positions=final.geom), name=source_job, data=data)
     with pytest.raises(StereoRoutingError, match='different stereoisomer'):
         guard_well_job(qc, initial, initial.geom, source_job)
-    submissions = []
-    def submit(species, geometry, initial_product=False):
-        submissions.append((routing_name(species), initial_product))
-        guard_well_job(qc, species, geometry, routing_name(species)+'_well',
-                       initial_product=initial_product)
-    qc.qc_opt = submit
-    parent = point('CCO')
-    parent.energy, parent.zpe = -100., .02
-    parent.start_energy, parent.start_zpe = parent.energy, parent.zpe
-    endpoint = copy.copy(initial)
-    endpoint.name = source_job
-    endpoint.start_multi_molecular = Mock(return_value=([initial]*copies, None))
-    endpoint_geom = endpoint.geom.copy()
-    reaction = SimpleNamespace(instance_name=family+'_fixture', species=parent,
-        instance=[0, 1], products=[], prod_opt=[], do_vdW=False, irc_prod=endpoint)
-    parent.reac_obj, parent.reac_inst = [reaction], [[0, 1]]
-    parent.reac_type, parent.reac_name = [family], [reaction.instance_name]
-    parent.reac_step, parent.reac_ts_done = [0], [2]
-    class ReadyForConformers(Exception):
-        pass
-    read_geometry = qc.get_qc_geom
-    def read(name, *args, **kwargs):
-        if parent.reac_ts_done[0] == 3:
-            raise ReadyForConformers
-        return read_geometry(name, *args, **kwargs)
-    qc.get_qc_geom = read
-    monkeypatch.setattr('kinbot.reaction_generator.time.sleep', lambda _: None)
-    with pytest.raises(ReadyForConformers):
-        ReactionGenerator(parent, par, qc, 'input.json').generate()
+
+    endpoint_geom = initial.geom.copy()
+    reaction, submissions = accept_product(qc, par, initial, family, copies, monkeypatch)
     assert len(reaction.products) == copies
     assert all(routing_name(product)+'_well' == target_job for product in reaction.products)
     assert (routing_name(initial), True) in submissions
@@ -103,3 +111,55 @@ def test_first_product_optimization_identifies_final_structure(tmp_path, monkeyp
     np.testing.assert_array_equal(reaction.irc_product_reference.geom, endpoint_geom)
     with pytest.raises(StereoRoutingError, match='different stereoisomer'):
         guard_well_job(qc, initial, initial.geom, source_job)
+
+
+@pytest.mark.parametrize('cycle', [False, True])
+@pytest.mark.parametrize('reverse_order', [False, True])
+def test_first_product_results_keep_both_reactions_on_restart(
+        tmp_path, monkeypatch, cycle, reverse_order):
+    """A->B must survive B->C (or B->A), in either processing order."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path/'input.json').write_text(json.dumps({'barrier_threshold': 100.}))
+    par = Parameters('input.json', show_warnings=False).par
+    par.update(high_level=0, L3_calc=0)
+    qc = QuantumChemistry(par)
+    def status(name):
+        row = next(qc.db.select(name=name, sort='-id', limit=1), None)
+        return row.data['status'] if row is not None else 0
+    qc.check_qc = status
+    a = point('C[C@H](F)[C@H](Cl)C')
+    b = point('C[C@@H](F)[C@H](Cl)C')
+    c = a if cycle else point('C[C@@H](F)[C@@H](Cl)C')
+    records = []
+    for number, (initial, final) in enumerate(((a, b), (b, c))):
+        initial.optical_population = 'specified'
+        initial.optical_reference = canonical_identity(initial)
+        job = routing_name(initial) + '_product'
+        guard_well_job(qc, initial, initial.geom, job, initial_product=True)
+        data = {'status': 'normal', 'energy': (-100.-number)/constants.EVtoHARTREE,
+                'zpe': .01*(number+1), 'frequencies': [100.+number]*(3*final.natom-6),
+                'hess': np.eye(3*final.natom)*(number+1), 'charge': 0, 'multiplicity': 1}
+        row = qc.db.write(Atoms(final.atom, positions=final.geom), name=job, data=data)
+        (tmp_path/(job+'.log')).write_text(f'completed first optimization {number}\n')
+        records.append((initial, final, row, data))
+    if reverse_order:
+        records.reverse()
+    for restart in (False, True):
+        qc._verified_well_jobs = {}
+        for initial, final, row, data in records:
+            reaction, _ = accept_product(qc, par, copy.copy(initial),
+                'intra_H_migration' if restart else 'hom_sci', 1, monkeypatch)
+            product = reaction.products[0]
+            job = routing_name(final) + '_well'
+            assert routing_name(product) == routing_name(final)
+            load_calculation_record(product, qc, job)
+            np.testing.assert_array_equal(product.geom, final.geom)
+            np.testing.assert_array_equal(product.hess, data['hess'])
+            assert product.energy == pytest.approx(data['energy']*constants.EVtoHARTREE)
+            assert product.zpe == data['zpe']
+            assert list(product.freq) == data['frequencies']
+            saved = next(qc.db.select(name=job, sort='-id', limit=1))
+            assert saved.data['copied_from_row_id'] == row
+            source = qc.db.get(row)
+            assert list(qc.db.select(name=source.name))[-1].id == row
+            assert (tmp_path/(source.name+'.log')).read_bytes() == (tmp_path/(job+'.log')).read_bytes()

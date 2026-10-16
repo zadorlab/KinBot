@@ -444,7 +444,7 @@ def postprocess(par, jobs, task, names, mass):
                 # overwrite energies with mp2 energy if needed
                 if any([mm in reaction_name for mm in constants.mp2_list]) \
                        and not par['high_level'] \
-                       and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
+                       and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
                                               mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
                     base_energy_mp2, base_zpe_mp2 = mp2_energies

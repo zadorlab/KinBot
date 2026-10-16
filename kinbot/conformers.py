@@ -469,8 +469,6 @@ class Conformers:
                         ext = '.log'
                     elif backend.qc == 'qchem':
                         ext = '.out'
-                    elif backend.qc == 'nn_pes':
-                        ext = '.log'
                     elif backend.qc == 'fc' or backend.qc == 'orca':
                         ext = '_sella.log'
                     else:
@@ -640,9 +638,9 @@ class Conformers:
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
                     elif backend.qc == 'qchem':
                         copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
-                    elif backend.qc == 'nn_pes' or backend.qc == 'fc':
+                    elif backend.qc == 'fc':
                         pass
-                    elif backend.qc == 'fc' or backend.qc == 'orca':
+                    elif backend.qc == 'orca':
                         copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
                     else:
                         raise NotImplementedError(f'Code {backend.qc} not available.')

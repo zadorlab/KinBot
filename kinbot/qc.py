@@ -87,9 +87,6 @@ class QuantumChemistry:
         self.frequency_mode = par.get('frequency_mode', 'auto')
         self.optimizer = 'sella' if self.use_sella else 'native'
         self.theory_level = None
-        if not self.use_sella and self.qc.lower() == 'nn_pes':
-            logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
-            self.use_sella = True
         if not self.use_sella and self.qc.lower() == 'orca':
             logger.warning('ORCA not supported without Sella. Turning "use_sella" on.')
             self.use_sella = True
@@ -134,7 +131,7 @@ class QuantumChemistry:
         scan: this calculation is part of a scan of a bond length
         '''
 
-        if self.qc == 'gauss' or (self.qc == 'nn_pes' and step < max_step):
+        if self.qc == 'gauss':
             # arguments for Gaussian
             kwargs = {
                 'method': self.method,
@@ -381,11 +378,6 @@ class QuantumChemistry:
                 kwargs['orcasimpleinput'] = f'EnGrad TightSCF {self.high_level_method} {self.high_level_basis} {self.orcasimpleinput}'
                 kwargs['orcablocks'] = f'{self.orcablocks} %pal nprocs {min(nel, self.ppn)} end'
 
-        elif self.qc == 'nn_pes':
-            if self.par['nn_model']:
-                kwargs = {'fname': self.par['nn_model']}
-            else:
-                kwargs = {}
         elif self.qc == 'fc':
             kwargs = {
                     'mult': mult,
@@ -452,9 +444,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -592,11 +581,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            kwargs.pop('method', None)
-            kwargs.pop('basis', None)
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -683,9 +667,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -878,9 +859,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -965,9 +943,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -1736,8 +1711,6 @@ class QuantumChemistry:
                     log_file = job + '_sella.log'
                 elif self.qc == 'fc':
                     log_file = job + '_sella.log'
-                elif self.qc == 'nn_pes':
-                    log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
                 # The Sella templates stamp 'done' in {job}_sella.log, the
@@ -1745,8 +1718,7 @@ class QuantumChemistry:
                 # kinds of job run, so take the Sella log when it is there.
                 if getattr(self, 'use_sella', False) and os.path.exists(job + '_sella.log'):
                     log_file = job + '_sella.log'
-                if self.qc != 'nn_pes':
-                    log_file_exists = os.path.exists(log_file)
+                log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     with open(log_file, 'r') as f:
                         try:
@@ -1763,8 +1735,6 @@ class QuantumChemistry:
                                 return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
-                elif self.qc == 'nn_pes':
-                    pass
                 else:
                     if self.queuing == 'local' and not self.par['error_missing_local']:
                         return 'error'

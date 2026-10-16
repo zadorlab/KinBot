@@ -2,6 +2,11 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## Remove the NNPES surrogate calculator
+
+The `nn_pes` calculator depended on a private package that is not available
+and is superseded by FairChem/UMA. `qc: nn_pes` and `nn_model` are no longer accepted.
+
 ## FairChem compilation option
 
 Add the global `fc_compile` option, with a default of `false`. This avoids
@@ -49,8 +54,8 @@ results remain usable if this option changes on restart.
   internal Q-Chem optimization in place of a force evaluation.
 - Accept `profiled_l1_reuse_only: 1` for continuations that must not submit
   replacement L1 jobs. Report missing L1 results; keep L0 and L2 enabled.
-- Refuse unsupported optimizer combinations before submission. ORCA, FairChem
-  and NNPES require Sella or BFGS. Errors identify settings inherited from the
+- Refuse unsupported optimizer combinations before submission. ORCA and
+  FairChem require Sella or BFGS. Errors identify settings inherited from the
   main input when no profile was supplied for the affected level.
 - Save each job's level before submission. Refuse rotor results without that
   record instead of inferring their method from the current `high_level` flag.

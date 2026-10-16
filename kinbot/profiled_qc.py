@@ -25,7 +25,6 @@ _QC_NAMES = {
     'qchem': 'qchem',
     'nwchem': 'nwchem',
     'orca': 'orca',
-    'nn_pes': 'nn_pes',
 }
 _DEFAULT_COMMANDS = {
     'gaussian': 'g16',
@@ -122,13 +121,11 @@ def _profile_payload(profile, par):
     keys = []
     if profile.calculator == 'orca':
         keys += ['orcasimpleinput', 'orcablocks']
-    if profile.calculator == 'nn_pes':
-        keys += ['nn_model']
-    if profile.calculator in ('gaussian', 'nn_pes'):
+    if profile.calculator == 'gaussian':
         keys += ['integral', 'guessmix']
     if profile.calculator == 'gaussian' and profile.name == 'l2':
         keys += ['vrc_tst_scan_method', 'vrc_tst_scan_basis']
-    if profile.calculator in ('gaussian', 'qchem', 'nn_pes'):
+    if profile.calculator in ('gaussian', 'qchem'):
         keys += ['scan_method', 'scan_basis',
                  'barrierless_saddle_method', 'barrierless_saddle_basis',
                  'barrierless_saddle_method_high', 'barrierless_saddle_basis_high']

@@ -367,7 +367,6 @@ def test_restart_refuses_to_mix_results_after_model_change(workspace):
 @pytest.mark.parametrize('calculator, option, original, replacement', [
     ('orca', 'orcasimpleinput', 'D3BJ', 'D4'),
     ('orca', 'orcablocks', '%method Grid 4 end', '%method Grid 5 end'),
-    ('nn_pes', 'nn_model', '/models/old.pt', '/models/new.pt'),
     ('gaussian', 'integral', 'UltraFine', 'FineGrid'),
 ])
 def test_restart_checks_backend_settings_before_reusing_methanol(
@@ -383,8 +382,7 @@ def test_restart_checks_backend_settings_before_reusing_methanol(
     qc.qc_opt(point, point.geom, high_level=high_level)
     job = routing_name(point) + ('_well_high' if high_level else '_well')
     used = literal(script(job), 'kwargs')
-    key = 'fname' if option == 'nn_model' else option
-    assert original in used[key]
+    assert original in used[option]
     qc.db.write(molecule('CH3OH'), name=job, data=dict(energy=-100., status='normal'))
     Path(job + '_sella.log').write_text('done\n')
     before = file_contents(workspace)
@@ -432,7 +430,7 @@ def test_restart_checks_method_choices_outside_profiles(
     assert file_contents(workspace) == before
 
 
-@pytest.mark.parametrize('calculator', ['gaussian', 'orca', 'nn_pes'])
+@pytest.mark.parametrize('calculator', ['gaussian', 'orca'])
 def test_old_records_without_backend_settings_refuse_restart(workspace, calculator):
     import hashlib
 
@@ -457,7 +455,7 @@ def test_unused_calculator_settings_do_not_change_uma_records(workspace):
     qc = QuantumChemistry(par)
     before = file_contents(workspace)
     changed = dict(par, orcasimpleinput='D4', orcablocks='%method Grid 5 end',
-                   nn_model='/models/different.pt', integral='FineGrid', guessmix=1)
+                   integral='FineGrid', guessmix=1)
     assert QuantumChemistry(changed)._fingerprint == qc._fingerprint
     assert file_contents(workspace) == before
 
@@ -621,7 +619,7 @@ def test_existing_custom_record_gains_flag_only_on_calculation_restart(workspace
 
 @pytest.mark.parametrize('change', [
     'l1_model', 'l2_method', 'remove_profiles', 'orcasimpleinput', 'orcablocks',
-    'nn_model', 'integral', 'rotor_l1_to_l2', 'rotor_l2_to_l1',
+    'integral', 'rotor_l1_to_l2', 'rotor_l2_to_l1',
 ])
 @pytest.mark.parametrize('entry', ['postprocess', 'write_input', 'write_input_keep', 'cli'])
 def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
@@ -635,8 +633,6 @@ def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
     if change in ('orcasimpleinput', 'orcablocks'):
         options = dict(l1_profile=dict(calculator='orca', method='B3LYP',
             basis='6-31G(d)'), orcasimpleinput='D3BJ', orcablocks='%method Grid 4 end')
-    elif change == 'nn_model':
-        options = dict(l1_profile=dict(calculator='nn_pes'), nn_model='/models/old.pt')
     elif change == 'integral':
         options = dict(integral='UltraFine')
     elif change.startswith('rotor_'):
@@ -671,7 +667,7 @@ def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
         changed['high_level'] = 1 - par['high_level']
     else:
         changed[change] = dict(orcasimpleinput='D4', orcablocks='%method Grid 5 end',
-                              nn_model='/models/new.pt', integral='FineGrid')[change]
+                              integral='FineGrid')[change]
     changed['smiles'] = 'CO'
     Path('input.json').write_text(json.dumps(changed))
     before = file_contents(workspace)
@@ -1160,7 +1156,7 @@ def test_gaussian_startup_failure_finishes_profiled_conformer_as_error(
     assert qc.check_qc(job) == 'error'
 
 
-@pytest.mark.parametrize('calculator', ['orca', 'nn_pes', 'fairchem'])
+@pytest.mark.parametrize('calculator', ['orca', 'fairchem'])
 def test_force_calculators_reject_unsupported_optimizer(workspace, calculator):
     with pytest.raises(ValueError, match='requires optimizer=sella or bfgs'):
         profile_parameters(l1_profile=dict(calculator=calculator, optimizer='native'))
@@ -1275,7 +1271,7 @@ def test_gaussian_checkpoint_remains_relative_after_directory_move(workspace, jo
     assert relocated / calculator.directory / kwargs['chk'] == relocated / job
 
 
-@pytest.mark.parametrize('calculator', ['fc', 'orca', 'qchem', 'nn_pes'])
+@pytest.mark.parametrize('calculator', ['fc', 'orca', 'qchem'])
 def test_flat_l0_backend_switch_has_same_optimizer_as_alias(workspace, calculator):
     flat = resolve_profiles(parameters(l0_qc=calculator, calc_kwargs={'gaussian_only': 1}))
     alias = resolve_profiles(parameters(l0=calculator, calc_kwargs={'gaussian_only': 1}))

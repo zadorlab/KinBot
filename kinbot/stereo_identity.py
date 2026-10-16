@@ -1,7 +1,7 @@
 """Canonical identities for supplied molecular graphs with explicit 3-D stereo.
 
-The identity covers RDKit's tetrahedral and double-bond stereochemistry. It
-does not identify transition states, torsional basins or atropisomers. The
+The identity covers tetrahedral, double-bond and cumulene
+stereochemistry. Axial orientation does not establish a rotation barrier. The
 charge and multiplicity belong to the identity. Formal charges are included
 when supplied, but electronic localization is not inferred. The canonical
 strings encode configured graphs, not necessarily sanitized Lewis structures.
@@ -18,58 +18,12 @@ class UnsupportedStereochemistry(ValueError):
     """The calculation requires an identity outside the supported scope."""
 
 
-def _check_supported_configuration(mol, physical_isotopes, aromatic_forms):
-    """Conservative boundary for fixed stereo outside the supported tags.
-
-    This detects potential axes/frameworks; it does not infer their barriers
-    or assert that every flagged structure is a stable atropisomer.
-    """
-    import networkx as nx
-    from rdkit import Chem
-    # This copy is only for scope checks. Keep the supplied resonance graphs
-    # and their stereo strings unchanged. Aromatic bonds must not make the
-    # two equivalent arms of a phenyl group appear different.
-    mol = Chem.Mol(mol)
-    Chem.SetAromaticity(mol)
-    ranks = Chem.CanonicalRankAtoms(mol, breakTies=False, includeChirality=False)
-    doubles = nx.Graph()
-    for bond in mol.GetBonds():
-        if bond.GetBondTypeAsDouble() == 2:
-            doubles.add_edge(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
-    for component in nx.connected_components(doubles):
-        ends = [i for i in component if doubles.degree(i) == 1]
-        substituents = [[ranks[a.GetIdx()] for a in mol.GetAtomWithIdx(i).GetNeighbors()
-                         if a.GetIdx() not in component] for i in ends]
-        if (len(component) > 2 and len(ends) == 2
-                and all(mol.GetAtomWithIdx(i).GetDegree() == 2
-                        for i in component if i not in ends)
-                and all(len(set(group)) >= 2 for group in substituents)):
-            # A radical resonance drawing can contain consecutive double
-            # bonds within an aromatic framework. Require the whole chain
-            # to be aromatic in ONE supplied form, not a union of forms.
-            edges = {frozenset(edge) for edge in doubles.subgraph(component).edges()}
-            if any(edges <= aromatic for aromatic in aromatic_forms()):
-                continue
-            raise ValueError('cumulene/axial configuration is outside the supported stereo scope')
+def _check_supported_configuration(mol):
+    """Reject coordination states outside the molecular identity model."""
     for atom in mol.GetAtoms():
         if atom.GetDegree() > 4 or (atom.GetDegree() and atom.GetAtomicNum()
                                    not in {1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53}):
             raise ValueError('non-tetrahedral/coordination configuration is outside the supported stereo scope')
-    # Test physical biaryl substituents, not isotope tags introduced to compare
-    # reaction sites. A real substituted axis remains outside this scope.
-    for atom, isotope in zip(mol.GetAtoms(), physical_isotopes):
-        atom.SetIsotope(int(isotope))
-    ranks = Chem.CanonicalRankAtoms(mol, breakTies=False, includeChirality=False)
-    for bond in mol.GetBonds():
-        ends = (bond.GetBeginAtom(), bond.GetEndAtom())
-        if (not bond.IsInRing() and all(atom.IsInRing() for atom in ends)
-                and all(any(b.GetIsAromatic() or b.GetBondTypeAsDouble() == 2
-                            for b in atom.GetBonds())
-                        for atom in ends)
-                and all(len({ranks[a.GetIdx()] for a in atom.GetNeighbors()
-                             if a.GetIdx() not in (ends[0].GetIdx(), ends[1].GetIdx())}) >= 2
-                        for atom in ends)):
-            raise ValueError('potential biaryl atropisomer requires an explicit configuration model')
 
 
 def _molecules(species, geom, tagged_atom=None):
@@ -87,7 +41,6 @@ def _molecules(species, geom, tagged_atom=None):
         bonds = [bond]
     isotopes = list(getattr(species, 'isotopes', [0] * n))
     charges = list(getattr(species, 'formal_charges', [0] * n))
-    physical_isotopes = getattr(species, '_stereo_physical_isotopes', isotopes.copy())
     if tagged_atom is not None:
         isotopes[tagged_atom] = max(isotopes + [1000]) + 1
     result = []
@@ -130,7 +83,7 @@ def _molecules(species, geom, tagged_atom=None):
         return forms
 
     for mol in result:
-        _check_supported_configuration(mol, physical_isotopes, aromatic_forms)
+        _check_supported_configuration(mol)
         conf = Chem.Conformer(n)
         conf.Set3D(True)
         for i, xyz in enumerate(geom):
@@ -153,6 +106,8 @@ def _molecules(species, geom, tagged_atom=None):
             for index in pair:
                 for adjacent in mol.GetAtomWithIdx(index).GetBonds():
                     adjacent.SetBondDir(Chem.BondDir.NONE)
+        from kinbot.axial_stereo import assign_axial_stereo
+        assign_axial_stereo(mol, geom, aromatic_forms, ignored, ignored_bonds)
     # Canonical SMILES normalizes atom numbering, not the supplied set of
     # resonance structures. Retain the entire provided ensemble explicitly.
     return result
@@ -175,21 +130,24 @@ def log_input_stereochemistry(species, parameters, logger):
     if molecule is None:
         return
     supported = {Chem.StereoType.Atom_Tetrahedral, Chem.StereoType.Bond_Double}
-    if not any(item.type in supported and item.specified != Chem.StereoSpecified.Specified
-               for item in Chem.FindPotentialStereo(molecule)):
-        return
     identity = require_supported_identity(species)
     graphs = identity['canonical_graphs']
-    if not any(any(tag in graph for tag in ('@', '/', '\\')) for graph in graphs):
+    axial = any(':' in graph for graph in graphs)
+    if not axial and not any(
+            item.type in supported and item.specified != Chem.StereoSpecified.Specified
+            for item in Chem.FindPotentialStereo(molecule)):
+        return
+    if not identity.get('has_configured_stereo'):
         return
     population = parameters.get('optical_population', 'specified')
     included = ('this stereoisomer and its whole-molecule mirror' if population == 'racemic'
                 else 'this stereoisomer')
     logger.info(
-        'Input SMILES %r leaves tetrahedral or double-bond stereochemistry unspecified. '
+        'Input SMILES %r leaves stereochemistry unspecified. '
         'The generated geometry has stereoisomer assignment %s. '
         'optical_population=%r uses %s. '
-        'Use stereochemical SMILES or coordinates to choose the initial stereoisomer.',
+        'Use stereochemical SMILES for supported RDKit tags, or coordinates '
+        'for an axial assignment, to choose the initial stereoisomer.',
         smiles, '; '.join(graphs), population, included)
 
 
@@ -205,9 +163,10 @@ def endpoint_configuration_allowed(endpoint, reference_geom, observed_geom):
     observed = _molecules(endpoint, observed_geom)
     for stable, before, after in zip(actual, reference, observed):
         for a, b, c in zip(stable.GetAtoms(), before.GetAtoms(), after.GetAtoms()):
-            tags = tuple(int(atom.GetChiralTag()) for atom in (a, b, c))
-            if all(tags) and tags[1] != tags[2]:
-                return False
+            for tags in (tuple(int(atom.GetChiralTag()) for atom in (a, b, c)),
+                         tuple(atom.GetAtomMapNum() for atom in (a, b, c))):
+                if all(tags) and tags[1] != tags[2]:
+                    return False
         for a, b, c in zip(stable.GetBonds(), before.GetBonds(), after.GetBonds()):
             tags = tuple(int(bond.GetStereo()) for bond in (a, b, c))
             if all(tags) and tags[1] != tags[2]:
@@ -231,12 +190,15 @@ def canonical_identity(species, geom=None, *, tagged_atom=None):
     multiplicity = int(getattr(species, 'mult', 1))
     def key(value):
         return hashlib.sha256(repr((value, charge, multiplicity)).encode()).hexdigest()
-    return {'status': 'assigned', 'schema': 'kinbot.stereo.v1',
-            'scope': 'tetrahedral and double-bond; provided resonance ensemble',
+    return {'status': 'assigned', 'schema': 'kinbot.stereo.v2',
+            'scope': 'tetrahedral, double-bond and cumulene; provided resonance ensemble',
             'id': key(own), 'mirror_id': key(mirror),
             'mirror_family_id': key(min(own, mirror)),
             'is_chiral_configuration': own != mirror,
-            'canonical_graphs': own, 'charge': charge, 'multiplicity': multiplicity,
+            'canonical_graphs': own,
+            'has_configured_stereo': any(any(tag in graph for tag in ('@', '/', '\\', ':'))
+                                         for graph in own),
+            'charge': charge, 'multiplicity': multiplicity,
             'electronic_localization': 'not inferred from valence remainders',
             'formal_charge_localization': ('specified' if hasattr(species, 'formal_charges')
                                            else 'not supplied')}

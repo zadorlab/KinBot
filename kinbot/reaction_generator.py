@@ -1,5 +1,6 @@
 from kinbot.species_routing import (routing_key, routing_name, same_species,
-                                   reusable_cached_product, matches_name)
+                                   matches_name,
+                                   register_optimized_product, prepare_initial_product)
 import os, sys
 import shutil
 import time
@@ -314,7 +315,7 @@ class ReactionGenerator:
                             # make the geom of products in frag_unique the one from the multi_molecular (not optimized)
                             self.equate_unique(obj.products, frag_unique)
                             obj.products = self.initial_product_copies(obj.products)
-                            obj.products = [reusable_cached_product(self.qc, product)
+                            obj.products = [prepare_initial_product(self.qc, product)
                                             for product in obj.products]
                             self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
                             obj.prod_done = 1
@@ -322,7 +323,8 @@ class ReactionGenerator:
                         product_cache_failed = False
                         for frag in obj.products:
                             try:
-                                self.qc.qc_opt(frag, frag.geom)
+                                self.qc.qc_opt(frag, frag.geom, initial_product=not
+                                    getattr(frag, '_initial_product_complete', False))
                             except StereoRoutingError as error:
                                 logger.warning('%s: product calculation cannot be reused: %s. '
                                                'Omitting this channel; saved calculations retained.',
@@ -330,7 +332,8 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 product_cache_failed = True
                                 break
-                            e, _ = self.qc.get_qc_geom(routing_name(frag) + '_well', frag.natom) # check if finished without updating geom
+                            suffix = '_well' if getattr(frag, '_initial_product_complete', False) else '_product'
+                            e, _ = self.qc.get_qc_geom(routing_name(frag) + suffix, frag.natom) # check if finished without updating geom
                             if e == 1:  # it's running
                                 continue
 
@@ -339,7 +342,8 @@ class ReactionGenerator:
 
                         # initial fragment calculations finished, reading results...
                         hom_sci_energy = 0
-                        products_orig = [copy.copy(opr) for opr in obj.products]
+                        products_orig = [self.initial_product_copies([product])[0]
+                                         for product in obj.products]
                         ndone = 0
                         for fragii, frag in enumerate(products_orig):
                             if same_species(frag, self.species):
@@ -350,7 +354,8 @@ class ReactionGenerator:
                             elif not obj.valid_prod[fragii]:
                                 ndone += 1
                                 continue
-                            chemid_orig = frag.chemid
+                            initial_product = not getattr(frag, '_initial_product_complete', False)
+                            source_job = routing_name(frag) + ('_product' if initial_product else '_well')
                             requested_fragment = copy.copy(frag)
                             # OpenBabel handles cannot be deep-copied; only freeze
                             # the arrays that define the requested configuration.
@@ -358,7 +363,7 @@ class ReactionGenerator:
                                 if hasattr(frag, field):
                                     setattr(requested_fragment, field, copy.deepcopy(getattr(frag, field)))
                             e, frag.geom, frag.atom = self.qc.get_qc_geom(
-                                routing_name(frag) + '_well',
+                                source_job,
                                 frag.natom,
                                 reorder=True)
                             if e < 0:
@@ -369,18 +374,15 @@ class ReactionGenerator:
                                 break
                             else:
                                 ndone += 1
-                                _, frag.energy = self.qc.get_qc_energy(routing_name(frag) + '_well')
-                                _, frag.zpe = self.qc.get_qc_zpe(routing_name(frag) + '_well')
+                                _, frag.energy = self.qc.get_qc_energy(source_job)
+                                _, frag.zpe = self.qc.get_qc_zpe(source_job)
                                 if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                                     hom_sci_energy += frag.energy + frag.zpe
                                 # Reinitialize rads and bonds
                                 frag.reset_order()
                                 self._debug_fragment_freqs(f"{obj.instance_name}:after_start_multi_molecular", frag)
-                                # connectivity changed
-                                if not same_species(frag, requested_fragment):
-                                    for fri, fr in enumerate(obj.products):
-                                        if same_species(fr, requested_fragment):
-                                            obj.valid_prod[fri] = False
+                                # Identify the actual product after its first optimization.
+                                if initial_product:
                                     frag.__dict__.pop('optical_reference', None)
                                     newfrags, _ = frag.start_multi_molecular(vary_charge=True)
                                     self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
@@ -388,16 +390,28 @@ class ReactionGenerator:
                                         require_supported_identity(product)
                                     self.equate_identical(newfrags)
                                     self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
-                                    self.equate_unique(newfrags, frag_unique)
                                     newfrags = self.initial_product_copies(newfrags)
-                                    newfrags = [reusable_cached_product(self.qc, product)
-                                                for product in newfrags]
+                                    if len(newfrags) == 1:
+                                        newfrags[0] = register_optimized_product(
+                                            self.qc, requested_fragment, newfrags[0], source_job)
+                                    else:
+                                        self.equate_unique(newfrags, frag_unique)
+                                        newfrags = self.initial_product_copies(newfrags)
+                                        newfrags = [prepare_initial_product(self.qc, product)
+                                                    for product in newfrags]
                                     self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
-                                    logger.warning(f'Product {chemid_orig} optimized to {[nf.chemid for nf in newfrags]} '
-                                                   f'in reaction {obj.instance_name}')
-                                    for nf in newfrags:
+                                    logger.info('Product calculation %s optimized to %s in reaction %s',
+                                                source_job, [routing_name(nf) for nf in newfrags],
+                                                obj.instance_name)
+                                    # Replace this occurrence only: two identical
+                                    # product fragments still represent two molecules.
+                                    obj.products[fragii] = newfrags[0]
+                                    for nf in newfrags[1:]:
                                         obj.products.append(nf)
                                         obj.valid_prod.append(True)
+                                    # The new name is checked through the ordinary
+                                    # workflow before its properties are selected.
+                                    ndone -= 1
                                 else:
                                     for fri, fr in enumerate(obj.products):
                                         if same_species(fr, requested_fragment):
@@ -712,7 +726,7 @@ class ReactionGenerator:
                             if not self.species.reac_obj[index].instance_name in deleted:
                                 self.delete_files(self.species.reac_obj[index].instance_name)
                                 deleted.append(self.species.reac_obj[index].instance_name)
-                except UnsupportedStereochemistry as error:
+                except (UnsupportedStereochemistry, StereoRoutingError) as error:
                     logger.warning('%s: omitted reaction: %s. Calculation files retained; '
                                    'the exported network is incomplete.', obj.instance_name, error)
                     obj.stereochemical_rejection = str(error)

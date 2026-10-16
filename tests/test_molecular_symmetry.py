@@ -15,10 +15,13 @@ class TestLegacyConformerSymmetry(unittest.TestCase):
     def test_rotational_benchmark_including_pyramidal_correction_for_members(self):
         with Path(__file__).with_name('symmetry_data.json').open() as handle:
             cases = json.load(handle)
+        # These expected symmetry numbers require one ring stereoisomer and
+        # three equivalent E arms, rather than arbitrary SMILES embeddings.
+        specified = {'C1C(C)CC(C)CC1': 'C1[C@H](C)C[C@@H](C)CC1',
+                     'CC=CC(C=CC)C=CC': 'C/C=C/C(/C=C/C)/C=C/C'}
         for name, case in cases.items():
             with self.subTest(name=name):
-                # Match the original benchmark's SMILES-based construction.
-                point = StationaryPoint(name, 0, 1, smiles=name)
+                point = StationaryPoint(name, 0, 1, smiles=specified.get(name, name))
                 point.characterize()
                 numbers = conformer_symmetry_numbers(point)
                 self.assertEqual([numbers['sigma_ext'], numbers['nopt']],

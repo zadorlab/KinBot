@@ -143,11 +143,11 @@ class StationaryPoint:
     def get_geom(self):
         """
         Method reads the structure and converts it to a geometry
-        or converts the smiles to a geometry using open babel
+        or converts the SMILES to reproducible coordinates using RDKit
         """
         if len(self.structure) == 0:
-            # this will only work if Pybel is installed correctly
-            self.obmol, self.structure, self.bond = cheminfo.generate_3d_structure(self.smiles)
+            self.obmol, self.structure, self.bond = cheminfo.generate_3d_structure(
+                self.smiles, obabel=0)
         
         if len(self.structure) == 2:  # should only happen for bimolecular reactions
             self.charge = self.charge[0] + self.charge[1]

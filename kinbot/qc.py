@@ -1,4 +1,4 @@
-from kinbot.species_routing import routing_name
+from kinbot.species_routing import routing_name, RESULT_PUBLICATION_PENDING
 import os
 import sys
 import subprocess
@@ -778,7 +778,7 @@ class QuantumChemistry:
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None, do_vdW=False):
+               fdir=None, do_vdW=False, initial_product=False):
         '''
         Creates a geometry optimization input and runs it.
         '''
@@ -788,7 +788,7 @@ class QuantumChemistry:
             if high_level:
                 job = f'{species.name}_high'
         elif ext is None:
-            job = routing_name(species) + '_well'
+            job = routing_name(species) + ('_product' if initial_product else '_well')
             if high_level:
                 job = routing_name(species) + '_well_high'
             if mp2:
@@ -807,7 +807,7 @@ class QuantumChemistry:
 
         if not do_vdW and not getattr(species, 'wellorts', 0):
             from kinbot.stereo_routing import guard_well_job
-            guard_well_job(self, species, geom, job)
+            guard_well_job(self, species, geom, job, initial_product=initial_product)
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -1102,7 +1102,7 @@ class QuantumChemistry:
             if os.path.isfile(path):
                 os.replace(path, f'{path}.restart_{marker}')
 
-    def publish_result(self, source, target):
+    def publish_result(self, source, target, chemical_context=None):
         """Copy an accepted result and its native outputs to a conventional name.
 
         The normal database row is written last. An interrupted copy leaves an
@@ -1120,12 +1120,14 @@ class QuantumChemistry:
             raise ValueError(f'Cannot publish over a running calculation: {target}')
         os.makedirs(os.path.dirname(target) or '.', exist_ok=True)
         marker = self.db.write(source.toatoms(), name=target, data={
-            'status': 0, 'reason': 'Publishing accepted optimization result'})
+            'status': 0, 'reason': RESULT_PUBLICATION_PENDING})
         self._archive_outputs(target, marker)
         for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
             if os.path.isfile(source.name + suffix):
                 copyfile(source.name + suffix, target + suffix)
         data = dict(source.data)
+        if chemical_context is not None:
+            data['chemical_context'] = chemical_context
         data.update(copied_from_job=source.name, copied_from_row_id=source.id)
         keys = dict(source.key_value_pairs, name=target)
         result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)

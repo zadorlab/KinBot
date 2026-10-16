@@ -12,11 +12,74 @@ the final TS optimization of a reaction search) started from that earlier
 geometry. KinBot now records how many rows a job has at submission and keeps
 waiting until a newer row exists; the existing 60 s grace period applies.
 
+### Identify products after their first optimization
+
+A newly found product can change its connectivity or stereochemistry during
+its first optimization. KinBot now uses the optimized structure to name the
+product and saves its complete calculation under that name. This applies to
+products found through a TS and to homolytic scission products. It does not
+weaken the discovery IRC check: one direction must still reach the requested
+reactant. Later well and conformer calculations retain their stereoisomer
+checks. A product that splits into fragments requires separate fragment
+calculations; its original frequencies and energy are not copied to them.
+
+First product optimizations use `<initial_name>_product`. Accepted wells use
+`<optimized_name>_well`. If the first calculation from A produces B and the
+first calculation from B produces C, both results remain available. A restart
+keeps each reaction's original product calculation. Existing verified wells
+can supply a first product result without another QC job. As before, reuse of
+an existing well instead of optimization of each new product geometry means
+that the order in which jobs finish can affect the selected product. This
+separation uses calculation format v4; directories made with v3 require a fresh run.
+
+### Assign axial stereochemistry from coordinates
+
+KinBot now distinguishes the two orientations of substituted cumulenes. The
+assignment enters species names, IRC interpretation,
+reaction-site comparisons, and the existing specified/racemic optical checks.
+It supports multiple axes and terminal E/Z stereochemistry in longer cumulenes.
+The temporary graph labels do not change the atoms or masses sent to QC.
+
+Terminal planes within five degrees of a coplanar arrangement receive no axial
+assignment. No helical identifier is added. The identity and calculation formats
+have changed; start these calculations in new directories and keep earlier
+results with their old version.
+
+Single bonds between aromatic rings remain ordinary rotor axes. Opposite twists
+of a biaryl have the same species identity, so both remain available in HIR
+scans and MC conformer searches, including in specified mode. The geometric
+optical check still determines whether the chosen treatment includes the mirror.
+KinBot does not distinguish fixed atropisomers of biaryls; molecules with a high
+barrier to this rotation use the same rotor approximation.
+
+The existing absolute phase-space symmetry convention for `hom_sci` is unchanged.
+For a chiral parent that forms one chiral fragment, it can give different
+specified and racemic rate ratios even when the complete mirror reactions
+should have equal rates. Axial identity support does not correct that separate
+normalization limit.
+
+### Reproducible stereoisomer names from SMILES
+
+SMILES inputs now use RDKit with a fixed embedding seed. Repeated runs from
+the same SMILES and RDKit version start with the same geometry and stereoisomer
+name, including when tetrahedral, double-bond or cumulene stereochemistry is
+unspecified. Explicit tetrahedral and double-bond SMILES assignments are retained;
+supplied coordinates are unchanged. This selects one starting stereoisomer, not
+all possible stereoisomers. Use stereochemical SMILES or coordinates to request
+a particular stereoisomer. If the first embedding fails, KinBot retries once
+with random starting coordinates and the same fixed seed. If both attempts fail,
+KinBot asks for coordinates. The ETKDG method is unchanged. When MMFF94 cannot
+refine a structure, KinBot uses UFF if its parameters are available. A warning
+reports missing force-field parameters or incomplete refinement; QC can still
+use the generated coordinates. Disconnected fragments are placed apart so
+the generated coordinates do not create false bonds between them. OpenBabel
+remains in use for other helpers.
+
 ## Stereochemistry and symmetry
 
 **Keep configured stereoisomers separate throughout a calculation.**
 KinBot keeps `chemid` as its connectivity identifier. A stereochemical
-identifier distinguishes configured tetrahedral centers and double bonds.
+identifier distinguishes configured tetrahedral centers, double bonds, and axes.
 Ordinary species keep their existing calculation names. Configured species use
 different names for QC jobs, saved results, reused objects, and direct/PES output.
 The same comparison checks IRC endpoints and fixed configurations during
@@ -33,7 +96,7 @@ partly specified SMILES. It is not emitted for supplied coordinates.
 
 RDKit >= 2025.9.3 is required. KinBot selects its stereo-perception settings
 explicitly and records these settings and the RDKit version in the log.
-SMILES input still requires OpenBabel to generate the starting geometry.
+SMILES input uses RDKit to generate the starting geometry.
 An unsupported initial reactant stops before QC. An unsupported discovered
 reaction is omitted with a warning that the network is incomplete. Its
 calculation files remain available; unrelated reactions can continue.
@@ -48,8 +111,8 @@ equal when replacing the placeholders for an L1-only HIR calculation.
 Ordinary PAHs and biaryls are no longer rejected by their number of aromatic
 rings. Scope checks use an aromatic graph copy so equivalent phenyl arms do
 not appear different in one bond drawing. Aromatic radical resonance forms
-are not mistaken for cumulenes. Virtual reaction-site labels do not create
-a physical biaryl axis. The existing geometric optical calculation
+are not mistaken for cumulenes. Virtual reaction-site labels are used only
+for comparisons; they do not label the physical molecule. The geometric optical calculation
 still determines whether a harmonic, HIR or MC model includes its mirror.
 No helical stereoisomer identifier is added: selection of one fixed helical
 enantiomer and separation of helical diastereomers remain unsupported.

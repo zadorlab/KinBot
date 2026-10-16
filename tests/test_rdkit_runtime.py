@@ -57,7 +57,7 @@ def test_fresh_input_and_current_restart_share_one_unchanged_marker(tmp_path):
     (tmp_path / 'input.json').write_text('{"smiles": "CCO"}')
     (tmp_path / 'input.xyz').write_text('1\nstarting geometry\nH 0 0 0\n')
     expected = ensure_current_run(tmp_path, create=True)
-    assert expected['schema'] == 'kinbot.calculation.v2'
+    assert expected['schema'] == 'kinbot.calculation.v4'
     assert expected['rdkit_version'] == rdBase.rdkitVersion
     assert expected['use_legacy_stereo_perception'] is True
     assert expected['allow_nontetrahedral_chirality'] is True
@@ -85,7 +85,8 @@ def test_old_calculations_are_rejected_without_changing_files(tmp_path, artifact
 
 
 @pytest.mark.parametrize(('field', 'value'), [
-    ('schema', 'kinbot.calculation.v1'), ('rdkit_version', '2026.03.4'),
+    ('schema', 'kinbot.calculation.v1'), ('schema', 'kinbot.calculation.v3'),
+    ('rdkit_version', '2026.03.4'),
     ('use_legacy_stereo_perception', False), ('allow_nontetrahedral_chirality', False),
 ])
 def test_changed_runtime_or_format_cannot_reuse_results(tmp_path, field, value):
@@ -97,8 +98,10 @@ def test_changed_runtime_or_format_cannot_reuse_results(tmp_path, field, value):
     (tmp_path / 'kinbot.db').write_bytes(b'original calculation')
     before = snapshot(tmp_path)
     for create in (False, True):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError) as error:
             ensure_current_run(tmp_path, create=create)
+        assert 'fresh directory' in str(error.value)
+        assert ('original environment' in str(error.value)) == (field != 'schema')
     assert snapshot(tmp_path) == before
 
 

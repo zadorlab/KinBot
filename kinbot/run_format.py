@@ -9,7 +9,7 @@ from kinbot.rdkit_config import rdkit_runtime
 
 
 MARKER = '.kinbot_run.json'
-SCHEMA = 'kinbot.calculation.v2'
+SCHEMA = 'kinbot.calculation.v4'
 # Recognize both name lengths only when detecting existing calculation files.
 # Version-one directories cannot be reused under the shorter naming format.
 _SPECIES = re.compile(r'^\d+(?:-s(?:[0-9a-f]{16}|[0-9a-f]{64}))?$')
@@ -56,9 +56,12 @@ def ensure_current_run(directory='.', *, create=False):
         except (OSError, ValueError) as error:
             raise ValueError(f'{marker}: invalid calculation-format record; use a fresh directory.') from error
         if recorded != expected:
+            advice = 'Start in a fresh directory.'
+            if isinstance(recorded, dict) and recorded.get('schema') == SCHEMA:
+                advice = ('Use the original environment for a current-format restart, '
+                          'or start in a fresh directory.')
             raise ValueError(f'{marker}: incompatible calculation format or RDKit settings. '
-                             f'Found {recorded}; required {expected}. Use the original environment '
-                             'for a current-format restart, or start in a fresh directory.')
+                             f'Found {recorded}; required {expected}. {advice}')
         return recorded
     if not directory.is_dir():
         if not create:

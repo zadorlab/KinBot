@@ -9,9 +9,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 import numpy as np
+from ase import Atoms
 
+from kinbot import constants
 from kinbot.calculation import array_fingerprint
 from kinbot.parameters import Parameters
+from kinbot.qc import QuantumChemistry
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.species_routing import routing_name
 from kinbot.stationary_pt import StationaryPoint
@@ -22,7 +25,8 @@ def point(smiles, mult=1):
     species.characterize()
     species.energy, species.zpe = -100., .01
     species.start_energy, species.start_zpe = -100., .01
-    species.freq = species.reduced_freqs = [100.] * (3 * species.natom - 6)
+    modes = 3 * species.natom - (5 if species.natom == 2 else 6)
+    species.freq = species.reduced_freqs = [100.] * modes
     return species
 
 
@@ -40,7 +44,8 @@ class TestProductOptimizationReuse(unittest.TestCase):
                     par.update(pes=0, high_level=0, L3_calc=0)
                     parent = point('CCO')
                     fragments = [point('C[CH2]', 2), point('[OH]', 2)]
-                    initial = {routing_name(p) + '_well': p for p in fragments}
+                    initial = {routing_name(p) + suffix: p for p in fragments
+                               for suffix in ('_well', '_product')}
                     reactions = []
                     for i in range(2):
                         endpoint = copy.copy(parent)
@@ -55,27 +60,39 @@ class TestProductOptimizationReuse(unittest.TestCase):
                     parent.reac_name = [r.instance_name for r in reactions]
                     parent.reac_step = [0, 0]
                     parent.reac_ts_done = [2, 2]
-                    qc = Mock()
-                    qc.db.select.return_value = []
+                    qc = QuantumChemistry(par)
+                    for p in fragments:
+                        qc.db.write(Atoms(p.atom, positions=p.geom),
+                            name=routing_name(p) + '_product', data={
+                                'status': 'normal', 'energy': p.energy/constants.EVtoHARTREE,
+                                'zpe': p.zpe, 'frequencies': p.freq,
+                                'charge': p.charge, 'multiplicity': p.mult})
+                    def status(name):
+                        row = next(qc.db.select(name=name, sort='-id', limit=1), None)
+                        return row.data['status'] if row is not None else 0
+                    qc.check_qc = status
                     active_channel = [None]
+                    reads = [0]
 
-                    def submit(species, geom):
+                    def submit(species, geom, **kwargs):
                         # Only the first channel may advance while its
                         # optimizer is finishing in the delayed variant.
                         active_channel[0] = next(i for i, r in enumerate(reactions)
                             if any(species is p for p in r.products))
 
                     def read_geom(name, *args, **kwargs):
+                        reads[0] += 1
+                        self.assertLess(reads[0], 100, 'product processing did not finish')
                         p = initial[name]
                         pending = (delayed and active_channel[0] == 1
                                    and parent.reac_ts_done[0] != -1)
                         result = (1 if pending else 0, p.geom.copy())
                         return (*result, p.atom.copy()) if kwargs.get('reorder') else result
 
-                    qc.qc_opt.side_effect = submit
-                    qc.get_qc_geom.side_effect = read_geom
-                    qc.get_qc_energy.side_effect = lambda name: (0, initial[name].energy)
-                    qc.get_qc_zpe.side_effect = lambda name: (0, initial[name].zpe)
+                    qc.qc_opt = Mock(side_effect=submit)
+                    qc.get_qc_geom = read_geom
+                    qc.get_qc_energy = lambda name: (0, initial[name].energy)
+                    qc.get_qc_zpe = lambda name: (0, initial[name].zpe)
                     optimizers = []
 
                     def optimize(species, *args):

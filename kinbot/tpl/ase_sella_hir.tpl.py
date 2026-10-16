@@ -23,12 +23,17 @@ if '{Code}' == 'ORCA':
     kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
 
 mol.calc = {Code}(**kwargs)
-if '{Code}' == 'Gaussian':
+if '{Code}' == 'Gaussian' and kwargs.get('chk'):
+    # Converge the SCF once and reuse it. Without a checkpoint file
+    # Guess=Read stops Gaussian in l301 ("No data on chk file").
     mol.get_potential_energy()
     kwargs['guess'] = 'Read'
     mol.calc = {Code}(**kwargs)
 
-basename = os.path.basename('{label}')
+# ORCA runs in a scratch directory whose contents are copied back into the
+# job's directory. The other codes run from the working directory, where
+# KinBot reads {label}_sella.log, so conf/ and hir/ jobs keep their path.
+basename = os.path.basename('{label}') if '{Code}' == 'ORCA' else '{label}'
 
 if os.path.isfile(f'{{basename}}_sella.log'):
     os.remove(f'{{basename}}_sella.log')

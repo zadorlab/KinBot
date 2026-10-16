@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "provenance": "User-pasted live monitor at 2026-10-16 10:12:32 America/Los_Angeles; recovery native files have not yet been exported for independent review.",
+  "source_directory": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery",
+  "campaign_status": "running",
+  "counts": {
+    "total": 26,
+    "validated": 19,
+    "failed": 2,
+    "waiting": 4,
+    "running": 1
+  },
+  "failed_jobs": [
+    "52908171",
+    "52908172"
+  ],
+  "running_job": {
+    "job_id": "52908194",
+    "chain": "ch3ss_ss_atz_caspt2_shared_reference",
+    "point": "atz__return",
+    "host": "node20",
+    "stage": "RS2-F12"
+  },
+  "blocked_points": [
+    {
+      "chain": "ch3ss_ss_atz_mrci_cabs2",
+      "points": [
+        "atz__center",
+        "atz__tilted"
+      ]
+    },
+    {
+      "chain": "ch3s_cs_atz_mrci_cabs2_control",
+      "points": [
+        "atz__center"
+      ]
+    }
+  ],
+  "inferences_from_plan_and_counts": {
+    "maxdav20_point": "complete; native energy review pending",
+    "caspt2_points_complete": 18,
+    "remaining_caspt2_waiting_point": "ch3ss_ss_atz_caspt2_shared_reference/atz__tilted"
+  },
+  "next_action": "Preserve the recovery and let its last CASPT2 chain finish. Two separate CABS3 all-root far-point tests are prepared; no dependent CABS scans are launched.",
+  "production_approved": false
+}

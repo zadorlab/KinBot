@@ -4,8 +4,15 @@
 The proposed perturbational remedy is not accepted for production. Two
 isolated tests of the documented coupled treatment, CABS=3, are ready;
 native success is not yet established. Keep the running shared-reference
-CASPT2 and MAXDAV20 calculations and all completed results. See the updated
+CASPT2 calculations and all completed results, including MAXDAV20. See the updated
 [resolution record](docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
+
+**10:12:32 PDT monitor:** 19/26 validated, two failed, four waiting, one
+running. The active point is S–S aTZ shared-reference CASPT2 `return`; its
+`tilted` successor is waiting. The other three waiting points depend on the
+failed CABS trials. This accounting indicates MAXDAV20 finished; its native
+energies still need export review. The monitor validates completion, not the
+scientific acceptance of all corrected interaction energies.
 
 The minimum supported spaces remain **CH3S C–S (5,4), CH3SS C–S (7,5),
 CH3SS S–S (7,5)**. The uploaded `_r2` run has **35 validated, two failed and two
@@ -83,9 +90,8 @@ All choices are explicit in
 The original catalogue is historical evidence; its selected-root CASPT2 policy
 is superseded by this remedy. The default CABS setting in general KinBot is
 unchanged. The alternatives are confined to explicitly configured checks.
-The earlier 09:45:56 monitor counted 10 validated, 5 running, 10 waiting and
-1 failed; the later native-tail report adds the second CABS failure but does
-not provide an updated total for the other chains. Do not relaunch this supplement.
+The latest 10:12:32 monitor counted 19 validated, 1 running, 4 waiting and
+2 failed. Keep the last CASPT2 chain running; do not relaunch this supplement.
 
 ```bash
 watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery'
@@ -119,7 +125,7 @@ THRDEN=1e-8 and THRVAR=1e-10. Only the stalled external solve adds MAXDAV=20.
 |---|---|---|
 | 1 | Literature-grounded minimum active spaces | Local choices complete; unchanged by this method diagnosis |
 | 2 | ORCA chemical/radial/angular/return checks | Complete; 47 curated points retained |
-| 3 | aDZ/aTZ native Molpro confirmation | 35/39 original points reviewed; CABS2 rejected, two CABS3 tests ready; other checks running |
+| 3 | aDZ/aTZ native Molpro confirmation | 35/39 original points reviewed; 19/26 recovery points validated by monitor, native review pending; two CABS3 tests ready |
 | 4 | General JSON controls | Orbital/state controls retained; explicit MAXDAV and MRCI CABS controls added/tested |
 | 5 | General orbital reconnaissance | Procedure updated; chemistry remains example data |
 | 6 | Complete production inputs | Counts configured; final orbital/surface/reference installation follows native closure |
@@ -150,7 +156,8 @@ with the ordinary KinBot inputs through CBH-ANL, RotdPy and MESS.
   `local_runs/qchem_casscf_20261015/reproducibility/orca_minimum_space_final_20261016.tar.gz`,
   SHA-256 `13762a1124092834313eee3bf463383f9c5658535351715dc4efdf981feca523`.
 
-Local validation cannot establish native success of the CABS=3 tests or
-completion of the MAXDAV retry. The previous CH3S control does establish the reference-policy remedy
+Local validation cannot establish native success of the CABS=3 tests. The
+new recovery monitor indicates MAXDAV completion, but its native energies
+remain to be reviewed. The previous CH3S control establishes the reference-policy remedy
 at its geometry; transfer across the current points is what the supplement
 checks. These distinctions are part of the handoff, not a promise of zero errors.

@@ -134,6 +134,11 @@ other running chains remain in place. A separate two-point CABS=3 test is
 prepared using the same spaces/references/thresholds, all 18 roots and no
 dependent scans. Native success and relative-energy checks remain required;
 neither the final CABS settings nor production readiness is claimed.
+At 10:12:32 PDT, the new monitor reports 19/26 validated, two failed, four
+waiting and one running (S–S aTZ CASPT2 return). The plan/count accounting
+indicates MAXDAV20 completed; native energies await export review. Three
+waiting points are blocked CABS dependents; the fourth is the last CASPT2
+tilted successor. Allow that chain to finish.
 
 ## 4. General user controls in KinBot JSON — locally audited and tested; native pending
 

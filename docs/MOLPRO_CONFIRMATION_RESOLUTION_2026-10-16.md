@@ -5,13 +5,23 @@ after converged MRCI. CH3S completes three doublet calls and fails on quartet
 root 1; S–S fails on doublet root 1. Both report `strange..` in
 `mrf12_singles.F90`, with matching NSTATI/NSTATR. CABS=2 is rejected for
 production in these tested conditions. The failed files remain evidence;
-their pre-CABS energies are not final results. The existing CASPT2 and
-MAXDAV20 chains continue independently. Two isolated CABS=3 asymptotes are
+their pre-CABS energies are not final results. The CASPT2 recovery continues
+independently; the later monitor accounts for MAXDAV20 below. Two isolated CABS=3 asymptotes are
 prepared below; neither launches a dependent scan nor establishes a proven fix.
+
+**Subsequent monitor at 10:12:32 PDT:** 19 validated, two failed, four waiting,
+one running. Only S–S aTZ shared-reference CASPT2 `return` is running. Its
+`tilted` successor accounts for one waiting point; the three CABS dependents
+account for the others. With the known 26-point plan, this implies the
+MAXDAV20 point completed and 18 CASPT2 points completed. These are inferences
+from the supplied monitor/plan, not a new native energy audit. Retain the last
+CASPT2 chain until it finishes, then collect the recovery export. The
+[10:12 snapshot](../examples/anl/orbital_reviews/molpro_confirmation/recovery_status_20261016_101232.json)
+keeps this progress separate from the two error reports.
 
 The earlier 09:45:56 PDT monitor reported ten validated supplemental points,
 five running, ten waiting and one failure. No newer complete count is inferred
-from the subsequent two-job report. The historical
+from the two-job report itself. The historical
 [snapshot record](../examples/anl/orbital_reviews/molpro_confirmation/recovery_status_20261016_094556.json)
 and the subsequent [native-tail report](../examples/anl/orbital_reviews/molpro_confirmation/cabs2_failure_report_20261016.txt)
 are retained separately. The [structured review](../examples/anl/orbital_reviews/molpro_confirmation/cabs2_failure_review_20261016.json)

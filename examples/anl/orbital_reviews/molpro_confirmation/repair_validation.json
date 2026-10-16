@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "checked_utc": "2026-10-16T06:55:25.978211+00:00",
+  "native_molpro_executed_locally": false,
+  "pytest": {
+    "command": ".venv/bin/python -m pytest -q",
+    "passed": 1629,
+    "subtests_passed": 391,
+    "warnings": 2
+  },
+  "native_deck_transformations_checked": 39,
+  "failures_addressed": [
+    "foreign-basis record overwrite",
+    "RHF restart spin/occupation mismatch",
+    "MRCI-F12 NSTATR/NSTATI mismatch"
+  ],
+  "manual_audit": "docs/MOLPRO_CONFIRMATION_INPUT_AUDIT_2026-10-16.md",
+  "production_approved": false
+}

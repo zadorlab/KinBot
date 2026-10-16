@@ -269,6 +269,17 @@ def test_state_average_block_weights_are_distinct_from_within_spin_reference_wei
     assert validate_vrc_state_model(validated) == validated
 
 
+def test_mrci_f12_rejects_unsupported_lone_excited_reference_before_launch():
+    model = {'state_average': [{'multiplicity': 2, 'roots': 3}],
+             'selected_roots': {'2': 2}}
+    with pytest.raises(ValueError, match='NSTATR != NSTATI'):
+        _vrc_multireference_method('mrci-f12+q(5,4)', 25, spin=1, state_model=model)
+    model['correlation_options'] = {'reference_policy': 'state_average'}
+    text, variable = _vrc_multireference_method('mrci-f12+q(5,4)', 25, spin=1, state_model=model)
+    assert 'state,1,2;refstate,3,1,2,3;option,nstati=3;' in text
+    assert 'KBVRCSEL=energd(1)' in text and variable == 'KBVRCSEL'
+
+
 @pytest.mark.parametrize('weight', [0, -1, True, '2', float('nan'), float('inf')])
 def test_invalid_state_average_block_weight_is_rejected(weight):
     with pytest.raises(ValueError, match='block_weight'):

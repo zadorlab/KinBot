@@ -580,6 +580,20 @@ def _validate_cc_check_energies(output, labels, values):
         raise ValueError('Single-reference marker differs from the native F12b plus (T) energy.')
 
 
+def _recon_rhf(command, electrons, spin, record):
+    """Specify the C1 determinant independently of inherited AVAS/MULTI state.
+
+    Restart files retain global SPIN as well as orbital occupations. Supply
+    both global and local spin, and the matching determinant partition.
+    Local WF cards in subsequent MULTI/CI blocks retain precedence.
+    """
+    if spin < 0 or electrons < spin or (electrons - spin) % 2:
+        raise ValueError('Incompatible RHF electron count and spin.')
+    return (f'set,spin={spin}\n{{{command};wf,{electrons},1,{spin};'
+            f'occ,{(electrons + spin) // 2};closed,{(electrons - spin) // 2};'
+            f'orbital,{record}}}\n')
+
+
 def _deck(data, basis, anchor, stem, previous=None):
     geometry = _anchor_geometry(data, anchor)
     rows = '\n'.join(
@@ -602,8 +616,7 @@ def _deck(data, basis, anchor, stem, previous=None):
         + basis_input +
         f'gthresh,energy={scf},coeff=1.d-5\n'
         'gprint,orbitals,orben,civector\n'
-        f'{{{scf_command};wf,{data["_electrons"]},1,{data["multiplicity"] - 1};'
-        'orbital,2100.2}\n'
+        + _recon_rhf(scf_command, data['_electrons'], data['multiplicity'] - 1, '2100.2') +
         'gprint,orbitals,orben,civector\n'
         f'put,molden,{stem}.molden\n'
         'reconenergy=energy\nshow,reconenergy\n')
@@ -690,8 +703,8 @@ def _deck(data, basis, anchor, stem, previous=None):
                 counter += 1
                 # Fresh restricted reference for this explicitly requested spin.
                 # Preserve the reviewed MULTI orbital records for later selection.
-                deck += (f'{{{scf_command};wf,{data["_electrons"]},1,{check["multiplicity"] - 1};'
-                         'orbital,2150.2}\n{uccsd(t)-f12}\n'
+                deck += (_recon_rhf(scf_command, data['_electrons'], check['multiplicity'] - 1, '2150.2')
+                         + '{uccsd(t)-f12}\n'
                          f'reconc{counter}=energy(2)\nshow,reconc{counter}\n')
                 continue
             for entry in model['state_average']:
@@ -1008,15 +1021,49 @@ def _reference_solver_override(text, vectors=None, iterations=None):
     return result
 
 
+def _separate_cross_basis_seed(text, seed_name):
+    """Project a foreign-basis seed from FILE,3 into a fresh FILE,2.
+
+    Source natural orbitals stay at 2140.3; the established destination
+    records (2140.2/2141.2) remain valid for exports and subsequent jobs.
+    Apply to a native copy, preserving old prepared inputs and fingerprints.
+    """
+    if not _SAFE.fullmatch(seed_name) or len(seed_name) > 31:
+        raise ValueError('Unsafe cross-basis seed filename.')
+    if re.search(r'(?im)^\s*file\s*,\s*3\s*,', text):
+        raise ValueError('Cross-basis transformation requires unused FILE,3.')
+    text, count = re.subn(r'(?im)^(file,2,[A-Za-z0-9_.-]+)\s*$',
+                          lambda m: m[1] + ',new\nfile,3,' + seed_name, text)
+    if count != 1:
+        raise ValueError('Cross-basis transformation requires one destination FILE,2.')
+    text, count = re.subn(r'(?im)^(\s*start,)2140\.2(,type=natural,ovl\s*)$',
+                          r'\g<1>2140.3\2', text)
+    if count != 1:
+        raise ValueError('Cross-basis transformation requires one projected natural START.')
+    # With a fresh FILE,2 there is no implicit SCF restart. Give the SCF
+    # guess the same explicit seed, without changing its final HF equations.
+    text, count = re.subn(r'(?i)(\{rhf(?:,[^;{}]*)?;)(wf,)',
+                          r'\1start,2140.3,type=natural,ovl;\2', text, count=1)
+    if count != 1:
+        raise ValueError('Cross-basis transformation requires the generated initial RHF block.')
+    return text
+
+
 def _execute(job):
     name = job['name']
     directory = Path(job['directory'])
+    seed = job.get('initial_record') or {}
+    cross_basis = bool(seed.get('project_orbitals') and
+                       seed.get('basis', '').lower() != job['basis'].lower())
+    seed_name = molpro_wfu_name(name + '_source') if cross_basis else None
     if job.get('initial_record'):
         import shutil
         seed = job['initial_record']
         if file_sha256(seed['path']) != seed['sha256']:
             raise ValueError('Initial CASSCF checkpoint changed before execution.')
-        shutil.copyfile(seed['path'], directory / f'{name}.wfu')
+        # Keep foreign-basis records off FILE,2. MULTI cannot overwrite a
+        # dump record with another basis dimension, even after START,OVL.
+        shutil.copyfile(seed['path'], directory / (seed_name or f'{name}.wfu'))
     inp = directory / f'{name}.inp'
     if file_sha256(inp) != job['input_sha256']:
         raise ValueError(f'{name}: input changed before native execution.')
@@ -1039,6 +1086,8 @@ def _execute(job):
                                   f'file,2,{checkpoint.name}', native_text)
     if changed != 1:
         raise ValueError('Expected exactly one reconnaissance FILE,2 directive.')
+    if cross_basis:
+        native_text = _separate_cross_basis_seed(native_text, seed_name)
     recovery = job.get('recovered_scf')
     if recovery:
         source = Path(recovery['path'])
@@ -1063,7 +1112,7 @@ def _execute(job):
     # Submission stages predecessor/export-recovery records under the old
     # canonical path. Copy to the short native name before launching Molpro.
     staged = directory / f'{name}.wfu'
-    if staged != checkpoint and staged.is_file():
+    if not cross_basis and staged != checkpoint and staged.is_file():
         import shutil
         shutil.copyfile(staged, checkpoint)
     exports = {'scf': str(directory / f'{name}.orbitals.xml')}
@@ -1083,6 +1132,13 @@ def _execute(job):
     if job.get('retry_solver_options'):
         execution['retry_solver_options'] = deepcopy(job['retry_solver_options'])
         execution['input_transform'] = 'native_xml_solver_controls_v5'
+    if cross_basis:
+        execution['input_transform'] = 'native_xml_cross_basis_file_v6'
+        execution['projected_seed'] = {
+            'path': str(directory / seed_name), 'sha256': seed['sha256'],
+            'source_basis': seed['basis'], 'destination_basis': job['basis'],
+            'source_record': '2140.3', 'natural_destination_record': '2140.2',
+            'canonical_destination_record': '2141.2'}
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -1225,7 +1281,7 @@ def _checkpoint_evidence(directory, job, execution):
             return default, 'Legacy execution does not confirm successful use of the prepared input.'
         if not native.is_file() or file_sha256(native) != job['input_sha256']:
             return default, f'Legacy executed input is missing or its SHA-256 changed: {native}.'
-    names = re.findall(r'(?im)^\s*file\s*,\s*2\s*,\s*([A-Za-z0-9_.-]+)\s*$',
+    names = re.findall(r'(?im)^\s*file\s*,\s*2\s*,\s*([A-Za-z0-9_.-]+)\s*(?:,\s*new\s*)?$',
                        native.read_text())
     if len(names) != 1:
         return default, 'Native input does not identify one safe FILE,2 checkpoint.'

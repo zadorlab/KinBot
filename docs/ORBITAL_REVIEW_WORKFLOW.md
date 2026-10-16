@@ -421,6 +421,10 @@ they do not infer physical root identities or certify unsampled smoothness.
    source declaration is provenance supplied by the user, not inferred from
    the opaque WFU. Legacy records without a basis declaration remain accepted
    for existing workflows; this does not certify cross-basis portability.
+   Foreign-basis seeds are staged separately on FILE,3 and projected into a
+   fresh FILE,2; a dump record cannot be overwritten with another basis dimension.
+   Generated C1 RHF references explicitly reset spin and determinant occupations
+   rather than inheriting an AVAS/MULTI restart state.
    See [Molpro orbital projection](https://www.molpro.net/manual/doku.php?id=general_program_structure#orbital_directives).
    Optional `casscf_options` overrides the partition preparation's solver defaults;
    optional `correlation_options` sets `max_iterations`,
@@ -438,6 +442,10 @@ they do not infer physical root identities or certify unsampled smoothness.
    of the requested spin in the reviewed CASSCF average; CASPT2 also receives
    that spin's weights, so its Fock operator uses the reference-averaged
    density. A check can override this policy with its own `reference_policy`.
+   For MRCI-F12, selecting an excited root requires `state_average`: the
+   renderer supplies the full same-spin reference manifold and matching
+   `NSTATI`. A lone excited reference is rejected before submission because
+   the installed F12 solver aborts when its reference/internal counts differ.
    This changes the correlation treatment, not just the solver effort. It
    does **not** enable XMS-CASPT2 or guarantee rotational/fragment invariance.
    Test its asymptotes and interaction potentials independently. The same

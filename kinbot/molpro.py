@@ -691,12 +691,20 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         ('max_reference_vectors', 'maxvi')) if key in controls]
     iteration_card = 'option,' + ','.join(iteration_options) + ';' if iteration_options else ''
     reference_card = ''
+    if (family == 'mrci' and f12 and selected_root is not None and selected_root > 1
+            and controls.get('reference_policy', 'selected_root') != 'state_average'):
+        raise ValueError('MRCI-F12 excited-root selection requires '
+                         'correlation_options.reference_policy="state_average". '
+                         'The installed F12 solver rejects a lone excited reference '
+                         '(NSTATR != NSTATI); include the declared reference manifold.')
     if controls.get('reference_policy', 'selected_root') == 'state_average':
         reviewed = validate_vrc_state_model(state_model, active_electrons=active_electrons,
                                             active_orbitals=active_orbitals, nelectron=int(nelectron))
         entry = next(item for item in reviewed['state_average'] if item['multiplicity'] == int(spin) + 1)
         reference_card = ('refstate,' + str(entry['roots']) + ','
                           + ','.join(map(str, range(1, entry['roots'] + 1))) + ';')
+        if family == 'mrci' and f12:
+            reference_card += f'option,nstati={entry["roots"]};'
         if family == 'caspt2':
             reference_card += 'weight,' + ','.join(f'{weight:.16g}' for weight in entry['weights']) + ';'
     if family == 'caspt2':

@@ -1,6 +1,6 @@
 # Minimal native transfer confirmation
 
-**Preparation is tested; native Molpro confirmation is pending.** The catalogue
+**The first native confirmation exposed input defects; corrected native validation is pending.** The catalogue
 currently proposes (5,4), (7,5), (7,5) for CH3S C–S, CH3SS C–S and CH3SS S–S.
 All local minimum-space inward/return checks are complete. These files do
 not install or approve a production orbital/surface model.
@@ -54,14 +54,17 @@ user's instruction. Repeated native failures will be diagnosed individually. The
 gates must establish actual success. If they reproduce this failure, retain
 the results and test a declared alternative before installing production
 models. The old failure used an expanded CAS and multiple reference states;
-the new recipe uses minimum spaces and its explicit selected-root policy, so
+the repaired recipe uses minimum spaces and its explicit full-reference policy, so
 failure or success cannot be assumed from that old result.
 [Molpro CABS options](https://www.molpro.net/manual/doku.php?id=the_mrci_program#explicitly_correlated_mrci-f12). All roots are retained in the report. A fixed selected-root
 placeholder in the catalogue is not proof that this root remains the lowest
 correlated state at every geometry.
 `settings.reference_policies` explicitly sets the correlation reference treatment
 for each method; it is separate from the CASSCF state average. The current
-recipe computes each correlated root separately. Review duplicate or exchanged
+recipe computes each correlated root separately. CASPT2 uses `selected_root`;
+MRCI-F12 uses `state_average`, with all declared same-spin references and an
+explicit matching NSTATI. Lone excited-root references triggered an installed
+F12 solver restriction and are now rejected during generation. Review duplicate or exchanged
 root character in the native results; neither a root number nor `REFSTATE`
 alone establishes root tracking. The reference policy and sparse MRCI point
 list are editable catalogue data, as are the SCF limits.
@@ -74,6 +77,25 @@ that destination-basis WFU in production. Source-active swaps occur once, before
 closing/discarding orbitals; subsequent points propagate the target CAS without
 repeating the source swaps. Both absolute source Molpro indices and their
 conversion to source-active indices are recorded.
+
+Foreign-basis seeds are staged on FILE,3; the native input writes a fresh
+FILE,2, avoiding the source/destination dimension collision. Each initial
+or propagated RHF explicitly sets spin and determinant occupations. See the
+[feature-by-feature manual audit and native failure record](../../../../docs/MOLPRO_CONFIRMATION_INPUT_AUDIT_2026-10-16.md).
+
+To replace the failed confirmation while retaining all its results, run:
+
+```bash
+cd /home/hram/KinBot
+git pull --ff-only origin composite
+bash examples/anl/orbital_reviews/molpro_confirmation/restart_on_blodgett.sh
+```
+
+The replacement is `minimum_active_space_molpro_confirmation_20261016_r2`.
+This script is for the confirmation itself; do not reuse the original
+`launch_on_blodgett.sh` to restart it. The old directory is preserved without
+deleting evidence. All 39 points are rerun consistently under the corrected
+protocol; this is separate from later production KinBot calculations.
 
 Numerical settings are SCF E=1e-8 Eh/maxit=2000; CASSCF E=1e-8 Eh,
 gradient=1e-5/maxit=999; correlation E=1e-8 Eh/coefficient=1e-5,

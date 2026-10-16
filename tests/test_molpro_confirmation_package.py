@@ -5,6 +5,7 @@ Synthetic WFU bytes exercise provenance only; no native result is fabricated.
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tarfile
@@ -58,10 +59,121 @@ def test_confirmation_covers_both_bases_and_sparse_reference_without_repeated_sw
             assert 'maxiti=2000' in inp
             if stage == 'mrci':
                 assert 'mrci-f12,scalf12=1,cabs_singles=1' in inp
+                assert cfg['probe_definition']['state_model']['correlation_options']['reference_policy'] == 'state_average'
             else:
                 assert 'cabs_singles=' not in inp
         if stage == 'caspt2':
             assert manifest['jobs'][1]['geometry_angstrom'] == manifest['jobs'][3]['geometry_angstrom']
+
+
+def test_all_confirmation_native_decks_obey_restart_and_root_contracts(tmp_path, monkeypatch):
+    """Exercise all 39 actual staging/transform paths; not a Molpro simulation."""
+    from kinbot import molpro_reconnaissance as recon
+    path = build_fixture(tmp_path)
+    monkeypatch.setattr(recon, 'qc_runtime_environment',
+                        lambda *a, **k: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *a: None)
+    checked = []
+    def inspect_launch(command, **kwargs):
+        directory = Path(kwargs['cwd'])
+        native = (directory / command[-1]).read_text()
+        rhf = re.search(r'\{rhf[^{}]*\}', native)[0]
+        n, spin = map(int, re.search(r'wf,(\d+),1,(\d+)', rhf).groups())
+        occupied = int(re.search(r';occ,(\d+)', rhf)[1])
+        closed = int(re.search(r';closed,(\d+)', rhf)[1])
+        assert occupied + closed == n and occupied - closed == spin
+        assert f'set,spin={spin}\n' + rhf in native
+        projected = 'basis=avdz-f12' in native and directory.name.endswith('__far')
+        checkpoint = recon.molpro_wfu_name(directory.name)
+        if projected:
+            assert f'file,2,{checkpoint},new\n' in native
+            source = re.search(r'^file,3,(.*)$', native, re.M)[1]
+            assert (directory / source).read_bytes().startswith(b'Synthetic checkpoint')
+            assert native.count('start,2140.3,type=natural,ovl') == 2  # HF and MULTI
+            assert 'natorb,2140.2' in native and 'canonical,2141.2' in native
+            assert not (directory / checkpoint).exists()  # No TZ data in target FILE,2.
+        else:
+            assert 'file,3,' not in native and ',new\n' not in native
+        for block in re.findall(r'\{mrci-f12[^{}]*\}', native):
+            root = int(re.search(r'state,1,(\d+);', block)[1])
+            reference = list(map(int, re.search(r'refstate,([\d,]+);', block)[1].split(',')))
+            nstatr, roots = reference[0], reference[1:]
+            nstati = int(re.search(r'option,nstati=(\d+);', block)[1])
+            assert roots == list(range(1, nstatr + 1))
+            assert 1 <= root <= nstatr == nstati
+            assert 'option,cluster=0;' in block
+        if '{mrci-f12' in native:
+            assert 'KBVRCSEL=energd(1)' in native and 'energd(2)' not in native
+        checked.append(directory)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', inspect_launch)
+    sources = {Path(c['seed']['path']): Path(c['seed']['path']).read_bytes()
+               for c in json.loads((path.parent / 'catalog.json').read_text())['cases']}
+    for system in json.loads(path.read_text())['systems']:
+        for job in json.loads(Path(system['manifest']).read_text())['jobs']:
+            directory = Path(job['directory'])
+            original = (directory / (job['name'] + '.inp')).read_bytes()
+            if job.get('orbital_predecessor'):
+                # Submission stages the parent's hash-verified target-basis file.
+                (directory / (job['name'] + '.wfu')).write_bytes(b'Synthetic propagated checkpoint')
+            recon._execute(job)
+            assert (directory / (job['name'] + '.inp')).read_bytes() == original
+            execution = json.loads((directory / 'execution.json').read_text())
+            target, error = recon._checkpoint_evidence(directory, job, execution)
+            assert error is None and target.name == recon.molpro_wfu_name(job['name'])
+    assert len(checked) == 39
+    assert all(p.read_bytes() == data for p, data in sources.items())
+
+
+def test_restart_prepares_before_scoped_stop_and_preserves_old_results(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(PACKAGE))
+    restart = module('restart_confirmation')
+    old = build_fixture(tmp_path).parent
+    old_record = json.loads((old / 'confirmation.json').read_text())
+    manifest_path = Path(old_record['systems'][0]['manifest'])
+    manifest = json.loads(manifest_path.read_text())
+    manifest['jobs'][0]['status'] = 'complete'
+    manifest_path.write_text(json.dumps(manifest))
+    output = Path(manifest['jobs'][0]['directory']) / 'retained.out'
+    output.write_bytes(b'Old native evidence must remain intact')
+    new = tmp_path / 'replacement'
+    monkeypatch.setattr(restart.run_cleanup, 'inspect', lambda root: {'jobs': []})
+    calls = []
+    def stop(root, **kwargs):
+        assert root == old and kwargs == {'archive': False, 'timeout': 300.}
+        assert (new / 'confirmation.json').exists()
+        calls.append(root)
+        return {'status': 'stopped'}
+    monkeypatch.setattr(restart.run_cleanup, 'stop', stop)
+    result = restart.prepare_and_stop(old, new, old / 'catalog.json')
+    assert result['completed_results_preserved'] == 1
+    assert output.read_bytes() == b'Old native evidence must remain intact'
+    assert calls == [old]
+    # A prepared replacement can recover after a transient stop failure.
+    restart.prepare_and_stop(old, new, old / 'catalog.json')
+    replacement = json.loads((new / 'confirmation.json').read_text())
+    replacement['status'] = 'running'
+    (new / 'confirmation.json').write_text(json.dumps(replacement))
+    with pytest.raises(ValueError, match='already started'):
+        restart.prepare_and_stop(old, new, old / 'catalog.json')
+    assert calls == [old, old]
+
+
+def test_restart_refuses_bad_seed_or_scheduler_before_stopping(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(PACKAGE))
+    restart = module('restart_confirmation')
+    old = build_fixture(tmp_path).parent
+    def unavailable(root):
+        raise RuntimeError('scheduler unavailable')
+    monkeypatch.setattr(restart.run_cleanup, 'inspect', unavailable)
+    monkeypatch.setattr(restart.run_cleanup, 'stop', lambda *a, **k: pytest.fail('must not stop'))
+    with pytest.raises(RuntimeError, match='scheduler unavailable'):
+        restart.prepare_and_stop(old, tmp_path / 'replacement', old / 'catalog.json')
+    monkeypatch.setattr(restart.run_cleanup, 'inspect', lambda root: {'jobs': []})
+    data = json.loads((old / 'catalog.json').read_text())
+    Path(data['cases'][0]['seed']['path']).write_bytes(b'changed')
+    with pytest.raises(ValueError, match='seed changed'):
+        restart.prepare_and_stop(old, tmp_path / 'replacement', old / 'catalog.json')
 
 
 def test_confirmation_run_preserves_files_and_rejects_changed_inputs(tmp_path, monkeypatch):

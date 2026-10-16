@@ -2,8 +2,24 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+import pytest
 
 from kinbot import orbital_monitor as monitor
+
+
+@pytest.mark.parametrize('cause', [
+    '?TRYING TO OVERWRITE DUMP RECORD 2140.2 WITH DIFFERENT BASIS DIMENSION',
+    '? RHF mode requires a single determinant wavefunction!',
+    '? not sure if it works with nstatr/=nstati',
+])
+def test_monitor_preserves_native_cause_before_mpi_teardown(tmp_path, monkeypatch, cause):
+    jobs = _campaign(tmp_path)
+    (Path(jobs[0]['directory']) / 'probe.out').write_text(
+        ' PROGRAM * MULTI\n ? Error\n ?\n ' + cause + '\n'
+        ' ? The problem occurs in native_solver\n GLOBAL ERROR fehler on processor 0\n')
+    monkeypatch.setattr(monitor, '_queue', lambda: ({}, None))
+    result = monitor.snapshot(tmp_path)
+    assert cause in monitor.render(result, details=True)
 
 
 def _campaign(tmp_path):

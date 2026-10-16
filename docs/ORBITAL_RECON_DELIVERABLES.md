@@ -90,7 +90,7 @@ return differences are 0.00000986, 0.00001097 and 0.00008911 kcal/mol, respectiv
 See [the decision and caveats](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md).
 No extra full-valence expansion is needed merely to match absolute energies.
 
-## 3. Minimal one-time Molpro confirmation — prepared and locally tested; native pending
+## 3. Minimal one-time Molpro confirmation — native input defects repaired; confirmation pending
 
 - [x] Supply reproducible commands/configuration for **aDZ-F12 and aTZ-F12**
   CASPT2-F12 confirmation of the selected spaces on the same fixed geometries.
@@ -110,7 +110,11 @@ to identify the intended orbital subspace. Catalogue:
 The [prepared transfer recipe](../examples/anl/orbital_reviews/molpro_confirmation/README.md)
 contains 30 CASPT2-F12 points across both bases and nine sparse aTZ-F12
 MRCI-F12+Q points. Preparation, input propagation and resume checks pass;
-native execution and acceptance remain pending.
+native execution and acceptance remain pending. The first submission exposed
+cross-basis record collisions, inherited RHF state inconsistencies, and an
+MRCI-F12 excited-reference restriction. The [manual/input audit](MOLPRO_CONFIRMATION_INPUT_AUDIT_2026-10-16.md)
+records repairs, native evidence, and the preserved full restart. Local tests
+alone did not establish handoff readiness.
 
 ## 4. General user controls in KinBot JSON — locally audited and tested; native pending
 
@@ -165,7 +169,8 @@ Procedure: [ORBITAL_REVIEW_WORKFLOW.md](ORBITAL_REVIEW_WORKFLOW.md).
 - [x] Record the audit's actual coverage and remaining native verification;
   do not claim every changed line or external program has been certified.
 
-Latest local regression: 1,622 tests and 391 subtests pass. See
+Latest repair regression: 1,629 tests and 391 subtests pass. This includes all
+39 confirmation deck transformations, not native calculations. See
 [the audit](GENERALITY_AUDIT_2026-10-15.md) for coverage and native limitations.
 
 ## 9. Current documentation and retained native evidence — verified

@@ -215,7 +215,7 @@ def test_prepare_renders_c1_rohf_jobs_and_displaced_anchor(tmp_path):
         assert 'symmetry,nosym' in deck
         assert 'orient,noorient' in deck
         assert 'basis=aug-cc-pVTZ' in deck
-        assert '{rhf;wf,23,1,1;orbital,2100.2}' in deck
+        assert 'set,spin=1\n{rhf;wf,23,1,1;occ,12;closed,11;orbital,2100.2}' in deck
         assert 'gprint,orbitals,orben' in deck
         assert 'put,molden,' in deck
     sulfur_x = [line for line in displaced.splitlines()

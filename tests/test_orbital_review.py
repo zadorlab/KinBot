@@ -157,7 +157,7 @@ def test_correlation_checks_share_production_energy_contract(tmp_path):
     data = recon._load(SOURCE)
     data.update(probe_method='casscf', avas_reference='rhf', correlation_checks=[
         {'method': 'caspt2-f12b(13,8)', 'shift': 0.2, 'ipea': 0.25},
-        {'method': 'mrci-f12b+q(13,8)'}])
+        {'method': 'mrci-f12b+q(13,8)', 'reference_policy': 'state_average'}])
     deck = recon._deck(data, 'avtz-f12', data['anchors'][0], 'trial')
     assert deck.count('{multi,') == 1
     assert 'cas-ci' not in deck
@@ -178,9 +178,9 @@ def test_shared_reference_checks_and_explicit_high_spin_anchor(tmp_path):
         {'method': 'uccsd(t)-f12b', 'multiplicity': 4}])
     deck = recon._deck(data, 'avtz-f12', data['anchors'][0], 'trial')
     assert 'state,1,3;refstate,3,1,2,3;weight,' in deck
-    assert 'state,1,3;refstate,3,1,2,3;option,cluster=0;' in deck
+    assert 'state,1,3;refstate,3,1,2,3;option,nstati=3;option,cluster=0;' in deck
     assert deck.count('{multi,') == 1
-    assert 'wf,25,1,3;orbital,2150.2}\n{uccsd(t)-f12}\nreconc13=energy(2)' in deck
+    assert 'wf,25,1,3;occ,14;closed,11;orbital,2150.2}\n{uccsd(t)-f12}\nreconc13=energy(2)' in deck
     states = [{'multiplicity': m, 'root': r} for m in (2, 4) for r in (1, 2, 3)]
     labels = recon._correlation_labels(data['correlation_checks'], states)
     assert len(labels) == 13 and labels[-1]['multiplicity'] == 4 and labels[-1]['root'] == 1

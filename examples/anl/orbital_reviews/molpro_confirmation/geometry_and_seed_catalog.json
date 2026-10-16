@@ -39,7 +39,7 @@
     ],
     "reference_policies": {
       "caspt2": "selected_root",
-      "mrci": "selected_root"
+      "mrci": "state_average"
     },
     "processes": 8,
     "memory_mb": 104000,

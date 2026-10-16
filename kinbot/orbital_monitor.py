@@ -15,7 +15,8 @@ import time
 _ERROR = re.compile(
     r'no convergence|not converged|error exit|\?\s*error|global error|'
     r'\bmaxiter\s+is\s+limited\s+to\s*\d+|\?\s*illegal input|'
-    r'\?\s*the problem occurs in|'
+    r'^\s*\?\s*\S|'
+    r'trying to overwrite dump record|different basis dimension|'
     r'input/output error|stale file handle|no space left|disk quota exceeded|'
     r'error (?:writing|reading)\s+\d+\s+words|erroneous (?:write|read)|'
     r'\?\s*i/o error|traceback \(most recent|mpi_abort|segmentation fault|'

@@ -5,26 +5,31 @@ CH3SS S–S CAS(7,5)**. The two CH3SS selections contain different orbitals.
 These are the minimum chemically supported spaces for corrected VRC sampling,
 pending native Molpro confirmation. Full KinBot production has not run yet.
 
-## Start on Blodgett
+## Restart the failed confirmation on Blodgett
+
+The first submission exposed three input defects. The corrected checkpoint,
+RHF-state and MRCI-reference handling is documented in the
+[manual/input audit](docs/MOLPRO_CONFIRMATION_INPUT_AUDIT_2026-10-16.md).
+Native success of these repairs is still pending; Python tests do not establish it.
 
 On the existing `composite` checkout, with its existing virtual environment:
 
 ```bash
 cd /home/hram/KinBot
 git pull --ff-only origin composite
-bash examples/anl/orbital_reviews/molpro_confirmation/launch_on_blodgett.sh
+bash examples/anl/orbital_reviews/molpro_confirmation/restart_on_blodgett.sh
 ```
 
-No archive extraction is needed after pulling. The launcher validates the three
-existing reviewed WFU seeds and generates all new inputs before stopping the
-old campaign. It preserves native results in place, writes a dated inventory
-and metadata backup, stops only the superseded campaign's controller and jobs,
-then launches the new confirmation. It refuses to overwrite an existing new
-run. A scheduler outage or possible reusable completed point stops the
-transition for review rather than submitting duplicates.
+No archive extraction is needed after pulling. The restart validates the reviewed
+seeds and prepares all new inputs before stopping only the failed confirmation's
+controller and allocations. Its native results remain in the original directory;
+the replacement records its manifests and counts in `previous_confirmation.json`.
+All 39 points are recomputed consistently in a fresh `_r2` directory. The earlier
+large reference campaign is not touched. Scheduler failure stops the transition;
+an already-started replacement is not launched a second time.
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2'
 ```
 
 The new run has **39 jobs in nine chains**: 30 CASPT2-F12 points across aDZ-F12
@@ -38,7 +43,9 @@ Eight ranks request 104000 MB/node, below the reported 126000 MB limit. Known
 bad nodes are excluded in the catalogue. CASSCF maxit is capped at Molpro's
 999 limit; SCF/correlation limits are 2000. Correlation energy/coefficient
 criteria are 1e-8/1e-5, giving THRVAR=1e-10. The existing relaxed-Davidson
-`CLUSTER=0; ENERGD(1)` convention and `CABS_SINGLES=1` are unchanged. Read the
+`CLUSTER=0; ENERGD(1)` convention and `CABS_SINGLES=1` are unchanged. MRCI-F12
+now uses the declared same-spin reference manifold with matching NSTATI,
+instead of an unsupported lone excited reference. CASPT2's policy is unchanged. Read the
 [package instructions](examples/anl/orbital_reviews/molpro_confirmation/README.md)
 for resume, export, root/state conventions and native acceptance checks.
 
@@ -48,16 +55,16 @@ for resume, export, root/state conventions and native acceptance checks.
 | --- | --- | --- |
 | 1 | Literature-grounded minimum-space selection | Local decision complete; native sampling-basis cost pending |
 | 2 | ORCA chemistry, radial/angular and return checks | Complete; 47 curated native points |
-| 3 | Minimal aDZ/aTZ Molpro confirmation | Prepared and locally tested; run next |
+| 3 | Minimal aDZ/aTZ Molpro confirmation | First native attempt exposed input defects; repaired restart pending |
 | 4 | General JSON orbital/state/solver/resource controls | Implemented and locally tested; native use pending |
 | 5 | General orbital reconnaissance procedure | Revised, documented and locally tested |
 | 6 | Both production KinBot inputs | CAS counts configured; install native orbital/surface selections after review |
 | 7 | User-run production with continued bug-fix support | Follows Molpro review; no end-to-end result claimed |
-| 8 | Generality and integration audit | Complete locally: 1,622 tests plus 391 subtests pass |
+| 8 | Generality and integration audit | Updated for native failure evidence; local tests are not native validation |
 | 9 | Reproducible documentation and native evidence | Archived, checksummed and independently replayed |
 | 10 | Full-directory cleanup inventory | Recorded; cleanup deferred until production completes |
-| 11 | Consolidated handoff | Molpro commands ready; final production handoff follows acceptance |
-| 12 | Preserve/reuse/retire old Blodgett work | Scoped adapter tested; executes with launch above |
+| 11 | Consolidated handoff | Corrected restart commands above; production handoff follows acceptance |
+| 12 | Preserve/reuse/retire old Blodgett work | Failed confirmation retained; scoped stop and fresh restart |
 
 The old Blodgett campaign is a standalone example study. General KinBot recon
 can prepare and report equivalent declared checks; it supports the chemical
@@ -89,7 +96,7 @@ The maintained [detailed checklist](docs/ORBITAL_RECON_DELIVERABLES.md),
   analysis source to reproduce all 47 curated observations exactly, recompute
   return/active-span diagnostics and plots, and generate fresh replay inputs.
   No new electronic-structure calculation was claimed by this replay.
-- The full local regression passed **1,622 tests and 391 subtests**. Shell
+- The repaired-code regression passed **1,629 tests and 391 subtests**. Shell
   syntax, bundle member hashes and the launcher/retirement scenarios were
   checked. Native Molpro behavior and current cluster health remain to be
   established by this confirmation; no zero-error guarantee is made.

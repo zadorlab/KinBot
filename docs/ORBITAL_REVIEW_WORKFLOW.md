@@ -439,6 +439,13 @@ they do not infer physical root identities or certify unsampled smoothness.
    controls retain native defaults. See the
    [Molpro MRCI iteration controls](https://www.molpro.net/manual/doku.php?id=the_mrci_program#maximum_number_of_iterations),
    which also apply to [RS2](https://www.molpro.net/manual/doku.php?id=multireference_rayleigh_schroedinger_perturbation_theory).
+   MRCI alone additionally accepts `correlation_options.denominator_shifts`,
+   e.g. `{"pairs":0.1,"singles":0.1,"internal":0.1}` in hartree, rendering
+   SHIFTP/SHIFTS/SHIFTI. Only supplied keys are overridden; finite nonnegative
+   numbers are required. These alter Davidson update denominators, not the
+   CASPT2 level shift or the intended converged MRCI eigenproblem. They are
+   optional numerical experiments, never automatic infrastructure retries.
+   No default changes. See [Molpro denominator shifts](https://www.molpro.net/manual/doku.php?id=the_mrci_program#denominator_shifts).
    Separately, `correlation_options.reference_policy` accepts `selected_root`
    (the default) or `state_average`. The latter adds `REFSTATE` for all roots
    of the requested spin in the reviewed CASSCF average; CASPT2 also receives
@@ -640,7 +647,7 @@ The scientific JSON already provides these controls when preparing a new panel:
 | Recon input `scf_options` | `solver`, `max_iterations` |
 | Recon input `scf_convergence` | SCF energy threshold, independent of CI coefficients |
 | Recon input `casscf_options` | `solver`, `max_iterations`, `exact_diagonalization`, `quasi_newton`, `energy_convergence`, `gradient_convergence`, `verbosity` |
-| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `max_external_vectors`, `energy_convergence`, `coefficient_convergence`, `reference_policy`, MRCI `state_policy`, MRCI-F12-only `cabs_singles` |
+| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `max_external_vectors`, `energy_convergence`, `coefficient_convergence`, `reference_policy`, MRCI `state_policy`/`denominator_shifts`, MRCI-F12-only `cabs_singles` |
 | Each recon `correlation_checks` entry | `method`, `shift`, `ipea`, optional `reference_policy` |
 | Recon input resources | `ppn`, `memory_mw` per Molpro rank, `memory_mb` per node, `partition`, `walltime`, `scratch_min_mb` |
 | Partition recipe model | `casscf_options`, `correlation_options` |

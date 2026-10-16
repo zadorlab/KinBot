@@ -641,10 +641,18 @@ def validate_mr_correlation_options(options):
     """
     allowed = {'max_iterations', 'max_reference_iterations', 'max_reference_vectors',
                'max_external_vectors', 'reference_policy', 'cabs_singles', 'state_policy',
-               'energy_convergence', 'coefficient_convergence'}
+               'energy_convergence', 'coefficient_convergence', 'denominator_shifts'}
     if not isinstance(options, dict) or set(options) - allowed:
         raise ValueError('Unknown reviewed correlation_options.')
     for key, value in options.items():
+        if key == 'denominator_shifts':
+            if (not isinstance(value, dict) or not value
+                    or set(value) - {'pairs', 'singles', 'internal'}
+                    or any(type(v) not in (int, float) or not math.isfinite(v) or v < 0
+                           for v in value.values())):
+                raise ValueError('correlation_options.denominator_shifts must map pairs, '
+                                 'singles or internal to finite nonnegative numbers in hartree.')
+            continue
         if key == 'state_policy':
             if value not in ('independent', 'simultaneous'):
                 raise ValueError('correlation_options.state_policy must be independent or simultaneous.')
@@ -706,6 +714,9 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
                          'selected root and reference_policy="state_average".')
     if 'cabs_singles' in controls and not (family == 'mrci' and f12):
         raise ValueError('correlation_options.cabs_singles is specific to MRCI-F12.')
+    if 'denominator_shifts' in controls and family != 'mrci':
+        raise ValueError('correlation_options.denominator_shifts is specific to MRCI '
+                         'Davidson preconditioning; it is not a CASPT2 level shift.')
     iteration_options = [f'{native}={controls[key]}' for key, native in (
         ('max_iterations', 'maxit'), ('max_reference_iterations', 'maxiti'),
         ('max_reference_vectors', 'maxvi'), ('max_external_vectors', 'maxdav')) if key in controls]
@@ -752,6 +763,11 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
     selected = f'energd({energy_index})'
     if simultaneous:
         program += ',noswap'
+    # Molpro MRCI SHIFTP/SHIFTS/SHIFTI change Davidson update denominators,
+    # not the Hamiltonian or the CASPT2 level shift. No implicit retry policy.
+    for key, native in (('pairs', 'shiftp'), ('singles', 'shifts'), ('internal', 'shifti')):
+        if key in controls.get('denominator_shifts', {}):
+            program += f',{native}={controls["denominator_shifts"][key]:g}'
     program += ',' + ','.join(f'{k}={v}' for k, v in mr_thresholds(controls).items())
     audit = (f'! KinBot energy contract: {contract["method"]} = '
              f'{selected.upper()}; Davidson relaxed reference\n'

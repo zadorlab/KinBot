@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "max_jobs": 1,
+  "purpose": "Controlled Davidson-preconditioning trial after the first-iteration DSYGV failure; not a confirmed numerical cure or production approval. Preserve the five completed multistate points and reuse the completed S-S far checkpoint.",
+  "required_source_failures": [
+    {
+      "chain": "ch3ss_ss_atz_mrci_simultaneous_cabs3",
+      "point": "center",
+      "output_contains": "dsygv failed"
+    }
+  ],
+  "chains": [
+    {
+      "title": "ch3ss_ss_atz_mrci_preconditioned",
+      "source_chain": "ch3ss_ss_atz_mrci_simultaneous_cabs3",
+      "points": ["center", "tilted"],
+      "seed_from_completed": "far",
+      "correlation_options": {
+        "state_policy": "simultaneous",
+        "reference_policy": "state_average",
+        "max_external_vectors": 20,
+        "cabs_singles": 3,
+        "denominator_shifts": {"pairs": 0.1, "singles": 0.1, "internal": 0.1}
+      },
+      "reason": "Change Davidson update denominators to test sensitivity of the failing generalized eigensolve to trial-vector construction. Keep CAS(7,5), all six roots per spin, CABS=3, SFIX, geometry, basis, residual thresholds and relaxed-Davidson selectors. The output lacks LAPACK INFO, so an indefinite metric or a specific library defect is not established. This numerical change does not justify repeating the completed far energy."
+    }
+  ]
+}

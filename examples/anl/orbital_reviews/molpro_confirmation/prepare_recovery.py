@@ -7,6 +7,7 @@ import argparse
 from copy import deepcopy
 import fcntl
 import json
+import hashlib
 from pathlib import Path
 import shutil
 import tempfile
@@ -15,6 +16,45 @@ from kinbot.execution import atomic_json, file_sha256
 from kinbot import molpro_reconnaissance as recon, run_cleanup
 from kinbot.run_format import ensure_current_run
 from run_confirmation import validated_record
+
+
+def completion_snapshot(source):
+    """Recheck a stopped source without editing it; caller holds its lock.
+
+    This is checkpoint/completion evidence for a numerical experiment, not
+    an independent scientific review or approval of a production potential.
+    _audit writes its manifest, so run it on temporary manifest copies only.
+    """
+    record = validated_record(source)
+    systems = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for i, system in enumerate(record['systems']):
+            path = Path(system['manifest'])
+            manifest = json.loads(path.read_text())
+            copy = Path(tmp)/f'{i}.json'
+            atomic_json(copy, manifest)
+            audited = {j['name']: j for j in recon._audit(copy)['jobs']}
+            rows = []
+            for job in manifest['jobs']:
+                checked = audited[job['name']]
+                if job['status'] == 'complete':
+                    if checked['status'] != 'complete':
+                        raise ValueError('Source completion recheck failed: '
+                                         + str(job['directory']) + ': '
+                                         + '; '.join(checked.get('validation_errors', [])))
+                    for key in ('output_sha256', 'wfu_sha256', 'wfu'):
+                        if checked.get(key) != job.get(key):
+                            raise ValueError('Completed source evidence changed: '
+                                             + str(job['directory']) + ': ' + key)
+                d = Path(job['directory'])
+                out = d/(job['name']+'.out')
+                rows.append({'name': job['name'], 'status': job['status'],
+                             'input_sha256': job['input_sha256'],
+                             'output_sha256': file_sha256(out) if out.exists() else None,
+                             'wfu_sha256': job.get('wfu_sha256')})
+            systems.append({'title': system['title'], 'jobs': rows})
+    return {'schema': 1, 'kind': 'completion_snapshot_for_numerical_retry',
+            'production_approved': False, 'systems': systems}
 
 
 def source_snapshot(source, review):
@@ -57,15 +97,31 @@ def prepare(source, root, plan_path, review_path):
     source, root = Path(source).resolve(), Path(root).resolve()
     if source == root or source in root.parents or root in source.parents:
         raise ValueError('Recovery must use a separate sibling run directory.')
-    plan, review = json.loads(Path(plan_path).read_text()), json.loads(Path(review_path).read_text())
+    plan = json.loads(Path(plan_path).read_text())
     with (source/'.confirmation.lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         live = run_cleanup.inspect(source)
         if live['jobs'] or live['processes']:
             raise RuntimeError('Source run is still live; preserve it and wait for completion.')
+        review = (json.loads(Path(review_path).read_text()) if review_path is not None
+                  else completion_snapshot(source))
+        review_hash = (file_sha256(review_path) if review_path is not None else
+                       hashlib.sha256(json.dumps(review, sort_keys=True).encode()).hexdigest())
         record, systems, proof = source_snapshot(source, review)
-        provenance = {'source_directory': str(source), 'plan': plan, 'review_sha256': file_sha256(review_path),
+        for expected in plan.get('required_source_failures', []):
+            job = systems[expected['chain']][1][expected['point']]
+            out = Path(job['directory'])/(job['name']+'.out')
+            execution = json.loads((Path(job['directory'])/'execution.json').read_text())
+            # collect/_audit can remove the controller's terminal_failure label.
+            # Bind the diagnosis to the actual failed execution and output.
+            if (job['status'] == 'complete' or execution.get('status') != 'failed'
+                    or execution.get('returncode') in (None, 0)
+                    or expected['output_contains'].casefold() not in out.read_text(errors='replace').casefold()):
+                raise ValueError('Source no longer has the diagnosed failure; review before retrying.')
+        provenance = {'source_directory': str(source), 'plan': plan, 'review_sha256': review_hash,
                       'source_catalog_sha256': record['catalog_sha256'], 'source_points': proof}
+        if review_path is None:
+            provenance['review_kind'] = review['kind']
         if root.exists():
             existing = validated_record(root)
             if json.loads((root/'recovery_provenance.json').read_text()) != provenance:
@@ -127,6 +183,8 @@ def prepare(source, root, plan_path, review_path):
         root.mkdir(parents=True)
         ensure_current_run(root, create=True)
         atomic_json(root/'recovery_provenance.json', provenance)
+        if review_path is None:
+            atomic_json(root/'source_completion_snapshot.json', review)
         atomic_json(root/'catalog.json', json.loads((source/'catalog.json').read_text()))
         entries = []
         for cfg, seed in prepared:
@@ -159,8 +217,11 @@ if __name__ == '__main__':
     p.add_argument('source', type=Path)
     p.add_argument('root', type=Path)
     p.add_argument('--plan', type=Path, default=Path(__file__).with_name('recovery_plan.json'))
-    p.add_argument('--review', type=Path, default=Path(__file__).with_name('native_r2_review.json'))
+    g = p.add_mutually_exclusive_group()
+    g.add_argument('--review', type=Path, default=Path(__file__).with_name('native_r2_review.json'))
+    g.add_argument('--audit-source', action='store_true',
+                   help='Revalidate completion/checkpoints locally for a numerical trial; not scientific approval.')
     a = p.parse_args()
-    result = prepare(a.source, a.root, a.plan, a.review)
+    result = prepare(a.source, a.root, a.plan, None if a.audit_source else a.review)
     print(json.dumps({'status': result['status'], 'points': sum(s['jobs'] for s in result['systems']),
                       'chains': len(result['systems']), 'source_preserved': str(a.source), 'recovery': str(a.root)}, indent=2))

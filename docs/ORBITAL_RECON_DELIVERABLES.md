@@ -116,9 +116,13 @@ MAXDAV20 resolved iterative stagnation but separate MRCI calls reached duplicate
 solutions. Four of the seven simultaneous-root supplement points are now
 reviewed: CH3S tilted CABS=1 and far/center/tilted CABS=3. All 24 selected
 energies pass, the collapsed tilted roots are resolved, and the CABS control
-changes the lowest spin gap by only 0.001054 kcal/mol. S–S far is still
-converging, with its center/tilted points waiting on checkpoints. No new
-submission, CASPT2 or active-space survey is needed. See the
+changes the lowest spin gap by only 0.001054 kcal/mol. S–S far subsequently
+completed per the controller; its full native export awaits review. Center
+failed in the first simultaneous MRCI iteration with `dsygv failed`, leaving
+tilted dependent on center. A two-point numerical preconditioning trial now
+reuses far and preserves all five completed points; no CASPT2 or active-space
+survey is repeated. The [diagnosis and controlled retry](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
+distinguish documented controls from the unproven crash mechanism. See the
 [current native review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md),
 [historical diagnosis](MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md), and
 [submission handoff](../MOLPRO_CONFIRMATION_HANDOFF.md). The three S–S results

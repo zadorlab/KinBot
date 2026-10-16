@@ -9,11 +9,13 @@ energy-selector and provenance checks. The CH3S tilted MAXDAV20 MRCI point
 also completed numerically, but its separately requested roots contain strong
 evidence of collapse. It is not an accepted distinct-state spectrum.
 
-The seven-point MRCI supplement is running. **All four CH3S points have now
+The seven-point MRCI supplement has stopped. **All four CH3S points have now
 passed native review, including resolution of the tilted root collapse.**
-The CH3SS S–S far point is still converging; its center/tilted dependents are
-waiting. Full KinBot production awaits those three results and installation
-of the reviewed models. No new submission is required for the current run.
+The CH3SS S–S far point completed per the controller, but center failed at
+iteration 1 with `dsygv failed` in `cif12solve`; tilted waits for center's
+checkpoint. The new two-point [numerical trial](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
+preserves the completed far result. Full production awaits its independent
+native review, the two interacting results and final model installation.
 
 ## Retained evidence and reproduction
 
@@ -265,11 +267,12 @@ character. In particular, the existing shared-reference CASPT2 center has
 its lowest quartet in reference root 3. The lowest-per-spin diagnostic above
 must not be implemented by blindly selecting root 1 from every method.
 
-**Remaining native work.** The supplied S–S tail advances to iteration 6 of
+**Historical progress before the center failure.** The supplied S–S tail advances to iteration 6 of
 the six-doublet simultaneous solve. Maximum displayed VAR(P) falls from
 1.9e−7 to 9.7e−9, and energy changes from about 1.7e−5 to 9.5e−7 Eh.
 Its 25,095,380 contracted configurations explain substantially greater cost
 than CH3S. It is not yet converged to the requested 1e−10 residual threshold.
 The quartet solve and dependent center/tilted points still have to finish.
 The two waiting jobs are checkpoint dependencies, not additional failures.
-Leave this run in place; this review changes no native inputs or running jobs.
+That progress report was superseded when far completed and center failed;
+see the current decision above. All original native inputs/results are retained.

@@ -5,12 +5,16 @@ asymptote gates pass independent native review. The tilted MAXDAV20 MRCI retry
 completed numerically but contains duplicate-root evidence. The new seven-point
 MRCI-only supplement uses simultaneous same-spin roots and matched CABS=3
 far/center/tilted energies. Its four CH3S points now pass native review,
-resolving the tilted collapse; S–S far is still converging and its two
-dependent points are waiting. See the
+resolving the tilted collapse. S–S far subsequently completed per the controller;
+center failed at iteration 1 with `dsygv failed`, leaving tilted waiting. See the
 [current handoff](../../../../MOLPRO_CONFIRMATION_HANDOFF.md) and
 [native review](../../../../docs/MOLPRO_RECOVERY_REVIEW_2026-10-16.md).
-The supplement is already submitted: leave it running, with no restart or
-new submission for this evidence update. Do not relaunch historical recovery/full
+The targeted next trial uses `retry_mrci_solver_on_blodgett.sh`: only center and
+tilted, seeded from completed far, with explicit MRCI denominator shifts in
+`mrci_preconditioner_plan.json`. The [technical rationale](../../../../docs/MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
+states the limits of that unproven numerical remedy. Its `--audit-source` mode
+rechecks completion on temporary manifest copies without changing source files;
+this is not independent scientific approval. Do not relaunch historical recovery/full
 restart/gate scripts. All previous results are preserved. The selected spaces
 remain (5,4), (7,5), (7,5); full KinBot production is still pending final native
 reference acceptance and model installation.

@@ -34,13 +34,42 @@ Each KinBot and PES run starts its log with the KinBot and RDKit versions.
   before writing or submitting that job; use Gaussian or FairChem at L0 for
   ring preparation. Q-Chem remains available for ordinary conformer optimization
   and for L1/L2 calculations.
-- Q-Chem profiles require native optimization. Switching a profile to Q-Chem
-  defaults to native; Sella/BFGS is rejected before a worker can request an
+- Q-Chem profiles require `optimizer: "native"`. Switching a profile to Q-Chem
+  selects that optimizer; Sella/BFGS is rejected before a worker can request an
   internal Q-Chem optimization in place of a force evaluation.
+- Accept `profiled_l1_reuse_only: 1` for continuations that must not submit
+  replacement L1 jobs. Report missing L1 results; keep L0 and L2 enabled.
+- Refuse unsupported optimizer combinations before submission. ORCA, FairChem
+  and NNPES require Sella or BFGS. Errors identify settings inherited from the
+  main input when no profile was supplied for the affected level.
+- Save each job's level before submission. Refuse rotor results without that
+  record instead of inferring their method from the current `high_level` flag.
+- Preserve the optimized product's chemical information when a profiled
+  calculation is saved under its final species name.
 - PES and MESS describe the selected L1/L2 settings and retain explicit labels.
 - Keep ANL presets and composite-recipe selection out of theory management.
   Previously written inputs can retain an empty `theory_preset` field; named
   presets are rejected. Frequency modes control harmonic calculations only.
+
+## Calculation workflow corrections
+
+These corrections also apply to inputs without theory profiles:
+
+- Select preliminary conformers with their L0 energies. Load the complete L1
+  parent result separately when a failed conformer search needs that result.
+- Count actual scheduler jobs when applying `queue_job_limit`. A limit of one
+  now permits a submission when the queue is empty.
+- Use completed calculation status when deciding which intermediate files can
+  be removed. Keep failed calculation files and report the failed step clearly.
+- Write Gaussian checkpoint filenames relative to the job directory. Conformer
+  jobs no longer refer to `conf/conf/`, and checkpoints survive moving the run.
+- Read Sella's completion log for Gaussian calculations run through Sella.
+  Keep `conf/` and `hir/` paths in these logs. Set `Guess=Read` only when a
+  checkpoint is requested; frequency displacements remove only `Read` and
+  retain other Gaussian guess options. These corrections include PR #117.
+- Record a failed first Gaussian energy call as an error result in the Sella
+  well worker. Use BFGS for order-zero optimizations when requested, while TS
+  optimizations continue to use Sella.
 
 ## Job results
 

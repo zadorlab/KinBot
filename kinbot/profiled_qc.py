@@ -35,6 +35,10 @@ _DEFAULT_COMMANDS = {
 }
 
 
+def _rotor_job(job):
+    return job.startswith('hir/') or '/hir_' in job
+
+
 def _route_file(par):
     filename = par.get('profiled_route_file', str(_ROUTE_FILE))
     if not isinstance(filename, str) or not filename.strip():
@@ -92,7 +96,7 @@ def validate_theory_restart(par, directory='.', *, profiles=None):
             raise ValueError(f'Invalid profiled job route for {job!r}.')
         # Rotor job names do not distinguish L1 from L2. Check before either
         # calculation workers or PES can read scans from the previous level.
-        if job.startswith('hir/') or '/hir_' in job:
+        if _rotor_job(job):
             level = 'l2' if par['high_level'] else 'l1'
             if record['level'] != level:
                 raise ValueError(f'{job}: saved rotor scan uses '
@@ -199,7 +203,10 @@ class ProfiledQuantumChemistry:
         ensure_current_run(create=True)
         # Save the methods before marking profile use or opening calculators,
         # so a failed initialization still has the record needed for a restart.
-        if not self.route_file.exists():
+        execution = {key: {'command': value.command, 'device': value.device}
+                     for key, value in self.profiles.items()}
+        if (not self.route_file.exists()
+                or json.loads(self.route_file.read_text()).get('execution') != execution):
             self._save_routes()
         record_profiled_run()
         self.backends = {
@@ -228,6 +235,24 @@ class ProfiledQuantumChemistry:
         self.job_ids = {}
         for level, backend in self.backends.items():
             original = backend.submit_qc
+            original_check = backend.check_qc
+
+            def check(job, *, _level=level, _check=original_check):
+                # An existing rotor name does not identify its calculation
+                # level. Refuse it before a backend can read or ingest results.
+                if _rotor_job(job) and job not in self._routes:
+                    saved = self.db.count(name=job) or any(
+                        Path(job + suffix).exists()
+                        for suffix in ('.py', '.pkl', '.log', '.out', '_sella.log'))
+                    if saved:
+                        raise ValueError(f'{job}: saved rotor has no recorded theory level. '
+                                         'Use a fresh directory; existing files were preserved.')
+                if job in self._routes and self._routes[job]['level'] != _level:
+                    raise ValueError(f'{job}: requested {_level.upper()} differs from '
+                                     'its recorded theory level.')
+                return _check(job)
+
+            backend.check_qc = check
 
             def tracked(job, nproc, singlejob=1, jobtype=None, *,
                         _level=level, _submit=original):
@@ -239,20 +264,25 @@ class ProfiledQuantumChemistry:
                             'reuse-only continuation; no replacement job was '
                             'submitted.')
                     return 0
+                self._record(job, _level)
+                if re.search(r'_IRC_[FR]$', job):
+                    self._record(job + '_prod', _level)
                 result = _submit(job, nproc, singlejob=singlejob,
                                  jobtype=jobtype)
                 job_id = self.backends[_level].job_ids.get(job)
                 self._record(job, _level, job_id)
-                if re.search(r'_IRC_[FR]$', job):
-                    self._record(job + '_prod', _level)
                 return result
 
             backend.submit_qc = tracked
         self._restore_job_ids()
 
     def __getattr__(self, name):
-        # Unclassified operations (reaction scans, IRC, VTS, conformers) are L1.
-        return getattr(self.l1, name)
+        # Missing construction or serialization attributes must raise
+        # AttributeError, not recursively request l1 before it exists.
+        backend = self.__dict__.get('l1')
+        if backend is None or name.startswith('__'):
+            raise AttributeError(name)
+        return getattr(backend, name)
 
     def _save_routes(self):
         payload = {'schema': 2, 'profile_sha256': self._fingerprint,
@@ -268,6 +298,9 @@ class ProfiledQuantumChemistry:
 
     def _record(self, job, level, job_id=None):
         previous = self._routes.get(job, {})
+        if previous and previous['level'] != level:
+            raise ValueError(f'{job}: cannot replace recorded {previous["level"].upper()} '
+                             f'with {level.upper()}.')
         record = {'level': level,
                   'job_id': str(job_id) if job_id is not None
                   else previous.get('job_id')}
@@ -295,13 +328,14 @@ class ProfiledQuantumChemistry:
         record = self._routes.get(job)
         if record:
             return record['level']
-        # A worker can finish before its job entry is saved. The profile record
-        # already fixes the theory; conventional names identify its level.
+        # New ordinary names identify their level before submission. Rotor
+        # names do not, so results require the record saved before launch.
         if '_semi_emp_' in job or (job.startswith('conf/')
                 and re.search(r'_r\d+_\d+$', job)):
             return 'l0'
-        if '/hir_' in job or job.startswith('hir/'):
-            return 'l2' if self.par['high_level'] else 'l1'
+        if _rotor_job(job):
+            raise ValueError(f'{job}: rotor result has no recorded theory level; '
+                             'do not infer it from high_level.')
         if job.endswith('_high') \
                 or '_high_freq_recovery_' in job:
             return 'l2'
@@ -413,9 +447,10 @@ class ProfiledQuantumChemistry:
         self._clear_job_id(job)
         return result
 
-    def publish_result(self, source, target):
+    def publish_result(self, source, target, chemical_context=None):
         level = self._level_for(source.name)
-        result = self.backends[level].publish_result(source, target)
         self._record(target, level)
+        result = self.backends[level].publish_result(
+            source, target, chemical_context=chemical_context)
         self._clear_job_id(target)
         return result

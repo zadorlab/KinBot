@@ -104,7 +104,13 @@ def resolve_profiles(par):
         raise ValueError('theory_preset is not supported in this branch. Specify '
                          'l0_profile, l1_profile and l2_profile explicitly; '
                          'a restart must keep the previously recorded methods and models.')
+    reuse_only = par.get('profiled_l1_reuse_only', 0)
+    if reuse_only not in (0, 1):
+        raise ValueError('profiled_l1_reuse_only must be 0 or 1.')
     if not profiled_requested(par):
+        if reuse_only:
+            raise ValueError('profiled_l1_reuse_only requires theory profiles; '
+                             'keep the profiles used for the completed L1 calculations.')
         return {}
 
     profiles = {}
@@ -117,8 +123,8 @@ def resolve_profiles(par):
                 raise ValueError(f'{level} must be a calculator alias.')
             calculator = _ALIASES.get(alias.lower(), alias.lower())
             if calculator != values['calculator']:
-                # A backend switch must not retain a different backend's
-                # method, basis, frequency policy, or private keywords.
+                # Keep method and basis defaults, but reset the executable,
+                # optimizer and calculator keywords for the new program.
                 values = deepcopy(legacy)
                 values['command'] = ''
                 values['optimizer'] = 'native' if calculator == 'qchem' else 'sella'
@@ -137,6 +143,8 @@ def resolve_profiles(par):
             values['optimizer'] = ('native' if override['calculator'].lower() == 'qchem'
                                    else 'sella')
             values['calculator_kwargs'] = {}
+        context = (f'{level}_profile' if override else f'{level}={alias}' if alias
+                   else f'{level.upper()} settings inherited from qc/use_sella')
         values = _merge(values, override)
         values['calculator'] = _ALIASES.get(values['calculator'].lower(),
                                             values['calculator'].lower())
@@ -145,24 +153,27 @@ def resolve_profiles(par):
             values['task_name'] = values.get('task_name') or par.get('fc_task_name', 'omol')
             values['device'] = values.get('device') or par.get('fc_device', 'cpu')
             if not values['model_path']:
-                raise ValueError(f'{level}_profile requires a FairChem model_path '
+                raise ValueError(f'{context} requires a FairChem model_path '
                                  'or fc_model_path.')
         if values['calculator'] == 'fairchem':
             values['method'], values['basis'] = '', ''
         profile = TheoryProfile.from_dict(level, values)
         if profile.calculator == 'nwchem':
-            raise ValueError(f'{level}_profile: NWChem calculation workers are not '
+            raise ValueError(f'{context}: NWChem calculation workers are not '
                              'supported by the profile workflow. Select Gaussian, '
                              'FairChem, or Q-Chem with optimizer=native instead.')
         if profile.calculator not in ('gaussian', 'qchem', 'orca', 'nn_pes', 'fairchem'):
-            raise ValueError(f'{level}_profile has unsupported calculator {profile.calculator!r}.')
+            raise ValueError(f'{context} has unsupported calculator {profile.calculator!r}.')
         if profile.calculator == 'qchem' and profile.optimizer != 'native':
-            raise ValueError(f'{level}_profile Q-Chem requires optimizer=native; '
+            raise ValueError(f'{context} Q-Chem requires optimizer=native; '
                              'its Sella/BFGS workers do not support force-only calculations.')
         if profile.frequency_mode == 'native_hessian' and profile.calculator not in ('gaussian', 'qchem'):
-            raise ValueError(f'{level}_profile native_hessian requires Gaussian or Q-Chem.')
+            raise ValueError(f'{context} native_hessian requires Gaussian or Q-Chem.')
         if profile.frequency_mode == 'ase_forces' and profile.optimizer == 'native':
-            raise ValueError(f'{level}_profile ase_forces requires a Sella or BFGS optimizer.')
+            raise ValueError(f'{context} ase_forces requires a Sella or BFGS optimizer.')
+        if profile.calculator in ('orca', 'nn_pes', 'fairchem') and profile.optimizer == 'native':
+            raise ValueError(f'{context}: {profile.calculator} requires optimizer=sella '
+                             'or bfgs; bfgs applies to wells and Sella to TS searches.')
         profiles[level] = profile
     return profiles
 

@@ -142,8 +142,8 @@ class QuantumChemistry:
                 'nprocshared': min(nel, self.ppn),
                 'mem': '700MW',
                 # ASE runs Gaussian in the label's directory (e.g. conf/).
-                # Generated checkpoint paths refer to the calculation root.
-                'chk': os.path.abspath(job),
+                # Use a filename so moving the run does not break checkpoint reads.
+                'chk': os.path.basename(job),
                 'label': job,
                 'Symm': 'None',
                 'mult': mult,
@@ -461,7 +461,7 @@ class QuantumChemistry:
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
-            if self.theory_level is None:
+            if getattr(self, 'theory_level', None) is None:
                 kwargs.pop('chk', None)
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
@@ -471,7 +471,7 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
                                    optimizer=self.optimizer,
-                                   profiled=self.theory_level is not None,
+                                   profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -575,7 +575,7 @@ class QuantumChemistry:
             kwargs = self.merge_kwargs(kwargs)
         kwargs.pop('opt', None)
         kwargs.pop('chk', None)
-        if self.theory_level is None:
+        if getattr(self, 'theory_level', None) is None:
             kwargs['method'] = 'am1'
             kwargs['basis'] = ''
 
@@ -610,7 +610,7 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
                                    optimizer=self.optimizer,
-                                   profiled=self.theory_level is not None,
+                                   profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -669,7 +669,7 @@ class QuantumChemistry:
             Code = 'Gaussian'
             # Native MC conformers need their own existing Hessian for the
             # optical check. Sella already stores it in the database.
-            if not ((self.theory_level is not None and self.use_sella)
+            if not ((getattr(self, 'theory_level', None) is not None and self.use_sella)
                     or (self.par.get('multi_conf_tst') and not self.use_sella and not semi_emp)):
                 kwargs.pop('chk', None)
         elif self.qc == 'qchem':
@@ -690,7 +690,7 @@ class QuantumChemistry:
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
-        if semi_emp and self.theory_level is None:
+        if semi_emp and getattr(self, 'theory_level', None) is None:
             kwargs['method'] = self.l0_method
             kwargs['basis'] = ''
         if species.natom < 3:
@@ -706,7 +706,7 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
                                    optimizer=self.optimizer,
-                                   profiled=self.theory_level is not None,
+                                   profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -762,7 +762,7 @@ class QuantumChemistry:
                     kwargs['guess'] = ','.join(options)
                 else:
                     kwargs.pop('guess', None)
-            kwargs.update(freq='', chk=os.path.abspath(job), label=job)
+            kwargs.update(freq='', chk=os.path.basename(job), label=job)
             template_file = f'{kb_path}/tpl/ase_gauss_opt_well.tpl.py'
         else:
             kwargs.update(jobtype='freq', vibman_print='4', xc_grid='3',
@@ -904,7 +904,7 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
                                    optimizer=self.optimizer,
-                                   profiled=self.theory_level is not None,
+                                   profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -980,7 +980,7 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
                                    optimizer=self.optimizer,
-                                   profiled=self.theory_level is not None,
+                                   profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -1028,7 +1028,7 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
                                    optimizer=self.optimizer,
-                                   profiled=self.theory_level is not None,
+                                   profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(frag.atom),
                                    geom=plain_geometry(frag.geom),
@@ -1076,7 +1076,7 @@ class QuantumChemistry:
             template = open(template_file, 'r').read()
             template = template.format(label=job, frequency_mode=self.frequency_mode,
                                    optimizer=self.optimizer,
-                                   profiled=self.theory_level is not None,
+                                   profiled=getattr(self, 'theory_level', None) is not None,
                                        scan_coo=reac.scan_coo,
                                        bonds=reac.irc_prod.bondlist,
                                        kwargs=kwargs,
@@ -1106,7 +1106,7 @@ class QuantumChemistry:
             template = open(template_file, 'r').read()
             template = template.format(label=job, frequency_mode=self.frequency_mode,
                                    optimizer=self.optimizer,
-                                   profiled=self.theory_level is not None,
+                                   profiled=getattr(self, 'theory_level', None) is not None,
                                        scan_coo=reac.scan_coo,
                                        bonds=reac.irc_prod.bondlist,
                                        kwargs=kwargs,

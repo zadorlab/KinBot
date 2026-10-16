@@ -204,12 +204,13 @@ Gaussian command used by preliminary searches. Flat `l0_qc`,
 `l0_qc_command`, `l0_basis` and `l0_calc_kwargs` inputs remain accepted;
 `l0_method` is a fallback beneath `l0_profile.method`.
 
-`optimizer` can be `native` for a backend's own optimizer or `sella`; `bfgs`
+`optimizer: "native"` selects the Gaussian or Q-Chem optimizer. Gaussian also
+supports `sella`; ORCA, FairChem and NNPES require `sella` or `bfgs`. `bfgs`
 selects BFGS for wells, while saddles and constrained searches continue to use
 Sella. FairChem uses its existing Sella/BFGS workers. `frequency_mode: "auto"`
 retains the backend's usual frequency calculation, and `ase_forces` uses finite
 differences with Sella/BFGS. Gaussian also supports `native_hessian` after Sella;
-Q-Chem profiles require `optimizer: "native"` and support native Hessians.
+Q-Chem profiles require `optimizer: "native"` and use Q-Chem Hessians.
 Sella/BFGS with Q-Chem is rejected because those workers do not yet request
 force-only calculations. Ordinary inputs without profiles are unchanged.
 NWChem profiles are rejected because their calculation workers are not supported.
@@ -225,9 +226,18 @@ accepted for previously written inputs, but a named preset is rejected.
 `frequency_mode` selects how harmonic frequencies are calculated; it does not
 request vibrational perturbation theory or anharmonic corrections.
 
+For a continuation that must not submit any new L1 jobs, set
+`profiled_l1_reuse_only: 1` (default 0) and retain the original theory profiles.
+Completed L1 results remain available; running jobs are awaited and failed
+jobs retain their error status. A missing or incomplete L1 result stops the
+continuation with its job name. L0 and L2 submissions remain enabled. This
+option requires profiles and does not convert an unrecorded run to profiles.
+
 Each generated worker uses its assigned model, command and calculator keywords.
 The profile route file, `.kinbot_theory_jobs.json`, records the methods before
-the first job and records each job's level for reading results and restarting.
+the first job and records each job's level before submission. Reading a rotor
+without a recorded level is refused: its filename does not distinguish L1
+from L2. Unchanged job records are not rewritten during status checks.
 KinBot refuses to add profiles to existing calculations without a matching
 theory record. It also refuses to restart a profiled calculation after profiles
 are removed. The existing `.kinbot_run.json` also remembers profile use, so
@@ -258,6 +268,11 @@ Earlier profile records used different TS-search defaults and lack a complete
 record of these choices; start a fresh directory for those runs.
 CPU, memory and queue limits
 remain the existing global settings. L3 retains its existing settings.
+
+The object that selects the calculator delegates existing QC operations to
+L1 unless a method explicitly selects another level. It is not a subclass of
+`QuantumChemistry`; copying or pickling the live calculator objects is not a
+supported restart procedure. Restart from the input and saved theory record.
 
 
 ## Documentation

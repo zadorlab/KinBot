@@ -34,6 +34,8 @@ if '{Code}' == 'Gaussian' and kwargs.get('chk'):
 # ORCA copies scratch files back; other jobs retain their conf/ or hir/ path.
 basename = os.path.basename('{label}') if '{Code}' == 'ORCA' else '{label}'
 output_label = basename
+# Finite-difference frequencies use a temporary folder without the job path.
+vibration_label = os.path.basename('{label}')
 
 if os.path.isfile(f'{{output_label}}_sella.log'):
     os.remove(f'{{output_label}}_sella.log')
@@ -41,7 +43,7 @@ if os.path.isfile(f'{{output_label}}_sella.log'):
 sella_kwargs = {sella_kwargs}
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
     sella_kwargs['internal'] = False
-opt = Sella(mol, order=1, 
+opt = Sella(mol, order=1,
             trajectory=f'{{output_label}}.traj',
             logfile=f'{{output_label}}_sella.log',
             **sella_kwargs)
@@ -69,9 +71,9 @@ if converged:
             converged = False
         else:
             e = mol.get_potential_energy()
-            db.write(mol, name='{label}', 
-                 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                        'hess': hessian, 'status': 'normal'}})            
+            db.write(mol, name='{label}',
+                 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
+                        'hess': hessian, 'status': 'normal'}})
     except:
         converge = False
 
@@ -86,11 +88,11 @@ if not converged:
 if os.path.isdir(f'{{basename}}'):
     shutil.rmtree(f'{{basename}}')
 
-if os.path.isdir(f'{{basename}}_vib'):
-    if os.path.exists(os.path.join(f'{{basename}}_vib', 'vib.xyz')):
-        shutil.copy2(os.path.join(f'{{basename}}_vib', 'vib.xyz'), 
+if os.path.isdir(f'{{vibration_label}}_vib'):
+    if os.path.exists(os.path.join(f'{{vibration_label}}_vib', 'vib.xyz')):
+        shutil.copy2(os.path.join(f'{{vibration_label}}_vib', 'vib.xyz'),
                      os.path.join(os.getcwd(), f'{{output_label}}_vib.xyz'))
-    shutil.rmtree(f'{{basename}}_vib')
+    shutil.rmtree(f'{{vibration_label}}_vib')
 
 with open(f'{{output_label}}_sella.log', 'a') as f:
     f.write('done\n')

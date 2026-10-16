@@ -960,13 +960,21 @@ def test_native_frequency_after_sella_keeps_geometry_and_executable(workspace, m
     assert not {'force', 'opt', 'guess', 'geom'} & set(mol.calc.parameters)
 
 
-def test_saved_hir_without_a_route_follows_enabled_refinement(workspace):
+def test_saved_hir_without_a_route_is_not_assigned_a_level(workspace):
     qc = QuantumChemistry(profile_parameters(high_level=0))
-    assert qc.for_job('hir/methanol_hir_0_01') is qc.l1
-    qc.par['high_level'] = 1
-    assert qc.for_job('hir/methanol_hir_0_01') is qc.l2
-    qc._record('hir/methanol_hir_0_01', 'l1')
-    assert qc.for_job('hir/methanol_hir_0_01') is qc.l1
+    job = 'hir/methanol_hir_0_01'
+    Path('hir').mkdir()
+    Path(job + '_sella.log').write_text('done\n')
+    qc.db.write(molecule('CH3OH'), name=job, data={'energy': -1., 'status': 'normal'})
+    for high_level in (0, 1):
+        qc.par['high_level'] = high_level
+        with pytest.raises(ValueError, match='no recorded theory level'):
+            qc.get_qc_energy(job)
+        with pytest.raises(ValueError, match='no recorded theory level'):
+            qc.for_level('l2' if high_level else 'l1').check_qc(job)
+    qc._record(job, 'l1')
+    assert qc.for_job(job) is qc.l1
+    assert qc.get_qc_energy(job)[0] == 0
 
 
 def test_profiled_sella_conformer_handoff_preserves_logs_modes_and_checkpoint(workspace, monkeypatch):
@@ -1103,3 +1111,118 @@ def test_gaussian_startup_failure_finishes_profiled_conformer_as_error(
     monkeypatch.setattr(qc_module.subprocess, 'Popen', Mock(return_value=process))
     qc.l0.queuing = 'slurm'
     assert qc.check_qc(job) == 'error'
+
+
+@pytest.mark.parametrize('calculator', ['orca', 'nn_pes', 'fairchem'])
+def test_force_calculators_reject_unsupported_optimizer(workspace, calculator):
+    with pytest.raises(ValueError, match='requires optimizer=sella or bfgs'):
+        profile_parameters(l1_profile=dict(calculator=calculator, optimizer='native'))
+    assert not Path('kinbot.db').exists()
+
+
+def test_error_names_inherited_level_instead_of_unsupplied_profile(workspace):
+    par = parameters(l0_profile=fairchem('/models/small.pt'))
+    par.update(qc='qchem', use_sella=1)
+    with pytest.raises(ValueError, match='L1 settings inherited from qc/use_sella'):
+        resolve_profiles(par)
+
+
+@pytest.mark.parametrize('status', ['normal', 'error', 'running', 0])
+def test_reuse_only_never_submits_l1(workspace, monkeypatch, status):
+    submit = Mock(return_value=1)
+    monkeypatch.setattr(QuantumChemistry, 'submit_qc', submit)
+    par = profile_parameters(profiled_l1_reuse_only=1)
+    qc = QuantumChemistry(par)
+    qc.l1.check_qc = Mock(return_value=status)
+    if status == 0:
+        with pytest.raises(FileNotFoundError, match='no replacement job was submitted'):
+            qc.l1.submit_qc('missing_well', 4)
+    else:
+        assert qc.l1.submit_qc('existing_well', 4, singlejob=0) == 0
+    submit.assert_not_called()
+    assert qc.l2.submit_qc('well_high', 4) == 1
+    submit.assert_called_once()
+
+
+@pytest.mark.parametrize('value', [2, '1'])
+def test_reuse_only_input_is_validated(workspace, value):
+    with pytest.raises(ValueError, match='profiled_l1_reuse_only must be 0 or 1'):
+        profile_parameters(profiled_l1_reuse_only=value)
+
+
+def test_reuse_only_cannot_be_ignored_without_profiles(workspace):
+    with pytest.raises(ValueError, match='requires theory profiles'):
+        parameters(profiled_l1_reuse_only=1)
+
+
+def test_job_level_is_recorded_before_submission_returns(workspace, monkeypatch):
+    def launch(backend, job, *args, **kwargs):
+        routes = json.loads(Path('.kinbot_theory_jobs.json').read_text())['jobs']
+        assert routes[job]['level'] == backend.theory_level
+        assert routes[job]['job_id'] is None
+        assert routes[job + '_prod']['level'] == backend.theory_level
+        backend.job_ids[job] = '42'
+        return 1
+    monkeypatch.setattr(QuantumChemistry, 'submit_qc', launch)
+    qc = QuantumChemistry(profile_parameters())
+    qc.l2.submit_qc('test_IRC_F', 4)
+    assert qc._routes['test_IRC_F']['job_id'] == '42'
+    save = Mock(wraps=qc._save_routes)
+    qc._save_routes = save
+    qc._record('test_IRC_F', 'l2', '42')
+    save.assert_not_called()
+    with pytest.raises(ValueError, match='cannot replace recorded L2 with L1'):
+        qc.l1.submit_qc('test_IRC_F', 4)
+
+
+def test_missing_router_attribute_raises_without_recursion():
+    qc = object.__new__(ProfiledQuantumChemistry)
+    with pytest.raises(AttributeError, match='l1'):
+        getattr(qc, 'l1')
+    with pytest.raises(AttributeError, match='__setstate__'):
+        getattr(qc, '__setstate__')
+
+
+def test_profiled_product_registration_preserves_chemical_context(workspace):
+    from ase import Atoms
+    from kinbot.calculation import load_calculation_record
+    from kinbot.species_routing import register_optimized_product
+    from kinbot.stereo_routing import guard_well_job
+    par = profile_parameters(queuing='local')
+    qc = QuantumChemistry(par)
+    initial = StationaryPoint('initial', 0, 1, smiles='C[C@H](O)CC')
+    initial.characterize()
+    qc.qc_opt(initial, initial.geom, initial_product=True)
+    job = routing_name(initial) + '_product'
+    product = StationaryPoint('optimized', 0, 1, atom=initial.atom,
+                              geom=initial.geom * [-1., 1., 1.])
+    product.characterize()
+    data = dict(status='normal', energy=-100., zpe=.01,
+                frequencies=[100.] * (3 * product.natom-6),
+                hess=np.eye(3 * product.natom), charge=0, multiplicity=1)
+    row = qc.db.write(Atoms(product.atom, positions=product.geom), name=job, data=data)
+    Path(job + '_sella.log').write_text('done\n')
+    accepted = register_optimized_product(qc, initial, product, job)
+    target = routing_name(accepted) + '_well'
+    assert qc.for_job(target) is qc.l1
+    saved = next(qc.db.select(name=target, sort='-id', limit=1))
+    assert saved.data['copied_from_row_id'] == row
+    from kinbot.stereo_routing import _chemical_context
+    assert saved.data['chemical_context'] == _chemical_context(product)
+    restarted = QuantumChemistry(par)
+    guard_well_job(restarted, accepted, accepted.geom, target)
+    load_calculation_record(accepted, restarted, target)
+    np.testing.assert_array_equal(accepted.hess, data['hess'])
+
+
+@pytest.mark.parametrize('job', ['well', 'conf/well_0000', 'hir/well_hir_0_01'])
+def test_gaussian_checkpoint_remains_relative_after_directory_move(workspace, job):
+    from kinbot.ase_modules.calculators.gaussian import Gaussian
+    qc = QuantumChemistry(parameters())
+    kwargs = qc.get_qc_arguments(job, 1, 0, 18)
+    assert kwargs['chk'] == Path(job).name
+    # ASE runs the executable in the label directory; the same checkpoint
+    # filename must work under any relocated calculation root.
+    calculator = Gaussian(**kwargs)
+    relocated = Path('/another/run')
+    assert relocated / calculator.directory / kwargs['chk'] == relocated / job

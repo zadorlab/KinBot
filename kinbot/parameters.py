@@ -209,6 +209,7 @@ class Parameters:
             'l0_qc_command': '',
             'l0_calc_kwargs': {},
             'profiled_theory': 0,
+            'profiled_l1_reuse_only': 0,
             # Previously written inputs include this empty field. Named
             # presets are unsupported; methods belong in explicit profiles.
             'theory_preset': '',

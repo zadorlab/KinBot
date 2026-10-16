@@ -39,9 +39,11 @@ def search(tmp_path, monkeypatch):
     assert len(point.conf_dihed) == 1
     search.atoms = atoms
 
-    def finish(count):
+    def finish(count, missing=()):
         """Record `count` finished conformer jobs, as a completed search leaves them."""
         for i in range(count):
+            if i in missing:
+                continue
             search.db.write(atoms, name=search.get_job_name(i),
                             data={'energy': -1. - i, 'zpe': .02, 'frequencies': [100.] * 6, 'status': 'normal'})
         search.last = search.get_job_name(count - 1)
@@ -70,6 +72,17 @@ def test_count_comes_from_the_finished_jobs_not_from_the_grid(search):
     Path(search.low_log()).write_text('done\n')
     assert search.generate_conformers(0, search.species.geom) == 1
     assert search.conf == 12
+
+
+def test_crashed_conformer_does_not_hide_the_later_ones(search):
+    # A job that died before saving its row leaves a gap; the conformers
+    # after it (here the lowest) must survive and the gap counts as failed.
+    search.finish(12, missing=(5,))
+    Path(search.low_log()).write_text('done\n')
+    assert search.generate_conformers(0, search.species.geom) == 1
+    assert search.conf == 12
+    assert search.conf_status[5] == 1
+    assert search.conf_status[11] == -1
 
 
 def test_unfinished_search_is_not_skipped(search):

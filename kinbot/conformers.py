@@ -1,5 +1,6 @@
 from kinbot.species_routing import routing_key, routing_name
 import os
+import re
 import random
 import time
 import copy
@@ -864,16 +865,25 @@ class Conformers:
         """Number of conformers of a finished search, or 0 if it did not finish.
 
         conf/<name>_low<ext> is written only after every conformer was checked,
-        so the consecutive conformer jobs in kinbot.db are the complete search
-        whatever the number of starting geometries (ring conformers) or random
-        samples was.
+        so the conformer jobs in kinbot.db are the complete search whatever the
+        number of starting geometries (ring conformers) or random samples was.
+        A job that crashed before saving its result leaves a gap; it is marked
+        failed here instead of hiding the conformers after it.
         """
         if not os.path.exists(self.low_log()):
             return 0
         add = 'semi_emp_' if self.semi_emp else ''
-        count = 0
-        while self.db.count(name=self.get_job_name(count, add=add)):
-            count += 1
+        prefix = self.get_job_name(0, add=add)[:-self.zf]
+        pattern = re.compile(re.escape(prefix) + r'(\d+)$')
+        found = set()
+        for row in self.db.select(include_data=False):
+            match = pattern.match(str(row.get('name', '')))
+            if match:
+                found.add(int(match.group(1)))
+        if not found:
+            return 0
+        count = max(found) + 1
+        self.conf_status = [-1 if i in found else 1 for i in range(count)]
         return count
 
     def copy_low_log(self, lowest_job):

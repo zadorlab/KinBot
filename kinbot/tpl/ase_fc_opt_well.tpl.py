@@ -130,6 +130,9 @@ with open('{label}.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
 
 if os.path.isdir('{label}_vib'):
+    # Keep the imaginary mode of a saddle: the L2 comparison reads it.
+    if os.path.exists(os.path.join('{label}_vib', 'vib.xyz')):
+        shutil.copy2(os.path.join('{label}_vib', 'vib.xyz'), '{label}_vib.xyz')
     shutil.rmtree('{label}_vib')
 
 with open('{label}_sella.log', 'a') as f:

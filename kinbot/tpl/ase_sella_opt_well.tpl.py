@@ -111,7 +111,7 @@ else:
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
 
-    if {profiled} and os.path.exists(f'{{vibration_label}}_vib/vib.xyz'):
+    if os.path.exists(f'{{vibration_label}}_vib/vib.xyz'):
         shutil.copy2(f'{{vibration_label}}_vib/vib.xyz', f'{{basename}}_vib.xyz')
     if os.path.isdir(f'{{vibration_label}}_vib'):
         shutil.rmtree(f'{{vibration_label}}_vib')

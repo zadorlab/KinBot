@@ -25,20 +25,23 @@ calculations; its original frequencies and energy are not copied to them.
 
 ### Assign axial stereochemistry from coordinates
 
-KinBot now distinguishes the two orientations of substituted cumulenes and
-potential biaryl axes. The assignment enters species names, IRC interpretation,
+KinBot now distinguishes the two orientations of substituted cumulenes. The
+assignment enters species names, IRC interpretation,
 reaction-site comparisons, and the existing specified/racemic optical checks.
 It supports multiple axes and terminal E/Z stereochemistry in longer cumulenes.
 The temporary graph labels do not change the atoms or masses sent to QC.
 
-This geometric assignment does not calculate a rotation barrier. A potential
-biaryl axis is treated as fixed even if its rotation barrier is low. A rotor
-scan that changes that assignment in specified mode uses the existing harmonic
-fallback; racemic mode permits its mirror. Terminal planes within five degrees
-of a coplanar arrangement receive no axial assignment. A racemic biaryl scan
-can pass through that planar geometry; other stereochemical checks remain active.
-No helical identifier is added. The identity and calculation formats have changed; start these
-calculations in new directories and keep earlier results with their old version.
+Terminal planes within five degrees of a coplanar arrangement receive no axial
+assignment. No helical identifier is added. The identity and calculation formats
+have changed; start these calculations in new directories and keep earlier
+results with their old version.
+
+Single bonds between aromatic rings remain ordinary rotor axes. Opposite twists
+of a biaryl have the same species identity, so both remain available in HIR
+scans and MC conformer searches, including in specified mode. The geometric
+optical check still determines whether the chosen treatment includes the mirror.
+KinBot does not distinguish fixed atropisomers of biaryls; molecules with a high
+barrier to this rotation use the same rotor approximation.
 
 The existing absolute phase-space symmetry convention for `hom_sci` is unchanged.
 For a chiral parent that forms one chiral fragment, it can give different

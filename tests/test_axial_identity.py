@@ -36,7 +36,7 @@ def turn(p, center=2, end=3):
 @pytest.mark.parametrize('smiles', [
     'CC=C=CC', 'FC=C=CF', 'CCC=C=CC', 'CC=C=C[C@H](F)Cl',
     'CC=C=CC=C=CC', 'CC=C=C=C=CC', 'CC=C=C=CC',
-    'Fc1ccccc1-c1ccccc1Cl', 'C1=C=CCCCCCC1', '[CH2]C(=C=CF)C',
+    'C1=C=CCCCCCC1', '[CH2]C(=C=CF)C',
     'CC=C=C(C=C=CC)C=C=CC'])
 def test_axis_identity_survives_atom_order_rotation_and_reflection(smiles):
     p = point(smiles)
@@ -139,7 +139,8 @@ def test_axial_irc_ts_and_mc_use_the_requested_enantiomers():
     assert path_geometry_allowed(ts, ts.geom * [-1., 1., 1.], 'racemic')
 
 
-def test_biaryl_hir_respects_specified_and_racemic_models():
+@pytest.mark.parametrize('population', ['specified', 'racemic'])
+def test_biaryl_twists_remain_conformers_in_hir_and_mc(population):
     p = point('Fc1ccccc1-c1ccccc1Cl')
     axis = next((i, j) for i, j in nx.bridges(nx.from_numpy_array(p.bond01))
                 if p.cycle[i] and p.cycle[j])
@@ -152,9 +153,19 @@ def test_biaryl_hir_respects_specified_and_racemic_models():
         represented_domain_degrees=[0., 360.], points=[dict(index=i, status='successful',
         geometry_angstrom=g, electronic_energy_hartree=0., angle_offset_degrees=angle)
         for i, (g, angle) in enumerate(((p.geom, 0.), (mirror, delta)))])
-    result = evaluate_optical(p, rotors=[rotor], population='specified')
-    assert result['invalid_rotor_index'] == 0
-    assert evaluate_optical(p, rotors=[rotor], population='racemic')['remaining_multiplier'] == 1.
+    identity = canonical_identity(p)
+    assert not identity['has_configured_stereo']
+    assert identity['id'] == canonical_identity(p, mirror)['id']
+    assert evaluate_optical(p, rotors=[rotor], population=population)['remaining_multiplier'] == 1.
+    # Both twists belong to one conformer ensemble, also in specified mode.
+    freq = [1000.] * (3*p.natom-6)
+    records = [ConformerRecord(str(i), i, str(i), 'valid', geometry=g,
+                zero_energy_hartree=-100., frequencies_cm1=freq)
+               for i, g in enumerate((p.geom, mirror))]
+    counted, groups = evaluate_members(p, records, population=population)
+    assert len(groups) == 1 and set(groups[0]) == {0, 1}
+    assert [r.remaining_optical_weight for r in counted] == [1., 1.]
+    assert all(r.exclusion_reason is None for r in counted)
     # A real scan also crosses a planar geometry and usually misses the exact
     # mirror minimum. Construct angular samples without new QC calculations.
     graph = nx.from_numpy_array(p.bond01)
@@ -170,16 +181,16 @@ def test_biaryl_hir_respects_specified_and_racemic_models():
             geometry_angstrom=atoms.get_positions(), electronic_energy_hartree=0.,
             angle_offset_degrees=(angle-start) % 360.))
     rotor['points'] = samples
-    assert evaluate_optical(p, rotors=[rotor], population='racemic')['remaining_multiplier'] == 1.
+    assert evaluate_optical(p, rotors=[rotor], population=population)['remaining_multiplier'] == 1.
     from kinbot.hindered_rotors import HIR
     hir = HIR.__new__(HIR)
     hir.species = p
     p.dihed = [dihedral]
-    p.optical_population = 'racemic'
+    p.optical_population = population
     planar = samples[-1]['geometry_angstrom']
-    assert hir._configuration_error(planar, 0) is None
-    assert not configured_geometry_allowed(p, planar, 'racemic')
-    # The same scan-only exception works for a nonreacting axis on a TS.
+    assert all(hir._configuration_error(sample['geometry_angstrom']) is None for sample in samples)
+    assert configured_geometry_allowed(p, planar, population)
+    # A nonreacting biaryl bond also remains a rotor in a TS.
     product = copy.copy(p)
     product.bond = p.bond.copy()
     hydrogen = next(i for i, atom in enumerate(p.atom) if atom == 'H')
@@ -189,9 +200,8 @@ def test_biaryl_hir_respects_specified_and_racemic_models():
     ts = copy.copy(p)
     ts.wellorts = 1
     prepare_ts_context(ts, p, product)
-    from kinbot.stereo_identity import rotor_geometry_allowed
-    assert rotor_geometry_allowed(ts, planar, axis, 'racemic')
-    assert not rotor_geometry_allowed(ts, planar, axis, 'specified')
+    assert configured_geometry_allowed(ts, planar, population)
+    assert configured_geometry_allowed(ts, mirror, population)
 
 
 def test_planar_radical_resonance_drawing_does_not_create_an_axis():
@@ -220,11 +230,11 @@ def test_biaryl_rotation_cannot_supply_another_fixed_centers_mirror(smiles):
     start = atoms.get_dihedral(*dihedral)
     atoms.set_dihedral(*dihedral, 0., indices=moving)
     planar = atoms.get_positions()
-    from kinbot.stereo_identity import rotor_geometry_allowed
-    assert rotor_geometry_allowed(p, planar, axis, 'racemic')
-    assert not rotor_geometry_allowed(p, planar, (0, 1), 'racemic')
-    atoms.set_dihedral(*dihedral, -start, indices=moving)
-    assert not rotor_geometry_allowed(p, atoms.get_positions(), axis, 'racemic')
+    for population in ('specified', 'racemic'):
+        assert configured_geometry_allowed(p, planar, population)
+        atoms.set_dihedral(*dihedral, -start, indices=moving)
+        assert configured_geometry_allowed(p, atoms.get_positions(), population)
+    assert not configured_geometry_allowed(p, p.geom * [-1., 1., 1.], 'specified')
     rotor = dict(index=0, axis=axis, dihedral=dihedral, usable=True, sigma_int=1,
         represented_domain_degrees=[0., 360.], points=[dict(index=i, status='successful',
         geometry_angstrom=g, electronic_energy_hartree=0., angle_offset_degrees=angle)

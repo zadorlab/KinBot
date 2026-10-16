@@ -1,6 +1,6 @@
 """Canonical identities for supplied molecular graphs with explicit 3-D stereo.
 
-The identity covers tetrahedral, double-bond, cumulene and potential biaryl
+The identity covers tetrahedral, double-bond and cumulene
 stereochemistry. Axial orientation does not establish a rotation barrier. The
 charge and multiplicity belong to the identity. Formal charges are included
 when supplied, but electronic localization is not inferred. The canonical
@@ -108,12 +108,6 @@ def _molecules(species, geom, tagged_atom=None):
                     adjacent.SetBondDir(Chem.BondDir.NONE)
         from kinbot.axial_stereo import assign_axial_stereo
         assign_axial_stereo(mol, geom, aromatic_forms, ignored, ignored_bonds)
-        # A scan-only comparison can omit the orientation of its biaryl axis
-        # at coplanarity. It must not erase adjacent E/Z or tetrahedral tags.
-        for index in getattr(species, 'stereo_planar_biaryl_axis', ()):
-            atom = mol.GetAtomWithIdx(int(index))
-            if atom.GetAtomMapNum() in (5, 6):
-                atom.SetAtomMapNum(0)
     # Canonical SMILES normalizes atom numbering, not the supplied set of
     # resonance structures. Retain the entire provided ensemble explicitly.
     return result
@@ -197,7 +191,7 @@ def canonical_identity(species, geom=None, *, tagged_atom=None):
     def key(value):
         return hashlib.sha256(repr((value, charge, multiplicity)).encode()).hexdigest()
     return {'status': 'assigned', 'schema': 'kinbot.stereo.v2',
-            'scope': 'tetrahedral, double-bond, cumulene and potential biaryl; provided resonance ensemble',
+            'scope': 'tetrahedral, double-bond and cumulene; provided resonance ensemble',
             'id': key(own), 'mirror_id': key(mirror),
             'mirror_family_id': key(min(own, mirror)),
             'is_chiral_configuration': own != mirror,
@@ -267,71 +261,6 @@ def configured_geometry_allowed(species, geom, population=None):
     reference = optical_scope(species, population)['identity']
     observed = require_supported_identity(species, geom)
     return identity_matches(reference, observed, population)
-
-
-def rotor_geometry_allowed(species, geom, axis, population=None):
-    """Allow a racemic biaryl scan to pass through its coplanar geometry.
-
-    This applies only to the scanned axis, only while its orientation is
-    undefined, and only in scan validation. All other stereochemistry and TS
-    pathway checks remain active. Minima and conformers use the full identity.
-    """
-    population = population or getattr(species, 'optical_population', 'specified')
-    if configured_geometry_allowed(species, geom, population):
-        return True
-    if population != 'racemic':
-        return False
-    if not configured_geometry_allowed(species, species.geom, population):
-        return False
-    axis = tuple(map(int, axis))
-    endpoints = getattr(species, 'ts_endpoint_graphs', (species,))
-    found = False
-    for endpoint in endpoints:
-        before = _molecules(endpoint, species.geom)
-        after = _molecules(endpoint, geom)
-        for first, second in zip(before, after):
-            bond = first.GetBondBetweenAtoms(*axis)
-            if bond is None or bond.IsInRing() or bond.GetBondTypeAsDouble() != 1:
-                continue
-            tags = [first.GetAtomWithIdx(i).GetAtomMapNum() for i in axis]
-            if tags[0] in (5, 6) and tags[0] == tags[1]:
-                if any(second.GetAtomWithIdx(i).GetAtomMapNum() for i in axis):
-                    return False
-                found = True
-    if not found:
-        return False
-    view = copy.copy(species)
-    view.stereo_planar_biaryl_axis = axis
-    if not getattr(species, 'wellorts', 0):
-        return identity_matches(require_supported_identity(view),
-                                require_supported_identity(view, geom), population)
-    from kinbot.reaction_path import _configured_pair, _tagged_pair, path_geometry_allowed
-    for field in ('ts_endpoint_graphs', 'configuration_endpoints', 'stereopath_endpoints'):
-        if hasattr(view, field):
-            values = tuple(copy.copy(endpoint) for endpoint in getattr(view, field))
-            for endpoint in values:
-                endpoint.stereo_planar_biaryl_axis = axis
-            setattr(view, field, values)
-    if hasattr(view, 'configuration_reference'):
-        view.configuration_reference, view.configuration_mirror = _configured_pair(
-            view.configuration_endpoints, view.ts_reference_geometry)
-    if hasattr(view, 'stereopath_reference'):
-        view.stereopath_reference, view.stereopath_mirror = _tagged_pair(
-            view, view.ts_reference_geometry)
-    return path_geometry_allowed(view, geom, population)
-
-
-def biaryl_rotor(species, axis):
-    """Whether this rotor carries a geometric biaryl assignment."""
-    for endpoint in getattr(species, 'ts_endpoint_graphs', (species,)):
-        for mol in _molecules(endpoint, species.geom):
-            bond = mol.GetBondBetweenAtoms(*map(int, axis))
-            tags = [mol.GetAtomWithIdx(int(i)).GetAtomMapNum() for i in axis]
-            if (bond is not None and not bond.IsInRing()
-                    and bond.GetBondTypeAsDouble() == 1
-                    and tags[0] in (5, 6) and tags[0] == tags[1]):
-                return True
-    return False
 
 
 def identity_matches(reference, observed, population='specified'):

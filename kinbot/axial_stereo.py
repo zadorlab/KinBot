@@ -17,12 +17,10 @@ PLANAR_SINE = np.sin(np.deg2rad(5.))
 
 
 def assign_axial_stereo(mol, geom, aromatic_forms, ignored_atoms=(), ignored_bonds=()):
-    """Assign cumulene and potential biaryl orientations from explicit atoms.
+    """Assign cumulene orientations from explicit atoms.
 
     Even cumulenes carry handedness; odd cumulenes carry terminal E/Z order.
-    Potential biaryls use the same substituted-ring criterion as the former
-    scope refusal. Their rotation barrier is not inferred: specified mode
-    retains one orientation, whereas racemic mode permits its global mirror.
+    Single bonds between aromatic rings remain ordinary rotor axes.
     A symmetry-equivalent pair of terminal arms does not define an axis.
     """
     from rdkit import Chem
@@ -56,15 +54,6 @@ def assign_axial_stereo(mol, geom, aromatic_forms, ignored_atoms=(), ignored_bon
         axial = len(path) % 2 == 1
         middle = [path[len(path)//2]] if axial else path[len(path)//2-1:len(path)//2+1]
         candidates.append((path, middle, 'cumulene' if axial else 'cumulene_ez'))
-
-    for bond in probe.GetBonds():
-        ends = (bond.GetBeginAtom(), bond.GetEndAtom())
-        if (bond.GetBondType() == Chem.BondType.SINGLE and not bond.IsInRing()
-                and all(atom.IsInRing() for atom in ends)
-                and all(any(b.GetIsAromatic() or b.GetBondTypeAsDouble() == 2
-                            for b in atom.GetBonds()) for atom in ends)):
-            path = [a.GetIdx() for a in ends]
-            candidates.append((path, path, 'biaryl'))
 
     # Assign independent axes first. Their labels can distinguish the two
     # arms of another axis. Add each round together and keep earlier signs:
@@ -107,7 +96,7 @@ def assign_axial_stereo(mol, geom, aromatic_forms, ignored_atoms=(), ignored_bon
                 value = np.dot(axis, np.cross(left, right))
                 if abs(value) <= PLANAR_SINE:
                     continue
-                label = (1 if value > 0 else 2) + (4 if kind == 'biaryl' else 0)
+                label = 1 if value > 0 else 2
             assignments.append((number, centers, label))
         if not assignments:
             break

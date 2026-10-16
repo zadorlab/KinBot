@@ -11,6 +11,7 @@ import re
 from kinbot.stereo_identity import require_supported_identity, UnsupportedStereochemistry
 
 
+RESULT_PUBLICATION_PENDING = 'Publishing accepted optimization result'
 _KEY = re.compile(r'^(\d+)(?:-s([0-9a-f]{16}))?$')
 _JOB = re.compile(r'(^|/)(\d+-s[0-9a-f]{16})(?=_|$)')
 _MOTIF = re.compile(r'_m\d+(?:-\d+)*(?=_|$)')
@@ -209,7 +210,7 @@ def register_optimized_product(qc, requested, product, source_job):
                                         sort='-id', limit=1), None)
     if (target_reference is None and target_status != 'running'
             and (target_row is None or target_row.data.get('reason') ==
-                 'Publishing accepted optimization result')):
+                 RESULT_PUBLICATION_PENDING)):
         qc.publish_result(source, target, chemical_context=_chemical_context(product))
         guard_well_job(qc, product, product.geom, target)
     else:

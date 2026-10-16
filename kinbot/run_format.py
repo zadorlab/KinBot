@@ -64,9 +64,13 @@ def ensure_current_run(directory='.', *, create=False):
         runtime = dict(recorded) if isinstance(recorded, dict) else {}
         profiled = runtime.pop('profiled_theory', True)
         if runtime != expected or profiled is not True:
+            advice = 'Start in a fresh directory.'
+            if (runtime.get('schema') == SCHEMA and profiled is True
+                    and runtime.keys() == expected.keys()):
+                advice = ('Use the original environment for a current-format restart, '
+                          'or start in a fresh directory.')
             raise ValueError(f'{marker}: incompatible calculation format or RDKit settings. '
-                             f'Found {recorded}; required {expected}. Use the original environment '
-                             'for a current-format restart, or start in a fresh directory.')
+                             f'Found {recorded}; required {expected}. {advice}')
         return recorded
     if not directory.is_dir():
         if not create:

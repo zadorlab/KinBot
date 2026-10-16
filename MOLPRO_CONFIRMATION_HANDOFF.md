@@ -28,6 +28,13 @@ All 39 points are recomputed consistently in a fresh `_r2` directory. The earlie
 large reference campaign is not touched. Scheduler failure stops the transition;
 an already-started replacement is not launched a second time.
 
+If the earlier restart stopped immediately after preparation with
+`Replacement catalogue differs`, pull this repair and rerun the same command.
+That check incorrectly compared source JSON formatting with the normalized
+snapshot's byte hash. It now compares catalogue contents while retaining the
+snapshot's integrity check. The already-prepared `_r2` directory is reused;
+the failed check occurred before any cancellation or new submission.
+
 ```bash
 watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2'
 ```

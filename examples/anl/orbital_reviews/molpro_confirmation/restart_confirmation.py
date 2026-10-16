@@ -24,7 +24,10 @@ def prepare_and_stop(old, new, catalog):
     if not new.exists():
         build(catalog, new)  # Seed/input checks precede cancellation.
     replacement = validated_record(new)
-    if replacement['catalog_sha256'] != file_sha256(catalog):
+    # build() serializes the catalogue with atomic_json: its bytes can differ
+    # from the source's whitespace/key order. validated_record() above still
+    # enforces the saved snapshot's byte hash; compare settings as JSON here.
+    if json.loads((new / 'catalog.json').read_text()) != json.loads(catalog.read_text()):
         raise ValueError('Replacement catalogue differs; use a fresh directory.')
     if replacement['status'] != 'prepared_review_required' or replacement.get('controller_pid'):
         raise ValueError('Replacement already started; use its run/resume command.')

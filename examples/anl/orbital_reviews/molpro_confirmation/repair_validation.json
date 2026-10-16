@@ -15,5 +15,17 @@
     "MRCI-F12 NSTATR/NSTATI mismatch"
   ],
   "manual_audit": "docs/MOLPRO_CONFIRMATION_INPUT_AUDIT_2026-10-16.md",
-  "production_approved": false
+  "production_approved": false,
+  "restart_catalogue_fix": {
+    "checked_utc": "2026-10-16T07:02:05.716837+00:00",
+    "command": ".venv/bin/python -m pytest -q tests/test_molpro_confirmation_package.py tests/test_run_cleanup.py",
+    "passed": 27,
+    "reproduced_before_fix": "Three source JSON formats rejected after successful preparation",
+    "coverage": [
+      "fresh preparation and prepared-directory reuse",
+      "completed evidence preserved",
+      "changed settings rejected before cancellation",
+      "stored snapshot integrity enforced"
+    ]
+  }
 }

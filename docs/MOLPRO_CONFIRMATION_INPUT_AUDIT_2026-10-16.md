@@ -82,3 +82,17 @@ The final repair regression passed **1,629 tests and 391 subtests** using
 Python `imp` and sandbox access to a Sella/JAX compilation cache. Shell syntax
 and `git diff --check` also passed. The original handoff's smaller test count
 is historical, not evidence that its native input defects were covered.
+
+## Restart catalogue comparison repair
+
+The subsequent Blodgett restart prepared all 39 points, then rejected its own
+catalogue before cancellation or submission. `build()` writes normalized JSON,
+but the restart compared that snapshot's hash to the differently formatted
+source file. The original regression used the already-normalized copy and
+missed the actual CLI path. The corrected regression first reproduced this
+failure with three source formats. The repair compares parsed catalogue
+contents; `validated_record()` still verifies the saved snapshot's exact hash.
+Changed scientific settings and modified snapshots remain rejected before
+stopping old work. Repeating the restart reuses the prepared `_r2` directory.
+The targeted confirmation and cleanup suite passed **27 tests** after this
+repair; no native Molpro input, energy convention or scientific setting changed.

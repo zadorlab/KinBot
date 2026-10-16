@@ -125,10 +125,14 @@ def test_all_confirmation_native_decks_obey_restart_and_root_contracts(tmp_path,
     assert all(p.read_bytes() == data for p, data in sources.items())
 
 
-def test_restart_prepares_before_scoped_stop_and_preserves_old_results(tmp_path, monkeypatch):
+@pytest.mark.parametrize('formatting', [{}, {'indent': 2}, {'indent': 4, 'sort_keys': True}])
+def test_restart_prepares_before_scoped_stop_and_preserves_old_results(tmp_path, monkeypatch, formatting):
     monkeypatch.syspath_prepend(str(PACKAGE))
     restart = module('restart_confirmation')
     old = build_fixture(tmp_path).parent
+    # The CLI receives the source catalogue, not build()'s reformatted copy.
+    catalog = tmp_path / 'catalog.json'
+    catalog.write_text(json.dumps(json.loads(catalog.read_text()), **formatting))
     old_record = json.loads((old / 'confirmation.json').read_text())
     manifest_path = Path(old_record['systems'][0]['manifest'])
     manifest = json.loads(manifest_path.read_text())
@@ -145,18 +149,40 @@ def test_restart_prepares_before_scoped_stop_and_preserves_old_results(tmp_path,
         calls.append(root)
         return {'status': 'stopped'}
     monkeypatch.setattr(restart.run_cleanup, 'stop', stop)
-    result = restart.prepare_and_stop(old, new, old / 'catalog.json')
+    result = restart.prepare_and_stop(old, new, catalog)
     assert result['completed_results_preserved'] == 1
     assert output.read_bytes() == b'Old native evidence must remain intact'
     assert calls == [old]
     # A prepared replacement can recover after a transient stop failure.
-    restart.prepare_and_stop(old, new, old / 'catalog.json')
+    restart.prepare_and_stop(old, new, catalog)
     replacement = json.loads((new / 'confirmation.json').read_text())
     replacement['status'] = 'running'
     (new / 'confirmation.json').write_text(json.dumps(replacement))
     with pytest.raises(ValueError, match='already started'):
-        restart.prepare_and_stop(old, new, old / 'catalog.json')
+        restart.prepare_and_stop(old, new, catalog)
     assert calls == [old, old]
+
+
+def test_restart_rejects_changed_catalogue_contents_and_corrupted_snapshot(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(PACKAGE))
+    restart = module('restart_confirmation')
+    old = build_fixture(tmp_path).parent
+    catalog = tmp_path / 'catalog.json'
+    new = tmp_path / 'replacement'
+    restart.build(catalog, new)
+    monkeypatch.setattr(restart.run_cleanup, 'inspect', lambda root: {'jobs': []})
+    monkeypatch.setattr(restart.run_cleanup, 'stop', lambda *a, **k: pytest.fail('must not stop'))
+    original = catalog.read_text()
+    data = json.loads(original)
+    data['settings']['caspt2_shift'] = 0.1
+    catalog.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='Replacement catalogue differs'):
+        restart.prepare_and_stop(old, new, catalog)
+    catalog.write_text(original)
+    snapshot = new / 'catalog.json'
+    snapshot.write_text(snapshot.read_text() + '\n')
+    with pytest.raises(ValueError, match='Confirmation catalogue changed'):
+        restart.prepare_and_stop(old, new, catalog)
 
 
 def test_restart_refuses_bad_seed_or_scheduler_before_stopping(tmp_path, monkeypatch):

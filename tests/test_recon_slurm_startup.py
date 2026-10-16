@@ -183,6 +183,39 @@ def test_allocation_recovery_is_bounded_and_preserves_native_evidence(tmp_path, 
         assert (directory / 'execution.json').exists()
     else:
         assert job['job_id'] == '71' and not job.get('allocation_retry_history')
+
+
+@pytest.mark.parametrize('case', ['confirmed', 'same_host', 'unknown_host', 'no_requeue', 'guard_started', 'cancelled'])
+def test_requeued_startup_io_preserves_old_native_files_and_retries_only_confirmed_case(tmp_path, monkeypatch, case):
+    path, manifest, job, scheduler = _manifest(tmp_path)
+    directory = Path(job['directory'])
+    scheduler.update(Restarts='1', RunTime='00:00:00')
+    execution = {'status': 'running', 'host': 'previous-host'}
+    if case == 'same_host':
+        execution['host'] = scheduler['BatchHost']
+    elif case == 'unknown_host':
+        execution.pop('host')
+    elif case == 'no_requeue':
+        scheduler['Restarts'] = '0'
+    elif case == 'cancelled':
+        scheduler['JobState'] = 'CANCELLED'
+    elif case == 'guard_started':
+        (directory / '.kinbot_slurm_io_retries/token/71/restart-1').mkdir(parents=True)
+    job['scheduler_record'] = scheduler
+    (directory / 'execution.json').write_text(json.dumps(execution))
+    output = 'Program * Restricted Hartree-Fock\nNO CONVERGENCE!\nPROGRAM * MULTI\nCONVERGENCE REACHED!\nPROGRAM * RS2-F12\n'
+    (directory / 'probe.out').write_text(output)
+    atomic_json(path, manifest)
+    monkeypatch.setattr(recon, 'slurm_job_record', lambda _: {})
+    result = recon._retry_allocation_failures(path, manifest, set(), 2)
+    if case == 'confirmed':
+        assert result['jobs'][0]['allocation_retry_history'][0]['reason'] == 'requeued_startup_io'
+        assert (directory / 'attempts/1/probe.out').read_text() == output
+        assert result['slurm_excluded_nodes'] == ['faulty-host']
+        assert 'job_id' not in result['jobs'][0]
+    else:
+        assert result['jobs'][0]['job_id'] == '71'
+        assert not (directory / 'attempts').exists()
         assert not (directory / 'attempts').exists()
 
 

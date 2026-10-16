@@ -297,7 +297,7 @@ def test_casscf_sets_local_energy_accuracy_independently_of_solver(tmp_path, sol
     for previous in (None, 'previous'):
         deck = recon._deck(data, 'avtz-f12', data['anchors'][0], 'probe', previous=previous)
         before, multi = deck.split('{multi,', 1)
-        assert 'gthresh,energy=1.d-10,coeff=1.d-10' in before
+        assert 'gthresh,energy=1.d-10,coeff=1.d-5' in before
         assert 'accuracy,' not in before
         requested = 'accuracy,energy=1.d-9,gradient=1.d-6' if custom else 'accuracy,energy=1.d-10'
         assert requested + '\n' in multi
@@ -1104,6 +1104,41 @@ def test_retry_archives_known_failure_and_preserves_completed_probe(tmp_path, mo
     assert (directory / 'attempts/1/execution.json').is_file()
     assert (directory / 'attempts/1' / (failed['name'] + '.inp')).is_file()
     assert recon.retry_failed(path)['retry_ready'] == []
+
+
+@pytest.mark.parametrize('execution_status', ['failed', 'running', 'complete'])
+def test_explicit_tolerance_restart_keeps_valid_results_and_archives_invalid_attempt(tmp_path, monkeypatch, execution_status):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon
+    source = tmp_path / 'input.json'
+    _coordinate_configuration(source)
+    path = prepare(source, tmp_path / 'recon')
+    _complete_probes(path)
+    report = audit(path)
+    complete, failed = report['jobs'][:2]
+    complete['job_id'] = '41'
+    protected = {p: p.read_bytes() for p in Path(complete['directory']).iterdir() if p.is_file()}
+    directory = Path(failed['directory'])
+    output = directory / (failed['name'] + '.out')
+    output.write_text('PROGRAM * MRCI-F12\n?CI HAS NOT CONVERGED IN MAX ITERATIONS\n')
+    (directory / 'execution.json').write_text(json.dumps({'status': execution_status, 'error': 'interrupted or unconverged'}))
+    failed.update(job_id='42', submission_status='submitted')
+    path.write_text(json.dumps(report))
+    controls = {'scf': {'max_iterations': 2000, 'energy_convergence': 1.e-8},
+                'correlation': {'energy_convergence': 1.e-8, 'coefficient_convergence': 1.e-5}}
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *a, **k: SimpleNamespace(stdout='', returncode=0))
+    result = recon.retry_failed(path, include_interrupted=True, job_ids={'41', '42'}, solver_options=controls)
+    assert result['retry_ready'] == [failed['name']]
+    after = json.loads(path.read_text())
+    assert after['jobs'][0]['status'] == 'complete'
+    assert all(p.read_bytes() == content for p, content in protected.items())
+    retry = after['jobs'][1]
+    assert retry['retry_solver_options'] == controls
+    assert retry['input_sha256'] == failed['input_sha256']
+    assert retry['attempt_history'][-1]['job_id'] == '42'
+    assert (directory / 'attempts/1' / output.name).read_text().startswith('PROGRAM * MRCI-F12')
+    assert not output.exists()
+    assert recon.retry_failed(path, include_interrupted=True, job_ids={'41', '42'}, solver_options=controls)['retry_ready'] == []
 
 
 @pytest.mark.parametrize('long_names', [False, True])

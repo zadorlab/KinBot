@@ -13,6 +13,7 @@ from pathlib import Path
 
 from kinbot import kb_path
 from kinbot.theory import fortran_threshold
+from kinbot.molpro_solver import mr_thresholds
 from kinbot.execution import file_sha256
 from kinbot import constants
 import math
@@ -624,17 +625,21 @@ def vrc_multireference_energy_contract(method):
 def validate_mr_correlation_options(options):
     """Bounded numerical controls shared by native MRPT and MRCI.
 
-    Iteration limits change solver effort, not the Hamiltonian or convergence
-    tolerances. The explicit reference policy changes the correlated reference
+    Iteration limits and tolerances control solver effort and numerical accuracy.
+    The explicit reference policy changes the correlated reference
     treatment and must be validated separately. Never expose IGNORE_ERROR.
     """
-    allowed = {'max_iterations', 'max_reference_iterations', 'max_reference_vectors', 'reference_policy'}
+    allowed = {'max_iterations', 'max_reference_iterations', 'max_reference_vectors', 'reference_policy',
+               'energy_convergence', 'coefficient_convergence'}
     if not isinstance(options, dict) or set(options) - allowed:
         raise ValueError('Unknown reviewed correlation_options.')
     for key, value in options.items():
         if key == 'reference_policy':
             if value not in ('selected_root', 'state_average'):
                 raise ValueError('correlation_options.reference_policy must be selected_root or state_average.')
+            continue
+        if key.endswith('_convergence'):
+            fortran_threshold(value, f'correlation_options.{key}')
             continue
         if type(value) is not int or value < 1:
             raise ValueError(f'correlation_options.{key} must be a positive integer.')
@@ -697,7 +702,8 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
             options.append(f'shift={float(shift):g}')
         if ipea is not None:
             options.append(f'ipea={float(ipea):g}')
-        command = ','.join([program, *options])
+        command = ','.join([program, *options,
+                            *(f'{k}={v}' for k, v in mr_thresholds(controls).items())])
         state = ('' if selected_root is None else
                  f'wf,{int(nelectron)},1,{int(spin)};'
                  f'state,1,{selected_root};')
@@ -707,6 +713,7 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         body = command if not (state or iteration_card) else f'{command};{state}{reference_card}{iteration_card}'
         return avas + multi + f'{{{body}}}\n' + audit, 'KBVRCSEL'
     program = ('mrci-f12,scalf12=1,cabs_singles=1' if f12 else 'mrci')
+    program += ',' + ','.join(f'{k}={v}' for k, v in mr_thresholds(controls).items())
     audit = (f'! KinBot energy contract: {contract["method"]} = '
              f'{contract["energy_variable"]}; Davidson relaxed reference\n'
              'KBVRCVAR=energy(1)\n'

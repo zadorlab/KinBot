@@ -20,6 +20,7 @@ import time
 
 from kinbot.execution import atomic_json, file_sha256
 from kinbot import molpro_reconnaissance as recon
+from kinbot.molpro_solver import validate_solver_options
 
 
 def load_settings(root, settings=None):
@@ -30,7 +31,7 @@ def load_settings(root, settings=None):
     data = json.loads(path.read_text())
     allowed = {'schema', 'max_jobs', 'max_refinements', 'pilot_only', 'probe_method',
                'keep_going', 'allocation_retries', 'startup_retries', 'io_retries',
-               'memory_mb', 'excluded_nodes', 'reference_solver_options', 'scratch_root'}
+               'memory_mb', 'excluded_nodes', 'reference_solver_options', 'scratch_root', 'solver_options'}
     if not isinstance(data, dict) or type(data.get('schema')) is not int or data['schema'] != 1 or set(data) - allowed:
         raise ValueError('Unknown campaign settings or schema; expected schema 1.')
     for key in ('max_jobs', 'max_refinements', 'allocation_retries', 'startup_retries',
@@ -58,6 +59,10 @@ def load_settings(root, settings=None):
     if set(controls) - {'max_reference_iterations', 'max_reference_vectors'}:
         raise ValueError('reference_solver_options supports reference iterations and vectors only; '
                          'change scientific controls in a new reconnaissance input.')
+    validate_solver_options(data.get('solver_options', {}))
+    for key, value in controls.items():
+        if data.get('solver_options', {}).get('correlation', {}).get(key, value) != value:
+            raise ValueError(f'Conflicting reference_solver_options and solver_options: {key}.')
     return data
 
 
@@ -313,7 +318,7 @@ def run(root, *, max_jobs=None, max_refinements=None, pilot_only=None, probe_met
             if ('memory_mb' in configured and configured['memory_mb'] <
                     data.get('ppn', 8) * data.get('memory_mw', 1000) * 8):
                 raise ValueError('campaign memory_mb does not cover all Molpro rank stacks.')
-        if 'startup_retries' in configured or configured.get('reference_solver_options'):
+        if any(key in configured for key in ('startup_retries', 'reference_solver_options', 'solver_options')):
             for manifest_path in sorted({Path(s[k]) for s in campaign['systems'] for k in ('pilot_manifest', 'manifest')}):
                 with recon._manifest_lock(manifest_path.parent):
                     manifest = json.loads(manifest_path.read_text())
@@ -321,6 +326,8 @@ def run(root, *, max_jobs=None, max_refinements=None, pilot_only=None, probe_met
                         manifest['startup_retries'] = configured['startup_retries']
                     if 'reference_solver_options' in configured:
                         manifest['reference_solver_options'] = configured['reference_solver_options']
+                    if 'solver_options' in configured:
+                        manifest['solver_options'] = configured['solver_options']
                     atomic_json(manifest_path, manifest)
         campaign['execution_settings'] = {**configured, 'max_jobs': max_jobs,
             'max_refinements': max_refinements, 'pilot_only': pilot_only, 'probe_method': probe_method,
@@ -576,11 +583,16 @@ def retry_failed(root, *, include_interrupted=False, job_ids=None, max_reference
                  max_reference_iterations=None, settings=None):
     """Reconcile failed native jobs without discarding successful probes."""
     root = Path(root).expanduser().resolve()
-    controls = load_settings(root, settings).get('reference_solver_options', {}).copy()
+    configured = load_settings(root, settings)
+    controls = configured.get('reference_solver_options', {}).copy()
+    solver_options = configured.get('solver_options', {})
     controls.update({key: value for key, value in (
         ('max_reference_vectors', max_reference_vectors),
         ('max_reference_iterations', max_reference_iterations)) if value is not None})
-    if controls:
+    if solver_options and controls:
+        solver_options = deepcopy(solver_options)
+        solver_options.setdefault('correlation', {}).update(controls)
+    if controls or solver_options:
         recon.validate_mr_correlation_options(controls)
         if not job_ids:
             raise ValueError('A numerical retry override requires explicit --job-id selection.')
@@ -600,6 +612,7 @@ def retry_failed(root, *, include_interrupted=False, job_ids=None, max_reference
                         continue
                 results.append(recon.retry_failed(record[key], include_interrupted=include_interrupted,
                     **({'job_ids': job_ids} if job_ids is not None else {}),
+                    **({'solver_options': solver_options} if solver_options else {}),
                     **controls))
         campaign['status'] = 'prepared_retry'
         campaign.pop('error', None)

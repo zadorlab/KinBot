@@ -533,13 +533,13 @@ def test_asymptote_is_input_driven_and_outside_the_scan_grid():
 def test_molpro_spin_splitting_program_syntax_and_energy_variables(tmp_path):
     cas, cas_energy = _vrc_multireference_method(
         'caspt2-f12(2,2)', 18, spin=0, shift=.2, ipea=.25)
-    assert '{rs2-f12,shift=0.2,ipea=0.25}' in cas
+    assert '{rs2-f12,shift=0.2,ipea=0.25,thrden=1.d-8,thrvar=1.d-10}' in cas
     assert 'KBVRCSEL=energy(1)' in cas
     assert cas_energy == 'KBVRCSEL'
     mrci, mrci_energy = _vrc_multireference_method(
         'mrci-f12+q(2,2)', 18, spin=2)
     assert 'wf,18,1,2' in mrci
-    assert '{mrci-f12,scalf12=1,cabs_singles=1;option,cluster=0;}' in mrci
+    assert '{mrci-f12,scalf12=1,cabs_singles=1,thrden=1.d-8,thrvar=1.d-10;option,cluster=0;}' in mrci
     assert 'KBVRCVAR=energy(1)' in mrci
     assert 'KBVRCSEL=energd(1)' in mrci
     assert mrci_energy == 'KBVRCSEL'

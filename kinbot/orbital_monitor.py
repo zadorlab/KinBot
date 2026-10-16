@@ -135,7 +135,7 @@ def snapshot(root, *, now=None):
                         stage, iteration = match[1].strip(), ''
                     elif re.match(r'^\s*\d+\s+\d+\s+\d+\s+[-+\d]+\.\d+', line):
                         iteration = line.strip()
-                    for key, value in re.findall(r'\b(MAXITI|MAXVI|THRVAR|THRDEN)\s*=\s*(\S+)', line):
+                    for key, value in re.findall(r'\b(MAXIT|MAXITI|MAXVI|THRVAR|THRDEN)\s*=\s*(\S+)', line):
                         solver[key] = value
                 guard_status, guard_retries, slurm_restarts = '-', 0, 0
                 logs = [(name + '.out', output)]

@@ -432,9 +432,14 @@ Campaign execution settings can be supplied in `ROOT/campaign_settings.json`
   "io_retries": 2,
   "memory_mb": 104000,
   "excluded_nodes": [],
-  "reference_solver_options": {
-    "max_reference_iterations": 2000,
-    "max_reference_vectors": 60
+  "solver_options": {
+    "scf": {"energy_convergence": 1e-8, "max_iterations": 2000},
+    "casscf": {"energy_convergence": 1e-8, "gradient_convergence": 1e-5, "max_iterations": 2000},
+    "correlation": {
+      "energy_convergence": 1e-8, "coefficient_convergence": 1e-5,
+      "max_iterations": 2000, "max_reference_iterations": 2000,
+      "max_reference_vectors": 60
+    }
   }
 }
 ```
@@ -455,7 +460,20 @@ attempt histories persist. `io_retries` controls the shared worker I/O guard;
 do not authorize accepting unconverged scientific results. A controller restart
 does not erase consumed retry counts.
 
-`reference_solver_options` applies to **new submissions with MR correlation
+`solver_options` applies explicit numerical tolerances and iteration limits to
+new submissions and explicit `retry-failed --job-id` targets. Completed results
+retain their original settings; running or queued jobs are not rewritten.
+Energy thresholds are in hartree. The coefficient tolerance is a norm: `1e-5`
+means the literal Molpro `THRVAR=1e-10`, not `1e-20`. MR calculations also receive
+local `THRDEN=1e-8`, independent of SCF settings. Fresh generated MR inputs and
+production VRC MR inputs use these two defaults unless overridden in the state
+model's `correlation_options`. The legacy coupling of global COEFF to the SCF
+energy tolerance was a bug. No convergence checks are bypassed. A numerical
+tolerance is not an estimate of electronic-structure model error; final choices
+still need relative-energy and PES validation. See
+[Molpro's THRDEN/THRVAR definitions](https://www.molpro.net/manual/doku.php?id=the_mrci_program).
+
+The older `reference_solver_options` applies to **new submissions with MR correlation
 checks**, and to explicitly selected `retry-failed --job-id` targets. It does not
 alter running, queued or completed scientific inputs. Explicit per-job retry
 limits take precedence over campaign defaults. Prepared inputs remain immutable;
@@ -468,9 +486,9 @@ The scientific JSON already provides these controls when preparing a new panel:
 | JSON location | Controls |
 | --- | --- |
 | Recon input `scf_options` | `solver`, `max_iterations` |
-| Recon input `scf_convergence` | Global SCF energy/coefficient threshold |
+| Recon input `scf_convergence` | SCF energy threshold, independent of CI coefficients |
 | Recon input `casscf_options` | `solver`, `max_iterations`, `exact_diagonalization`, `quasi_newton`, `energy_convergence`, `gradient_convergence`, `verbosity` |
-| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `reference_policy` |
+| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `energy_convergence`, `coefficient_convergence`, `reference_policy` |
 | Each recon `correlation_checks` entry | `method`, `shift`, `ipea`, optional `reference_policy` |
 | Recon input resources | `ppn`, `memory_mw` per Molpro rank, `memory_mb` per node, `partition`, `walltime`, `scratch_min_mb` |
 | Partition recipe model | `casscf_options`, `correlation_options` |

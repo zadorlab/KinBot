@@ -14,8 +14,15 @@
     "node1", "node9", "node10", "node13", "node14", "node16",
     "node21", "node23", "node24", "node30", "node33"
   ],
-  "reference_solver_options": {
-    "max_reference_iterations": 2000,
-    "max_reference_vectors": 60
+  "solver_options": {
+    "scf": {"energy_convergence": 1e-8, "max_iterations": 2000},
+    "casscf": {"energy_convergence": 1e-8, "gradient_convergence": 1e-5, "max_iterations": 2000},
+    "correlation": {
+      "energy_convergence": 1e-8,
+      "coefficient_convergence": 1e-5,
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60
+    }
   }
 }

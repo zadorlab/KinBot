@@ -16,6 +16,9 @@ from test_molpro_reconnaissance import _coordinate_configuration, _complete_prob
     {'allocation_retries': 1.5}, {'keep_going': 'yes'}, {'max_reference_iterations': 2000},
     {'reference_solver_options': {'max_reference_iterations': False}},
     {'reference_solver_options': {'reference_policy': 'state_average'}},
+    {'solver_options': {'correlation': {'coefficient_convergence': True}}},
+    {'solver_options': {'scf': {'max_iterations': 0}}},
+    {'solver_options': {'casscf': {'ignore_error': True}}},
     {'excluded_nodes': ['node[1-2]']}, {'scratch_root': 'relative/path'}])
 def test_campaign_json_settings_reject_invalid_or_misplaced_controls(tmp_path, setting):
     (tmp_path / 'campaign_settings.json').write_text(json.dumps({'schema': 1, **setting}))
@@ -33,7 +36,8 @@ def test_json_settings_drive_controller_and_preserve_prepared_inputs(tmp_path, m
         'schema': 1, 'max_jobs': 20, 'pilot_only': True, 'keep_going': True,
         'allocation_retries': 2, 'startup_retries': 3, 'io_retries': 4,
         'memory_mb': 104000, 'scratch_root': str(tmp_path / 'scratch'),
-        'reference_solver_options': {'max_reference_iterations': 2000, 'max_reference_vectors': 60}}))
+        'reference_solver_options': {'max_reference_iterations': 2000, 'max_reference_vectors': 60},
+        'solver_options': {'correlation': {'energy_convergence': 1e-8, 'coefficient_convergence': 1e-5}}}))
     before = {p: p.read_bytes() for p in root.rglob('*.inp')}
     monkeypatch.setenv('SBATCH_MEM_PER_CPU', '999')
     monkeypatch.setenv('KINBOT_SLURM_IO_RETRIES', '1')
@@ -50,6 +54,7 @@ def test_json_settings_drive_controller_and_preserve_prepared_inputs(tmp_path, m
             m = json.loads(Path(path).read_text())
             assert m['startup_retries'] == 3
             assert m['reference_solver_options']['max_reference_iterations'] == 2000
+            assert m['solver_options']['correlation']['coefficient_convergence'] == 1e-5
         calls.append(paths)
         return [{'jobs': [{'status': 'complete'}]} for _ in paths]
     monkeypatch.setattr(campaign.recon, 'run_many', native)
@@ -67,6 +72,7 @@ def test_json_settings_drive_controller_and_preserve_prepared_inputs(tmp_path, m
     m = json.loads(path.read_text())
     assert m['slurm_excluded_nodes'] == ['node99'] and m['startup_retries'] == 3
     assert m['reference_solver_options']['max_reference_vectors'] == 60
+    assert m['solver_options']['correlation']['energy_convergence'] == 1e-8
 
 
 def test_json_memory_cannot_underallocate_molpro_stacks(tmp_path):

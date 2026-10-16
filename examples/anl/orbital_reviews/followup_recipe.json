@@ -1,9 +1,9 @@
 {
   "validation_recipe": "validation_candidates.json",
-  "casscf_max_iterations": 150,
+  "casscf_max_iterations": 2000,
   "reference_max_iterations": 2000,
   "reference_max_vectors": 60,
-  "correlated_max_iterations": 150,
+  "correlated_max_iterations": 2000,
   "long_distance_angstrom": 60.0,
   "far_distance_angstrom": 30.0,
   "basis": {"name": "avd_f12", "basis": "avdz-f12"},

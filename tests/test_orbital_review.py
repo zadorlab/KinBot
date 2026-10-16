@@ -99,8 +99,8 @@ def test_correlation_checks_share_production_energy_contract(tmp_path):
     assert deck.count('{multi,') == 1
     assert 'cas-ci' not in deck
     assert 'canonical,2141.2\n' in deck and 'natorb,2140.2\n' in deck
-    assert 'rs2-f12,shift=0.2,ipea=0.25;orbital,2141.2,type=canonical;wf,25,1,1;state,1,3;' in deck
-    assert 'mrci-f12,scalf12=1,cabs_singles=1;orbital,2140.2,type=natural;wf,25,1,3;state,1,3;' in deck
+    assert 'rs2-f12,shift=0.2,ipea=0.25,thrden=1.d-8,thrvar=1.d-10;orbital,2141.2,type=canonical;wf,25,1,1;state,1,3;' in deck
+    assert 'mrci-f12,scalf12=1,cabs_singles=1,thrden=1.d-8,thrvar=1.d-10;orbital,2140.2,type=natural;wf,25,1,3;state,1,3;' in deck
     assert 'KBVRCSEL=energd(1)' in deck
     assert 'reconc12=KBVRCSEL' in deck
     recon.validate_input_blocks(deck)
@@ -275,7 +275,7 @@ def test_partition_iteration_controls_reach_every_correlated_root(tmp_path, part
     deck = Path(job['directory'], job['name'] + '.inp').read_text()
     assert 'maxit,100;' in deck and 'accuracy,energy=1.d-8' in deck
     assert deck.count('option,maxiti=200;') == len(job['root_states'])
-    assert 'rs2-f12,shift=0.3,ipea=0.25;' in deck
+    assert 'rs2-f12,shift=0.3,ipea=0.25,thrden=1.d-8,thrvar=1.d-10;' in deck
     assert job['state_model']['correlation_options'] == item['correlation_options']
 
 
@@ -665,7 +665,7 @@ def test_convergence_repair_preserves_completed_work_and_chemistry(tmp_path, mon
     multi = 'exact_diag=1,qn=0' if solver == 'second_order' else 'so-sci,exact_diag=1,qn=1'
     assert '{rhf,' + hf + ',maxit=100;' in deck
     assert '{multi,' + multi + ';' in deck
-    assert 'gthresh,energy=1.d-10,coeff=1.d-10' in deck
+    assert 'gthresh,energy=1.d-10,coeff=1.d-5' in deck
     assert 'accuracy,energy=1.d-10\n' in deck
     assert job['root_states'] == json.loads(Path(campaign['systems'][0]['manifest']).read_text())['jobs'][0]['root_states']
     assert all(file_sha256(path) == digest for path, digest in before.items())
@@ -755,7 +755,7 @@ def test_so_sci_repair_can_change_only_local_accuracy_once(tmp_path, monkeypatch
     deck = Path(job['directory'], job['name'] + '.inp').read_text()
     expected = 'accuracy,energy=1.d-8,gradient=1.d-5' if explicit_override else 'accuracy,energy=1.d-10'
     assert expected + '\n' in deck
-    assert 'gthresh,energy=1.d-10,coeff=1.d-10' in deck
+    assert 'gthresh,energy=1.d-10,coeff=1.d-5' in deck
     if explicit_override:
         assert 'so-sci,exact_diag=1,qn=1,verbosity=4;' in deck
         Path(job['directory'], job['name'] + '.out').write_text(

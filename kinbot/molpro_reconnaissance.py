@@ -32,6 +32,7 @@ from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            molpro_wfu_name, _vrc_multireference_method,
                            vrc_multireference_energy_contract, validate_mr_correlation_options)
 from kinbot.theory import fortran_threshold
+from kinbot.molpro_solver import apply_solver_options, validate_solver_options
 from kinbot.execution import atomic_json, file_sha256, slurm_job_record, SLURM_TERMINAL_STATES
 from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
                                MolproScratchError, molpro_io_failure)
@@ -572,7 +573,7 @@ def _deck(data, basis, anchor, stem, previous=None):
         'angstrom\norient,noorient\nsymmetry,nosym\n'
         f'geometry={{\n{len(data["symbols"])}\n{stem}\n{rows}\n}}\n'
         + basis_input +
-        f'gthresh,energy={scf},coeff={scf}\n'
+        f'gthresh,energy={scf},coeff=1.d-5\n'
         'gprint,orbitals,orben,civector\n'
         f'{{{scf_command};wf,{data["_electrons"]},1,{data["multiplicity"] - 1};'
         'orbital,2100.2}\n'
@@ -893,7 +894,7 @@ def _prepare(source, output):
                 predecessors[(basis['name'], channel)] = stem
     manifest = {
         **{key: previous[key] for key in ('excluded_bases', 'excluded_jobs', 'slurm_excluded_nodes', 'startup_retries',
-                                                         'reference_solver_options') if key in previous},
+                                                         'reference_solver_options', 'solver_options') if key in previous},
         'schema': 1, 'source': data['_source'], 'title': data['title'],
         'electron_count': data['_electrons'], 'jobs': records,
         'scan_policy': data.get('scan_policy'),
@@ -988,6 +989,7 @@ def _execute(job):
     vectors = job.get('retry_max_reference_vectors')
     iterations = job.get('retry_max_reference_iterations')
     native_text = _reference_solver_override(native_text, vectors, iterations)
+    native_text = apply_solver_options(native_text, job.get('retry_solver_options', {}))
     checkpoint = directory / molpro_wfu_name(name)
     native_text, changed = re.subn(r'(?im)^file,2,[^\n]+$',
                                   f'file,2,{checkpoint.name}', native_text)
@@ -1034,6 +1036,9 @@ def _execute(job):
     for key in ('retry_max_reference_vectors', 'retry_max_reference_iterations'):
         if job.get(key) is not None:
             execution[key] = job[key]
+    if job.get('retry_solver_options'):
+        execution['retry_solver_options'] = deepcopy(job['retry_solver_options'])
+        execution['input_transform'] = 'native_xml_solver_controls_v5'
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -1132,7 +1137,7 @@ def _checkpoint_evidence(directory, job, execution):
     """
     default = directory / (job['name'] + '.wfu')
     overrides = {key: job.get(key) for key in
-                 ('retry_max_reference_vectors', 'retry_max_reference_iterations')}
+                 ('retry_max_reference_vectors', 'retry_max_reference_iterations', 'retry_solver_options')}
     numerical_retry = any(value is not None for value in overrides.values())
     if execution is None:
         if numerical_retry:
@@ -1159,6 +1164,8 @@ def _checkpoint_evidence(directory, job, execution):
                 if _reference_solver_override(native.read_text(), job.get('retry_max_reference_vectors'),
                                               job.get('retry_max_reference_iterations')) != native.read_text():
                     return default, 'Native input does not contain the requested reference-solver override.'
+                if apply_solver_options(native.read_text(), job.get('retry_solver_options', {})) != native.read_text():
+                    return default, 'Native input does not contain the requested solver tolerances.'
             except ValueError as error:
                 return default, str(error)
     else:
@@ -1619,22 +1626,23 @@ def submit(manifest_path, *, max_jobs=8):
 
 
 def retry_failed(manifest_path, *, include_interrupted=False, job_ids=None, max_reference_vectors=None,
-                 max_reference_iterations=None):
+                 max_reference_iterations=None, solver_options=None):
     """Archive selected stopped attempts while preserving inputs and live peers."""
     path = Path(manifest_path).expanduser().resolve()
     with _manifest_lock(path.parent):
         return _retry_failed(path, include_interrupted=include_interrupted, job_ids=job_ids,
                              max_reference_vectors=max_reference_vectors,
-                             max_reference_iterations=max_reference_iterations)
+                             max_reference_iterations=max_reference_iterations, solver_options=solver_options)
 
 
 def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids=None,
-                  max_reference_vectors=None, max_reference_iterations=None):
+                  max_reference_vectors=None, max_reference_iterations=None, solver_options=None):
     import shutil
+    solver_options = validate_solver_options(solver_options or {})
     controls = {key: value for key, value in (
         ('max_reference_vectors', max_reference_vectors),
         ('max_reference_iterations', max_reference_iterations)) if value is not None}
-    if controls:
+    if controls or solver_options:
         validate_mr_correlation_options(controls)
         if not job_ids:
             raise ValueError('A numerical retry override requires explicit --job-id selection.')
@@ -1658,8 +1666,9 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
         execution = json.loads(record.read_text()) if record.is_file() else {}
         interrupted = (include_interrupted and
                        execution.get('status') in (None, 'running'))
+        invalid_final = bool(job_ids and solver_options and execution.get('status') == 'complete')
         if (not job.get('job_id') or
-                execution.get('status') != 'failed' and not interrupted):
+                execution.get('status') != 'failed' and not interrupted and not invalid_final):
             continue
         scheduler = slurm_job_record(str(job['job_id']))
         if scheduler.get('JobId') == str(job['job_id']):
@@ -1672,6 +1681,8 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
             raise ValueError('Failed probe input changed; do not retry under the old manifest.')
         if controls:
             _reference_solver_override(inp.read_text(), max_reference_vectors, max_reference_iterations)
+        if solver_options:
+            apply_solver_options(inp.read_text(), solver_options)
         attempt = int(job.get('attempt', 1))
         archive = directory / 'attempts' / str(attempt)
         # A failed visualization export does not invalidate the preceding
@@ -1717,12 +1728,17 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
                                                if interrupted else None),
             'input_sha256': job['input_sha256'],
             **{key: job.get(key) for key in
-               ('retry_max_reference_vectors', 'retry_max_reference_iterations')}})
+               ('retry_max_reference_vectors', 'retry_max_reference_iterations', 'retry_solver_options')}})
         for key in ('job_id', 'missing_since', 'terminal_failure', 'scheduler_record'):
             job.pop(key, None)
         job.update(attempt=attempt + 1, submission_status='retry_ready', status='incomplete')
         for key, value in controls.items():
             job['retry_' + key] = value
+        if solver_options:
+            job['retry_solver_options'] = deepcopy(solver_options)
+            for key in ('max_reference_vectors', 'max_reference_iterations'):
+                if 'retry_' + key in job and key in solver_options.get('correlation', {}):
+                    job['retry_' + key] = solver_options['correlation'][key]
         if recovery:
             job['recovered_scf'] = recovery
         retried.append(job['name'])
@@ -1868,6 +1884,24 @@ def _retry_allocation_failures(path, manifest, live, limit):
                            for suffix in ('.out', '.stderr', '.launcher.stderr', '.launcher.stdout'))
         explicit_io = execution.get('retryable_io') is True or io_failure(detail)
         interrupted = execution.get('status') == 'running'
+        # A Slurm requeue can fail before opening its stdio, leaving all native
+        # files and the running guard journal from the previous host. Bind this
+        # exception to the exact allocation/restart; old QC text is not evidence
+        # that the replacement shell started. Never infer it from a missing job.
+        restarts = str(scheduler.get('Restarts', ''))
+        node = scheduler.get('BatchHost', '')
+        requeue_io = bool(interrupted and restarts.isdigit() and int(restarts) > 0
+            and scheduler.get('JobId') == identifier
+            and scheduler.get('WorkDir') == str(directory)
+            and scheduler.get('JobState') == 'FAILED' and scheduler.get('ExitCode') == '0:53'
+            and _SAFE.fullmatch(node) and node != 'None'
+            and execution.get('host') and node != execution['host']
+            and scheduler.get('RunTime') in ('00:00:00', '00:00:01')
+            and not any((directory / '.kinbot_slurm_io_retries').glob(
+                '*/' + identifier + '/restart-' + restarts)))
+        if requeue_io:
+            explicit_io = True
+            manifest['slurm_excluded_nodes'] = sorted(set(manifest.get('slurm_excluded_nodes', [])) | {node})
         if not (explicit_io and execution.get('status') == 'failed' or interrupted):
             continue
         # An unfinished worker needs a publication grace period. A finalized
@@ -1879,7 +1913,8 @@ def _retry_allocation_failures(path, manifest, live, limit):
                 r'no convergence|not converged|error exit|\?\s*error|global error', detail, re.I):
             continue
         history = [*history, {'job_id': identifier, 'time': time.time(),
-            'reason': 'native_io' if explicit_io else 'interrupted_allocation',
+            'reason': ('requeued_startup_io' if requeue_io else
+                       'native_io' if explicit_io else 'interrupted_allocation'),
             'scheduler_record': deepcopy(scheduler)}]
         job['allocation_retry_history'] = history
         atomic_json(Path(path), manifest)
@@ -1959,6 +1994,13 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
             inp = Path(job['directory']) / (job['name'] + '.inp')
             _reference_solver_override(inp.read_text(), job.get('retry_max_reference_vectors'),
                                         job.get('retry_max_reference_iterations'))
+        if manifest.get('solver_options'):
+            job.setdefault('retry_solver_options', deepcopy(manifest['solver_options']))
+            for key in ('max_reference_vectors', 'max_reference_iterations'):
+                if 'retry_' + key in job and key in job['retry_solver_options'].get('correlation', {}):
+                    job['retry_' + key] = job['retry_solver_options']['correlation'][key]
+            apply_solver_options((Path(job['directory']) / (job['name'] + '.inp')).read_text(),
+                                 job['retry_solver_options'])
         predecessor = job.get('orbital_predecessor')
         if job.get('recovered_scf'):
             import shutil

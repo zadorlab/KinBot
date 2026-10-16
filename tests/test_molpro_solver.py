@@ -1,0 +1,94 @@
+"""Native tolerance contracts must not inherit the SCF energy as CI accuracy."""
+import json
+from copy import deepcopy
+from pathlib import Path
+
+import pytest
+
+from kinbot.molpro_solver import apply_solver_options, validate_solver_options
+from kinbot.molpro import _vrc_multireference_method
+
+
+CONTROLS = {
+    'scf': {'energy_convergence': 1.e-8, 'max_iterations': 2000},
+    'casscf': {'energy_convergence': 1.e-8, 'gradient_convergence': 1.e-5, 'max_iterations': 2000},
+    'correlation': {'energy_convergence': 1.e-8, 'coefficient_convergence': 1.e-5,
+                    'max_iterations': 2000, 'max_reference_iterations': 2000, 'max_reference_vectors': 60},
+}
+
+DECK = '''gthresh,energy=1.d-10,coeff=1.d-10
+{rhf,so-sci,maxit=100;wf,25,1,1;orbital,2100.2}
+{multi,so-sci;start,2140.2;occ,14;closed,10;wf,25,1,1;state,3;
+accuracy,energy=1.d-8
+natorb,2140.2
+maxit,150;}
+{rs2-f12,shift=0.3,ipea=0.25;orbital,2141.2,type=canonical;wf,25,1,1;state,1,3;option,maxit=150,maxiti=200;}
+{mrci-f12,scalf12=1,cabs_singles=1;orbital,2140.2,type=natural;wf,25,1,1;state,1,3;refstate,3,1,2,3;option,maxit=150,maxiti=200;option,cluster=0;}
+'''
+
+
+def test_native_controls_preserve_chemistry_and_are_idempotent():
+    result = apply_solver_options(DECK, CONTROLS)
+    assert apply_solver_options(result, CONTROLS) == result
+    assert result.count('thrvar=1.d-10') == 2
+    assert result.count('thrden=1.d-8') == 2
+    assert result.count('maxiti=2000') == 2
+    assert result.count('maxvi=60') == 2
+    assert 'gthresh,energy=1.d-8,coeff=1.d-5' in result
+    assert '{rhf,so-sci,maxit=2000,energy=1.d-8;' in result
+    assert 'accuracy,energy=1.d-8,gradient=1.d-5' in result
+    assert 'maxit,2000;' in result
+    for chemistry in ('shift=0.3,ipea=0.25', 'state,1,3', 'refstate,3,1,2,3',
+                      'start,2140.2;occ,14;closed,10;wf,25,1,1;state,3;',
+                      'orbital,2141.2,type=canonical', 'option,cluster=0'):
+        assert chemistry in result
+
+
+@pytest.mark.parametrize('method', ['CASPT2(5,4)', 'CASPT2-F12(5,4)', 'MRCI+Q(5,4)', 'MRCI-F12+Q(5,4)'])
+def test_production_and_recon_share_explicit_mr_tolerances(method):
+    deck, _ = _vrc_multireference_method(method, 25, 1)
+    assert 'thrden=1.d-8,thrvar=1.d-10' in deck
+    deck, _ = _vrc_multireference_method(method, 25, 1, state_model={
+        'state_average': [{'multiplicity': 2, 'roots': 1, 'weights': [1]}],
+        'selected_roots': {'2': 1},
+        'correlation_options': {'energy_convergence': 1.e-9, 'coefficient_convergence': 1.e-6}})
+    assert 'thrden=1.d-9,thrvar=1.d-12' in deck
+
+
+def test_iteration_only_override_does_not_change_explicit_tolerances_or_casci():
+    deck = '{mrci-f12,thrden=1.d-9,thrvar=1.d-12;option,maxit=150;}\n{multi,cas-ci;maxit,50;}'
+    result = apply_solver_options(deck, {'correlation': {'max_iterations': 2000}, 'casscf': CONTROLS['casscf']})
+    assert result == deck.replace('maxit=150', 'maxit=2000')
+
+
+@pytest.mark.parametrize('options', [{'scf': {'max_iterations': True}},
+    {'correlation': {'energy_convergence': 0}}, {'correlation': {'coefficient_convergence': float('nan')}},
+    {'correlation': {'reference_policy': 'state_average'}}, {'casscf': {'ignore_error': True}}])
+def test_invalid_numerical_overrides_are_rejected(options):
+    with pytest.raises(ValueError):
+        validate_solver_options(options)
+
+
+def test_competing_native_threshold_cards_are_rejected():
+    with pytest.raises(ValueError, match='Competing MR'):
+        apply_solver_options('gthresh,energy=1.d-10\n{mrci-f12;thresh,coeff=5;}', {'correlation': CONTROLS['correlation']})
+
+
+def test_execution_binds_requested_solver_options(tmp_path, monkeypatch):
+    from kinbot import molpro_reconnaissance as recon
+    from kinbot.execution import file_sha256
+    from types import SimpleNamespace
+    inp = tmp_path / 'probe.inp'
+    inp.write_text('file,2,probe.wfu\n' + DECK)
+    job = {'name': 'probe', 'directory': str(tmp_path), 'input_sha256': file_sha256(inp),
+           'ppn': 1, 'retry_solver_options': deepcopy(CONTROLS)}
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *a, **k: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda _: None)
+    monkeypatch.setattr(recon.subprocess, 'run', lambda *a, **k: SimpleNamespace(returncode=0))
+    recon._execute(job)
+    execution = json.loads((tmp_path / 'execution.json').read_text())
+    assert execution['retry_solver_options'] == CONTROLS
+    assert recon._checkpoint_evidence(tmp_path, job, execution)[1] is None
+    assert file_sha256(inp) == job['input_sha256']
+    job['retry_solver_options']['correlation']['coefficient_convergence'] = 1.e-6
+    assert 'differs' in recon._checkpoint_evidence(tmp_path, job, execution)[1]

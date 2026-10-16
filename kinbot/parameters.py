@@ -315,6 +315,8 @@ class Parameters:
             'fc_task_name': 'omol',
             # Device to run on: cpu, cuda, cuda:0, etc.
             'fc_device': 'cpu',
+            # Compile each FairChem model for faster repeated evaluations.
+            'fc_compile': False,
 
             # VRC-TST PARAMETERS
             # Amount (Mb) of memory to use in rotdPy for each job during the sampling.
@@ -521,6 +523,12 @@ class Parameters:
         if (not self.theory_profiles and self.par['qc'] == 'fc'
                 and not self.par['fc_model_path']):
             err = 'fc_model_path must be set when using qc = "fc".'
+
+        if (type(self.par['fc_compile']) not in (bool, int)
+                or self.par['fc_compile'] not in (0, 1)):
+            err = 'fc_compile must be true or false (0 or 1 is also accepted).'
+        else:
+            self.par['fc_compile'] = bool(self.par['fc_compile'])
 
         if (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
             if 'internal' not in self.par['sella_kwargs']:

@@ -22,6 +22,16 @@ class TestBackendWarnings(unittest.TestCase):
             }))
             return Parameters(str(input_file), show_warnings=True).par
 
+    def test_fairchem_compile_requires_a_boolean_or_zero_or_one(self):
+        self.assertIs(self.read_parameters()['fc_compile'], False)
+        for value in (False, True, 0, 1):
+            with self.subTest(value=value):
+                self.assertIs(self.read_parameters(fc_compile=value)['fc_compile'],
+                              bool(value))
+        for value in ('false', 'true', None, 2, -1, 0.0, []):
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                self.read_parameters(fc_compile=value)
+
     def test_fairchem_rotors_ignore_unused_method_and_basis(self):
         with patch('kinbot.parameters.logger.warning') as warning:
             par = self.read_parameters(qc='fc', fc_model_path='uma-m-1p1',

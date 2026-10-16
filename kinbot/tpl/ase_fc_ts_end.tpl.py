@@ -22,7 +22,7 @@ mol = Atoms(symbols={atom},
             positions={geom})
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-mol.calc = FAIRChemCalculator(load_predictor('{fc_model_path}', '{fc_device}'), task_name='{fc_task_name}')
+mol.calc = FAIRChemCalculator(load_predictor('{fc_model_path}', '{fc_device}', compile_model={fc_compile}), task_name='{fc_task_name}')
 freqs = []
 
 # sella

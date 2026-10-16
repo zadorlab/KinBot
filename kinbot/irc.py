@@ -209,6 +209,7 @@ class IRC:
                                        fc_model_path=self.qc.par['fc_model_path'],
                                        fc_task_name=self.qc.par['fc_task_name'],
                                        fc_device=self.qc.par['fc_device'],
+                                       fc_compile=self.qc.par.get('fc_compile', False),
                                        )
 
             with open('{}.py'.format(irc_name), 'w') as f:

@@ -61,6 +61,43 @@ def test_iteration_only_override_does_not_change_explicit_tolerances_or_casci():
     assert result == deck.replace('maxit=150', 'maxit=2000')
 
 
+def test_external_davidson_override_preserves_internal_space_and_cabs_method():
+    options = deepcopy(CONTROLS)
+    options['correlation']['max_external_vectors'] = 20
+    deck = DECK.replace('cabs_singles=1', 'cabs_singles=2')
+    result = apply_solver_options(deck, options)
+    assert result.count('maxdav=20') == 2 and result.count('maxvi=60') == 2
+    assert 'cabs_singles=2' in result and 'option,cluster=0' in result
+    assert apply_solver_options(result, options) == result
+    with pytest.raises(ValueError):
+        validate_solver_options({'correlation': {'cabs_singles': 2}})
+
+
+@pytest.mark.parametrize('cabs', [1, 2, 3])
+def test_cabs_control_keeps_relaxed_davidson_and_reference_contract(cabs):
+    model = {'state_average': [{'multiplicity': 2, 'roots': 3}],
+             'selected_roots': {'2': 2}, 'correlation_options': {
+                 'reference_policy': 'state_average', 'cabs_singles': cabs,
+                 'max_external_vectors': 20, 'max_reference_vectors': 60}}
+    deck, variable = _vrc_multireference_method('MRCI-F12+Q(5,4)', 25, 1, state_model=model)
+    assert f'cabs_singles={cabs}' in deck
+    assert 'maxdav=20' in deck and 'maxvi=60' in deck
+    assert 'state,1,2;refstate,3,1,2,3;option,nstati=3;' in deck
+    assert 'option,cluster=0' in deck and 'KBVRCSEL=energd(1)' in deck
+    assert variable == 'KBVRCSEL'
+    for method in ('CASPT2-F12(5,4)', 'MRCI+Q(5,4)'):
+        with pytest.raises(ValueError, match='specific to MRCI-F12'):
+            _vrc_multireference_method(method, 25, 1, state_model=model)
+
+
+@pytest.mark.parametrize('controls', [{'cabs_singles': v} for v in (True, 0, 4, 2.0, '2')]
+                         + [{'max_external_vectors': v} for v in (True, 0, -2, 20.0)])
+def test_invalid_new_correlation_controls(controls):
+    from kinbot.molpro import validate_mr_correlation_options
+    with pytest.raises(ValueError):
+        validate_mr_correlation_options(controls)
+
+
 @pytest.mark.parametrize('options', [{'scf': {'max_iterations': True}},
     {'correlation': {'energy_convergence': 0}}, {'correlation': {'coefficient_convergence': float('nan')}},
     {'correlation': {'reference_policy': 'state_average'}}, {'casscf': {'ignore_error': True}}])

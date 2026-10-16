@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "provenance": "User-pasted native output extraction on 2026-10-16; not a newly executed calculation or an independently checksummed native output.",
+  "source_directory": "/home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015/18_pilot/avt_f12__cs_r_30",
+  "source_status_reported": "complete",
+  "active_space": [
+    5,
+    4
+  ],
+  "root_order": [
+    "D1",
+    "D2",
+    "D3",
+    "Q1",
+    "Q2",
+    "Q3"
+  ],
+  "results": [
+    {
+      "ipea": 0.25,
+      "shift": 0.3,
+      "reference_policy": "selected_root",
+      "energies_hartree": [
+        -437.39419288,
+        -437.39419287,
+        -437.39606504,
+        -437.39418598,
+        -437.39418598,
+        -437.39605804
+      ],
+      "doublet_span_kcal": 1.1748044120647645,
+      "quartet_span_kcal": 1.1747353860392
+    },
+    {
+      "ipea": 0,
+      "shift": 0.3,
+      "reference_policy": "selected_root",
+      "energies_hartree": [
+        -437.40680138,
+        -437.40680138,
+        -437.40680114,
+        -437.40679131,
+        -437.40679131,
+        -437.40679098
+      ],
+      "doublet_span_kcal": 0.00015060225056624815,
+      "quartet_span_kcal": 0.00020707814803326699
+    },
+    {
+      "ipea": 0,
+      "shift": 0.1,
+      "reference_policy": "selected_root",
+      "energies_hartree": [
+        -437.41046794,
+        -437.41046794,
+        -437.4104677,
+        -437.41045651,
+        -437.41045651,
+        -437.41045616
+      ],
+      "doublet_span_kcal": 0.00015060225056624815,
+      "quartet_span_kcal": 0.00021962831180059842
+    },
+    {
+      "ipea": 0.25,
+      "shift": 0.3,
+      "reference_policy": "state_average",
+      "energies_hartree": [
+        -437.39751419,
+        -437.39751419,
+        -437.39751396,
+        -437.39750275,
+        -437.39750275,
+        -437.39750252
+      ],
+      "doublet_span_kcal": 0.0001443271508476905,
+      "quartet_span_kcal": 0.00014432718651747435
+    },
+    {
+      "ipea": 0,
+      "shift": 0.3,
+      "reference_policy": "state_average",
+      "energies_hartree": [
+        -437.41159422,
+        -437.41159422,
+        -437.41159399,
+        -437.41157782,
+        -437.41157782,
+        -437.41157758
+      ],
+      "doublet_span_kcal": 0.00014432718651747435,
+      "quartet_span_kcal": 0.00015060225056624815
+    }
+  ]
+}

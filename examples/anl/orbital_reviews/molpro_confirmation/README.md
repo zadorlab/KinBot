@@ -1,6 +1,11 @@
 # Minimal native transfer confirmation
 
-**The first native confirmation exposed input defects; corrected native validation is pending.** The catalogue
+**Current result: 35/39 points validated; targeted recovery and shared-reference
+CASPT2 confirmation are prepared.** Start with
+[the current handoff](../../../../MOLPRO_CONFIRMATION_HANDOFF.md) and
+[the evidence/resolution record](../../../../docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
+Use `retry_unvalidated_on_blodgett.sh` for the existing `_r2` run; do not rerun
+the historical full-restart command below. The catalogue
 currently proposes (5,4), (7,5), (7,5) for CH3S C–S, CH3SS C–S and CH3SS S–S.
 All local minimum-space inward/return checks are complete. These files do
 not install or approve a production orbital/surface model.
@@ -44,13 +49,15 @@ CABS singles. Do not parse the first/last printed cluster-correction line or
 accept a value printed before a later fatal error. See the
 [Molpro energy-variable definitions](https://www.molpro.net/manual/doku.php?id=the_mrci_program#cluster_corrections_for_multi-state_mrci).
 
-MRCI retains **CABS_SINGLES=1**, the existing singles-CI default.
+The original catalogue retains **CABS_SINGLES=1**, the existing singles-CI default.
 The old (9,7) S–S far-point job converged its MRCI equations, printed Davidson
 values, then failed with `Orthogonalization problem` in `mrf12_singles.F90`.
 It is not a completed result. This error is not cured by increasing iteration
 limits. The documented perturbational alternative is 2 (3 is the coupled
-variant); it is not adopted or given an unused control at this handoff, following the
-user's instruction. Repeated native failures will be diagnosed individually. The official minimum-space far-point
+variant). The minimum-space `_r2` run reproduced the error, so the new recovery
+plan explicitly tests 2 with a consistent S–S chain and matched CABS controls.
+The earlier decision to leave the default alone has been superseded by this
+native evidence and the user's request for a resolution. The official minimum-space far-point
 gates must establish actual success. If they reproduce this failure, retain
 the results and test a declared alternative before installing production
 models. The old failure used an expanded CAS and multiple reference states;
@@ -61,13 +68,20 @@ placeholder in the catalogue is not proof that this root remains the lowest
 correlated state at every geometry.
 `settings.reference_policies` explicitly sets the correlation reference treatment
 for each method; it is separate from the CASSCF state average. The current
-recipe computes each correlated root separately. CASPT2 uses `selected_root`;
+original recipe computes each correlated root separately. Original CASPT2 uses `selected_root`;
 MRCI-F12 uses `state_average`, with all declared same-spin references and an
 explicit matching NSTATI. Lone excited-root references triggered an installed
 F12 solver restriction and are now rejected during generation. Review duplicate or exchanged
 root character in the native results; neither a root number nor `REFSTATE`
 alone establishes root tracking. The reference policy and sparse MRCI point
 list are editable catalogue data, as are the SCF limits.
+
+The supplemental `recovery_plan.json` changes CASPT2 to `state_average` for
+the CH3S and S–S manifolds while keeping IPEA 0.25/shift 0.3. Existing completed
+controls show that this removes the ~1.175 kcal/mol CH3S artifact. The change
+is rechecked on the five current geometries in both bases. C–S in CH3SS has
+one reference per spin and needs no repeat. The original catalogue and old
+energies remain historical evidence, not the newly selected reference policy.
 
 The original reviewed aTZ-F12 natural-orbital records are hash-bound. Initial
 `START,...,OVL` projection and reoptimization produce the target-geometry model

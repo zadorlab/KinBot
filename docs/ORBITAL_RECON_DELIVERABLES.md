@@ -90,7 +90,7 @@ return differences are 0.00000986, 0.00001097 and 0.00008911 kcal/mol, respectiv
 See [the decision and caveats](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md).
 No extra full-valence expansion is needed merely to match absolute energies.
 
-## 3. Minimal one-time Molpro confirmation — native input defects repaired; confirmation pending
+## 3. Minimal one-time Molpro confirmation — 35/39 validated; targeted resolution pending execution
 
 - [x] Supply reproducible commands/configuration for **aDZ-F12 and aTZ-F12**
   CASPT2-F12 confirmation of the selected spaces on the same fixed geometries.
@@ -110,11 +110,19 @@ to identify the intended orbital subspace. Catalogue:
 The [prepared transfer recipe](../examples/anl/orbital_reviews/molpro_confirmation/README.md)
 contains 30 CASPT2-F12 points across both bases and nine sparse aTZ-F12
 MRCI-F12+Q points. Preparation, input propagation and resume checks pass;
-native execution and acceptance remain pending. The first submission exposed
+the `_r2` run has now completed 35 points. The first submission exposed
 cross-basis record collisions, inherited RHF state inconsistencies, and an
 MRCI-F12 excited-reference restriction. The [manual/input audit](MOLPRO_CONFIRMATION_INPUT_AUDIT_2026-10-16.md)
 records repairs, native evidence, and the preserved full restart. Local tests
-alone did not establish handoff readiness.
+alone did not establish handoff readiness. The
+[current resolution record](MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md)
+verifies all 35 outputs, gives basis-specific natural/canonical orbital
+orderings, confirms the existing relaxed-Davidson selector, and distinguishes
+the two failures from their two unsubmitted dependents. Existing control data
+demonstrate that shared-reference CASPT2 removes the large CH3S splitting at
+IPEA 0.25/shift 0.3. The supplemental plan tests that policy on the current
+CH3S/S–S geometries in both bases and completes targeted MRCI recovery.
+These behaviours require demonstrated closure, not an indefinitely recorded warning.
 
 ## 4. General user controls in KinBot JSON — locally audited and tested; native pending
 
@@ -169,8 +177,9 @@ Procedure: [ORBITAL_REVIEW_WORKFLOW.md](ORBITAL_REVIEW_WORKFLOW.md).
 - [x] Record the audit's actual coverage and remaining native verification;
   do not claim every changed line or external program has been certified.
 
-Latest repair regression: 1,629 tests and 391 subtests pass. This includes all
-39 confirmation deck transformations, not native calculations. See
+Latest recovery regression: 1,652 tests and 391 subtests pass. This includes
+all 39 original and 26 supplemental native-input transformation paths, not
+new native calculations. See
 [the audit](GENERALITY_AUDIT_2026-10-15.md) for coverage and native limitations.
 
 ## 9. Current documentation and retained native evidence — verified
@@ -226,9 +235,12 @@ Refresh after native production; no cleanup has been performed.
 - [ ] User runs the transition and one-time confirmation on Blodgett. Check
   the actual final preservation counts and queued controls from that run.
 
-The official MRCI convention remains `CABS_SINGLES=1`, `CLUSTER=0` (relaxed
-Davidson), selecting the final `ENERGD(1)` after CABS processing. No alternative is silently substituted. A repeated native failure will be
-diagnosed individually. The new minimum-space native check must establish actual success.
+The default MRCI convention remains `CABS_SINGLES=1`, `CLUSTER=0` (relaxed
+Davidson), selecting the final `ENERGD(1)` after CABS processing. The repeated
+minimum-space CABS failure now has an explicit CABS=2 recovery/control trial;
+the stalled external CI has a MAXDAV=20 trial. Neither changes the Davidson
+selector. The original run/results are preserved. These remedies need native
+completion before their settings can be approved for production.
 
 ## Maintenance record
 
@@ -249,3 +261,10 @@ diagnosed individually. The new minimum-space native check must establish actual
 - 2026-10-16: final native archive passed isolated replay; user requested a
   committed repository-root transfer bundle and pull/submit handoff. Cleanup
   remains deferred; native Molpro and end-to-end production remain pending.
+- 2026-10-16: verified all 833 files in the `_r2` export and independently
+  reviewed 35 completed points. Six return subspaces are preserved. User-supplied
+  earlier controls resolve the CH3S splitting by equal same-spin reference
+  averaging at unchanged IPEA/shift; the previous claim that the large CH3S
+  splitting persisted at zero IPEA is withdrawn. Prepared a targeted 26-point
+  supplement: four unresolved MRCI points, two CABS controls, and twenty
+  corrected-reference CASPT2 points. Existing results are not discarded.

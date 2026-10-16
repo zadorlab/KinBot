@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "checked_utc": "2026-10-16T16:37:18.675088+00:00",
+  "native_molpro_executed_locally": false,
+  "reviewed_export_files": 833,
+  "reviewed_completed_native_points": 35,
+  "source_export_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb",
+  "pytest": {
+    "command": ".venv/bin/python -m pytest -q",
+    "passed": 1652,
+    "subtests_passed": 391,
+    "warnings": 2
+  },
+  "native_deck_transformations_tested": 26,
+  "recovery_plan_sha256": "f97786a9e9da5521e425872a38f9b58639c20ac309fd62aca76cdcb79f15f73a",
+  "review_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+  "production_approved": false,
+  "limitations": [
+    "No local Molpro installation; supplemental execution remains on Blodgett.",
+    "Common-reference remedy is established by the prior user-supplied CH3S control, to be confirmed on current geometries.",
+    "MAXDAV20 and CABS2 are documented remedies requiring native success and relative-energy review."
+  ]
+}

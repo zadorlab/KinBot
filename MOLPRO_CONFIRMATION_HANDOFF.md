@@ -1,114 +1,118 @@
-# One-time Molpro confirmation handoff
+# Molpro confirmation: targeted resolution handoff
 
-The local selection is complete: **CH3S C–S CAS(5,4), CH3SS C–S CAS(7,5),
-CH3SS S–S CAS(7,5)**. The two CH3SS selections contain different orbitals.
-These are the minimum chemically supported spaces for corrected VRC sampling,
-pending native Molpro confirmation. Full KinBot production has not run yet.
+The minimum supported spaces remain **CH3S C–S (5,4), CH3SS C–S (7,5),
+CH3SS S–S (7,5)**. The uploaded `_r2` run has **35 validated, two failed and two
+waiting points**. All 833 exported files passed checksum verification. The
+completed outputs and basis-specific orbital orderings have been independently
+reviewed. Full KinBot production has not started.
 
-## Restart the failed confirmation on Blodgett
+The existing CH3S control resolves the large CASPT2 asymptotic splitting:
+**equal-weight same-spin reference averaging reduces it from 1.1748 to
+0.000144 kcal/mol, retaining IPEA=0.25 and real shift=0.3.** The new run confirms
+this reference policy on the current geometries/bases and on S–S. It preserves
+physical fragment excitation gaps. See the
+[evidence, causal analysis and literature](docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
 
-The first submission exposed three input defects. The corrected checkpoint,
-RHF-state and MRCI-reference handling is documented in the
-[manual/input audit](docs/MOLPRO_CONFIRMATION_INPUT_AUDIT_2026-10-16.md).
-Native success of these repairs is still pending; Python tests do not establish it.
+## Run the supplement on Blodgett
 
-On the existing `composite` checkout, with its existing virtual environment:
+The user handles SSH. On the existing `composite` checkout:
 
 ```bash
 cd /home/hram/KinBot
 git pull --ff-only origin composite
-bash examples/anl/orbital_reviews/molpro_confirmation/restart_on_blodgett.sh
+bash examples/anl/orbital_reviews/molpro_confirmation/retry_unvalidated_on_blodgett.sh
 ```
 
-No archive extraction is needed after pulling. The restart validates the reviewed
-seeds and prepares all new inputs before stopping only the failed confirmation's
-controller and allocations. Its native results remain in the original directory;
-the replacement records its manifests and counts in `previous_confirmation.json`.
-All 39 points are recomputed consistently in a fresh `_r2` directory. The earlier
-large reference campaign is not touched. Scheduler failure stops the transition;
-an already-started replacement is not launched a second time.
+This validates the source against the reviewed output/input/WFU hashes and
+refuses a live source controller or allocation. It cancels nothing, deletes
+nothing, and does not resubmit any old validated job. It prepares a sibling
+`minimum_active_space_molpro_confirmation_20261016_r2_recovery` directory.
+If the source changed since the reviewed export, the script stops before
+preparing a new run so that newer results are not silently ignored.
 
-If the earlier restart stopped immediately after preparation with
-`Replacement catalogue differs`, pull this repair and rerun the same command.
-That check incorrectly compared source JSON formatting with the normalized
-snapshot's byte hash. It now compares catalogue contents while retaining the
-snapshot's integrity check. The already-prepared `_r2` directory is reused;
-the failed check occurred before any cancellation or new submission.
+**26 supplemental points, seven independent chains:**
+
+- CH3S tilted MRCI: increase external Davidson capacity from 4 to 20; retain
+  the method, CABS=1 and tolerances. Seed from the completed center WFU.
+- S–S MRCI far→center→tilted: use documented perturbational CABS=2 consistently.
+  The two old waiting points were blocked by the failed far predecessor.
+- CH3S MRCI far/center CABS=2 controls: compare relative energies/spin gaps
+  against completed CABS=1 results before accepting the approximation.
+- CH3S and S–S CASPT2: five points in each of aDZ/aTZ with the shared-reference
+  policy. Include far, center, inner, exact return and tilted points. No IPEA
+  series or enlarged-space campaign. The CH3SS C–S policy is unchanged and
+  its completed checks are reused.
+
+All choices are explicit in
+[recovery_plan.json](examples/anl/orbital_reviews/molpro_confirmation/recovery_plan.json).
+The original catalogue is historical evidence; its selected-root CASPT2 policy
+is superseded by this remedy. The default CABS setting in general KinBot is
+unchanged. The alternative is confined to explicitly configured checks.
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery'
 ```
 
-The new run has **39 jobs in nine chains**: 30 CASPT2-F12 points across aDZ-F12
-and aTZ-F12, plus nine aTZ-F12 MRCI-F12+Q points. They check 30 Å asymptotes,
-representative radial/angular behavior, and exact returns. Each chain starts
-with its far-point gate. No new geometry optimization or production correction
-scan is included. I/O/startup/allocation retries are bounded and recorded;
-scientific nonconvergence is not accepted as success.
+For a stopped completed/failed supplement, export with:
 
-Eight ranks request 104000 MB/node, below the reported 126000 MB limit. Known
-bad nodes are excluded in the catalogue. CASSCF maxit is capped at Molpro's
-999 limit; SCF/correlation limits are 2000. Correlation energy/coefficient
-criteria are 1e-8/1e-5, giving THRVAR=1e-10. The existing relaxed-Davidson
-`CLUSTER=0; ENERGD(1)` convention and `CABS_SINGLES=1` are unchanged. MRCI-F12
-now uses the declared same-spin reference manifold with matching NSTATI,
-instead of an unsupported lone excited reference. CASPT2's policy is unchanged. Read the
-[package instructions](examples/anl/orbital_reviews/molpro_confirmation/README.md)
-for resume, export, root/state conventions and native acceptance checks.
+```bash
+/home/hram/KinBot/.venv/bin/python \
+  examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py collect \
+  /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery \
+  --output /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz
+```
 
-## Twelve deliverables
+An existing export is never overwritten. Transfer it yourself for the native
+closure review. The original `_r2` monitor will retain its historical failures;
+use the recovery monitor for the new work. Successful new outputs do not
+silently replace old method-labelled energies or automatically approve production.
 
-| # | Deliverable | Status at handoff |
-| --- | --- | --- |
-| 1 | Literature-grounded minimum-space selection | Local decision complete; native sampling-basis cost pending |
-| 2 | ORCA chemistry, radial/angular and return checks | Complete; 47 curated native points |
-| 3 | Minimal aDZ/aTZ Molpro confirmation | First native attempt exposed input defects; repaired restart pending |
-| 4 | General JSON orbital/state/solver/resource controls | Implemented and locally tested; native use pending |
-| 5 | General orbital reconnaissance procedure | Revised, documented and locally tested |
-| 6 | Both production KinBot inputs | CAS counts configured; install native orbital/surface selections after review |
-| 7 | User-run production with continued bug-fix support | Follows Molpro review; no end-to-end result claimed |
-| 8 | Generality and integration audit | Updated for native failure evidence; local tests are not native validation |
-| 9 | Reproducible documentation and native evidence | Archived, checksummed and independently replayed |
-| 10 | Full-directory cleanup inventory | Recorded; cleanup deferred until production completes |
-| 11 | Consolidated handoff | Corrected restart commands above; production handoff follows acceptance |
-| 12 | Preserve/reuse/retire old Blodgett work | Failed confirmation retained; scoped stop and fresh restart |
+Eight ranks retain 1000 MW/rank and a **104000 MB/node reservation**, below the
+reported 126000 MB node limit. This is a reservation/budget check, not a measured
+peak-memory guarantee. The seven-chain concurrency cap and all known node
+exclusions are explicit. Infrastructure retries remain bounded and recorded.
+CASSCF MAXIT stays 999; correlation MAXIT/MAXITI stay 2000, MAXVI=60,
+THRDEN=1e-8 and THRVAR=1e-10. Only the stalled external solve adds MAXDAV=20.
+`CLUSTER=0; ENERGD(1)` still selects relaxed Davidson after CABS completion.
 
-The old Blodgett campaign is a standalone example study. General KinBot recon
-can prepare and report equivalent declared checks; it supports the chemical
-decision rather than automatically proving a unique active space. After native
-review we install the basis-specific orbital/state models and proceed with the
-ordinary KinBot inputs, supporting fixes through CBH-ANL, RotdPy and MESS.
+## Deliverable status
 
-The maintained [detailed checklist](docs/ORBITAL_RECON_DELIVERABLES.md),
-[scientific decision](docs/SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md),
-[general procedure](docs/ORBITAL_REVIEW_WORKFLOW.md), and
-[cleanup inventory](docs/REPOSITORY_CLEANUP_PLAN.md) record the scope and caveats.
+| # | Deliverable | Current status |
+|---|---|---|
+| 1 | Literature-grounded minimum active spaces | Local choices complete; unchanged by this method diagnosis |
+| 2 | ORCA chemical/radial/angular/return checks | Complete; 47 curated points retained |
+| 3 | aDZ/aTZ native Molpro confirmation | 35/39 reviewed; targeted remedies and changed-reference checks ready |
+| 4 | General JSON controls | Orbital/state controls retained; explicit MAXDAV and MRCI CABS controls added/tested |
+| 5 | General orbital reconnaissance | Procedure updated; chemistry remains example data |
+| 6 | Complete production inputs | Counts configured; final orbital/surface/reference installation follows native closure |
+| 7 | User-run end-to-end production support | Still to follow, including bug fixes through completion |
+| 8 | Generality/integration audit | New controls and all 26 native-input transformation paths tested locally |
+| 9 | Reproducible evidence and conclusions | Original outputs/WFUs retained; hashed review and orbital map committed |
+| 10 | Repository cleanup inventory | Recorded; actual cleanup remains deferred |
+| 11 | Consolidated handoff | Targeted supplement above; production approval is not yet claimed |
+| 12 | Preserve earlier work | All original runs retained; no cancellation/deletion in this supplement |
 
-## Retained artifacts and verification
+The [maintained checklist](docs/ORBITAL_RECON_DELIVERABLES.md) remains the full
+scope. The [general procedure](docs/ORBITAL_REVIEW_WORKFLOW.md) can produce the
+same declared checks; these scripts are example adapters, not molecule-specific
+logic in the general runtime. After the remedies are demonstrated and the
+corrected surfaces reviewed, install the accepted native settings and proceed
+with the ordinary KinBot inputs through CBH-ANL, RotdPy and MESS.
 
-- `molpro_confirmation_transfer_20261016.tar.gz` at the repository root is
-  committed with its SHA-256 sidecar. It contains the runtime source, handoff
-  package, documentation, test evidence and compact ORCA decision evidence,
-  including native text inputs/outputs for the 47 curated points. Its internal
-  `transfer_manifest.json` hashes every payload file. Extraction is optional
-  and should use a fresh directory when inspecting this snapshot.
-- The full native archive, including orbital binaries/coefficients, seeds and
-  analysis dependencies, is retained locally at
-  `local_runs/qchem_casscf_20261015/reproducibility/orca_minimum_space_final_20261016.tar.gz`.
-  Its SHA-256 is
-  `13762a1124092834313eee3bf463383f9c5658535351715dc4efdf981feca523`.
-  This 311 MiB artifact is not duplicated in Git. Its manifest/checksum and
-  verification report are included in the compact transfer bundle.
-- Full-archive verification checked 1,469 files, then used isolated extracted
-  analysis source to reproduce all 47 curated observations exactly, recompute
-  return/active-span diagnostics and plots, and generate fresh replay inputs.
-  No new electronic-structure calculation was claimed by this replay.
-- The repaired-code regression passed **1,629 tests and 391 subtests**. Shell
-  syntax, bundle member hashes and the launcher/retirement scenarios were
-  checked. Native Molpro behavior and current cluster health remain to be
-  established by this confirmation; no zero-error guarantee is made.
+## Artifacts
 
-The compact bundle intentionally omits orbital binaries and is not a replacement
-for the full evidence archive when repeating orbital-overlap analysis. Existing
-Blodgett WFU seeds are reused only after exact hash checks. No old outputs,
-failed-attempt evidence or scratch directories were deleted during handoff.
+- [Native review](examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json)
+  and [basis-specific orbital records](examples/anl/orbital_reviews/molpro_confirmation/native_orbital_orderings.json).
+- The repository-root `molpro_confirmation_transfer_20261016.tar.gz` and SHA
+  sidecar provide an optional transfer snapshot. Pulling the repository is
+  sufficient; do not extract over the running tree.
+- The full new Molpro evidence archive remains in `examples/anl/orbital_reviews`,
+  SHA-256 `4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb`.
+- The full ORCA archive is retained under
+  `local_runs/qchem_casscf_20261015/reproducibility/orca_minimum_space_final_20261016.tar.gz`,
+  SHA-256 `13762a1124092834313eee3bf463383f9c5658535351715dc4efdf981feca523`.
+
+Local validation cannot establish native success of the unrun MAXDAV/CABS
+remedies. The previous CH3S control does establish the reference-policy remedy
+at its geometry; transfer across the current points is what the supplement
+checks. These distinctions are part of the handoff, not a promise of zero errors.

@@ -1,0 +1,192 @@
+{
+  "schema": 1,
+  "convention": "Molpro C1, one-based orbital.irrep labels; assignment is to a subspace and permits internal rotations",
+  "source": "native_r2_review.json",
+  "production_approved": false,
+  "records": [
+    {
+      "chain": "ch3s_cs_adz_caspt2",
+      "active_space": [
+        5,
+        4
+      ],
+      "closed": 10,
+      "occ": 14,
+      "natural_record": "2140.2",
+      "canonical_record": "2141.2",
+      "far_orbital_character": {
+        "2140.2": {
+          "11.1-13.1": "S atom 2: complete 3p subspace",
+          "14.1": "CH3 radical, predominantly carbon atom 1 p"
+        },
+        "2141.2": {
+          "11.1-13.1": "S atom 2: complete 3p subspace",
+          "14.1": "CH3 radical, predominantly carbon atom 1 p"
+        }
+      },
+      "wfu": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3s_cs_adz_caspt2/adz__far/adz__far.wfu",
+      "wfu_sha256": "aac27670e16c8c373180cbf3441a6c9331c52b17022270ea4df02c723c45b53a",
+      "native_output": "ch3s_cs_adz_caspt2/adz__far/adz__far.out",
+      "output_sha256": "80a1b01feb026543d3e7a80fe207c60c8250362bc5b4715d487d8cc1f231b1a3",
+      "natural_xml": {
+        "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3s_cs_adz_caspt2/adz__far/adz__far.natural.orbitals.xml",
+        "sha256": "fd61ee38a9779f994e68b846c5576f01d1e4bc7a3b0bae725319f032f1d7bb91"
+      },
+      "original_seed_swap_must_not_be_repeated": false
+    },
+    {
+      "chain": "ch3s_cs_atz_caspt2",
+      "active_space": [
+        5,
+        4
+      ],
+      "closed": 10,
+      "occ": 14,
+      "natural_record": "2140.2",
+      "canonical_record": "2141.2",
+      "far_orbital_character": {
+        "2140.2": {
+          "11.1-13.1": "S atom 2: complete 3p subspace",
+          "14.1": "CH3 radical, predominantly carbon atom 1 p"
+        },
+        "2141.2": {
+          "11.1-13.1": "S atom 2: complete 3p subspace",
+          "14.1": "CH3 radical, predominantly carbon atom 1 p"
+        }
+      },
+      "wfu": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3s_cs_atz_caspt2/atz__far/atz__far.wfu",
+      "wfu_sha256": "3dade1ac2de2e42c7a6d80cb42a390e1498941bfed38ab346c145a6a27aff95c",
+      "native_output": "ch3s_cs_atz_caspt2/atz__far/atz__far.out",
+      "output_sha256": "624f88caf9b1c03ee3a6efc5ff27f9898d3cd2b21b61ab45887ec7e92f49edd1",
+      "natural_xml": {
+        "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3s_cs_atz_caspt2/atz__far/atz__far.natural.orbitals.xml",
+        "sha256": "05720cfda28d2ff2490ac4d31894fd75814f59b87f64c30fc996467da4a684ab"
+      },
+      "original_seed_swap_must_not_be_repeated": false
+    },
+    {
+      "chain": "ch3ss_cs_adz_caspt2",
+      "active_space": [
+        7,
+        5
+      ],
+      "closed": 17,
+      "occ": 22,
+      "natural_record": "2140.2",
+      "canonical_record": "2141.2",
+      "far_orbital_character": {
+        "2140.2": {
+          "18.1-19.1": "S2 pi bonding pair, atoms 2 and 3",
+          "20.1-21.1": "S2 pi antibonding pair, atoms 2 and 3",
+          "22.1": "CH3 radical, predominantly carbon atom 1 p"
+        },
+        "2141.2": {
+          "18.1-19.1": "S2 pi bonding pair, atoms 2 and 3",
+          "20.1-21.1": "S2 pi antibonding pair, atoms 2 and 3",
+          "22.1": "CH3 radical, predominantly carbon atom 1 p"
+        }
+      },
+      "wfu": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3ss_cs_adz_caspt2/adz__far/adz__far.wfu",
+      "wfu_sha256": "be16f61efaf1fcad243696a30b4f471b21538639296e2b38c22ff09449e93b1c",
+      "native_output": "ch3ss_cs_adz_caspt2/adz__far/adz__far.out",
+      "output_sha256": "1a18b964ec9543a59d33400386300245f23612de55ccf7b8cebb1bccaca62e7c",
+      "natural_xml": {
+        "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3ss_cs_adz_caspt2/adz__far/adz__far.natural.orbitals.xml",
+        "sha256": "ed35da9043555f42970d6d49c4fef99ddb773fd34350a643671f5ea9680b80f4"
+      },
+      "original_seed_swap_must_not_be_repeated": true
+    },
+    {
+      "chain": "ch3ss_cs_atz_caspt2",
+      "active_space": [
+        7,
+        5
+      ],
+      "closed": 17,
+      "occ": 22,
+      "natural_record": "2140.2",
+      "canonical_record": "2141.2",
+      "far_orbital_character": {
+        "2140.2": {
+          "18.1-19.1": "S2 pi bonding pair, atoms 2 and 3",
+          "20.1-21.1": "S2 pi antibonding pair, atoms 2 and 3",
+          "22.1": "CH3 radical, predominantly carbon atom 1 p"
+        },
+        "2141.2": {
+          "18.1-19.1": "S2 pi bonding pair, atoms 2 and 3",
+          "20.1-21.1": "S2 pi antibonding pair, atoms 2 and 3",
+          "22.1": "CH3 radical, predominantly carbon atom 1 p"
+        }
+      },
+      "wfu": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3ss_cs_atz_caspt2/atz__far/atz__far.wfu",
+      "wfu_sha256": "0397a116407a35cf7e045c974d5e3e3704e032d9894dd46359f0ec8528e50d59",
+      "native_output": "ch3ss_cs_atz_caspt2/atz__far/atz__far.out",
+      "output_sha256": "a0de2bbbdb5f635168b82059293c245f486f2ab70395bb7a584d00efe93ce799",
+      "natural_xml": {
+        "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3ss_cs_atz_caspt2/atz__far/atz__far.natural.orbitals.xml",
+        "sha256": "0eb825aea594c503ae8a3ddb923bb64d777fe799b70678f9707bd1067294446f"
+      },
+      "original_seed_swap_must_not_be_repeated": true
+    },
+    {
+      "chain": "ch3ss_ss_adz_caspt2",
+      "active_space": [
+        7,
+        5
+      ],
+      "closed": 17,
+      "occ": 22,
+      "natural_record": "2140.2",
+      "canonical_record": "2141.2",
+      "far_orbital_character": {
+        "2140.2": {
+          "18.1-19.1": "Bound sulfur atom 2: CH3S nonbonding/radical partner pair",
+          "20.1-22.1": "Departing sulfur atom 3: complete 3p subspace"
+        },
+        "2141.2": {
+          "18.1-20.1": "Departing sulfur atom 3: complete 3p subspace",
+          "21.1-22.1": "Bound sulfur atom 2: CH3S nonbonding/radical partner pair"
+        }
+      },
+      "wfu": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3ss_ss_adz_caspt2/adz__far/adz__far.wfu",
+      "wfu_sha256": "43fd6fcd6e9373962d6d22f6075585ad845bd42123262150fda8e8cf8baf2f32",
+      "native_output": "ch3ss_ss_adz_caspt2/adz__far/adz__far.out",
+      "output_sha256": "5fa9786f5c921bcf6ecd41deb1e1ac15aa9a5ac7a31e56693021167cd896311d",
+      "natural_xml": {
+        "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3ss_ss_adz_caspt2/adz__far/adz__far.natural.orbitals.xml",
+        "sha256": "2c7e1052b59f45b347b1ba6fdfb62970dcd17fcd0a89cdd724e585806184fb6a"
+      },
+      "original_seed_swap_must_not_be_repeated": false
+    },
+    {
+      "chain": "ch3ss_ss_atz_caspt2",
+      "active_space": [
+        7,
+        5
+      ],
+      "closed": 17,
+      "occ": 22,
+      "natural_record": "2140.2",
+      "canonical_record": "2141.2",
+      "far_orbital_character": {
+        "2140.2": {
+          "18.1-19.1": "Bound sulfur atom 2: CH3S nonbonding/radical partner pair",
+          "20.1-22.1": "Departing sulfur atom 3: complete 3p subspace"
+        },
+        "2141.2": {
+          "18.1-20.1": "Departing sulfur atom 3: complete 3p subspace",
+          "21.1-22.1": "Bound sulfur atom 2: CH3S nonbonding/radical partner pair"
+        }
+      },
+      "wfu": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3ss_ss_atz_caspt2/atz__far/atz__far.wfu",
+      "wfu_sha256": "65bfca9318ae5005b5cc11c5e1b8f331532d8be6f1fd639228d32cd8e613cc3c",
+      "native_output": "ch3ss_ss_atz_caspt2/atz__far/atz__far.out",
+      "output_sha256": "e3e01647d28b9e1e97f5caca9e0b95c0e2064619c824732c3307c7acf44c9619",
+      "natural_xml": {
+        "path": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2/ch3ss_ss_atz_caspt2/atz__far/atz__far.natural.orbitals.xml",
+        "sha256": "02c0610c5891e867e09f48a32ff6b22e4a352d339db6330186c0c7274485a153"
+      },
+      "original_seed_swap_must_not_be_repeated": false
+    }
+  ]
+}

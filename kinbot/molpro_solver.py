@@ -31,7 +31,7 @@ def validate_solver_options(options):
     allowed = {
         'scf': {'max_iterations', 'energy_convergence'},
         'casscf': {'max_iterations', 'energy_convergence', 'gradient_convergence'},
-        'correlation': {'max_iterations', 'max_reference_iterations', 'max_reference_vectors',
+        'correlation': {'max_iterations', 'max_reference_iterations', 'max_reference_vectors', 'max_external_vectors',
                         'energy_convergence', 'coefficient_convergence'},
     }
     if not isinstance(options, dict) or set(options) - set(allowed):
@@ -142,7 +142,8 @@ def apply_solver_options(text, options):
             body = head + separator + rest
             for key, native in (('max_iterations', 'maxit'),
                                 ('max_reference_iterations', 'maxiti'),
-                                ('max_reference_vectors', 'maxvi')):
+                                ('max_reference_vectors', 'maxvi'),
+                                ('max_external_vectors', 'maxdav')):
                 if key not in controls:
                     continue
                 if re.search(r'\b' + native + r'\s*=', body, re.I):

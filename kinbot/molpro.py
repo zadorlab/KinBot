@@ -630,17 +630,24 @@ def vrc_multireference_energy_contract(method):
 
 
 def validate_mr_correlation_options(options):
-    """Bounded numerical controls shared by native MRPT and MRCI.
+    """Numerical controls and explicit method choices for native MRPT/MRCI.
 
     Iteration limits and tolerances control solver effort and numerical accuracy.
     The explicit reference policy changes the correlated reference
-    treatment and must be validated separately. Never expose IGNORE_ERROR.
+    treatment; CABS singles selects an MRCI-F12 approximation. Both require
+    separate validation and are not automatic retry controls. Never expose IGNORE_ERROR.
     """
-    allowed = {'max_iterations', 'max_reference_iterations', 'max_reference_vectors', 'reference_policy',
+    allowed = {'max_iterations', 'max_reference_iterations', 'max_reference_vectors',
+               'max_external_vectors', 'reference_policy', 'cabs_singles',
                'energy_convergence', 'coefficient_convergence'}
     if not isinstance(options, dict) or set(options) - allowed:
         raise ValueError('Unknown reviewed correlation_options.')
     for key, value in options.items():
+        if key == 'cabs_singles':
+            if type(value) is not int or value not in (1, 2, 3):
+                raise ValueError('correlation_options.cabs_singles must be 1 (singles CI), '
+                                 '2 (perturbational), or 3 (coupled).')
+            continue
         if key == 'reference_policy':
             if value not in ('selected_root', 'state_average'):
                 raise ValueError('correlation_options.reference_policy must be selected_root or state_average.')
@@ -686,9 +693,11 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
     f12 = contract['explicitly_correlated']
     selected = contract['energy_variable'].casefold()
     controls = validate_mr_correlation_options((state_model or {}).get('correlation_options', {}))
+    if 'cabs_singles' in controls and not (family == 'mrci' and f12):
+        raise ValueError('correlation_options.cabs_singles is specific to MRCI-F12.')
     iteration_options = [f'{native}={controls[key]}' for key, native in (
         ('max_iterations', 'maxit'), ('max_reference_iterations', 'maxiti'),
-        ('max_reference_vectors', 'maxvi')) if key in controls]
+        ('max_reference_vectors', 'maxvi'), ('max_external_vectors', 'maxdav')) if key in controls]
     iteration_card = 'option,' + ','.join(iteration_options) + ';' if iteration_options else ''
     reference_card = ''
     if (family == 'mrci' and f12 and selected_root is not None and selected_root > 1
@@ -727,7 +736,7 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
                  f'KBVRCSEL={selected}\n')
         body = command if not (state or iteration_card) else f'{command};{state}{reference_card}{iteration_card}'
         return avas + multi + f'{{{body}}}\n' + audit, 'KBVRCSEL'
-    program = ('mrci-f12,scalf12=1,cabs_singles=1' if f12 else 'mrci')
+    program = (f'mrci-f12,scalf12=1,cabs_singles={controls.get("cabs_singles", 1)}' if f12 else 'mrci')
     program += ',' + ','.join(f'{k}={v}' for k, v in mr_thresholds(controls).items())
     audit = (f'! KinBot energy contract: {contract["method"]} = '
              f'{contract["energy_variable"]}; Davidson relaxed reference\n'

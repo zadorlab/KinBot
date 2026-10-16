@@ -428,11 +428,13 @@ they do not infer physical root identities or certify unsampled smoothness.
    See [Molpro orbital projection](https://www.molpro.net/manual/doku.php?id=general_program_structure#orbital_directives).
    Optional `casscf_options` overrides the partition preparation's solver defaults;
    optional `correlation_options` sets `max_iterations`,
-   `max_reference_iterations`, and/or `max_reference_vectors` for correlated calls. These limits must be
+   `max_reference_iterations`, `max_reference_vectors`, and/or `max_external_vectors` for correlated calls. These limits must be
    positive integers. `max_reference_iterations` is Molpro's internal/reference-CI `MAXITI`,
    distinct from CASSCF macroiterations and from the correlated `MAXIT` limit.
    `max_reference_vectors` is Molpro's internal Davidson expansion capacity
-   (`OPTION,MAXVI`), independent of the iteration ceiling. These controls change solver budgets without changing convergence
+   (`OPTION,MAXVI`). `max_external_vectors` controls the separate external
+   Davidson subspace (`OPTION,MAXDAV`); increasing MAXVI does not increase MAXDAV.
+   Both are independent of the iteration ceiling. These controls change solver budgets without changing convergence
    tolerances, the Hamiltonian, or the selected states. Omitted correlation
    controls retain native defaults. See the
    [Molpro MRCI iteration controls](https://www.molpro.net/manual/doku.php?id=the_mrci_program#maximum_number_of_iterations),
@@ -450,6 +452,12 @@ they do not infer physical root identities or certify unsampled smoothness.
    does **not** enable XMS-CASPT2 or guarantee rotational/fragment invariance.
    Test its asymptotes and interaction potentials independently. The same
    explicit policy is retained through selection into production.
+   For MRCI-F12 only, `correlation_options.cabs_singles` accepts integer 1
+   (singles CI, unchanged default), 2 (perturbational), or 3 (coupled).
+   This is a method choice requiring consistent reference curves and matched
+   relative-energy checks, not an automatic I/O retry or numerical override.
+   It is rejected for CASPT2 and non-F12 MRCI. The relaxed-Davidson selector
+   still reads the final `ENERGD(1)` after the entire command completes.
    An optional `{"method":"uccsd(t)-f12b","multiplicity":4}` check supplies
    a separate, explicitly requested ground-state spin anchor. The value 4 is
    only an example. Such checks must follow the MR checks; they run a new
@@ -620,7 +628,7 @@ The scientific JSON already provides these controls when preparing a new panel:
 | Recon input `scf_options` | `solver`, `max_iterations` |
 | Recon input `scf_convergence` | SCF energy threshold, independent of CI coefficients |
 | Recon input `casscf_options` | `solver`, `max_iterations`, `exact_diagonalization`, `quasi_newton`, `energy_convergence`, `gradient_convergence`, `verbosity` |
-| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `energy_convergence`, `coefficient_convergence`, `reference_policy` |
+| Recon input `probe_definition.state_model.correlation_options` | `max_iterations`, `max_reference_iterations`, `max_reference_vectors`, `max_external_vectors`, `energy_convergence`, `coefficient_convergence`, `reference_policy`, MRCI-F12-only `cabs_singles` |
 | Each recon `correlation_checks` entry | `method`, `shift`, `ipea`, optional `reference_policy` |
 | Recon input resources | `ppn`, `memory_mw` per Molpro rank, `memory_mb` per node, `partition`, `walltime`, `scratch_min_mb` |
 | Partition recipe model | `casscf_options`, `correlation_options` |

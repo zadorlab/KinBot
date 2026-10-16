@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "max_jobs": 7,
+  "purpose": "Resolve both MRCI failures, complete their two blocked points, and confirm shared-reference CASPT2-F12 removes the nonphysical sulfur-component splitting while retaining physical fragment gaps and continuous surfaces.",
+  "chains": [
+    {
+      "title": "ch3s_cs_atz_mrci_maxdav20",
+      "source_chain": "ch3s_cs_atz_mrci",
+      "points": [
+        "tilted"
+      ],
+      "seed_from_completed": "center",
+      "correlation_options": {
+        "max_external_vectors": 20
+      },
+      "reason": "External CI stagnated with MAXDAV=4, despite MAXVI=60 and 2000 iterations. Retain the Hamiltonian and tolerances; enlarge the external Davidson subspace."
+    },
+    {
+      "title": "ch3ss_ss_atz_mrci_cabs2",
+      "source_chain": "ch3ss_ss_atz_mrci",
+      "points": [
+        "far",
+        "center",
+        "tilted"
+      ],
+      "correlation_options": {
+        "cabs_singles": 2
+      },
+      "reason": "The converged MRCI wavefunction failed in the subsequent singles-CI CABS orthogonalization. Use the documented perturbational correction consistently for the complete three-point chain."
+    },
+    {
+      "title": "ch3s_cs_atz_mrci_cabs2_control",
+      "source_chain": "ch3s_cs_atz_mrci",
+      "points": [
+        "far",
+        "center"
+      ],
+      "correlation_options": {
+        "cabs_singles": 2
+      },
+      "reason": "Matched completed points measure the effect of CABS=2 versus CABS=1 on relative interaction energies and spin gaps, with the same three-root sulfur manifold."
+    },
+    {
+      "title": "ch3s_cs_adz_caspt2_shared_reference",
+      "source_chain": "ch3s_cs_adz_caspt2",
+      "points": [
+        "far",
+        "center",
+        "inner",
+        "return",
+        "tilted"
+      ],
+      "seed_from_completed": "far",
+      "correlation_options": {
+        "reference_policy": "state_average"
+      },
+      "reason": "The existing CH3S control removes the 1.175 kcal/mol asymptotic splitting with equal same-spin reference weights at unchanged IPEA=0.25/shift=0.3. Confirm the corrected policy in the current basis and geometries, retaining the full declared state manifold and orbital return check."
+    },
+    {
+      "title": "ch3s_cs_atz_caspt2_shared_reference",
+      "source_chain": "ch3s_cs_atz_caspt2",
+      "points": [
+        "far",
+        "center",
+        "inner",
+        "return",
+        "tilted"
+      ],
+      "seed_from_completed": "far",
+      "correlation_options": {
+        "reference_policy": "state_average"
+      },
+      "reason": "The existing CH3S control removes the 1.175 kcal/mol asymptotic splitting with equal same-spin reference weights at unchanged IPEA=0.25/shift=0.3. Confirm the corrected policy in the current basis and geometries, retaining the full declared state manifold and orbital return check."
+    },
+    {
+      "title": "ch3ss_ss_adz_caspt2_shared_reference",
+      "source_chain": "ch3ss_ss_adz_caspt2",
+      "points": [
+        "far",
+        "center",
+        "inner",
+        "return",
+        "tilted"
+      ],
+      "seed_from_completed": "far",
+      "correlation_options": {
+        "reference_policy": "state_average"
+      },
+      "reason": "The existing CH3S control removes the 1.175 kcal/mol asymptotic splitting with equal same-spin reference weights at unchanged IPEA=0.25/shift=0.3. Confirm the corrected policy in the current basis and geometries, retaining the full declared state manifold and orbital return check."
+    },
+    {
+      "title": "ch3ss_ss_atz_caspt2_shared_reference",
+      "source_chain": "ch3ss_ss_atz_caspt2",
+      "points": [
+        "far",
+        "center",
+        "inner",
+        "return",
+        "tilted"
+      ],
+      "seed_from_completed": "far",
+      "correlation_options": {
+        "reference_policy": "state_average"
+      },
+      "reason": "The existing CH3S control removes the 1.175 kcal/mol asymptotic splitting with equal same-spin reference weights at unchanged IPEA=0.25/shift=0.3. Confirm the corrected policy in the current basis and geometries, retaining the full declared state manifold and orbital return check."
+    }
+  ]
+}

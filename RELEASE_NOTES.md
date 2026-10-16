@@ -64,8 +64,12 @@ name, including when tetrahedral, double-bond or cumulene stereochemistry is
 unspecified. Explicit tetrahedral and double-bond SMILES assignments are retained;
 supplied coordinates are unchanged. This selects one starting stereoisomer, not
 all possible stereoisomers. Use stereochemical SMILES or coordinates to request
-a particular stereoisomer. An embedding failure asks for coordinates instead of
-falling back to a random geometry. Disconnected fragments are placed apart so
+a particular stereoisomer. If the first embedding fails, KinBot retries once
+with random starting coordinates and the same fixed seed. If both attempts fail,
+KinBot asks for coordinates. The ETKDG method is unchanged. When MMFF94 cannot
+refine a structure, KinBot uses UFF if its parameters are available. A warning
+reports missing force-field parameters or incomplete refinement; QC can still
+use the generated coordinates. Disconnected fragments are placed apart so
 the generated coordinates do not create false bonds between them. OpenBabel
 remains in use for other helpers.
 

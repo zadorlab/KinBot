@@ -127,9 +127,26 @@ def generate_3d_structure(smi, obabel=1):
         parameters.randomSeed = 1
         parameters.enforceChirality = True
         if AllChem.EmbedMolecule(rdmol, parameters) < 0:
-            raise ValueError(f'Cannot generate coordinates for SMILES {smi!r}; '
-                             'supply coordinates in the structure input.')
-        AllChem.MMFFOptimizeMolecule(rdmol)
+            logger.info('SMILES %r: first embedding failed; retrying with random '
+                        'starting coordinates and the same fixed seed.', smi)
+            parameters.useRandomCoords = True
+            if AllChem.EmbedMolecule(rdmol, parameters) < 0:
+                raise ValueError(f'Cannot generate coordinates for SMILES {smi!r}; '
+                                 'supply coordinates in the structure input.')
+        force_field = 'MMFF94'
+        refinement = AllChem.MMFFOptimizeMolecule(rdmol)
+        if refinement == -1:
+            if AllChem.UFFHasAllMoleculeParams(rdmol):
+                logger.info('SMILES %r: MMFF94 could not be set up; refining the '
+                            'starting coordinates with UFF.', smi)
+                force_field = 'UFF'
+                refinement = AllChem.UFFOptimizeMolecule(rdmol)
+            else:
+                logger.warning('SMILES %r: MMFF94 could not be set up and UFF lacks '
+                               'parameters; using the embedded coordinates for QC.', smi)
+        if refinement == 1:
+            logger.warning('SMILES %r: %s refinement did not converge; using the '
+                           'partly refined coordinates for QC.', smi, force_field)
         # RDKit embeds disconnected fragments around the same origin. Keep
         # them apart so coordinate-based bond detection cannot join them.
         conformer = rdmol.GetConformer()

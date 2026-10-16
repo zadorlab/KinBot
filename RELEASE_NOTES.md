@@ -22,7 +22,7 @@ and is superseded by FairChem/UMA. `qc: nn_pes` and `nn_model` are no longer acc
 The `barrierless_saddle` family scanned a user-selected bond, optimized its maximum as
 a saddle point and wrote a MESS `Variational` barrier with a CASPT2-oriented Molpro L3.
 It is removed; `hom_sci` and VRC-TST remain the barrierless treatments, and the
-`barrierless_saddle*` input options are no longer accepted.
+`barrierless_saddle*` input options are no longer accepted, nor is the never-used `variational` option.
 
 ## FairChem compilation option
 

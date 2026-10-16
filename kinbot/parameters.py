@@ -76,8 +76,6 @@ class Parameters:
             'keep_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
             'skip_reactions': ['none'],
-            # perform variational calculations for the homolytic scissions
-            'variational': 0,
             # break specific bonds in the hom_sci family
             # this is a dictionary written as:
             # {chemid1: [[atom1, atom2], [atom3, atom4], ...], chemid2: [..]}

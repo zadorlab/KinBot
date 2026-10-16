@@ -18,6 +18,10 @@ from pathlib import Path
 from kinbot.theory import resolve_profiles
 
 
+class MissingL1Result(FileNotFoundError):
+    """A reuse-only continuation needs an L1 result that cannot be reused."""
+
+
 _ROUTE_FILE = Path('.kinbot_theory_jobs.json')
 _QC_NAMES = {
     'fairchem': 'fc',
@@ -256,7 +260,7 @@ class ProfiledQuantumChemistry:
                 if _level == 'l1' and self.l1_reuse_only:
                     status = self.backends[_level].check_qc(job)
                     if status == 0:
-                        raise FileNotFoundError(
+                        raise MissingL1Result(
                             f'{job}: completed L1 result is required by the '
                             'reuse-only continuation; no replacement job was '
                             'submitted.')

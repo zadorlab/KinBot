@@ -5,6 +5,7 @@ import logging
 from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
+from kinbot.profiled_qc import MissingL1Result
 from kinbot.reactions.reac_abstraction import abstraction_align
 from kinbot.utils import get_unique_list_of_lists, plain_symbols, plain_geometry
 
@@ -30,7 +31,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         if status == 'error':
             return -1
         if status != 'normal':
-            raise FileNotFoundError(f'{rxn.instance_name}: completed L1 TS result is '
+            raise MissingL1Result(f'{rxn.instance_name}: completed L1 TS result is '
                                     'required by profiled_l1_reuse_only; no job was submitted.')
     if step > 0:
         status = qc.check_qc(rxn.instance_name)
@@ -49,7 +50,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                     step = rxn.max_step + 1  # this shortcuts the search, jumps to the end
                     return step
                 if reuse_only:
-                    raise FileNotFoundError(f'{rxn.instance_name}: L1 TS search is incomplete '
+                    raise MissingL1Result(f'{rxn.instance_name}: L1 TS search is incomplete '
                                             '(final frequencies are missing); '
                                             'profiled_l1_reuse_only prevents further steps.')
             if qc.check_qc(rxn.instance_name) == 'error':  # log file is not present

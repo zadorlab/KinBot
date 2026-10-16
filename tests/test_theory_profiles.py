@@ -13,7 +13,7 @@ from ase.build import molecule
 
 from kinbot.irc import IRC
 from kinbot.parameters import Parameters
-from kinbot.profiled_qc import ProfiledQuantumChemistry
+from kinbot.profiled_qc import ProfiledQuantumChemistry, MissingL1Result
 from kinbot.qc import QuantumChemistry
 from kinbot.reac_family import carry_out_reaction
 from kinbot.species_routing import routing_name
@@ -1178,7 +1178,7 @@ def test_reuse_only_never_submits_l1(workspace, monkeypatch, status):
     qc = QuantumChemistry(par)
     qc.l1.check_qc = Mock(return_value=status)
     if status == 0:
-        with pytest.raises(FileNotFoundError, match='no replacement job was submitted'):
+        with pytest.raises(MissingL1Result, match='no replacement job was submitted'):
             qc.l1.submit_qc('missing_well', 4)
     else:
         assert qc.l1.submit_qc('existing_well', 4, singlejob=0) == 0
@@ -1300,12 +1300,62 @@ def test_reuse_only_reaction_search_finishes_or_reports_missing_ts(
     if status == 'running':
         qc.l1.check_qc = Mock(return_value='running')
     if status in ('missing', 'incomplete'):
-        with pytest.raises(FileNotFoundError, match='completed L1 TS|L1 TS search is incomplete'):
+        with pytest.raises(MissingL1Result, match='completed L1 TS|L1 TS search is incomplete'):
             carry_out_reaction(rxn, step, '')
     else:
         result = carry_out_reaction(rxn, step, '')
         assert result == {'normal': rxn.max_step+1, 'error': -1, 'running': step}[status]
     assert not Path(job + '.py').exists()
+    submit.assert_not_called()
+
+
+@pytest.mark.parametrize('missing', ['ts', 'frequencies', 'irc'])
+def test_reuse_only_skips_one_reaction_and_keeps_its_files(
+        workspace, monkeypatch, caplog, missing):
+    from kinbot.reaction_generator import ReactionGenerator
+    submit = Mock(side_effect=AssertionError('reuse-only must not submit'))
+    monkeypatch.setattr(QuantumChemistry, 'submit_qc', submit)
+    par = profile_parameters(profiled_l1_reuse_only=1, queuing='local',
+                             delete_intermediate_files=1)
+    qc = QuantumChemistry(par)
+    parent = methanol()
+    bad, good = [reaction(qc, par, name) for name in ('missing_ts', 'completed_ts')]
+    for item in (bad, good):
+        item.species = parent
+        item.products = []
+        qc._record(item.instance_name, 'l1')
+    parent.reac_obj = [bad, good]
+    parent.reac_inst = [bad.instance, good.instance]
+    parent.reac_name = [bad.instance_name, good.instance_name]
+    parent.reac_type = ['intra_H_migration'] * 2
+    parent.reac_step = [0, 0]
+    parent.reac_ts_done = [int(missing == 'irc'), 0]
+    for job in (routing_name(parent) + '_well', bad.instance_name, good.instance_name):
+        if job == bad.instance_name and missing == 'ts':
+            continue
+        frequencies = [] if job == bad.instance_name and missing == 'frequencies' else [-100., 100.]
+        qc.db.write(molecule('CH3OH'), name=job, data=dict(
+            status='normal', energy=-10., zpe=.02, frequencies=frequencies))
+        Path(job + '_sella.log').write_text('done\n')
+    checkpoint = Path(bad.instance_name + '.chk')
+    checkpoint.write_bytes(b'keep the earlier calculation')
+    original_rows = qc.db.count()
+
+    # Stop after the unaffected TS has passed its frequency check, before IRC.
+    class CheckedBothReactions(Exception):
+        pass
+    def after_poll(_):
+        if parent.reac_ts_done[1] == 1:
+            raise CheckedBothReactions
+    monkeypatch.setattr('kinbot.reaction_generator.time.sleep', after_poll)
+    with pytest.raises(CheckedBothReactions):
+        ReactionGenerator(parent, par, qc, 'input.json').generate()
+    assert parent.reac_ts_done == [-999, 1]
+    assert parent.reac_step[1] == good.max_step + 1
+    assert bad.missing_l1_result in caplog.text
+    assert 'other reactions can continue' in caplog.text
+    assert checkpoint.read_bytes() == b'keep the earlier calculation'
+    assert qc.db.count() == original_rows
     submit.assert_not_called()
 
 

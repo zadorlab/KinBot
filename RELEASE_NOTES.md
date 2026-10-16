@@ -63,7 +63,10 @@ results remain usable if this option changes on restart.
   selects that optimizer; Sella/BFGS is rejected before a worker can request an
   internal Q-Chem optimization in place of a force evaluation.
 - Accept `profiled_l1_reuse_only: 1` for continuations that must not submit
-  replacement L1 jobs. Report missing L1 results; keep L0 and L2 enabled.
+  replacement L1 jobs. A missing or incomplete L1 result during a reaction
+  search now fails only that reaction, with its job name in the log. Keep its
+  files and continue other reactions. A missing initial reactant result still
+  stops the run. L0 and L2 remain enabled.
 - Refuse unsupported optimizer combinations before submission. ORCA and
   FairChem require Sella or BFGS. Errors identify settings inherited from the
   main input when no profile was supplied for the affected level.
@@ -123,8 +126,10 @@ First product optimizations use `<initial_name>_product`. Accepted wells use
 `<optimized_name>_well`. If the first calculation from A produces B and the
 first calculation from B produces C, both results remain available. A restart
 keeps each reaction's original product calculation. Existing verified wells
-can supply a first product result without another QC job. This separation uses
-calculation format v4; directories made with v3 require a fresh run.
+can supply a first product result without another QC job. As before, reuse of
+an existing well instead of optimization of each new product geometry means
+that the order in which jobs finish can affect the selected product. This
+separation uses calculation format v4; directories made with v3 require a fresh run.
 
 ### Assign axial stereochemistry from coordinates
 
@@ -160,8 +165,12 @@ name, including when tetrahedral, double-bond or cumulene stereochemistry is
 unspecified. Explicit tetrahedral and double-bond SMILES assignments are retained;
 supplied coordinates are unchanged. This selects one starting stereoisomer, not
 all possible stereoisomers. Use stereochemical SMILES or coordinates to request
-a particular stereoisomer. An embedding failure asks for coordinates instead of
-falling back to a random geometry. Disconnected fragments are placed apart so
+a particular stereoisomer. If the first embedding fails, KinBot retries once
+with random starting coordinates and the same fixed seed. If both attempts fail,
+KinBot asks for coordinates. The ETKDG method is unchanged. When MMFF94 cannot
+refine a structure, KinBot uses UFF if its parameters are available. A warning
+reports missing force-field parameters or incomplete refinement; QC can still
+use the generated coordinates. Disconnected fragments are placed apart so
 the generated coordinates do not create false bonds between them. OpenBabel
 remains in use for other helpers.
 

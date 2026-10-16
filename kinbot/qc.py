@@ -1,4 +1,4 @@
-from kinbot.species_routing import routing_name
+from kinbot.species_routing import routing_name, RESULT_PUBLICATION_PENDING
 import os
 import sys
 import subprocess
@@ -1151,7 +1151,7 @@ class QuantumChemistry:
             raise ValueError(f'Cannot publish over a running calculation: {target}')
         os.makedirs(os.path.dirname(target) or '.', exist_ok=True)
         marker = self.db.write(source.toatoms(), name=target, data={
-            'status': 0, 'reason': 'Publishing accepted optimization result'})
+            'status': 0, 'reason': RESULT_PUBLICATION_PENDING})
         self._archive_outputs(target, marker)
         for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
             if os.path.isfile(source.name + suffix):

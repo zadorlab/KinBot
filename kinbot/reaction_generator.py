@@ -24,6 +24,7 @@ from kinbot.stereo_identity import (canonical_identity, require_supported_identi
                                    UnsupportedStereochemistry)
 from kinbot.reaction_path import prepare_stereopath, endpoint_snapshot
 from kinbot.stereo_routing import require_same_configuration, StereoRoutingError
+from kinbot.profiled_qc import MissingL1Result
 from kinbot.molpro import Molpro
 from ase.db import connect
 from ase import Atoms
@@ -722,10 +723,16 @@ class ReactionGenerator:
 
                     elif self.species.reac_ts_done[index] == -999:
                         if (self.par['delete_intermediate_files'] == 1
-                                and not getattr(obj, 'stereochemical_rejection', None)):
+                                and not getattr(obj, 'stereochemical_rejection', None)
+                                and not getattr(obj, 'missing_l1_result', None)):
                             if not self.species.reac_obj[index].instance_name in deleted:
                                 self.delete_files(self.species.reac_obj[index].instance_name)
                                 deleted.append(self.species.reac_obj[index].instance_name)
+                except MissingL1Result as error:
+                    logger.warning('%s: skipped reaction: %s. Calculation files retained; '
+                                   'other reactions can continue.', obj.instance_name, error)
+                    obj.missing_l1_result = str(error)
+                    self.species.reac_ts_done[index] = -999
                 except (UnsupportedStereochemistry, StereoRoutingError) as error:
                     logger.warning('%s: omitted reaction: %s. Calculation files retained; '
                                    'the exported network is incomplete.', obj.instance_name, error)

@@ -28,8 +28,9 @@ if '{Code}' == 'ORCA':
 
 mol.calc = {Code}(**kwargs)
 
-basename = os.path.basename('{label}')
-output_label = '{label}' if {profiled} else basename
+# ORCA copies scratch files back; other jobs retain their conf/ or hir/ path.
+basename = os.path.basename('{label}') if '{Code}' == 'ORCA' else '{label}'
+output_label = basename
 
 if os.path.isfile(f'{{output_label}}_sella.log'):
     os.remove(f'{{output_label}}_sella.log')
@@ -60,7 +61,7 @@ else:
     mol.calc.label = '{label}'
     converged = False
     try:
-        if '{Code}' == 'Gaussian':
+        if '{Code}' == 'Gaussian' and kwargs.get('chk'):
             mol.get_potential_energy()
             kwargs['guess'] = 'Read'
             mol.calc = {Code}(**kwargs)

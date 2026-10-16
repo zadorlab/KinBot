@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "evidence_type": "User-pasted native tails and input blocks; not a complete checksummed native export",
+  "received_date": "2026-10-16",
+  "report_file": "cabs2_failure_report_20261016.txt",
+  "report_sha256": "e0925b339f344348542ae4345105671df7afb9410fb793ad073588bb8a9efc9e",
+  "source_run": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery",
+  "cases": [
+    {
+      "chain": "ch3s_cs_atz_mrci_cabs2_control",
+      "job_id": "52908172",
+      "host": "node31",
+      "point": "atz__far",
+      "status": "failed",
+      "returncode": 255,
+      "calls_reached": 4,
+      "failed_spin_twice": 3,
+      "failed_root": 1,
+      "nstate": 1,
+      "nstati": 3,
+      "nstatr": 3,
+      "reference_roots": [
+        1,
+        2,
+        3
+      ],
+      "cabs_vectors": 273,
+      "cabs_metric_min": 3.1e-07,
+      "converged_pre_cabs_mrci_hartree": -437.405556015739,
+      "prior_cabs1_pre_cabs_mrci_hartree": -437.405556015349,
+      "printed_pre_cabs_relaxed_davidson_hartree": -437.44370922,
+      "prior_source_file": "ch3s_cs_atz_mrci/atz__far/atz__far.out",
+      "error": "strange..",
+      "routine": "mrf12_singles.F90",
+      "blocked_dependents": [
+        "atz__center"
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_atz_mrci_cabs2",
+      "job_id": "52908171",
+      "host": "node29",
+      "point": "atz__far",
+      "status": "failed",
+      "returncode": 255,
+      "calls_reached": 1,
+      "failed_spin_twice": 1,
+      "failed_root": 1,
+      "nstate": 1,
+      "nstati": 6,
+      "nstatr": 6,
+      "reference_roots": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "cabs_vectors": 348,
+      "cabs_metric_min": 2.69e-07,
+      "converged_pre_cabs_mrci_hartree": -835.141055331544,
+      "prior_cabs1_pre_cabs_mrci_hartree": -835.141055331546,
+      "printed_pre_cabs_relaxed_davidson_hartree": -835.21982764,
+      "prior_source_file": "ch3ss_ss_atz_mrci/atz__far/atz__far.out",
+      "error": "strange..",
+      "routine": "mrf12_singles.F90",
+      "blocked_dependents": [
+        "atz__center",
+        "atz__tilted"
+      ]
+    }
+  ],
+  "conclusions": [
+    "CABS=2 is rejected for production in the tested implementation/settings.",
+    "Both failures occur after converged MRCI and printed Davidson corrections, before a final CABS-corrected selected energy.",
+    "Not specific to quartet spin and not the previously repaired NSTATI/NSTATR mismatch.",
+    "The pre-CABS energy comparisons localize the discrepancy to the correction stage; they do not identify its failed internal check.",
+    "No evidence in these reports establishes an I/O, scheduler or memory failure.",
+    "The successful independent CASPT2 and MAXDAV20 work must continue; no broad restart.",
+    "CABS=3 is a two-point all-root diagnostic; native success and interaction-energy controls remain required before adoption."
+  ],
+  "production_approved": false
+}

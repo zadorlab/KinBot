@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "provenance": "User-pasted live monitor at 2026-10-16 09:45:56 America/Los_Angeles; the new native output has not yet been exported or inspected.",
+  "source_directory": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery",
+  "campaign_status": "running",
+  "counts": {
+    "total": 26,
+    "validated": 10,
+    "running": 5,
+    "waiting": 10,
+    "failed": 1
+  },
+  "failed_control": {
+    "chain": "ch3s_cs_atz_mrci_cabs2_control",
+    "point": "atz__far",
+    "job_id": "52908172",
+    "host": "node31",
+    "method_choice": {
+      "cabs_singles": 2
+    },
+    "iteration": 8,
+    "root": 1,
+    "total_energy_hartree_printed": -437.40555602,
+    "variance_s_printed": 4.1e-12,
+    "variance_p_printed": 9.6e-12,
+    "variance_threshold": 1e-10,
+    "native_error": [
+      "? strange..",
+      "? The problem occurs in mrf12_singles.F90"
+    ],
+    "conclusion": "MRCI iterations reached the printed convergence criteria; CABS2 has not passed native validation. No evidence in this snapshot establishes an I/O, Slurm or memory cause.",
+    "spin_assignment_inference": {
+      "candidate": "First quartet root",
+      "basis": "Printed root index 1 and pre-CABS energy match the completed CABS1 first-quartet result at displayed precision; confirm from new full output.",
+      "comparison_file": "local_runs/molpro_confirmation_r2_review/ch3s_cs_atz_mrci/atz__far/atz__far.out",
+      "comparison_sha256": "aa987b95100e4b805248e0c2b7939d5ca064f3d7bd56397437d651eb4a065418",
+      "comparison_energy_hartree": -437.405556015349
+    }
+  },
+  "other_progress": {
+    "ch3s_cs_atz_mrci_maxdav20": "Running; iteration 15 on root 2, beyond the previous root-1 stagnation. Entire point not yet validated.",
+    "ch3ss_ss_atz_mrci_cabs2": "Running; far-point CABS integral evaluation. Completion not established.",
+    "caspt2": "Supplemental points progressing; validated count alone does not establish the corrected asymptotic energies."
+  },
+  "next_action": "Retain completed/running work. Inspect the requested native tails and effective root/reference counts before selecting another CABS change. Do not rerun identical failed CABS2 input or approve it for production.",
+  "production_approved": false
+}

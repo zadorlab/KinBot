@@ -1,0 +1,227 @@
+/home/hram/KinBot/.venv/bin/python - <<'PY'
+from pathlib import Path
+import json,re
+root=Path('/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery')
+for chain in ('ch3s_cs_atz_mrci_cabs2_control','ch3ss_ss_atz_mrci_cabs2'):
+    d=root/chain/'atz__far'
+    print('\nCASE:',chain)
+    p=d/'execution.json'
+    if p.exists():
+        e=json.loads(p.read_text())
+        print('EXECUTION:',{k:e.get(k) for k in ('status','returncode','host')})
+    p=d/'atz__far.out'
+    if not p.exists():
+        print('OUTPUT MISSING'); continue
+    t=p.read_text(errors='replace')
+    blocks=re.split(r'PROGRAM\s*\*\s*MRCI-F12\b',t,flags=re.I)[1:]
+    print('MRCI CALLS REACHED:',len(blocks))
+    if blocks:
+        for line in blocks[-1].splitlines():
+            if re.search(r'Number of (optimized|reference) states|NSTATE=|NSTATR=|NSTATI=|CABS|singles correction|REFERENCE ENERGY',line,re.I):
+                print(line)
+    print('FINAL OUTPUT:\n'+'\n'.join(t.splitlines()[-85:]))
+    p=d/'atz__far.native.inp'
+    if p.exists() and blocks:
+        inputs=re.findall(r'\{mrci-f12\b[^{}]*\}',p.read_text(),re.I)
+        if len(inputs)>=len(blocks): print('CURRENT MRCI INPUT:',inputs[len(blocks)-1])
+PY
+
+CASE: ch3s_cs_atz_mrci_cabs2_control
+EXECUTION: {'status': 'failed', 'returncode': 255, 'host': 'node31'}
+MRCI CALLS REACHED: 4
+ Number of optimized states: 1  Roots:    1
+ Number of reference states: 3  Roots:    1   2   3
+ Program parameters:       NSTATE=  1    NSTATI=  3    NSTATR=  3    NCEPA =  0    NOKOP =  0    ITRDM =  0    ITRANS=  0
+ Basis F12-CABS          EwMin=  3.10E-07  EwMax=  1.00E+00  EwRatio=  3.44E-04
+ Symmetry-adapted CABS vectors are used:273
+ State     Reference Energy
+ CPU time for CABS construction                             0.00 seconds
+ CPU time for F12 integral evaluation (CABS singles)        0.23 seconds
+ Reference energy                    -437.07991352
+FINAL OUTPUT:
+    4     1     1     1.11363581    -0.32563075  -437.40554427    -0.00026144    -0.00000922  0.87D-06  0.22D-05    15.72
+    5     1     1     1.11407095    -0.32564205  -437.40555557    -0.00001130    -0.00000036  0.45D-07  0.84D-07    20.31
+    6     1     1     1.11410268    -0.32564247  -437.40555599    -0.00000042    -0.00000002  0.29D-08  0.42D-08    24.91
+    7     1     1     1.11410841    -0.32564249  -437.40555601    -0.00000002    -0.00000000  0.93D-10  0.22D-09    29.51
+    8     1     1     1.11410855    -0.32564249  -437.40555602    -0.00000000    -0.00000000  0.41D-11  0.96D-11    34.08
+
+
+ =====================================
+ Analysis of CPU times by interactions
+ =====================================
+
+       I      S      P
+ I   0.0%
+ S   0.0%   0.3%
+ P   0.4%   3.1%  61.5%
+
+ F12 init:         8.2%
+ Other:           26.5%
+
+ Total CPU:       39.3 seconds
+ =====================================
+
+
+
+ Reference coefficients greater than 0.0500000
+ =============================================
+ 2222//2/          -0.7178758
+ 22222///           0.6167005
+
+ Coefficients of fixed reference functions:
+ ==========================================
+
+ State      Coefficients
+ 1           0.946722    0.000570   -0.000003
+
+ Coefficients of rotated reference functions:
+ ============================================
+
+ State      Coefficients
+ 1           0.946723
+
+
+ RESULTS FOR STATE 1.1
+ =====================
+
+ Coefficient of reference function:   C(0) = 0.94611027 (fixed)   0.94611027 (relaxed)   0.94611027 (rotated)
+
+ Energy contributions of configuration classes
+
+ CLASS          SQ.NORM        ECORR1        ECORR2
+ +++++++++++++++++++++++++++++++++++++++++++++++++++
+ Internals    0.00274148   -0.32564249   -0.32564249
+ Singles      0.02878464    0.00000000    0.00000000
+ Pairs        0.08563673    0.00000000    0.00000000
+ Total        1.11716285   -0.32564249   -0.32564249
+ +++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+ Reference energy                    -437.07991352
+ Nuclear energy                        12.21469627
+ Kinetic energy                       437.34363423
+ One electron energy                 -626.04501010
+ Two electron energy                  176.42475782
+ Virial quotient                       -1.00014159
+ Correlation energy                    -0.32564249
+ !CI-F12 STATE 1.1 Energy            -437.405556015739
+
+ Properties without orbital relaxation:
+
+ !CI-F12 STATE 1.1 Dipole moment       -0.00000951    -0.00000027     0.00000025
+ Dipole moment /Debye                  -0.00002418    -0.00000070     0.00000063
+
+ Cluster corrected energies          -437.44370922 (Davidson, fixed reference)
+ Cluster corrected energies          -437.44370922 (Davidson, relaxed reference)
+ Cluster corrected energies          -437.44370922 (Davidson, rotated reference)
+
+ Cluster corrected energies          -437.43830348 (Pople, fixed reference)
+ Cluster corrected energies          -437.43830348 (Pople, relaxed reference)
+ Cluster corrected energies          -437.43830348 (Pople, rotated reference)
+
+ ? Error
+ ? strange..
+ ? The problem occurs in mrf12_singles.F90
+
+ GLOBAL ERROR fehler on processor   0
+CURRENT MRCI INPUT: {mrci-f12,scalf12=1,cabs_singles=2,thrden=1.d-8,thrvar=1.d-10;orbital,2140.2,type=natural;wf,25,1,3;state,1,1;refstate,3,1,2,3;option,nstati=3;option,maxit=2000,maxiti=2000,maxvi=60;option,cluster=0;}
+
+CASE: ch3ss_ss_atz_mrci_cabs2
+EXECUTION: {'status': 'failed', 'returncode': 255, 'host': 'node29'}
+MRCI CALLS REACHED: 1
+ Number of optimized states: 1  Roots:    1
+ Number of reference states: 6  Roots:    1   2   3   4   5   6
+ Program parameters:       NSTATE=  1    NSTATI=  6    NSTATR=  6    NCEPA =  0    NOKOP =  0    ITRDM =  0    ITRANS=  0
+ Basis F12-CABS          EwMin=  2.69E-07  EwMax=  1.00E+00  EwRatio=  4.95E-04
+ Symmetry-adapted CABS vectors are used:348
+ State     Reference Energy
+ CPU time for CABS construction                             0.00 seconds
+ CPU time for F12 integral evaluation (CABS singles)        0.37 seconds
+ Reference energy                    -834.65646608
+FINAL OUTPUT:
+
+       I      S      P
+ I   0.0%
+ S   0.0%   0.3%
+ P   0.6%   3.8%  66.9%
+
+ F12 init:         4.8%
+ Other:           23.7%
+
+ Total CPU:      562.4 seconds
+ =====================================
+
+
+
+ Reference coefficients greater than 0.0500000
+ =============================================
+ 222222/2\2/           0.5274678
+ 2222222/\2/           0.5274354
+ 222222/2/2\           0.3045337
+ 2222222//2\           0.3045150
+ 222222/22\/           0.1812418
+ 2222222/2\/           0.1812306
+ 222222/2\/2          -0.1105280
+ 2222222/\/2          -0.1105213
+ 222222/22/\           0.1046400
+ 2222222/2/\           0.1046336
+ 222222/2/\2          -0.0638134
+ 2222222//\2          -0.0638095
+
+ Coefficients of fixed reference functions:
+ ==========================================
+
+ State      Coefficients
+ 1          -0.928465   -0.000001    0.000018    0.000000    0.000000    0.000000
+
+ Coefficients of rotated reference functions:
+ ============================================
+
+ State      Coefficients
+ 1           0.928465
+
+
+ RESULTS FOR STATE 1.1
+ =====================
+
+ Coefficient of reference function:   C(0) = 0.92745593 (fixed)   0.92745593 (relaxed)   0.92745593 (rotated)
+
+ Energy contributions of configuration classes
+
+ CLASS          SQ.NORM        ECORR1        ECORR2
+ +++++++++++++++++++++++++++++++++++++++++++++++++++
+ Internals    0.00487280   -0.48458925   -0.48458925
+ Singles      0.02969188    0.00000000    0.00000000
+ Pairs        0.12799011    0.00000000    0.00000000
+ Total        1.16255480   -0.48458925   -0.48458925
+ +++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+ Reference energy                    -834.65646608
+ Nuclear energy                        55.83308569
+ Kinetic energy                       835.05700760
+ One electron energy                -1262.94432177
+ Two electron energy                  371.97018075
+ Virial quotient                       -1.00010065
+ Correlation energy                    -0.48458925
+ !CI-F12 STATE 1.1 Energy            -835.141055331544
+
+ Properties without orbital relaxation:
+
+ !CI-F12 STATE 1.1 Dipole moment       -0.54035387    -0.37852212     0.02291476
+ Dipole moment /Debye                  -1.37344255    -0.96210726     0.05824352
+
+ Cluster corrected energies          -835.21982764 (Davidson, fixed reference)
+ Cluster corrected energies          -835.21982764 (Davidson, relaxed reference)
+ Cluster corrected energies          -835.21982764 (Davidson, rotated reference)
+
+ Cluster corrected energies          -835.22093687 (Pople, fixed reference)
+ Cluster corrected energies          -835.22093687 (Pople, relaxed reference)
+ Cluster corrected energies          -835.22093687 (Pople, rotated reference)
+
+ ? Error
+ ? strange..
+ ? The problem occurs in mrf12_singles.F90
+
+ GLOBAL ERROR fehler on processor   0
+CURRENT MRCI INPUT: {mrci-f12,scalf12=1,cabs_singles=2,thrden=1.d-8,thrvar=1.d-10;orbital,2140.2,type=natural;wf,41,1,1;state,1,1;refstate,6,1,2,3,4,5,6;option,nstati=6;option,maxit=2000,maxiti=2000,maxvi=60;option,cluster=0;}

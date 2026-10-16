@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "max_jobs": 2,
+  "purpose": "Test the documented coupled CABS treatment at the two failed asymptotes before preparing any dependent scans. This is a native implementation/energy diagnostic, not an accepted production remedy.",
+  "chains": [
+    {
+      "title": "ch3s_cs_atz_mrci_cabs3_gate",
+      "source_chain": "ch3s_cs_atz_mrci",
+      "points": ["far"],
+      "correlation_options": {"cabs_singles": 3},
+      "reason": "CABS=2 completed three doublets then failed on quartet root 1 after converged MRCI. Test CABS=3 for all six roots using the same original seed, geometry, reference manifold, thresholds and Davidson selector. No automatic follow-on points."
+    },
+    {
+      "title": "ch3ss_ss_atz_mrci_cabs3_gate",
+      "source_chain": "ch3ss_ss_atz_mrci",
+      "points": ["far"],
+      "correlation_options": {"cabs_singles": 3},
+      "reason": "CABS=1 failed orthogonalization and CABS=2 failed with strange.. after the same converged doublet-root-1 MRCI energy. Test the documented coupled treatment for all twelve roots with the same original seed and settings. The manual does not guarantee that it avoids the failing internal code. No automatic follow-on points."
+    }
+  ]
+}

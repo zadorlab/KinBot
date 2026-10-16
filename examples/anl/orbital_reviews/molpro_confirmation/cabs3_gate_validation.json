@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "checked_utc": "2026-10-16T17:10:48.281242+00:00",
+  "native_molpro_executed_locally": false,
+  "production_approved": false,
+  "pytest": {
+    "command": ".venv/bin/python -m pytest -q tests/test_molpro_confirmation_recovery.py tests/test_molpro_confirmation_package.py tests/test_molpro_solver.py",
+    "passed": 57
+  },
+  "shell_syntax_check": "bash -n examples/anl/orbital_reviews/molpro_confirmation/probe_cabs3_on_blodgett.sh",
+  "plan_sha256": "ca415e5e43cee486120c86310902cd073446b7eb830873642eb87e1025514ff3",
+  "source_review_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+  "failure_report_sha256": "e0925b339f344348542ae4345105671df7afb9410fb793ad073588bb8a9efc9e",
+  "checked_invariants": [
+    "Two jobs only; no dependent points",
+    "Six CH3S and twelve CH3SS S-S correlated roots",
+    "Original source seeds, geometry, bases and selected active spaces retained",
+    "Complete same-spin references and matching NSTATI/NSTATR",
+    "CLUSTER=0 and ENERGD(1) selection unchanged",
+    "104000 MB reservation and source exclusions retained",
+    "Source files unchanged",
+    "Both gate native input transformations preserve CABS=3 and existing solver limits"
+  ],
+  "limitations": [
+    "Tests exercise preparation and native-input transformation, not a Molpro calculation.",
+    "Both prior CABS=2 trials failed; CABS=3 has no demonstrated native success yet.",
+    "CABS=3 changes the coupled correction and still requires energy/state review and matched interaction checks before adoption."
+  ]
+}

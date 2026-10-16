@@ -1,5 +1,22 @@
 # Molpro confirmation: evidence, resolved cause and targeted recovery
 
+**Latest native-tail update, October 16:** both CABS=2 asymptotes have failed
+after converged MRCI. CH3S completes three doublet calls and fails on quartet
+root 1; S–S fails on doublet root 1. Both report `strange..` in
+`mrf12_singles.F90`, with matching NSTATI/NSTATR. CABS=2 is rejected for
+production in these tested conditions. The failed files remain evidence;
+their pre-CABS energies are not final results. The existing CASPT2 and
+MAXDAV20 chains continue independently. Two isolated CABS=3 asymptotes are
+prepared below; neither launches a dependent scan nor establishes a proven fix.
+
+The earlier 09:45:56 PDT monitor reported ten validated supplemental points,
+five running, ten waiting and one failure. No newer complete count is inferred
+from the subsequent two-job report. The historical
+[snapshot record](../examples/anl/orbital_reviews/molpro_confirmation/recovery_status_20261016_094556.json)
+and the subsequent [native-tail report](../examples/anl/orbital_reviews/molpro_confirmation/cabs2_failure_report_20261016.txt)
+are retained separately. The [structured review](../examples/anl/orbital_reviews/molpro_confirmation/cabs2_failure_review_20261016.json)
+records their provenance and the comparisons with the original native export.
+
 The selected minimum spaces remain **CH3S C–S (5,4), CH3SS C–S (7,5),
 CH3SS S–S (7,5)**. The original `_r2` run has 35 validated points, two failed
 points and two unsubmitted dependents. Numerical completion is not approval
@@ -181,7 +198,7 @@ near-redundancy in that later space is a plausible mechanism, but the log
 does not print its failed matrix/eigenvalues. The exact internal cause cannot
 be asserted from this output or the accessible documentation.
 
-**Remedy to validate:** use `cabs_singles: 2` for the complete S–S far→center→tilted
+**Original trial, now unsuccessful:** use `cabs_singles: 2` for the complete S–S far→center→tilted
 chain. This retains a CABS correction using the documented perturbational
 form instead of the failing singles-CI form. It is an approximation change,
 not just a numerical retry. Two already successful CH3S far/center geometries
@@ -212,12 +229,60 @@ Davidson plus its CABS correction. The fixed/rotated corrections are not read
 by mistake. The parser and selector are unchanged. The failed far-point's
 pre-CABS energy is not accepted as a finished MRCI-F12+Q result.
 
+### CABS=2 outcome and the bounded CABS=3 test
+
+| Far-point calculation | Failing call | NSTATI / NSTATR | Pre-CABS MRCI, Eh | Difference from original CABS=1 pre-CABS MRCI |
+|---|---|---|---:|---:|
+| CH3S C–S, CAS(5,4) | Fourth call; quartet root 1 | 3 / 3 | -437.405556015739 | -3.90e-10 Eh |
+| CH3SS S–S, CAS(7,5) | First call; doublet root 1 | 6 / 6 | -835.141055331544 | +2.0e-12 Eh |
+
+The first row rules out a blanket inability of CABS=2 to run any of these
+calls; the second rules out a quartet-only restriction. Both have the full
+declared reference manifold and the already repaired NSTATI/NSTATR equality.
+Their preceding MRCI energies reproduce the original calculation. The error
+therefore lies in the later correction stage, without evidence of a changed
+CAS, failed MRCI convergence, or cluster interruption. The earlier CABS basis
+construction completed with 273/348 vectors, respectively. Its metric
+eigenvalues do not diagnose the unprinted matrix in the failing later routine.
+
+The generic `strange..` message gives no condition, matrix, or offending
+index. Neither the manual nor accessible literature identifies this guard.
+An exact explanation requires the matching Molpro implementation or a
+developer diagnosis. Calling it a specific linear-dependence, spin, or
+reference-count bug would exceed the evidence. Repeating CABS=2 or increasing
+MRCI iterations would not address the observed failure.
+
+**Next controlled test:** `cabs_singles: 3`, documented as including couplings
+between CABS singles and the MRCI terms. This changes the correction treatment;
+it does not disable CABS or change the chosen CAS. The manual and the 2013
+review cited above justify considering this method, not claiming that it
+bypasses the failing routine. It may fail too. The
+[two-point plan](../examples/anl/orbital_reviews/molpro_confirmation/cabs3_gate_plan.json)
+uses the same original seeds, basis, geometry, root/reference lists, thresholds,
+SCALF12=1 and CLUSTER=0. MAXDAV remains unchanged for these controls. It tests
+all six CH3S and twelve S–S roots at 30 Å and contains no dependent points.
+No general KinBot method or parser change is needed.
+
+If both points complete, review every final selected energy, the native CABS
+treatment, state manifold and relaxed-Davidson convention before preparing
+the missing S–S interaction points and a matched CH3S interaction control.
+CABS=3 includes coupling, so do not assume its energy is a pre-CABS number
+plus the separately printed correction used for CABS=1. The old CABS=1
+energy-addition review is not a validation of CABS=3 output. A completed
+asymptote alone cannot establish accurate relative energies or spin splittings.
+If either gate fails, retain the exact native reproducer for implementation
+diagnosis; do not start another full scan or silently omit the correction.
+
 ## Waiting points and closure conditions
 
 S–S MRCI `atz__center` requires `atz__far`; `atz__tilted` requires `atz__center`.
-They have no submitted allocation/native output. Their waiting state follows
-the failed predecessor. The new three-point chain resolves the dependency by
-computing a consistent completed far checkpoint first, then propagating it.
+They had no submitted allocation/native output in `_r2`. Their waiting state
+followed the failed predecessor. In the recovery, the CABS=2 S–S far point
+also failed, so its center and tilted dependents remain blocked. The failed
+CH3S CABS=2 control blocks its center too: **three dependency-blocked points**
+in that supplement. Other waiting CASPT2 points follow their still-progressing
+orbital chains. Neither waiting label itself represents a new Molpro failure.
+The separate CABS=3 tests will not unfreeze or mutate those old chains.
 
 The [supplemental plan](../examples/anl/orbital_reviews/molpro_confirmation/recovery_plan.json)
 has 26 points in seven chains: four unresolved MRCI points, two matched CABS
@@ -231,7 +296,8 @@ Resolution requires actual completed outputs, not merely input preparation:
 
 1. MAXDAV20 must converge all six requested tilted MRCI roots, retain the
    selected subspace/state manifold and complete the final CABS/ENERGD steps.
-2. The three S–S CABS2 points must complete all twelve roots. The paired
+2. A CABS treatment must complete both all-root asymptote tests before
+   preparing a consistent S–S far/center/tilted chain. The paired CH3S
    control must quantify changes in dissociation-referenced interaction and
    doublet–quartet gaps, not merely total-energy offsets. A material change
    requires adopting one consistent reference protocol across channels and

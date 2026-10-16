@@ -1,5 +1,12 @@
 # Molpro confirmation: targeted resolution handoff
 
+**Latest native report:** both CABS=2 far points failed after converged MRCI.
+The proposed perturbational remedy is not accepted for production. Two
+isolated tests of the documented coupled treatment, CABS=3, are ready;
+native success is not yet established. Keep the running shared-reference
+CASPT2 and MAXDAV20 calculations and all completed results. See the updated
+[resolution record](docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
+
 The minimum supported spaces remain **CH3S C–S (5,4), CH3SS C–S (7,5),
 CH3SS S–S (7,5)**. The uploaded `_r2` run has **35 validated, two failed and two
 waiting points**. All 833 exported files passed checksum verification. The
@@ -8,36 +15,64 @@ reviewed. Full KinBot production has not started.
 
 The existing CH3S control resolves the large CASPT2 asymptotic splitting:
 **equal-weight same-spin reference averaging reduces it from 1.1748 to
-0.000144 kcal/mol, retaining IPEA=0.25 and real shift=0.3.** The new run confirms
-this reference policy on the current geometries/bases and on S–S. It preserves
-physical fragment excitation gaps. See the
+0.000144 kcal/mol, retaining IPEA=0.25 and real shift=0.3.** The running supplement
+tests this policy on the current geometries/bases and on S–S, including the
+requirement to preserve physical fragment excitation gaps. See the
 [evidence, causal analysis and literature](docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
 
-## Run the supplement on Blodgett
+## Run only the two CABS tests on Blodgett
 
 The user handles SSH. On the existing `composite` checkout:
 
 ```bash
 cd /home/hram/KinBot
 git pull --ff-only origin composite
-bash examples/anl/orbital_reviews/molpro_confirmation/retry_unvalidated_on_blodgett.sh
+bash examples/anl/orbital_reviews/molpro_confirmation/probe_cabs3_on_blodgett.sh
 ```
 
 This validates the source against the reviewed output/input/WFU hashes and
 refuses a live source controller or allocation. It cancels nothing, deletes
 nothing, and does not resubmit any old validated job. It prepares a sibling
-`minimum_active_space_molpro_confirmation_20261016_r2_recovery` directory.
+`minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates` directory.
 If the source changed since the reviewed export, the script stops before
 preparing a new run so that newer results are not silently ignored.
 
-**26 supplemental points, seven independent chains:**
+The two jobs are CH3S C–S and CH3SS S–S at 30 Å, aTZ-F12, respectively
+six and twelve correlated roots. Their only method change relative to the
+failed CABS=2 far-point trials is `CABS_SINGLES=3`. Original seeds, orbitals,
+references, convergence thresholds and relaxed-Davidson selection remain.
+No center/tilted calculations are queued by this plan. The coupled option
+is documented, but the manual does not promise it avoids the internal error.
+The exact `strange..` guard cannot be diagnosed from the available output.
+
+```bash
+watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates'
+```
+
+For native review after the two tests stop:
+
+```bash
+/home/hram/KinBot/.venv/bin/python \
+  examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py collect \
+  /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates \
+  --output /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_cabs3_gates.evidence.tar.gz
+```
+
+The two-test cap is separate from the running recovery. Its two failed CABS
+chains cannot submit dependents, leaving at most five independent chains
+progressing there. No new global scheduler/controller feature is introduced.
+If the gates succeed, review the final energies and then prepare consistent
+interaction checks; do not mix CABS=1 and CABS=3 dissociation zeros. If they
+fail, retain the native reproducer for Molpro implementation diagnosis.
+
+## Existing supplement: leave it running
+
+**26 supplemental points, seven independent chains, already launched:**
 
 - CH3S tilted MRCI: increase external Davidson capacity from 4 to 20; retain
   the method, CABS=1 and tolerances. Seed from the completed center WFU.
-- S–S MRCI far→center→tilted: use documented perturbational CABS=2 consistently.
-  The two old waiting points were blocked by the failed far predecessor.
-- CH3S MRCI far/center CABS=2 controls: compare relative energies/spin gaps
-  against completed CABS=1 results before accepting the approximation.
+- S–S MRCI CABS=2: far failed; center and tilted remain dependency-blocked.
+- CH3S MRCI CABS=2 control: far failed; center remains dependency-blocked.
 - CH3S and S–S CASPT2: five points in each of aDZ/aTZ with the shared-reference
   policy. Include far, center, inner, exact return and tilted points. No IPEA
   series or enlarged-space campaign. The CH3SS C–S policy is unchanged and
@@ -47,7 +82,10 @@ All choices are explicit in
 [recovery_plan.json](examples/anl/orbital_reviews/molpro_confirmation/recovery_plan.json).
 The original catalogue is historical evidence; its selected-root CASPT2 policy
 is superseded by this remedy. The default CABS setting in general KinBot is
-unchanged. The alternative is confined to explicitly configured checks.
+unchanged. The alternatives are confined to explicitly configured checks.
+The earlier 09:45:56 monitor counted 10 validated, 5 running, 10 waiting and
+1 failed; the later native-tail report adds the second CABS failure but does
+not provide an updated total for the other chains. Do not relaunch this supplement.
 
 ```bash
 watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery'
@@ -81,12 +119,12 @@ THRDEN=1e-8 and THRVAR=1e-10. Only the stalled external solve adds MAXDAV=20.
 |---|---|---|
 | 1 | Literature-grounded minimum active spaces | Local choices complete; unchanged by this method diagnosis |
 | 2 | ORCA chemical/radial/angular/return checks | Complete; 47 curated points retained |
-| 3 | aDZ/aTZ native Molpro confirmation | 35/39 reviewed; targeted remedies and changed-reference checks ready |
+| 3 | aDZ/aTZ native Molpro confirmation | 35/39 original points reviewed; CABS2 rejected, two CABS3 tests ready; other checks running |
 | 4 | General JSON controls | Orbital/state controls retained; explicit MAXDAV and MRCI CABS controls added/tested |
 | 5 | General orbital reconnaissance | Procedure updated; chemistry remains example data |
 | 6 | Complete production inputs | Counts configured; final orbital/surface/reference installation follows native closure |
 | 7 | User-run end-to-end production support | Still to follow, including bug fixes through completion |
-| 8 | Generality/integration audit | New controls and all 26 native-input transformation paths tested locally |
+| 8 | Generality/integration audit | Existing controls retained; 26 recovery and 2 CABS3 native-input transformations tested locally |
 | 9 | Reproducible evidence and conclusions | Original outputs/WFUs retained; hashed review and orbital map committed |
 | 10 | Repository cleanup inventory | Recorded; actual cleanup remains deferred |
 | 11 | Consolidated handoff | Targeted supplement above; production approval is not yet claimed |
@@ -112,7 +150,7 @@ with the ordinary KinBot inputs through CBH-ANL, RotdPy and MESS.
   `local_runs/qchem_casscf_20261015/reproducibility/orca_minimum_space_final_20261016.tar.gz`,
   SHA-256 `13762a1124092834313eee3bf463383f9c5658535351715dc4efdf981feca523`.
 
-Local validation cannot establish native success of the unrun MAXDAV/CABS
-remedies. The previous CH3S control does establish the reference-policy remedy
+Local validation cannot establish native success of the CABS=3 tests or
+completion of the MAXDAV retry. The previous CH3S control does establish the reference-policy remedy
 at its geometry; transfer across the current points is what the supplement
 checks. These distinctions are part of the handoff, not a promise of zero errors.

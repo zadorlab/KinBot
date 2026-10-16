@@ -1,11 +1,13 @@
 # Minimal native transfer confirmation
 
-**Current result: 35/39 points validated; targeted recovery and shared-reference
-CASPT2 confirmation are prepared.** Start with
+**Current result: 35/39 original points validated; targeted recovery and
+shared-reference CASPT2 confirmation are running. Both CABS=2 asymptote trials
+failed after converged MRCI.** Start with
 [the current handoff](../../../../MOLPRO_CONFIRMATION_HANDOFF.md) and
 [the evidence/resolution record](../../../../docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md).
-Use `retry_unvalidated_on_blodgett.sh` for the existing `_r2` run; do not rerun
-the historical full-restart command below. The catalogue
+Use `probe_cabs3_on_blodgett.sh` for the two isolated coupled-CABS tests;
+leave the running recovery alone. Do not rerun the historical full-restart
+or recovery-launch commands. The catalogue
 currently proposes (5,4), (7,5), (7,5) for CH3S C–S, CH3SS C–S and CH3SS S–S.
 All local minimum-space inward/return checks are complete. These files do
 not install or approve a production orbital/surface model.
@@ -54,8 +56,11 @@ The old (9,7) S–S far-point job converged its MRCI equations, printed Davidson
 values, then failed with `Orthogonalization problem` in `mrf12_singles.F90`.
 It is not a completed result. This error is not cured by increasing iteration
 limits. The documented perturbational alternative is 2 (3 is the coupled
-variant). The minimum-space `_r2` run reproduced the error, so the new recovery
-plan explicitly tests 2 with a consistent S–S chain and matched CABS controls.
+variant). The minimum-space `_r2` run reproduced the error. The recovery
+trial of 2 then failed in both asymptotes with `strange..` in the same routine;
+matching reference counts and converged MRCI were confirmed in both. The
+separate `cabs3_gate_plan.json` now tests 3 at those two geometries only, for
+all requested roots, before any further scans. It is not yet a proven remedy.
 The earlier decision to leave the default alone has been superseded by this
 native evidence and the user's request for a resolution. The official minimum-space far-point
 gates must establish actual success. If they reproduce this failure, retain

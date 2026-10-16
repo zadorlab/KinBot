@@ -90,7 +90,7 @@ return differences are 0.00000986, 0.00001097 and 0.00008911 kcal/mol, respectiv
 See [the decision and caveats](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md).
 No extra full-valence expansion is needed merely to match absolute energies.
 
-## 3. Minimal one-time Molpro confirmation — 35/39 validated; targeted resolution pending execution
+## 3. Minimal one-time Molpro confirmation — 35/39 validated; targeted resolution running
 
 - [x] Supply reproducible commands/configuration for **aDZ-F12 and aTZ-F12**
   CASPT2-F12 confirmation of the selected spaces on the same fixed geometries.
@@ -123,6 +123,17 @@ demonstrate that shared-reference CASPT2 removes the large CH3S splitting at
 IPEA 0.25/shift 0.3. The supplemental plan tests that policy on the current
 CH3S/S–S geometries in both bases and completes targeted MRCI recovery.
 These behaviours require demonstrated closure, not an indefinitely recorded warning.
+At 09:45:56 PDT on October 16 the user reports 10/26 supplemental points
+validated, five running, ten waiting and one failed CABS=2 CH3S control.
+The subsequent native report confirms **both** CABS=2 far points failed:
+CH3S quartet root 1 and S–S doublet root 1, after converged MRCI with matching
+NSTATI/NSTATR. CABS=2 is rejected for production in these conditions. Exact
+internal cause of `strange..` remains unavailable; no cluster fault is shown.
+The MAXDAV20 retry had progressed to root 2. Existing completed points and
+other running chains remain in place. A separate two-point CABS=3 test is
+prepared using the same spaces/references/thresholds, all 18 roots and no
+dependent scans. Native success and relative-energy checks remain required;
+neither the final CABS settings nor production readiness is claimed.
 
 ## 4. General user controls in KinBot JSON — locally audited and tested; native pending
 
@@ -237,10 +248,11 @@ Refresh after native production; no cleanup has been performed.
 
 The default MRCI convention remains `CABS_SINGLES=1`, `CLUSTER=0` (relaxed
 Davidson), selecting the final `ENERGD(1)` after CABS processing. The repeated
-minimum-space CABS failure now has an explicit CABS=2 recovery/control trial;
-the stalled external CI has a MAXDAV=20 trial. Neither changes the Davidson
-selector. The original run/results are preserved. These remedies need native
-completion before their settings can be approved for production.
+minimum-space CABS failure persisted in the CABS=2 recovery/control trial;
+the two-point CABS=3 test now isolates the remaining documented coupled
+treatment. The stalled external CI has a separate MAXDAV=20 trial. Neither
+changes the Davidson selector. All original run/results are preserved.
+Actual native completion and energy review are required before approval.
 
 ## Maintenance record
 

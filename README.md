@@ -98,6 +98,13 @@ To run a full PES search, make an input file (e.g. input.json) and run:
 
 You can find additional command line arguments in the manual. 
 
+SMILES inputs use RDKit with a fixed seed to generate the starting geometry.
+The same SMILES and RDKit version give the same starting stereoisomer and
+calculation name. Explicit tetrahedral and double-bond SMILES assignments are
+retained. Unspecified stereochemistry selects one reproducible starting
+structure; it does not request all stereoisomers. Supply coordinates to select
+a particular cumulene orientation. Coordinate inputs are not changed.
+
 ### Product complexes in MESS
 
 `me_skip_vdW` controls the final MESS network in both a single-well search and

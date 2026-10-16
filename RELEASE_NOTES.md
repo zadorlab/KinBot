@@ -49,6 +49,19 @@ specified and racemic rate ratios even when the complete mirror reactions
 should have equal rates. Axial identity support does not correct that separate
 normalization limit.
 
+### Reproducible stereoisomer names from SMILES
+
+SMILES inputs now use RDKit with a fixed embedding seed. Repeated runs from
+the same SMILES and RDKit version start with the same geometry and stereoisomer
+name, including when tetrahedral, double-bond or cumulene stereochemistry is
+unspecified. Explicit tetrahedral and double-bond SMILES assignments are retained;
+supplied coordinates are unchanged. This selects one starting stereoisomer, not
+all possible stereoisomers. Use stereochemical SMILES or coordinates to request
+a particular stereoisomer. An embedding failure asks for coordinates instead of
+falling back to a random geometry. Disconnected fragments are placed apart so
+the generated coordinates do not create false bonds between them. OpenBabel
+remains in use for other helpers.
+
 ## Stereochemistry and symmetry
 
 **Keep configured stereoisomers separate throughout a calculation.**
@@ -70,7 +83,7 @@ partly specified SMILES. It is not emitted for supplied coordinates.
 
 RDKit >= 2025.9.3 is required. KinBot selects its stereo-perception settings
 explicitly and records these settings and the RDKit version in the log.
-SMILES input still requires OpenBabel to generate the starting geometry.
+SMILES input uses RDKit to generate the starting geometry.
 An unsupported initial reactant stops before QC. An unsupported discovered
 reaction is omitted with a warning that the network is incomplete. Its
 calculation files remain available; unrelated reactions can continue.

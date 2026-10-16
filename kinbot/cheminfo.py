@@ -83,7 +83,8 @@ def create_rxn_depiction(react_smiles, prod_smiles, cdir, name):
 def generate_3d_structure(smi, obabel=1):
     """
     Method to generate the 3D coordinates of a molecule from its smiles
-    The default code is OpenBabel, RDKit can also be used.
+    The default helper uses OpenBabel. KinBot SMILES inputs use the seeded
+    RDKit path so that repeated runs start from the same stereoisomer.
     """
     structure = []
     if obabel:  # use OpenBabel
@@ -116,9 +117,32 @@ def generate_3d_structure(smi, obabel=1):
             structure += [sym, pos[0], pos[1], pos[2]]
         return obmol, structure, bond
     else:  # use RDKit
-        rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
-        AllChem.EmbedMolecule(rdmol, AllChem.ETKDG())
+        molecule = Chem.MolFromSmiles(smi)
+        if molecule is None:
+            raise ValueError(f'Cannot read SMILES {smi!r}; correct it or supply coordinates.')
+        rdmol = Chem.AddHs(molecule)
+        parameters = AllChem.ETKDG()
+        # An unspecified centre or cumulene must not acquire a different
+        # stereoisomer name merely because KinBot was started again.
+        parameters.randomSeed = 1
+        parameters.enforceChirality = True
+        if AllChem.EmbedMolecule(rdmol, parameters) < 0:
+            raise ValueError(f'Cannot generate coordinates for SMILES {smi!r}; '
+                             'supply coordinates in the structure input.')
         AllChem.MMFFOptimizeMolecule(rdmol)
+        # RDKit embeds disconnected fragments around the same origin. Keep
+        # them apart so coordinate-based bond detection cannot join them.
+        conformer = rdmol.GetConformer()
+        right_edge = None
+        for fragment in Chem.GetMolFrags(rdmol):
+            positions = [conformer.GetAtomPosition(i) for i in fragment]
+            if right_edge is not None:
+                shift = right_edge + 5. - min(pos.x for pos in positions)
+                for i, pos in zip(fragment, positions):
+                    pos.x += shift
+                    conformer.SetAtomPosition(i, pos)
+            right_edge = max(pos.x for pos in positions)
+        Chem.Kekulize(rdmol, clearAromaticFlags=True)
         atoms = rdmol.GetAtoms()
         bond = np.zeros((len(atoms), len(atoms)), dtype=int)
         for i in range(len(rdmol.GetAtoms())):

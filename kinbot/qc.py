@@ -1682,6 +1682,11 @@ class QuantumChemistry:
                     log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
+                # The Sella templates stamp 'done' in {job}_sella.log, the
+                # native ones in the code's own output. With use_sella both
+                # kinds of job run, so take the Sella log when it is there.
+                if getattr(self, 'use_sella', False) and os.path.exists(job + '_sella.log'):
+                    log_file = job + '_sella.log'
                 if self.qc != 'nn_pes':
                     log_file_exists = os.path.exists(log_file)
                 if log_file_exists:

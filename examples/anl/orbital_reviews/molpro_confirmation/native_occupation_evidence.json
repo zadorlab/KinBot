@@ -1,0 +1,2265 @@
+{
+  "schema": 1,
+  "purpose": "Native occupation and orbital-character evidence for the selected minimum subspaces; not final production approval.",
+  "occupation_convention": "Molpro NATURAL ORBITALS (STATE AVERAGED); eigenvalues of the state-averaged one-particle density, not state-specific CASPT2 populations.",
+  "coefficient_note": "Printed AO coefficients are qualitative orbital-character evidence, not orthogonalized population percentages.",
+  "parent_archive": "examples/anl/orbital_reviews/ch3s_ch3ss_orbital_review_20261015.tar.gz",
+  "parent_archive_sha256": "33ab9f2441168a90b462957be929b7f863f76bfaa5d0621a9d086f8510e8b5b5",
+  "parents": [
+    {
+      "case": "ch3s_cs",
+      "archive_member": "02_recon/avt_f12__cs_r_30/avt_f12__cs_r_30.out",
+      "output_sha256": "164f93d62783cf7cbc96a1eca32c286f56c260bb69e8bd098d6c94a381917229",
+      "natural_table": [
+        {
+          "orbital": "7.1",
+          "occupation": 2.0,
+          "energy_hartree": -0.54916,
+          "printed_coefficients": "1  1  py   0.68016    3  1  s   -0.29871    4  1  s   -0.41151    5  1  s    0.71021"
+        },
+        {
+          "orbital": "8.1",
+          "occupation": 2.0,
+          "energy_hartree": -0.54916,
+          "printed_coefficients": "1  1  pz   0.68038    3  1  s   -0.64763    4  1  s    0.58250"
+        },
+        {
+          "orbital": "9.1",
+          "occupation": 2.0,
+          "energy_hartree": -0.87953,
+          "printed_coefficients": "2  3  s    0.99850"
+        },
+        {
+          "orbital": "10.1",
+          "occupation": 2.0,
+          "energy_hartree": -0.90019,
+          "printed_coefficients": "1  2  s    0.79040    3  1  s    0.40926    4  1  s    0.40926    5  1  s    0.40926"
+        },
+        {
+          "orbital": "11.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28309,
+          "printed_coefficients": "2  2  pz   1.00215"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28309,
+          "printed_coefficients": "2  2  px   1.00614"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28309,
+          "printed_coefficients": "2  2  py   1.00172"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 1.0,
+          "energy_hartree": -0.14048,
+          "printed_coefficients": "1  2  s    0.33985    1  1  px   0.85886"
+        }
+      ]
+    },
+    {
+      "case": "ch3ss_cs",
+      "archive_member": "05_recon/avt_f12__cs_r_30/avt_f12__cs_r_30.out",
+      "output_sha256": "6d610bd3b3692736822616ab198028d4e9bae4299d10eafd937112d0671886db",
+      "natural_table": [
+        {
+          "orbital": "12.1",
+          "occupation": 2.0,
+          "energy_hartree": -0.54968,
+          "printed_coefficients": "1  1  pz   0.67803    4  1  s   -0.61752    5  1  s    0.61763"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 2.0,
+          "energy_hartree": -0.54763,
+          "printed_coefficients": "1  1  px  -0.39444    1  1  py   0.55235    4  1  s   -0.36146    5  1  s   -0.36128 6  1  s    0.70740"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 2.0,
+          "energy_hartree": -0.90035,
+          "printed_coefficients": "1  2  s    0.78964    4  1  s    0.40407    5  1  s    0.40407    6  1  s    0.41993"
+        },
+        {
+          "orbital": "15.1",
+          "occupation": 1.99871,
+          "energy_hartree": -0.99855,
+          "printed_coefficients": "2  3  s    0.67085    3  3  s    0.67085"
+        },
+        {
+          "orbital": "16.1",
+          "occupation": 1.99615,
+          "energy_hartree": -0.81664,
+          "printed_coefficients": "2  3  s    0.72069    3  3  s   -0.72069"
+        },
+        {
+          "orbital": "17.1",
+          "occupation": 1.94578,
+          "energy_hartree": -0.43283,
+          "printed_coefficients": "2  2  pz   0.65987    3  2  pz   0.65987"
+        },
+        {
+          "orbital": "18.1",
+          "occupation": 1.94578,
+          "energy_hartree": -0.43283,
+          "printed_coefficients": "2  2  px   0.51288    2  2  py   0.42232    3  2  px   0.51406    3  2  py   0.42090"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.94564,
+          "energy_hartree": -0.5028,
+          "printed_coefficients": "2  2  px  -0.38611    2  2  py   0.46382    3  2  px   0.38454    3  2  py  -0.46512"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.05334,
+          "energy_hartree": -0.20916,
+          "printed_coefficients": "2  2  px   0.59506    2  2  py   0.48861    3  2  px  -0.59506    3  2  py  -0.48861"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.05334,
+          "energy_hartree": -0.20916,
+          "printed_coefficients": "2  2  pz   0.76472    3  2  pz  -0.76472"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.0,
+          "energy_hartree": -0.14121,
+          "printed_coefficients": "1  2  s    0.34304    1  1  px   0.69840    1  1  py   0.49799"
+        },
+        {
+          "orbital": "23.1",
+          "occupation": 0.06127,
+          "energy_hartree": 0.16705,
+          "printed_coefficients": "2  3  s    0.27360    2  2  px   0.61306    2  2  py  -0.73899    3  3  s   -0.27360 3  2  px   0.61306    3  2  py  -0.73899"
+        }
+      ]
+    },
+    {
+      "case": "ch3ss_ss",
+      "archive_member": "08_recon/avt_f12__ss_r_30/avt_f12__ss_r_30.out",
+      "output_sha256": "acfac3372e4979aa48a21429470cfb65d9f1cd832a8201c298a7c1e8462ab564",
+      "natural_table": [
+        {
+          "orbital": "12.1",
+          "occupation": 2.0,
+          "energy_hartree": -0.87959,
+          "printed_coefficients": "3  3  s    0.99850"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.99981,
+          "energy_hartree": -0.98471,
+          "printed_coefficients": "1  2  s   -0.73776    4  1  s   -0.41343    5  1  s   -0.41344    6  1  s   -0.41529"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 1.99945,
+          "energy_hartree": -0.59464,
+          "printed_coefficients": "1  1  pz   0.67768    4  1  s   -0.59520    5  1  s    0.59520"
+        },
+        {
+          "orbital": "15.1",
+          "occupation": 1.99943,
+          "energy_hartree": -0.5926,
+          "printed_coefficients": "1  1  px  -0.39638    1  1  py   0.55028    4  1  s   -0.34307    5  1  s   -0.34307 6  1  s    0.68638"
+        },
+        {
+          "orbital": "16.1",
+          "occupation": 1.99794,
+          "energy_hartree": -0.84773,
+          "printed_coefficients": "2  3  s    0.96742"
+        },
+        {
+          "orbital": "17.1",
+          "occupation": 1.97266,
+          "energy_hartree": -0.55646,
+          "printed_coefficients": "1  2  s   -0.29021    1  1  px  -0.46217    1  1  py  -0.33069    2  2  px   0.50641 2  2  py   0.37294"
+        },
+        {
+          "orbital": "18.1",
+          "occupation": 1.50018,
+          "energy_hartree": -0.27839,
+          "printed_coefficients": "2  2  px  -0.58538    2  2  py   0.78931"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.50017,
+          "energy_hartree": -0.27875,
+          "printed_coefficients": "2  2  pz   0.98181"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28315,
+          "printed_coefficients": "3  2  py   0.99958"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28315,
+          "printed_coefficients": "3  2  px   1.00559"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28315,
+          "printed_coefficients": "3  2  pz   0.99885"
+        },
+        {
+          "orbital": "23.1",
+          "occupation": 0.03036,
+          "energy_hartree": 0.37164,
+          "printed_coefficients": "1  2  s    0.55492    1  5  s    0.38312    1  1  px   0.71780    1  1  py   0.51503 2  3  s   -0.34335    2  6  s   -0.44583    2  2  px   0.82996    2  2  py   0.60946"
+        }
+      ]
+    }
+  ],
+  "confirmed_points": [
+    {
+      "chain": "ch3ss_cs_adz_caspt2",
+      "point": "adz__far",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_adz_caspt2/adz__far/adz__far.out",
+      "output_sha256": "1a18b964ec9543a59d33400386300245f23612de55ccf7b8cebb1bccaca62e7c",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.95772,
+          "energy_hartree": -0.46713,
+          "printed_coefficients": "2  2  pz  -0.66904    3  2  pz  -0.66904"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.95772,
+          "energy_hartree": -0.46713,
+          "printed_coefficients": "2  2  px   0.52063    2  2  py   0.42745    3  2  px   0.52063    3  2  py   0.42745"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.04228,
+          "energy_hartree": -0.18437,
+          "printed_coefficients": "2  2  px   0.58998    2  2  py   0.48882    3  2  px  -0.58998    3  2  py  -0.48882"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.04228,
+          "energy_hartree": -0.18437,
+          "printed_coefficients": "2  2  pz   0.76097    3  2  pz  -0.76097"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.0,
+          "energy_hartree": -0.11018,
+          "printed_coefficients": "1  1  px   0.72961    1  1  py   0.51995"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.46713,
+          "occupation": 1.95772,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  pz  -0.66926    3  2  pz  -0.66926"
+        },
+        {
+          "energy_hartree": -0.46713,
+          "occupation": 1.95772,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  px   0.52039    2  2  py   0.42808    3  2  px   0.52039    3  2  py   0.42808"
+        },
+        {
+          "energy_hartree": -0.18437,
+          "occupation": 1.04228,
+          "orbital": "20.1",
+          "printed_coefficients": "2  2  pz   0.76047    3  2  pz  -0.76047"
+        },
+        {
+          "energy_hartree": -0.18437,
+          "occupation": 1.04228,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  px   0.59138    2  2  py   0.48634    3  2  px  -0.59138    3  2  py  -0.48634"
+        },
+        {
+          "energy_hartree": -0.11018,
+          "occupation": 1.0,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.72961    1  1  py   0.51995"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_adz_caspt2",
+      "point": "adz__center",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_adz_caspt2/adz__center/adz__center.out",
+      "output_sha256": "9b403b37a6db30777ea3233d32bd0005bb0e18b64ac84011a76bbbbd21750972",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.95786,
+          "energy_hartree": -0.46469,
+          "printed_coefficients": "2  2  px   0.50156    2  2  py   0.41102    3  2  px   0.52912    3  2  py   0.43384"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.9574,
+          "energy_hartree": -0.46397,
+          "printed_coefficients": "2  2  pz  -0.67544    3  2  pz  -0.65918"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.13464,
+          "energy_hartree": -0.17902,
+          "printed_coefficients": "1  1  px  -0.45112    1  1  py  -0.30848    2  2  px   0.41971    2  2  py   0.35638 3  2  px  -0.46394    3  2  py  -0.38623"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.04259,
+          "energy_hartree": -0.18153,
+          "printed_coefficients": "2  2  pz   0.75074    3  2  pz  -0.76553"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.9075,
+          "energy_hartree": -0.10699,
+          "printed_coefficients": "1  1  px   0.58311    1  1  py   0.42432    2  2  px   0.44088    2  2  py   0.34378 3  2  px  -0.34097    3  2  py  -0.26839"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.46495,
+          "occupation": 1.95715,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px   0.50663    2  2  py   0.41571    3  2  px   0.52123    3  2  py   0.42708"
+        },
+        {
+          "energy_hartree": -0.46397,
+          "occupation": 1.95739,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz  -0.67321    3  2  pz  -0.66145"
+        },
+        {
+          "energy_hartree": -0.19021,
+          "occupation": 1.10763,
+          "orbital": "20.1",
+          "printed_coefficients": "2  2  px   0.53658    2  2  py   0.44530    3  2  px  -0.56380    3  2  py  -0.46387"
+        },
+        {
+          "energy_hartree": -0.18152,
+          "occupation": 1.0426,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.75273    3  2  pz  -0.76357"
+        },
+        {
+          "energy_hartree": -0.09554,
+          "occupation": 0.93523,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.70289    1  1  py   0.50440    2  2  px   0.27842"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_adz_caspt2",
+      "point": "adz__inner",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_adz_caspt2/adz__inner/adz__inner.out",
+      "output_sha256": "3b2700ac210d0a6177c1ce164275a54edbe63999ef72e53faf93ea822ce97697",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.97053,
+          "energy_hartree": -0.49617,
+          "printed_coefficients": "1  1  px  -0.27757    1  1  py  -0.27320    2  2  px   0.53599    2  2  py   0.42295 3  2  px   0.33935    3  2  py   0.33857"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.93003,
+          "energy_hartree": -0.44758,
+          "printed_coefficients": "2  2  pz  -0.69841    3  2  pz  -0.63407"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.50731,
+          "energy_hartree": -0.28919,
+          "printed_coefficients": "1  1  px  -0.34688    2  2  py   0.26879    3  2  px  -0.65356    3  2  py  -0.52159"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.06969,
+          "energy_hartree": -0.18251,
+          "printed_coefficients": "2  2  pz   0.72605    3  2  pz  -0.77381"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.52243,
+          "energy_hartree": 0.0772,
+          "printed_coefficients": "1  4  s    0.25047    1  1  px   0.48684    1  1  py   0.41368    1  4  px   0.31192 2  5  s   -0.27914    2  6  s   -0.25312    2  2  px   0.74859    2  2  py   0.28971 2  3  px   0.33942    2  4  px   0.26095    3  2  py  -0.25417"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.49654,
+          "occupation": 1.96971,
+          "orbital": "18.1",
+          "printed_coefficients": "1  1  px  -0.29357    1  1  py  -0.28181    2  2  px   0.53977    2  2  py   0.43267 3  2  px   0.31218    3  2  py   0.31755"
+        },
+        {
+          "energy_hartree": -0.44771,
+          "occupation": 1.92959,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz  -0.68193    3  2  pz  -0.65129"
+        },
+        {
+          "energy_hartree": -0.2889,
+          "occupation": 1.50791,
+          "orbital": "20.1",
+          "printed_coefficients": "1  1  px  -0.32812    2  2  py   0.25510    3  2  px  -0.66808    3  2  py  -0.53875"
+        },
+        {
+          "energy_hartree": -0.18238,
+          "occupation": 1.07013,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.74156    3  2  pz  -0.75937"
+        },
+        {
+          "energy_hartree": 0.07728,
+          "occupation": 0.52265,
+          "orbital": "22.1",
+          "printed_coefficients": "1  4  s    0.25054    1  1  px   0.49045    1  1  py   0.41491    1  4  px   0.31312 2  5  s   -0.28099    2  6  s   -0.25491    2  2  px   0.74845    2  2  py   0.28774 2  3  px   0.33944    2  4  px   0.26129"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_adz_caspt2",
+      "point": "adz__return",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_adz_caspt2/adz__return/adz__return.out",
+      "output_sha256": "3e0d41eec017ee932bfa54ed22d93a24e1beb22cc3caca7f69c3ddc7e41a60e1",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.95786,
+          "energy_hartree": -0.46469,
+          "printed_coefficients": "2  2  px   0.50156    2  2  py   0.41102    3  2  px   0.52912    3  2  py   0.43384"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.9574,
+          "energy_hartree": -0.46397,
+          "printed_coefficients": "2  2  pz  -0.67544    3  2  pz  -0.65918"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.13464,
+          "energy_hartree": -0.17902,
+          "printed_coefficients": "1  1  px  -0.45112    1  1  py  -0.30848    2  2  px   0.41971    2  2  py   0.35638 3  2  px  -0.46394    3  2  py  -0.38623"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.04259,
+          "energy_hartree": -0.18153,
+          "printed_coefficients": "2  2  pz   0.75074    3  2  pz  -0.76553"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.9075,
+          "energy_hartree": -0.10699,
+          "printed_coefficients": "1  1  px   0.58311    1  1  py   0.42432    2  2  px   0.44088    2  2  py   0.34378 3  2  px  -0.34097    3  2  py  -0.26839"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.46495,
+          "occupation": 1.95715,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px   0.50662    2  2  py   0.41571    3  2  px   0.52123    3  2  py   0.42708"
+        },
+        {
+          "energy_hartree": -0.46397,
+          "occupation": 1.95739,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz  -0.67321    3  2  pz  -0.66145"
+        },
+        {
+          "energy_hartree": -0.19021,
+          "occupation": 1.10763,
+          "orbital": "20.1",
+          "printed_coefficients": "2  2  px   0.53657    2  2  py   0.44530    3  2  px  -0.56380    3  2  py  -0.46387"
+        },
+        {
+          "energy_hartree": -0.18152,
+          "occupation": 1.0426,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.75273    3  2  pz  -0.76357"
+        },
+        {
+          "energy_hartree": -0.09554,
+          "occupation": 0.93523,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.70289    1  1  py   0.50440    2  2  px   0.27842"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_adz_caspt2",
+      "point": "adz__tilted",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_adz_caspt2/adz__tilted/adz__tilted.out",
+      "output_sha256": "ab142930b4d4a79c6a19c7e34101c62f1455331fa5c955030bf57a5160fae3ec",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.95777,
+          "energy_hartree": -0.46477,
+          "printed_coefficients": "2  2  px   0.49853    2  2  py   0.41752    3  2  px   0.52374    3  2  py   0.43799"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.95734,
+          "energy_hartree": -0.46437,
+          "printed_coefficients": "2  2  pz  -0.67470    3  2  pz  -0.65972"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.11808,
+          "energy_hartree": -0.17642,
+          "printed_coefficients": "1  1  px  -0.45696    2  2  px   0.42572    2  2  py   0.36773    3  2  px  -0.46647 3  2  py  -0.39587"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.04265,
+          "energy_hartree": -0.18198,
+          "printed_coefficients": "2  2  pz   0.75093    3  2  pz  -0.76456"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.92416,
+          "energy_hartree": -0.11064,
+          "printed_coefficients": "1  1  px   0.60736    1  1  py   0.27468    1  1  pz  -0.28797    2  2  px   0.42379 2  2  py   0.34055    3  2  px  -0.32930    3  2  py  -0.26814"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.465,
+          "occupation": 1.95714,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px   0.50578    2  2  py   0.41906    3  2  px   0.51977    3  2  py   0.42960"
+        },
+        {
+          "energy_hartree": -0.46437,
+          "occupation": 1.95734,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz  -0.67340    3  2  pz  -0.66248"
+        },
+        {
+          "energy_hartree": -0.18827,
+          "occupation": 1.09232,
+          "orbital": "20.1",
+          "printed_coefficients": "2  2  px   0.54437    2  2  py   0.45877    3  2  px  -0.56519    3  2  py  -0.47293"
+        },
+        {
+          "energy_hartree": -0.18197,
+          "occupation": 1.04268,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.75334    3  2  pz  -0.76346"
+        },
+        {
+          "energy_hartree": -0.09856,
+          "occupation": 0.95052,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.73205    1  1  py   0.32125    1  1  pz  -0.34830"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_atz_caspt2",
+      "point": "atz__far",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_atz_caspt2/atz__far/atz__far.out",
+      "output_sha256": "a0de2bbbdb5f635168b82059293c245f486f2ab70395bb7a584d00efe93ce799",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.95828,
+          "energy_hartree": -0.46708,
+          "printed_coefficients": "2  2  px   0.48456    2  2  py   0.37657    3  2  px   0.48456    3  2  py   0.37657"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.95828,
+          "energy_hartree": -0.46708,
+          "printed_coefficients": "2  2  pz  -0.60920    3  2  pz  -0.60920"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.04172,
+          "energy_hartree": -0.18397,
+          "printed_coefficients": "2  2  pz   0.76087    3  2  pz  -0.76087"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.04172,
+          "energy_hartree": -0.18397,
+          "printed_coefficients": "2  2  px   0.59358    2  2  py   0.48432    3  2  px  -0.59358    3  2  py  -0.48432"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.0,
+          "energy_hartree": -0.1104,
+          "printed_coefficients": "1  1  px   0.73539    1  1  py   0.52407"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.46708,
+          "occupation": 1.95828,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  pz  -0.63117    3  2  pz  -0.63117"
+        },
+        {
+          "energy_hartree": -0.46708,
+          "occupation": 1.95828,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  px   0.49098    2  2  py   0.40347    3  2  px   0.49098    3  2  py   0.40348"
+        },
+        {
+          "energy_hartree": -0.18397,
+          "occupation": 1.04172,
+          "orbital": "20.1",
+          "printed_coefficients": "2  2  pz   0.76196    3  2  pz  -0.76196"
+        },
+        {
+          "energy_hartree": -0.18397,
+          "occupation": 1.04172,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  px   0.59301    2  2  py   0.48673    3  2  px  -0.59301    3  2  py  -0.48673"
+        },
+        {
+          "energy_hartree": -0.1104,
+          "occupation": 1.0,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.73539    1  1  py   0.52407"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_atz_caspt2",
+      "point": "atz__center",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_atz_caspt2/atz__center/atz__center.out",
+      "output_sha256": "297feb34cee6f563b28f6c56119e6d2b949cbeab2e214142fef15959b0e44caf",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.95843,
+          "energy_hartree": -0.46462,
+          "printed_coefficients": "2  2  px   0.47618    2  2  py   0.38639    3  2  px   0.50209    3  2  py   0.41239"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.95798,
+          "energy_hartree": -0.46391,
+          "printed_coefficients": "2  2  pz  -0.63846    3  2  pz  -0.61964"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.13442,
+          "energy_hartree": -0.17892,
+          "printed_coefficients": "1  1  px  -0.45594    1  1  py  -0.31165    2  2  px   0.42421    2  2  py   0.36159 3  2  px  -0.46934    3  2  py  -0.38887"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.04201,
+          "energy_hartree": -0.18113,
+          "printed_coefficients": "2  2  pz   0.75355    3  2  pz  -0.76703"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.90716,
+          "energy_hartree": -0.10709,
+          "printed_coefficients": "1  1  px   0.58718    1  1  py   0.42765    2  2  px   0.44169    2  2  py   0.33764 3  2  px  -0.34257    3  2  py  -0.27320"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.46489,
+          "occupation": 1.95771,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px   0.48145    2  2  py   0.39138    3  2  px   0.49399    3  2  py   0.40554"
+        },
+        {
+          "energy_hartree": -0.46392,
+          "occupation": 1.95797,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz  -0.63618    3  2  pz  -0.62196"
+        },
+        {
+          "energy_hartree": -0.18993,
+          "occupation": 1.10765,
+          "orbital": "20.1",
+          "printed_coefficients": "2  2  px   0.54101    2  2  py   0.44812    3  2  px  -0.56873    3  2  py  -0.46747"
+        },
+        {
+          "energy_hartree": -0.18113,
+          "occupation": 1.04202,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.75548    3  2  pz  -0.76514"
+        },
+        {
+          "energy_hartree": -0.09581,
+          "occupation": 0.93465,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.70800    1  1  py   0.50838    2  2  px   0.27803"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_atz_caspt2",
+      "point": "atz__inner",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_atz_caspt2/atz__inner/atz__inner.out",
+      "output_sha256": "d3c29dfb3c44f5513e73b1e3ed989cc82ed3fdcfae6132b4cd29f5b815adec3e",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.97064,
+          "energy_hartree": -0.4955,
+          "printed_coefficients": "1  1  px  -0.28402    1  1  py  -0.27761    2  2  px   0.48149    2  2  py   0.40626 3  2  px   0.33298    3  2  py   0.33414"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.93072,
+          "energy_hartree": -0.44763,
+          "printed_coefficients": "2  2  pz  -0.65820    3  2  pz  -0.59124"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.50723,
+          "energy_hartree": -0.28915,
+          "printed_coefficients": "1  1  px  -0.34824    2  2  py   0.29011    3  2  px  -0.67320    3  2  py  -0.52638"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.06898,
+          "energy_hartree": -0.18214,
+          "printed_coefficients": "2  2  pz   0.73664    3  2  pz  -0.77355"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.52243,
+          "energy_hartree": 0.07733,
+          "printed_coefficients": "1  1  px   0.47961    1  1  py   0.41150    2  2  px   0.71441    2  5  px   0.30206"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.49589,
+          "occupation": 1.96977,
+          "orbital": "18.1",
+          "printed_coefficients": "1  1  px  -0.30062    1  1  py  -0.28653    2  2  px   0.48697    2  2  py   0.41735 3  2  px   0.30420    3  2  py   0.31228"
+        },
+        {
+          "energy_hartree": -0.44776,
+          "occupation": 1.9303,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz  -0.64185    3  2  pz  -0.60811"
+        },
+        {
+          "energy_hartree": -0.28884,
+          "occupation": 1.50788,
+          "orbital": "20.1",
+          "printed_coefficients": "1  1  px  -0.32907    2  2  py   0.27577    3  2  px  -0.68802    3  2  py  -0.54361"
+        },
+        {
+          "energy_hartree": -0.18202,
+          "occupation": 1.0694,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.75094    3  2  pz  -0.76036"
+        },
+        {
+          "energy_hartree": 0.07741,
+          "occupation": 0.52265,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.48302    1  1  py   0.41258    2  2  px   0.71375    2  5  px   0.30170"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_atz_caspt2",
+      "point": "atz__return",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_atz_caspt2/atz__return/atz__return.out",
+      "output_sha256": "cd92c44dc9f86b8396d9e457a6e24bc6a01ac6b593493c35cedcfad53cfd263a",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.95843,
+          "energy_hartree": -0.46462,
+          "printed_coefficients": "2  2  px   0.47618    2  2  py   0.38639    3  2  px   0.50209    3  2  py   0.41238"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.95798,
+          "energy_hartree": -0.46391,
+          "printed_coefficients": "2  2  pz  -0.63846    3  2  pz  -0.61964"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.13442,
+          "energy_hartree": -0.17892,
+          "printed_coefficients": "1  1  px  -0.45594    1  1  py  -0.31165    2  2  px   0.42421    2  2  py   0.36159 3  2  px  -0.46934    3  2  py  -0.38887"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.04201,
+          "energy_hartree": -0.18113,
+          "printed_coefficients": "2  2  pz   0.75355    3  2  pz  -0.76703"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.90716,
+          "energy_hartree": -0.10709,
+          "printed_coefficients": "1  1  px   0.58718    1  1  py   0.42765    2  2  px   0.44169    2  2  py   0.33764 3  2  px  -0.34257    3  2  py  -0.27320"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.46489,
+          "occupation": 1.95771,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px   0.48145    2  2  py   0.39138    3  2  px   0.49399    3  2  py   0.40554"
+        },
+        {
+          "energy_hartree": -0.46392,
+          "occupation": 1.95797,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz  -0.63618    3  2  pz  -0.62196"
+        },
+        {
+          "energy_hartree": -0.18993,
+          "occupation": 1.10765,
+          "orbital": "20.1",
+          "printed_coefficients": "2  2  px   0.54101    2  2  py   0.44812    3  2  px  -0.56873    3  2  py  -0.46747"
+        },
+        {
+          "energy_hartree": -0.18113,
+          "occupation": 1.04202,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.75548    3  2  pz  -0.76514"
+        },
+        {
+          "energy_hartree": -0.09581,
+          "occupation": 0.93465,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.70800    1  1  py   0.50838    2  2  px   0.27803"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_cs_atz_caspt2",
+      "point": "atz__tilted",
+      "native_output": "local_runs/molpro_confirmation_r2_review/ch3ss_cs_atz_caspt2/atz__tilted/atz__tilted.out",
+      "output_sha256": "b782eba3b967abfacbfdc0c4f53da6c68efd6a9f2cfefe1ec194dca1ce16f35f",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_r2_review.json",
+      "source_audit_sha256": "bb813ed4b1f9433f0c5ce8b9ffc832106889f3c8d5a0bbe66409ed092f94f965",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.95834,
+          "energy_hartree": -0.4647,
+          "printed_coefficients": "2  2  px   0.47352    2  2  py   0.39327    3  2  px   0.49721    3  2  py   0.41693"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.95793,
+          "energy_hartree": -0.46432,
+          "printed_coefficients": "2  2  pz  -0.63772    3  2  pz  -0.62043"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.11786,
+          "energy_hartree": -0.17628,
+          "printed_coefficients": "1  1  px  -0.46197    2  2  px   0.42927    2  2  py   0.37152    3  2  px  -0.47035 3  2  py  -0.39844"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.04207,
+          "energy_hartree": -0.18158,
+          "printed_coefficients": "2  2  pz   0.75342    3  2  pz  -0.76611"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.92381,
+          "energy_hartree": -0.11078,
+          "printed_coefficients": "1  1  px   0.61158    1  1  py   0.27705    1  1  pz  -0.28995    2  2  px   0.42585 2  2  py   0.33575    3  2  px  -0.33177    3  2  py  -0.27231"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.46493,
+          "occupation": 1.9577,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px   0.47854    2  2  py   0.39726    3  2  px   0.49066    3  2  py   0.41061"
+        },
+        {
+          "energy_hartree": -0.46432,
+          "occupation": 1.95792,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz  -0.63585    3  2  pz  -0.62274"
+        },
+        {
+          "energy_hartree": -0.18796,
+          "occupation": 1.09228,
+          "orbital": "20.1",
+          "printed_coefficients": "2  2  px   0.54814    2  2  py   0.46080    3  2  px  -0.56889    3  2  py  -0.47662"
+        },
+        {
+          "energy_hartree": -0.18157,
+          "occupation": 1.04209,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.75567    3  2  pz  -0.76497"
+        },
+        {
+          "energy_hartree": -0.09886,
+          "occupation": 0.95001,
+          "orbital": "22.1",
+          "printed_coefficients": "1  1  px   0.73752    1  1  py   0.32398    1  1  pz  -0.35096"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_adz_caspt2_shared_reference",
+      "point": "adz__far",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_adz_caspt2_shared_reference/adz__far/adz__far.out",
+      "output_sha256": "bb8d7692aa72b4b8a4356c3b4bf5b60656d63ef18b15740e258361a1a309e550",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.2834,
+          "printed_coefficients": "2  2  px   0.67960    2  2  py   0.72990"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.2834,
+          "printed_coefficients": "2  2  pz   0.98953"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.2834,
+          "printed_coefficients": "2  2  px   0.74614    2  2  py  -0.66827"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 1.0,
+          "energy_hartree": -0.11019,
+          "printed_coefficients": "1  1  px   0.89610"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.2834,
+          "occupation": 1.33333,
+          "orbital": "11.1",
+          "printed_coefficients": "2  2  py   1.00834"
+        },
+        {
+          "energy_hartree": -0.2834,
+          "occupation": 1.33333,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  pz   1.00833"
+        },
+        {
+          "energy_hartree": -0.2834,
+          "occupation": 1.33333,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  px   1.00917"
+        },
+        {
+          "energy_hartree": -0.11019,
+          "occupation": 1.0,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.89610"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_adz_caspt2_shared_reference",
+      "point": "adz__center",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_adz_caspt2_shared_reference/adz__center/adz__center.out",
+      "output_sha256": "76e177958fcc1a43cd1accd5e5c66960282e5772f3d97b3d4abd58e5970d762a",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.41641,
+          "energy_hartree": -0.29073,
+          "printed_coefficients": "1  1  px  -0.30538    2  2  px   0.89988"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.277,
+          "printed_coefficients": "2  2  py  -0.77088    2  2  pz   0.64145"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.277,
+          "printed_coefficients": "2  2  py   0.64148    2  2  pz   0.77130"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 0.91697,
+          "energy_hartree": -0.09059,
+          "printed_coefficients": "1  1  px   0.85475    2  2  px   0.44461"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.29248,
+          "occupation": 1.41211,
+          "orbital": "11.1",
+          "printed_coefficients": "2  2  px   0.93722"
+        },
+        {
+          "energy_hartree": -0.277,
+          "occupation": 1.33331,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py  -0.73961    2  2  pz   0.67729"
+        },
+        {
+          "energy_hartree": -0.277,
+          "occupation": 1.33331,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  py   0.67730    2  2  pz   0.74003"
+        },
+        {
+          "energy_hartree": -0.08884,
+          "occupation": 0.92126,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.87938    2  2  px   0.35926"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_adz_caspt2_shared_reference",
+      "point": "adz__inner",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_adz_caspt2_shared_reference/adz__inner/adz__inner.out",
+      "output_sha256": "b7d6beca2d416a49749d8308e44b99bfdb72d4562ee219f72378f867a4a7b63a",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.4975,
+          "energy_hartree": -0.28222,
+          "printed_coefficients": "2  2  py  -0.76210    2  2  pz   0.60402"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.4975,
+          "energy_hartree": -0.28222,
+          "printed_coefficients": "2  2  py   0.60406    2  2  pz   0.76250"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.47625,
+          "energy_hartree": -0.36433,
+          "printed_coefficients": "1  1  px  -0.57445    2  2  px   0.65825"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 0.52875,
+          "energy_hartree": 0.10123,
+          "printed_coefficients": "1  1  px   0.70296    1  4  px   0.26372    2  3  s   -0.26625    2  5  s   -0.32341 2  6  s   -0.29194    2  2  px   0.80318    2  3  px   0.29770"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.36435,
+          "occupation": 1.47621,
+          "orbital": "11.1",
+          "printed_coefficients": "1  1  px  -0.57006    2  2  px   0.66323"
+        },
+        {
+          "energy_hartree": -0.28222,
+          "occupation": 1.4975,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py  -0.94192"
+        },
+        {
+          "energy_hartree": -0.28222,
+          "occupation": 1.4975,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  pz   0.94227"
+        },
+        {
+          "energy_hartree": 0.10125,
+          "occupation": 0.52879,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.70652    1  4  px   0.26396    2  3  s   -0.26698    2  5  s   -0.32446 2  6  s   -0.29212    2  2  px   0.79907    2  3  px   0.29816"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_adz_caspt2_shared_reference",
+      "point": "adz__return",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_adz_caspt2_shared_reference/adz__return/adz__return.out",
+      "output_sha256": "5fd3e2ed41217bf824b87a40eeb5f2e4bcd7ea84d23d223b5a126b330a0f4c0d",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.41641,
+          "energy_hartree": -0.29073,
+          "printed_coefficients": "1  1  px  -0.30538    2  2  px   0.89988"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.277,
+          "printed_coefficients": "2  2  py   0.30383    2  2  pz   0.95611"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.277,
+          "printed_coefficients": "2  2  py  -0.95574    2  2  pz   0.30364"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 0.91697,
+          "energy_hartree": -0.09059,
+          "printed_coefficients": "1  1  px   0.85475    2  2  px   0.44461"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.29248,
+          "occupation": 1.41211,
+          "orbital": "11.1",
+          "printed_coefficients": "2  2  px   0.93722"
+        },
+        {
+          "energy_hartree": -0.277,
+          "occupation": 1.33331,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py   0.32315    2  2  pz   0.94976"
+        },
+        {
+          "energy_hartree": -0.277,
+          "occupation": 1.33331,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  py  -0.94939    2  2  pz   0.32297"
+        },
+        {
+          "energy_hartree": -0.08884,
+          "occupation": 0.92126,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.87938    2  2  px   0.35926"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_adz_caspt2_shared_reference",
+      "point": "adz__tilted",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_adz_caspt2_shared_reference/adz__tilted/adz__tilted.out",
+      "output_sha256": "cfea11cd71f8a67d79c0770bbe1deed1d2383d6bffeb2be202c42bc82ed3fbdf",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.40637,
+          "energy_hartree": -0.28835,
+          "printed_coefficients": "2  2  px   0.90538"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33332,
+          "energy_hartree": -0.27785,
+          "printed_coefficients": "2  2  py   0.72292    2  2  pz   0.69563"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.27783,
+          "printed_coefficients": "2  2  py  -0.69440    2  2  pz   0.71944"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 0.927,
+          "energy_hartree": -0.09379,
+          "printed_coefficients": "1  1  px   0.77668    1  1  pz  -0.27273    2  2  px   0.42308"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.29007,
+          "occupation": 1.40217,
+          "orbital": "11.1",
+          "printed_coefficients": "2  2  px   0.93775"
+        },
+        {
+          "energy_hartree": -0.27785,
+          "occupation": 1.33332,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py   0.77376    2  2  pz   0.63869"
+        },
+        {
+          "energy_hartree": -0.27782,
+          "occupation": 1.33339,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  py  -0.63590    2  2  pz   0.76768"
+        },
+        {
+          "energy_hartree": -0.09208,
+          "occupation": 0.93112,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.79626    1  1  pz  -0.28302    2  2  px   0.33733"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_atz_caspt2_shared_reference",
+      "point": "atz__far",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_atz_caspt2_shared_reference/atz__far/atz__far.out",
+      "output_sha256": "0fd0c3b03decc4ab401fd889fe7ea51debb1a8e3549b4ce79bb3ba5d76777493",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28316,
+          "printed_coefficients": "2  2  py  -0.91935    2  2  pz   0.40993"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28316,
+          "printed_coefficients": "2  2  px   0.94166    2  2  pz   0.32251"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28316,
+          "printed_coefficients": "2  2  px  -0.35570    2  2  py   0.38149    2  2  pz   0.86095"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 1.0,
+          "energy_hartree": -0.1104,
+          "printed_coefficients": "1  1  px   0.90320"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.28316,
+          "occupation": 1.33333,
+          "orbital": "11.1",
+          "printed_coefficients": "2  2  py  -0.90301    2  2  pz   0.44393"
+        },
+        {
+          "energy_hartree": -0.28316,
+          "occupation": 1.33333,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py   0.44452    2  2  pz   0.90293"
+        },
+        {
+          "energy_hartree": -0.28316,
+          "occupation": 1.33333,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  px   1.00603"
+        },
+        {
+          "energy_hartree": -0.1104,
+          "occupation": 1.0,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.90320"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_atz_caspt2_shared_reference",
+      "point": "atz__center",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_atz_caspt2_shared_reference/atz__center/atz__center.out",
+      "output_sha256": "bbadbddafd89a296317a18b7926304c6cc96856cb91e949e0bf53ce4fbb60c92",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.41637,
+          "energy_hartree": -0.2906,
+          "printed_coefficients": "1  1  px  -0.30807    2  2  px   0.90261"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.27679,
+          "printed_coefficients": "2  2  py  -0.95660    2  2  pz  -0.28925"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.27679,
+          "printed_coefficients": "2  2  py  -0.28889    2  2  pz   0.95680"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 0.91701,
+          "energy_hartree": -0.09069,
+          "printed_coefficients": "1  1  px   0.86178    2  2  px   0.45080"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.29233,
+          "occupation": 1.41214,
+          "orbital": "11.1",
+          "printed_coefficients": "2  2  px   0.94029"
+        },
+        {
+          "energy_hartree": -0.27679,
+          "occupation": 1.33331,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py  -0.94284    2  2  pz  -0.33142"
+        },
+        {
+          "energy_hartree": -0.27679,
+          "occupation": 1.33331,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  py  -0.33105    2  2  pz   0.94303"
+        },
+        {
+          "energy_hartree": -0.08897,
+          "occupation": 0.92124,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.88649    2  2  px   0.36575"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_atz_caspt2_shared_reference",
+      "point": "atz__inner",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_atz_caspt2_shared_reference/atz__inner/atz__inner.out",
+      "output_sha256": "61ed9f7f16e21fa0f2f62230106d6d7e9d9465d8d7a9204794dc9f8ab8e99c4e",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.49748,
+          "energy_hartree": -0.28213,
+          "printed_coefficients": "2  2  py  -0.63169    2  2  pz  -0.76676"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.49748,
+          "energy_hartree": -0.28213,
+          "printed_coefficients": "2  2  py  -0.76635    2  2  pz   0.63166"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.47637,
+          "energy_hartree": -0.36397,
+          "printed_coefficients": "1  1  px  -0.57836    2  2  px   0.66013"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 0.52867,
+          "energy_hartree": 0.10159,
+          "printed_coefficients": "1  1  px   0.69536    2  3  s   -0.28205    2  6  s   -0.26105    2  2  px   0.77300 2  5  px   0.25188"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.36399,
+          "occupation": 1.47634,
+          "orbital": "11.1",
+          "printed_coefficients": "1  1  px  -0.57432    2  2  px   0.66460"
+        },
+        {
+          "energy_hartree": -0.28213,
+          "occupation": 1.49748,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py  -0.63195    2  2  pz  -0.76655"
+        },
+        {
+          "energy_hartree": -0.28213,
+          "occupation": 1.49748,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  py  -0.76614    2  2  pz   0.63191"
+        },
+        {
+          "energy_hartree": 0.10161,
+          "occupation": 0.5287,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.69870    2  3  s   -0.28286    2  6  s   -0.26189    2  2  px   0.76916 2  5  px   0.25223"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_atz_caspt2_shared_reference",
+      "point": "atz__return",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_atz_caspt2_shared_reference/atz__return/atz__return.out",
+      "output_sha256": "b7a66c128b498a4cf37bf1e6c7727de78bdf9ed4534e81986b6d6a9d2353a7c8",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.41637,
+          "energy_hartree": -0.2906,
+          "printed_coefficients": "1  1  px  -0.30807    2  2  px   0.90261"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.27679,
+          "printed_coefficients": "2  2  pz  -0.99844"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.27679,
+          "printed_coefficients": "2  2  py  -0.99813"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 0.91701,
+          "energy_hartree": -0.09069,
+          "printed_coefficients": "1  1  px   0.86178    2  2  px   0.45080"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.29233,
+          "occupation": 1.41214,
+          "orbital": "11.1",
+          "printed_coefficients": "2  2  px   0.94029"
+        },
+        {
+          "energy_hartree": -0.27679,
+          "occupation": 1.33331,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py  -0.88933    2  2  pz   0.45556"
+        },
+        {
+          "energy_hartree": -0.27679,
+          "occupation": 1.33331,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  py  -0.45568    2  2  pz  -0.88972"
+        },
+        {
+          "energy_hartree": -0.08897,
+          "occupation": 0.92124,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.88649    2  2  px   0.36575"
+        }
+      ]
+    },
+    {
+      "chain": "ch3s_cs_atz_caspt2_shared_reference",
+      "point": "atz__tilted",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3s_cs_atz_caspt2_shared_reference/atz__tilted/atz__tilted.out",
+      "output_sha256": "d8c7dd116af76ed146b6b1d4b5978e0acdb5b847815e440f6fc46fa9ebef47d0",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "11.1",
+          "occupation": 1.40634,
+          "energy_hartree": -0.28821,
+          "printed_coefficients": "2  2  px   0.91039"
+        },
+        {
+          "orbital": "12.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.27766,
+          "printed_coefficients": "2  2  py  -0.66671    2  2  pz  -0.74453"
+        },
+        {
+          "orbital": "13.1",
+          "occupation": 1.33331,
+          "energy_hartree": -0.27761,
+          "printed_coefficients": "2  2  py  -0.74431    2  2  pz   0.66345"
+        },
+        {
+          "orbital": "14.1",
+          "occupation": 0.92703,
+          "energy_hartree": -0.09389,
+          "printed_coefficients": "1  1  px   0.78330    1  1  pz  -0.27485    2  2  px   0.43443"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.28991,
+          "occupation": 1.40218,
+          "orbital": "11.1",
+          "printed_coefficients": "2  2  px   0.94308"
+        },
+        {
+          "energy_hartree": -0.27766,
+          "occupation": 1.33331,
+          "orbital": "12.1",
+          "printed_coefficients": "2  2  py  -0.82563    2  2  pz  -0.56389"
+        },
+        {
+          "energy_hartree": -0.2776,
+          "occupation": 1.3334,
+          "orbital": "13.1",
+          "printed_coefficients": "2  2  py   0.56117    2  2  pz  -0.81968"
+        },
+        {
+          "energy_hartree": -0.09221,
+          "occupation": 0.9311,
+          "orbital": "14.1",
+          "printed_coefficients": "1  1  px   0.80292    1  1  pz  -0.28525    2  2  px   0.34875"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_adz_caspt2_shared_reference",
+      "point": "adz__far",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_adz_caspt2_shared_reference/adz__far/adz__far.out",
+      "output_sha256": "14705eb0d3254b4cf6faa15b1a00d8c3ac5c33ce2668e7514ace7413a0597c94",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.5,
+          "energy_hartree": -0.27844,
+          "printed_coefficients": "2  2  px  -0.39361    2  2  py   0.45396    2  2  pz  -0.75864"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.5,
+          "energy_hartree": -0.27844,
+          "printed_coefficients": "2  2  px  -0.44800    2  2  py   0.61390    2  2  pz   0.59914"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28339,
+          "printed_coefficients": "3  2  py   0.82652    3  2  pz   0.55701"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28339,
+          "printed_coefficients": "3  2  px   0.87820    3  2  pz  -0.47424"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28339,
+          "printed_coefficients": "3  2  px   0.47135    3  2  py  -0.55946    3  2  pz   0.69540"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.28339,
+          "occupation": 1.33333,
+          "orbital": "18.1",
+          "printed_coefficients": "3  2  px   1.00849"
+        },
+        {
+          "energy_hartree": -0.28339,
+          "occupation": 1.33333,
+          "orbital": "19.1",
+          "printed_coefficients": "3  2  pz   1.00146"
+        },
+        {
+          "energy_hartree": -0.28339,
+          "occupation": 1.33333,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  py   1.00220"
+        },
+        {
+          "energy_hartree": -0.27949,
+          "occupation": 1.5,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.95999"
+        },
+        {
+          "energy_hartree": -0.27739,
+          "occupation": 1.5,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px  -0.59508    2  2  py   0.75499"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_adz_caspt2_shared_reference",
+      "point": "adz__center",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_adz_caspt2_shared_reference/adz__center/adz__center.out",
+      "output_sha256": "28d72ada88a52b02e5146f9990818b5e8beae77eb55f01c5b4ef723ed2295368",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.52826,
+          "energy_hartree": -0.29607,
+          "printed_coefficients": "2  2  px  -0.53850    2  2  py   0.69249    3  2  py  -0.26817"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.5011,
+          "energy_hartree": -0.28086,
+          "printed_coefficients": "2  2  pz   0.95513"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33332,
+          "energy_hartree": -0.27892,
+          "printed_coefficients": "3  2  px   0.79974    3  2  py   0.60547"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.3322,
+          "energy_hartree": -0.27783,
+          "printed_coefficients": "3  2  pz   0.99589"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.30511,
+          "energy_hartree": -0.25882,
+          "printed_coefficients": "2  2  py  -0.28916    3  2  px   0.56347    3  2  py  -0.74762"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.30461,
+          "occupation": 1.49316,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px  -0.39716    2  2  py   0.52105    3  2  px   0.41940    3  2  py  -0.53339"
+        },
+        {
+          "energy_hartree": -0.28424,
+          "occupation": 1.44281,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz   0.72177    3  2  pz   0.64709"
+        },
+        {
+          "energy_hartree": -0.27892,
+          "occupation": 1.33339,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  px   0.79924    3  2  py   0.60583"
+        },
+        {
+          "energy_hartree": -0.27445,
+          "occupation": 1.39049,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz  -0.63158    3  2  pz   0.76088"
+        },
+        {
+          "energy_hartree": -0.25028,
+          "occupation": 1.34014,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px   0.43848    2  2  py  -0.53980    3  2  px   0.42730    3  2  py  -0.58814"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_adz_caspt2_shared_reference",
+      "point": "adz__inner",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_adz_caspt2_shared_reference/adz__inner/adz__inner.out",
+      "output_sha256": "dc706b29134d99f70c4235a7d45a2c0415b75cfdeff89da1be19691fbefb3ffa",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.71799,
+          "energy_hartree": -0.43521,
+          "printed_coefficients": "2  2  px  -0.40439    2  2  py   0.64773    3  2  px   0.39940    3  2  py  -0.46859"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.63463,
+          "energy_hartree": -0.3755,
+          "printed_coefficients": "2  2  pz   0.72889    3  2  pz   0.60711"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.49533,
+          "energy_hartree": -0.2899,
+          "printed_coefficients": "3  2  px   0.78287    3  2  py   0.57606"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.36278,
+          "energy_hartree": -0.23092,
+          "printed_coefficients": "2  2  pz  -0.67532    3  2  pz   0.77156"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.78927,
+          "energy_hartree": -0.00301,
+          "printed_coefficients": "2  3  s    0.25266    2  2  px   0.60169    2  2  py  -0.53665    3  3  s   -0.25318 3  2  px   0.49400    3  2  py  -0.71976"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.4356,
+          "occupation": 1.7172,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px  -0.38799    2  2  py   0.63141    3  2  px   0.43085    3  2  py  -0.47393"
+        },
+        {
+          "energy_hartree": -0.37553,
+          "occupation": 1.63458,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz   0.71944    3  2  pz   0.61777"
+        },
+        {
+          "energy_hartree": -0.28982,
+          "occupation": 1.49544,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  px   0.77059    3  2  py   0.59079"
+        },
+        {
+          "energy_hartree": -0.2309,
+          "occupation": 1.36283,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz  -0.68538    3  2  pz   0.76305"
+        },
+        {
+          "energy_hartree": -0.00269,
+          "occupation": 0.78996,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px   0.61233    2  2  py  -0.55416    3  3  s   -0.25704    3  5  s   -0.25039 3  2  px   0.48682    3  2  py  -0.70416"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_adz_caspt2_shared_reference",
+      "point": "adz__return",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_adz_caspt2_shared_reference/adz__return/adz__return.out",
+      "output_sha256": "61e57b30749ac8f55068c71466aa209ef24dcef057ec4e566c4ee48e8519ac10",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.52826,
+          "energy_hartree": -0.29607,
+          "printed_coefficients": "2  2  px  -0.53850    2  2  py   0.69249    3  2  py  -0.26817"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.5011,
+          "energy_hartree": -0.28086,
+          "printed_coefficients": "2  2  pz   0.95513"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33332,
+          "energy_hartree": -0.27892,
+          "printed_coefficients": "3  2  px   0.79973    3  2  py   0.60547"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.3322,
+          "energy_hartree": -0.27783,
+          "printed_coefficients": "3  2  pz   0.99589"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.30511,
+          "energy_hartree": -0.25882,
+          "printed_coefficients": "2  2  py  -0.28916    3  2  px   0.56347    3  2  py  -0.74762"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.30461,
+          "occupation": 1.49316,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px  -0.39716    2  2  py   0.52105    3  2  px   0.41940    3  2  py  -0.53339"
+        },
+        {
+          "energy_hartree": -0.28424,
+          "occupation": 1.44281,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz   0.72177    3  2  pz   0.64709"
+        },
+        {
+          "energy_hartree": -0.27892,
+          "occupation": 1.33339,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  px   0.79924    3  2  py   0.60583"
+        },
+        {
+          "energy_hartree": -0.27445,
+          "occupation": 1.39049,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz  -0.63158    3  2  pz   0.76088"
+        },
+        {
+          "energy_hartree": -0.25028,
+          "occupation": 1.34014,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px   0.43848    2  2  py  -0.53980    3  2  px   0.42730    3  2  py  -0.58814"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_adz_caspt2_shared_reference",
+      "point": "adz__tilted",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_adz_caspt2_shared_reference/adz__tilted/adz__tilted.out",
+      "output_sha256": "e1d3086945900aa497090c01f0c72d6f9d0740ad350024ef112daea8d47fe4c8",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.528,
+          "energy_hartree": -0.29608,
+          "printed_coefficients": "2  2  px  -0.43033    2  2  py   0.76692    3  2  py  -0.25805"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.5013,
+          "energy_hartree": -0.28075,
+          "printed_coefficients": "2  2  pz   0.95369"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33332,
+          "energy_hartree": -0.27779,
+          "printed_coefficients": "3  2  px   0.77593    3  2  py   0.62416"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.33201,
+          "energy_hartree": -0.27655,
+          "printed_coefficients": "3  2  pz   0.98629"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.30537,
+          "energy_hartree": -0.2579,
+          "printed_coefficients": "2  2  py  -0.31908    3  2  px   0.59507    3  2  py  -0.72136"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.30406,
+          "occupation": 1.49523,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px  -0.32017    2  2  py   0.58278    3  2  px   0.43426    3  2  py  -0.50781"
+        },
+        {
+          "energy_hartree": -0.28402,
+          "occupation": 1.44963,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz   0.74233    3  2  pz   0.61596"
+        },
+        {
+          "energy_hartree": -0.27779,
+          "occupation": 1.33337,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  px   0.77621    3  2  py   0.62280"
+        },
+        {
+          "energy_hartree": -0.27327,
+          "occupation": 1.38356,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz  -0.60467    3  2  pz   0.77413"
+        },
+        {
+          "energy_hartree": -0.24992,
+          "occupation": 1.33821,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px   0.35087    2  2  py  -0.59101    3  2  px   0.45826    3  2  py  -0.57404"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_atz_caspt2_shared_reference",
+      "point": "atz__far",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_atz_caspt2_shared_reference/atz__far/atz__far.out",
+      "output_sha256": "7b279d67567f5bc2f3e9668842d7e149d5f9ae1b83fdad3d4c07b4f2ee3075ab",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.5,
+          "energy_hartree": -0.27846,
+          "printed_coefficients": "2  2  px  -0.46003    2  2  py   0.62765    2  2  pz   0.61278"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.5,
+          "energy_hartree": -0.27846,
+          "printed_coefficients": "2  2  px  -0.40428    2  2  py   0.46388    2  2  pz  -0.77617"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28315,
+          "printed_coefficients": "3  2  px   0.70328    3  2  pz  -0.71405"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28315,
+          "printed_coefficients": "3  2  px  -0.34160    3  2  py   0.92211"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.33333,
+          "energy_hartree": -0.28315,
+          "printed_coefficients": "3  2  px   0.63403    3  2  py   0.39266    3  2  pz   0.67610"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.28315,
+          "occupation": 1.33333,
+          "orbital": "18.1",
+          "printed_coefficients": "3  2  px   1.00582"
+        },
+        {
+          "energy_hartree": -0.28315,
+          "occupation": 1.33333,
+          "orbital": "19.1",
+          "printed_coefficients": "3  2  pz  -0.99892"
+        },
+        {
+          "energy_hartree": -0.28315,
+          "occupation": 1.33333,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  py   0.99963"
+        },
+        {
+          "energy_hartree": -0.2795,
+          "occupation": 1.5,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.98206"
+        },
+        {
+          "energy_hartree": -0.27742,
+          "occupation": 1.5,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px  -0.61112    2  2  py   0.77174"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_atz_caspt2_shared_reference",
+      "point": "atz__center",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_atz_caspt2_shared_reference/atz__center/atz__center.out",
+      "output_sha256": "a72949e9c0561d892bf50ed0618547a4d683c8501598d1768d9129e728a6f7d8",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.52827,
+          "energy_hartree": -0.29603,
+          "printed_coefficients": "2  2  px  -0.55762    2  2  py   0.71225    3  2  py  -0.26782"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.5011,
+          "energy_hartree": -0.28089,
+          "printed_coefficients": "2  2  pz   0.97677"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33332,
+          "energy_hartree": -0.27872,
+          "printed_coefficients": "3  2  px   0.79782    3  2  py   0.60227"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.33221,
+          "energy_hartree": -0.27767,
+          "printed_coefficients": "3  2  pz  -0.99226"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.30511,
+          "energy_hartree": -0.25865,
+          "printed_coefficients": "2  2  px  -0.25823    2  2  py   0.30162    3  2  px  -0.56491    3  2  py   0.74781"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.30452,
+          "occupation": 1.49338,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px   0.41019    2  2  py  -0.53496    3  2  px  -0.41889    3  2  py   0.53323"
+        },
+        {
+          "energy_hartree": -0.28418,
+          "occupation": 1.44435,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz   0.74316    3  2  pz   0.63693"
+        },
+        {
+          "energy_hartree": -0.27872,
+          "occupation": 1.33338,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  px   0.79740    3  2  py   0.60257"
+        },
+        {
+          "energy_hartree": -0.27438,
+          "occupation": 1.38895,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.64038    3  2  pz  -0.76462"
+        },
+        {
+          "energy_hartree": -0.25016,
+          "occupation": 1.33993,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px  -0.45754    2  2  py   0.55837    3  2  px  -0.42982    3  2  py   0.58843"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_atz_caspt2_shared_reference",
+      "point": "atz__inner",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_atz_caspt2_shared_reference/atz__inner/atz__inner.out",
+      "output_sha256": "cd6e7a11afdb181cd9bd948fc8e8d9f8464995eda7bde297af42be400c6ff6b9",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.71816,
+          "energy_hartree": -0.43437,
+          "printed_coefficients": "2  2  px  -0.34470    2  2  py   0.57471    3  2  px   0.35620    3  2  py  -0.40838"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.63491,
+          "energy_hartree": -0.3759,
+          "printed_coefficients": "2  2  pz   0.70716    3  2  pz   0.58302"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.49536,
+          "energy_hartree": -0.29006,
+          "printed_coefficients": "3  2  px   0.78698    3  2  py   0.58066"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.36269,
+          "energy_hartree": -0.23109,
+          "printed_coefficients": "2  2  pz   0.69475    3  2  pz  -0.79276"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 0.78888,
+          "energy_hartree": -0.00149,
+          "printed_coefficients": "2  2  px  -0.57815    2  2  py   0.48878    3  3  s    0.25939    3  2  px  -0.45071 3  2  py   0.68742"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.43477,
+          "occupation": 1.71738,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px  -0.33002    2  2  py   0.55910    3  2  px   0.38684    3  2  py  -0.41249"
+        },
+        {
+          "energy_hartree": -0.37593,
+          "occupation": 1.63485,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz   0.69681    3  2  pz   0.59468"
+        },
+        {
+          "energy_hartree": -0.28998,
+          "occupation": 1.49546,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  px   0.77576    3  2  py   0.59401"
+        },
+        {
+          "energy_hartree": -0.23106,
+          "occupation": 1.36275,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.70513    3  2  pz  -0.78405"
+        },
+        {
+          "energy_hartree": -0.00118,
+          "occupation": 0.78956,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px  -0.58697    2  2  py   0.50442    3  3  s    0.26373    3  2  px  -0.44486 3  2  py   0.67341"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_atz_caspt2_shared_reference",
+      "point": "atz__return",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_atz_caspt2_shared_reference/atz__return/atz__return.out",
+      "output_sha256": "7af3c6700b3c0e885b62c2abb20c02890c992a314baa8afb4b0494d1a35dc0e9",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.52827,
+          "energy_hartree": -0.29603,
+          "printed_coefficients": "2  2  px  -0.55762    2  2  py   0.71225    3  2  py  -0.26782"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.5011,
+          "energy_hartree": -0.28089,
+          "printed_coefficients": "2  2  pz   0.97677"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33332,
+          "energy_hartree": -0.27872,
+          "printed_coefficients": "3  2  px   0.79782    3  2  py   0.60227"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.33221,
+          "energy_hartree": -0.27767,
+          "printed_coefficients": "3  2  pz  -0.99226"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.30511,
+          "energy_hartree": -0.25865,
+          "printed_coefficients": "2  2  px  -0.25823    2  2  py   0.30162    3  2  px  -0.56491    3  2  py   0.74781"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.30452,
+          "occupation": 1.49338,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px  -0.41019    2  2  py   0.53496    3  2  px   0.41889    3  2  py  -0.53323"
+        },
+        {
+          "energy_hartree": -0.28418,
+          "occupation": 1.44435,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz   0.74316    3  2  pz   0.63693"
+        },
+        {
+          "energy_hartree": -0.27872,
+          "occupation": 1.33338,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  px   0.79740    3  2  py   0.60257"
+        },
+        {
+          "energy_hartree": -0.27438,
+          "occupation": 1.38895,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.64038    3  2  pz  -0.76462"
+        },
+        {
+          "energy_hartree": -0.25016,
+          "occupation": 1.33993,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px  -0.45754    2  2  py   0.55837    3  2  px  -0.42982    3  2  py   0.58843"
+        }
+      ]
+    },
+    {
+      "chain": "ch3ss_ss_atz_caspt2_shared_reference",
+      "point": "atz__tilted",
+      "native_output": "local_runs/molpro_confirmation_recovery_review/ch3ss_ss_atz_caspt2_shared_reference/atz__tilted/atz__tilted.out",
+      "output_sha256": "d6bf240326f55814c32ece669f63f4330db631127d4523e79d4c8c59bfaefa5a",
+      "source_audit": "examples/anl/orbital_reviews/molpro_confirmation/native_recovery_review.json",
+      "source_audit_sha256": "abe38d58af56377eefe9b03e0ebaa9893ec8f2b8cf85bd45cc5b8801f7cc6966",
+      "natural_active_table": [
+        {
+          "orbital": "18.1",
+          "occupation": 1.52801,
+          "energy_hartree": -0.29604,
+          "printed_coefficients": "2  2  px  -0.44658    2  2  py   0.78784    3  2  py  -0.25742"
+        },
+        {
+          "orbital": "19.1",
+          "occupation": 1.50129,
+          "energy_hartree": -0.28078,
+          "printed_coefficients": "2  2  pz   0.97579"
+        },
+        {
+          "orbital": "20.1",
+          "occupation": 1.33332,
+          "energy_hartree": -0.27758,
+          "printed_coefficients": "3  2  px   0.77324    3  2  py   0.62140"
+        },
+        {
+          "orbital": "21.1",
+          "occupation": 1.33201,
+          "energy_hartree": -0.27638,
+          "printed_coefficients": "3  2  pz  -0.98296"
+        },
+        {
+          "orbital": "22.1",
+          "occupation": 1.30537,
+          "energy_hartree": -0.25773,
+          "printed_coefficients": "2  2  py   0.33260    3  2  px  -0.59598    3  2  py   0.72169"
+        }
+      ],
+      "canonical_active_table": [
+        {
+          "energy_hartree": -0.30397,
+          "occupation": 1.49545,
+          "orbital": "18.1",
+          "printed_coefficients": "2  2  px  -0.33073    2  2  py   0.59767    3  2  px   0.43257    3  2  py  -0.50715"
+        },
+        {
+          "energy_hartree": -0.28397,
+          "occupation": 1.4511,
+          "orbital": "19.1",
+          "printed_coefficients": "2  2  pz   0.76428    3  2  pz   0.60620"
+        },
+        {
+          "energy_hartree": -0.27758,
+          "occupation": 1.33337,
+          "orbital": "20.1",
+          "printed_coefficients": "3  2  px   0.77358    3  2  py   0.62001"
+        },
+        {
+          "energy_hartree": -0.27318,
+          "occupation": 1.38209,
+          "orbital": "21.1",
+          "printed_coefficients": "2  2  pz   0.61316    3  2  pz  -0.77752"
+        },
+        {
+          "energy_hartree": -0.2498,
+          "occupation": 1.33799,
+          "orbital": "22.1",
+          "printed_coefficients": "2  2  px  -0.36864    2  2  py   0.61071    3  2  px  -0.46055    3  2  py   0.57480"
+        }
+      ]
+    }
+  ]
+}

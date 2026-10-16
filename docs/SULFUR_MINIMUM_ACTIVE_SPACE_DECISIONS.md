@@ -53,6 +53,10 @@ energies with 0.1 Eh interacting energies when building a production potential.
 
 ## Identified Molpro orbital models and remaining state check
 
+The [orbital-evidence explanation](SULFUR_ACTIVE_ORBITAL_EVIDENCE.md) provides
+parent and final occupations, atomic character, the reason for the C–S seed
+permutation, expansion comparisons and the limits of the continuity checks.
+
 The native aDZ/aTZ records identify the following ordered C1 active spaces.
 Labels are one-based `orbital.irrep`, in natural-orbital record `2140.2`:
 

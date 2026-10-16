@@ -309,3 +309,9 @@ submission cancels/deletes nothing and preserves independently running work.
   three checkpoint-bound active orbital sets, the already-applied C–S seed
   permutation, and the distinction between preserved active spans, physical
   state reordering, and the remaining S–S collapse/solver acceptance checks.
+- 2026-10-16: on the user's request, added the detailed
+  [orbital-selection evidence](SULFUR_ACTIVE_ORBITAL_EVIDENCE.md). Re-extracted
+  three larger-parent occupation/character tables from the retained archive,
+  rechecked 30 completed native output hashes and their natural occupations,
+  and recorded all tables and source hashes in `native_occupation_evidence.json`.
+  No new electronic-structure jobs or production-approval changes were made.

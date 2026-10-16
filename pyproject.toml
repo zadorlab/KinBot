@@ -17,7 +17,7 @@ requires-python = ">=3.11"
 license = {file = "LICENSE"}
 # keywords = []
 authors = [
-    {name="Judit Zádor", email="jzador@sandia.gov"},
+    {name="Judit Zádor"},
     {name="Ruben Van de Vijver"},
     {name="Austin Dewyer"},
     {name="Carles Martí"},

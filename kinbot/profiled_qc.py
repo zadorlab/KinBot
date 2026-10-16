@@ -75,7 +75,7 @@ def validate_theory_restart(par, directory='.', *, profiles=None):
         payload = json.loads(route_file.read_text())
     except (OSError, ValueError) as exc:
         raise ValueError(f'Cannot read {route_file}.') from exc
-    if (not isinstance(payload, dict) or payload.get('schema') != 1
+    if (not isinstance(payload, dict) or payload.get('schema') != 2
             or payload.get('profile_sha256') != _fingerprint(profiles, par)
             or not isinstance(payload.get('jobs'), dict)):
         raise ValueError('Theory profiles or calculator settings changed, or the '
@@ -107,13 +107,11 @@ def _profile_payload(profile, par):
         'calculator': profile.calculator,
         'method': profile.method,
         'basis': profile.basis,
-        'command': profile.command,
         'calculator_kwargs': dict(profile.calculator_kwargs),
         'optimizer': profile.optimizer,
         'frequency_mode': profile.frequency_mode,
         'model_path': profile.model_path,
         'task_name': profile.task_name,
-        'device': profile.device,
     }
     # These method choices still come from the ordinary input, even when
     # calculators use profiles. Omitting them can relabel a saved energy.
@@ -126,9 +124,7 @@ def _profile_payload(profile, par):
         keys += ['integral', 'guessmix']
     if profile.calculator == 'gaussian' and profile.name == 'l2':
         keys += ['vrc_tst_scan_method', 'vrc_tst_scan_basis']
-    explicit = bool(par.get(profile.name) or par.get(f'{profile.name}_profile')
-                    or par.get('profiled_theory'))
-    if profile.calculator in ('gaussian', 'qchem', 'nn_pes') and not explicit:
+    if profile.calculator in ('gaussian', 'qchem', 'nn_pes'):
         keys += ['scan_method', 'scan_basis',
                  'barrierless_saddle_method', 'barrierless_saddle_basis',
                  'barrierless_saddle_method_high', 'barrierless_saddle_basis_high']
@@ -215,8 +211,6 @@ class ProfiledQuantumChemistry:
         for level, backend in self.backends.items():
             backend.theory_level = level
             backend.optimizer = self.profiles[level].optimizer
-            backend.profile_explicit = bool(par.get(level) or par.get(f'{level}_profile')
-                                            or par.get('profiled_theory'))
             if backend.use_sella or backend.qc == 'fc':
                 backend.par['sella_kwargs'].setdefault('internal', True)
                 if backend.par['calcall_ts']:
@@ -261,9 +255,11 @@ class ProfiledQuantumChemistry:
         return getattr(self.l1, name)
 
     def _save_routes(self):
-        payload = {'schema': 1, 'profile_sha256': self._fingerprint,
+        payload = {'schema': 2, 'profile_sha256': self._fingerprint,
                    'profiles': {key: _profile_payload(value, self.par)
                                 for key, value in self.profiles.items()},
+                   'execution': {key: {'command': value.command, 'device': value.device}
+                                 for key, value in self.profiles.items()},
                    'jobs': self._routes}
         self.route_file.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.route_file.with_suffix(self.route_file.suffix + '.tmp')

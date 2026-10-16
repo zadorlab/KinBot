@@ -86,7 +86,6 @@ class QuantumChemistry:
         self.use_sella = par['use_sella']
         self.frequency_mode = par.get('frequency_mode', 'auto')
         self.optimizer = 'sella' if self.use_sella else 'native'
-        self.profile_explicit = False
         self.theory_level = None
         if not self.use_sella and self.qc.lower() == 'nn_pes':
             logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
@@ -159,8 +158,8 @@ class QuantumChemistry:
                 kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
-                kwargs['method'] = self.method if self.profile_explicit else 'am1'
-                kwargs['basis'] = self.basis if self.profile_explicit else ''
+                kwargs['method'] = 'am1'
+                kwargs['basis'] = ''
 
                 if step == 0:
                     if not self.par['bimol']:
@@ -200,11 +199,11 @@ class QuantumChemistry:
             else:
                 kwargs['freq'] = 'freq'  # ? 
             if (scan or 'R_Addition_MultipleBond' in job) and not vts:
-                kwargs['method'] = (self.method if self.profile_explicit else self.scan_method)
-                kwargs['basis'] = (self.basis if self.profile_explicit else self.scan_basis)
+                kwargs['method'] = self.scan_method
+                kwargs['basis'] = self.scan_basis
             if 'barrierless_saddle' in job or 'bls' in job:
-                kwargs['method'] = (self.method if self.profile_explicit else self.bls_method)
-                kwargs['basis'] = (self.basis if self.profile_explicit else self.bls_basis)
+                kwargs['method'] = self.bls_method
+                kwargs['basis'] = self.bls_basis
             if irc is not None:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
@@ -241,8 +240,8 @@ class QuantumChemistry:
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
                 if 'barrierless_saddle' in job:  # completely overwrite normal settings
-                    kwargs['method'] = (self.high_level_method if self.profile_explicit else self.bls_high_level_method)
-                    kwargs['basis'] = (self.high_level_basis if self.profile_explicit else self.bls_high_level_basis)
+                    kwargs['method'] = self.bls_high_level_method
+                    kwargs['basis'] = self.bls_high_level_basis
                     kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
                     kwargs.pop('freq', None)
             if hir:
@@ -337,19 +336,19 @@ class QuantumChemistry:
                 if step >= max_step:
                     kwargs['jobtype'] = 'ts'
                 elif not scan and 'R_Addition_MultipleBond' not in job:
-                        kwargs['method'] = self.method if self.profile_explicit else 'b3lyp'
-                        kwargs['basis'] = self.basis if self.profile_explicit else 'sto-3g'
+                        kwargs['method'] = 'b3lyp'
+                        kwargs['basis'] = 'sto-3g'
                         kwargs['scf_convergence'] = '4'
                         kwargs['geom_opt_tol_gradient'] = '1500'
                         kwargs['geom_opt_tol_displacement'] = '6000'
                         kwargs['geom_opt_tol_energy'] = '500'
 
             if scan or 'R_Addition_MultipleBond' in job:
-                kwargs['method'] = (self.method if self.profile_explicit else self.scan_method)
-                kwargs['basis'] = (self.basis if self.profile_explicit else self.scan_basis)
+                kwargs['method'] = self.scan_method
+                kwargs['basis'] = self.scan_basis
             if 'barrierless_saddle' in job or 'bls' in job:
-                kwargs['method'] = (self.method if self.profile_explicit else self.bls_method)
-                kwargs['basis'] = (self.basis if self.profile_explicit else self.bls_basis)
+                kwargs['method'] = self.bls_method
+                kwargs['basis'] = self.bls_basis
             if vts:
                 kwargs['method'] = self.vts_method
                 kwargs['basis'] = self.vts_basis
@@ -886,8 +885,8 @@ class QuantumChemistry:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
         if mp2:
-            kwargs['method'] = (self.method if self.profile_explicit else self.scan_method)
-            kwargs['basis'] = (self.basis if self.profile_explicit else self.scan_basis)
+            kwargs['method'] = self.scan_method
+            kwargs['basis'] = self.scan_basis
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         if species.natom < 3:

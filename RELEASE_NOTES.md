@@ -4,6 +4,13 @@ Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
 ## Independent calculation levels
 
+- Keep Gaussian AM1 and Q-Chem B3LYP/STO-3G preliminary TS steps when profiles
+  are enabled. The final TS uses L1; scan and barrierless-saddle method options
+  keep their existing meaning. FairChem uses its assigned model throughout.
+- Allow executable paths and CPU/GPU devices to change on restart. Record them
+  separately from methods, models, optimizer and frequency settings. Earlier
+  profile records require a fresh directory because search defaults changed.
+
 - Reuse the L1/L2 theory profiles from Hrishikesh Ram's composite branch and
   extend the same interface to `l0_profile`. Each level can select its own
   calculator, method, basis, command or FairChem model/task/device.

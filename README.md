@@ -190,7 +190,14 @@ L2 is enabled by `high_level: 1`; it refines stationary points. Hindered rotors
 use the selected stationary point's level. The preliminary conformer switch
 remains restricted to wells.
 
-Explicit profile fields override the corresponding legacy settings.
+Explicit profile fields override the corresponding legacy settings for the
+selected optimization level. Adding `l1: "gauss"` alone does not change the
+reaction search: Gaussian constrained TS steps still use AM1; Q-Chem steps
+still use B3LYP/STO-3G. The final TS optimization uses L1. Scans and barrierless
+saddles retain `scan_method`/`scan_basis` and `barrierless_saddle_*` settings.
+These options also apply with profiles. Explicit `calculator_kwargs` override
+generated calculator keywords. A FairChem L1 profile uses its UMA model
+throughout the search. L0 does not control the constrained TS steps.
 `l0`, `l1` and `l2` also accept calculator aliases such as `gauss`, `fc` and `uma`.
 Ordinary inputs without profiles retain their previous settings, including the
 Gaussian command used by preliminary searches. Flat `l0_qc`,
@@ -243,8 +250,13 @@ Hindered-rotor scans use L1 when `high_level` is 0 and L2 when it is 1. Changing
 KinBot refuses to reuse scans from the other level, including during PES
 postprocessing. Changing this option before any rotor jobs were recorded is
 still allowed.
-Keep profiles and the route-file location fixed when resuming a run; use a fresh
-directory when changing the methods or models. CPU, memory and queue limits
+Keep the scientific settings and route-file location fixed when resuming a run;
+use a fresh directory when changing methods, models, optimizers or frequency
+treatment. The executable `command` and CPU/GPU `device` can change on restart.
+They are recorded separately and do not identify the calculation method.
+Earlier profile records used different TS-search defaults and lack a complete
+record of these choices; start a fresh directory for those runs.
+CPU, memory and queue limits
 remain the existing global settings. L3 retains its existing settings.
 
 

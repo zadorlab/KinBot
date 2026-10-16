@@ -264,8 +264,8 @@ def test_gaussian_ts_search_and_end_keep_profile_method_command_and_keywords(wor
         carry_out_reaction(rxn, step, '/incorrect/global/command')
         text = script(rxn.instance_name)
         kwargs = literal(text, 'kwargs')
-        assert kwargs['method'] == 'B3LYP'
-        assert kwargs['basis'] == '6-31G(d)'
+        assert kwargs['method'] == ('am1' if step == 0 else 'B3LYP')
+        assert kwargs['basis'] == ('' if step == 0 else '6-31G(d)')
         assert kwargs['integral'] == 'UltraFine'
         assert '/l1/g16' in text
         assert '/incorrect/global/command' not in text
@@ -415,19 +415,52 @@ def test_unused_calculator_settings_do_not_change_uma_records(workspace):
     assert file_contents(workspace) == before
 
 
-def test_explicit_theory_cannot_relabel_an_inherited_reaction_search(workspace):
+@pytest.mark.parametrize('explicit', [{'l1': 'gauss'},
+    {'l1_profile': {'command': '/new/g16'}}, {'profiled_theory': 1}])
+def test_explicit_profile_keeps_existing_reaction_search_defaults(workspace, explicit):
     par = parameters(l0_profile=fairchem('/models/small.pt'), queuing='local')
     qc = QuantumChemistry(par)
-    args = qc.l1.get_qc_arguments('methanol_ts', 1, 0, 18, ts=1, step=0, max_step=10)
-    assert args['method'] == 'am1'
-    changed = dict(par, profiled_theory=1)
-    # Explicit profiles use HF for these steps even though the resolved HF
-    # profile itself has not changed. Earlier AM1 results must not be reused.
-    assert resolve_profiles(changed) == resolve_profiles(par)
-    before = file_contents(workspace)
-    with pytest.raises(ValueError, match='fresh directory'):
-        QuantumChemistry(changed)
-    assert file_contents(workspace) == before
+    changed = QuantumChemistry(dict(par, **explicit))
+    for job, options in (
+            ('methanol_ts', dict(ts=1, step=0, max_step=10)),
+            ('methanol_ts', dict(ts=1, step=10, max_step=10)),
+            ('methanol_scan', dict(scan=1)),
+            ('methanol_barrierless_saddle', {})):
+        before = qc.l1.get_qc_arguments(job, 1, 0, 18, **options)
+        after = changed.l1.get_qc_arguments(job, 1, 0, 18, **options)
+        assert (before['method'], before['basis']) == (after['method'], after['basis'])
+    assert changed._fingerprint == qc._fingerprint
+
+
+def test_restart_allows_executable_and_device_changes(workspace):
+    par = profile_parameters()
+    qc = QuantumChemistry(par)
+    qc.l1.submit_qc('methanol_well', 4)
+    changed = copy.deepcopy(par)
+    changed['l1_profile']['device'] = 'cpu'
+    changed['l2_profile']['command'] = '/other/g16'
+    restarted = QuantumChemistry(changed)
+    assert restarted._routes == qc._routes
+    assert restarted.l1.par['fc_device'] == 'cpu'
+    assert restarted.l2.qc_command == '/other/g16'
+    assert restarted._fingerprint == qc._fingerprint
+    for field, value in [('method', 'HF'), ('optimizer', 'sella'),
+                         ('frequency_mode', 'auto')]:
+        invalid = copy.deepcopy(changed)
+        invalid['l2_profile'][field] = value
+        with pytest.raises(ValueError, match='fresh directory'):
+            QuantumChemistry(invalid)
+
+
+def test_old_explicit_search_record_requires_new_directory(workspace):
+    par = profile_parameters(l1_profile=gaussian())
+    QuantumChemistry(par)
+    path = Path('.kinbot_theory_jobs.json')
+    record = json.loads(path.read_text())
+    record['schema'] = 1
+    path.write_text(json.dumps(record))
+    with pytest.raises(ValueError, match='saved theory record lacks required settings'):
+        QuantumChemistry(par)
 
 
 @pytest.mark.parametrize('high_level', [0, 1])
@@ -886,8 +919,8 @@ def test_qchem_profile_controls_early_ts_method_and_command(workspace):
     qc.l1.is_in_database = Mock(return_value=False)
     carry_out_reaction(rxn, 0, '/global/qchem')
     kwargs = literal(script(rxn.instance_name), 'kwargs')
-    assert kwargs['method'] == 'wb97x-d'
-    assert kwargs['basis'] == 'def2-svp'
+    assert kwargs['method'] == 'b3lyp'
+    assert kwargs['basis'] == 'sto-3g'
     assert kwargs['command'] == '/l1/qchem'
     legacy = QuantumChemistry({**par, 'qc': 'qchem'},
                               profile_backend=True)

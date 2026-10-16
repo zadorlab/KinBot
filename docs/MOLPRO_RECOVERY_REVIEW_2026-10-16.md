@@ -9,11 +9,11 @@ energy-selector and provenance checks. The CH3S tilted MAXDAV20 MRCI point
 also completed numerically, but its separately requested roots contain strong
 evidence of collapse. It is not an accepted distinct-state spectrum.
 
-The next submission is seven MRCI-only points. It changes correlated root
-protection and completes matched coupled-CABS interaction checks. It does not
-repeat CASPT2, the active-space survey, IPEA tests, or optimizations. Full
-KinBot production awaits the resulting MRCI state/reference acceptance and
-installation of the reviewed models.
+The seven-point MRCI supplement is running. **All four CH3S points have now
+passed native review, including resolution of the tilted root collapse.**
+The CH3SS S–S far point is still converging; its center/tilted dependents are
+waiting. Full KinBot production awaits those three results and installation
+of the reviewed models. No new submission is required for the current run.
 
 ## Retained evidence and reproduction
 
@@ -192,3 +192,84 @@ root coefficients and spectra, not just the job counts. The local tests
 validate generation, parsing contracts and preservation; they cannot prove
 that the installed Molpro executable supports this combination without error.
 Commands and current deliverables are in the [handoff](../MOLPRO_CONFIRMATION_HANDOFF.md).
+
+## Completed CH3S simultaneous-root review (October 16, afternoon)
+
+The partial archive `multistate_ch3s_completed.evidence.tar.gz` has SHA-256
+`6b31941179bd6c18763ef455898c3f4872dd0f71d76fbd072fd620467743897c`.
+It contains the two completed CH3S chains, not the still-running S–S chain.
+All **90 archived files** match the extracted bytes. This partial tar has no
+producer inventory; the audit does not pretend it is a full `collect` export.
+Each of the four jobs additionally passes manifest-bound input/output/WFU/XML
+hashes, execution/native-input hashes, successful native termination, six
+CASSCF and six correlated energy markers, and the declared simultaneous
+three-root manifolds. There are no detected native warnings or errors.
+All **24 selected energies** pass the independent relaxed-Davidson/CABS check.
+
+The [machine-readable review](../examples/anl/orbital_reviews/molpro_confirmation/native_multistate_ch3s_review.json)
+includes the native paths/hashes, energies, fixed-reference coefficient
+matrices, printed state overlaps, orbital-space comparison and timing.
+The [audit source](../examples/anl/orbital_reviews/molpro_confirmation/review_completed_chains.py)
+is general to completed simultaneous-MRCI chains. Reproduce it with:
+
+```bash
+.venv/bin/python examples/anl/orbital_reviews/molpro_confirmation/review_completed_chains.py \
+  local_runs/molpro_multistate_ch3s_review \
+  examples/anl/orbital_reviews/multistate_ch3s_completed.evidence.tar.gz \
+  --output examples/anl/orbital_reviews/molpro_confirmation/native_multistate_ch3s_review.json
+```
+
+**Root-collapse resolution.** At unchanged CABS=1 and convergence thresholds,
+the tilted simultaneous calculation recovers three distinct states per spin.
+For example, its third doublet variational energy is −437.397807322399 Eh,
+instead of returning a duplicate of the lowest state at −437.416361952733 Eh.
+The simultaneous CABS=3 calculation likewise has three distinct tilted states
+per spin. Its maximum printed off-diagonal state overlap is 3.58e−6;
+the fixed-reference projection matrices have smallest singular values above
+0.9448. These are independent reference projections, not normalized full CI
+overlaps. The explicit native overlaps and distinct reference mixtures provide
+the complementary evidence. At the symmetry-axis center, the doublet pair
+and quartet pair remain genuinely degenerate with independent reference
+projections. Equal energies alone are not classified as collapse.
+
+**CABS comparison.** The tilted CABS=1/3 controls have identical printed CASSCF
+energies and the same active subspace (minimum singular value
+0.99999999999997). CABS=3 changes individual relaxed-Davidson selected energies
+by at most **0.002090 kcal/mol**, and the lowest doublet–quartet gap by
+**0.001054 kcal/mol**. This supports coupled CABS=3 for this CH3S check without
+enlarging CAS(5,4). The old independent CABS=3 far gate and new simultaneous
+far point agree within 3e−8 Eh (0.000019 kcal/mol); their asymptotic spin
+offset is unchanged. No failed or collapsed result is used as a reference.
+
+| CABS=3 point | Lowest-doublet interaction | Lowest-quartet interaction | Lowest D−Q gap |
+|---|---:|---:|---:|
+| far | 0 | 0 | −0.040092 |
+| center | −9.444162 | +2.149019 | −11.633273 |
+| tilted | −7.770161 | +2.480771 | −10.291024 |
+
+All entries are kcal/mol. Each interaction uses its own spin manifold's
+lowest far energy; this diagnostic does not erase the far spin offset from
+the raw gap, nor define final rate weights. The matched center-to-tilted
+change is 1.674001 kcal/mol on the lowest doublet and 0.331752 on the lowest
+quartet. These three points support the angular check, not an exhaustive PES.
+
+**State labels and orbital ordering.** CH3S retains inactive orbitals 1–10 and
+active natural orbitals **11.1–14.1**, five electrons in four orbitals. At the
+tilted point, the lowest MRCI doublet has its largest fixed-reference
+coefficient on reference 2; the lowest quartet on reference 3. `NOSWAP`
+correctly labels these correlated states by variational energy order. This
+is correlated-state reordering, not evidence of a changed active subspace.
+Production installation must retain the method-specific root convention;
+equal integer labels from different methods are not proof of equal state
+character. In particular, the existing shared-reference CASPT2 center has
+its lowest quartet in reference root 3. The lowest-per-spin diagnostic above
+must not be implemented by blindly selecting root 1 from every method.
+
+**Remaining native work.** The supplied S–S tail advances to iteration 6 of
+the six-doublet simultaneous solve. Maximum displayed VAR(P) falls from
+1.9e−7 to 9.7e−9, and energy changes from about 1.7e−5 to 9.5e−7 Eh.
+Its 25,095,380 contracted configurations explain substantially greater cost
+than CH3S. It is not yet converged to the requested 1e−10 residual threshold.
+The quartet solve and dependent center/tilted points still have to finish.
+The two waiting jobs are checkpoint dependencies, not additional failures.
+Leave this run in place; this review changes no native inputs or running jobs.

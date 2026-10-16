@@ -92,7 +92,7 @@ return differences are 0.00000986, 0.00001097 and 0.00008911 kcal/mol, respectiv
 See [the decision and caveats](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md).
 No extra full-valence expansion is needed merely to match absolute energies.
 
-## 3. Minimal one-time Molpro confirmation — CASPT2 accepted; MRCI root resolution pending
+## 3. Minimal one-time Molpro confirmation — CASPT2 and CH3S MRCI accepted; S–S MRCI pending
 
 - [x] Supply reproducible aDZ-F12/aTZ-F12 CASPT2-F12 checks of the selected spaces.
 - [x] Establish basis-specific orbital initialization, states/asymptotes,
@@ -113,15 +113,18 @@ and reproduces return active spaces. The largest root-energy return difference
 is 0.001908 kcal/mol. Minimum spaces remain (5,4), (7,5), (7,5).
 
 MAXDAV20 resolved iterative stagnation but separate MRCI calls reached duplicate
-solutions. The new explicit simultaneous same-spin policy is tested locally;
-seven MRCI-only points will verify the native eigenspectrum and matched CABS=3
-interactions. No new CASPT2 or active-space survey is needed. See the
+solutions. Four of the seven simultaneous-root supplement points are now
+reviewed: CH3S tilted CABS=1 and far/center/tilted CABS=3. All 24 selected
+energies pass, the collapsed tilted roots are resolved, and the CABS control
+changes the lowest spin gap by only 0.001054 kcal/mol. S–S far is still
+converging, with its center/tilted points waiting on checkpoints. No new
+submission, CASPT2 or active-space survey is needed. See the
 [current native review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md),
 [historical diagnosis](MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md), and
-[submission handoff](../MOLPRO_CONFIRMATION_HANDOFF.md). No native success of
-these seven new calculations is claimed before execution and review.
+[submission handoff](../MOLPRO_CONFIRMATION_HANDOFF.md). The three S–S results
+are not accepted before execution and review.
 
-## 4. General user controls in KinBot JSON — audited; simultaneous MRCI native check pending
+## 4. General user controls in KinBot JSON — audited; simultaneous MRCI confirmed for CH3S
 
 - [x] Verify per-reaction and per-stage CAS counts, exact orbital selection or
   reviewed ordered records, basis-specific initialization, state averages,
@@ -134,6 +137,10 @@ these seven new calculations is claimed before execution and review.
 Explicit MRCI `correlation_options.state_policy="simultaneous"` computes the
 full same-spin manifold, records energy-order labels and selects the matching
 relaxed-Davidson array/gradient slot. The default independent policy is unchanged.
+- [ ] After the S–S check, apply the confirmed root-protection guidance to the
+  general multiroot workflow and production stage models. Preserve explicit
+  state conventions; do not assume identical CASSCF/CASPT2/MRCI integer root
+  labels mean identical character, or impose multiroot work on a one-root case.
 
 ## 5. General orbital reconnaissance procedure — revised and locally tested
 

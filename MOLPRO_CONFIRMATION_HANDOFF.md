@@ -11,11 +11,18 @@ resolved stagnation without protecting distinct roots. The new input solves
 all declared roots of each spin simultaneously. It retains relaxed Davidson,
 the active spaces, geometries and tolerances. The
 [native review and exact evidence](docs/MOLPRO_RECOVERY_REVIEW_2026-10-16.md)
-explain the diagnosis, CABS results and acceptance conditions. **The new
-simultaneous Molpro calculations have not yet been executed; full production
-is not yet approved.**
+explain the diagnosis, CABS results and acceptance conditions. **Four CH3S
+simultaneous-root points now pass native review, resolving the tilted collapse.
+The three S–S points remain pending; full production is not yet approved.**
 
-## Start the seven-point supplement
+The supplied S–S tail is progressing through its six-root doublet solve.
+Keep the current `_r2_multistate` run going. No restart or new submission is
+needed for this evidence update. All 90 files in the partial CH3S export and
+all 24 selected correlated energies have been checked; the tilted CABS=1/3
+spin-gap change is 0.001054 kcal/mol. See the
+[completed CH3S review](docs/MOLPRO_RECOVERY_REVIEW_2026-10-16.md#completed-ch3s-simultaneous-root-review-october-16-afternoon).
+
+## Original start command (already submitted; do not relaunch)
 
 The user handles SSH. On Blodgett:
 
@@ -86,15 +93,15 @@ their original monitors; they are not new failures of this supplement.
 |---|---|---|
 | 1 | Literature-grounded minimum spaces and cost | Choices retained; native sampling timings now documented |
 | 2 | Local ORCA chemical/radial/angular/return checks | Complete; 47 curated points retained |
-| 3 | Native aDZ/aTZ Molpro transfer | CASPT2 recovery and CABS3 gates reviewed; MRCI simultaneous roots/interactions pending |
-| 4 | General JSON controls | Explicit simultaneous MRCI option added; array selectors and gradient slot tested |
+| 3 | Native aDZ/aTZ Molpro transfer | CASPT2 and four CH3S simultaneous MRCI points reviewed; three S–S MRCI points pending |
+| 4 | General JSON controls | Explicit simultaneous MRCI option confirmed natively for CH3S; general multiroot guidance to finalize after S–S |
 | 5 | General orbital reconnaissance | Procedure documented; chemistry remains in example data |
 | 6 | Complete production inputs | CAS counts configured; accepted final stage models still to install |
 | 7 | User-run end-to-end support | Remains in scope, including bug fixes through CBH-ANL/RotdPy/MESS completion |
 | 8 | Generality/integration audit | 400 targeted tests pass, including all seven new transformed input paths; no local native Molpro |
-| 9 | Reproducible evidence | Both new exports verified; native reviews, orbital/energy findings and analysis source retained |
+| 9 | Reproducible evidence | Recovery/gate exports and partial CH3S multistate export verified; audit source and native findings retained |
 | 10 | Repository cleanup | Inventory retained; cleanup deferred until end-to-end runs finish |
-| 11 | Handoff | This MRCI-only supplement is ready to submit; production is not yet approved |
+| 11 | Handoff | Supplement is running; no restart needed; final production models remain pending |
 | 12 | Preserve earlier work | All old results retained; no cancellation or deletion |
 
 The [maintained checklist](docs/ORBITAL_RECON_DELIVERABLES.md) is the full scope.
@@ -102,7 +109,8 @@ The [general procedure](docs/ORBITAL_REVIEW_WORKFLOW.md) describes the controls
 for other systems. The scripts here are example adapters to that general code.
 
 The optional repository-root `molpro_confirmation_transfer_20261016.tar.gz`
-and SHA sidecar are refreshed with this change. Pulling is sufficient; do not
+contains the submission snapshot; the newer CH3S review is available through
+the repository. No runtime code changed in this evidence update. Do not
 extract the snapshot over a running checkout. Full native exports remain in
 `orbital_reviews` outside the source bundle; their extracted copies and per-file
 hashes are identified in the review. Production readiness requires native state

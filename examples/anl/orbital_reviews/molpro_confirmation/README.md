@@ -4,10 +4,13 @@
 asymptote gates pass independent native review. The tilted MAXDAV20 MRCI retry
 completed numerically but contains duplicate-root evidence. The new seven-point
 MRCI-only supplement uses simultaneous same-spin roots and matched CABS=3
-far/center/tilted energies. Start with the
+far/center/tilted energies. Its four CH3S points now pass native review,
+resolving the tilted collapse; S–S far is still converging and its two
+dependent points are waiting. See the
 [current handoff](../../../../MOLPRO_CONFIRMATION_HANDOFF.md) and
 [native review](../../../../docs/MOLPRO_RECOVERY_REVIEW_2026-10-16.md).
-Run `resolve_mrci_on_blodgett.sh`; do not relaunch historical recovery/full
+The supplement is already submitted: leave it running, with no restart or
+new submission for this evidence update. Do not relaunch historical recovery/full
 restart/gate scripts. All previous results are preserved. The selected spaces
 remain (5,4), (7,5), (7,5); full KinBot production is still pending final native
 reference acceptance and model installation.
@@ -67,8 +70,9 @@ variant). The minimum-space `_r2` run reproduced the error. The recovery
 trial of 2 then failed in both asymptotes with `strange..` in the same routine;
 matching reference counts and converged MRCI were confirmed in both. The
 separate `cabs3_gate_plan.json` now tests 3 at those two geometries only, for
-all requested roots, before any further scans. Both gates have now passed; matched interacting energies and simultaneous
-root protection are the remaining checks.
+all requested roots, before any further scans. Both gates have now passed.
+The CH3S matched interacting energies and simultaneous root protection also
+pass; the corresponding S–S checks remain in progress.
 The earlier decision to leave the default alone has been superseded by this
 native evidence and the user's request for a resolution. The official minimum-space far-point
 gates must establish actual success. If they reproduce this failure, retain

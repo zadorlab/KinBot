@@ -60,3 +60,12 @@ class TestBackendWarnings(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_removed_nn_pes_calculator_is_rejected(tmp_path, monkeypatch):
+    import pytest
+    from kinbot.parameters import Parameters
+    monkeypatch.chdir(tmp_path)
+    Path('input.json').write_text(json.dumps({'title': 'x', 'qc': 'nn_pes', 'smiles': 'C', 'charge': 0, 'mult': 1, 'barrier_threshold': 50.}))
+    with pytest.raises(ValueError, match='nn_pes calculator was removed'):
+        Parameters('input.json')

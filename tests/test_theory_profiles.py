@@ -205,12 +205,59 @@ def test_saved_inputs_with_empty_preset_keep_their_calculators_and_records(works
     assert file_contents(workspace) == before
 
 
-@pytest.mark.parametrize('option', ['ppn', 'queue_job_limit'])
+@pytest.mark.parametrize('option', ['ppn', 'queue_job_limit', 'fc_compile'])
 def test_per_level_execution_options_are_not_silently_accepted(workspace, option):
     profile = fairchem('/models/small.pt')
     profile[option] = 8
     with pytest.raises(ValueError, match='Unknown l0_profile options'):
         profile_parameters(l0_profile=profile)
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+@pytest.mark.parametrize('profiled', [False, True])
+def test_global_compile_option_reaches_every_fairchem_worker(workspace, enabled, profiled):
+    if profiled:
+        par = profile_parameters(fc_compile=enabled,
+                                 l2_profile=fairchem('/models/large.pt'))
+    else:
+        par = dict(parameters(fc_compile=enabled), qc='fc')
+    qc = QuantumChemistry(par)
+    point = methanol()
+    qc.qc_opt(point, point.geom)
+    qc.qc_opt(point, point.geom, high_level=1)
+    qc.qc_conf(point, point.geom, 0, semi_emp=1)
+    qc.qc_conf(point, point.geom, 1)
+    qc.qc_ring_conf(point, point.geom, [[2, 1, 0, 3]], [60.], 0, 0)
+    Path('hir').mkdir()
+    qc.qc_hir(point, point.geom, 0, 0,
+              [[int(atom) + 1 for atom in point.dihed[0]]], False)
+
+    def check(text):
+        calls = [node for node in ast.walk(ast.parse(text))
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                 and node.func.id == 'load_predictor']
+        assert len(calls) == 1
+        options = {arg.arg: ast.literal_eval(arg.value) for arg in calls[0].keywords}
+        assert options['compile_model'] is enabled
+
+    rxn = reaction(qc, par)
+    backend = qc.for_level('l1')
+    backend.check_qc = Mock(return_value='normal')
+    backend.is_in_database = Mock(return_value=False)
+    backend.get_qc_geom = Mock(return_value=(0, rxn.species.geom))
+    for step in (0, 1):
+        carry_out_reaction(rxn, step, 'unused')
+        check(script(rxn.instance_name))
+    IRC(rxn, par).do_irc_calculations()
+    for path in workspace.rglob('*.py'):
+        check(path.read_text())
+
+    if profiled:
+        restarted = QuantumChemistry(dict(par, fc_compile=not enabled))
+        assert restarted._fingerprint == qc._fingerprint
+        assert restarted._routes == qc._routes
+        for level in ('l0', 'l1', 'l2'):
+            assert restarted.for_level(level).par['fc_compile'] is not enabled
 
 
 def test_well_and_refined_well_use_their_own_uma_models(workspace):

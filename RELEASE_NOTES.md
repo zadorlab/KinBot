@@ -2,6 +2,16 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## FairChem compilation option
+
+Add the global `fc_compile` option, with a default of `false`. This avoids
+compilation at the first model evaluation in each short calculation. Set
+`fc_compile: true` to enable compilation for all FairChem calculations at
+L0, L1 and L2, with either a model name or a checkpoint path. Compilation also
+precomputes UMA's composition-dependent weights to avoid a force-evaluation
+failure with FairChem 2.14. Other inference settings remain unchanged. Completed
+results remain usable if this option changes on restart.
+
 ## Independent calculation levels
 
 - Keep Gaussian AM1 and Q-Chem B3LYP/STO-3G preliminary TS steps when profiles

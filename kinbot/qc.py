@@ -488,6 +488,7 @@ class QuantumChemistry:
                                    fc_model_path=self.par['fc_model_path'],
                                    fc_task_name=self.par['fc_task_name'],
                                    fc_device=self.par['fc_device'],
+                                   fc_compile=self.par.get('fc_compile', False),
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -627,6 +628,7 @@ class QuantumChemistry:
                                    fc_model_path=self.par['fc_model_path'],
                                    fc_task_name=self.par['fc_task_name'],
                                    fc_device=self.par['fc_device'],
+                                   fc_compile=self.par.get('fc_compile', False),
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -722,6 +724,7 @@ class QuantumChemistry:
                                    fc_model_path=self.par['fc_model_path'],
                                    fc_task_name=self.par['fc_task_name'],
                                    fc_device=self.par['fc_device'],
+                                   fc_compile=self.par.get('fc_compile', False),
                                    )
         
         with open(f'{job}.py', 'w') as f:
@@ -922,6 +925,7 @@ class QuantumChemistry:
                                    fc_model_path=self.par['fc_model_path'],
                                    fc_task_name=self.par['fc_task_name'],
                                    fc_device=self.par['fc_device'],
+                                   fc_compile=self.par.get('fc_compile', False),
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -995,6 +999,7 @@ class QuantumChemistry:
                                    fc_model_path=self.par['fc_model_path'],
                                    fc_task_name=self.par['fc_task_name'],
                                    fc_device=self.par['fc_device'],
+                                   fc_compile=self.par.get('fc_compile', False),
                                    )
 
         with open(f'{job}.py', 'w') as f:

@@ -205,6 +205,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 fc_model_path=worker_par['fc_model_path'],
                                 fc_task_name=worker_par['fc_task_name'],
                                 fc_device=worker_par['fc_device'],
+                                fc_compile=worker_par.get('fc_compile', False),
                                 )
     else:
         if worker_par['calc_kwargs']:
@@ -234,6 +235,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    fc_model_path=worker_par['fc_model_path'],
                                    fc_task_name=worker_par['fc_task_name'],
                                    fc_device=worker_par['fc_device'],
+                                   fc_compile=worker_par.get('fc_compile', False),
                                    )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:

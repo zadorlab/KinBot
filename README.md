@@ -181,6 +181,19 @@ exploration, a larger UMA model for discovery, and Gaussian for refinement:
 
 This is a configuration fragment to combine with the molecule's usual input.
 `model_path` accepts a local checkpoint or a supported pretrained model name.
+
+The global option `fc_compile` defaults to `false` for every FairChem level.
+It avoids the compilation delay at the first model evaluation in each job.
+Set `"fc_compile": true` at the top level of the input to enable compilation
+for all FairChem jobs. Long jobs can benefit from faster later evaluations.
+This option also applies without theory profiles and to CPU calculations.
+Compilation also precomputes UMA's composition-dependent model weights
+(`merge_mole`), which avoids a force-evaluation failure with FairChem 2.14.
+Each KinBot job keeps its composition, charge, spin and task fixed, as this
+preparation requires. The option does not change the model or numerical precision.
+With `fc_compile: false`, all other FairChem inference defaults are retained.
+Changing it on restart applies to new jobs; completed results remain usable.
+
 For Gaussian AM1 exploration use `l0_profile` with `calculator: "gaussian"`,
 `method: "AM1"`, `basis: ""` and the desired Gaussian `command`.
 

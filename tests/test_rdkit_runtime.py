@@ -88,6 +88,8 @@ def test_old_calculations_are_rejected_without_changing_files(tmp_path, artifact
     ('schema', 'kinbot.calculation.v1'), ('schema', 'kinbot.calculation.v3'),
     ('rdkit_version', '2026.03.4'),
     ('use_legacy_stereo_perception', False), ('allow_nontetrahedral_chirality', False),
+    ('profiled_theory', False), ('profiled_theory', 'true'), ('profiled_theory', 1),
+    ('unknown_field', True),
 ])
 def test_changed_runtime_or_format_cannot_reuse_results(tmp_path, field, value):
     ensure_current_run(tmp_path, create=True)
@@ -101,7 +103,8 @@ def test_changed_runtime_or_format_cannot_reuse_results(tmp_path, field, value):
         with pytest.raises(ValueError) as error:
             ensure_current_run(tmp_path, create=create)
         assert 'fresh directory' in str(error.value)
-        assert ('original environment' in str(error.value)) == (field != 'schema')
+        assert ('original environment' in str(error.value)) == (field in {
+            'rdkit_version', 'use_legacy_stereo_perception', 'allow_nontetrahedral_chirality'})
     assert snapshot(tmp_path) == before
 
 

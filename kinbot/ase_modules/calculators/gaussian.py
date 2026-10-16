@@ -100,8 +100,10 @@ class Gaussian(FileIOCalculator):
     command = 'GAUSSIAN < PREFIX.com > PREFIX.log'
     discard_results_on_any_change = True
 
-    def __init__(self, *args, label='Gaussian', **kwargs):
+    def __init__(self, *args, label='Gaussian', command=None, **kwargs):
         FileIOCalculator.__init__(self, *args, label=label, **kwargs)
+        if command is not None:
+            self.command = command
 
     def _initialize_profile(self, command):
         # KinBot resolves the Gaussian executable dynamically in calculate();

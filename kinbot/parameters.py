@@ -132,9 +132,9 @@ class Parameters:
             'difference_threshold': 0.1,
             # The angular grid for dihedrals, angle = 360 / grid
             'conf_grid': 3,
-            # Do a semi empirical conformational search and select the lowest conformers
+            # For wells, do an L0 search and select the lowest conformers
             # for the L1 conformer search
-            'semi_emp_conformer_search': 0,
+            'l0_conformer_search': 0,
             # Do a hindered rotor scan
             'rotor_scan': 0,
             # Energy threshold for free rotor in kcal/mol
@@ -156,14 +156,14 @@ class Parameters:
             # Dihedral angle to consider a section of a ring flat
             'flat_ring_dih_angle': 5.,
             # Maximum number of diherals for which exhaustive
-            # comformation searches are done at semi empirical level
-            'max_dihed_semi_emp': 5,
+            # conformation searches are done at L0
+            'l0_max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
-            # at semi empirical level
-            'random_conf_semi_emp': 500,
-            # threshold of conformers at semi empirical level to take to the L1 level
+            # at L0
+            'l0_random_conf': 500,
+            # threshold of L0 conformers to take to the L1 level
             # in kcal/mol
-            'semi_emp_confomer_threshold': 5,
+            'l0_conformer_threshold': 5,
             # multi conformer TST
             'multi_conf_tst': 0,
             # Fixed stereoisomers are the default; racemic means the global mirror pair.
@@ -203,6 +203,23 @@ class Parameters:
             # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
             'qc': 'gauss',  # or nwchem or nn_pes
+            # Rishi's opt-in theory profiles, extended to preliminary L0 jobs.
+            'l0_qc': '',
+            'l0_basis': '',
+            'l0_qc_command': '',
+            'l0_calc_kwargs': {},
+            'profiled_theory': 0,
+            'profiled_l1_reuse_only': 0,
+            # Previously written inputs include this empty field. Named
+            # presets are unsupported; methods belong in explicit profiles.
+            'theory_preset': '',
+            'l0': '',
+            'l1': '',
+            'l2': '',
+            'l0_profile': {},
+            'l1_profile': {},
+            'l2_profile': {},
+            'profiled_route_file': '.kinbot_theory_jobs.json',
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
@@ -229,8 +246,8 @@ class Parameters:
             'high_level_method': 'M062X',
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
-            # method for semi empirical conformer search
-            'semi_emp_method': 'am1',
+            # method for L0 conformer search
+            'l0_method': 'am1',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
             # Optimization threshold
@@ -448,6 +465,9 @@ class Parameters:
         if self.input_file is not None:
             self.read_user_input()
 
+        from kinbot.theory import resolve_profiles
+        self.theory_profiles = resolve_profiles(self.par)
+
         err = None
         if self.par['me'] == 1:
             if self.par['calc_aie'] and not self.par['conformer_search']:
@@ -484,7 +504,8 @@ class Parameters:
                                'lowest conformer.')
 
         if (self.par['high_level'] == 0 and self.par['rotor_scan'] == 1
-                and self.par['qc'].lower() != 'fc'):
+                and self.par['qc'].lower() != 'fc'
+                and not self.theory_profiles):
             if show_warnings:
                 logger.warning('L1 level of theory (here set to '
                                f'{self.par["method"].upper()}/{self.par["basis"].upper()}) is '
@@ -497,7 +518,8 @@ class Parameters:
                       'must be the same as "method" and "high_level_basis" ' \
                       'must be the same as "basis".'
         
-        if self.par['qc'] == 'fc' and not self.par['fc_model_path']:
+        if (not self.theory_profiles and self.par['qc'] == 'fc'
+                and not self.par['fc_model_path']):
             err = 'fc_model_path must be set when using qc = "fc".'
 
         if (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
@@ -511,8 +533,11 @@ class Parameters:
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
 
-        if (self.par['bimol'] == 1 and self.par['method'] == 'b3lyp'
-                and self.par['qc'].lower() != 'fc'):
+        l1 = self.theory_profiles.get('l1')
+        l1_method = l1.method if l1 else self.par['method']
+        l1_qc = l1.calculator if l1 else self.par['qc'].lower()
+        if (self.par['bimol'] == 1 and l1_method.lower() == 'b3lyp'
+                and l1_qc not in ('fc', 'fairchem')):
             logger.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
             logger.warning('Choose for instance M06-2X or wB97XD.')
             print('B3LYP is not recommended as L1 for bimolecular reactions.')
@@ -658,6 +683,22 @@ class Parameters:
         except IOError:
             msg = 'Input file {} does not exist'.format(self.input_file)
             raise IOError(msg)
+        aliases = {
+            'semi_emp_conformer_search': 'l0_conformer_search',
+            'semi_emp_method': 'l0_method',
+            'L0_conformer_search': 'l0_conformer_search',
+            'max_dihed_semi_emp': 'l0_max_dihed',
+            'random_conf_semi_emp': 'l0_random_conf',
+            'semi_emp_confomer_threshold': 'l0_conformer_threshold',
+        }
+        for old, new in aliases.items():
+            if old not in user_data:
+                continue
+            if new in user_data and user_data[new] != user_data[old]:
+                raise IOError(
+                    f'KinBot options {old} and {new} specify different values.')
+            logger.warning('Input option %s is deprecated; use %s.', old, new)
+            user_data[new] = user_data.pop(old)
         for key in user_data:
             if key in self.par:
                 self.par[key] = user_data[key]

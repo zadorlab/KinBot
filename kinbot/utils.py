@@ -1,5 +1,6 @@
 import time
 import os
+import re
 import numpy as np
 from numpy.typing import NDArray
 import json
@@ -105,28 +106,35 @@ def clean_files(diagnostic=False, qc=None):
     logger = logging.getLogger('KinBot')
     files = os.listdir()
 
-    # delete pickle files from previous run - there should be none 
-    # delete leftover AM1 calculations
-    com = []
-    for ff in files:
-        if ff.endswith('.com') or ff.endswith('_sella.log'):
-            com.append(ff)
-
-    for cc in com:
-        delfile = False
+    # Check the Gaussian route, since checkpoint paths and titles can contain
+    # "am1" even when the calculation uses another method.
+    for cc in (ff for ff in files if ff.endswith('.com')):
+        route = []
         with open(cc, 'r') as f:
-            if 'am1' in f.read():
-                delfile = True
-        if delfile:
-            ll = cc.split('.')[0] + '.log'
-            try:
-                if not diagnostic:
-                    os.remove(ll)
-                    logger.info(f'Stuck AM1 job {ll} is deleted.')
-                else:
-                    logger.info(f'Stuck AM1 job: {ll}.')
-            except FileNotFoundError:
-                pass
+            for line in f:
+                if line.lstrip().startswith('#') or route:
+                    if not line.strip():
+                        break
+                    route.append(line.split('!', 1)[0])
+        route = re.sub(r'^\s*#\s*[npt]?\s*', '', ' '.join(route), flags=re.I)
+        if not re.search(r'(?:^|\s)am1(?=\s|[(/=]|$)', route, re.I):
+            continue
+        ll = os.path.splitext(cc)[0] + '.log'
+        try:
+            # A previous successful step does not prove the final Gaussian
+            # calculation finished. KinBot may append "done" after either
+            # success or failure, so check the preceding Gaussian output.
+            ending = [line.strip() for line in tail(ll).splitlines()
+                      if line.strip() and line.strip() != 'done']
+            if ending and ending[-1].startswith('Normal termination of Gaussian'):
+                continue
+            if not diagnostic:
+                os.remove(ll)
+                logger.info(f'Failed or incomplete AM1 calculation {ll} is deleted.')
+            else:
+                logger.info(f'Failed or incomplete AM1 calculation: {ll}.')
+        except FileNotFoundError:
+            pass
 
     # delete empty files
     try:
@@ -174,8 +182,8 @@ def clean_files(diagnostic=False, qc=None):
                     else:
                         logger.info(f'All coordinates of file {ll} are 0.')
     if diagnostic:
-        logger.info(f'If empty or stuck files were detected, check the /perm directory for failed jobs on the HPC.')
-        logger.info(f'You will need to resubmit KinBot to ensure the correctness of the results.')
+        logger.info('If problems were reported above, check the /perm directory, '
+                    'resolve the failed calculations and then resubmit KinBot.')
     return
 
 def create_matplotlib_graph(x=[0., 1.],

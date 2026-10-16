@@ -37,6 +37,7 @@ class TestDoneStampTiming(unittest.TestCase):
         os.chdir(temporary.name)
         self.qc = QuantumChemistry.__new__(QuantumChemistry)
         self.qc.qc, self.qc.queuing = 'fc', 'slurm'
+        self.qc.theory_level = None
         self.qc.par = {'error_missing_local': True}
         self.qc.db = connect('kinbot.db')
         self.qc.job_ids = {JOB: '1'}

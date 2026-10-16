@@ -34,7 +34,7 @@ class Conformers:
         """
         species: instance of StationaryPoint
         qc: instance of QuantumChemistry
-        semi_emp: is this search at low level (e.g. am1) or at the L1 level. The latter is the default.
+        semi_emp: is this search at L0 or at L1. The latter is the default.
         """
         self.species = species
         self.optical_population = par.get('optical_population', 'specified')
@@ -91,10 +91,10 @@ class Conformers:
         if semi_emp:
             # Maximum number of diherals for which exhaustive
             # conformation searches are done
-            self.max_dihed = par['max_dihed_semi_emp']
+            self.max_dihed = par['l0_max_dihed']
             # Number of random conformers in case no
             # exhaustive search is done
-            self.nconfs = par['random_conf_semi_emp']
+            self.nconfs = par['l0_random_conf']
 
         # db to be used for skipping conf generation
         self.db = connect('kinbot.db')
@@ -458,20 +458,23 @@ class Conformers:
                 totenergies = []
                 frequencies = []
 
-                if all(status):  # if all conformers are invalid, 1 (different) or fail (-1)
+                if all(status) and not self.semi_emp:
                     if not parent_allowed:
                         from kinbot.stereo_routing import StereoRoutingError
                         raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
-                    if self.qc.qc == 'gauss':
+                    backend = self.qc.for_job(lowest_job)
+                    if getattr(backend, 'theory_level', None) and backend.use_sella:
+                        ext = '_sella.log'
+                    elif backend.qc == 'gauss':
                         ext = '.log'
-                    elif self.qc.qc == 'qchem':
+                    elif backend.qc == 'qchem':
                         ext = '.out'
-                    elif self.qc.qc == 'nn_pes':
+                    elif backend.qc == 'nn_pes':
                         ext = '.log'
-                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
+                    elif backend.qc == 'fc' or backend.qc == 'orca':
                         ext = '_sella.log'
                     else:
-                        raise NotImplementedError(f'Code {self.qc.qc} not available.')
+                        raise NotImplementedError(f'Code {backend.qc} not available.')
                     copyfile(f'{lowest_job}{ext}', f'conf/{name}_low{ext}')
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
@@ -517,6 +520,8 @@ class Conformers:
                         if not configured_geometry_allowed(self.species, geom, self.optical_population):
                             # Keep the observation for find_unique's inventory,
                             # but never make it the selected configured parent.
+                            if self.semi_emp:
+                                status[ci] = 1
                             continue
                         if not self.semi_emp and self.species.natom > 1:
                             values = np.asarray(freq)
@@ -548,7 +553,7 @@ class Conformers:
                                 else:
                                     logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                     err = -1
-                            if err == 0:
+                            if err == 0 and not self.semi_emp:
                                 lowest_energy = energy
                                 lowest_zpe = zpe
                         if energy + zpe <= lowest_energy + lowest_zpe:
@@ -589,6 +594,15 @@ class Conformers:
 
                 self.write_profile(status, final_geoms, totenergies)
 
+                if self.semi_emp:
+                    # L0 energies cannot be compared with the L1 parent.
+                    # With no valid L0 result, Optimize runs its ordinary
+                    # conformer search instead of promoting the L1 parent.
+                    self.selected_job = lowest_job if np.isfinite(lowest_energy) else None
+                    self.selected_conf = lowest_conf if self.selected_job else None
+                    return 1, self.selected_conf, lowest_e_geom, lowest_energy, \
+                           final_geoms, totenergies, frequencies, status
+
                 # Check if at least one conformer has the same enrgy as the L1 parent structure
                 if self.species.wellorts:
                     *_, l1_last_row = self.db.select(name=self.species.name)
@@ -619,16 +633,19 @@ class Conformers:
                 for lrow in low_rows:
                     low_row = lrow
                 try:
-                    if self.qc.qc == 'gauss':
+                    backend = self.qc.for_job(lowest_job)
+                    if getattr(backend, 'theory_level', None) and backend.use_sella:
+                        copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
+                    elif backend.qc == 'gauss':
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
-                    elif self.qc.qc == 'qchem':
+                    elif backend.qc == 'qchem':
                         copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
-                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
+                    elif backend.qc == 'nn_pes' or backend.qc == 'fc':
                         pass
-                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
+                    elif backend.qc == 'fc' or backend.qc == 'orca':
                         copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
                     else:
-                        raise NotImplementedError(f'Code {self.qc.qc} not available.')
+                        raise NotImplementedError(f'Code {backend.qc} not available.')
                     rows = self.db.select(name='{}'.format(lowest_job))
                     logger.debug(f'Looking at {name} in conformers')
                     for row in rows:

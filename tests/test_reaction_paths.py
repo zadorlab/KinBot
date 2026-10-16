@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 from rdkit import Chem
@@ -136,9 +136,10 @@ class TestReactionPaths(unittest.TestCase):
             par = Parameters(str(filename)).par
         opt = Optimize(ts, par, qc)
         mode = np.arange(ts.natom*3).reshape(-1, 3)
-        with patch('kinbot.optimize.geometry.equal_geom', return_value=True), \
-             patch('kinbot.optimize.reader_sella.read_imag_mode', return_value=mode):
+        qc.read_imag_mode = Mock(return_value=mode)
+        with patch('kinbot.optimize.geometry.equal_geom', return_value=True):
             opt.compare_structures()
+        self.assertEqual(qc.read_imag_mode.call_count, 2)
         self.assertEqual(opt.shigh, -999)
         np.testing.assert_array_equal(ts.geom, self.p.geom)
 

@@ -86,7 +86,8 @@ class TestRingPucker(unittest.TestCase):
     def test_gaussian_job_starts_at_the_pucker_and_freezes_it_without_a_value(self):
         rxn = reaction([1, 0, 2, 3, 6])
         rxn.qc = SimpleNamespace(
-            qc='gauss', use_sella=False, ppn=1,
+            qc='gauss', use_sella=False, ppn=1, qc_command='g16',
+            theory_level=None, frequency_mode='auto', optimizer='native',
             check_qc=lambda name: 'normal',
             is_in_database=lambda name: False,
             get_qc_arguments=lambda *args, **kwargs: {'opt': 'ModRedun,CalcFC'},
@@ -94,6 +95,8 @@ class TestRingPucker(unittest.TestCase):
             submit_qc=lambda *args, **kwargs: 1)
         rxn.par = {'sella_kwargs': {}, 'sella_fmax': 0.01, 'sella_steps': 100, 'calc_kwargs': {},
                    'fc_model_path': '', 'fc_task_name': '', 'fc_device': ''}
+        rxn.qc.par = rxn.par
+        rxn.qc.for_level = lambda level: rxn.qc
         with TemporaryDirectory() as directory:
             previous = os.getcwd()
             os.chdir(directory)

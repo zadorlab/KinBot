@@ -225,7 +225,8 @@ class TestSelectedHessian(unittest.TestCase):
                         isinstance(t, ast.Name) and t.id == 'kwargs' for t in node.targets))
                 self.assertEqual('chk' in kwargs, bool(mc and not sella and not preliminary))
                 if 'chk' in kwargs:
-                    self.assertEqual(kwargs['chk'], job)
+                    self.assertEqual(kwargs['chk'], os.path.basename(job))
+                    self.assertEqual(Path(job).parent / kwargs['chk'], Path(job))
 
     def test_accepted_parent_replaces_l1_provenance_and_hessian_together(self):
         for refinement in (False, True):

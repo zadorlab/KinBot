@@ -15,6 +15,12 @@ from kinbot.stereo_identity import configured_geometry_allowed, UnsupportedStere
 logger = logging.getLogger('KinBot')
 
 
+def _hir_backend(qc):
+    if hasattr(qc, 'for_level'):
+        return qc.for_level('l2' if qc.par.get('high_level') else 'l1')
+    return qc
+
+
 def use_harmonic_model(species, par, reason):
     """Omit HIR consistently while retaining its calculated observations."""
     from kinbot.frequencies import thermochemical_frequencies
@@ -54,7 +60,7 @@ def recover_hir_model(species, qc, par, *, allow_qc=False, wait=0):
     if (getattr(hir, '_harmonic_fallback_reference', None) == fallback_reference
             and not (allow_qc and getattr(hir, 'scan_input_errors', None))):
         return True
-    reference.update(backend=getattr(qc, 'qc', None),
+    reference.update(backend=getattr(_hir_backend(qc), 'qc', None),
                      dihedrals=[list(map(int, rotor)) for rotor in species.dihed])
     previous = getattr(hir, 'scan_reference', None) or {}
     keys = ('geometry_sha256', 'atoms', 'dihedrals', 'source_job', 'source_row_id')
@@ -242,7 +248,7 @@ class HIR:
         self.projection_status = []
         self.rigid_scan = bool(rigid)
         self.scan_reference = geometry_reference(self.species, cart)
-        self.scan_reference['backend'] = getattr(self.qc, 'qc', None)
+        self.scan_reference['backend'] = getattr(_hir_backend(self.qc), 'qc', None)
         self.scan_reference['dihedrals'] = [list(map(int, rotor)) for rotor in self.species.dihed]
         self.demotion_reason = None
         self.statuses_before_demotion = None

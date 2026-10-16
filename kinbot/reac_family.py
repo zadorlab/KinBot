@@ -5,6 +5,7 @@ import logging
 from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
+from kinbot.profiled_qc import MissingL1Result
 from kinbot.reactions.reac_abstraction import abstraction_align
 from kinbot.utils import get_unique_list_of_lists, plain_symbols, plain_geometry
 
@@ -18,25 +19,42 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     scan: boolean which tells if this is part of an energy scan along a bond 
         length coordinate
     """
+    qc = rxn.qc.for_level('l1')
+    worker_par = qc.par
+    command = qc.qc_command
     ts = True
+    reuse_only = worker_par.get('profiled_l1_reuse_only', 0)
+    if reuse_only:
+        status = qc.check_qc(rxn.instance_name)
+        if status == 'running':
+            return step
+        if status == 'error':
+            return -1
+        if status != 'normal':
+            raise MissingL1Result(f'{rxn.instance_name}: completed L1 TS result is '
+                                    'required by profiled_l1_reuse_only; no job was submitted.')
     if step > 0:
-        status = rxn.qc.check_qc(rxn.instance_name)
+        status = qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error':
             return step
   
-    kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, 
+    kwargs = qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge,
                                      rxn.species.nel, ts=ts, step=step, 
                                      max_step=rxn.max_step, scan=rxn.scan)
-    if step == 0:
-        if rxn.qc.is_in_database(rxn.instance_name):
-            if rxn.qc.check_qc(rxn.instance_name) == 'normal':  # log file is present and is in the db
-                err, freq = rxn.qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
+    if step == 0 or reuse_only:
+        if qc.is_in_database(rxn.instance_name):
+            if qc.check_qc(rxn.instance_name) == 'normal':  # log file is present and is in the db
+                err, freq = qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
                 if err == 0 and len(freq) > 0.:  # only final calculations have frequencies
-                    err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
+                    err, geom = qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
                     step = rxn.max_step + 1  # this shortcuts the search, jumps to the end
                     return step
-            if rxn.qc.check_qc(rxn.instance_name) == 'error':  # log file is not present
-                err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
+                if reuse_only:
+                    raise MissingL1Result(f'{rxn.instance_name}: L1 TS search is incomplete '
+                                            '(final frequencies are missing); '
+                                            'profiled_l1_reuse_only prevents further steps.')
+            if qc.check_qc(rxn.instance_name) == 'error':  # log file is not present
+                err, geom = qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
                 if np.sum(geom) == 0:
                     return -1  # we don't want this to be repeated
 
@@ -49,10 +67,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 geom, _, _ = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
     elif step == rxn.max_step and rxn.scan:
-        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, 
+        err, geom = qc.get_qc_geom(rxn.instance_name, rxn.species.natom,
                                        allow_error=1, previous=1)
     else:
-        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
+        err, geom = qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
         if bimol:
             if rxn.family_name == 'abstraction':
                 # gives the reactant and product geometry guesses
@@ -95,11 +113,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             fix.append(c[:-1])
         change = []
 
-    if rxn.qc.qc == 'gauss' or (rxn.qc.qc == 'nn_pes' and step < rxn.max_step):
+    if qc.qc == 'gauss' or (qc.qc == 'nn_pes' and step < rxn.max_step):
         code = 'gaussian'
         Code = 'Gaussian'
         kwargs['addsec'] = ''
-        if (not bimol or step == 0) and not rxn.qc.use_sella:
+        if (not bimol or step == 0) and not qc.use_sella:
             # here addsec contains the constraints
             for fixi in fix:
                 kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
@@ -107,7 +125,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} F\n"
             for reli in release:
                 kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
-        elif bimol and step == 1 and not rxn.qc.use_sella:
+        elif bimol and step == 1 and not qc.use_sella:
             kwargs['addsec'] = f'{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
             # here addsec needs to contain the product and ts geometries and all the rest of the fluff
             kwargs['addsec'] += f'product geometry guess\n\n{rxn.species.charge} {rxn.species.mult}\n'
@@ -118,7 +136,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             for ii, at in enumerate(rxn.species.atom):
                 kwargs['addsec'] += f'{at} {geom_ts[ii][0]} {geom_ts[ii][1]} {geom_ts[ii][2]}\n'
             kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
-    elif rxn.qc.qc == 'qchem':
+    elif qc.qc == 'qchem':
         code = 'qchem'
         Code = 'QChem'
         if (not bimol or step == 0) and step < rxn.max_step:
@@ -144,34 +162,38 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         elif bimol and step == 1:
             raise NotImplementedError('Bimolecular reactions are not yet '
                                       'implemented in QChem')
-    elif rxn.qc.qc == 'orca':
+    elif qc.qc == 'orca':
         code = 'orca'
         Code = 'ORCA'
 
-    elif rxn.qc.qc == 'nn_pes' and step >= rxn.max_step:
+    elif qc.qc == 'nn_pes' and step >= rxn.max_step:
         code = 'nn_pes'
         Code = 'Nn_surr'
 
-    elif rxn.qc.qc == 'fc':
+    elif qc.qc == 'fc':
         code = 'fairchem'
         Code = 'Fairchem'
 
+    if qc.theory_level is not None and step < rxn.max_step:
+        kwargs = qc.merge_kwargs(kwargs)
     if step < rxn.max_step:
-        if rxn.qc.use_sella:
+        if qc.use_sella:
             kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_search.tpl.py'
         else:
-            template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
+            template_file = f'{kb_path}/tpl/ase_{qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
-        skw = rxn.par['sella_kwargs'].copy()
+        skw = worker_par['sella_kwargs'].copy()
         skw['internal'] = False
         template = template.format(label=rxn.instance_name,
+                                frequency_mode=qc.frequency_mode, optimizer=qc.optimizer,
+                                profiled=qc.theory_level is not None,
                                 kwargs=kwargs,
                                 atom=plain_symbols(rxn.species.atom),
                                 geom=plain_geometry(geom),
                                 bimol=bimol,
-                                ppn=min(rxn.species.nel, rxn.qc.ppn),
+                                ppn=min(rxn.species.nel, qc.ppn),
                                 qc_command=command,
                                 working_dir=os.getcwd(),
                                 scan=rxn.scan,
@@ -179,38 +201,40 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 Code=Code,  # Sella
                                 fix=get_unique_list_of_lists(fix),  # Sella
                                 sella_kwargs=skw,
-                                fmax=rxn.par['sella_fmax'],
-                                steps=rxn.par['sella_steps'],
-                                fc_model_path=rxn.par['fc_model_path'],
-                                fc_task_name=rxn.par['fc_task_name'],
-                                fc_device=rxn.par['fc_device'],
+                                fmax=worker_par['sella_fmax'],
+                                steps=worker_par['sella_steps'],
+                                fc_model_path=worker_par['fc_model_path'],
+                                fc_task_name=worker_par['fc_task_name'],
+                                fc_device=worker_par['fc_device'],
                                 )
     else:
-        if rxn.par['calc_kwargs']:
-            kwargs = rxn.qc.merge_kwargs(kwargs)
-        if rxn.qc.use_sella:
+        if worker_par['calc_kwargs']:
+            kwargs = qc.merge_kwargs(kwargs)
+        if qc.use_sella:
             kwargs.pop('freq', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_end.tpl.py'
         else:
-            template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_end.tpl.py'
+            template_file = f'{kb_path}/tpl/ase_{qc.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
     
         template = template.format(label=rxn.instance_name,
+                                frequency_mode=qc.frequency_mode, optimizer=qc.optimizer,
+                                profiled=qc.theory_level is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(rxn.species.atom),
                                    geom=plain_geometry(geom),
-                                   ppn=min(rxn.species.nel, rxn.qc.ppn),
+                                   ppn=min(rxn.species.nel, qc.ppn),
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
                                    Code=Code,  # Sella
-                                   sella_kwargs=rxn.par['sella_kwargs'],  # Sella
-                                   fmax=rxn.par['sella_fmax'],
-                                   steps=rxn.par['sella_steps'],
-                                   fc_model_path=rxn.par['fc_model_path'],
-                                   fc_task_name=rxn.par['fc_task_name'],
-                                   fc_device=rxn.par['fc_device'],
+                                   sella_kwargs=worker_par['sella_kwargs'],  # Sella
+                                   fmax=worker_par['sella_fmax'],
+                                   steps=worker_par['sella_steps'],
+                                   fc_model_path=worker_par['fc_model_path'],
+                                   fc_task_name=worker_par['fc_task_name'],
+                                   fc_device=worker_par['fc_device'],
                                    )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
@@ -219,7 +243,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
 # uncommet if you want intermediate runs to be printed into files, for debugging
 #    with open('{}_{}.py'.format(rxn.instance_name, step),'w') as f_out:
 #        f_out.write(template)
-    step += rxn.qc.submit_qc(rxn.instance_name, min(rxn.species.nel, rxn.qc.ppn), singlejob=0, 
+    step += qc.submit_qc(rxn.instance_name, min(rxn.species.nel, qc.ppn), singlejob=0,
                              jobtype=kwargs.pop('method', None))
 
     return step

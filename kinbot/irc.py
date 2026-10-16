@@ -21,6 +21,10 @@ class IRC:
         self.rxn = rxn
         self.par = par
 
+    @property
+    def qc(self):
+        return self.rxn.qc.for_level('l1')
+
     def irc2stationary_pt(self):
         """
         Read the irc files
@@ -45,7 +49,7 @@ class IRC:
                               if not self.par['bimol'] else None)
         for i, direction in enumerate(directions):
             irc_name = '{}_IRC_{}_prod'.format(instance_name, direction[0])
-            err, geom = self.rxn.qc.get_qc_geom(irc_name,
+            err, geom = self.qc.get_qc_geom(irc_name,
                                                 self.rxn.species.natom,
                                                 allow_error=1)
             if err == -1:
@@ -116,7 +120,7 @@ class IRC:
         status = [-1, -1]
         for i, direction in enumerate(directions):
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
-            status[i] = self.rxn.qc.check_qc(irc_name)
+            status[i] = self.qc.check_qc(irc_name)
         return status
 
     def do_irc_calculations(self):
@@ -124,7 +128,7 @@ class IRC:
         Carry out the IRC calculation.
         """
         instance_name = self.rxn.instance_name
-        err, geom = self.rxn.qc.get_qc_geom(instance_name,
+        err, geom = self.qc.get_qc_geom(instance_name,
                                             self.rxn.species.natom)
         directions = ['Forward', 'Reverse']
         for direction in directions:
@@ -135,7 +139,7 @@ class IRC:
             # the gaussian calculation and the keywords
             # geom(AllCheck,NoKeepConstants) guess=Read need to be removed
             start_from_geometry = 0
-            if self.rxn.qc.qc == 'gauss':
+            if self.qc.qc == 'gauss':
                 code = 'gaussian'  # Sella
                 Code = 'Gaussian'  # Sella
                 # copy the chk file
@@ -143,40 +147,40 @@ class IRC:
                     copyfile(instance_name + '.chk', irc_name + '.chk')
                 else:
                     start_from_geometry = 1
-            elif self.rxn.qc.qc == 'nwchem':
+            elif self.qc.qc == 'nwchem':
                 code = 'nwchem'  # Sella
                 Code = 'NWChem'  # Sella
                 if direction == 'Reverse':
                     direction = 'Backward'
-            elif self.rxn.qc.qc == 'qchem':
+            elif self.qc.qc == 'qchem':
                 code = 'qchem'  # Sella
                 Code = 'QChem'  # Sella
-            elif self.rxn.qc.qc == 'orca':
+            elif self.qc.qc == 'orca':
                 code = 'orca'
                 Code = 'ORCA'
-            elif self.rxn.qc.qc == 'nn_pes':
+            elif self.qc.qc == 'nn_pes':
                 code = 'nn_pes'
                 Code = 'Nn_surr'
-            elif self.rxn.qc.qc == 'fc':
+            elif self.qc.qc == 'fc':
                 code = 'fairchem'
                 Code = 'Fairchem'
             else:
-                raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.')
+                raise ValueError(f'Unexpected code name: {self.qc.qc}.')
 
-            kwargs = self.rxn.qc.get_qc_arguments(irc_name,
+            kwargs = self.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,
                                                   self.rxn.species.nel,
                                                   irc=direction.lower(),
                                                   start_from_geom=start_from_geometry)
-            prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge, self.rxn.species.nel)
-            if self.rxn.qc.qc == 'gauss':
+            prod_kwargs = self.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge, self.rxn.species.nel)
+            if self.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
-            if self.rxn.par['calc_kwargs']:
-                kwargs = self.rxn.qc.merge_kwargs(kwargs)
-                prod_kwargs = self.rxn.qc.merge_kwargs(prod_kwargs)
-            if self.rxn.qc.use_sella:
+            if self.qc.par['calc_kwargs']:
+                kwargs = self.qc.merge_kwargs(kwargs)
+                prod_kwargs = self.qc.merge_kwargs(prod_kwargs)
+            if self.qc.use_sella:
                 kwargs.pop('irc', None)
                 kwargs.pop('geom', None)
                 kwargs.pop('guess', None)
@@ -184,29 +188,32 @@ class IRC:
                 prod_kwargs.pop('freq', None)
                 template_file = f'{kb_path}/tpl/ase_sella_irc.tpl.py'
             else:
-                template_file = f'{kb_path}/tpl/ase_{self.rxn.qc.qc}_irc.tpl.py'
+                template_file = f'{kb_path}/tpl/ase_{self.qc.qc}_irc.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=irc_name,
+                                       frequency_mode=self.qc.frequency_mode,
+                                       optimizer=self.qc.optimizer,
+                                       profiled=self.qc.theory_level is not None,
                                        kwargs=kwargs,
                                        prod_kwargs=prod_kwargs,
                                        atom=plain_symbols(self.rxn.species.atom),
                                        geom=plain_geometry(geom),
-                                       ppn=min(self.rxn.species.nel, self.rxn.qc.ppn),
-                                       qc_command=self.par['qc_command'],
+                                       ppn=min(self.rxn.species.nel, self.qc.ppn),
+                                       qc_command=self.qc.par['qc_command'],
                                        working_dir=os.getcwd(),
                                        code=code,
                                        Code=Code,
-                                       sella_kwargs=self.par['sella_kwargs'],  # Sella
-                                       fmax=self.par['sella_fmax'],
-                                       steps=self.par['sella_steps'],
-                                       fc_model_path=self.par['fc_model_path'],
-                                       fc_task_name=self.par['fc_task_name'],
-                                       fc_device=self.par['fc_device'],
+                                       sella_kwargs=self.qc.par['sella_kwargs'],  # Sella
+                                       fmax=self.qc.par['sella_fmax'],
+                                       steps=self.qc.par['sella_steps'],
+                                       fc_model_path=self.qc.par['fc_model_path'],
+                                       fc_task_name=self.qc.par['fc_task_name'],
+                                       fc_device=self.qc.par['fc_device'],
                                        )
 
             with open('{}.py'.format(irc_name), 'w') as f:
                 f.write(template)
 
-            self.rxn.qc.submit_qc(irc_name, min(self.rxn.species.nel, self.rxn.qc.ppn), singlejob=0)
+            self.qc.submit_qc(irc_name, min(self.rxn.species.nel, self.qc.ppn), singlejob=0)
 
         return 0

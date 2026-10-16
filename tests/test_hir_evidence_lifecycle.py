@@ -80,7 +80,7 @@ class TestHIREvidenceLifecycle(unittest.TestCase):
     def test_scan_and_projection_references_do_not_follow_mutable_species(self):
         species, _ = scanned_point()
         species.source_row_id = np.int64(7)
-        species.hir.qc = Mock(qc='test_backend')
+        species.hir.qc = Mock(spec=['qc', 'qc_hir'], qc='test_backend')
         species.hir.qc.qc_hir.return_value = 'actual_scan_job'
         original = species.geom.copy()
         species.hir.generate_hir_geoms(original, rigid=False)

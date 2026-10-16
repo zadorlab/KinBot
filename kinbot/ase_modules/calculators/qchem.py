@@ -21,14 +21,14 @@ class QChem(FileIOCalculator):
                           'charge': 0}
 
     def __init__(self, label='qchem', scratch=None, np=1, nt=1, pbs=False,
-                 basisfile=None, ecpfile=None, **kwargs):
+                 basisfile=None, ecpfile=None, command=None, **kwargs):
         FileIOCalculator.__init__(self, label=label, **kwargs)
 
         # Augment the command by various flags
         if pbs:
-            self.command = 'qchem -pbs '
+            self.command = (command or 'qchem') + ' -pbs '
         else:
-            self.command = 'qchem '
+            self.command = (command or 'qchem') + ' '
         if np != 1:
             self.command += '-np %d ' % np
         if nt != 1:

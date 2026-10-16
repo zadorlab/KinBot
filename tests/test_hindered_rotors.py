@@ -298,7 +298,7 @@ class TestHIRStatus(unittest.TestCase):
         optimization.name = hir.species.name
         optimization.qc = SimpleNamespace(
             read_qc_hess=lambda *args: np.eye(3 * hir.species.natom),
-            hessian_is_massweighted=lambda: False,
+            hessian_is_massweighted=lambda job=None: False,
             qc='gauss',
         )
         optimization.par = {
@@ -338,7 +338,7 @@ class TestHIRStatus(unittest.TestCase):
         optimization.qc = SimpleNamespace(
             get_qc_geom=Mock(side_effect=AssertionError('Unexpected conformer restart')),
             read_qc_hess=lambda *args: np.eye(3 * species.natom),
-            hessian_is_massweighted=lambda: False,
+            hessian_is_massweighted=lambda job=None: False,
         )
         optimization.par = {
             'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,
@@ -381,7 +381,7 @@ class TestHIRStatus(unittest.TestCase):
             invalidate_qc=Mock(),
             get_qc_geom=Mock(return_value=(0, species.geom)),
             read_qc_hess=lambda *args: np.eye(3 * species.natom),
-            hessian_is_massweighted=lambda: False,
+            hessian_is_massweighted=lambda job=None: False,
         )
         optimization.par = {
             'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,

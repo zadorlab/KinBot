@@ -303,12 +303,8 @@ class MESS:
 
     def calculation_label(self):
         """Describe the calculation level used by direct and PES MESS output."""
-        if self.par['qc'] == 'fc':
-            return f"FairChem {self.par['fc_model_path']} ({self.par['fc_task_name']})"
-        if self.par['qc'] == 'nn_pes':
-            return f"nn_pes {self.par['nn_model']}"
-        prefix = 'high_level_' if self.par['high_level'] else ''
-        return f"{self.par[prefix + 'method']}/{self.par[prefix + 'basis']}"
+        from kinbot.theory import calculation_label
+        return calculation_label(self.par)
 
     def _product_complex(self, reaction):
         """Use one selected complex per product set in direct output, as in PES."""

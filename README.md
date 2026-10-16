@@ -128,6 +128,157 @@ energies; it does not raise an inner TS merely because it lies below the
 separated fragments. This option does not add support for a MESS barrier
 between two sets of separated reactants and products.
 
+### Preliminary conformer searches (L0)
+
+For wells, `l0_conformer_search: 1` enables a preliminary, inexpensive
+conformer search before L1 when `conformer_search: 1` is enabled. It remains
+disabled by default and does not enable preliminary transition-state conformer
+searches. The existing QC backend, command, calculation filenames and defaults
+remain unchanged.
+
+| Input | Default | Previous name (still accepted) |
+| --- | --- | --- |
+| `l0_conformer_search` | `0` | `semi_emp_conformer_search` |
+| `l0_method` | `am1` | `semi_emp_method` |
+| `l0_max_dihed` | `5` | `max_dihed_semi_emp` |
+| `l0_random_conf` | `500` | `random_conf_semi_emp` |
+| `l0_conformer_threshold` | `5` kcal/mol | `semi_emp_confomer_threshold` |
+
+`l0_max_dihed` sets the maximum number of dihedral angles for exhaustive
+sampling. Beyond that number, `l0_random_conf` sets the number of randomly
+sampled conformers. `l0_conformer_threshold` is the energy window above the
+lowest L0 conformer for retaining seeds for L1.
+
+The previous `L0_conformer_search` spelling is also accepted. Old names emit a
+deprecation warning. Conflicting values for an alias and its replacement are
+rejected, including the historically misspelled `semi_emp_confomer_threshold`.
+
+### Independent L0, L1 and L2 methods
+
+`l0_profile`, `l1_profile` and `l2_profile` select the calculator separately
+for each level. These reuse the profile names and fields from Hrishikesh Ram's
+`composite` branch. For example, this input uses a small UMA model for preliminary
+exploration, a larger UMA model for discovery, and Gaussian for refinement:
+
+```json
+{
+  "l0_profile": {
+    "calculator": "fairchem", "model_path": "uma-s-1p1",
+    "task_name": "omol", "device": "cuda"
+  },
+  "l1_profile": {
+    "calculator": "fairchem", "model_path": "uma-m-1p1",
+    "task_name": "omol", "device": "cuda"
+  },
+  "l2_profile": {
+    "calculator": "gaussian", "method": "M062X", "basis": "6-31G(d)",
+    "command": "g16", "optimizer": "native",
+    "calculator_kwargs": {"integral": "UltraFine"}
+  },
+  "conformer_search": 1, "l0_conformer_search": 1, "high_level": 1
+}
+```
+
+This is a configuration fragment to combine with the molecule's usual input.
+`model_path` accepts a local checkpoint or a supported pretrained model name.
+For Gaussian AM1 exploration use `l0_profile` with `calculator: "gaussian"`,
+`method: "AM1"`, `basis: ""` and the desired Gaussian `command`.
+
+L0 covers preliminary conformers and ring preparation.
+L1 covers ordinary well/conformer optimization, reaction discovery and its IRC.
+L2 is enabled by `high_level: 1`; it refines stationary points. Hindered rotors
+use the selected stationary point's level. The preliminary conformer switch
+remains restricted to wells.
+
+Explicit profile fields override the corresponding legacy settings for the
+selected optimization level. Adding `l1: "gauss"` alone does not change the
+reaction search: Gaussian constrained TS steps still use AM1; Q-Chem steps
+still use B3LYP/STO-3G. The final TS optimization uses L1. Scans and barrierless
+saddles retain `scan_method`/`scan_basis` and `barrierless_saddle_*` settings.
+These options also apply with profiles. Explicit `calculator_kwargs` override
+generated calculator keywords. A FairChem L1 profile uses its UMA model
+throughout the search. L0 does not control the constrained TS steps.
+`l0`, `l1` and `l2` also accept calculator aliases such as `gauss`, `fc` and `uma`.
+Ordinary inputs without profiles retain their previous settings, including the
+Gaussian command used by preliminary searches. Flat `l0_qc`,
+`l0_qc_command`, `l0_basis` and `l0_calc_kwargs` inputs remain accepted;
+`l0_method` is a fallback beneath `l0_profile.method`.
+
+`optimizer: "native"` selects the Gaussian or Q-Chem optimizer. Gaussian also
+supports `sella`; ORCA, FairChem and NNPES require `sella` or `bfgs`. `bfgs`
+selects BFGS for wells, while saddles and constrained searches continue to use
+Sella. FairChem uses its existing Sella/BFGS workers. `frequency_mode: "auto"`
+retains the backend's usual frequency calculation, and `ase_forces` uses finite
+differences with Sella/BFGS. Gaussian also supports `native_hessian` after Sella;
+Q-Chem profiles require `optimizer: "native"` and use Q-Chem Hessians.
+Sella/BFGS with Q-Chem is rejected because those workers do not yet request
+force-only calculations. Ordinary inputs without profiles are unchanged.
+NWChem profiles are rejected because their calculation workers are not supported.
+Q-Chem can optimize ordinary conformers, but it cannot prepare ring conformers.
+For calculations that need ring preparation, select Gaussian or FairChem at L0;
+Q-Chem can still supply L1 or L2. An attempted Q-Chem ring preparation stops with
+this explanation before KinBot writes or submits the ring job.
+
+MESS and PES describe the resolved settings. An explicit profile `label` is
+retained. ANL presets and composite-recipe selection are not included; specify
+the methods in the profiles themselves. An empty `theory_preset` field remains
+accepted for previously written inputs, but a named preset is rejected.
+`frequency_mode` selects how harmonic frequencies are calculated; it does not
+request vibrational perturbation theory or anharmonic corrections.
+
+For a continuation that must not submit any new L1 jobs, set
+`profiled_l1_reuse_only: 1` (default 0) and retain the original theory profiles.
+Completed L1 results remain available; running jobs are awaited and failed
+jobs retain their error status. A missing or incomplete L1 result during a
+reaction search marks that reaction as failed and logs the missing job.
+Other reactions continue, and the skipped reaction's files are kept. A missing
+initial reactant result still stops the run. L0 and L2 submissions remain enabled. This
+option requires profiles and does not convert an unrecorded run to profiles.
+
+Each generated worker uses its assigned model, command and calculator keywords.
+The profile route file, `.kinbot_theory_jobs.json`, records the methods before
+the first job and records each job's level before submission. Reading a rotor
+without a recorded level is refused: its filename does not distinguish L1
+from L2. Unchanged job records are not rewritten during status checks.
+KinBot refuses to add profiles to existing calculations without a matching
+theory record. It also refuses to restart a profiled calculation after profiles
+are removed. The existing `.kinbot_run.json` also remembers profile use, so
+removing a custom `profiled_route_file` setting cannot hide it. Calculations
+started before this flag was introduced receive it when restarted with their
+original profiles and route-file setting; keep those settings for that restart.
+PES checks the same theory records before replacing species inputs or reading
+results, including with `no-kinbot`. These checks compare profile settings;
+they do not add method tracking to older calculations made without profiles.
+The comparison also includes ORCA's `orcasimpleinput` and `orcablocks`, the
+NNPES `nn_model`, Gaussian integration-grid and electronic-guess settings,
+and the existing scan-method settings used by the selected calculator.
+Scan and barrierless-saddle method changes require a fresh directory even
+when no corresponding job has been recorded.
+Records from earlier versions that omitted these settings are rejected even
+with unchanged input, because they cannot establish how the saved energies
+were calculated. Keep those results unchanged and use a fresh directory for
+calculations with the updated code.
+
+Hindered-rotor scans use L1 when `high_level` is 0 and L2 when it is 1. Changing
+`high_level` after rotor jobs have been recorded requires a fresh directory;
+KinBot refuses to reuse scans from the other level, including during PES
+postprocessing. Changing this option before any rotor jobs were recorded is
+still allowed.
+Keep the scientific settings and route-file location fixed when resuming a run;
+use a fresh directory when changing methods, models, optimizers or frequency
+treatment. The executable `command` and CPU/GPU `device` can change on restart.
+They are recorded separately and do not identify the calculation method.
+Earlier profile records used different TS-search defaults and lack a complete
+record of these choices; start a fresh directory for those runs.
+CPU, memory and queue limits
+remain the existing global settings. L3 retains its existing settings.
+
+The object that selects the calculator delegates existing QC operations to
+L1 unless a method explicitly selects another level. It is not a subclass of
+`QuantumChemistry`; copying or pickling the live calculator objects is not a
+supported restart procedure. Restart from the input and saved theory record.
+
+
 ## Documentation
 See the [wiki](https://github.com/zadorlab/KinBot/wiki) for keywords, and our [tutorial](https://hackmd.io/@jzador/ry1DSsEyyx#/) for a more hands-on introduction to the code.
 

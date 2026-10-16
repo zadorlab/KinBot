@@ -25,6 +25,7 @@ import getpass
 from copy import deepcopy
 from ase.db import connect
 from kinbot.run_format import ensure_current_run
+from kinbot.profiled_qc import validate_theory_restart
 from kinbot.stereo_identity import log_input_stereochemistry, UnsupportedStereochemistry
 from kinbot.stereo_routing import StereoRoutingError
 from ase.atoms import Atoms
@@ -254,6 +255,7 @@ def _main():
                 if not no_kinbot:
                     pid = submit_job(job, par)  # kinbot is submitted here
                 else:
+                    validate_theory_restart(par, job)
                     get_wells(job)
                 pids[job] = pid
                 t = datetime.datetime.now()
@@ -375,6 +377,7 @@ def postprocess(par, jobs, task, names, mass):
     """
     for job in jobs:
         ensure_current_run(job)
+        validate_theory_restart(par, job)
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
@@ -612,8 +615,9 @@ def postprocess(par, jobs, task, names, mass):
         for ts in ts_l3energies:
             logger.info('{}   {:.2f}'.format(reaction_name, ts_l3energies[ts]))
     else:
-        logger.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
-                     f'{par["high_level_basis"]}) level of theory.')
+        from kinbot.theory import calculation_label
+        level = 'L2' if par['high_level'] else 'L1'
+        logger.info(f'Energies used are at the {level} ({calculation_label(par)}) level of theory.')
 
         
     # if L3 was done and requested, everything below is done with that
@@ -1870,6 +1874,7 @@ def write_input(input_file, species, threshold, threshold_L2, root, me):
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
     par2 = Parameters(input_file).par
+    validate_theory_restart(par2, directory)
     # overwrite the title
     par2['title'] = routing_name(species)
     par2['charge'], par2['mult'] = int(species.charge), int(species.mult)
@@ -1913,6 +1918,7 @@ def write_input_keep(input_file, keepchemid, root):
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
     par_new = Parameters(input_file).par
+    validate_theory_restart(par_new, directory)
     # overwrite the title
     par_new['title'] = str(keepchemid)
     for key in ('structure', 'smiles', 'charge', 'mult', 'stereo_reference', 'optical_population'):

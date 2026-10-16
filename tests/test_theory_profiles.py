@@ -1422,3 +1422,59 @@ def test_record_with_retired_barrierless_settings_still_restarts(workspace):
     path.write_text(json.dumps(record))
     with pytest.raises(ValueError, match='fresh directory'):
         QuantumChemistry(par)
+
+
+def test_fairchem_conformer_worker_keeps_the_saddle_mode_file(workspace, monkeypatch):
+    """Run the generated FairChem conformer worker for a saddle and read its mode."""
+    import runpy
+    import sys
+    import sella
+    from ase.calculators.calculator import Calculator, all_changes
+    from ase.io import write
+    from kinbot import fairchem_utils, frequencies
+
+    Path('input.json').write_text(json.dumps(dict(
+        barrier_threshold=100., qc='fc', fc_model_path='/models/uma.pt', queuing='local',
+        ppn=4, queue_job_limit=5)))
+    par = Parameters('input.json', show_warnings=False).par
+    qc = QuantumChemistry(par)
+    point = methanol(wellorts=1, name='methanol_ts')
+    qc.qc_conf(point, point.geom, 0)
+    job = 'conf/methanol_ts_0000'
+
+    class FakeFairchem(Calculator):
+        implemented_properties = ['energy', 'forces']
+
+        def __init__(self, predictor, task_name):
+            super().__init__()
+
+        def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+            super().calculate(atoms, properties, system_changes)
+            self.results = {'energy': -10., 'forces': np.zeros((len(atoms), 3))}
+
+    class FakeSella:
+        def __init__(self, mol, trajectory, logfile, **kwargs):
+            self.mol, self.trajectory, self.logfile = mol, trajectory, logfile
+
+        def run(self, **kwargs):
+            write(self.trajectory, self.mol)
+            Path(self.logfile).write_text('mock converged\n')
+            return True
+
+    def vibrate(mol, label):
+        path = Path(label + '_vib')
+        path.mkdir()
+        path.joinpath('vib.xyz').write_text(str(len(mol)) + '\nmode\n' + ''.join(
+            f'{symbol} 0 0 0 1 2 3\n' for symbol in mol.get_chemical_symbols()))
+        return [-100.] + [100.] * (3 * len(mol) - 7), .01, np.eye(3 * len(mol))
+
+    monkeypatch.setitem(sys.modules, 'fairchem', SimpleNamespace(core=SimpleNamespace(FAIRChemCalculator=FakeFairchem)))
+    monkeypatch.setitem(sys.modules, 'fairchem.core', SimpleNamespace(FAIRChemCalculator=FakeFairchem))
+    monkeypatch.setattr(fairchem_utils, 'load_predictor', lambda *args, **kwargs: None)
+    monkeypatch.setattr(sella, 'Sella', FakeSella)
+    monkeypatch.setattr(frequencies, 'calc_vibrations', vibrate)
+    runpy.run_path(job + '.py')
+    assert Path(job + '_sella.log').read_text().endswith('done\n')
+    assert not Path(job + '_vib').exists()
+    assert Path(job + '_vib.xyz').is_file()
+    np.testing.assert_array_equal(qc.read_imag_mode(job, point.natom), [[1, 2, 3]] * point.natom)

@@ -15,6 +15,14 @@ is reused. The [native diagnosis and documentation review](docs/MOLPRO_MRCI_DSYG
 explain the trial, the missing LAPACK INFO code and why imaginary-shift advice
 for perturbative CCD/DCD F12 corrections is a different context.
 
+The user has selected **IPEA=0.25, CASPT2 real SHIFT=0.1 Eh, and MRCI
+Davidson iteration denominator shifts of 0.1 Eh** for the eventual production
+KinBot inputs. The present retry already uses the requested MRCI shifts.
+Completed CASPT2 confirmation remains documented at SHIFT=0.3 Eh. This is a
+recorded production choice, not a change to existing runs or a claim of
+validated shift insensitivity. The [decision record](docs/SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md)
+lists the three reviewed orbital sets and the remaining native state audit.
+
 ## Start the two-point trial
 
 The user handles SSH. On Blodgett:

@@ -7,9 +7,10 @@ for both CH3SS C–S and S–S**. All minimum-space inward and exact-return
 checks are complete. The native shared-reference CASPT2 aDZ/aTZ confirmation
 now supports these choices, including asymptotes and active-subspace returns.
 CH3S simultaneous-root MRCI and matched coupled-CABS checks now also pass;
-the corresponding S–S checks remain running before installation of the
-final production models. The tilted CH3S root collapse is resolved with the
-same (5,4) space. See the
+the corresponding S–S far point completed per the controller, while the
+interacting center/tilted pair awaits the targeted solver retry and native
+review before installation of the final production models. The tilted CH3S
+root collapse is resolved with the same (5,4) space. See the
 [native recovery review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md). These are minimum-space recommendations for corrected
 VRC sampling, not claims of full-valence total-energy accuracy or completed
 production kinetics.
@@ -23,6 +24,71 @@ production kinetics.
 The two CH3SS spaces have equal dimensions but **different orbitals**. Install
 separate models for each bond. Counting electrons/orbitals or aligning orbital
 numbers alone cannot establish the selected chemical subspace.
+
+## Production settings selected by the user — October 16, 2026
+
+For the eventual end-to-end KinBot inputs, use:
+
+| Stage/method | Requested setting |
+| --- | --- |
+| CASPT2-F12 sampling and correction | `IPEA=0.25`, real `SHIFT=0.1` Eh |
+| MRCI-F12+Q correction | Davidson iteration denominator shifts `SHIFTP=0.1,SHIFTS=0.1,SHIFTI=0.1` Eh |
+
+The MRCI shifts precondition the iterative solve; they do not change the
+definition of the relaxed-Davidson +Q correction. The current two-point
+S–S retry already uses these 0.1 Eh denominator shifts. See the
+[retry rationale](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md) and
+[Molpro denominator-shift documentation](https://www.molpro.net/manual/doku.php?id=the_mrci_program#denominator_shifts).
+Retain the reviewed same-spin CASPT2 reference averaging, simultaneous MRCI
+roots where needed, and relaxed-Davidson energy convention when installing
+the final stage models.
+
+This records the user's production choice; it does not alter running jobs,
+the confirmation catalogue, or completed native inputs/results. Completed
+Molpro CASPT2 confirmation used real shift 0.3 Eh and IPEA 0.25. A modest
+change in the relevant relative energies at shift 0.1 is a working expectation,
+not demonstrated shift insensitivity over the production PES. No additional
+long CASPT2 parameter survey is requested. Do not mix 0.3 Eh asymptotic
+energies with 0.1 Eh interacting energies when building a production potential.
+
+## Identified Molpro orbital models and remaining state check
+
+The native aDZ/aTZ records identify the following ordered C1 active spaces.
+Labels are one-based `orbital.irrep`, in natural-orbital record `2140.2`:
+
+| Channel | CAS | CLOSED / OCC | Active labels | Asymptotic chemical content |
+| --- | --- | --- | --- | --- |
+| CH3S C–S | (5,4) | 10 / 14 | 11.1, 12.1, 13.1, 14.1 | S 3p triplet, then methyl radical |
+| CH3SS C–S | (7,5) | 17 / 22 | 18.1, 19.1, 20.1, 21.1, 22.1 | S2 pi pair, pi-star pair, then methyl radical |
+| CH3SS S–S | (7,5) | 17 / 22 | 18.1, 19.1, 20.1, 21.1, 22.1 | CH3S sulfur pair, then atomic S 3p triplet |
+
+These labels refer to the separate reviewed, basis-specific checkpoints in
+[native_orbital_orderings.json](../examples/anl/orbital_reviews/molpro_confirmation/native_orbital_orderings.json),
+which retains file paths, hashes, and native-output references. They are not
+portable indices for a fresh RHF calculation. The original CH3SS C–S seed's
+17.1/19.1 interchange has already been applied in these ordered checkpoints;
+do not repeat it. S–S canonical record `2141.2` puts atomic S at 18–20 and the
+CH3S pair at 21–22, preserving the same five-orbital active span.
+
+The retained local inward/return tests and native aDZ/aTZ return tests show
+no detected active-subspace loss or core intrusion at the checked points.
+This supports these minimum chemical models; it does not require identical
+individual orbital labels within degenerate active subspaces. Correlated
+state reordering does occur. In particular, the CH3S tilted lowest MRCI
+doublet and quartet have dominant reference components 2 and 3, respectively.
+An identical integer root across methods therefore does not specify identical
+state character. The completed CH3S simultaneous-root checks resolve the
+earlier independent-call collapse; see the
+[native root review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md).
+
+The remaining S–S acceptance requires review of far/center/tilted native
+outputs, all requested roots and available overlap/reference-vector evidence,
+energy selectors, and matched interaction/spin gaps. A successful process
+exit alone is insufficient. If that audit passes, the remaining handoff work
+is installing the reviewed orbital and state/surface models in the production
+inputs, rather than another broad active-space search. Sparse validation does
+not certify every later Monte Carlo geometry; production checks must continue
+to detect loss of the intended subspace or state solution.
 
 ## Literature criterion
 
@@ -174,10 +240,11 @@ and the [CH3S electronic-state literature](https://pmc.ncbi.nlm.nih.gov/articles
   checks. Earlier timings were sometimes affected by controller BLAS use.
 - IPEA/real-shift insensitivity has **not** been established. All original
   active-space comparisons used IPEA 0 / real shift 0.3 consistently. On user
-  instruction, added long IPEA controls were stopped. Proposed Molpro and
-  production settings are IPEA 0.25 / real shift 0.3; standard settings do
-  not imply zero parameter dependence. The chemical minimum is expected to
-  be robust, but must be reviewed using the native confirmation results.
+  instruction, added long IPEA controls were stopped. The native Molpro
+  confirmation subsequently used IPEA 0.25 / real shift 0.3, with the
+  shared-reference treatment resolving the artificial sulfur-component
+  splitting. The user's final production choice is IPEA 0.25 / real shift
+  0.1, as recorded above. These choices do not imply zero parameter dependence.
 
 ## Molpro and ordinary KinBot handoff
 

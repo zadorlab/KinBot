@@ -161,6 +161,11 @@ Procedure: [ORBITAL_REVIEW_WORKFLOW.md](ORBITAL_REVIEW_WORKFLOW.md).
 ## 6. Complete production inputs for both examples — pending native choices
 
 - [x] Configure all three hom_sci channels with the selected per-bond CAS counts.
+- [x] Record the user's October 16 production settings: CASPT2-F12
+  `IPEA=0.25`, real `SHIFT=0.1` Eh for sampling/correction; MRCI Davidson
+  iteration denominator shifts 0.1 Eh for pairs, singles and internals.
+  Validate the latter in the current S–S retry. These are recorded choices,
+  not a claim that final production inputs are already installed or validated.
 - [ ] Install their native-confirmed, basis-specific orbital and surface models.
 - [ ] Provide the requested CASPT2-F12/aDZ-F12 sampling and aTZ-F12
   CASPT2-F12/MRCI-F12+Q averaged-spin-splitting correction referenced to
@@ -271,6 +276,8 @@ submission cancels/deletes nothing and preserves independently running work.
   Existing CAS comparisons consistently use real shift 0.3/IPEA 0; this is
   not proof of shift insensitivity. Proposed Molpro/production controls are
   IPEA 0.25/real shift 0.3, with native confirmation before approval.
+  The production shift choice in this historical entry is superseded by
+  the user's later October 16 decision below; completed evidence is unchanged.
 
 - 2026-10-16 06:11 UTC: final local S–S return terminated normally with all
   twelve CASPT2 roots converged. Added deliverable 12 from the user's request
@@ -291,3 +298,14 @@ submission cancels/deletes nothing and preserves independently running work.
   identified duplicate roots in the completed MAXDAV20 MRCI output. Prepared
   seven MRCI-only simultaneous-root checks. Minimum CAS choices are unchanged;
   complete production configuration remains pending native reference closure.
+
+- 2026-10-16, after preparation of the S–S denominator-shift retry: user
+  selected final production IPEA 0.25, CASPT2 real shift 0.1 Eh, and MRCI
+  iteration denominator shifts 0.1 Eh. Record these for final installation;
+  do not change running jobs or relabel historical 0.3 Eh evidence. Modest
+  CASPT2 relative-energy sensitivity is a working expectation, not a proven
+  result for the full PES. No added long parameter survey was requested.
+  The [decision record](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md) now lists all
+  three checkpoint-bound active orbital sets, the already-applied C–S seed
+  permutation, and the distinction between preserved active spans, physical
+  state reordering, and the remaining S–S collapse/solver acceptance checks.

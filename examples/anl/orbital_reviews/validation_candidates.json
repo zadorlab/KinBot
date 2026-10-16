@@ -1,5 +1,7 @@
 {
   "schema": 1,
+  "comparison_level": {"method": "caspt2-f12(2,2)", "basis": "avtz-f12"},
+  "comparison_settings": {"shift": 0.3, "ipea": 0.25},
   "summary": "combined_results/summary.json",
   "cases": [
     {

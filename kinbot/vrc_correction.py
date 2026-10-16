@@ -54,13 +54,10 @@ _SPIN_SPLITTING_DEFAULTS = {
 
 _VRC_ACCURACY_PRESETS = {
     'legacy': {},
-    # A molecule-independent production preset. The apparent CAS(2,2)
-    # tokens are templates: ``full_valence`` replaces them after the accepted
-    # reaction supplies the actual atoms and charge. Keeping that resolution
-    # at the reaction boundary avoids molecule names and channel-specific
-    # active spaces in the input layer.
+    # These CAS(2,2) tokens are method templates. An explicitly chosen orbital
+    # policy or reviewed model supplies the space at the reaction boundary.
+    # An accuracy preset must not select a chemical active space implicitly.
     'anl1-f12': {
-        'vrc_tst_active_space': 'full_valence',
         'vrc_tst_scan_method': 'caspt2-f12(2,2)',
         'vrc_tst_scan_basis': 'avtz-f12',
         'vrc_tst_scan_gradient': 'numerical',
@@ -102,7 +99,9 @@ def apply_vrc_accuracy_preset(parameters, user_keys=()):
     """Fill VRC production defaults without replacing expert input.
 
     ``legacy`` leaves the historical settings untouched. ``anl1-f12`` is a
-    compact request for full-valence, augmented-basis, spin-split VRC work.
+    compact request for augmented-basis, spin-split VRC levels. It requires an
+    explicit active-space policy or orbital/surface model; it does not decide
+    the chemical space. Explicit full_valence remains supported.
     Every explicitly supplied top-level option wins over the preset.
     """
     name = str(parameters.get(
@@ -114,12 +113,15 @@ def apply_vrc_accuracy_preset(parameters, user_keys=()):
     except KeyError as exc:
         raise ValueError('vrc_tst_accuracy_preset must be legacy or '
                          'anl1-f12.') from exc
-    parameters['vrc_tst_accuracy_preset'] = name
     explicit = set(user_keys)
+    choices = ('vrc_tst_active_space', 'vrc_tst_state_model_file',
+               'vrc_tst_state_model', 'vrc_tst_surface_model_file')
+    if name != 'legacy' and not any(key in explicit and parameters.get(key) for key in choices):
+        raise ValueError('The anl1-f12 VRC preset specifies energy levels, not a chemical active space. '
+                         'Supply vrc_tst_active_space explicitly or install an orbital/state or '
+                         'surface model after orbital review.')
+    parameters['vrc_tst_accuracy_preset'] = name
     for key, value in _VRC_ACCURACY_PRESETS[name].items():
-        if (key == 'vrc_tst_active_space'
-                and 'vrc_tst_state_model_file' in explicit):
-            continue
         if key not in explicit:
             parameters[key] = deepcopy(value)
     return parameters

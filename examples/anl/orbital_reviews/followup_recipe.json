@@ -1,6 +1,6 @@
 {
   "validation_recipe": "validation_candidates.json",
-  "casscf_max_iterations": 2000,
+  "casscf_max_iterations": 999,
   "reference_max_iterations": 2000,
   "reference_max_vectors": 60,
   "correlated_max_iterations": 2000,

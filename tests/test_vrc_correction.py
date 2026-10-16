@@ -253,6 +253,29 @@ def test_radical_pair_is_a_guarded_two_doublet_cas22_shortcut():
         VTS._spin_context(holder, rejected)
 
 
+def test_state_average_block_weights_are_distinct_from_within_spin_reference_weights():
+    model = {'state_average': [
+        {'multiplicity': 1, 'roots': 2, 'weights': [.25, .75], 'block_weight': 2.},
+        {'multiplicity': 3, 'roots': 1, 'weights': [1.], 'block_weight': 1.}],
+        'correlation_options': {'reference_policy': 'state_average'}}
+    validated = validate_vrc_state_model(model, nelectron=14,
+                                         active_electrons=6, active_orbitals=6)
+    program, _ = _vrc_multireference_method('caspt2-f12(6,6)', 14, spin=0,
+                                          state_model=validated)
+    assert 'wf,14,1,0\nstate,2\nweight,0.5,1.5\n' in program
+    assert 'wf,14,1,2\nstate,1\nweight,1\n' in program
+    # A single-spin CASPT2 reference density retains the conditional weights.
+    assert 'refstate,2,1,2;weight,0.25,0.75;' in program
+    assert validate_vrc_state_model(validated) == validated
+
+
+@pytest.mark.parametrize('weight', [0, -1, True, '2', float('nan'), float('inf')])
+def test_invalid_state_average_block_weight_is_rejected(weight):
+    with pytest.raises(ValueError, match='block_weight'):
+        validate_vrc_state_model({'state_average': [
+            {'multiplicity': 1, 'roots': 1, 'block_weight': weight}]})
+
+
 @pytest.mark.parametrize('stem', ['point', 'Long_Sulfur_Channel_' * 5])
 def test_hash_verified_molpro_orbitals_are_staged_reproducibly(tmp_path, stem):
     source = tmp_path / 'expert.wfu'
@@ -353,6 +376,17 @@ def test_selected_space_can_load_a_relative_reconnaissance_record(tmp_path):
         parameters, symbols=['C', 'S', 'H', 'H', 'H'], settings=settings
     )['sampling']['method'] == 'caspt2-f12b(5,4)'
 
+    # A deliberately reviewed average must survive external-file resolution,
+    # even when the fragment-derived default suggests fewer roots. Orbital
+    # weights are not replaced by multiplicity statistical factors.
+    payload['state_average_policy'] = 'reviewed'
+    payload['state_model']['state_average'][0].update(weights=[.6, .3, .1], block_weight=2.)
+    payload['state_model']['state_average'][1].update(weights=[.2, .3, .5], block_weight=1.)
+    (tmp_path / 'state.json').write_text(json.dumps(payload))
+    reviewed = resolved_state_model(
+        parameters, ['C', 'S', 'H', 'H', 'H'], 0, settings, roots={2: 1, 4: 1})
+    assert reviewed['state_average'] == payload['state_model']['state_average']
+
 
 def test_external_state_model_selects_a_basis_specific_wfu(tmp_path):
     models = {}
@@ -418,8 +452,10 @@ def test_external_state_model_selects_a_basis_specific_wfu(tmp_path):
 
 def test_anl1_f12_vrc_preset_is_augmented_and_preserves_overrides():
     parameters = {'vrc_tst_accuracy_preset': 'anl1-f12',
+                  'vrc_tst_active_space': 'full_valence',
                   'vrc_tst_scan_basis': 'aug-cc-pVQZ'}
     apply_vrc_accuracy_preset(parameters, {'vrc_tst_accuracy_preset',
+                                           'vrc_tst_active_space',
                                            'vrc_tst_scan_basis'})
     assert parameters['vrc_tst_active_space'] == 'full_valence'
     assert parameters['vrc_tst_scan_basis'] == 'aug-cc-pVQZ'
@@ -429,6 +465,27 @@ def test_anl1_f12_vrc_preset_is_augmented_and_preserves_overrides():
     assert parameters['vrc_tst_high_basis'] == 'avtz-f12'
     assert all(level['basis'] == 'avtz-f12'
                for level in parameters['vrc_tst_spin_splitting']['gap_levels'])
+
+
+def test_accuracy_preset_cannot_choose_an_implicit_chemical_space():
+    # The legacy method template is not an explicitly reviewed CAS decision.
+    parameters = {'vrc_tst_accuracy_preset': 'anl1-f12', 'vrc_tst_active_space': 'explicit'}
+    with pytest.raises(ValueError, match='not a chemical active space'):
+        apply_vrc_accuracy_preset(parameters, {'vrc_tst_accuracy_preset'})
+    assert 'vrc_tst_scan_method' not in parameters
+
+
+@pytest.mark.parametrize('key,value', [
+    ('vrc_tst_state_model_file', 'selected_orbitals.json'),
+    ('vrc_tst_surface_model_file', 'selected_channels.json'),
+    ('vrc_tst_active_space', {'mode': 'selected', 'active_electrons': 6, 'active_orbitals': 6}),
+])
+def test_accuracy_preset_preserves_explicit_or_per_channel_orbital_choices(key, value):
+    parameters = {'vrc_tst_accuracy_preset': 'anl1-f12', key: value}
+    apply_vrc_accuracy_preset(parameters, parameters.keys())
+    assert parameters[key] == value
+    if key != 'vrc_tst_active_space':
+        assert 'vrc_tst_active_space' not in parameters
 
 
 def test_sampling_surface_accepts_an_adjacent_cbs_pair():
@@ -616,6 +673,7 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
                        'basis': 'avtz-f12', 'multiplicity': 1})
         generated = (directory / 'mrci.inp').read_text()
         assert 'KBVRCSEL=energd(1)' in generated
+        assert 'option,cluster=0;' in generated
         assert 'MYENERGY = KBVRCSEL' in generated
         assert 'put,xml,mrci.orbitals.xml' in generated
         assert 'put,molden' not in generated
@@ -625,8 +683,12 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
         # ENERGY is variational; ENERGD is the CABS-inclusive +Q result.
         (directory / 'mrci.out').write_text(
             ' !CI-F12 STATE 1.1 Energy            -114.538939848235\n'
-            ' Cluster corrected energies          -114.55264645 '
-            '(Davidson, relaxed reference)\n'
+            ' Cluster corrected energies          -114.55270000 (Davidson, fixed reference)\n'
+            ' Cluster corrected energies          -114.55264645 (Davidson, relaxed reference)\n'
+            ' Cluster corrected energies          -114.55280000 (Davidson, rotated reference)\n'
+            ' Cluster corrected energies          -114.55310000 (Pople, fixed reference)\n'
+            ' Cluster corrected energies          -114.55300000 (Pople, relaxed reference)\n'
+            ' Cluster corrected energies          -114.55320000 (Pople, rotated reference)\n'
             ' SETTING KBVRCVAR = -114.545957200000 AU\n'
             ' SETTING KBVRCSEL = -114.559663800000 AU\n'
             ' SETTING MYENERGY = -114.559663800000 AU\n'
@@ -636,6 +698,14 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
                 1, pytest.approx(-114.5596638))
 
         good = (directory / 'mrci.out').read_text()
+        # Actual reported failure class: printed Davidson values precede CABS
+        # singles failure. They cannot substitute for a completed final assignment.
+        partial = good.split(' SETTING KBVRCVAR')[0]
+        (directory / 'mrci.out').write_text(partial +
+            ' ? Error\n ? Orthogonalization problem\n'
+            ' ? The problem occurs in mrf12_singles.F90\n'
+            ' GLOBAL ERROR fehler on processor 0\n')
+        assert molpro.get_molpro_energy('MYENERGY', name='mrci', VTS=True) == (0, -1)
         for broken in (good.replace('Molpro calculation terminated', ''),
                        'PROGRAM * MULTI\nNO CONVERGENCE! MAXIMAL NUMBER OF ITERATIONS REACHED!\n' + good):
             (directory / 'mrci.out').write_text(broken)

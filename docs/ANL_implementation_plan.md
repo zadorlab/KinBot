@@ -361,8 +361,9 @@ space from atom-labelled valence shells in C1 and replaces the template CAS
 in every scan, sampling, and spin-gap method. `radical_pair` is an opt-in
 CAS(2,2) shortcut accepted only for two doublet fragments on coupled singlet
 and triplet surfaces, such as CH3 + CH3. It is rejected for doublet + triplet
-and other fragment-spin combinations. The `anl1-f12` VRC accuracy preset uses
-`full_valence`; it never silently chooses `radical_pair`.
+and other fragment-spin combinations. The `anl1-f12` VRC accuracy preset
+requires an explicit active-space policy or orbital/surface model. It specifies
+energy levels without choosing `full_valence` or `radical_pair` implicitly.
 
 The fourth policy, `selected`, supplies counted active electrons/orbitals
 and requires an explicit orbital model. The sulfur examples use provisional

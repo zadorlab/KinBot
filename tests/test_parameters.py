@@ -70,9 +70,12 @@ class TestBackendWarnings(unittest.TestCase):
             vrc_tst_correction_model='spin_splitting')
         self.assertEqual(spin['vrc_tst_correction_model'], 'spin_splitting')
 
-    def test_anl1_f12_vrc_preset_requires_only_one_user_option(self):
+    def test_anl1_f12_vrc_preset_requires_explicit_orbital_policy(self):
+        with self.assertRaisesRegex(ValueError, 'not a chemical active space'):
+            self.read_parameters(vrc_tst_accuracy_preset='anl1-f12')
         parameters = self.read_parameters(
-            vrc_tst_accuracy_preset='anl1-f12')
+            vrc_tst_accuracy_preset='anl1-f12',
+            vrc_tst_active_space='full_valence')
         self.assertEqual(parameters['vrc_tst_active_space'], 'full_valence')
         self.assertEqual(parameters['vrc_tst_scan_method'],
                          'caspt2-f12(2,2)')

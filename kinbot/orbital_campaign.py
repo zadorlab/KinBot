@@ -131,8 +131,9 @@ def prepare(root, configurations):
         # block before launching its full radial/orientation campaign.
         first = {}
         for anchor in loaded['anchors']:
-            if anchor.get('_channel'):
-                first.setdefault(anchor['_channel'], anchor)
+            chain = anchor.get('orbital_chain', anchor.get('_channel'))
+            if chain:
+                first.setdefault(chain, anchor)
         pilot['anchors'] = list(first.values()) or loaded['anchors'][:1]
         pilot['title'] += '_pilot'
         pilot_path = folder / 'pilot_input.json'

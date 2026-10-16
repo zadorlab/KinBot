@@ -27,7 +27,7 @@ def sulfur_correction(tmp_path, name='ch3s', roots=3, sample_basis=None):
                pp_orient='geometric',
                vrc_tst_scan={'parent': ['parent_hom_sci_1_2']})
     models = {}
-    for basis in ('avtz-f12', 'avqz-f12'):
+    for basis in ('avdz-f12', 'avtz-f12', 'avqz-f12'):
         wfu = tmp_path / f'{basis}.wfu'
         wfu.write_bytes(f'test reviewed orbitals {basis}'.encode())
         models[basis] = {
@@ -78,12 +78,12 @@ def test_production_provenance_uses_the_actual_sulfur_channel(tmp_path, name, ro
     assert metadata['trusted_correction_level']['reference_multiplicity'] == 4
     calculator = _rotdpy_sampling_calculator(par, data, metadata)
     assert calculator['multiplicity'] == 2
-    assert calculator['basis'] == 'avtz-f12'
+    assert calculator['basis'] == 'avdz-f12'
     for model in calculator['state_models_by_basis'].values():
         assert [entry['roots'] for entry in model['state_average']] == [roots, roots]
     # Resolving per-basis orbital models must not append correction bases to
     # the sampling basis list in the immutable provenance declaration.
-    assert data['levels']['sampling']['basis'] == 'avtz-f12'
+    assert data['levels']['sampling']['basis'] == 'avdz-f12'
 
 
 def test_generated_cbs_input_is_valid_python_and_selects_worker_bridge(tmp_path, monkeypatch):
@@ -109,9 +109,9 @@ def test_generated_cbs_input_is_valid_python_and_selects_worker_bridge(tmp_path,
 
 
 @pytest.mark.parametrize('name,roots,electrons,partition,sulfur_x', [
-    ('ch3s', 3, 25, 'occ,14\nclosed,6', 12.),
-    ('ch3ss', 1, 41, 'occ,23\nclosed,16', 12.),
-    ('ch3ss', 6, 41, 'occ,23\nclosed,16', 3.),
+    ('ch3s', 3, 25, 'occ,14\nclosed,10', 12.),
+    ('ch3ss', 1, 41, 'occ,22\nclosed,17', 12.),
+    ('ch3ss', 6, 41, 'occ,22\nclosed,17', 3.),
 ])
 @pytest.mark.parametrize('sample_basis', ['avtz-f12', ['avtz-f12', 'avqz-f12']])
 def test_worker_evaluates_both_bases_with_correct_spin_and_parent_atom_order(

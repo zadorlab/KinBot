@@ -16,7 +16,7 @@
   ],
   "solver_options": {
     "scf": {"energy_convergence": 1e-8, "max_iterations": 2000},
-    "casscf": {"energy_convergence": 1e-8, "gradient_convergence": 1e-5, "max_iterations": 2000},
+    "casscf": {"energy_convergence": 1e-8, "gradient_convergence": 1e-5, "max_iterations": 999},
     "correlation": {
       "energy_convergence": 1e-8,
       "coefficient_convergence": 1e-5,

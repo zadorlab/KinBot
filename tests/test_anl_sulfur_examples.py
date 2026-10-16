@@ -15,8 +15,8 @@ from kinbot.vrc_correction import (active_space_settings,
 
 @pytest.mark.parametrize(
     'name,smiles,active', [
-        ('ch3s', '[CH3][S]', (13, 8)),
-        ('ch3ss', 'C[S][S]', (9, 7)),
+        ('ch3s', '[CH3][S]', (5, 4)),
+        ('ch3ss', 'C[S][S]', (7, 5)),
     ])
 def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
         name, smiles, active):
@@ -36,7 +36,10 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert par['vrc_tst_state_model_file'] == f'{name}_state_model.json'
     assert par['vrc_tst_surface_model_file'] == f'{name}_surface_model.json'
     assert par['homolytic_bonds'] == {'initial': ([[0, 1]] if name == 'ch3s' else [[0, 1], [1, 2]])}
-    assert par['vrc_tst_sample_basis'] == 'avtz-f12'
+    assert par['vrc_tst_sample_basis'] == 'avdz-f12'
+    assert par['vrc_tst_scan_basis'] == 'avtz-f12'
+    assert par['vrc_tst_scan_shift'] == .3
+    assert par['vrc_tst_scan_ipea'] == .25
     species = StationaryPoint(name, 0, 2, smiles=smiles)
     species.characterize()
     space = active_space_settings(par, species.atom, species.charge)
@@ -52,6 +55,8 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert settings['reference']['basis'] == 'avtz-f12'
     assert all(level['basis'] == 'avtz-f12'
                for level in settings['gap_levels'])
+    assert settings['gap_levels'][0]['shift'] == .3
+    assert settings['gap_levels'][0]['ipea'] == .25
     assert species.mult == 2
     assert 'S' in species.atom
 
@@ -59,12 +64,14 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert reconnaissance.is_file()
 
 
-def test_validation_recipe_uses_requested_sampling_and_scan_grid():
+def test_validation_recipe_preserves_comparison_level_and_requested_scan_grid():
     root = Path(__file__).parents[1] / 'examples/anl/orbital_reviews'
     spec = importlib.util.spec_from_file_location('example_validation', root / 'prepare_validation.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     recipe = json.loads((root / 'validation_candidates.json').read_text())
+    assert recipe['comparison_level'] == {'method': 'caspt2-f12(2,2)', 'basis': 'avtz-f12'}
+    assert recipe['comparison_settings'] == {'shift': .3, 'ipea': .25}
     definition = module.plan(recipe, root)
     assert len(definition['models']) == 39
     for case in recipe['cases']:
@@ -76,8 +83,8 @@ def test_validation_recipe_uses_requested_sampling_and_scan_grid():
         for row in rows:
             check = row['correlation_checks'][0]
             assert check['method'] == f'caspt2-f12({row["active_electrons"]},{row["active_orbitals"]})'
-            assert check['shift'] == parameters['vrc_tst_scan_shift']
-            assert check['ipea'] == parameters['vrc_tst_scan_ipea']
+            assert check['shift'] == recipe['comparison_settings']['shift']
+            assert check['ipea'] == recipe['comparison_settings']['ipea']
             assert row['region'] == 'diagnostic'  # not an inferred inner/outer selection
 
 

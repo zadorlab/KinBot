@@ -1,85 +1,53 @@
-# CH3SS orbital reconnaissance and CBH/ANL–VRC–MESS
+# CH3SS: orbital review and ordinary KinBot production
 
-The repaired CASSCF reference panel is complete. Continue with the
-[finite correlated validation batch](../../../docs/SULFUR_CORRELATED_VALIDATION.md):
-both channels, verified natural-orbital partitions, CASPT2-F12 comparisons,
-and a shared 20-job cap. The dense scan and ten-job settings below are
-historical, not the current launch.
+The requested channels are C–S and S–S dissociation. These are input-data examples
+of the [general orbital-review workflow](../../../docs/ORBITAL_REVIEW_WORKFLOW.md),
+not separate molecular implementations. Current native evidence and the status
+of each active-space candidate are in the
+[local CASPT2 validation record](../../../docs/SULFUR_ORCA_VALIDATION_2026-10-15.md).
+The earlier launch history is preserved in
+[the archived README](../../../docs/archive/sulfur_readmes_20261016/ch3ss_README.md).
 
-The reconnaissance treats the two dissociations separately:
+`ch3ss.json` describes the intended CBH/ANL1-F12 → VRC/RotdPy → MESS run.
+Its active-space entry proposes (7,5) for both bonds, supported by the completed local
+checks and pending native Molpro confirmation. **These are different orbital
+subspaces:** methyl plus S2 pi/pi-star for C–S, and CH3S radical/lone-pair plus
+atomic S 3p for S–S. The referenced state/surface-model
+files must be populated from reviewed, basis-specific native records before
+production; their absence is intentional and must not be bypassed with guessed
+orbital indices. Multiple bonds or bottleneck stages can use different models
+through the existing surface-model parameters and `install-selection` command.
 
-| Coordinate | Products | Coupled multiplicities | Spin-free spatial roots per multiplicity |
-| --- | --- | --- | --- |
-| C–S | CH3 + S2(X 3Sigma) | 2, 4 | 1 |
-| S–S | CH3S(X 2E) + S(3P) | 2, 4 | 6 |
+The requested levels are:
 
-Root counts follow declared fragment terms. The second count retains both
-CH3S spatial components and all three S(3P) components. A model retaining a
-smaller vibronic manifold requires separate evidence and explicit input;
-spin multiplicity alone cannot determine that choice.
-These are probe/state-average counts, not assumed reactive-flux counts.
-Inner and outer contributing states require separate evidence and statistical
-counting. KinBot orchestration uses independent existing ROTD_py scalar
-flux calculations; it does not assume every averaged root is reactive.
+- CASPT2-F12/aug-cc-pVDZ-F12 for orientation sampling.
+- CASPT2-F12/aug-cc-pVTZ-F12 for the configured constrained relaxed path.
+- RHF/ROHF-UCCSD(T)-F12b/aug-cc-pVTZ-F12 plus the equal mean of CASPT2-F12 and
+  MRCI-F12+Q spin gaps at that basis for the electronic correction.
+- The independent CBH/ANL1-F12 recipe for stationary-point thermochemistry.
 
-`orbital_reconnaissance.json` uses only native aug-cc-pVTZ-F12 (`avtz-f12`).
-Molpro supplies native basis and auxiliary definitions, with no forced
-revision suffix. The two grids initially contain 75 geometries (39 radial and 36
-orientation probes) and 75 basis/geometry jobs, plus two native pilot jobs. Each job uses one node. The controller limit is ten
-jobs; diagnostics can request denser intervals or longer separations.
-Neither 8 Å nor the initial 30 Å is accepted as an asymptote without a
-plateau check.
+The proposed CASPT2 controls are explicitly IPEA 0.25 and real shift 0.3 Eh
+for sampling, the relaxed scan and the CASPT2 spin-gap component. Local ORCA
+selection comparisons used IPEA zero consistently. Parameter insensitivity has
+not been established; the user chose to assess transfer with the proposed
+controls in Molpro rather than repeat a long local sensitivity campaign.
 
-Probes save ROHF and AVAS/CASCI natural orbital evidence, every requested
-root energy, native XML exports (legacy Molden remains readable), and WFU records. Subsequent points stage a verified
-predecessor and use START/DIAB. Refinement preserves completed checkpoint
-histories. Occupation-based candidate indices and electron populations are
-reported; orbital character and wavefunction root continuity need review.
+KinBot constructs matching relaxed and frozen points and passes the resulting
+correction potential to RotdPy. Geometry optimization follows the configured
+scan method; it is not an optimization using a composite spin-splitting gradient.
+The fixed-geometry Molpro confirmation only tests whether the local ORCA
+orbital/state choices remain usable with native CASPT2-F12. It does not repeat
+the production relaxation scans. Conventional ORCA CASPT2 in an F12 orbital
+basis is not an explicitly correlated calculation.
 
-The production input requests a **candidate** CAS(9,7), intended to retain
-C–S/S–S bonding/antibonding and sulfur nonbonding/radical orbitals. Both
-channels must support the selected subspace, or the common space must be
-enlarged. `ch3ss_state_model.json` is absent until reviewed, basis-specific
-WFU records exist. Missing records or changed hashes prevent MR submission.
+`orbital_reconnaissance.json` and the historical finite comparison recipes use
+TZ-F12. The latter now record their comparison level explicitly, independently
+of the production sampling basis. DZ-F12 sampling needs its own reviewed native
+orbital model; a TZ-F12 WFU must not be relabeled or reused across bases.
 
-Atomic S levels and an S2 triplet identity are supplied as example data.
-S2 fine structure, CH3S spin–vibronic partition functions, molecular SO
-corrections, and the long-range statistical state model remain chemistry checks.
-See the [full audit](../../../docs/ANL_workflow_audit.md) before production.
-
-Primary references: [CH3S electronic states](https://pmc.ncbi.nlm.nih.gov/articles/PMC5995305/),
-[Molpro MULTI](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi).
-
-Use the [Blodgett commit/pull and launch runbook](../../../docs/Blodgett_workflow_runbook.md)
-to prepare both systems in one campaign. Preparation records available Molpro
-modules and each batch job loads its setup. Preflight and all-basis/channel
-native pilots precede bulk submission. The shared limit is ten nodes total.
-Full KinBot production follows review of these results. Automatic homolytic
-vdW-complex discovery is deferred under the present example scope.
-
-The [current implementation and acceptance procedure](../../../docs/WORKFLOW_READINESS_2026-10-14.md)
-records recovery, verified behavior, and the chemistry review/native checks
-required after reconnaissance. The earlier paused checkpoint is historical.
-
-Molpro's Molden interface rejects h and higher angular momenta. Recon execution
-now derives a hash-bound XML-export deck from the immutable prepared input;
-WFU/native orbital evidence retains the complete requested basis. Existing
-Molden results remain valid. Export-only failures with an evidenced converged
-RHF record can recover that record through the checked retry path.
-The production preset uses augmented TZ-F12 for the relaxed path, sampling,
-CC high-spin anchor, both MR gaps, and direct MR leaves. There is no routine
-VRC CBS extrapolation; explicit expert overrides remain supported. The CBH/ANL
-thermochemistry recipe is independent and unchanged.
-
-Finish the current TZ recon before choosing alternative production bases.
-The [post-recon performance check](../../../docs/SULFUR_TZ_RESTART_2026-10-14.md#performance-check-after-reconnaissance)
-will test actual correlated costs; DZ sampling or additional QZ recon is
-conditional on those results. The present TZ settings remain the baseline.
-
-See the [current safe Blodgett stop/update/restart commands and active-space guide](../../../docs/SULFUR_TZ_RESTART_2026-10-14.md).
-# Current orbital review
-
-Use the [general chemical orbital-review workflow](../../../docs/ORBITAL_REVIEW_WORKFLOW.md)
-for optimized comparisons and independent C–S/S–S and inner/outer selections.
-Its Blodgett commands run both sulfur systems under one twenty-job cap and reuse
-verified old checkpoints without treating frozen-CASCI energies as CASSCF.
+After native confirmation, install the reviewed selection in the applicable
+bond/stage, retain the declared physical states and thermochemistry data, and
+run the ordinary `kinbot INPUT.json` workflow. Completion means validated
+correction scans, the requested Monte Carlo uncertainty, audited thermochemistry
+and an executed MESS calculation. A passing preparation/test suite or a chosen
+CAS alone does not establish those results.

@@ -1,0 +1,13 @@
+{
+  "created_utc": "2026-10-16T04:53:07.854792+00:00",
+  "files": {
+    "examples/anl/ch3s_anl1_f12/README.md": {
+      "archive": "docs/archive/sulfur_readmes_20261016/ch3s_README.md",
+      "sha256": "4917a483f875e4b06142d9cbb4874a4224e9d8d597a4779991fcc2288b03ab67"
+    },
+    "examples/anl/ch3ss_anl1_f12/README.md": {
+      "archive": "docs/archive/sulfur_readmes_20261016/ch3ss_README.md",
+      "sha256": "40f2dfc4a3970ae716844c517b121e6218694371991d91f1466393669f37e1ce"
+    }
+  }
+}

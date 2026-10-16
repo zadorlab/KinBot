@@ -13,6 +13,65 @@ from kinbot.execution import atomic_json, file_sha256
 SOURCE = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json'
 
 
+def test_correlated_order_diagnostic_keeps_method_controls_and_root_labels():
+    row = {'state_model': {'selected_roots': {'2': 1}},
+           'correlated_energies_hartree': [
+               {'method': 'caspt2(3,3)', 'shift': shift, 'multiplicity': 2,
+                'root': root, 'energy_hartree': energy}
+               for shift, values in ((0.0, ((1, -10.), (2, -10.2))),
+                                     (0.3, ((2, -9.9), (1, -10.1))))
+               for root, energy in values]}
+    original = deepcopy(row)
+    first, second = review._state_order_diagnostics(row)
+    assert first['roots_by_increasing_correlated_energy'] == [2, 1]
+    assert first['selected_reference_root'] == 1
+    assert first['selected_root_above_lowest_computed_hartree'] == pytest.approx(.2)
+    assert second['roots_by_increasing_correlated_energy'] == [1, 2]
+    assert second['selected_root_above_lowest_computed_hartree'] == 0.
+    assert row == original
+
+
+def test_correlated_order_diagnostic_does_not_invent_missing_selected_energy():
+    row = {'state_model': {'selected_roots': {3: 2}},
+           'correlated_energies_hartree': [
+               {'method': 'mrci+q(2,2)', 'multiplicity': 3,
+                'root': 1, 'energy_hartree': -1.} ]}
+    assert review._state_order_diagnostics(row)[0]['selected_root_above_lowest_computed_hartree'] is None
+    assert review._state_order_diagnostics({}) == []
+    assert review._state_order_diagnostics({'state_model': None}) == []
+
+
+@pytest.mark.parametrize('symbol,bond_length,fragment_mult,counts,multiplicities', [
+    ('H', .74, 2, (2, 2), [1, 3]),
+    ('N', 1.10, 4, (10, 8), [1, 3, 5, 7]),
+])
+def test_non_sulfur_channels_derive_spaces_and_spin_blocks(
+        tmp_path, symbol, bond_length, fragment_mult, counts, multiplicities):
+    source = tmp_path / 'recon.json'
+    atomic_json(source, {'schema': 1, 'title': 'unrelated_reaction',
+        'symbols': [symbol, symbol],
+        'geometry_angstrom': [[0., 0., 0.], [0., 0., bond_length]],
+        'charge': 0, 'multiplicity': 1, 'probe_active_space': True,
+        'bases': [{'name': 'test_basis', 'basis': 'vdz'}],
+        'coordinates': [{'name': 'dissociation', 'bond': [1, 2],
+            'distances_angstrom': [bond_length, 2., 4., 20.],
+            'fragment_states': [{'atom': atom, 'charge': 0,
+                'multiplicity': fragment_mult, 'smiles': f'[{symbol}]'}
+                for atom in (1, 2)]}]})
+    plan = review.plan(source, tmp_path / 'plan.json')
+    definition = json.loads(plan.read_text())
+    model = definition['models'][0]
+    assert (model['active_electrons'], model['active_orbitals']) == counts
+    assert model['fragment_context']['multiplicities'] == multiplicities
+    assert model['channel'] == 'dissociation'
+    definition['variants'] = [definition['variants'][1]]  # native CASSCF preparation
+    atomic_json(plan, definition)
+    campaign = json.loads(review.prepare(plan, tmp_path / 'campaign').read_text())
+    manifest = json.loads(Path(campaign['systems'][0]['manifest']).read_text())
+    assert manifest['jobs'][0]['root_states'] == [
+        {'multiplicity': mult, 'root': 1} for mult in multiplicities]
+
+
 def test_general_plan_and_shared_campaign_prepare(tmp_path):
     first = review.plan(SOURCE, tmp_path / 'plan.json')
     definition = json.loads(first.read_text())
@@ -71,6 +130,9 @@ def test_plan_exposes_requested_rotd_controls_and_unreviewed_stages(tmp_path):
     context = json.loads((SOURCE.parent / 'ch3s.json').read_text())
     context.update(title='arbitrary_title', vrc_tst_sample_basis='avdz-f12',
                    vrc_tst_scan_points=[4., 4.3, 4.6], rotdpy_dist=[6., 7.],
+                   rotdpy_flux_parameters={'flux_rel_err': 2.5, 'pot_smp_max': 1500,
+                       'pot_smp_min': 100, 'tot_smp_max': 20000, 'tot_smp_min': 100,
+                       'smp_len': 1},
                    vrc_tst_surface_model_file='surfaces.json')
     atomic_json(tmp_path / 'context.json', context)
     stages = {'schema': 1, 'reviewed': False, 'channels': [{'bond': [1, 2],
@@ -85,6 +147,7 @@ def test_plan_exposes_requested_rotd_controls_and_unreviewed_stages(tmp_path):
     assert target['parameters']['vrc_tst_sample_basis'] == 'avdz-f12'
     assert target['parameters']['vrc_tst_scan_points'] == [4., 4.3, 4.6]
     assert target['parameters']['rotdpy_dist'] == [6., 7.]
+    assert target['parameters']['rotdpy_flux_parameters'] == context['rotdpy_flux_parameters']
     assert target['surface_model']['model'] == stages  # never approves it
     assert target['surface_model']['sha256'] == file_sha256(tmp_path / 'surfaces.json')
     assert {'accuracy', 'continuity', 'chemistry', 'cost', 'kinetics'} <= set(target['acceptance_checks'])
@@ -405,6 +468,52 @@ def test_partition_can_seed_a_new_radial_distance_without_relabeling_source(tmp_
     atomic_json(specification, {'schema': 1, 'models': [item]})
     with pytest.raises(ValueError, match='positive and finite'):
         review.prepare_partitions(specification, tmp_path / 'invalid')
+
+
+def test_partition_explicit_geometry_is_preserved_with_original_seed_provenance(tmp_path, partition_source):
+    row, item = partition_source
+    original_geometry = deepcopy(row['geometry_angstrom'])
+    geometry = deepcopy(original_geometry)
+    geometry[0][0] += .023  # Change an internal coordinate, not only separation.
+    geometry[-1][2] -= .017
+    item['target_geometry_angstrom'] = geometry
+    source = tmp_path / 'fixed_geometry.json'
+    atomic_json(source, {'schema': 1, 'models': [item]})
+    result = review.prepare_partitions(source, tmp_path / 'candidate')
+    system = json.loads(result.read_text())['systems'][0]
+    for phase in ('pilot_manifest', 'manifest'):
+        job = json.loads(Path(system[phase]).read_text())['jobs'][0]
+        assert job['geometry_angstrom'] == geometry
+        assert job['initial_record'] == {'path': row['wfu'], 'sha256': row['wfu_sha256']}
+        assert job['root_states'] == row['root_states']
+        assert job.get('status') != 'complete'
+    metadata = json.loads((result.parent / 'review_index.json').read_text())['systems'][0]
+    assert metadata['source_geometry_angstrom'] == original_geometry
+    assert metadata['target_geometry_angstrom'] == geometry
+    assert metadata['channel'] == row['review']['channel']
+    assert row['geometry_angstrom'] == original_geometry
+
+
+@pytest.mark.parametrize('invalid', ['shape', 'count', 'nonfinite', 'boolean', 'conflict'])
+def test_partition_refuses_ambiguous_or_invalid_target_geometry(tmp_path, partition_source, invalid):
+    row, item = partition_source
+    geometry = deepcopy(row['geometry_angstrom'])
+    if invalid == 'shape':
+        geometry[0].pop()
+    elif invalid == 'count':
+        geometry.pop()
+    elif invalid == 'nonfinite':
+        geometry[0][0] = float('nan')
+    elif invalid == 'boolean':
+        geometry[0][0] = True
+    else:
+        item['target_distance_angstrom'] = 3.3
+    item['target_geometry_angstrom'] = geometry
+    source = tmp_path / 'bad_geometry.json'
+    atomic_json(source, {'schema': 1, 'models': [item]})
+    with pytest.raises(ValueError, match='[Tt]arget (geometry|distance)'):
+        review.prepare_partitions(source, tmp_path / 'candidate')
+    assert not (tmp_path / 'candidate').exists()
 
 
 def test_potential_profiles_match_root_labels_and_keep_unlike_curves_separate():

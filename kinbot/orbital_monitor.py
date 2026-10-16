@@ -14,6 +14,8 @@ import time
 
 _ERROR = re.compile(
     r'no convergence|not converged|error exit|\?\s*error|global error|'
+    r'\bmaxiter\s+is\s+limited\s+to\s*\d+|\?\s*illegal input|'
+    r'\?\s*the problem occurs in|'
     r'input/output error|stale file handle|no space left|disk quota exceeded|'
     r'error (?:writing|reading)\s+\d+\s+words|erroneous (?:write|read)|'
     r'\?\s*i/o error|traceback \(most recent|mpi_abort|segmentation fault|'
@@ -71,10 +73,10 @@ def _queue():
     return rows, None
 
 
-def snapshot(root, *, now=None):
+def snapshot(root, *, now=None, registry=None):
     root = Path(root).expanduser().resolve()
     now = time.time() if now is None else now
-    campaign, error = _read_json(root / 'campaign.json')
+    campaign, error = _read_json(Path(registry) if registry is not None else root / 'campaign.json')
     if error or not campaign:
         raise ValueError(error or f'Campaign missing: {root}')
     queue, queue_error = _queue()
@@ -88,7 +90,8 @@ def snapshot(root, *, now=None):
         selected = campaign.get('selected_probe_method')
         if config and selected and config.get('probe_method', 'casci') != selected:
             continue
-        for phase in ('pilot_manifest', 'manifest'):
+        phases = ('manifest',) if registry is not None else ('pilot_manifest', 'manifest')
+        for phase in phases:
             manifest, error = _read_json(Path(system[phase]))
             if error or not manifest:
                 warnings.append(error or f'Manifest missing: {system[phase]}')

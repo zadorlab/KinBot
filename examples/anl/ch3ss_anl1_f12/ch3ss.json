@@ -11,11 +11,12 @@
   "composite_method": "ANL1-F12",
   "anl_f12_augmented": 1,
   "vrc_tst_accuracy_preset": "anl1-f12",
+  "vrc_tst_sample_basis": "avdz-f12",
   "vrc_tst_active_space": {
     "mode": "selected",
-    "active_electrons": 9,
-    "active_orbitals": 7,
-    "source": "candidate; requires orbital reconnaissance review: C-S and S-S sigma/sigma-star plus sulfur nonbonding manifold"
+    "active_electrons": 7,
+    "active_orbitals": 5,
+    "source": "Minimum candidates: C-S uses methyl plus S2 pi/pi-star; S-S uses CH3S radical/lone pair plus S 3p. Separate per-bond ordered records required; pending final local S-S return and native Molpro confirmation"
   },
   "vrc_tst_state_model_file": "ch3ss_state_model.json",
   "rotdpy_run": 1,
@@ -96,5 +97,30 @@
       ]
     ]
   },
-  "vrc_tst_surface_model_file": "ch3ss_surface_model.json"
+  "vrc_tst_surface_model_file": "ch3ss_surface_model.json",
+  "vrc_tst_scan_shift": 0.3,
+  "vrc_tst_scan_ipea": 0.25,
+  "vrc_tst_spin_splitting": {
+    "reference": {
+      "method": "uccsd(t)-f12b",
+      "basis": "avtz-f12"
+    },
+    "gap_levels": [
+      {
+        "label": "caspt2_f12",
+        "method": "caspt2-f12(2,2)",
+        "basis": "avtz-f12",
+        "shift": 0.3,
+        "ipea": 0.25
+      },
+      {
+        "label": "mrci_f12_q",
+        "method": "mrci-f12+q(2,2)",
+        "basis": "avtz-f12"
+      }
+    ],
+    "weighting": {
+      "model": "arithmetic_mean"
+    }
+  }
 }

@@ -1,0 +1,1090 @@
+{
+  "schema": 1,
+  "created_utc": "2026-10-16T05:18:41.824836+00:00",
+  "scope": "Read-only inventory of every repository top-level entry except .git; does not follow symlinks. Active run sizes can change. Submodule files are not classified by the parent tracked-file list.",
+  "git_head": "b4bba08b52660ccc28754bad4f2f52ec15d859c3",
+  "cleanup_authorized_now": false,
+  "entries": [
+    {
+      "path": ".conda-pkgs",
+      "files": 21933,
+      "bytes": 1165907599,
+      "tracked_files": 0
+    },
+    {
+      "path": ".gitignore",
+      "files": 1,
+      "bytes": 119,
+      "tracked_files": 1
+    },
+    {
+      "path": ".gitmodules",
+      "files": 1,
+      "bytes": 99,
+      "tracked_files": 1
+    },
+    {
+      "path": ".kinbot_run.json",
+      "files": 1,
+      "bytes": 154,
+      "tracked_files": 0
+    },
+    {
+      "path": ".mpl-cache",
+      "files": 1,
+      "bytes": 299896,
+      "tracked_files": 0
+    },
+    {
+      "path": ".pytest_cache",
+      "files": 5,
+      "bytes": 184673,
+      "tracked_files": 0
+    },
+    {
+      "path": ".venv",
+      "files": 24831,
+      "bytes": 1124877722,
+      "tracked_files": 0
+    },
+    {
+      "path": "LICENSE",
+      "files": 1,
+      "bytes": 1659,
+      "tracked_files": 1
+    },
+    {
+      "path": "README.md",
+      "files": 1,
+      "bytes": 16270,
+      "tracked_files": 1
+    },
+    {
+      "path": "RELEASE_NOTES.md",
+      "files": 1,
+      "bytes": 27467,
+      "tracked_files": 1
+    },
+    {
+      "path": "__init__.py",
+      "files": 1,
+      "bytes": 988,
+      "tracked_files": 1
+    },
+    {
+      "path": "__pycache__",
+      "files": 1,
+      "bytes": 148,
+      "tracked_files": 0
+    },
+    {
+      "path": "conda_build_config.yaml",
+      "files": 1,
+      "bytes": 59,
+      "tracked_files": 1
+    },
+    {
+      "path": "conf",
+      "files": 0,
+      "bytes": 0,
+      "tracked_files": 0
+    },
+    {
+      "path": "docs",
+      "files": 21,
+      "bytes": 398649,
+      "tracked_files": 15
+    },
+    {
+      "path": "examples",
+      "files": 46,
+      "bytes": 357671092,
+      "tracked_files": 36
+    },
+    {
+      "path": "external",
+      "files": 59,
+      "bytes": 507396,
+      "tracked_files": 0
+    },
+    {
+      "path": "graphics",
+      "files": 1,
+      "bytes": 363942,
+      "tracked_files": 1
+    },
+    {
+      "path": "kinbot",
+      "files": 625,
+      "bytes": 10553889,
+      "tracked_files": 252
+    },
+    {
+      "path": "local_runs",
+      "files": 3781,
+      "bytes": 5368486199,
+      "tracked_files": 0
+    },
+    {
+      "path": "meta.yaml",
+      "files": 1,
+      "bytes": 1534,
+      "tracked_files": 1
+    },
+    {
+      "path": "pyproject.toml",
+      "files": 1,
+      "bytes": 2133,
+      "tracked_files": 1
+    },
+    {
+      "path": "tests",
+      "files": 352,
+      "bytes": 8506450,
+      "tracked_files": 149
+    }
+  ],
+  "large_files": [
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.GCEIJ.tmp.0",
+      "bytes": 220168992,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.GCEIJ.tmp.0",
+      "bytes": 212363096,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/reproducibility/orca_validation_snapshot_20261016T022737Z.tar.gz",
+      "bytes": 187272980,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/reproducibility/orca_validation_snapshot_20261016T0156Z.tar.gz",
+      "bytes": 142527236,
+      "tracked": false
+    },
+    {
+      "path": "examples/anl/orbital_reviews/ch3s_ch3ss_orbital_diagnostics_20261015.tar.gz",
+      "bytes": 140310495,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas7_5_far/panel.GCEIJ.tmp.0",
+      "bytes": 138581200,
+      "tracked": false
+    },
+    {
+      "path": "examples/anl/orbital_reviews/ch3s_ch3ss_orbital_review_20261015.tar.gz",
+      "bytes": 123795060,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/reproducibility/orca_validation_snapshot_20261016T0117Z.tar.gz",
+      "bytes": 108116701,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/reproducibility/orca_validation_snapshot_20261016T0115Z.tar.gz",
+      "bytes": 108113731,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/03_orca_ch3s_cas13_8/memory600_attempt/pilot.GCEIJ.tmp.0",
+      "bytes": 104111616,
+      "tracked": false
+    },
+    {
+      "path": "examples/anl/ch3s_anl1_f12/ch3s_tzf12_review_coz08qx7.tar.gz",
+      "bytes": 67266319,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_panel/ch3s_cs_cas5_4_far/panel.GCEIJ.tmp.0",
+      "bytes": 59996048,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_panel/ch3s_cs_cas5_4_far/panel.HG.tmp.0",
+      "bytes": 52033106,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.SHARK_MNPQ0.tmp.proc0.0",
+      "bytes": 50242360,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.SHARK_MNPQ0.tmp.proc2.0",
+      "bytes": 45854064,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.SHARK_MNPQ0.tmp.proc3.0",
+      "bytes": 44377004,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.SHARK_MNPQ0.tmp.proc1.0",
+      "bytes": 42840824,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IAJB_0.tmp.0",
+      "bytes": 40670876,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IAJB_0.tmp.1",
+      "bytes": 40670876,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IAJB_0.tmp.3",
+      "bytes": 40670876,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IAJB_0.tmp.2",
+      "bytes": 40670876,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IAJB_0.tmp.0",
+      "bytes": 38072800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IAJB_0.tmp.1",
+      "bytes": 37493900,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IAJB_0.tmp.3",
+      "bytes": 37493900,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IAJB_0.tmp.2",
+      "bytes": 37493900,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2.1.casci.tmp.GES.tmp",
+      "bytes": 28610576,
+      "tracked": false
+    },
+    {
+      "path": "examples/anl/orbital_reviews/ch3s_ch3ss_potential_validation_20261015.tar.gz",
+      "bytes": 22704476,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IJAB_0.tmp.0",
+      "bytes": 20921420,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IJAB_0.tmp.1",
+      "bytes": 20921420,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IJAB_0.tmp.3",
+      "bytes": 20921420,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IJAB_0.tmp.2",
+      "bytes": 20921420,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IJAB_0.tmp.0",
+      "bytes": 19617248,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IJAB_0.tmp.1",
+      "bytes": 19326716,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IJAB_0.tmp.3",
+      "bytes": 19326716,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IJAB_0.tmp.2",
+      "bytes": 19326716,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.EIJ.tmp",
+      "bytes": 18732712,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.EIJ.tmp",
+      "bytes": 18104472,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.EIJ.tmp",
+      "bytes": 18037152,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/02_orca_ch3ss_ss_cas13_9/openmpi5_attempt/input.propint.tmp.0",
+      "bytes": 16813684,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.PGC.EIJ.tmp",
+      "bytes": 13809872,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.PGC.EIJ.tmp",
+      "bytes": 13421528,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/02_orca_ch3ss_ss_cas13_9/openmpi5_attempt/input.PGC.EIJ.tmp",
+      "bytes": 13390984,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.PGC.EIJ.tmp",
+      "bytes": 13390984,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.4",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.3",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.2",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.5",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.0",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.7",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.9",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.8",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.6",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.1",
+      "bytes": 12515280,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.12",
+      "bytes": 11940676,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.13",
+      "bytes": 11940676,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.11",
+      "bytes": 11940676,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IAJB_0.tmp.10",
+      "bytes": 11940676,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc4.0",
+      "bytes": 11740644,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas7_5_far/panel.EIJ.tmp",
+      "bytes": 11442320,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc8.0",
+      "bytes": 11379904,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc2.0",
+      "bytes": 10374076,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc11.0",
+      "bytes": 10352856,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc9.0",
+      "bytes": 10102608,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc10.0",
+      "bytes": 10051532,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/03_orca_ch3s_cas13_8/memory600_attempt/pilot.EIJ.tmp",
+      "bytes": 9032296,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc3.0",
+      "bytes": 8858968,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas7_5_far/panel.PGC.EIJ.tmp",
+      "bytes": 8528528,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.SHARK_MNPQ0.tmp.proc2.0",
+      "bytes": 8362092,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc5.0",
+      "bytes": 8315736,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc0.0",
+      "bytes": 8243588,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.4.0.casci.tmp.GES.tmp",
+      "bytes": 8147168,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.SHARK_MNPQ0.tmp.proc1.0",
+      "bytes": 7776748,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IKJA_0.tmp.2",
+      "bytes": 7681940,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IKJA_0.tmp.3",
+      "bytes": 7632616,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.SHARK_MNPQ0.tmp.proc3.0",
+      "bytes": 7600628,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IKJA_0.tmp.1",
+      "bytes": 7583292,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.SHARK_MNPQ0.tmp.proc1.0",
+      "bytes": 7452000,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.SHARK_MNPQ0.tmp.proc0.0",
+      "bytes": 7397028,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.2el_IKJA_0.tmp.0",
+      "bytes": 7287348,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/03_orca_ch3s_cas13_8/memory600_attempt/pilot.PGC.EIJ.tmp",
+      "bytes": 7122024,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IKJA_0.tmp.3",
+      "bytes": 6847988,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IKJA_0.tmp.2",
+      "bytes": 6800632,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.4",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.3",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.2",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.5",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.9",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.0",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.7",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.6",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.1",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.8",
+      "bytes": 6790800,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IKJA_0.tmp.1",
+      "bytes": 6753276,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.2el_IKJA_0.tmp.0",
+      "bytes": 6611208,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.10",
+      "bytes": 6502420,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.11",
+      "bytes": 6502420,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.13",
+      "bytes": 6502420,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.2el_IJAB_0.tmp.12",
+      "bytes": 6502420,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.KDIIS.tmp",
+      "bytes": 6413640,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.KDIIS.tmp",
+      "bytes": 5738520,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/panel.shark_grid.tmp",
+      "bytes": 5642428,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/02_orca_ch3ss_ss_cas13_9/openmpi5_attempt/input.shark_grid.tmp",
+      "bytes": 5573388,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/04_orca_ch3ss_ss_refined_caspt2/pilot.shark_grid.tmp",
+      "bytes": 5573388,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/panel.shark_grid.tmp",
+      "bytes": 5572516,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_center/seed/transport_copy.json",
+      "bytes": 5414232,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_center/seed/transport_copy.json",
+      "bytes": 5413969,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r2p8/seed/transport_copy.json",
+      "bytes": 5401097,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_center/seed/transport_copy.json",
+      "bytes": 5399971,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_center/seed/transport_copy.json",
+      "bytes": 5399715,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/seed/transport_copy.json",
+      "bytes": 5395648,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r2p6/seed/transport_copy.json",
+      "bytes": 5393821,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r2p6/panel.json",
+      "bytes": 5389658,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r2p8/seed/seed_copy.json",
+      "bytes": 5388965,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r2p8/panel.json",
+      "bytes": 5388101,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/minimum_ss_radial/ch3ss_ss_cas7_5/r2p8/seed/seed_copy.json",
+      "bytes": 5386815,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r2p1/seed/transport_copy.json",
+      "bytes": 5385776,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_center/seed/seed_copy.json",
+      "bytes": 5384731,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_center/seed/seed_copy.json",
+      "bytes": 5384538,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_cs_cas19_12_center/seed/seed_copy.json",
+      "bytes": 5382748,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_cs_cas9_7_center/seed/seed_copy.json",
+      "bytes": 5382620,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_cs_cas13_9_center/seed/seed_copy.json",
+      "bytes": 5382527,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_cs_cas7_5_center/seed/seed_copy.json",
+      "bytes": 5382306,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_center/panel.json",
+      "bytes": 5382267,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_center/panel.json",
+      "bytes": 5382034,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r2p1/panel.json",
+      "bytes": 5381206,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_center/seed/seed_copy.json",
+      "bytes": 5379742,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_center/seed/seed_copy.json",
+      "bytes": 5379263,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_center/panel.json",
+      "bytes": 5378935,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_center/panel.json",
+      "bytes": 5378624,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r3p3_reverse/panel.json",
+      "bytes": 5378291,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r2p1/seed/seed_copy.json",
+      "bytes": 5374500,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r1p9/seed/transport_copy.json",
+      "bytes": 5373588,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas13_9_center/seed/seed_copy.json",
+      "bytes": 5373318,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas19_12_center/seed/seed_copy.json",
+      "bytes": 5373170,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas9_7_center/seed/seed_copy.json",
+      "bytes": 5373015,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas7_5_center/seed/seed_copy.json",
+      "bytes": 5372902,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_tilted/seed/transport_copy.json",
+      "bytes": 5372267,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r2p6/seed/seed_copy.json",
+      "bytes": 5371829,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_tilted/seed/transport_copy.json",
+      "bytes": 5371764,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r1p9/panel.json",
+      "bytes": 5369823,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r4/panel.json",
+      "bytes": 5368117,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/molpro_seeds/ch3ss_cs_center_copy.json",
+      "bytes": 5363459,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/02_orca_ch3ss_ss_cas13_9/input.json",
+      "bytes": 5363170,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/molpro_seeds/ch3ss_cs_center_valence_copy.json",
+      "bytes": 5362822,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_tilted/panel.json",
+      "bytes": 5362624,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_tilted/panel.json",
+      "bytes": 5362535,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/seed/transport_copy.json",
+      "bytes": 5362435,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_tilted/panel.json",
+      "bytes": 5360426,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_tilted/panel.json",
+      "bytes": 5360370,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_tilted/seed/transport_copy.json",
+      "bytes": 5359979,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r3p7_reverse/seed/seed_copy.json",
+      "bytes": 5359700,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_tilted/seed/transport_copy.json",
+      "bytes": 5359094,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r3p3_reverse/seed/transport_copy.json",
+      "bytes": 5359027,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r4p5/panel.json",
+      "bytes": 5358550,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas19_12_tilted/seed/seed_copy.json",
+      "bytes": 5357256,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas13_9_tilted/seed/seed_copy.json",
+      "bytes": 5357200,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas9_7_tilted/seed/seed_copy.json",
+      "bytes": 5357069,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas7_5_tilted/seed/seed_copy.json",
+      "bytes": 5357011,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_cs_cas19_12_tilted/seed/seed_copy.json",
+      "bytes": 5356222,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_cs_cas9_7_tilted/seed/seed_copy.json",
+      "bytes": 5356147,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_cs_cas13_9_tilted/seed/seed_copy.json",
+      "bytes": 5356058,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_cs_cas7_5_tilted/seed/seed_copy.json",
+      "bytes": 5355854,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_tilted/seed/seed_copy.json",
+      "bytes": 5355743,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_tilted/seed/seed_copy.json",
+      "bytes": 5355559,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r4/seed/transport_copy.json",
+      "bytes": 5351561,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r1p9/seed/seed_copy.json",
+      "bytes": 5350923,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r3p3_reverse/seed/seed_copy.json",
+      "bytes": 5350602,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r4p5/seed/transport_copy.json",
+      "bytes": 5347161,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_ss_cas9_7/r4p5/seed/seed_copy.json",
+      "bytes": 5346232,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_tilted/seed/seed_copy.json",
+      "bytes": 5345803,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_tilted/seed/seed_copy.json",
+      "bytes": 5345758,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/ch3ss_radial_checks/ch3ss_cs_cas7_5/r4/seed/seed_copy.json",
+      "bytes": 5341893,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/molpro_seeds/ch3ss_ss_center_copy.json",
+      "bytes": 5340010,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/molpro_seeds/ch3ss_ss_tilted_copy.json",
+      "bytes": 5332654,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/molpro_seeds/ch3ss_cs_tilted_copy.json",
+      "bytes": 5316079,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_outer/seed/transport_copy.json",
+      "bytes": 5234846,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_outer/seed/transport_copy.json",
+      "bytes": 5234099,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_outer/panel.json",
+      "bytes": 5223618,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_outer/panel.json",
+      "bytes": 5223153,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas9_7_outer/seed/seed_copy.json",
+      "bytes": 5212641,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_ss_cas7_5_outer/seed/seed_copy.json",
+      "bytes": 5212275,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_outer/seed/transport_copy.json",
+      "bytes": 5202331,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_outer/seed/transport_copy.json",
+      "bytes": 5201777,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_outer/panel.json",
+      "bytes": 5178939,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_outer/panel.json",
+      "bytes": 5178333,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas7_5_outer/seed/seed_copy.json",
+      "bytes": 5168224,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/decision_panel/ch3ss_cs_cas9_7_outer/seed/seed_copy.json",
+      "bytes": 5167889,
+      "tracked": false
+    },
+    {
+      "path": "local_runs/qchem_casscf_20261015/caspt2_validation/ch3ss_ss_cas7_5_far/panel.shark_grid.tmp",
+      "bytes": 5112160,
+      "tracked": false
+    }
+  ],
+  "read_errors": []
+}

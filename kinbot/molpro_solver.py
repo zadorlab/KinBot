@@ -9,6 +9,17 @@ import re
 from kinbot.theory import fortran_threshold, convergence_exponent
 
 
+MOLPRO_CASSCF_MAX_ITERATIONS = 999
+
+
+def validate_casscf_iterations(value, key='casscf_options.max_iterations'):
+    """MULTI rejects MAXIT above 999 at input parsing, before optimization."""
+    if type(value) is not int or not 1 <= value <= MOLPRO_CASSCF_MAX_ITERATIONS:
+        raise ValueError(f'{key} must be an integer from 1 to '
+                         f'{MOLPRO_CASSCF_MAX_ITERATIONS} (Molpro MULTI limit).')
+    return value
+
+
 def mr_thresholds(options):
     """Molpro THRVAR is a squared coefficient norm, not an energy tolerance."""
     energy = fortran_threshold(options.get('energy_convergence', 1.e-8))
@@ -29,7 +40,9 @@ def validate_solver_options(options):
         if not isinstance(controls, dict) or set(controls) - allowed[stage]:
             raise ValueError(f'Unknown solver_options.{stage} controls.')
         for key, value in controls.items():
-            if key.endswith('_convergence'):
+            if stage == 'casscf' and key == 'max_iterations':
+                validate_casscf_iterations(value, 'solver_options.casscf.max_iterations')
+            elif key.endswith('_convergence'):
                 fortran_threshold(value, f'solver_options.{stage}.{key}')
             elif type(value) is not int or value < 1:
                 raise ValueError(f'solver_options.{stage}.{key} must be a positive integer.')
@@ -91,7 +104,7 @@ def apply_solver_options(text, options):
             if re.search(r'\bcas-ci\b', body, re.I):
                 return match[0]  # Never turn a frozen-orbital control into CASSCF.
             if 'max_iterations' in controls:
-                body, count = re.subn(r'(?i)\bmaxit\s*,\s*\d+',
+                body, count = re.subn(r'(?i)\bmaxit(?:er)?\s*,\s*\d+',
                                       f'maxit,{controls["max_iterations"]}', body)
                 if count != 1:
                     raise ValueError('CASSCF override requires one generated MAXIT card.')
@@ -108,6 +121,9 @@ def apply_solver_options(text, options):
                     body += ';accuracy,' + ','.join(f'{k}={v}' for k, v in values.items()) + ';'
                 elif count != 1:
                     raise ValueError('Competing CASSCF ACCURACY cards.')
+            # Also inspect legacy prepared decks, after applying a valid repair.
+            for value in re.findall(r'(?i)\bmaxit(?:er)?\s*[,=]\s*([+-]?\d+)', body):
+                validate_casscf_iterations(int(value), 'MULTI MAXIT')
         else:
             controls = options.get('correlation', {})
             if not controls:

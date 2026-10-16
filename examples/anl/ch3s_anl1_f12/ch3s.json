@@ -11,11 +11,12 @@
   "composite_method": "ANL1-F12",
   "anl_f12_augmented": 1,
   "vrc_tst_accuracy_preset": "anl1-f12",
+  "vrc_tst_sample_basis": "avdz-f12",
   "vrc_tst_active_space": {
     "mode": "selected",
-    "active_electrons": 13,
-    "active_orbitals": 8,
-    "source": "candidate; requires orbital reconnaissance review: CH3S 6a-prime plus 2a-double-prime orbital manifold"
+    "active_electrons": 5,
+    "active_orbitals": 4,
+    "source": "Minimum candidate supported by local ORCA: methyl radical plus all three sulfur 3p orbitals; pending basis-specific native Molpro confirmation"
   },
   "vrc_tst_state_model_file": "ch3s_state_model.json",
   "rotdpy_run": 1,
@@ -77,5 +78,30 @@
       ]
     ]
   },
-  "vrc_tst_surface_model_file": "ch3s_surface_model.json"
+  "vrc_tst_surface_model_file": "ch3s_surface_model.json",
+  "vrc_tst_scan_shift": 0.3,
+  "vrc_tst_scan_ipea": 0.25,
+  "vrc_tst_spin_splitting": {
+    "reference": {
+      "method": "uccsd(t)-f12b",
+      "basis": "avtz-f12"
+    },
+    "gap_levels": [
+      {
+        "label": "caspt2_f12",
+        "method": "caspt2-f12(2,2)",
+        "basis": "avtz-f12",
+        "shift": 0.3,
+        "ipea": 0.25
+      },
+      {
+        "label": "mrci_f12_q",
+        "method": "mrci-f12+q(2,2)",
+        "basis": "avtz-f12"
+      }
+    ],
+    "weighting": {
+      "model": "arithmetic_mean"
+    }
+  }
 }

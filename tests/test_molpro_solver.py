@@ -11,7 +11,7 @@ from kinbot.molpro import _vrc_multireference_method
 
 CONTROLS = {
     'scf': {'energy_convergence': 1.e-8, 'max_iterations': 2000},
-    'casscf': {'energy_convergence': 1.e-8, 'gradient_convergence': 1.e-5, 'max_iterations': 2000},
+    'casscf': {'energy_convergence': 1.e-8, 'gradient_convergence': 1.e-5, 'max_iterations': 999},
     'correlation': {'energy_convergence': 1.e-8, 'coefficient_convergence': 1.e-5,
                     'max_iterations': 2000, 'max_reference_iterations': 2000, 'max_reference_vectors': 60},
 }
@@ -37,7 +37,7 @@ def test_native_controls_preserve_chemistry_and_are_idempotent():
     assert 'gthresh,energy=1.d-8,coeff=1.d-5' in result
     assert '{rhf,so-sci,maxit=2000,energy=1.d-8;' in result
     assert 'accuracy,energy=1.d-8,gradient=1.d-5' in result
-    assert 'maxit,2000;' in result
+    assert 'maxit,999;' in result
     for chemistry in ('shift=0.3,ipea=0.25', 'state,1,3', 'refstate,3,1,2,3',
                       'start,2140.2;occ,14;closed,10;wf,25,1,1;state,3;',
                       'orbital,2141.2,type=canonical', 'option,cluster=0'):
@@ -67,6 +67,33 @@ def test_iteration_only_override_does_not_change_explicit_tolerances_or_casci():
 def test_invalid_numerical_overrides_are_rejected(options):
     with pytest.raises(ValueError):
         validate_solver_options(options)
+
+
+@pytest.mark.parametrize('limit', [1000, 2000, 0, -1, True, 999.0])
+def test_mcscf_backend_limit_is_checked_in_all_public_settings(limit, tmp_path):
+    from kinbot.molpro import validate_vrc_state_model
+    from kinbot.molpro_reconnaissance import _load
+    with pytest.raises(ValueError):
+        validate_solver_options({'casscf': {'max_iterations': limit}})
+    with pytest.raises(ValueError):
+        validate_vrc_state_model({'casscf_options': {'max_iterations': limit},
+                                 'state_average': [{'multiplicity': 2, 'roots': 1}]})
+    source = tmp_path / 'probe.json'
+    source.write_text(json.dumps({'schema': 1, 'title': 'atom', 'symbols': ['H'],
+        'geometry_angstrom': [[0., 0., 0.]], 'charge': 0, 'multiplicity': 2,
+        'bases': [{'name': 'dz', 'basis': 'cc-pVDZ'}], 'anchors': [{'name': 'atom'}],
+        'casscf_options': {'max_iterations': limit}}))
+    with pytest.raises(ValueError):
+        _load(source)
+
+
+def test_legacy_illegal_multi_limit_requires_explicit_repair():
+    deck = DECK.replace('maxit,150;', 'maxit,2000;')
+    with pytest.raises(ValueError, match='999.*Molpro MULTI'):
+        apply_solver_options(deck, {})
+    repaired = apply_solver_options(deck, {'casscf': {'max_iterations': 999}})
+    assert 'maxit,999;' in repaired
+    assert 'maxiti=200' in repaired
 
 
 def test_competing_native_threshold_cards_are_rejected():

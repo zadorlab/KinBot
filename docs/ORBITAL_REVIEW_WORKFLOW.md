@@ -13,17 +13,55 @@ motivated alternatives and justified correlated references before accepting
 cost savings. Orbital occupations and CASCI projections guide hypotheses;
 they do not certify an error bound or replace reaction-specific chemistry.
 
-The [October 15 native review](SULFUR_ORBITAL_REVIEW_2026-10-15.md) identifies
-solver failures hidden by the original completion checks, gives candidate
-spaces from the actual orbital data, and now combines the successful repairs
-with the original panel. All eight geometries in each sulfur channel have
-converged fresh and checkpoint-initialized references. Use that combined
-evidence for candidate selection; no further reference-panel restart is needed.
-The [sulfur correlated validation](SULFUR_CORRELATED_VALIDATION.md) now gives
-the finite next batch, 20-job launch/monitor/export commands and the remaining
-checks required to complete the examples.
+The optimization target is the **minimum chemically adequate active space for
+that corrected VRC calculation**. Start with the reacting orbitals and complete
+required fragment manifolds. Add an orbital group only when it repairs a
+demonstrated deficiency in dissociation chemistry, relevant spin splittings,
+the corrected angular potential, or robust sampling. Agreement in absolute
+total energy with an occupied-valence CAS is not the selection objective.
+A comparison tolerance is a declared diagnostic, not proof that its comparator
+is exact. Exceeding an assistant-chosen cutoff at one geometry does not, by
+itself, establish that an expansion is necessary.
 
-See also the [generality and automatic handoff audit](GENERALITY_AUDIT_2026-10-15.md).
+Report the requested reactive surface and correction's spin anchor separately
+from the maximum across every state-averaged root. State averaging can be needed
+to retain a balanced fragment manifold without making every averaged root an
+independent flux surface. Conversely, do not silently omit excited surfaces
+that the physical kinetic model includes. The state/flux model must state this
+choice explicitly; a CAS size cannot determine it.
+
+The sulfur examples and their native evidence are documented separately in
+[the local ORCA validation record](SULFUR_ORCA_VALIDATION_2026-10-15.md).
+Molecule names, candidate orbital groups, bonds, geometry constraints, state
+averages, tolerances and site resources belong in input data, not runtime
+branches. The [generality audit](GENERALITY_AUDIT_2026-10-15.md) records the
+scope and limits of the earlier implementation review.
+
+`vrc_tst_accuracy_preset: "anl1-f12"` specifies energy levels and correction
+settings. It requires an explicit active-space policy or an orbital/surface
+model; it no longer implicitly chooses full valence. A user can still request
+`full_valence` deliberately. Installing a selected model or per-bond/stage
+selection supplies this requirement without introducing a separate launch path.
+
+## Decisions and completion criteria
+
+Keep these decisions separate in the review record:
+
+| Decision | Evidence needed | What it authorizes |
+| --- | --- | --- |
+| Chemical candidate | Fragment terms, radical/bond orbitals, resonance partners, required degeneracies and orbital character | A finite comparison calculation |
+| Numerically usable model | Native convergence of every requested root, correct active/core partition, independent starts and return checks | Comparing its correlated energies |
+| Locally recommended CAS | Matched interaction and angular tests against justified expansions or independent references, cost and limitations | Selecting a candidate for the target VRC calculation |
+| Production backend confirmation | Actual method/basis/core/shift conventions, native orbital ordering, state identity and scan behavior | Installing the reviewed backend records |
+| Completed kinetics | Converged corrected scans and Monte Carlo flux, audited thermochemistry, executed MESS | Reporting rates and their tested uncertainty |
+
+A local recommendation need not wait for a complete kinetics calculation.
+Conversely, a local CASPT2 result does not approve CASPT2-F12 automatically.
+An F12 orbital basis used with conventional CASPT2 does not make the
+correlation treatment explicitly correlated. Different implementations must
+be compared first at matched geometry, active orbital content, state averages,
+frozen core, shifts and correlation definition; then test the production
+method and basis changes explicitly.
 
 ## What accuracy means for this workflow
 
@@ -79,18 +117,6 @@ correction is converged; separate fragment deformation from a frozen-fragment
 interaction comparison. Corrections transferred between chemically similar
 systems still require validation for the target event.
 
-For the present examples, CH3 + S(3P) motivates testing CAS(5,4): the methyl
-radical and all three sulfur 3p orbitals. By analogy with the O2 example,
-CH3 + S2 also warrants considering CAS(7,5), comprising the methyl radical
-and the complete S2 pi/pi* manifold. This is an **untested sulfur hypothesis**,
-not a result of the cited paper. The current CAS(9,7) candidate additionally
-retains the S2 3p-derived sigma/sigma* pair. Before preparing a smaller space,
-identify those orbitals from the native evidence and ensure the required
-states remain represented through the contributing approach geometries.
-Do not delete orbitals solely by their occupation rank. The CH3S + S channel
-requires its own fragment-state analysis. The current finite comparison
-batches have not yet tested this proposed CAS(7,5) reduction.
-
 Inner and outer models can require different spaces and averages. For example,
 the [NH2O study, section 2.2](https://doi.org/10.1021/acs.jpca.3c05181)
 uses (3e,3o) for inner NH + OH addition and (5e,4o) outside, where the additional
@@ -100,6 +126,57 @@ well/reaction energies remain the responsibility of the CBH/ANL energy framework
 the VRC calculation must also deliver accurate relative interaction energies.
 
 ## Procedure
+
+The protocol must distinguish four kinds of evidence: chemical orbital/state
+content, numerical robustness, accuracy of the corrected interfragment
+potential, and the resulting kinetics. A completed electronic calculation
+establishes only part of the second item. A useful selection report must say
+which comparison remains missing and which omitted orbital group that
+comparison tests. Expanding every space indiscriminately is not the procedure.
+
+`python -m kinbot.orbital_review assess-vrc OBSERVATIONS.json REPORT.json`
+now evaluates explicit, backend-independent potential comparisons. The
+observations are hash-bound to native input/output and parsed results. The
+schema contains `points` (coordinates and separation), `models` (per-point
+`energies_hartree` keyed by matched state labels, coordinates, and `evidence`
+path/SHA-256 pairs), and `comparisons` (candidate, comparator, chemical question,
+required points, asymptote, angular-reference mapping, tolerance and state
+assignment). Model identities and orbital content are input data.
+
+Each model uses one lowest included asymptotic energy as the common zero for
+all roots and spins. The report retains raw interaction-potential differences
+and computes the residual after applying the electronic correction measured
+on the reference cut at the **same separation**. This residual is the error
+in angular dependence that a correction depending only on separation cannot
+remove. Missing points stay incomplete; a different geometry, missing state
+mapping or changed evidence causes an error. The result reports a measured
+angular test, not automatic approval of a reference, CAS or production run.
+This comparison does not yet calculate the separate geometry-relaxation
+correction. Qualitative orbital/state analysis and the actual scan checks
+remain essential to the user's choice.
+
+The local ORCA adapter `assess_decision_panel.py` supplies observations to this
+same interface. Until cross-geometry electronic-state identities are checked,
+it labels its sorted same-spin energies as provisional spectra. Root-index
+agreement, or a symmetry-preserving nuclear path, must not be advertised as
+proof that orbitals or physical states did not switch. General declared
+Cartesian symmetry operations can be audited with `kinbot.orbital_geometry`;
+the module contains no molecular point-group choices.
+
+Native Molpro review reports also include `state_order_diagnostics`: the
+correlated energy order within each method/control/spin group, the selected
+reference-root label, and its energy above the lowest computed root. A root
+that was lowest at CASSCF can cease to be lowest after correlation. This
+diagnostic does not silently change the production root or assign flux weights.
+
+The same `assess-vrc` input can include `path_tests`. Each entry supplies `id`,
+`model`, `state_assignment`, an ordered `path`, `asymptote`, `return_pairs` and
+`return_tolerance_kcal_mol`. Optional `spin_pairs` explicitly names `label`,
+`target` and `reference` state keys. Return pairs must have exactly identical
+nuclear coordinates. Reports retain every state's return error and the
+declared spin gaps, and compute secants only between adjacent available path
+points. Missing points remain incomplete. These tests measure hysteresis;
+they do not infer physical root identities or certify unsampled smoothness.
 
 1. `plan CONFIG PLAN.json` derives fragment/spin context from the existing
    reconnaissance configuration and linked KinBot input. It exposes all
@@ -298,6 +375,20 @@ the VRC calculation must also deliver accurate relative interaction energies.
    `model` (comparison group), `source_directory`, `region`, `chemical_note`,
    target `active_electrons`/`active_orbitals`, `close_lowest`, `discard_highest`,
    and `correlation_checks`; optional `state_average` defines a separate average.
+   Each `state_average` entry accepts a positive `block_weight` (default 1)
+   in addition to `multiplicity`, `roots`, and `weights`. The `weights` sum
+   to one **within** that multiplicity; the effective normalized weight of
+   root i in block b is `block_weight[b] * weights[b][i] / sum(block_weight)`.
+   Omitted block weights retain equal total weight per spin block. A declared
+   `reference_policy: "state_average"` in a single-spin correlated call uses
+   the within-block weights only. These numerical orbital/reference averages
+   do not set VRC surface populations or spin statistical factors.
+   To preserve these reviewed roots and weights in production, select with
+   `state_average_policy: "reviewed"` (the selection command's default).
+   The alternative `channel_derived` policy deliberately rebuilds equal-weight
+   averages from the accepted fragment channel and does not retain custom
+   within-block or block weights. It is not appropriate when transferring a
+   specifically validated weighted average.
    Optional `orbital_swaps: [[i,j], ...]` exchanges explicitly reviewed orbitals
    **before** closing/discarding the ends of the source-active block. Indices
    are one-based within that source block, not absolute molecule-wide indices.
@@ -307,6 +398,30 @@ the VRC calculation must also deliver accurate relative interaction energies.
    checkpoint and rejects replacement sources. Neither occupations nor a CAS
    count establishes orbital character; the user supplies these choices.
    See [MULTI initial-orbital exchanges](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#rotating_pairs_of_initial_orbitals).
+   A direct `molpro_reconnaissance` input can instead supply fixed `anchors`
+   with `name`, `geometry_angstrom` (N-by-3, in the original atom order), and
+   `orbital_chain`. With `orbital_initialization: "propagated"`, points with
+   the same chain name consume the previous point's audited target-space
+   checkpoint, separately for each basis. This supports exact angular and
+   forward/return comparisons without reconstructing geometry from a radial
+   coordinate. Explicit coordinates cannot also request bond displacement or
+   rotation; these fixed chains cannot use adaptive `scan_policy`.
+   Every chain starts with its own hash-bound `initial_records` entry, keyed
+   `BASIS_NAME__ANCHOR_NAME`. A source partition's swaps apply only at that
+   initial point. Subsequent points reuse the target CAS and do not repeat
+   the source swaps. Campaign pilots cover each chain and basis.
+
+   An initial record normally contains `path` and `sha256`. Optional `basis`
+   declares its source orbital basis. If that differs from the destination,
+   `project_orbitals: true` is required and emits `START,...,OVL`; an explicit
+   projection always requires a source-basis declaration. The checkpoint is
+   then a **projected starting guess**, not an approved destination-basis
+   model. Reoptimize, inspect the native destination-basis orbitals and state
+   manifold, and bind production selection to that new checkpoint. The
+   source declaration is provenance supplied by the user, not inferred from
+   the opaque WFU. Legacy records without a basis declaration remain accepted
+   for existing workflows; this does not certify cross-basis portability.
+   See [Molpro orbital projection](https://www.molpro.net/manual/doku.php?id=general_program_structure#orbital_directives).
    Optional `casscf_options` overrides the partition preparation's solver defaults;
    optional `correlation_options` sets `max_iterations`,
    `max_reference_iterations`, and/or `max_reference_vectors` for correlated calls. These limits must be
@@ -342,6 +457,13 @@ the VRC calculation must also deliver accurate relative interaction energies.
    orientation and reoptimizing from the reviewed seed. Source/target geometry
    and the checkpoint hash are retained separately. This permits small stencils
    in the actual requested scan region without repeating a large-space recon.
+   Alternatively, `target_geometry_angstrom` supplies an explicit N-by-3 array
+   in the source atom order and coordinate frame. It is mutually exclusive with
+   `target_distance_angstrom`; no source-anchor translation or rotation is
+   reapplied. This supports a fixed-geometry comparison with another backend,
+   including changed internal fragment coordinates, while keeping the original
+   seed provenance. The new CASSCF must converge and its orbital character must
+   be checked; transferring a seed never transfers acceptance of the old result.
    Each entry is a single-geometry system, so run this
    finite campaign with `--pilot-only` to avoid repeating its panel duplicate.
    Correlated checks write/select current pseudo-canonical orbitals explicitly
@@ -434,7 +556,7 @@ Campaign execution settings can be supplied in `ROOT/campaign_settings.json`
   "excluded_nodes": [],
   "solver_options": {
     "scf": {"energy_convergence": 1e-8, "max_iterations": 2000},
-    "casscf": {"energy_convergence": 1e-8, "gradient_convergence": 1e-5, "max_iterations": 2000},
+    "casscf": {"energy_convergence": 1e-8, "gradient_convergence": 1e-5, "max_iterations": 999},
     "correlation": {
       "energy_convergence": 1e-8, "coefficient_convergence": 1e-5,
       "max_iterations": 2000, "max_reference_iterations": 2000,
@@ -445,7 +567,9 @@ Campaign execution settings can be supplied in `ROOT/campaign_settings.json`
 ```
 
 These are editable execution settings, separate from the immutable scientific
-input snapshots. Unknown keys, noninteger limits, unsafe node names, and retry
+input snapshots. Molpro MULTI limits CASSCF `max_iterations` to 999; larger
+values are rejected before submission. This limit is separate from SCF and
+correlated/reference-CI controls. Unknown keys, noninteger limits, unsafe node names, and retry
 counts outside 0–10 are rejected. Explicit CLI values override JSON; boolean
 flags also have `--no-pilot-only` and `--no-keep-going` forms. Without settings,
 existing defaults remain unchanged. `memory_mb` is the per-node Slurm request;
@@ -567,108 +691,101 @@ Installing a selection preserves those controls. A licensed native end-to-end
 run is still required to validate the entire chain on Blodgett; local tests
 cannot establish native convergence, active-space accuracy or rate accuracy.
 
-## Blodgett: stop, update, reuse and restart
+## Geometry and correction protocol
 
-Run this block in the existing Blodgett SSH session. `set -e` is confined to a
-child shell, so a failed command does not exit the SSH login shell. It stops
-only the specified campaign trees. It does not remove old results or WFU files.
-Pull first to install the corrected cleanup command. Cancellation waits up to
-five minutes by default: Slurm can retain a job in `COMPLETING` while its
-processes and node epilog finish. The command prints progress and saves
-`cleanup_status.json`; a timeout reports the remaining jobs/processes, returns
-nonzero and leaves the directory in place. A repeated `--stop` is safe once
-the queue has drained. Use a longer `--timeout SECONDS` if needed; do not
-restart while scoped jobs remain.
-The fixed new campaign path makes a repeated launch resume the same work;
-use a new path if you edit the comparison plan.
+Backend confirmation and production correction scans have different purposes.
+After selecting a space locally, confirm it in the production backend on the
+same fixed geometries, with the same chemical orbital subspace, state average,
+frozen core and numerical settings. A new geometry optimization would obscure
+this comparison. Include an asymptote, representative interaction-region
+points, an angular perturbation and a return-path check; add reference-space
+comparisons only where needed to confirm the selection. Native CASPT2-F12
+confirmation is not a second campaign to build the production correction.
 
-```bash
-bash <<'BASH'
-set -euo pipefail
-cd /home/hram/KinBot
-KB_PY=/home/hram/KinBot/.venv/bin/python
-OLD=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_20261014_193525
-NEW=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015
-PLANS=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015_inputs
+KinBot already owns the production constrained relaxed scans and the matching
+frozen-fragment geometries (`VTS._do_molpro_multireference_scan`). The geometry
+objective is the configured `vrc_tst_scan_method` / `vrc_tst_scan_basis` and
+selected electronic root. With `spin_splitting`, KinBot evaluates the CC
+reference and each multireference target/reference pair on those relaxed
+geometries, assembles the corrected target surface, and subtracts the sampling
+potential evaluated with frozen fragments. RotdPy consumes that correction
+potential during sampling. This includes geometry relaxation at the configured
+scan level; it does not optimize the composite spin-splitting energy itself.
+See `kinbot/vrc_correction.py:correction_components` and
+`assemble_spin_splitting_reference` for the explicit energy composition.
 
-env -u LD_LIBRARY_PATH -u LD_PRELOAD \
-    git -c submodule.recurse=false pull --ff-only origin composite
-"$KB_PY" -m kinbot.run_cleanup "$OLD" --stop --timeout 300
-if [ -f "$NEW/campaign.json" ]; then
-    "$KB_PY" -m kinbot.run_cleanup "$NEW" --stop --timeout 300
-fi
-"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
-"$KB_PY" -m kinbot.orbital_review --help
-"$KB_PY" -m kinbot.orbital_campaign archive-excluded "$OLD"
-export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
-export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
-mkdir -p /home/hram/.cache/kinbot/molpro
+Use a matched frozen-fragment geometry panel to isolate the electronic model.
+When preparing a new reference geometry, an alternative to separate fragment
+optimizations is to optimize the
+separated pair at a sufficiently large fixed separation, constraining the
+intended nuclear symmetry and relative orientation. Verify that residual
+interaction is negligible for the required accuracy; a nominal distance alone
+does not establish this. Freeze those optimized internal geometries and vary
+separation for the rigid reference cut. Use the same geometries for every
+candidate/reference comparison. Add angular perturbations and radial neighbors
+in the region contributing to the requested VRC flux.
 
-mkdir -p "$PLANS"
-if [ ! -f "$NEW/campaign.json" ]; then
-    STAMP=$(date +%Y%m%d_%H%M%S)
-    "$KB_PY" -m kinbot.orbital_review plan \
-        /home/hram/KinBot/examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json \
-        "$PLANS/ch3s_$STAMP.json"
-    "$KB_PY" -m kinbot.orbital_review plan \
-        /home/hram/KinBot/examples/anl/ch3ss_anl1_f12/orbital_reconnaissance.json \
-        "$PLANS/ch3ss_$STAMP.json"
-    "$KB_PY" -m kinbot.orbital_review prepare "$PLANS/ch3s_$STAMP.json" "$NEW" \
-        --additional-plan "$PLANS/ch3ss_$STAMP.json" --reuse-from "$OLD"
-else
-    "$KB_PY" -m kinbot.orbital_campaign retry-failed "$NEW" --include-interrupted
-fi
-"$KB_PY" -m kinbot.orbital_campaign preflight "$NEW"
-nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$NEW" \
-    --max-jobs 20 --max-refinements 0 \
-    >> "$NEW/controller.log" 2>&1 < /dev/null &
-printf '%s\n' "$!" > "$NEW/controller.pid"
-"$KB_PY" -m kinbot.orbital_campaign progress "$NEW"
-tail -n 30 "$NEW/controller.log"
-BASH
+This separated-pair optimization does **not** supply the finite-separation
+relaxation correction. For a method H and sampling method L, retain separately
+
+```
+Delta_electronic(R) = V_H(R, frozen) - V_L(R, frozen)
+Delta_relaxation(R) = V_H(R, relaxed) - V_H(R, frozen)
+V_corrected(R, Omega) = V_L(R, Omega, frozen)
+                      + Delta_electronic(R) + Delta_relaxation(R)
 ```
 
-This first run resolves initialization and optimized reference-orbital
-behavior. It does not assume CAS(5,4), CAS(9,6), a particular inner/outer
-boundary or a production average. We can use its export with the existing
-CASCI archive to choose the smaller candidate comparisons hands-on. Completed
-new jobs are reused on resume; an interrupted allocation is explicitly reset.
-A native failure still needs its reported diagnostic addressed before retry.
-With the current examples, preparation produces 72 finite-panel jobs and
-nine native pilots, under one twenty-job cap. Every requested basis is retained;
-the examples currently request only TZ-F12. No correlated checks are enabled
-in this initial reference-orbital campaign.
+All potentials use the declared consistent asymptotic references. The production
+KinBot scan supplies the finite-R relaxation contribution; computing extra
+relaxed points during active-space reconnaissance is optional and should answer
+a specific unresolved selection question.
+Check whether each radial correction transfers to relevant off-axis
+orientations. If angular residuals are too large, improve the sampling model
+or use a correction that resolves that dependence. Do not hide the discrepancy
+by assigning an independent zero to each electronic root.
 
-Read status at any time:
+State explicitly which energy defines each geometry optimization: a physical
+root or a deliberately chosen manifold average. A state-averaged orbital
+optimization does not by itself imply a state-averaged geometry objective.
+Preserving nuclear C3v/Cs/etc. with tied coordinates is distinct from imposing
+electronic irreducible representations. The latter and electronic state
+identity must be checked separately. A spin-free symmetry-constrained geometry
+also need not equal a spin-orbit vibronic equilibrium geometry.
 
-```bash
-bash <<'BASH'
-set -euo pipefail
-cd /home/hram/KinBot
-/home/hram/KinBot/.venv/bin/python -m kinbot.orbital_campaign progress \
-    /home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015
-tail -n 50 /home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015/controller.log
-squeue -u hram -o '%.18i %.16P %.48j %.10T %.10M %.6D %R'
-BASH
-```
+For Molpro, use a Z-matrix with tied variables and an explicit `ACTIVE` list
+when preserving a constrained nuclear path. With the RF/Z-matrix optimizer,
+only the listed variables change. An arbitrary energy objective, including
+Davidson-corrected MRCI, requires `OPTG,VARIABLE=...` and numerical gradients.
+PQS optimization of a Z-matrix can replace tied parameters, so it must not be
+used as a substitute for these restrictions. See the
+[Molpro OPTG manual](https://www.molpro.net/manual/doku.php?id=geometry_optimization_optg).
+Use the documented iteration limits and verify final geometry, objective,
+convergence and orbital character before materializing the frozen scans.
 
-After the controller finishes, export:
+## Reproducible evidence and production handoff
 
-```bash
-bash <<'BASH'
-set -euo pipefail
-cd /home/hram/KinBot
-KB_PY=/home/hram/KinBot/.venv/bin/python
-NEW=/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015
-STAMP=$(date +%Y%m%d_%H%M%S)
-"$KB_PY" -m kinbot.orbital_review report "$NEW" "$NEW/review_report_$STAMP.json"
-"$KB_PY" -m kinbot.orbital_campaign collect "$NEW" \
-    "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_$STAMP.tar.gz"
-BASH
-```
+The review record should contain the target bond/stage, chemical orbital
+content, state labels and weights, original/native input, program version,
+basis coefficients, core policy, shifts, solver controls, seeds and orbital
+ordering, geometry provenance, output, parsed energies and comparison reports.
+Bind artifacts by SHA-256 and retain unsuccessful attempts as rejection or
+recovery evidence in an archive. Production tables should contain accepted
+observations only, with links to any limitations affecting their interpretation.
+Do not delete the sole copy of source checkpoints when cleaning a review tree.
 
-Copy the printed archive to the local checkout for review. Keep both campaign
-directories on Blodgett because the selection and restart provenance refer
-to their WFU paths. Production launch commands follow the user's actual
-space/surface selections; the current example inputs deliberately reference
-state/surface model files that have not yet been scientifically selected.
+After native confirmation, install each bond/stage selection using the command
+above. Keep the requested CBH/ANL thermochemistry, correction, sampling and
+MESS settings in the parent input. The spin-splitting correction combines
+method estimates of the **same physically assigned target/reference gap** with
+a validated single-reference high-spin anchor; it does not average arbitrary
+spatial roots. A ground-state coupled-cluster calculation cannot stand in for
+an excited high-spin root. Orbital identity, electronic statistical weights,
+spin-orbit offsets and equilibration assumptions are separate review items.
+
+The sampling basis may differ from the correction basis. Specify it explicitly
+and validate the corrected potential; selecting an accuracy preset alone does
+not establish that it matches the user's requested sampling cost. Likewise,
+state the requested `rotdpy_flux_parameters.flux_rel_err` and sample ceilings:
+a sample ceiling is not evidence that the uncertainty target was achieved.
+Production mode must retain completion/thermochemistry/flux checks through
+MESS. Passing parser and orchestration tests is not a native end-to-end result.

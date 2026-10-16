@@ -1,5 +1,65 @@
 # Generality and production handoff audit — 15 October 2026
 
+## Latest local verification (16 October UTC / 15 October PDT)
+
+The final full local regression run passed **1,622 tests and 391 subtests**
+in 73.45 seconds. The retained log is
+`local_runs/qchem_casscf_20261015/reproducibility/final_handoff_regression_verified_20261016.log`.
+This includes non-sulfur H2/N2 preparation, explicit target Cartesian geometry
+validation, separate sampling/correction basis records, independent fixed
+orbital-propagation chains, projected starting guesses and spin-block weights.
+Native electronic
+convergence is not simulated by those tests. The two warnings were the existing
+deprecated `imp` import and denied optional Sella cache access. These checks do
+not establish an executed production kinetics run.
+
+Subsequent confirmation-export tests verify archive member hashes, original
+seed retention, re-auditing of incomplete native results, refusal to overwrite,
+and refusal to collect while scheduler state is live or unavailable. After
+the final example-control edits, nine example/confirmation tests passed
+(`local_runs/qchem_casscf_20261015/reproducibility/handoff_examples_20261016.log`).
+The examples now explicitly request IPEA 0.25 and real shift 0.3 for both
+sampling/scan CASPT2 and the CASPT2 spin-gap component. Historical recipes keep
+their original shifts independently of changes to production input. Local
+ORCA comparisons at IPEA zero do not establish parameter insensitivity.
+The catalogue-control test also changes the SCF tolerance/iteration limit,
+correlation reference policy and sparse point selection, then verifies the
+rendered native input. Shared convergence values require decimal powers of ten.
+
+Resolved recon plans now retain the requested ROTD Monte Carlo controls and
+validation profile. Reports distinguish CAS-selection evidence from later
+production relaxation, corrected-potential and flux checks. Backend
+confirmation uses matched fixed geometries; it does not create a duplicate
+relaxation/correction workflow. Geometry, fragment/state choices, candidate
+orbital groups, thresholds and site settings remain input data. The two sulfur
+examples are evidence and configuration under the example/local-run directories,
+not runtime dispatch rules. No molecule-name or cluster-node special cases were
+found in the recon/production runtime search; this limited static check is not
+a line-by-line certification of every change relative to master.
+
+The accuracy-preset audit also found an implicit chemical policy:
+`anl1-f12` selected `full_valence` when the input omitted a CAS choice. That
+default has been removed. The preset now requires an explicit orbital policy
+or orbital/surface model; an intentional full-valence request remains valid.
+The existing sulfur examples already supply a candidate policy. Their sampling
+basis is now explicitly DZ-F12, as requested; relaxed-path and spin-splitting
+levels remain TZ-F12. Historical comparison recipes explicitly retain their
+TZ-F12 level. The focused example/review/ROTD/multistate checks passed **84
+tests**, including distinct basis-specific WFU fixtures. Native DZ records
+still need confirmation. Explicit source-basis provenance and
+`project_orbitals: true` now permit a hash-bound checkpoint to supply a
+projected starting guess in a different basis. This does not approve the new
+basis model: its reoptimized orbitals and asymptote must be reviewed before
+production installation. Unacknowledged cross-basis initialization is rejected.
+
+The fixed-chain transfer package renders 39 jobs across nine chains without
+duplicating the initial points as separate pilots. Tests verify one-time source
+swaps, exact return geometries, requested bases, numerical thresholds and
+immutable configuration checks. Its registry-aware monitor reuses the general
+monitor. Those tests use synthetic checkpoint bytes and a mocked scheduler;
+they are preparation/restart tests, not native Molpro confirmation. Chemistry,
+geometries and cluster settings are confined to the example catalogue.
+
 This follow-up examines the `composite` additions relative to local `master`
 (`e8bec02b398235c0444e8ce922f2b711079f6768`), also checking the locally available
 `origin/master` (`5c6525a7db09534d2e70cd689760eb50a9b5c618`). These are recorded
@@ -62,11 +122,13 @@ ANL jobs, VRC correction scans, ROTD physical-state sampling, MESSPF/MESS and
 `anl_automatic/final_report.json`. Different inner/outer spaces are supported
 without inventing a vdW complex for `hom_sci`.
 
-The sulfur examples still need native correlated results, a user-approved CAS
-and state/surface model, method/basis checks and the native production run.
-Local regression success cannot replace those calculations. The next finite
-39-job batch, 20-job cap, monitoring and export commands are in
-[SULFUR_CORRELATED_VALIDATION.md](SULFUR_CORRELATED_VALIDATION.md).
+The sulfur examples now have completed local ORCA CASPT2 evidence, including
+the minimum S–S radial/return check. Final orbital/surface approval, native
+Molpro method/basis checks and the production run remain. Local regression
+success cannot replace those calculations. The current transfer package is
+[the minimal Molpro confirmation](../examples/anl/orbital_reviews/molpro_confirmation/README.md).
+The older [correlated validation notes](SULFUR_CORRELATED_VALIDATION.md)
+retain the historical broad campaign and its recovery evidence.
 
 ## Native follow-up
 
@@ -101,3 +163,25 @@ repeated AVAS or incompatible DIAB, and explicit current canonical records for
 CASPT2. That preparation check mocked WFU bytes and scheduler snapshots; it did
 not run Molpro or validate native correlated accuracy. The launch/export shell
 blocks were syntax checked. Existing uploaded archives remain untouched.
+
+
+## Final handoff audit
+
+The final targeted set passed **135 tests** (12.20 seconds), covering confirmation,
+examples, general VRC correction/state rendering, orbital review and solver controls.
+The new transition tests verify seed hashes before cancellation, scheduler failure
+before any signal, scoped shutdown, preserved native files/metadata, and a stop for
+possible exact-geometry/space reuse. The final handoff retains the working relaxed-Davidson selector and default
+CABS-singles CI (1), per user instruction. The old (9,7) CABS orthogonalization
+failure is documented and remains a native risk to diagnose if repeated.
+No speculative alternate-method control is added to the handoff.
+Confirmation memory is explicitly propagated into the execution environment and
+restored afterwards; hostile inherited SBATCH memory values are covered by tests.
+
+The final full-suite rerun initially found six stale ROTD fixture expectations
+for the former (13,8)/(9,7) example spaces. Expected native occupations were
+updated to the selected (5,4)/(7,5) spaces (CH3S closed=10/occ=14;
+CH3SS closed=17/occ=22). No production behavior was changed to satisfy those
+expectations. The complete rerun then passed 1,622 tests and 391 subtests.
+The Davidson reader test now includes all three Davidson/Pople variants and
+a pre-CABS fatal-error case; the existing runtime selector remains unchanged.

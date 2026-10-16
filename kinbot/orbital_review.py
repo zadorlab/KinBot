@@ -47,7 +47,8 @@ def _rotd_target(context_path):
             'vrc_tst_scan_ipea', 'vrc_tst_correction_model', 'vrc_tst_spin_splitting',
             'vrc_tst_active_space', 'vrc_tst_state_model_file', 'vrc_tst_state_model',
             'vrc_tst_state_average_roots', 'vrc_tst_selected_roots',
-            'rotdpy_dist', 'rotdpy_temperature_grid', 'pp_on_COM', 'pp_on_atom', 'pp_oriented')
+            'rotdpy_dist', 'rotdpy_temperature_grid', 'rotdpy_flux_parameters',
+            'rotdpy_validation_profile', 'pp_on_COM', 'pp_on_atom', 'pp_oriented')
     target = {'status': 'linked', 'input': str(context_path), 'sha256': file_sha256(context_path),
               'parameters': {key: deepcopy(par.get(key)) for key in keys},
               'coordinates': {'vrc_tst_scan_points': 'reactive atom-pair distance, angstrom',
@@ -67,6 +68,11 @@ def _rotd_target(context_path):
         'cost': 'Measure the eventual correlated methods, bases and root counts; SCF/CASSCF timing is insufficient.',
         'kinetics': 'Check corrected-surface and flux/rate sensitivity over the requested temperature range.',
         'selection': 'User review required; smoothness, a larger CAS or lower total energy alone cannot approve a space.'}
+    target['workflow_responsibilities'] = {
+        'reconnaissance': 'Compare chemical orbital spaces on matched geometries for the requested channels and electronic states.',
+        'backend_confirmation': 'Verify the selected subspace and potential behavior on matched fixed geometries in the production backend.',
+        'production': 'KinBot generates constrained relaxed and frozen scans, assembles the requested correction, runs RotdPy sampling and passes validated fluxes to MESS.',
+        'geometry_objective': 'Relaxation uses the configured scan method and root; a spin-splitting correction is assembled afterward, not used as a composite optimization gradient.'}
     return target
 
 
@@ -451,6 +457,35 @@ def _review_rows(root):
     return campaign, rows
 
 
+def _state_order_diagnostics(row):
+    """Distinguish the requested reference-root label from correlated rank.
+
+    This is a diagnostic of computed energies, not a physical state assignment
+    or a prescription to switch roots during a scan. Keep different methods,
+    shifts and reference-density policies in separate groups.
+    """
+    groups = {}
+    for state in row.get('correlated_energies_hartree', []):
+        label = {k: v for k, v in state.items() if k not in ('root', 'energy_hartree')}
+        key = json.dumps(label, sort_keys=True)
+        groups.setdefault(key, (label, []))[1].append(state)
+    selected = (row.get('state_model') or {}).get('selected_roots', {})
+    diagnostics = []
+    for label, states in groups.values():
+        states = sorted(states, key=lambda state: (state['energy_hartree'], state['root']))
+        mult = label['multiplicity']
+        root = selected.get(mult, selected.get(str(mult), 1))
+        chosen = next((state for state in states if state['root'] == root), None)
+        diagnostics.append({**label,
+            'roots_by_increasing_correlated_energy': [state['root'] for state in states],
+            'selected_reference_root': root,
+            'selected_root_above_lowest_computed_hartree': (
+                chosen['energy_hartree'] - states[0]['energy_hartree'] if chosen else None),
+            'interpretation': 'Reference-root labels need not follow correlated energy order. '
+                'Energy sorting alone does not establish physical state continuity or flux weights.'})
+    return diagnostics
+
+
 def _potential_profiles(completed):
     """Expose relative potentials and secants without claiming smoothness/accuracy.
 
@@ -524,6 +559,8 @@ def report(root, output, *, additional_campaigns=()):
                         'selected_probe_method': campaign.get('selected_probe_method')})
         rows.extend(entries)
     completed = [row for row in rows if row.get('status') == 'complete']
+    for row in completed:
+        row['state_order_diagnostics'] = _state_order_diagnostics(row)
     for i, left in enumerate(completed):
         for right in completed[i + 1:]:
             if (left['basis'] != right['basis'] or left['review']['model'] != right['review']['model']
@@ -733,7 +770,8 @@ def prepare_partitions(source, output):
     """Reoptimize explicit natural-orbital partitions of completed references.
 
     Each specification selects an existing seed and optionally a new distance
-    along its configured dissociation coordinate. No cross-basis
+    along its configured dissociation coordinate or explicit Cartesian geometry
+    in the source atom order and coordinate frame. No cross-basis
     WFU reuse, inferred orbital identities, or production approval is implied.
     Single-anchor systems can all run once with campaign --pilot-only.
     """
@@ -749,6 +787,7 @@ def prepare_partitions(source, output):
     for item in definition['models']:
         if (not isinstance(item, dict) or not required <= set(item)
                 or set(item) - required - {'state_average', 'target_distance_angstrom',
+                                          'target_geometry_angstrom',
                                           'casscf_options', 'correlation_options', 'orbital_swaps',
                                           'source_wfu_sha256'}
                 or any(not recon._SAFE.fullmatch(str(item[key])) for key in ('name', 'model'))
@@ -756,6 +795,8 @@ def prepare_partitions(source, output):
                 or item['region'] not in ('diagnostic', 'single', 'inner', 'outer')):
             raise ValueError('Invalid or duplicate partition model specification.')
         names.add(item['name'])
+        if {'target_distance_angstrom', 'target_geometry_angstrom'} <= set(item):
+            raise ValueError('Specify target distance or target geometry, not both.')
     roots = sorted({Path(m['source_directory']).expanduser().resolve().parents[1]
                     for m in definition['models']})
     rows, systems = {}, {}
@@ -796,6 +837,17 @@ def prepare_partitions(source, output):
                 anchor.update(name=item['name'], distance_angstrom=float(distance))
             data = {key: deepcopy(value) for key, value in loaded.items()
                     if not key.startswith('_') and key not in ('coordinates', 'scan_policy', 'orientation_probes')}
+            if 'target_geometry_angstrom' in item:
+                geometry = item['target_geometry_angstrom']
+                if (not isinstance(geometry, list) or len(geometry) != len(prior['symbols'])
+                        or any(not isinstance(row, list) or len(row) != 3
+                               or any(type(x) not in (int, float) or not np.isfinite(x) for x in row)
+                               for row in geometry)):
+                    raise ValueError('Target geometry must be finite N-by-3 coordinates in source atom order.')
+                data['geometry_angstrom'] = deepcopy(geometry)
+                # These coordinates already describe the requested point. Applying
+                # the source anchor's translation/rotation again would change it.
+                anchor = {'name': item['name']}
             basis = next(b for b in data['bases'] if b['basis'] == prior['basis'])
             state_model = deepcopy(prior['state_model'])
             state_model.pop('orbital_selection', None)
@@ -833,6 +885,7 @@ def prepare_partitions(source, output):
                             'orbital_initialization': 'independent'},
                 'source_directory': directory, 'source_output_sha256': prior['output_sha256'],
                 'source_geometry_angstrom': prior['geometry_angstrom'],
+                'target_geometry_angstrom': recon._anchor_geometry(data, anchor).tolist(),
                 'rotd_target': targets[record['configuration']],
                 'reused_checkpoint_count': 1})
         result = orbital_campaign.prepare(output, configurations)
@@ -844,7 +897,7 @@ def prepare_partitions(source, output):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='python -m kinbot.orbital_review')
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('plan', 'prepare', 'prepare-partitions', 'prepare-incomplete', 'report', 'repair-convergence'):
+    for name in ('plan', 'prepare', 'prepare-partitions', 'prepare-incomplete', 'report', 'repair-convergence', 'assess-vrc'):
         command = commands.add_parser(name)
         command.add_argument('source')
         command.add_argument('output')
@@ -871,7 +924,10 @@ def main(argv=None):
     install.add_argument('--bond', type=int, nargs=2)
     install.add_argument('--stage', choices=['single', 'inner', 'outer'])
     args = parser.parse_args(argv)
-    if args.command == 'install-selection':
+    if args.command == 'assess-vrc':
+        from kinbot.orbital_validation import assess
+        print(assess(args.source, args.output))
+    elif args.command == 'install-selection':
         print(install_selection(args.input, args.selection, args.output,
               surface_file=args.surface_file, bond=args.bond, stage=args.stage))
     elif args.command == 'prepare':

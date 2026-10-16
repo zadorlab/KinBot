@@ -9,6 +9,100 @@ import pytest
 from kinbot.molpro_reconnaissance import audit, prepare, select_record
 
 
+def _partition_chain_configuration(tmp_path):
+    from kinbot.execution import file_sha256
+    seeds = {}
+    for basis in ('dz', 'tz'):
+        p = tmp_path / (basis + '.wfu')
+        p.write_bytes((basis + ': explicit synthetic checkpoint, not native evidence').encode())
+        seeds[basis + '__far'] = {'path': str(p), 'sha256': file_sha256(p)}
+    return {'schema': 1, 'title': 'nitrogen_partition_transport',
+        'symbols': ['N', 'N'], 'geometry_angstrom': [[0., 0., 0.], [0., 0., 20.]],
+        'charge': 0, 'multiplicity': 1, 'probe_active_space': True,
+        'probe_method': 'casscf', 'orbital_initialization': 'propagated',
+        'bases': [{'name': 'dz', 'basis': 'avdz-f12'}, {'name': 'tz', 'basis': 'avtz-f12'}],
+        'anchors': [{'name': name, 'orbital_chain': 'comparison',
+                     'geometry_angstrom': xyz} for name, xyz in (
+                         ('far', [[0., 0., 0.], [0., 0., 20.]]),
+                         ('near', [[.1, .2, 0.], [1.4, .2, .1]]),
+                         ('return', [[0., 0., 0.], [0., 0., 20.]]))],
+        'initial_records': seeds,
+        'probe_definition': {'active_electrons': 6, 'active_orbitals': 6,
+            'chemical_note': 'Synthetic partition for transport regression; not a chemical recommendation.',
+            'state_model': {'state_average': [{'multiplicity': 1, 'roots': 1}]},
+            'orbital_partition': {'source_active_electrons': 10, 'source_active_orbitals': 8,
+                'close_lowest': 2, 'discard_highest': 0, 'orbital_swaps': [[3, 5]]}}}
+
+
+def test_partition_chain_applies_source_swaps_once_and_keeps_basis_dependencies(tmp_path):
+    from kinbot.molpro_reconnaissance import _anchor_geometry, _load
+    data = _partition_chain_configuration(tmp_path)
+    source = tmp_path / 'chain.json'
+    source.write_text(json.dumps(data))
+    path = prepare(source, tmp_path / 'recon')
+    manifest = json.loads(path.read_text())
+    assert len(manifest['jobs']) == 6
+    loaded = _load(source)
+    for b in ('dz', 'tz'):
+        jobs = [j for j in manifest['jobs'] if j['name'].startswith(b + '__')]
+        assert [j['orbital_predecessor'] for j in jobs] == [None, b + '__far', b + '__near']
+        assert jobs[0]['initial_record'] == data['initial_records'][b + '__far']
+        assert not jobs[1]['initial_record'] and not jobs[2]['initial_record']
+        for index, j in enumerate(jobs):
+            deck = (Path(j['directory']) / (j['name'] + '.inp')).read_text()
+            assert ('rotate,5.1,7.1,0' in deck) == (index == 0)
+            assert ('diab,2140.2' in deck) == (index != 0)
+            assert 'occ,10' in deck and 'closed,4' in deck
+            assert _anchor_geometry(loaded, loaded['anchors'][index]).tolist() == data['anchors'][index]['geometry_angstrom']
+    # Re-preparation must preserve the same dependency and immutable decks.
+    assert json.loads(prepare(source, tmp_path / 'recon').read_text())['jobs'] == manifest['jobs']
+
+
+def test_cross_basis_initial_projection_is_explicit_and_not_repeated(tmp_path):
+    data = _partition_chain_configuration(tmp_path)
+    data['initial_records']['dz__far'].update(basis='avtz-f12', project_orbitals=True)
+    data['initial_records']['tz__far'].update(basis='avtz-f12')
+    source = tmp_path / 'chain.json'
+    source.write_text(json.dumps(data))
+    manifest = json.loads(prepare(source, tmp_path / 'recon').read_text())
+    for j in manifest['jobs']:
+        deck = (Path(j['directory']) / (j['name'] + '.inp')).read_text()
+        assert ('start,2140.2,type=natural,ovl' in deck) == (j['name'] == 'dz__far')
+    assert manifest['jobs'][0]['initial_record']['basis'] == 'avtz-f12'
+    assert manifest['jobs'][0]['initial_record']['project_orbitals'] is True
+
+
+@pytest.mark.parametrize('extra', [
+    {'basis': 'avtz-f12'}, {'basis': 'avtz-f12', 'project_orbitals': False},
+    {'project_orbitals': True}, {'basis': 'avtz-f12', 'project_orbitals': 'true'}])
+def test_initial_projection_rejects_implicit_or_malformed_cross_basis_guess(tmp_path, extra):
+    data = _partition_chain_configuration(tmp_path)
+    data['initial_records']['dz__far'].update(extra)
+    source = tmp_path / 'chain.json'
+    source.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='project_orbitals'):
+        prepare(source, tmp_path / 'recon')
+
+
+@pytest.mark.parametrize('change', ['new_chain', 'missing_basis_seed', 'independent', 'mixed_geometry', 'adaptive'])
+def test_partition_chain_rejects_unseeded_or_ambiguous_paths(tmp_path, change):
+    data = _partition_chain_configuration(tmp_path)
+    if change == 'new_chain':
+        data['anchors'][1]['orbital_chain'] = 'another'
+    elif change == 'missing_basis_seed':
+        del data['initial_records']['tz__far']
+    elif change == 'independent':
+        data['orbital_initialization'] = 'independent'
+    elif change == 'mixed_geometry':
+        data['anchors'][1].update(bond=[1, 2], moving_atoms=[2], distance_angstrom=2.)
+    else:
+        data['scan_policy'] = {'asymptote_angstrom': 30.}
+    source = tmp_path / 'chain.json'
+    source.write_text(json.dumps(data))
+    with pytest.raises(ValueError):
+        prepare(source, tmp_path / 'recon')
+
+
 def test_native_caspt2_selector_recovery_checks_every_state_and_rejects_mismatches():
     import gzip
     from kinbot.molpro_reconnaissance import (

@@ -32,7 +32,8 @@ from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            molpro_wfu_name, _vrc_multireference_method,
                            vrc_multireference_energy_contract, validate_mr_correlation_options)
 from kinbot.theory import fortran_threshold
-from kinbot.molpro_solver import apply_solver_options, validate_solver_options
+from kinbot.molpro_solver import (apply_solver_options, validate_solver_options,
+                                 validate_casscf_iterations)
 from kinbot.execution import atomic_json, file_sha256, slurm_job_record, SLURM_TERMINAL_STATES
 from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
                                MolproScratchError, molpro_io_failure)
@@ -328,6 +329,8 @@ def _load(path):
         if 'max_iterations' in options and (isinstance(options['max_iterations'], bool)
                 or not isinstance(options['max_iterations'], int) or options['max_iterations'] < 1):
             raise ValueError(f'{key}.max_iterations must be a positive integer.')
+        if key == 'casscf_options' and 'max_iterations' in options:
+            validate_casscf_iterations(options['max_iterations'])
         for control in ('exact_diagonalization', 'quasi_newton'):
             if control in options and not isinstance(options[control], bool):
                 raise ValueError(f'{key}.{control} must be boolean.')
@@ -350,17 +353,30 @@ def _load(path):
     anchors = data.get('anchors')
     if not isinstance(anchors, list) or not anchors:
         raise ValueError('anchors must be a nonempty list.')
+    if data.get('scan_policy') and any(isinstance(a, dict) and
+            ('geometry_angstrom' in a or 'orbital_chain' in a) for a in anchors):
+        raise ValueError('Explicit orbital chains use a fixed geometry sequence, not adaptive scan_policy.')
     names = set()
     for anchor in anchors:
         allowed = {'name', 'bond', 'moving_atoms', 'distance_angstrom', '_channel', '_context',
-                   '_rotation', '_orientation'}
+                   '_rotation', '_orientation', 'geometry_angstrom', 'orbital_chain'}
         if not isinstance(anchor, dict) or set(anchor) - allowed \
                 or not _SAFE.fullmatch(str(anchor.get('name', ''))):
             raise ValueError('Each anchor requires a safe name.')
         if anchor['name'] in names:
             raise ValueError('Anchor names must be unique.')
         names.add(anchor['name'])
-        if set(anchor) == {'name'}:
+        if 'orbital_chain' in anchor and (not isinstance(anchor['orbital_chain'], str)
+                                         or not _SAFE.fullmatch(anchor['orbital_chain'])):
+            raise ValueError('orbital_chain must be a safe nonempty name.')
+        if 'geometry_angstrom' in anchor:
+            explicit = np.asarray(anchor['geometry_angstrom'], dtype=float)
+            if (explicit.shape != geometry.shape or not np.isfinite(explicit).all()
+                    or set(anchor) & {'bond', 'moving_atoms', 'distance_angstrom', '_rotation'}):
+                raise ValueError('Explicit anchor geometry must be finite N-by-3 coordinates '
+                                 'without a competing displacement or rotation.')
+            continue
+        if set(anchor) <= {'name', 'orbital_chain', '_channel', '_context', '_orientation'}:
             continue
         if not {'bond', 'moving_atoms', 'distance_angstrom'} <= set(anchor):
             raise ValueError('A displaced anchor requires bond, moving_atoms, '
@@ -449,10 +465,19 @@ def _load(path):
             else:
                 data['_probe_space']['orbital_partition'] = partition
                 seeds = data.get('initial_records', {})
-                if not isinstance(seeds, dict) or any(
-                        not seeds.get(basis['name'] + '__' + anchor['name'])
-                        for basis in data['bases'] for anchor in anchors):
-                    raise ValueError('Every partitioned candidate needs its own verified natural-orbital checkpoint.')
+                if not isinstance(seeds, dict):
+                    raise ValueError('Partition initial_records must be a mapping.')
+                for basis in data['bases']:
+                    seen_chains = set()
+                    for anchor in anchors:
+                        chain = anchor.get('orbital_chain', anchor.get('_channel'))
+                        propagated = (chain and chain in seen_chains
+                                      and data.get('orbital_initialization', 'propagated') == 'propagated')
+                        if not seeds.get(basis['name'] + '__' + anchor['name']) and not propagated:
+                            raise ValueError('Every independent partition or new orbital chain needs '
+                                             'its own verified natural-orbital checkpoint in each basis.')
+                        if chain:
+                            seen_chains.add(chain)
     elif data.get('probe_definition') or data.get('correlation_checks'):
         raise ValueError('Candidate and correlation checks require probe_active_space=true.')
     checks = data.get('correlation_checks', [])
@@ -493,8 +518,10 @@ def _load(path):
 
 
 def _anchor_geometry(data, anchor):
+    if 'geometry_angstrom' in anchor:
+        return np.asarray(anchor['geometry_angstrom'], dtype=float).copy()
     geometry = np.asarray(data['geometry_angstrom'], dtype=float).copy()
-    if set(anchor) == {'name'}:
+    if 'bond' not in anchor:
         return geometry
     first, second = (value - 1 for value in anchor['bond'])
     vector = geometry[second] - geometry[first]
@@ -631,9 +658,16 @@ def _deck(data, basis, anchor, stem, previous=None):
         if previous is not None:
             start = ('start,2140.2,type=natural' if method == 'casscf'
                      else 'start,2140.2')
-            diab = ('' if space.get('orbital_partition') else '\ndiab,2140.2')
+            if isinstance(previous, dict) and previous.get('project_orbitals'):
+                # An explicitly declared cross-basis seed is a projected guess,
+                # not a reviewed wavefunction in the destination basis.
+                start += ',ovl'
+            # A source checkpoint may need a one-time partition/reordering.
+            # A propagated predecessor already contains the target CAS.
+            initial_partition = bool(space.get('orbital_partition') and isinstance(previous, dict))
+            diab = '' if initial_partition else '\ndiab,2140.2'
             partition = space.get('orbital_partition', {})
-            if partition.get('orbital_swaps'):
+            if initial_partition and partition.get('orbital_swaps'):
                 source_closed = (data['_electrons'] - partition['source_active_electrons']) // 2
                 # Reorder the verified source before closing/discarding its
                 # ends. Occupation rank alone does not identify sigma/pi MOs.
@@ -812,7 +846,7 @@ def _prepare(source, output):
             directory = root / stem
             directory.mkdir(exist_ok=True)
             inp = directory / f'{stem}.inp'
-            channel = anchor.get('_channel')
+            channel = anchor.get('orbital_chain', anchor.get('_channel'))
             old_job = previous_jobs.get(stem, {})
             if old_job and (not inp.is_file() or file_sha256(inp)
                             != old_job['input_sha256']):
@@ -824,12 +858,22 @@ def _prepare(source, output):
                            if channel and data.get('probe_active_space')
                            and data.get('orbital_initialization', 'propagated') == 'propagated' else None)
             seed = data.get('initial_records', {}).get(stem)
-            if data.get('_probe_space', {}).get('orbital_partition') and not seed:
-                raise ValueError('Every partitioned candidate needs its own verified natural-orbital checkpoint.')
+            if data.get('_probe_space', {}).get('orbital_partition') and not (seed or predecessor):
+                raise ValueError('A partitioned candidate needs a verified seed or a propagated predecessor.')
             if seed:
-                if (set(seed) != {'path', 'sha256'} or data.get('probe_method') != 'casscf'
+                if (not isinstance(seed, dict) or not {'path', 'sha256'} <= set(seed)
+                        or set(seed) - {'path', 'sha256', 'basis', 'project_orbitals'}
+                        or ('project_orbitals' in seed and type(seed['project_orbitals']) is not bool)
+                        or ('basis' in seed and (not isinstance(seed['basis'], str)
+                                                or not seed['basis'].strip()))
+                        or (seed.get('project_orbitals') and not seed.get('basis'))
+                        or (seed.get('basis') and seed['basis'].lower() != basis['basis'].lower()
+                            and not seed.get('project_orbitals'))
+                        or data.get('probe_method') != 'casscf'
                         or not Path(seed['path']).is_file() or file_sha256(seed['path']) != seed['sha256']):
-                    raise ValueError('Initial CASSCF record requires a verified checkpoint.')
+                    raise ValueError('Initial CASSCF record requires a verified checkpoint; '
+                                     'a different declared basis requires project_orbitals=true '
+                                     'and a declared source basis.')
                 predecessor = None
             deck = _deck(data, basis['basis'], anchor, stem, previous=seed or predecessor)
             if seed:
@@ -870,7 +914,7 @@ def _prepare(source, output):
                 'template_sha256': digest,
                 'orbital_predecessor': predecessor,
                 'initial_record': seed,
-                'channel': anchor.get('_channel'),
+                'channel': channel,
                 'orientation': anchor.get('_orientation'),
                 'distance_angstrom': anchor.get('distance_angstrom'),
                 'spin_context': anchor.get('_context'),

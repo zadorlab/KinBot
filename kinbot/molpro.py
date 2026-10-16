@@ -13,7 +13,7 @@ from pathlib import Path
 
 from kinbot import kb_path
 from kinbot.theory import fortran_threshold
-from kinbot.molpro_solver import mr_thresholds
+from kinbot.molpro_solver import mr_thresholds, validate_casscf_iterations
 from kinbot.execution import file_sha256
 from kinbot import constants
 import math
@@ -301,8 +301,8 @@ def validate_vrc_state_model(model, *, active_electrons=None,
         for key in ('exact_diagonalization', 'quasi_newton'):
             if key in options and not isinstance(options[key], bool):
                 raise ValueError(f'casscf_options.{key} must be boolean.')
-        if 'max_iterations' in options and (type(options['max_iterations']) is not int or options['max_iterations'] < 1):
-            raise ValueError('casscf_options.max_iterations must be a positive integer.')
+        if 'max_iterations' in options:
+            validate_casscf_iterations(options['max_iterations'])
         if 'verbosity' in options and (type(options['verbosity']) is not int or not 0 <= options['verbosity'] <= 4):
             raise ValueError('casscf_options.verbosity must be an integer from 0 to 4.')
         for key in ('energy_convergence', 'gradient_convergence'):
@@ -317,9 +317,9 @@ def validate_vrc_state_model(model, *, active_electrons=None,
     normalized = []
     for entry in averages:
         if (not isinstance(entry, dict)
-                or set(entry) - {'multiplicity', 'roots', 'weights'}):
+                or set(entry) - {'multiplicity', 'roots', 'weights', 'block_weight'}):
             raise ValueError('Each state_average entry accepts multiplicity, '
-                             'roots, and optional weights.')
+                             'roots, and optional weights and block_weight.')
         multiplicity = entry.get('multiplicity')
         roots = entry.get('roots')
         if (isinstance(multiplicity, bool)
@@ -347,8 +347,14 @@ def validate_vrc_state_model(model, *, active_electrons=None,
                 or not np.isclose(sum(weights), 1., atol=1.e-12, rtol=0.)):
             raise ValueError('State-average weights must be positive, match '
                              'the root count, and sum to one.')
-        normalized.append({'multiplicity': multiplicity, 'roots': roots,
-                           'weights': weights})
+        item = {'multiplicity': multiplicity, 'roots': roots, 'weights': weights}
+        if 'block_weight' in entry:
+            value = entry['block_weight']
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not np.isfinite(value) or value <= 0):
+                raise ValueError('state_average.block_weight must be a positive finite number.')
+            item['block_weight'] = float(value)
+        normalized.append(item)
         seen.add(multiplicity)
     result['state_average'] = normalized
 
@@ -559,7 +565,8 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
         multi += (f'wf,{nelectron},1,{entry["multiplicity"] - 1}\n'
                   f'state,{entry["roots"]}\n'
                   'weight,' + ','.join(f'{value:.16g}'
-                                        for value in entry['weights']) + '\n')
+                                        for value in (entry.get('block_weight', 1.) * weight
+                                                      for weight in entry['weights'])) + '\n')
     if model['canonical_orbitals']:
         multi += 'canonical,2140.2\n'
     options = model.get('casscf_options', {})

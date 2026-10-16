@@ -11,6 +11,26 @@ from kinbot import orbital_campaign as campaign
 from test_molpro_reconnaissance import _coordinate_configuration, _complete_probes
 
 
+def test_campaign_pilots_each_explicit_orbital_chain_and_basis(tmp_path):
+    from copy import deepcopy
+    from test_molpro_reconnaissance import _partition_chain_configuration
+    data = _partition_chain_configuration(tmp_path)
+    other = deepcopy(data['anchors'][0])
+    other.update(name='independent_start', orbital_chain='independent_comparison')
+    data['anchors'].append(other)
+    for basis in ('dz', 'tz'):
+        data['initial_records'][basis + '__independent_start'] = deepcopy(
+            data['initial_records'][basis + '__far'])
+    source = tmp_path / 'source.json'
+    source.write_text(json.dumps(data))
+    record = json.loads(campaign.prepare(tmp_path / 'campaign', [source]).read_text())['systems'][0]
+    pilot = json.loads(Path(record['pilot_manifest']).read_text())
+    full = json.loads(Path(record['manifest']).read_text())
+    assert {j['name'] for j in pilot['jobs']} == {
+        b + '__' + a for b in ('dz', 'tz') for a in ('far', 'independent_start')}
+    assert len(full['jobs']) == 8
+
+
 @pytest.mark.parametrize('setting', [
     {'max_jobs': True}, {'memory_mb': 0}, {'startup_retries': 11}, {'io_retries': -1},
     {'allocation_retries': 1.5}, {'keep_going': 'yes'}, {'max_reference_iterations': 2000},

@@ -61,6 +61,22 @@ def test_snapshot_reads_live_native_errors_without_mutating_or_auditing(tmp_path
     assert {p: p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
 
 
+def test_monitor_reads_explicit_single_phase_registry_without_duplicate_jobs(tmp_path, monkeypatch):
+    _campaign(tmp_path)
+    original = json.loads((tmp_path / 'campaign.json').read_text())
+    for system in original['systems']:
+        system['manifest'] = system.pop('pilot_manifest')
+    registry = tmp_path / 'custom_registry.json'
+    registry.write_text(json.dumps(original))
+    monkeypatch.setattr(monitor, '_queue', lambda: ({}, None))
+    before = registry.read_bytes()
+    result = monitor.snapshot(tmp_path, registry=registry)
+    assert set(result['counts']) == {'manifest'}
+    assert result['counts']['manifest']['total'] == 4
+    assert len(result['jobs']) == 2
+    assert registry.read_bytes() == before
+
+
 def test_monitor_uses_latest_requeue_and_ignores_old_guard_failures(tmp_path, monkeypatch):
     jobs = _campaign(tmp_path)
     directory = Path(jobs[0]['directory'])
@@ -92,3 +108,16 @@ def test_monitor_does_not_attach_a_reused_slurm_id_to_wrong_directory(tmp_path, 
     row = next(r for r in monitor.snapshot(tmp_path)['jobs'] if r['job_id'] == '10')
     assert not row['scheduler']
     assert any('identity mismatch' in a for a in row['alerts'])
+
+
+def test_monitor_surfaces_native_input_limit_before_mpi_abort(tmp_path, monkeypatch):
+    jobs = _campaign(tmp_path)
+    directory = Path(jobs[0]['directory'])
+    (directory / 'probe.out').write_text(' PROGRAM * MULTI\n'
+        ' MAXITER IS LIMITED TO999\n ? Error\n ? Illegal input value\n'
+        ' ? The problem occurs in muinp1\n GLOBAL ERROR fehler on processor 0\n')
+    monkeypatch.setattr(monitor, '_queue', lambda: ({}, None))
+    row = next(r for r in monitor.snapshot(tmp_path)['jobs'] if r['job_id'] == '10')
+    assert row['log_matches'][0]['line'] == 'MAXITER IS LIMITED TO999'
+    assert 'Illegal input value' in monitor.render({'jobs':[row], **{
+        k:v for k,v in monitor.snapshot(tmp_path).items() if k != 'jobs'}}, details=True)

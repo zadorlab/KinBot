@@ -1,7 +1,8 @@
 """Prepare a finite, editable example comparison; submit nothing.
 
 All molecule/space/anchor choices are data in validation_candidates.json.
-Methods, basis and radial stencil points come from the linked KinBot inputs.
+Methods, basis, shifts and radial stencil points come from the linked KinBot
+inputs unless the recipe explicitly records historical comparison settings.
 The resulting single-geometry systems run once with --pilot-only.
 """
 import argparse
@@ -42,8 +43,9 @@ def plan(recipe, base):
                       ('tilted', source(case['orientation_seed']), grid[center])]
             if space['radial_neighbors']:
                 points += [('left', radial, grid[center-1]), ('right', radial, grid[center+1])]
-            level = resolve_vrc_level({'method': parameters['vrc_tst_sample_method'],
-                                       'basis': parameters['vrc_tst_sample_basis']},
+            level = resolve_vrc_level(recipe.get('comparison_level',
+                                      {'method': parameters['vrc_tst_sample_method'],
+                                       'basis': parameters['vrc_tst_sample_basis']}),
                                       {'active_electrons': electrons, 'active_orbitals': orbitals})
             if not vrc_multireference_energy_contract(level['method']):
                 raise ValueError('This example comparison needs a supported correlated MR sampling method.')
@@ -60,7 +62,8 @@ def plan(recipe, base):
                     'active_electrons': electrons, 'active_orbitals': orbitals,
                     'close_lowest': space['close_lowest'], 'discard_highest': space.get('discard_highest', 0),
                     'correlation_checks': [{'method': level['method'],
-                        'shift': parameters['vrc_tst_scan_shift'], 'ipea': parameters['vrc_tst_scan_ipea']}]}
+                        'shift': recipe.get('comparison_settings', {}).get('shift', parameters['vrc_tst_scan_shift']),
+                        'ipea': recipe.get('comparison_settings', {}).get('ipea', parameters['vrc_tst_scan_ipea'])}]}
                 if 'orbital_swaps' in choice:
                     item['orbital_swaps'] = choice['orbital_swaps']
                 if space.get('bind_reviewed_checkpoint'):

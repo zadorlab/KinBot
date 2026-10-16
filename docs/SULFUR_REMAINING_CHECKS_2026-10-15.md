@@ -1,11 +1,41 @@
 # Finite CH3S/CH3SS follow-up: asymptotes, references and sampling cost
 
+**Scope update:** the broad campaign and restart instructions below are retained
+as historical operational evidence. They are not the current minimum set needed
+after local ORCA selection. The current transfer recipe is
+[the aDZ-F12/aTZ-F12 confirmation package](../examples/anl/orbital_reviews/molpro_confirmation/README.md),
+and outstanding deliverables are maintained in
+[ORBITAL_RECON_DELIVERABLES.md](ORBITAL_RECON_DELIVERABLES.md).
+
 This replaces the standalone incomplete-point repair commands in
 [the first correlated-panel notes](SULFUR_CORRELATED_VALIDATION.md). The broad
 CASSCF reference panel is complete. Final CAS choices and native
 CBH/ANL–ROTD–MESS production remain unvalidated.
 
-## Current full stop and restart: explicit numerical tolerances
+## Final transition (16 October UTC)
+
+The final user-supplied old-campaign snapshot has 59 validated pilots, two failed
+and seven running expanded-space S–S MRCI jobs. Full-manifest waiting entries are
+unused broad-campaign follow-ups, not 68 extra required confirmation jobs.
+Retire this old campaign with the scoped preservation adapter in the current
+confirmation package. Do not relaunch the historical broad-restart commands below.
+The two failures are distinct: (13,9) reference-CI nonconvergence and a (9,7)
+MRCI-F12 CABS-singles orthogonalization error after CI convergence. The latter
+printed -835.144880450706 Eh and a relaxed Davidson value -835.22093578 Eh, but
+terminated in `mrf12_singles.F90`; these are partial diagnostics, not accepted
+completed energies. The new sparse minimum-space MRCI check retains the default CABS singles (1).
+The documented perturbational alternative (2) is not adopted or given a new
+control at this handoff; repeated native failures will be diagnosed individually. No extra iterations can certify the failed
+orthogonalization step. Its resolution in the new native checks remains pending.
+
+## Historical full stop and restart: explicit numerical tolerances
+
+The 17:26 follow-up exposed a separate input error: Molpro MULTI rejects
+`maxit,2000` with `MAXITER IS LIMITED TO999`, before doing any CASSCF iterations.
+The example now uses 999 for CASSCF. The shared input validators reject larger
+CASSCF limits, and the live monitor includes this native message. This failure
+is an input-generation error, not evidence that the active space is unsuitable
+or that the cluster killed a converging calculation.
 
 The latest native failures identify two independent causes. Job 52907739 was
 requeued, then failed before opening its output on node16; its node24 worker
@@ -18,7 +48,8 @@ The renderer now separates these controls, and the execution profile explicitly
 sets local MR thresholds. `energy_convergence=1e-8` sets `THRDEN=1e-8` hartree;
 `coefficient_convergence=1e-5` sets `THRVAR=1e-10`. SCF receives an explicit local
 energy threshold of `1e-8`; CASSCF uses energy `1e-8` and gradient `1e-5`.
-SCF, CASSCF, correlated and internal/reference-CI iteration ceilings are 2000,
+The CASSCF iteration ceiling is 999 (the MULTI input limit); SCF, correlated
+and internal/reference-CI iteration ceilings are 2000,
 with 60 internal Davidson vectors. These are numerical stopping criteria, not
 a claimed bound on method error. Native convergence is still mandatory.
 See [Molpro's MR thresholds](https://www.molpro.net/manual/doku.php?id=the_mrci_program)
@@ -26,7 +57,8 @@ and [SCF controls](https://www.molpro.net/manual/doku.php?id=the_scf_program).
 
 Use this block instead of older restart commands. It stops only this campaign
 and its nested CAS(7,5) addition, verifies that its allocations have ended, and
-then updates KinBot. It preserves validated completed probes byte-for-byte.
+then updates execution settings using the already installed KinBot APIs. No Git
+pull is needed for this restart. It preserves validated completed native outputs byte-for-byte.
 Failed/interrupted attempts are moved into each job's `attempts/N` directory;
 immutable inputs, original seeds and retry history are retained. Partial jobs
 rerun from their existing input/seed, rather than resuming halfway through a
@@ -48,45 +80,77 @@ RUN=/home/hram/kinbot-runs/ch3s_ch3ss_reference_checks_20261015
 "$KB_PY" -m kinbot.orbital_campaign stop-controller "$RUN"
 "$KB_PY" -m kinbot.run_cleanup "$RUN" --stop --timeout 300
 
-env -u LD_LIBRARY_PATH -u LD_PRELOAD git -c submodule.recurse=false pull --ff-only origin composite
-"$KB_PY" -m pip install -e . --no-build-isolation --no-deps
-
-"$KB_PY" - "$RUN" <<'PYCODE'
+"$KB_PY" - "$RUN" <<'PY'
 import json, shutil, sys
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from kinbot.execution import atomic_json, file_sha256
 from kinbot.orbital_campaign import load_settings, retry_failed, retry_startup_failures
-from kinbot.molpro_solver import apply_solver_options
+from kinbot.molpro_solver import apply_solver_options, validate_solver_options
 from kinbot.molpro_reconnaissance import validate_input_blocks
 
 root = Path(sys.argv[1])
-profile = Path('examples/anl/orbital_reviews/reference_campaign_settings.json')
-settings = load_settings(root, profile)
+path = root / 'campaign_settings.json'
+settings = json.loads(path.read_text()) if path.exists() else {'schema': 1}
+settings.update(max_jobs=20, pilot_only=True, probe_method='casscf', max_refinements=0,
+                keep_going=True, allocation_retries=2, startup_retries=2, io_retries=2,
+                memory_mb=104000)
+settings.setdefault('scratch_root', '/home/hram/.cache/kinbot/molpro')
+settings['excluded_nodes'] = sorted(set(settings.get('excluded_nodes', [])) |
+    {'node1','node9','node10','node13','node14','node16','node21','node23','node24','node30','node33'})
+settings.pop('reference_solver_options', None)
+settings['solver_options'] = {
+    'scf': {'energy_convergence': 1e-8, 'max_iterations': 2000},
+    'casscf': {'energy_convergence': 1e-8, 'gradient_convergence': 1e-5, 'max_iterations': 999},
+    'correlation': {'energy_convergence': 1e-8, 'coefficient_convergence': 1e-5,
+                    'max_iterations': 2000, 'max_reference_iterations': 2000,
+                    'max_reference_vectors': 60}}
+validate_solver_options(settings['solver_options'])
 campaign = json.loads((root / 'campaign.json').read_text())
-manifests = sorted({Path(s[k]) for s in campaign['systems']
-                    for k in ('pilot_manifest', 'manifest')})
-# Check every immutable input and transformed native block before changing jobs.
-for path in manifests:
-    for job in json.loads(path.read_text())['jobs']:
-        inp = Path(job['directory']) / (job['name'] + '.inp')
-        if file_sha256(inp) != job['input_sha256']:
-            raise RuntimeError(f'Input changed: {inp}')
+paths = sorted({Path(s[k]) for s in campaign['systems'] for k in ('pilot_manifest','manifest')})
+for p in paths:
+    for j in json.loads(p.read_text())['jobs']:
+        inp = Path(j['directory']) / (j['name'] + '.inp')
+        if file_sha256(inp) != j['input_sha256']:
+            raise RuntimeError(f'Immutable input changed: {inp}')
         validate_input_blocks(apply_solver_options(inp.read_text(), settings['solver_options']))
-
-old = root / 'campaign_settings.json'
-if old.exists():
-    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-    shutil.copy2(old, root / ('campaign_settings.before_restart.' + stamp + '.json'))
-atomic_json(old, settings)
+stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+backup = root / ('restart_metadata.' + stamp)
+backup.mkdir()
+for p in [root/'campaign.json', path, *paths]:
+    if p.exists():
+        target = backup / p.relative_to(root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(p, target)
+atomic_json(path, settings)
+load_settings(root)
 Path(settings['scratch_root']).mkdir(parents=True, exist_ok=True)
 print(json.dumps(retry_startup_failures(root), indent=2))
-ids = {str(j['job_id']) for p in manifests
-       for j in json.loads(p.read_text())['jobs'] if j.get('job_id')}
+ids = {str(j['job_id']) for p in paths for j in json.loads(p.read_text())['jobs'] if j.get('job_id')}
 if ids:
     print(json.dumps(retry_failed(root, include_interrupted=True, job_ids=ids), indent=2))
-print('Restart settings:', json.dumps(settings, indent=2))
-PYCODE
+for p in paths:
+    m = json.loads(p.read_text())
+    changed = False
+    for j in m['jobs']:
+        if j.get('job_id') or j.get('status') == 'complete':
+            continue
+        if j.get('retry_solver_options') != settings['solver_options']:
+            j.setdefault('solver_settings_history', []).append({
+                'previous': j.get('retry_solver_options'), 'time_utc': stamp,
+                'reason': 'Explicit restart with reviewed numerical thresholds'})
+            j['retry_solver_options'] = deepcopy(settings['solver_options'])
+            changed = True
+        for key in ('max_reference_iterations', 'max_reference_vectors'):
+            if 'retry_' + key in j:
+                j['retry_' + key] = settings['solver_options']['correlation'][key]
+                changed = True
+    if changed:
+        atomic_json(p, m)
+print('Metadata backup:', backup)
+print('Effective settings:', json.dumps(load_settings(root), indent=2))
+PY
 
 "$KB_PY" -m kinbot.orbital_campaign refresh-exclusions "$RUN"
 nohup "$KB_PY" -u -m kinbot.orbital_campaign run "$RUN" \
@@ -107,8 +171,8 @@ scientific snapshots retain their hashes, while each execution records the
 numerical overrides and the transformed native-input hash. Successful older
 results remain identified by their original tolerances. Finalists should have
 interaction energies checked for tolerance sensitivity before production.
-The checked-in example `followup_recipe.json` also requests 2000 CASSCF and
-correlated iterations for newly prepared work. Older limits in historical
+The checked-in example `followup_recipe.json` requests 999 CASSCF and
+2000 correlated iterations for newly prepared work. Older limits in historical
 run descriptions below refer to the original preparation.
 
 Monitor without accounting or `rg`:

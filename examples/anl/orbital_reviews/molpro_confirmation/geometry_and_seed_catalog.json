@@ -1,0 +1,1200 @@
+{
+  "schema": 1,
+  "status": "local_minimum_spaces_supported_native_confirmation_pending",
+  "settings": {
+    "memory_mw_per_rank": 1000,
+    "solver_options": {
+      "scf": {
+        "energy_convergence": 1e-08,
+        "max_iterations": 2000
+      },
+      "casscf": {
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation": {
+        "energy_convergence": 1e-08,
+        "coefficient_convergence": 1e-05,
+        "max_iterations": 2000,
+        "max_reference_iterations": 2000,
+        "max_reference_vectors": 60
+      }
+    },
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "mrci_basis": "avtz-f12",
+    "mrci_points": [
+      "far",
+      "center",
+      "tilted"
+    ],
+    "reference_policies": {
+      "caspt2": "selected_root",
+      "mrci": "selected_root"
+    },
+    "processes": 8,
+    "memory_mb": 104000,
+    "partition": "day-long-cpu",
+    "walltime": "24:00:00",
+    "caspt2_shift": 0.3,
+    "caspt2_ipea": 0.25
+  },
+  "methods": [
+    {
+      "id": "caspt2_f12",
+      "method": "caspt2-f12",
+      "shift": 0.3,
+      "ipea": 0.25
+    },
+    {
+      "id": "mrci_f12_q",
+      "method": "mrci-f12+q"
+    }
+  ],
+  "cases": [
+    {
+      "id": "ch3s_cs",
+      "electron_count": 25,
+      "frozen_core_orbitals": 6,
+      "geometry": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "coordinates_angstrom": [
+          [
+            -0.13343535,
+            -0.00355507,
+            0.00144609
+          ],
+          [
+            29.854163161844664,
+            0.7953934222031266,
+            -0.3235412931677015
+          ],
+          [
+            -0.12904803245425073,
+            -0.5474060498053329,
+            -0.9307248768846947
+          ],
+          [
+            -0.10902755772994564,
+            -0.538538440805693,
+            0.9384268266915794
+          ],
+          [
+            -0.16223045981580367,
+            1.0752792806110265,
+            -0.003363679806884559
+          ]
+        ],
+        "bond_0based": [
+          0,
+          1
+        ],
+        "fragments_0based": [
+          [
+            0,
+            2,
+            3,
+            4
+          ],
+          [
+            1
+          ]
+        ],
+        "separation_angstrom": 30.0,
+        "symmetry_label": "C3v",
+        "symmetry_operations": [
+          {
+            "name": "sigma_v",
+            "matrix": [
+              [
+                0.9983798622411509,
+                0.0491440677831366,
+                -0.028679457335642762
+              ],
+              [
+                0.0491440677831366,
+                -0.49070002540353475,
+                0.8699415760099621
+              ],
+              [
+                -0.028679457335642762,
+                0.8699415760099621,
+                0.4923201631623839
+              ]
+            ],
+            "origin_angstrom": [
+              -0.13343535,
+              -0.00355507,
+              0.00144609
+            ],
+            "permutation_0based": [
+              0,
+              1,
+              2,
+              4,
+              3
+            ]
+          },
+          {
+            "name": "C3",
+            "matrix": [
+              [
+                0.9987601075126471,
+                0.049312488684140246,
+                0.00682100440569261
+              ],
+              [
+                0.03054933336862979,
+                -0.49893613551134375,
+                -0.8661001506244751
+              ],
+              [
+                -0.039306308298519464,
+                0.8652346566919188,
+                -0.49982397200130285
+              ]
+            ],
+            "origin_angstrom": [
+              -0.13343535,
+              -0.00355507,
+              0.00144609
+            ],
+            "permutation_0based": [
+              0,
+              1,
+              4,
+              2,
+              3
+            ]
+          }
+        ],
+        "relative_orientation_fixed": true,
+        "source_geometry": "decision_panel/ch3s_cs_cas13_8_far",
+        "source_settings_sha256": "2483e05f4557903276271b8c9a38e0032819000368a9928e9690ba2458b6b50e"
+      },
+      "seed": {
+        "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015/02_recon/avt_f12__cs_r_30/avt_f12__cs_r_30.wfu",
+        "sha256": "db09cd59b91e5fe648aa03679281316aab6efaa51101962b0392776e16c03978",
+        "record": "2140.2",
+        "active_electrons": 13,
+        "active_orbitals": 8,
+        "reviewed_xml_sha256": "0cc78c388713ace6fae08eff34deac255ab2a550ea1b8a22db9394d34bdb23e1",
+        "orbital_swaps_1based": [],
+        "basis": "avtz-f12"
+      },
+      "state_model": {
+        "canonical_orbitals": true,
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 3,
+            "weights": [
+              0.3333333333333333,
+              0.3333333333333333,
+              0.3333333333333333
+            ]
+          },
+          {
+            "multiplicity": 4,
+            "roots": 3,
+            "weights": [
+              0.3333333333333333,
+              0.3333333333333333,
+              0.3333333333333333
+            ]
+          }
+        ]
+      },
+      "candidate_partitions": {
+        "5,4": [],
+        "7,5": [
+          [
+            9,
+            10
+          ]
+        ],
+        "13,8": []
+      },
+      "candidate_active_space": [
+        5,
+        4
+      ],
+      "orbital_swap_index_convention": "absolute one-based source Molpro C1 orbital indices; preparation converts to one-based indices within the source active block",
+      "chemical_note": "methyl radical plus all three sulfur 3p orbitals",
+      "confirmation_points": [
+        {
+          "name": "far",
+          "geometry_angstrom": [
+            [
+              -0.13343535,
+              -0.00355507,
+              0.00144609
+            ],
+            [
+              29.854163161844664,
+              0.7953934222031266,
+              -0.3235412931677015
+            ],
+            [
+              -0.12904803245425073,
+              -0.5474060498053329,
+              -0.9307248768846947
+            ],
+            [
+              -0.10902755772994564,
+              -0.538538440805693,
+              0.9384268266915794
+            ],
+            [
+              -0.16223045981580367,
+              1.0752792806110265,
+              -0.003363679806884559
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3s_cs_cas5_4_far",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3s_followup_settings.json",
+            "configuration_sha256": "ee7985d65cdc2a2c1897ea4d6490a014a56e12f683e6422258cec1d7db45589c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "center",
+          "geometry_angstrom": [
+            [
+              -0.13343535,
+              -0.00355507,
+              0.00144609
+            ],
+            [
+              2.965283162891,
+              0.079002940861,
+              -0.032135939594
+            ],
+            [
+              -0.12904803245425073,
+              -0.5474060498053329,
+              -0.9307248768846947
+            ],
+            [
+              -0.10902755772994564,
+              -0.538538440805693,
+              0.9384268266915794
+            ],
+            [
+              -0.16223045981580367,
+              1.0752792806110265,
+              -0.003363679806884559
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3s_cs_cas5_4_center",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3s_followup_settings.json",
+            "configuration_sha256": "ee7985d65cdc2a2c1897ea4d6490a014a56e12f683e6422258cec1d7db45589c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "inner",
+          "geometry_angstrom": [
+            [
+              -0.13343535,
+              -0.00355507,
+              0.00144609
+            ],
+            [
+              1.7657792224168285,
+              0.047045001172864684,
+              -0.019136444267287764
+            ],
+            [
+              -0.12904803245425073,
+              -0.5474060498053329,
+              -0.9307248768846947
+            ],
+            [
+              -0.10902755772994564,
+              -0.538538440805693,
+              0.9384268266915794
+            ],
+            [
+              -0.16223045981580367,
+              1.0752792806110265,
+              -0.003363679806884559
+            ]
+          ],
+          "source": {
+            "job": "ch3s_radial_checks/ch3s_cs_cas5_4/r1p9",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3s_followup_settings.json",
+            "configuration_sha256": "ee7985d65cdc2a2c1897ea4d6490a014a56e12f683e6422258cec1d7db45589c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "return",
+          "geometry_angstrom": [
+            [
+              -0.13343535,
+              -0.00355507,
+              0.00144609
+            ],
+            [
+              2.965283162891,
+              0.079002940861,
+              -0.032135939594
+            ],
+            [
+              -0.12904803245425073,
+              -0.5474060498053329,
+              -0.9307248768846947
+            ],
+            [
+              -0.10902755772994564,
+              -0.538538440805693,
+              0.9384268266915794
+            ],
+            [
+              -0.16223045981580367,
+              1.0752792806110265,
+              -0.003363679806884559
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3s_cs_cas5_4_center",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3s_followup_settings.json",
+            "configuration_sha256": "ee7985d65cdc2a2c1897ea4d6490a014a56e12f683e6422258cec1d7db45589c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": true
+          }
+        },
+        {
+          "name": "tilted",
+          "geometry_angstrom": [
+            [
+              -0.13343535,
+              -0.00355507,
+              0.00144609
+            ],
+            [
+              2.965283162891,
+              0.079002940861,
+              -0.032135939594
+            ],
+            [
+              -0.2867411706411783,
+              -0.5739347844594685,
+              -0.9018258264149213
+            ],
+            [
+              0.3379221479467238,
+              -0.46334804075426383,
+              0.85651823986081
+            ],
+            [
+              -0.4514870273055457,
+              1.026617615213733,
+              0.049645856554111384
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3s_cs_cas5_4_tilted",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3s_followup_settings.json",
+            "configuration_sha256": "ee7985d65cdc2a2c1897ea4d6490a014a56e12f683e6422258cec1d7db45589c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        }
+      ],
+      "state_model_note": "Selected root indices are reporting placeholders; all requested roots are computed. Production state identity must be checked from the native spectra and orbital evidence, including correlated root reordering."
+    },
+    {
+      "id": "ch3ss_cs",
+      "electron_count": 41,
+      "frozen_core_orbitals": 11,
+      "geometry": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "coordinates_angstrom": [
+          [
+            -0.55703925,
+            0.01704004,
+            -0.02492942
+          ],
+          [
+            23.661272500910872,
+            17.688652972910397,
+            -1.114641439336444
+          ],
+          [
+            24.855943282569076,
+            16.248588303906978,
+            -0.8954919786140135
+          ],
+          [
+            -0.20611645332443057,
+            -0.5274544179081643,
+            -0.8881297584926967
+          ],
+          [
+            -0.28242913147749227,
+            -0.3084926228933128,
+            0.966712459151873
+          ],
+          [
+            -1.182572165198077,
+            0.8870671608014769,
+            -0.1533709606591759
+          ]
+        ],
+        "bond_0based": [
+          0,
+          1
+        ],
+        "fragments_0based": [
+          [
+            0,
+            3,
+            4,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "separation_angstrom": 30.0,
+        "symmetry_label": "Cs",
+        "symmetry_operations": [
+          {
+            "name": "sigma_v",
+            "matrix": [
+              [
+                0.9966666978008066,
+                0.009564149110301606,
+                0.08101864320408939
+              ],
+              [
+                0.009564149110301606,
+                0.9725578592225397,
+                -0.2324644865700278
+              ],
+              [
+                0.08101864320408939,
+                -0.2324644865700278,
+                -0.969224557023346
+              ]
+            ],
+            "origin_angstrom": [
+              -0.55703925,
+              0.01704004,
+              -0.02492942
+            ],
+            "permutation_0based": [
+              0,
+              1,
+              2,
+              4,
+              3,
+              5
+            ]
+          }
+        ],
+        "relative_orientation_fixed": true,
+        "source_geometry": "decision_panel/ch3ss_cs_cas7_5_far",
+        "source_settings_sha256": "2483e05f4557903276271b8c9a38e0032819000368a9928e9690ba2458b6b50e"
+      },
+      "seed": {
+        "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015/05_recon/avt_f12__cs_r_30/avt_f12__cs_r_30.wfu",
+        "sha256": "c81c579e381e0801d327c224ab6f74580465c3b8dcc2f399a609793d8d43d04d",
+        "record": "2140.2",
+        "active_electrons": 19,
+        "active_orbitals": 12,
+        "reviewed_xml_sha256": "3c1dd2606753feecc06abb637e788e91cab34d9d8ed5c6dbdef61dffcf7515e6",
+        "orbital_swaps_1based": [],
+        "basis": "avtz-f12"
+      },
+      "state_model": {
+        "canonical_orbitals": true,
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          },
+          {
+            "multiplicity": 4,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "candidate_partitions": {
+        "7,5": [
+          [
+            17,
+            19
+          ]
+        ],
+        "9,7": [],
+        "13,9": [],
+        "19,12": []
+      },
+      "candidate_active_space": [
+        7,
+        5
+      ],
+      "orbital_swap_index_convention": "absolute one-based source Molpro C1 orbital indices; preparation converts to one-based indices within the source active block",
+      "chemical_note": "methyl radical plus S2 pi/pi-star manifold; S2 sigma pair closed and sigma-star external",
+      "confirmation_points": [
+        {
+          "name": "far",
+          "geometry_angstrom": [
+            [
+              -0.55703925,
+              0.01704004,
+              -0.02492942
+            ],
+            [
+              23.661272500910872,
+              17.688652972910397,
+              -1.114641439336444
+            ],
+            [
+              24.855943282569076,
+              16.248588303906978,
+              -0.8954919786140135
+            ],
+            [
+              -0.20611645332443057,
+              -0.5274544179081643,
+              -0.8881297584926967
+            ],
+            [
+              -0.28242913147749227,
+              -0.3084926228933128,
+              0.966712459151873
+            ],
+            [
+              -1.182572165198077,
+              0.8870671608014769,
+              -0.1533709606591759
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3ss_cs_cas7_5_far",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3ss_radial_settings.json",
+            "configuration_sha256": "9ff3b6c76db48e78d1211b0644128f8664aea6ca0d8808c833cd0b8899e1af5c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "center",
+          "geometry_angstrom": [
+            [
+              -0.55703925,
+              0.01704004,
+              -0.02492942
+            ],
+            [
+              2.1069750426,
+              1.96091746262,
+              -0.144797742127
+            ],
+            [
+              3.301645824258202,
+              0.5208527936165805,
+              0.07435171859543052
+            ],
+            [
+              -0.20611645332443057,
+              -0.5274544179081643,
+              -0.8881297584926967
+            ],
+            [
+              -0.28242913147749227,
+              -0.3084926228933128,
+              0.966712459151873
+            ],
+            [
+              -1.182572165198077,
+              0.8870671608014769,
+              -0.1533709606591759
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3ss_cs_cas7_5_center",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3ss_radial_settings.json",
+            "configuration_sha256": "9ff3b6c76db48e78d1211b0644128f8664aea6ca0d8808c833cd0b8899e1af5c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "inner",
+          "geometry_angstrom": [
+            [
+              -0.55703925,
+              0.01704004,
+              -0.02492942
+            ],
+            [
+              0.9767871608910221,
+              1.1362421924176584,
+              -0.09394451455797478
+            ],
+            [
+              2.171457942549224,
+              -0.3038224765857612,
+              0.12520494616445574
+            ],
+            [
+              -0.20611645332443057,
+              -0.5274544179081643,
+              -0.8881297584926967
+            ],
+            [
+              -0.28242913147749227,
+              -0.3084926228933128,
+              0.966712459151873
+            ],
+            [
+              -1.182572165198077,
+              0.8870671608014769,
+              -0.1533709606591759
+            ]
+          ],
+          "source": {
+            "job": "ch3ss_radial_checks/ch3ss_cs_cas7_5/r1p9",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3ss_radial_settings.json",
+            "configuration_sha256": "9ff3b6c76db48e78d1211b0644128f8664aea6ca0d8808c833cd0b8899e1af5c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "return",
+          "geometry_angstrom": [
+            [
+              -0.55703925,
+              0.01704004,
+              -0.02492942
+            ],
+            [
+              2.1069750426,
+              1.96091746262,
+              -0.144797742127
+            ],
+            [
+              3.301645824258202,
+              0.5208527936165805,
+              0.07435171859543052
+            ],
+            [
+              -0.20611645332443057,
+              -0.5274544179081643,
+              -0.8881297584926967
+            ],
+            [
+              -0.28242913147749227,
+              -0.3084926228933128,
+              0.966712459151873
+            ],
+            [
+              -1.182572165198077,
+              0.8870671608014769,
+              -0.1533709606591759
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3ss_cs_cas7_5_center",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3ss_radial_settings.json",
+            "configuration_sha256": "9ff3b6c76db48e78d1211b0644128f8664aea6ca0d8808c833cd0b8899e1af5c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": true
+          }
+        },
+        {
+          "name": "tilted",
+          "geometry_angstrom": [
+            [
+              -0.55703925,
+              0.01704004,
+              -0.02492942
+            ],
+            [
+              2.1069750426,
+              1.96091746262,
+              -0.144797742127
+            ],
+            [
+              3.301645824258202,
+              0.5208527936165805,
+              0.07435171859543052
+            ],
+            [
+              -0.5935032197631838,
+              -0.7523163390953775,
+              -0.7809036187313947
+            ],
+            [
+              -0.03198502377446999,
+              -0.1607642484733051,
+              0.9010508944864509
+            ],
+            [
+              -1.0456295064623462,
+              0.9642007075686825,
+              -0.19493553575505582
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3ss_cs_cas7_5_tilted",
+            "configuration": "local_runs/qchem_casscf_20261015/ch3ss_radial_settings.json",
+            "configuration_sha256": "9ff3b6c76db48e78d1211b0644128f8664aea6ca0d8808c833cd0b8899e1af5c",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        }
+      ],
+      "state_model_note": "Selected root indices are reporting placeholders; all requested roots are computed. Production state identity must be checked from the native spectra and orbital evidence, including correlated root reordering."
+    },
+    {
+      "id": "ch3ss_ss",
+      "electron_count": 41,
+      "frozen_core_orbitals": 11,
+      "geometry": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "coordinates_angstrom": [
+          [
+            -0.5109482852035686,
+            0.01671330321312503,
+            -0.02174505318167398
+          ],
+          [
+            0.91042335,
+            1.08781786,
+            -0.09095845
+          ],
+          [
+            19.934928801610468,
+            -21.84445650942987,
+            3.3988817421625956
+          ],
+          [
+            -0.5187577777614231,
+            -0.7008363495300538,
+            -0.8417381554769969
+          ],
+          [
+            -0.5910875606624395,
+            -0.4897382353101932,
+            0.9397182668644248
+          ],
+          [
+            -1.3891535056214164,
+            0.661917559983775,
+            -0.13385657739385357
+          ]
+        ],
+        "bond_0based": [
+          1,
+          2
+        ],
+        "fragments_0based": [
+          [
+            0,
+            1,
+            3,
+            4,
+            5
+          ],
+          [
+            2
+          ]
+        ],
+        "separation_angstrom": 30.0,
+        "symmetry_label": "Cs",
+        "symmetry_operations": [
+          {
+            "name": "sigma",
+            "matrix": [
+              [
+                0.9967539688910727,
+                0.00947370527478697,
+                0.07994857352236462
+              ],
+              [
+                0.00947370527478697,
+                0.9723505140210482,
+                -0.23333393836167454
+              ],
+              [
+                0.07994857352236462,
+                -0.23333393836167454,
+                -0.9691044829121209
+              ]
+            ],
+            "origin_angstrom": [
+              -0.5109482852035686,
+              0.01671330321312503,
+              -0.02174505318167398
+            ],
+            "permutation_0based": [
+              0,
+              1,
+              2,
+              4,
+              3,
+              5
+            ]
+          }
+        ],
+        "relative_orientation_fixed": true,
+        "source_geometry": "decision_panel/ch3ss_ss_cas7_5_far",
+        "source_settings_sha256": "2483e05f4557903276271b8c9a38e0032819000368a9928e9690ba2458b6b50e"
+      },
+      "seed": {
+        "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_review_20261015/08_recon/avt_f12__ss_r_30/avt_f12__ss_r_30.wfu",
+        "sha256": "e35d2d002f0e916f106d6cd8b5abe963d780641263b0e7cf12c723077f597d7b",
+        "record": "2140.2",
+        "active_electrons": 19,
+        "active_orbitals": 12,
+        "reviewed_xml_sha256": "7e8e6fc5a0a877da17bc783b3058fb4f434fb8006305555b382972dbcd44c503",
+        "orbital_swaps_1based": [],
+        "basis": "avtz-f12"
+      },
+      "state_model": {
+        "canonical_orbitals": true,
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 6,
+            "weights": [
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666
+            ]
+          },
+          {
+            "multiplicity": 4,
+            "roots": 6,
+            "weights": [
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666,
+              0.16666666666666666
+            ]
+          }
+        ]
+      },
+      "candidate_partitions": {
+        "9,7": [],
+        "13,9": [],
+        "19,12": [],
+        "7,5": []
+      },
+      "candidate_active_space": [
+        7,
+        5
+      ],
+      "orbital_swap_index_convention": "absolute one-based source Molpro C1 orbital indices; preparation converts to one-based indices within the source active block",
+      "chemical_note": "CH3S sulfur radical/lone-pair manifold plus atomic S 3p; C-S sigma pair closed",
+      "confirmation_points": [
+        {
+          "name": "far",
+          "geometry_angstrom": [
+            [
+              -0.5109482852035686,
+              0.01671330321312503,
+              -0.02174505318167398
+            ],
+            [
+              0.91042335,
+              1.08781786,
+              -0.09095845
+            ],
+            [
+              19.934928801610468,
+              -21.84445650942987,
+              3.3988817421625956
+            ],
+            [
+              -0.5187577777614231,
+              -0.7008363495300538,
+              -0.8417381554769969
+            ],
+            [
+              -0.5910875606624395,
+              -0.4897382353101932,
+              0.9397182668644248
+            ],
+            [
+              -1.3891535056214164,
+              0.661917559983775,
+              -0.13385657739385357
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3ss_ss_cas7_5_far",
+            "configuration": "local_runs/qchem_casscf_20261015/minimum_ss_radial_settings.json",
+            "configuration_sha256": "0596538f1d5f4cf40e0f47ffd4490a602922038a3854f70b89bfec5b0ce29f36",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "center",
+          "geometry_angstrom": [
+            [
+              -0.5109482852035686,
+              0.01671330321312503,
+              -0.02174505318167398
+            ],
+            [
+              0.91042335,
+              1.08781786,
+              -0.09095845
+            ],
+            [
+              3.256779022365,
+              -1.740495978896,
+              0.33945517370000006
+            ],
+            [
+              -0.5187577777614231,
+              -0.7008363495300538,
+              -0.8417381554769969
+            ],
+            [
+              -0.5910875606624395,
+              -0.4897382353101932,
+              0.9397182668644248
+            ],
+            [
+              -1.3891535056214164,
+              0.661917559983775,
+              -0.13385657739385357
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3ss_ss_cas7_5_center",
+            "configuration": "local_runs/qchem_casscf_20261015/minimum_ss_radial_settings.json",
+            "configuration_sha256": "0596538f1d5f4cf40e0f47ffd4490a602922038a3854f70b89bfec5b0ce29f36",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "inner",
+          "geometry_angstrom": [
+            [
+              -0.5109482852035686,
+              0.01671330321312503,
+              -0.02174505318167398
+            ],
+            [
+              0.91042335,
+              1.08781786,
+              -0.09095845
+            ],
+            [
+              2.242138731612733,
+              -0.517441345860091,
+              0.1533303634513817
+            ],
+            [
+              -0.5187577777614231,
+              -0.7008363495300538,
+              -0.8417381554769969
+            ],
+            [
+              -0.5910875606624395,
+              -0.4897382353101932,
+              0.9397182668644248
+            ],
+            [
+              -1.3891535056214164,
+              0.661917559983775,
+              -0.13385657739385357
+            ]
+          ],
+          "source": {
+            "job": "minimum_ss_radial/ch3ss_ss_cas7_5/r2p1",
+            "configuration": "local_runs/qchem_casscf_20261015/minimum_ss_radial_settings.json",
+            "configuration_sha256": "0596538f1d5f4cf40e0f47ffd4490a602922038a3854f70b89bfec5b0ce29f36",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        },
+        {
+          "name": "return",
+          "geometry_angstrom": [
+            [
+              -0.5109482852035686,
+              0.01671330321312503,
+              -0.02174505318167398
+            ],
+            [
+              0.91042335,
+              1.08781786,
+              -0.09095845
+            ],
+            [
+              3.256779022365,
+              -1.740495978896,
+              0.33945517370000006
+            ],
+            [
+              -0.5187577777614231,
+              -0.7008363495300538,
+              -0.8417381554769969
+            ],
+            [
+              -0.5910875606624395,
+              -0.4897382353101932,
+              0.9397182668644248
+            ],
+            [
+              -1.3891535056214164,
+              0.661917559983775,
+              -0.13385657739385357
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3ss_ss_cas7_5_center",
+            "configuration": "local_runs/qchem_casscf_20261015/minimum_ss_radial_settings.json",
+            "configuration_sha256": "0596538f1d5f4cf40e0f47ffd4490a602922038a3854f70b89bfec5b0ce29f36",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": true
+          }
+        },
+        {
+          "name": "tilted",
+          "geometry_angstrom": [
+            [
+              -0.6517517718754243,
+              0.24094063683533107,
+              0.03053496014395779
+            ],
+            [
+              0.91042335,
+              1.08781786,
+              -0.09095845
+            ],
+            [
+              3.256779022365,
+              -1.740495978896,
+              0.33945517370000006
+            ],
+            [
+              -0.9736877015422601,
+              -0.1568423185443868,
+              -0.9314697995826786
+            ],
+            [
+              -0.6312970573537989,
+              -0.5416892589741864,
+              0.7884262656599921
+            ],
+            [
+              -1.3857253757916799,
+              0.9911402797760072,
+              0.3445177311221945
+            ]
+          ],
+          "source": {
+            "job": "decision_panel/ch3ss_ss_cas7_5_tilted",
+            "configuration": "local_runs/qchem_casscf_20261015/minimum_ss_radial_settings.json",
+            "configuration_sha256": "0596538f1d5f4cf40e0f47ffd4490a602922038a3854f70b89bfec5b0ce29f36",
+            "geometry_is_optimized": false,
+            "return_reuses_center_exactly": false
+          }
+        }
+      ],
+      "state_model_note": "Selected root indices are reporting placeholders; all requested roots are computed. Production state identity must be checked from the native spectra and orbital evidence, including correlated root reordering."
+    }
+  ],
+  "method_note": "User preference: IPEA 0.25 / real shift 0.3 baseline. Existing local candidate comparisons consistently used IPEA 0. Additional long local IPEA checks were cancelled at the user's request; parameter insensitivity is not established. Review native transfer with these controls before production approval.",
+  "scope": "Use the exact ORCA fixed geometries for native CASPT2-F12 confirmation. No geometry optimization or production correction scan is part of this confirmation.",
+  "execution": {
+    "max_jobs": 9,
+    "keep_going": true,
+    "allocation_retries": 2,
+    "startup_retries": 2,
+    "io_retries": 2,
+    "scratch_root": "/home/hram/.cache/kinbot/molpro",
+    "excluded_nodes": [
+      "node1",
+      "node9",
+      "node10",
+      "node13",
+      "node14",
+      "node16",
+      "node21",
+      "node23",
+      "node24",
+      "node30",
+      "node33"
+    ]
+  },
+  "projection_note": "Both bases start from the reviewed TZ record via explicit START/OVL projection and reoptimization at the exact target geometry. The DZ result is a new orbital model requiring native review; the source TZ WFU is not certified for DZ production.",
+  "mrci_cabs_singles_rationale": {
+    "previous_failure": "MRCI-F12 converged then Orthogonalization problem in mrf12_singles.F90 with CABS_SINGLES=1 (old S-S CAS9,7 far job52907999).",
+    "chosen_variant": "Retain existing default singles-CI CABS_SINGLES=1 for official confirmation; no new alternative control added at handoff.",
+    "manual": "https://www.molpro.net/manual/doku.php?id=the_mrci_program",
+    "production_policy": "No automatic CABS variant changes. If variant 1 fails in the minimum-space far-point gate, diagnose that result and compare a declared variant-2 diagnostic before production adoption."
+  }
+}

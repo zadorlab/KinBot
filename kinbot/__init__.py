@@ -13,9 +13,14 @@
 ## rights to this software.                      ##
 ##                                               ##
 ## Authors:                                      ##
-##   Judit Zador                                 ##
+##   Judit Zádor                                 ##
 ##   Ruben Van de Vijver                         ##
-##                                               ##
+##   Austin Dewyer                               ##
+##   Carles Martí                                ##
+##   Clément Soulié                              ##
+##   Daniel T. Kendall                           ##
+##   Luka Dockx                                  ##
+##   Hrishikesh Ram                              ##
 ###################################################
 
 kb_path = __path__[0]

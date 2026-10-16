@@ -19,13 +19,15 @@ license = {file = "LICENSE"}
 authors = [
     {name="Judit Zádor", email="jzador@sandia.gov"},
     {name="Ruben Van de Vijver", email="ruben.vandevijver@ugent.be"},
+    {name="Austin Dewyer", email="adewyer@sandia.gov"},
     {name="Carles Martí", email="cmartia@sandia.gov"},
     {name="Clément Soulié", email="csoulie@sandia.gov"},
-    {name="Amanda Dewyer", email="adewyer@sandia.gov"},
+    {name="Daniel T. Kendall"},
+    {name="Luka Dockx"},
+    {name="Hrishikesh Ram"},
 ]
 maintainers = [
     {name="Judit Zádor", email="jzador@sandia.gov"},
-    {name="Clément Soulié", email="csoulie@sandia.gov"},
 ]
 classifiers = [
     "Environment :: Console",

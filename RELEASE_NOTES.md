@@ -27,8 +27,10 @@ First product optimizations use `<initial_name>_product`. Accepted wells use
 `<optimized_name>_well`. If the first calculation from A produces B and the
 first calculation from B produces C, both results remain available. A restart
 keeps each reaction's original product calculation. Existing verified wells
-can supply a first product result without another QC job. This separation uses
-calculation format v4; directories made with v3 require a fresh run.
+can supply a first product result without another QC job. As before, reuse of
+an existing well instead of optimization of each new product geometry means
+that the order in which jobs finish can affect the selected product. This
+separation uses calculation format v4; directories made with v3 require a fresh run.
 
 ### Assign axial stereochemistry from coordinates
 

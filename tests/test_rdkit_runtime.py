@@ -98,8 +98,10 @@ def test_changed_runtime_or_format_cannot_reuse_results(tmp_path, field, value):
     (tmp_path / 'kinbot.db').write_bytes(b'original calculation')
     before = snapshot(tmp_path)
     for create in (False, True):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError) as error:
             ensure_current_run(tmp_path, create=create)
+        assert 'fresh directory' in str(error.value)
+        assert ('original environment' in str(error.value)) == (field != 'schema')
     assert snapshot(tmp_path) == before
 
 

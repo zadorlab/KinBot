@@ -230,12 +230,6 @@ class MESS:
             self.rrhotpl = f.read()
         with open(f'{kb_path}/tpl/mess_core_rr.tpl') as f:
             self.corerrtpl = f.read()
-        with open(f'{kb_path}/tpl/mess_pst.tpl') as f:
-            self.psttpl = f.read()
-        with open(f'{kb_path}/tpl/mess_variational.tpl') as f:
-            self.variationaltpl = f.read()
-        with open(f'{kb_path}/tpl/mess_2tst.tpl') as f:
-            self.twotstpl = f.read()
 
 
     def write_header(self, lot):
@@ -450,10 +444,6 @@ class MESS:
                             jobname = '{}_well_mp2'.format(routing_name(self.species))
                             well_zeroenergy = self.get_zeroenergy(jobname, qc)
                             left_reference_job = jobname
-                        elif not self.par['high_level'] and self.species.reac_type[index] == 'barrierless_saddle':
-                            jobname = '{}_well_bls'.format(routing_name(self.species))
-                            well_zeroenergy = self.get_zeroenergy(jobname, qc)
-                            left_reference_job = jobname
                         else:
                             well_zeroenergy = species_zeroenergy
                         left_zeroenergy = ts_zeroenergy - well_zeroenergy
@@ -610,15 +600,12 @@ class MESS:
     def _check_optical_models(self, ts_all, ts_unique):
         """Reject inconsistent data; geometric uncertainty uses a warned weight one."""
         states = [self.species]
-        representative_only = set()
         for index, reaction in enumerate(self.species.reac_obj):
             if (reaction.instance_name in ts_all
                     and (self.par['pes'] or reaction.instance_name in ts_unique)
                     and self.species.reac_type[index] != 'hom_sci'):
                 self._set_barrier_population(reaction)
                 states.append(reaction.ts)
-                if self.species.reac_type[index] == 'barrierless_saddle':
-                    representative_only.add(id(reaction.ts))
             if reaction.instance_name in ts_unique:
                 states.extend(opt.species for opt in reaction.prod_opt)
                 if self._include_complex(reaction):
@@ -629,15 +616,14 @@ class MESS:
                 continue
             checked.add(id(species))
             try:
-                if self.par['multi_conf_tst'] and id(species) not in representative_only:
+                if self.par['multi_conf_tst']:
                     members = writer_members(species, self.par.get('optical_population', 'specified'),
                                              preserve_errors=False)
                     if not members:
                         representative_record(species, self.par.get('optical_population', 'specified'),
                                               preserve_errors=False)
                 else:
-                    self._parent_symmetry(species, preserve_errors=False,
-                                          single_structure=id(species) in representative_only)
+                    self._parent_symmetry(species, preserve_errors=False)
             except ValueError as error:
                 unresolved.append((species, str(error)))
         if unresolved:
@@ -651,9 +637,9 @@ class MESS:
         set_endpoint_populations(reaction.ts, [self.species], products)
         return products
 
-    def _parent_symmetry(self, species, *, preserve_errors=True, single_structure=False):
+    def _parent_symmetry(self, species, *, preserve_errors=True):
         species.optical_population = self.par.get('optical_population', 'specified')
-        if self.par['multi_conf_tst'] and not single_structure:
+        if self.par['multi_conf_tst']:
             record = representative_record(species, self.par.get('optical_population', 'specified'))
             species.mess_optical_counting = record.optical_evidence
             return record.sigma_ext / record.remaining_optical_weight
@@ -1004,15 +990,7 @@ class MESS:
 
     def write_barrier(self, reaction, index, left_zeroenergy, right_zeroenergy, barrier_add, freq_factor, imagfreq_factor, uq_iter):
         """Create the block for a MESS barrier."""
-        variational = self.species.reac_type[index] == 'barrierless_saddle'
-        use_ensemble = self.par['multi_conf_tst'] and not variational
-        variational_warning = ''
-        if self.par['multi_conf_tst'] and variational:
-            message = (f'{reaction.instance_name}: variational barrier uses the selected '
-                       'representative TS and product structures, as in the legacy writer; '
-                       'additional conformers are not included in this barrier model.')
-            logger.warning(message)
-            variational_warning = '! WARNING: ' + message + '\n'
+        use_ensemble = self.par['multi_conf_tst']
 
         left_zeroenergy += barrier_add
         right_zeroenergy += barrier_add
@@ -1086,58 +1064,7 @@ class MESS:
             long_rxn_name = reaction.instance_name
             zeroenergy = round(left_zeroenergy, 2)
     
-        if self.species.reac_type[index] == 'barrierless_saddle':
-            freq = self.make_freq(reaction.prod_opt[0].species.reduced_freqs, freq_factor, 0) + \
-                   self.make_freq(reaction.prod_opt[1].species.reduced_freqs, freq_factor, 0) 
-            rotors = self.make_rotors(reaction.prod_opt[0].species, freq_factor) + \
-                     self.make_rotors(reaction.prod_opt[1].species, freq_factor) 
-            nfreq = len(reaction.prod_opt[0].species.reduced_freqs) + \
-                    len(reaction.prod_opt[1].species.reduced_freqs)
-            if self.par['pes']:
-                prodzeroenergy = '{prodzeroenergy}'
-            else:
-                prodzeroenergy = ((reaction.prod_opt[0].species.energy + reaction.prod_opt[0].species.zpe + \
-                                 reaction.prod_opt[1].species.energy + reaction.prod_opt[1].species.zpe) - \
-                                 (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
-
-            outerts = self.psttpl.format(natom1=reaction.prod_opt[0].species.natom,
-                                         geom1=self.rotor_geom(reaction.prod_opt[0].species),
-                                         natom2=reaction.prod_opt[1].species.natom,
-                                         geom2=self.rotor_geom(reaction.prod_opt[1].species),
-                                         symm=self._parent_symmetry(reaction.ts, single_structure=True),
-                                         prefact='prefactor',
-                                         exponent=6,
-                                         nfreq=nfreq,
-                                         freq=freq,
-                                         hinderedrotor=rotors,
-                                         nelec=1,
-                                         mult=reaction.ts.mult,
-                                         prodzeroenergy=prodzeroenergy
-                                         )
-            twotst = self.twotstpl.format(outerts=outerts)
-            corerr = self.corerrtpl.format(symm=self._parent_symmetry(reaction.ts, single_structure=True),
-                                           rotconst=self.rotor_core_line(reaction.ts))
-            rrho = self.rrhotpl.format(natom=reaction.ts.natom,
-                                       geom=self.rotor_geom(reaction.ts),
-                                       core=corerr,
-                                       nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=self.make_freq(reaction.ts.reduced_freqs, freq_factor, 1),
-                                       rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
-                                       tunneling='',
-                                       nelec=1,
-                                       mult=reaction.ts.mult,
-                                       zeroenergy=zeroenergy,
-                                       shift='',
-                                      )
-            variational = self.variationaltpl.format(twotst=twotst,
-                                                     variationalmodel=rrho,
-                                                     tunneling=tun)
-            mess_barrier = self.barriertpl.format(rxn_name=name,
-                                                  chemid_reac=chemid_reac,
-                                                  chemid_prod=chemid_prod,
-                                                  long_rxn_name=long_rxn_name,
-                                                  model=variational)
-        elif not self.par['multi_conf_tst'] or not valid_conformers:
+        if not self.par['multi_conf_tst'] or not valid_conformers:
             corerr = self.corerrtpl.format(symm=self._parent_symmetry(reaction.ts),
                                            rotconst=self.rotor_core_line(reaction.ts))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
@@ -1198,7 +1125,7 @@ class MESS:
             mess_barrier = ('! Direct model: separated products; optional IRC complex and its fast exit omitted.\n'
                             '! Inner-TS tunneling depths retain the selected product-complex reference.\n'
                             + mess_barrier)
-        mess_barrier = variational_warning + self._optical_comment(reaction.ts) + mess_barrier
+        mess_barrier = self._optical_comment(reaction.ts) + mess_barrier
         connected_products = ([self._product_complex(reaction)]
                               if self._include_complex(reaction)
                               else products)

@@ -174,13 +174,6 @@ def _main():
             qc.qc_opt(well0, well0.geom, mp2=1)
             err, geom = qc.get_qc_geom(routing_name(well0) + '_well_mp2', well0.natom, 1)
 
-        # comparison for barrierless scan
-        if par['barrierless_saddle']:
-            logger.debug('Optimization of initial well for barrierless at {}/{}'.
-                    format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
-            qc.qc_opt(well0, well0.geom, bls=1)
-            err, geom = qc.get_qc_geom(routing_name(well0) + '_well_bls', well0.natom, 1)
-        
         # characterize again and look for differences
         well0.characterize()
         if par['cluster']:

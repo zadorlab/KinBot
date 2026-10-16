@@ -237,10 +237,6 @@ class ReactionGenerator:
                                     and self.qc.qc != 'fc':
                                 ending = 'well_mp2'
                                 thresh = self.par['barrier_threshold']  # need to fix for mp2 specific
-                            elif self.species.reac_type[index] == 'barrierless_saddle' \
-                                    and self.qc.qc != 'fc':
-                                ending = 'well_bls'
-                                thresh = self.par['barrier_threshold']
                             else:
                                 ending = 'well'
                                 thresh = self.par['barrier_threshold']
@@ -764,53 +760,6 @@ class ReactionGenerator:
                                                           self.species.reac_step[index], 
                                                           self.species.reac_obj[index].instance_name))
             time.sleep(1)
-
-        # Create molpro file for the BLS products
-        for index, instance in enumerate(self.species.reac_inst):
-            obj = self.species.reac_obj[index]
-            if (self.species.reac_type[index] == 'barrierless_saddle'
-                    and not getattr(obj, 'stereochemical_rejection', None)):
-                if len(obj.products) == 2:
-                    blsprodatom = np.append(obj.products[0].atom, obj.products[1].atom)
-                    # vector connecting the centers
-                    # assumed: the two structures are naturally separated at the end of the IRC
-                    x0 = 0
-                    y0 = 0
-                    z0 = 0
-                    for g in obj.products[0].geom:
-                        x0 += g[0]
-                        y0 += g[1]
-                        z0 += g[1]
-                    x0 /= obj.products[0].natom
-                    y0 /= obj.products[0].natom
-                    z0 /= obj.products[0].natom
-
-                    x1 = 0
-                    y1 = 0
-                    z1 = 0
-                    for g in obj.products[1].geom:
-                        x1 += g[0]
-                        y1 += g[1]
-                        z1 += g[1]
-                    x1 /= obj.products[1].natom
-                    y1 /= obj.products[1].natom
-                    z1 /= obj.products[1].natom
-
-                    center_vec = [x1 - x0, y1 - y0, z1- z0]
-                    blsprodgeom = np.append(obj.products[0].geom, obj.products[1].geom)
-                    blsprodgeom = np.reshape(blsprodgeom, (-1, 3))
-                    bps = list(zip(blsprodatom, blsprodgeom))
-                    bps1 = [item for sublist in bps for item in sublist]
-                    blsprodstruct = [item for sublist in bps1 for item in sublist]
-                    blsprod = StationaryPoint('blsprod',
-                                              self.par['charge'],
-                                              self.par['mult'],
-                                              structure=blsprodstruct)
-                    blsprod.characterize()
-                    molp = Molpro(blsprod, self.par)
-                    molpname = '{}_prod'.format(obj.instance_name)
-                    molp.create_molpro_input(bls=1, name=molpname, shift_vec=center_vec, natom1=len(obj.products[1].geom))
-                    molp.create_molpro_submit(name=molpname)
 
         s = []
         for index, instance in enumerate(self.species.reac_inst):

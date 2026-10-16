@@ -130,9 +130,7 @@ def _profile_payload(profile, par):
     if profile.calculator == 'gaussian' and profile.name == 'l2':
         keys += ['vrc_tst_scan_method', 'vrc_tst_scan_basis']
     if profile.calculator in ('gaussian', 'qchem'):
-        keys += ['scan_method', 'scan_basis',
-                 'barrierless_saddle_method', 'barrierless_saddle_basis',
-                 'barrierless_saddle_method_high', 'barrierless_saddle_basis_high']
+        keys += ['scan_method', 'scan_basis']
     if keys:
         payload['calculation_settings'] = {key: par[key] for key in keys}
     return payload

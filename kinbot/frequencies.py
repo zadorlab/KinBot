@@ -408,17 +408,9 @@ def get_neighbors(ati, visited, forbidden, division, species, natom, checkdist):
 
 
 def skip_rotor(name, rot):
-    if 'barrierless_saddle' in name:
-        return 0
-        l0 = name.split('_')
-        l = [int(l0[3]) - 1, int(l0[4]) - 1]
-        if any(rot[i:i+2] == l for i in range(3)):
-            return 1
-        if any(rot[i:i+2] == l[::-1] for i in range(3)):
-            return 1
-        return 0
-    elif 'prod' in name:
+    if 'prod' in name:
         return 1
+    return 0
 
 
 def calc_vibrations(mol, label):

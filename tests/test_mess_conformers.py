@@ -203,16 +203,6 @@ class TestConformerSerialization(unittest.TestCase):
         self.writer.par['optical_population'] = 'racemic'
         self.assertEqual(values(self.writer.write_well(p, 0., 1., 0), 'SymmetryFactor'), [.5])
 
-    def test_mc_variational_barrier_uses_legacy_representative_with_warning(self):
-        self.well.reac_type[0] = 'barrierless_saddle'
-        self.reaction.prod_opt = [SimpleNamespace(species=self.well), SimpleNamespace(species=self.well)]
-        output = self.render(barrier=True)
-        self.assertIn('additional conformers are not included', output)
-        self.assertIn('Variational', output)
-        self.assertNotIn('End ! Union', output)
-        self.assertEqual(output.count('End ! RRHO'), 2)  # inner RRHO and outer PST
-        self.assertEqual(values(output, 'ZeroEnergy')[-1], 30.)
-
     def test_nonmc_separately_named_mirrors_cannot_each_claim_the_same_racemate(self):
         self.writer.par.update(multi_conf_tst=0, optical_population='racemic')
         blocks = []

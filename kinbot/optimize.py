@@ -531,12 +531,8 @@ class Optimize:
                 if self.par['L3_calc'] == 1:
                     if self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)
-                        if 'barrierless_saddle' in self.name:
-                            key = self.par['barrierless_saddle_single_point_key']
-                            molp.create_molpro_input(bls=1)
-                        else:
-                            key = self.par['single_point_key']
-                            molp.create_molpro_input(do_vdW=self.just_high)
+                        key = self.par['single_point_key']
+                        molp.create_molpro_input(do_vdW=self.just_high)
                         if self.par['queuing'] != 'local':
                             molp.create_molpro_submit(do_vdW=self.just_high)
                         status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.just_high)

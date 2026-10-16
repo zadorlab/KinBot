@@ -47,7 +47,6 @@ from kinbot.reactions.reac_Intra_disproportionation_R import IntraDisproportiona
 from kinbot.reactions.reac_Intra_disproportionation_F import IntraDisproportionationF
 from kinbot.reactions.reac_r14_birad_scission import R14BiradScission
 from kinbot.reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
-from kinbot.reactions.reac_barrierless_saddle import BarrierlessSaddle
 from kinbot.reactions.reac_h2_elim import H2Elim
 from kinbot.reactions.reac_bimol_disproportionation_R import BimolDisproportionationR
 from kinbot.reactions.reac_homolytic_scission import HS
@@ -83,11 +82,6 @@ class ReactionFinder:
         self.prod_bonds = set()
         for i, bond in enumerate(par['form_bonds']):
             self.prod_bonds.add(frozenset(par['form_bonds'][i]))
-        try:
-            self.barrierless_saddle = configured_selection(par['barrierless_saddle'], self.species)
-        except KeyError:
-            self.barrierless_saddle = None
-            
         # keys: names of the families
         # values: list of instances
         # this dict is used to keep track of the unique reactions found,
@@ -202,7 +196,6 @@ class ReactionFinder:
                           'beta_delta': self.search_beta_delta, 
                           'h2_elim': self.search_h2_elim,
                           'hom_sci': self.search_hom_sci,
-                          'barrierless_saddle': self.search_barrierless_saddle,
                           'Intra_disproportionation_F': self.search_Intra_disproportionation_F, 
                           'Intra_disproportionation_R': self.search_Intra_disproportionation_R, 
                           'bimol_disproportionation_R': self.search_bimol_disproportionation_R, 
@@ -2168,29 +2161,6 @@ class ReactionFinder:
         return 0
 
 
-    def search_barrierless_saddle(self, natom, atom, bond, rad):
-        ''' 
-        This is not an RMG class.
-
-        R - R ==> R + R
-
-        Attempts to find a saddle point for a nominally barrierless reaction.
-        '''
-
-        name = 'barrierless_saddle'
-
-        if not name in self.reactions:
-            self.reactions[name] = []
-        if self.barrierless_saddle is not None:
-            rxns = self.barrierless_saddle  # defined by the user
-        else:
-            return 0
-
-        self.new_reaction(rxns, name, a=0, b=-1, cross=True)
-
-        return 0
-
-
     def reaction_matrix(self, reac_list, reac_id):
         ''' 
         Create arrays to store all reactions for species.
@@ -2397,10 +2367,6 @@ class ReactionFinder:
                 name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BimolDisproportionationR(self.species, self.qc, self.par, reac_list[i], name))
-            elif reac_id == 'barrierless_saddle':
-                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
-                self.species.reac_name.append(name)
-                self.species.reac_obj.append(BarrierlessSaddle(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'combinatorial':
                 name = routing_name(self.species) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

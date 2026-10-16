@@ -400,10 +400,6 @@ def test_restart_checks_backend_settings_before_reusing_methanol(
     ('gaussian', 'l1', 'guessmix', 1, {}, 'guess'),
     ('gaussian', 'l1', 'scan_method', 'B3LYP', {'scan': 1}, 'method'),
     ('qchem', 'l1', 'scan_basis', '6-31G(d)', {'scan': 1}, 'basis'),
-    ('gaussian', 'l1', 'barrierless_saddle_method', 'B3LYP', {}, 'method'),
-    ('qchem', 'l1', 'barrierless_saddle_basis', '6-31G(d)', {}, 'basis'),
-    ('gaussian', 'l2', 'barrierless_saddle_method_high', 'HF', {'high_level': 1}, 'method'),
-    ('gaussian', 'l2', 'barrierless_saddle_basis_high', 'STO-3G', {'high_level': 1}, 'basis'),
     ('gaussian', 'l2', 'vrc_tst_scan_method', 'HF', {'vts': 1}, 'method'),
     ('gaussian', 'l2', 'vrc_tst_scan_basis', 'STO-3G', {'vts': 1}, 'basis'),
 ])
@@ -414,8 +410,7 @@ def test_restart_checks_method_choices_outside_profiles(
     par = parameters(l0_profile=fairchem('/models/small.pt'), queuing='local')
     par['qc'] = calculator
     qc = QuantumChemistry(par)
-    job = 'methanol_barrierless_saddle' if option.startswith('barrierless') else 'methanol'
-    args = (job, 1, 0, 18)
+    args = ('methanol', 1, 0, 18)
     original = qc.for_level(level).get_qc_arguments(*args, **arguments)
     changed = dict(par, **{option: replacement})
     # Confirm this setting changes the actual requested calculation, not just
@@ -469,8 +464,7 @@ def test_explicit_profile_keeps_existing_reaction_search_defaults(workspace, exp
     for job, options in (
             ('methanol_ts', dict(ts=1, step=0, max_step=10)),
             ('methanol_ts', dict(ts=1, step=10, max_step=10)),
-            ('methanol_scan', dict(scan=1)),
-            ('methanol_barrierless_saddle', {})):
+            ('methanol_scan', dict(scan=1))):
         before = qc.l1.get_qc_arguments(job, 1, 0, 18, **options)
         after = changed.l1.get_qc_arguments(job, 1, 0, 18, **options)
         assert (before['method'], before['basis']) == (after['method'], after['basis'])

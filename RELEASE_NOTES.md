@@ -17,6 +17,13 @@ name (`.log`, `.out`, `_sella.log`).
 The `nn_pes` calculator depended on a private package that is not available
 and is superseded by FairChem/UMA. `qc: nn_pes` and `nn_model` are no longer accepted.
 
+## Remove the barrierless_saddle reaction family
+
+The `barrierless_saddle` family scanned a user-selected bond, optimized its maximum as
+a saddle point and wrote a MESS `Variational` barrier with a CASPT2-oriented Molpro L3.
+It is removed; `hom_sci` and VRC-TST remain the barrierless treatments, and the
+`barrierless_saddle*` input options are no longer accepted.
+
 ## FairChem compilation option
 
 Add the global `fc_compile` option, with a default of `false`. This avoids
@@ -30,8 +37,8 @@ results remain usable if this option changes on restart.
 ## Independent calculation levels
 
 - Keep Gaussian AM1 and Q-Chem B3LYP/STO-3G preliminary TS steps when profiles
-  are enabled. The final TS uses L1; scan and barrierless-saddle method options
-  keep their existing meaning. FairChem uses its assigned model throughout.
+  are enabled. The final TS uses L1; scan method options keep their existing
+  meaning. FairChem uses its assigned model throughout.
 - Allow executable paths and CPU/GPU devices to change on restart. Record them
   separately from methods, models, optimizer and frequency settings. Earlier
   profile records require a fresh directory because search defaults changed.

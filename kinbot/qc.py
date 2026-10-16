@@ -49,12 +49,8 @@ class QuantumChemistry:
         self.basis = par['basis']
         self.scan_method = par['scan_method']
         self.scan_basis = par['scan_basis']
-        self.bls_method = par['barrierless_saddle_method']
-        self.bls_basis = par['barrierless_saddle_basis']
         self.high_level_method = par['high_level_method']
         self.high_level_basis = par['high_level_basis']
-        self.bls_high_level_method = par['barrierless_saddle_method_high']
-        self.bls_high_level_basis = par['barrierless_saddle_basis_high']
         self.vts_method = par['vrc_tst_scan_method']
         self.vts_basis = par['vrc_tst_scan_basis']
         self.single_point_template = par['single_point_template']
@@ -149,8 +145,6 @@ class QuantumChemistry:
                 'pop': 'None',
             }
             if self.par['guessmix'] == 1 or \
-                'barrierless_saddle' in job or \
-                'bls' in job or \
                 (mult == 1 and 'R_Addition_MultipleBond' in job):
                 kwargs['guess'] = 'Mix,Always'
             if ts:
@@ -169,7 +163,6 @@ class QuantumChemistry:
                     kwargs['opt'] = 'ModRedun,Loose,CalcFC'
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or \
-                        'barrierless_saddle' in job or \
                         (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix,Always'
                     if self.par['bimol']:
@@ -198,15 +191,11 @@ class QuantumChemistry:
             if (scan or 'R_Addition_MultipleBond' in job) and not vts:
                 kwargs['method'] = self.scan_method
                 kwargs['basis'] = self.scan_basis
-            if 'barrierless_saddle' in job or 'bls' in job:
-                kwargs['method'] = self.bls_method
-                kwargs['basis'] = self.bls_basis
             if irc is not None:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
                     if self.par['guessmix'] == 1 or \
-                        'barrierless_saddle' in job or \
                         (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
                     else:
@@ -236,11 +225,6 @@ class QuantumChemistry:
                         kwargs['freq'] = 'freq'
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
-                if 'barrierless_saddle' in job:  # completely overwrite normal settings
-                    kwargs['method'] = self.bls_high_level_method
-                    kwargs['basis'] = self.bls_high_level_basis
-                    kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
-                    kwargs.pop('freq', None)
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
                 #if (not ts) or (ts and (not self.par['calcall_ts'])):
@@ -343,9 +327,6 @@ class QuantumChemistry:
             if scan or 'R_Addition_MultipleBond' in job:
                 kwargs['method'] = self.scan_method
                 kwargs['basis'] = self.scan_basis
-            if 'barrierless_saddle' in job or 'bls' in job:
-                kwargs['method'] = self.bls_method
-                kwargs['basis'] = self.bls_basis
             if vts:
                 kwargs['method'] = self.vts_method
                 kwargs['basis'] = self.vts_basis
@@ -802,7 +783,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
+    def qc_opt(self, species, geom, high_level=0, mp2=0, ext=None, 
                fdir=None, do_vdW=False, initial_product=False):
         '''
         Creates a geometry optimization input and runs it.
@@ -818,9 +799,6 @@ class QuantumChemistry:
                 job = routing_name(species) + '_well_high'
             if mp2:
                 job = routing_name(species) + '_well_mp2'
-            if bls:
-                job = routing_name(species) + '_well_bls'
-
         else:
             job = routing_name(species) + ext
 

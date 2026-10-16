@@ -206,8 +206,8 @@ remains restricted to wells.
 Explicit profile fields override the corresponding legacy settings for the
 selected optimization level. Adding `l1: "gauss"` alone does not change the
 reaction search: Gaussian constrained TS steps still use AM1; Q-Chem steps
-still use B3LYP/STO-3G. The final TS optimization uses L1. Scans and barrierless
-saddles retain `scan_method`/`scan_basis` and `barrierless_saddle_*` settings.
+still use B3LYP/STO-3G. The final TS optimization uses L1. Scans retain the
+`scan_method`/`scan_basis` settings.
 These options also apply with profiles. Explicit `calculator_kwargs` override
 generated calculator keywords. A FairChem L1 profile uses its UMA model
 throughout the search. L0 does not control the constrained TS steps.

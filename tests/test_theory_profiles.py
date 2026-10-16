@@ -1396,3 +1396,29 @@ def test_failed_ts_frequency_calculation_writes_error_and_completion(workspace, 
     runpy.run_path(rxn.instance_name + '.py')
     assert qc.db.get(name=rxn.instance_name).data['status'] == 'error'
     assert Path(rxn.instance_name + '_sella.log').read_text().endswith('done\n')
+
+
+def test_record_with_retired_barrierless_settings_still_restarts(workspace):
+    import hashlib
+    # A record written before the barrierless_saddle family was removed
+    # carries its settings; they do not identify the method.
+    par = profile_parameters(l1_profile=gaussian())
+    qc = QuantumChemistry(par)
+    qc.l1.submit_qc('methanol_well', 4)
+    path = Path('.kinbot_theory_jobs.json')
+    record = json.loads(path.read_text())
+    for level in record['profiles'].values():
+        level.setdefault('calculation_settings', {}).update({
+            'barrierless_saddle_method': 'b3lyp', 'barrierless_saddle_basis': '6-31G',
+            'barrierless_saddle_method_high': 'b3lyp', 'barrierless_saddle_basis_high': '6-31G'})
+    record['profile_sha256'] = hashlib.sha256(json.dumps(
+        record['profiles'], sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    path.write_text(json.dumps(record))
+    assert QuantumChemistry(par)._routes == qc._routes
+    # A real method change in such a record is still refused.
+    record['profiles']['l1']['calculation_settings']['scan_method'] = 'hf'
+    record['profile_sha256'] = hashlib.sha256(json.dumps(
+        record['profiles'], sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    path.write_text(json.dumps(record))
+    with pytest.raises(ValueError, match='fresh directory'):
+        QuantumChemistry(par)

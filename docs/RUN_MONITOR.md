@@ -80,3 +80,10 @@ For detailed native CAS/MRCI orbital evidence, workers separately write
 `python -m kinbot.molpro_diagnostics RUN` command can rebuild/list those reports
 for both PES trees without changing calculations. It is deliberately separate
 from this bounded live dashboard; see the [native evidence contract](MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md).
+# Gaussian SCF recovery
+
+`<job>.scf_recovery.json` records a bounded Link 508 recovery: original and retry
+SCF options, preserved native artifacts and outcome (`retrying`, `complete`, or
+`failed`). These records appear with the other workflow artifacts. Logs under
+`restart_gaussian_scf/` are historical and do not count as current failures.
+See the [SCF recovery record](GAUSSIAN_SCF_RECOVERY_2026-10-16.md).

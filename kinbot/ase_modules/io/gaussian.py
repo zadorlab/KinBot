@@ -334,6 +334,8 @@ def write_gaussian_in(fd, atoms, properties=['energy'],
     '''
 
     params = deepcopy(params)
+    # KinBot calculator control; also omit it in direct input previews.
+    params.pop('scf_recovery', None)
 
     if properties is None:
         properties = ['energy']

@@ -124,7 +124,7 @@ def inventory(root, warnings):
             break
         for name in files:
             path = Path(directory, name)
-            if (name.endswith(('.execution.json', '.rotdpy.json', '.result.json')) or
+            if (name.endswith(('.execution.json', '.rotdpy.json', '.result.json', '.scf_recovery.json')) or
                     name in LOG_NAMES | STATE_NAMES | {'kinbot_monitor.out', 'pes_summary.txt',
                 'kinbot_optimization_monitor.json'} or
                     path.suffix in {'.log', '.err', '.stdout', '.stderr', '.exitcode', '.out'}):
@@ -201,7 +201,7 @@ def reaction_summary(path, warnings):
 def artifacts(paths, root, warnings):
     results = []
     for path in paths:
-        if path.name not in STATE_NAMES and not path.name.endswith(('.execution.json', '.rotdpy.json', '.result.json')):
+        if path.name not in STATE_NAMES and not path.name.endswith(('.execution.json', '.rotdpy.json', '.result.json', '.scf_recovery.json')):
             continue
         data = read_json(path, warnings)
         if not data:
@@ -233,6 +233,8 @@ def artifacts(paths, root, warnings):
                                 'curvature_checks': data.get('attempts', [])}
         elif path.name.endswith('.result.json'):
             item['recovery'] = {'completed_attempts': data.get('minimum_recovery_attempts', 0)}
+        elif path.name.endswith('.scf_recovery.json'):
+            item['recovery'] = {k: data.get(k) for k in ('reason', 'original_scf', 'retry_scf')}
         elif path.name == 'execution.json' and data.get('status') not in ('failed', 'unavailable'):
             continue  # Per-task successful execution is covered by state.json.
         if data.get('error'):

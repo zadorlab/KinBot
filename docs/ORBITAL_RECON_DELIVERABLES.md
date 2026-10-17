@@ -31,12 +31,12 @@ provenance, not production prerequisites. The user has ended MRCI retries.
 | 4. General JSON controls | Complete for handoff; regression-tested | Single JSON per PES; per-bond indices, basis records, roots, weights, same-spin references and lowest-quartet selector are explicit general controls. |
 | 5. General orbital reconnaissance | Complete for handoff; documented and tested | Chemical selection still requires review; it is not a unique-CAS oracle. |
 | 6. Production inputs | Complete and locally checked | Six portable orbital records, ordinary VRC surfaces, full inputs and launch/preflight helper supplied. Native production remains pending. |
-| 7. End-to-end production follow-through | DFT-preset clean restart prepared | `_r2` exposed CH3S L2 and product L1 minimum rejections. New `_r3_dft` uses Gaussian DFT at L1 and bounded minimum recovery. No completed production ANL/RotdPy/MESS result yet. |
+| 7. End-to-end production follow-through | r4 DFT clean restart prepared | `_r3_dft` passed initial minima but rejected CH3S C–S after the sulfur QC-SCF failure. A general bounded SCF retry and fresh two-PES restart are prepared; native retry success and production ANL/RotdPy/MESS completion remain pending. |
 | 8. Integration/general defaults | Profile routing and minimum recovery audited | Current coverage and exact full-suite results are in the [DFT restart validation](../examples/anl/tools/dft_restart_validation.json). Native production remains pending. |
 | 9. Evidence/documentation | Complete for handoff | Parameter-by-parameter provenance, native evidence, limitations and commands linked below. |
 | 10. Cleanup inventory | Example/configuration cleanup complete; native purge deferred | Removed obsolete external model JSONs, caspt2_production and acetaldehyde example. Each PES has one root input with its own checkpoints/evidence/docs below orbital_reviews. Original mixed evidence is retained once; do not purge before production finishes. |
-| 11. Consolidated production handoff | Revised for DFT L1 and general recovery | New preset, 1% RotdPy target, tight L1/L2/L3 criteria, both-level preflight, detailed two-PES monitor, bounded L1/L2 and ANL L3 minimum recovery, and `_r2` to `_r3_dft` restart supplied. Native recovery still requires execution. |
-| 12. Previous-run retirement | Nine orbital campaigns and original production retired; `_r2` retirement prepared | Helper stops both marked `_r2` PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
+| 11. Consolidated production handoff | Revised for bounded Gaussian QC-SCF recovery | Same DFT preset, 1% RotdPy target, tight L1/L2/L3 criteria, CASPT2 settings and two-PES monitor. `_r3_dft` to `_r4_dft` restart supplied at the user's request. Native retry success is not yet established. |
+| 12. Previous-run retirement | r3 retirement prepared | Helper stops both marked `_r3_dft` PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
 
 The [production handoff](../examples/anl/tools/README.md) and its linked full
 parameter reference are authoritative for the new runs. “Complete for handoff”
@@ -62,8 +62,10 @@ tests. PES failure propagation and monitoring are also repaired. See
 [the full repair record](GAUSSIAN_PRODUCTION_REPAIR_2026-10-16.md). User requested
 a clean restart and ran `_r2`. That attempt passed Gaussian syntax but exposed
 the two minimum rejections documented in the [DFT restart plan](MINIMUM_RECOVERY_2026-10-16.md).
-The current handoff replaces `_r2` with `_r3_dft`. No scientific completion
-claim follows from local tests.
+That handoff replaced `_r2` with `_r3_dft`. The latest clean restart replaces
+`_r3_dft` with `_r4_dft` following the [sulfur QC-SCF failure](GAUSSIAN_SCF_RECOVERY_2026-10-16.md).
+The user explicitly chose to stop and archive both runs and restart fresh.
+No scientific completion claim follows from local tests.
 
 The new shift export verifies 58/58 inventoried files and 24/24 correlated
 energies. The matched CASSCF/reference energies and active orbital subspaces

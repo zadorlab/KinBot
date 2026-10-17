@@ -13,7 +13,14 @@ list. The input merger/writer is repaired; PES now records worker failure
 instead of attempting postprocessing. A clean replacement and detailed monitor
 are supplied below. See the [failure evidence and audit](../../../docs/GAUSSIAN_PRODUCTION_REPAIR_2026-10-16.md).
 
-**Current restart update:** the `_r2` CH3S L2 minimum failed its Hessian;
+**Current restart update:** `_r3_dft` passed the initial minima, then rejected
+CH3S C–S homolysis when the sulfur atom's Gaussian QC-SCF line search aborted.
+The [general bounded SCF retry](../../../docs/GAUSSIAN_SCF_RECOVERY_2026-10-16.md)
+retains Conver10 and the requested theory and adds a CDIIS/full-integral-accuracy
+retry. The user selected fresh `_r4_dft` runs for both PES, archiving `_r3_dft`.
+Native success of this retry remains to be checked.
+
+**Earlier minimum repair:** the `_r2` CH3S L2 minimum failed its Hessian;
 independent displacements confirmed negative curvature. CH3SS passed its
 initial L2 job but later rejected the CH3S UMA product at L1. The new
 `b3lyp-b2plyp-anl` preset uses B3LYP-D3(BJ)/cc-pVDZ at L1 and retains
@@ -39,7 +46,7 @@ extracted report](../../../docs/MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md) beside the
 output, including RotdPy samples. It records occupations, printed AO coefficients,
 CI/state information and hashes; it does not infer no-swapping from dimensions.
 
-Current full regression: **1,856 tests and 424 subtests passed**, zero failures
+Previous full regression: **1,856 tests and 424 subtests passed**, zero failures
 or skips, including native backend checks. The [validation record](dft_restart_validation.json)
 retains the command, source hashes and compressed test report. This is local
 verification; native Gaussian/Molpro recovery and production remain to be run.
@@ -111,9 +118,9 @@ uses and their tests. Transport parameters remain provisional example estimates.
 
 ## Blodgett clean restart with the DFT preset
 
-The helper prepares/checks a fresh `_r3_dft` run, including rendered inputs and
+The helper prepares/checks a fresh `_r4_dft` run, including rendered inputs and
 small native backend tests. It then stops controllers and QC allocations
-under both `_r2` production PES directories, waits for them to disappear,
+under both `_r3_dft` production PES directories, waits for them to disappear,
 and moves their parent to a dated `.stopped.*` archive. It launches both fresh
 PES controllers detached on the login host. There is no selective reuse of
 early results and no second retirement of the old orbital campaigns.
@@ -141,7 +148,7 @@ to move any folder containing tracked files. The destination is recorded in
 `repository_layout_archive.json`; original exports/checkpoints are retained.
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r3_dft --all'
+watch -n 2 '/home/hram/KinBot/.venv/bin/python -m kinbot.run_monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft --all'
 ```
 
 For live native/controller log text instead of snapshots, run the same Python

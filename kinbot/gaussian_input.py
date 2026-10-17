@@ -53,7 +53,7 @@ def merge_gaussian_kwargs(base, override):
     scalar = {'method', 'basis', 'fitting_basis', 'xc', 'charge', 'mult',
               'label', 'directory', 'mem', 'chk', 'oldchk', 'nprocshared',
               'nprocs', 'cpu', 'rwf', 'command', 'basisfile', 'basis_set',
-              'addsec', 'ioplist', 'extra', 'spinlist', 'output_type'}
+              'addsec', 'ioplist', 'extra', 'spinlist', 'output_type', 'scf_recovery'}
     result = dict(base)
     for key, value in override.items():
         existing = next((k for k in result if k.lower() == key.lower()), key)

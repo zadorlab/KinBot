@@ -10,8 +10,10 @@ repaired. The [repair audit](../../../../docs/GAUSSIAN_PRODUCTION_REPAIR_2026-10
 records the first diagnosis and coverage. The `_r2` attempt then exposed two
 frequency-rejected minima: CH3S at L2 (−587.334 cm⁻¹) and its L1 UMA product
 inside CH3SS (−53.062 cm⁻¹). The user selected a DFT L1 replacement. The
-current command archives both `_r2` PES trees and starts **`_r3_dft`** with
-`b3lyp-b2plyp-anl`. See the [current repair and retry plan](../../../../docs/MINIMUM_RECOVERY_2026-10-16.md).
+earlier command started `_r3_dft` with `b3lyp-b2plyp-anl`. That run passed
+initial minima but encountered a sulfur-atom Gaussian QC-SCF failure. The
+current command archives both `_r3_dft` trees and starts **`_r4_dft`** with
+the same preset and a [bounded SCF retry](../../../../docs/GAUSSIAN_SCF_RECOVERY_2026-10-16.md).
 
 The current inputs are **one JSON per PES**: all channel, state, solver and
 orbital-index choices are inline. The obsolete separate surface/state JSON
@@ -182,7 +184,7 @@ BASH
 ```
 
 The script calls `run_examples.py launch NEW --replace-production OLD` with the
-previous `_r2` production directory and a fresh `_r3_dft` destination. It inventories
+previous `_r3_dft` production directory and a fresh `_r4_dft` destination. It inventories
 both old PES trees, stops their detached controllers and scoped Slurm jobs,
 waits for teardown, then archives the common parent as `.stopped.*`.
 It launches fresh detached controllers on the login host. It never uses
@@ -202,12 +204,12 @@ The controller can use fewer allocations while dependencies are pending.
 The actual scheduler's `ExcNodeList` remains the runtime verification.
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r3_dft --all'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft --all'
 ```
 
 ```bash
 /home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py \
-  monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r3_dft --follow
+  monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft --follow
 ```
 
 The helper refuses a duplicate launch after `launch.json` exists. `--all`

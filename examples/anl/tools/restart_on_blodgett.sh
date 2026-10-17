@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Replace the UMA-based r2 attempt with the DFT preset. Run after git pull.
+# Replace the r3 DFT attempt with the Gaussian SCF-recovery fix. Run after git pull.
 set -euo pipefail
 cd /home/hram/KinBot
 KB_PY=/home/hram/KinBot/.venv/bin/python
 KB_TOOL=/home/hram/KinBot/examples/anl/tools/run_examples.py
-KB_PREVIOUS=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r2
-KB_REPLACEMENT=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r3_dft
+KB_PREVIOUS=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r3_dft
+KB_REPLACEMENT=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft
 export PATH=/home/hram/KinBot/.venv/bin:$PATH
 export PYTHONPATH=/home/hram/KinBot${PYTHONPATH:+:$PYTHONPATH}
 export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro

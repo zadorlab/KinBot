@@ -66,6 +66,19 @@ def test_anl_curvature_recovery_report_is_visible(production):
     assert 'curvature_checks' in text and '-587.0' in text
 
 
+def test_scf_recovery_visible_without_archived_native_error(production):
+    root, case = production
+    put(case/'well/atom.scf_recovery.json', {'status': 'complete',
+        'reason': 'Gaussian QC-SCF failure in Link 508',
+        'original_scf': 'xqc,conver=10',
+        'retry_scf': 'conver=10,CDIIS,NoVarAcc,NoIncFock,MaxCycle=256'})
+    put(case/'well/restart_gaussian_scf/atom.123/atom.log',
+        'No lower point found -- run aborted.\nError termination via l508.exe')
+    text = monitor.render(monitor.snapshot(root), include_all=True)
+    assert 'CDIIS,NoVarAcc,NoIncFock' in text and 'complete' in text
+    assert 'No lower point found' not in text
+
+
 def test_active_jobs_scoped_and_resources_visible(production, monkeypatch):
     root, case = production
     raw = ('42|RUNNING|node20|00:30|31-00:00:00|8|10G|node16|well_high|node20|'

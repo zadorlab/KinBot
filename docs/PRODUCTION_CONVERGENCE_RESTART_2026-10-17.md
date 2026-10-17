@@ -1,5 +1,9 @@
 # Fresh two-PES restart with practical convergence thresholds
 
+The r6 launch was interrupted by cluster trouble. The settings below are
+unchanged; the current [recovery command](PRODUCTION_HANDOFF_RECOVERY_2026-10-17.md)
+archives r6 and starts fresh r7 runs with repeat-safe handoff checks.
+
 The user superseded the saved-results resume with a full clean restart of both
 examples on 17 October. No calculated results are shared between the two PES or
 copied from the retired attempt. The reviewed orbital WFU files remain input

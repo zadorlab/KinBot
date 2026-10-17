@@ -1,0 +1,9 @@
+2026-10-17: local mocked-cluster regression; no SSH or native QC execution
+.venv/bin/python -m pytest tests/test_recover_launch.py tests/test_caspt2_handoff.py tests/test_run_cleanup.py tests/test_resume_downstream.py tests/test_run_monitor.py tests/test_caspt2_production.py -q --disable-warnings --tb=short --junitxml=/tmp/kinbot-handoff-recovery.xml
+
+........................................................................ [ 84%]
+.............                                                            [100%]
+85 passed in 17.48s
+
+bash -n examples/anl/tools/recover_on_blodgett.sh: passed
+git diff --check: passed

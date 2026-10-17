@@ -120,10 +120,13 @@ def _cancel(root, jobs):
                                + (error.stderr or str(error)).strip()) from error
 
 
-def stop(root, *, archive=False, timeout=300.):
+def stop(root, *, archive=False, timeout=300., known=()):
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError('Cleanup timeout must be a finite positive number of seconds.')
-    report = inspect(root)
+    # A scoped launcher may be working outside the calculation directory.
+    # Callers can carry its verified PID/starttime identity into the same
+    # descendant tracking and PID-reuse checks used for workers.
+    report = inspect(root, known=known) if known else inspect(root)
     root = Path(report['directory'])
     atomic_json(root / 'cleanup_inventory.json', report)
     known = {}

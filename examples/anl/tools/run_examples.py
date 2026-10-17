@@ -47,6 +47,7 @@ def prepare(root):
     root = Path(root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     inputs = []
+    files = set()
     for case in CASES:
         directory = root/case
         ensure_current_run(directory, create=True)
@@ -65,19 +66,21 @@ def prepare(root):
                         raise ValueError(f'Checkpoint differs from the single input: {seed}')
                     relative = Path('orbital_reviews/orbitals')/seed.name
                     immutable_copy(seed, directory/relative)
+                    files.add(directory/relative)
                     selection['path'] = relative.as_posix()
         settings['input_file'] = str(directory/'input.json')
         immutable_json(directory/'input.json', settings)
         resolved = Parameters(str(directory/'input.json')).par
         immutable_json(directory/'resolved_parameters.json', resolved)
+        files.update((directory/'input.json', directory/'resolved_parameters.json'))
         from kinbot.vrc_multistate import load_surface_model
         load_surface_model(resolved)
         if (resolved['queue_job_limit'] != 10 or resolved['simultaneous_kinbot'] != 1
                 or resolved['vrc_tst_max_nodes'] != 10 or resolved['rotdpy_max_jobs'] != 10):
             raise ValueError('The reviewed per-PES admission budget has changed.')
         inputs.append(str(directory/'input.json'))
-    files = [p for p in root.rglob('*') if p.is_file() and
-             (p.suffix == '.wfu' or p.name in ('input.json', 'resolved_parameters.json'))]
+    # Only declared launch inputs belong in this immutable manifest. On a
+    # repeated handoff, runtime reference inputs/WFUs must not change it.
     immutable_json(root/'prepared.json', {'schema': 1, 'inputs': inputs,
         'sha256': {str(p.relative_to(root)): file_sha256(p) for p in sorted(files)}})
     return root
@@ -268,26 +271,47 @@ def render_gaussian_inputs(root, record):
     return {'execution': 'render only; Gaussian not executed', 'files': paths}
 
 
-def retire_production(root, previous):
+def retire_production(root, previous, *, known=(), allow_partial=False):
     """Stop each marked PES, then archive the complete old handoff tree."""
+    import socket
     from kinbot import run_cleanup
     root = Path(root).resolve(strict=True)
     previous = Path(previous).expanduser().resolve(strict=True)
     if previous == root or previous in root.parents or root in previous.parents:
         raise ValueError('Replacement and previous production must be separate directories.')
-    record = json.loads((previous/'prepared.json').read_text())
     expected = {previous/case/'input.json' for case in CASES}
-    actual = {Path(p) for p in record.get('inputs', [])}
-    if actual != expected or any(path.is_symlink() or path.parent.is_symlink() for path in actual):
+    manifest = previous/'prepared.json'
+    if allow_partial and not manifest.exists():
+        # An interrupted prepare may have created only the first case.
+        actual = {p for p in expected if p.parent.exists()}
+        if not actual:
+            raise ValueError(f'No marked PES directories in {previous}; not archived.')
+        for path in actual:
+            ensure_current_run(path.parent)
+    else:
+        record = json.loads(manifest.read_text())
+        actual = {Path(p) for p in record.get('inputs', [])}
+        if actual != expected:
+            raise ValueError('Unrecognized previous production input directories.')
+    if any(path.is_symlink() or path.parent.is_symlink() for path in actual):
         raise ValueError('Unrecognized previous production input directories.')
+    for path in actual:
+        for name in ('pes_status.json', 'launch.json'):
+            marker = path.parent/name
+            if marker.exists():
+                host = json.loads(marker.read_text()).get('host')
+                if host and host.split('.')[0] != socket.gethostname().split('.')[0]:
+                    raise RuntimeError(f'{path.parent}: retire from controller host {host}; '
+                                       'local /proc cannot exclude a live remote driver.')
     # Check every tree before the first stop. An unavailable scheduler aborts.
     inventories = {str(p.parent): run_cleanup.inspect(p.parent) for p in sorted(actual)}
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     audit = root/f'production_retirement.{stamp}.json'
     report = {'previous': str(previous), 'inventories': inventories, 'stopped': []}
     atomic_json(audit, report)
-    for path in sorted(actual):
-        report['stopped'].append(run_cleanup.stop(path.parent, archive=False, timeout=300.))
+    for index, path in enumerate(sorted(actual)):
+        options = {'known': known} if index == 0 and known else {}
+        report['stopped'].append(run_cleanup.stop(path.parent, archive=False, timeout=300., **options))
         atomic_json(audit, report)
     # Recheck both before moving their shared parent.
     for path in sorted(actual):
@@ -295,6 +319,8 @@ def retire_production(root, previous):
         if live['jobs'] or live['processes']:
             raise RuntimeError(f'Work appeared during retirement: {path.parent}; not archived.')
     destination = previous.with_name(previous.name+'.stopped.'+stamp)
+    report['archive_intended'] = str(destination)
+    atomic_json(audit, report)
     previous.rename(destination)
     report['archive'] = str(destination)
     atomic_json(audit, report)
@@ -338,8 +364,14 @@ def assert_not_started(root):
 
 def start(root):
     record = assert_not_started(root)
+    return start_inputs(record['inputs'])
+
+
+def start_inputs(inputs):
+    """Caller must hold the handoff lock and check these inputs are unstarted."""
+    import socket
     launched = []
-    for path in record['inputs']:
+    for path in inputs:
         directory = Path(path).parent
         env = dict(os.environ)
         env['PATH'] = str(Path(sys.executable).parent)+os.pathsep+env.get('PATH', '')
@@ -349,6 +381,7 @@ def start(root):
                 cwd=directory, env=env, stdin=subprocess.DEVNULL, stdout=log,
                 stderr=subprocess.STDOUT, start_new_session=True)
         item = {'pid': process.pid, 'input': path, 'log': str(directory/'driver.log'),
+                'host': socket.gethostname(),
                 'time_utc': datetime.now(timezone.utc).isoformat()}
         atomic_json(directory/'launch.json', item)
         launched.append(item)

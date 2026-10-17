@@ -1,5 +1,12 @@
 # CASPT2-only KinBot production handoff
 
+**Interrupted cluster handoff, 17 October:** use
+`bash examples/anl/tools/recover_on_blodgett.sh` after pulling `composite`.
+This supersedes the r6 launch command: it preflights fresh r7 inputs, stops and
+archives r6 (and r5 if still present), then starts the two r7 drivers. It runs
+detached and prints a unique progress-log path immediately. The details and
+retry behavior are in the [recovery handoff](../../../docs/PRODUCTION_HANDOFF_RECOVERY_2026-10-17.md).
+
 The handoff preparation is complete. The two end-to-end PES calculations
 have **not** been run locally or certified in advance. The user handles SSH
 and launches them on Blodgett; subsequent failures/results will be reviewed

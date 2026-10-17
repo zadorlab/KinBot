@@ -1082,6 +1082,11 @@ class QuantumChemistry:
         data = dict(source.data)
         if chemical_context is not None:
             data['chemical_context'] = chemical_context
+        # conf/<name>_low records the number of conformers of the finished
+        # search; a published refinement of that conformer must keep it.
+        previous = [row.data.get('nconf') for row in rows if row.data.get('nconf')]
+        if previous and 'nconf' not in data:
+            data['nconf'] = previous[-1]
         data.update(copied_from_job=source.name, copied_from_row_id=source.id)
         keys = dict(source.key_value_pairs, name=target)
         result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)

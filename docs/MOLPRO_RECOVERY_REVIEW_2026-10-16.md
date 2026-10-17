@@ -13,8 +13,10 @@ The seven-point MRCI supplement has stopped. **All four CH3S points have now
 passed native review, including resolution of the tilted root collapse.**
 The CH3SS S–S far point completed per the controller, but center failed at
 iteration 1 with `dsygv failed` in `cif12solve`; tilted waits for center's
-checkpoint. The new two-point [numerical trial](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
-preserves the completed far result. Full production awaits its independent
+checkpoint. The 0.1 Eh preconditioning trial also failed at the same stage.
+A one-point [build comparison](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
+preserves the completed far result and changes no electronic controls.
+Full production awaits its independent
 native review, the two interacting results and final model installation.
 
 ## Retained evidence and reproduction

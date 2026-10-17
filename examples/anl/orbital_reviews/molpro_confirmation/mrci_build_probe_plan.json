@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "max_jobs": 1,
+  "purpose": "Single-point executable/build comparison after both unshifted and 0.1-shift first-iteration DSYGV failures. No electronic-input change and no production approval.",
+  "required_source_failures": [
+    {
+      "chain": "ch3ss_ss_atz_mrci_preconditioned",
+      "point": "center",
+      "output_contains": "dsygv failed"
+    }
+  ],
+  "chains": [
+    {
+      "title": "ch3ss_ss_atz_mrci_preconditioned",
+      "source_chain": "ch3ss_ss_atz_mrci_preconditioned",
+      "points": ["center"],
+      "correlation_options": {},
+      "reason": "Retain the exact failed electronic input and its original far seed; compare the available molpro23 build. Do not use the failed center WFU, change SFIX/CABS/roots/thresholds, or enqueue tilted. Failure while reading an older-version-incompatible checkpoint is not a reproduced DSYGV result. A passing result requires native model/state checks and matched-build validation before production use."
+    }
+  ]
+}

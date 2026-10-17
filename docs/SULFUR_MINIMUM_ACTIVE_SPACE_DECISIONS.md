@@ -8,8 +8,10 @@ checks are complete. The native shared-reference CASPT2 aDZ/aTZ confirmation
 now supports these choices, including asymptotes and active-subspace returns.
 CH3S simultaneous-root MRCI and matched coupled-CABS checks now also pass;
 the corresponding S–S far point completed per the controller, while the
-interacting center/tilted pair awaits the targeted solver retry and native
-review before installation of the final production models. The tilted CH3S
+interacting center/tilted pair remains unresolved after the 0.1 Eh
+preconditioning retry also failed at the first generalized eigensolve.
+A center-only build comparison is prepared; this is not a validated cure or
+approval to install the final production models. The tilted CH3S
 root collapse is resolved with the same (5,4) space. See the
 [native recovery review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md). These are minimum-space recommendations for corrected
 VRC sampling, not claims of full-valence total-energy accuracy or completed
@@ -36,7 +38,9 @@ For the eventual end-to-end KinBot inputs, use:
 
 The MRCI shifts precondition the iterative solve; they do not change the
 definition of the relaxed-Davidson +Q correction. The current two-point
-S–S retry already uses these 0.1 Eh denominator shifts. See the
+S–S retry used these 0.1 Eh denominator shifts and still failed with DSYGV.
+The requested production settings remain recorded, but the shift has not
+been demonstrated to make this S–S solver robust. See the
 [retry rationale](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md) and
 [Molpro denominator-shift documentation](https://www.molpro.net/manual/doku.php?id=the_mrci_program#denominator_shifts).
 Retain the reviewed same-spin CASPT2 reference averaging, simultaneous MRCI
@@ -118,6 +122,78 @@ A radial correction can remove a radial bias; it cannot generally repair an
 incorrect angular dependence, missing asymptotic states or orbital switching.
 The previous preference for CH3S (13,8), based on an assistant-chosen angular
 screening threshold, is withdrawn. Its results remain useful comparison data.
+
+## State averaging and the VRC-TST objective: literature recheck, 16 October 2026
+
+The relevant acceptance target remains the corrected interaction surfaces that
+determine the variational flux. A general argument about XMS near conical
+intersections is not, by itself, a requirement to replace the current sampling
+method or repeat the active-space search. Conversely, VRC-TST does not make
+electronic-state coupling irrelevant by definition. Changes of treatment should
+be motivated by their effect on the kinetic bottleneck and contributing surfaces.
+
+The NH2O precedent is
+[Klippenstein, Mulvihill and Glarborg (2023), section 2.2](https://doi.org/10.1021/acs.jpca.3c05181)
+([manuscript](https://backend.orbit.dtu.dk/ws/portalfiles/portal/337661919/nh2_o_revised_final.pdf)).
+Its reported direct-sampling choices are:
+
+| Channel/region | Active space | State average | Method/basis |
+| --- | --- | --- | --- |
+| NH2 + O, inner | (5,4) | two states | IPEA-shifted RS2/cc-pVQZ |
+| NH2 + O, outer | (5,4) | three states | IPEA-shifted RS2/cc-pVQZ |
+| NH + OH, inner | (3,3) | one target state | IPEA-shifted RS2-F12/cc-pVTZ-F12 |
+| NH + OH, outer | (5,4) | two states | IPEA-shifted RS2/cc-pVQZ |
+
+The article does not identify these as MS/XMS calculations or provide the
+Molpro reference-density keywords. It supports the strategy, not an assertion
+that its inputs exactly match our `REFSTATE`/`WEIGHT` implementation.
+
+The separately inspected [publisher MESS input](https://doi.org/10.1021/acs.jpca.3c05181.s002)
+uses unions of distinct electronic-surface contributions: three outer and two
+inner NH2 + O tables, and two outer and one inner NH + OH tables. State averaging
+of the electronic reference is therefore not an instruction to replace all
+physical surfaces by their mean energy. State-average weights, electronic
+degeneracies, and reactive surface selection are separate quantities. The local
+SI audit remains [NH2O_SI_verification.json](NH2O_SI_verification.json).
+
+Two additional primary VRC-TST examples constrain the interpretation:
+
+- [Glarborg et al., Proc. Combust. Inst. 41 (2025), 105942, section 2.1](https://doi.org/10.1016/j.proci.2025.105942)
+  ([full text](https://backend.orbit.dtu.dk/ws/portalfiles/portal/416302663/1-s2.0-S1540748925001567-main.pdf))
+  uses two-state-averaged CASPT2(3,2)/cc-pVQZ for the long-range NH3 + OH
+  capture flux. This is another explicit use of a small fragment-manifold
+  active space with state averaging for a VRC-TST observable.
+- [Alarcon et al., Proc. Combust. Inst. 40 (2024), 105372, section 2.3](https://doi.org/10.1016/j.proci.2024.105372)
+  ([methods text](https://www.sciencedirect.com/science/article/am/pii/S1540748924001809))
+  explicitly reports MS-MR-CASPT2 for propargyl + O VRC-TST, with separate
+  ground/excited contributions, active-space comparisons, and geometry/energy
+  correction potentials. Thus a blanket claim that VRC-TST never uses or needs
+  MS-MR is also incorrect. Its reported small differences between reference
+  potentials occur outside the rate-controlling separation range. The section's
+  MS-MR wording alone does not identify a particular XMS input option.
+
+The [2006 alkyl-combination study](https://doi.org/10.1039/B515914H) directly
+tested corrected inexpensive CASPT2 sampling against higher-level sampling for
+the resulting kinetics. That is the appropriate motivation for our separation
+between inexpensive angular sampling and the higher-level radial correction.
+It is not a guarantee that any angular or state error can be corrected radially.
+
+For these sulfur examples, the actual current CASPT2 calculations use separate
+target roots with a common same-spin averaged reference density where multiple
+roots are retained. They contain no `MIX`/`XMS` step. MRCI uses simultaneous roots
+for the multiroot channels. Reference averaging and final MS effective-Hamiltonian
+mixing are distinct in the
+[Molpro documentation](https://www.molpro.net/manual/doku.php?id=multireference_rayleigh_schroedinger_perturbation_theory).
+The current fixed reference manifolds also are not an exact copy of NH2O's
+region-dependent state selection.
+
+**Decision:** retain (5,4), (7,5), (7,5) and the evidence-based VRC-TST validation
+scope. An XMS comparison is not a new automatic handoff prerequisite. Any further
+comparison must address an observed ambiguity in the contributing interaction
+surfaces or a material effect on the corrected flux. This literature review
+does not complete the pending S-S MRCI retry or establish a numerical rate-error
+bound. Production surface accounting and the native end-to-end kinetic run
+remain required deliverables. No calculation settings were changed by this review.
 
 ## What was calculated
 

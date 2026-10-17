@@ -9,10 +9,12 @@ resolving the tilted collapse. S–S far subsequently completed per the controll
 center failed at iteration 1 with `dsygv failed`, leaving tilted waiting. See the
 [current handoff](../../../../MOLPRO_CONFIRMATION_HANDOFF.md) and
 [native review](../../../../docs/MOLPRO_RECOVERY_REVIEW_2026-10-16.md).
-The targeted next trial uses `retry_mrci_solver_on_blodgett.sh`: only center and
-tilted, seeded from completed far, with explicit MRCI denominator shifts in
-`mrci_preconditioner_plan.json`. The [technical rationale](../../../../docs/MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
-states the limits of that unproven numerical remedy. Its `--audit-source` mode
+The 0.1 Eh shift retry also failed at the same center eigensolve. The next
+diagnostic uses `probe_mrci_build_on_blodgett.sh`: center only with molpro23,
+identical electronic input and original seed, as defined in
+`mrci_build_probe_plan.json`. This is an executable/build comparison, not a
+confirmed repair. The [technical rationale](../../../../docs/MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
+records both failures and the limits of the comparison. Its `--audit-source` mode
 rechecks completion on temporary manifest copies without changing source files;
 this is not independent scientific approval. Do not relaunch historical recovery/full
 restart/gate scripts. All previous results are preserved. The selected spaces

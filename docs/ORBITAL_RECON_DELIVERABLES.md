@@ -76,6 +76,12 @@ Current evidence: [minimum comparison](../local_runs/qchem_casscf_20261015/minim
 The previous CH3S (13,8) recommendation was withdrawn; its numerical comparison
 is retained as diagnostic evidence.
 
+The [16 October state-averaging literature recheck](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md#state-averaging-and-the-vrc-tst-objective-literature-recheck-16-october-2026)
+compares the NH2O protocol with additional VRC-TST applications, including an
+explicit MS-MR example. Keep reference averaging, multistate mixing and physical
+surface flux accounting separate. XMS is not an automatic additional handoff
+requirement; the criterion remains the accuracy of the corrected VRC-TST flux.
+
 ## 2. Complete the necessary local ORCA checks — complete
 
 - [x] Finish minimum-space radial and forward/reverse checks, with targeted
@@ -119,9 +125,13 @@ energies pass, the collapsed tilted roots are resolved, and the CABS control
 changes the lowest spin gap by only 0.001054 kcal/mol. S–S far subsequently
 completed per the controller; its full native export awaits review. Center
 failed in the first simultaneous MRCI iteration with `dsygv failed`, leaving
-tilted dependent on center. A two-point numerical preconditioning trial now
-reuses far and preserves all five completed points; no CASPT2 or active-space
-survey is repeated. The [diagnosis and controlled retry](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
+tilted dependent on center. The 0.1 Eh numerical preconditioning trial also
+failed at the same first-iteration solve (job 52908243); tilted remains unrun.
+One center-only comparison with the installed 2023 executable is prepared,
+with identical electronic input and original seed. It is a build diagnostic,
+not an established cure. All five completed multistate points are preserved;
+no CASPT2 or active-space survey is repeated. The
+[diagnosis and controlled comparison](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
 distinguish documented controls from the unproven crash mechanism. See the
 [current native review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md),
 [historical diagnosis](MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md), and

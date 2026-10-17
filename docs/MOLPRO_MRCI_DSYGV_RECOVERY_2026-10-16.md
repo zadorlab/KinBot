@@ -2,6 +2,18 @@
 
 ## Evidence and current status
 
+**Update at the user's 16:45 PDT snapshot:** the 0.1 Eh denominator-shift
+trial also failed. Job **52908243**, node20, in
+`_r2_multistate_solver_retry/ch3ss_ss_atz_mrci_preconditioned/atz__center`
+again reports `dsygv failed` in `cif12solve` immediately after iteration 1 of
+the six-root doublet call, with 0/12 correlated markers. The last printed
+root-six denominator is now -0.49172383 Eh (previously -0.47453845), but the
+failure location is unchanged. The trial has **one failed, one waiting**;
+tilted has not run because center supplies its checkpoint. This is a failed
+preconditioning hypothesis, not a completed repair. No completed result has
+been invalidated or deleted. This update is from the pasted monitor; the
+full failed native input/output still needs export.
+
 The user supplied the native tail and solver context of job **52908238**,
 `_r2_multistate/ch3ss_ss_atz_mrci_simultaneous_cabs3/atz__center`, on node20.
 Molpro reports **2024.1, linked January 31, 2024, 64-bit MPP**. The previous
@@ -42,7 +54,7 @@ establish that CAS(7,5) is chemically inadequate. The same root/method setup
 passed the far point, but that does not guarantee numerical robustness at an
 interacting geometry. The exact implementation-level cause remains unresolved.
 
-## Controlled recovery and rationale
+## Historical preconditioning trial and rationale
 
 The only new electronic-input options are:
 
@@ -115,7 +127,47 @@ or developer support, or a controlled comparison with another available build.
 No such build or native local validation is claimed here. Do not bypass the
 failure with NOCHECK/IGNORE_ERROR or promote partial energies.
 
-The [handoff](../MOLPRO_CONFIRMATION_HANDOFF.md) contains the pull, submit,
+## Next discriminating check: one point with the installed 2023 build
+
+The user reports modules `molpro19` through `molpro24`. The newest installed
+module is not proof that it contains every subsequent upstream fix. The
+observed failed executable identifies itself as **2024.1 linked 2024-01-31**.
+The upstream change page lists later releases, but the public documentation
+search did **not** establish a fix for this particular DSYGV failure.
+Do not call this a known Molpro bug or promise a version change will cure it.
+[Molpro release information](https://www.molpro.net/manual/doku.php?id=recent_changes).
+
+The available 2023 build permits a bounded comparison without guessing more
+electronic-structure parameters. The
+[build-probe plan](../examples/anl/orbital_reviews/molpro_confirmation/mrci_build_probe_plan.json)
+prepares **center only**, with the same two six-root spin blocks, copied from
+the failed 0.1-shift trial. The launcher verifies identical prepared-input and
+original-seed hashes, checks the generated batch setup's version, and records
+the executable/module information. It removes the old explicitly prepended
+executable directory before loading the new module. Local transformation
+tests also verify byte-identical effective native decks. Both runs keep the
+same MPI rank count, basis, SFIX, CABS=3, roots, tolerances and shifts. No
+Molpro option is added as a purported DSYGV fix, and no tilted job is queued.
+
+This compares complete builds, potentially including their math libraries;
+it does not isolate a source-code regression. A checkpoint-reading or input
+compatibility error in 2023 is a separate result, not reproduction of DSYGV.
+A successful center must reproduce the intended CASSCF subspace/reference
+model and finish all twelve correlated energies. It would justify reviewing
+that executable as a workaround, followed by matched-build far/tilted checks;
+it does not authorize mixing versions in a production correction potential.
+If the same first-iteration error recurs, obtain INFO/matrix diagnostics from
+a diagnostic build or Molpro support before another settings sweep.
+
+The documentation identifies THRDLP with pair-overlap deletion and NPUPD
+with the pair-update representation; neither identifies the matrix in this
+abort. SCALF12=0 changes the ansatz, and lowering the root count changes the
+modeled manifold. Those are not substituted automatically for the current
+model. The multi-reference F12 formulation itself explicitly supports mixed
+reference functions; near-degeneracy alone is not a reason to abandon the
+required states. [Shiozaki and Werner, JCP 134, 184104 (2011)](https://doi.org/10.1063/1.3587632).
+
+The [handoff](../MOLPRO_CONFIRMATION_HANDOFF.md) contains the comparison,
 monitor and export commands. Local tests cover unchanged default decks,
 MRCI-only validation, both transformed trial inputs, copied-seed provenance,
 preservation and refusal of changed/live source evidence; they are not native

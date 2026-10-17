@@ -30,7 +30,7 @@ def locate_result(parameters, name):
     directory = Path(parameters.get('rotdpy_directory', 'rotdPy'))
     inp = directory / f'{name}.py'
     multistate = directory / f'{name}.multistate.json'
-    if parameters.get('vrc_tst_surface_model_file') and not multistate.is_file():
+    if (parameters.get('vrc_tst_surface_model') or parameters.get('vrc_tst_surface_model_file')) and not multistate.is_file():
         raise FileNotFoundError(f'{name}: state-resolved ROTD results are required.')
     if not multistate.is_file() and not (inp.is_file() and inp.with_suffix('.rotdpy.json').is_file()):
         if mode in ('required', 'production'):
@@ -121,7 +121,7 @@ def resolve_models(text, worker, parameters, ground_energy, sources, reaction):
     """Resolve only after global ROTD execution and final network/UQ energies."""
     matches = list(_MARKER.finditer(text))
     required = (parameters.get('rotdpy_mess_mode') in ('required', 'production')
-                or bool(parameters.get('vrc_tst_surface_model_file')))
+                or bool((parameters.get('vrc_tst_surface_model') or parameters.get('vrc_tst_surface_model_file'))))
     if (not matches and required and parameters.get('rotdpy_mess_mode') != 'off'
             and selected_reaction(parameters, reaction) is not False):
         raise ValueError(f'{reaction}: missing deferred ROTD context; regenerate the PES worker MESS artifacts.')

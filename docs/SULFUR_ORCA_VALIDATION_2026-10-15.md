@@ -308,8 +308,8 @@ Their relaxation correction is a separate part of the eventual potential.
 
 ### Geometry provenance correction and required optimization
 
-The coordinates trace to `examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json`
-and `examples/anl/ch3ss_anl1_f12/orbital_reconnaissance.json`, through the archived
+The coordinates trace to `examples/anl/ch3s_anl1_f12/orbital_reviews/orbital_reconnaissance.json`
+and `examples/anl/ch3ss_anl1_f12/orbital_reviews/orbital_reconnaissance.json`, through the archived
 Molpro campaign. `kinbot.molpro_reconnaissance._anchor_geometry` translates a
 declared fragment and optionally rotates it; it does not optimize nuclei.
 No independently converged electronic-structure geometry optimization or
@@ -626,7 +626,7 @@ confirmed that Molpro jobs were running and that `scontrol` showed the exclusion
 No further restart is needed solely because historical retry counters are large.
 The separate pilot-only manifests are not another required set of 68 calculations.
 The remote numerical controls and restart procedure are retained in
-[the remaining-checks record](SULFUR_REMAINING_CHECKS_2026-10-15.md).
+[the remaining-checks record](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_REMAINING_CHECKS_2026-10-15.md).
 
 
 ## Geometry work resumed, 2026-10-16 01:35 UTC
@@ -721,7 +721,7 @@ value 0.9999999998799036. No more local energy runs are needed for this decision
 
 The [final curated index](../local_runs/qchem_casscf_20261015/curated_evidence/20261016T0625Z/README.md)
 contains 47 completed points and zero missing points, with retained warning
-text and hashes. The [decision](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md)
+text and hashes. The [decision](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md)
 replaces earlier tentative recommendations. The retained
 [radial plot](../local_runs/qchem_casscf_20261015/curated_evidence/20261016T0625Z/radial_checks.pdf)
 shows discrete checks, not an interpolated production PES.

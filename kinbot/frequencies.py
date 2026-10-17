@@ -14,6 +14,37 @@ from kinbot.calculation import geometry_reference, array_fingerprint
 
 logger = logging.getLogger('KinBot')
 
+
+def frequency_validation_error(frequencies, order, threshold=50.):
+    """Explain a rejected worker spectrum without changing its signed modes.
+
+    Retain the existing minimum/TS acceptance policy, and also reject missing
+    or nonfinite spectra rather than publishing an apparently normal result.
+    Atomic jobs bypass vibrational validation in their worker.
+    """
+    if frequencies is None:
+        return 'Frequency evaluation returned no spectrum.'
+    values = np.asarray(frequencies, dtype=float)
+    if values.ndim != 1 or not values.size or not np.isfinite(values).all():
+        return 'Frequency spectrum is empty, malformed, or nonfinite.'
+    negative = values[values < 0.]
+    significant = values[values < -threshold]
+    if order == 0:
+        rejected = len(negative) > 1 or len(significant) >= 1
+        target = 'minimum'
+    elif order == 1:
+        rejected = len(negative) > 2 or len(significant) >= 2 or not len(negative)
+        target = 'transition state'
+    else:
+        raise ValueError(f'Unsupported stationary-point order: {order}')
+    if rejected:
+        modes = ', '.join(f'{value:.4f}' for value in negative) or 'none'
+        return (f'Frequency validation failed for {target}: imaginary modes '
+                f'[cm^-1] = {modes}; {len(significant)} below -{threshold:g} '
+                'cm^-1. Optimizer convergence alone does not establish the '
+                'stationary-point order.')
+    return None
+
 # Linearity is decided in get_frequencies by three gates (see assess_linearity):
 #  1. every bond angle lies within LINEAR_ANGLE_TOLERANCE degrees of 180, which
 #     is what an optimiser without symmetry constraints leaves behind;

@@ -1,3 +1,20 @@
+## Completed example reorganization, 16 October 2026
+
+Removed `examples/anl/caspt2_production` and the acetaldehyde example.
+Each sulfur example root now contains only its main JSON; orbital records,
+justification, parameter documentation and native evidence are under its
+`orbital_reviews/`. The mixed historical campaign is retained once under
+CH3SS `orbital_reviews/joint_history` and linked from both examples. Shared
+site/launch utilities are in `examples/anl/tools`. Original native archives
+were moved without changing their bytes. Obsolete external surface/state
+configuration JSONs and the redundant combined seed archive/installer were
+removed; the six runtime WFU files are tracked directly. General acetaldehyde
+regression coverage remains as test fixtures, not a public example.
+
+The older inventory below describes historical paths. Use
+[the relocation map](../examples/anl/tools/layout_manifest.json) to find them.
+Purging local evidence and failed native runs remains deferred.
+
 # Deferred repository cleanup
 
 **Inventory only. Do not execute cleanup until CH3S and CH3SS have completed
@@ -19,7 +36,7 @@ inside the `external/ROTD_py` submodule.
 | `kinbot/`, `tests/`, packaging metadata, license, `graphics/` | Production source, regression coverage and distribution assets. Newly added `orbital_geometry.py`, `orbital_validation.py` and tests need review, not removal because they are untracked. |
 | `external/ROTD_py`, `.gitmodules` | Required integration/submodule. Preserve its recorded revision and local changes. It is not disposable generated output. |
 | General workflow docs, current example READMEs and JSON recipes | Retain a concise current entry point plus the exact configuration users need. Site settings and chemical choices belong in data rather than shared implementation. |
-| `examples/anl/orbital_reviews/molpro_confirmation/` | Keep the finished compact confirmation recipes, provenance index and instructions. Large generated jobs and checkpoints belong in the external evidence archive. |
+| `examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/` | Keep the finished compact confirmation recipes, provenance index and instructions. Large generated jobs and checkpoints belong in the external evidence archive. |
 | Reusable preparation/analysis scripts | Keep general utilities with tests and documentation. Review useful local ORCA adapters for promotion into the general workflow; do not delete the only reproducible implementation. |
 | Small native test fixtures | Keep deliberately chosen minimal regression fixtures; avoid replacing them with entire production output trees. |
 
@@ -31,9 +48,9 @@ inside the `external/ROTD_py` submodule.
 | Superseded local campaigns and failed attempts | Archive separately from accepted evidence, with reason/status and links explaining any conclusion or recovery. Preserve original files where needed to reproduce root/solver/initialization issues. |
 | `local_runs/.../preparation_history/` | Retain as history, including the withdrawn absolute-energy/full-space selection interpretation. Link the current selection record so history cannot be mistaken for current instructions. |
 | `local_runs/.../reproducibility/*.tar.gz` | Compare manifest/hash contents with the final archive before identifying redundant snapshots. Do not assume two archives with similar names contain identical evidence. |
-| `examples/anl/orbital_reviews/ch3s_ch3ss_orbital_review_20261015.tar.gz`, `ch3s_ch3ss_orbital_diagnostics_20261015.tar.gz`, `ch3s_ch3ss_potential_validation_20261015.tar.gz` | Retain original Blodgett exports in the evidence archive. Replace bulky working copies only after checked archive extraction and repaired documentation links. |
-| `examples/anl/ch3s_anl1_f12/ch3s_tzf12_review_coz08qx7.tar.gz` | Review overlap with the other native exports. Archive rather than embed a temporary-named export beside production input. |
-| `examples/anl/orbital_reviews/results/` and `combined_results/` | Preserve reproducible summaries/plots with provenance; clearly label them historical if superseded. Keep only the useful compact current plots in the main docs. |
+| `examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/ch3s_ch3ss_orbital_review_20261015.tar.gz`, `ch3s_ch3ss_orbital_diagnostics_20261015.tar.gz`, `ch3s_ch3ss_potential_validation_20261015.tar.gz` | Retain original Blodgett exports in the evidence archive. Replace bulky working copies only after checked archive extraction and repaired documentation links. |
+| `examples/anl/ch3s_anl1_f12/orbital_reviews/native_exports/ch3s_tzf12_review_coz08qx7.tar.gz` | Review overlap with the other native exports. Archive rather than embed a temporary-named export beside production input. |
+| `examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/results/` and `combined_results/` | Preserve reproducible summaries/plots with provenance; clearly label them historical if superseded. Keep only the useful compact current plots in the main docs. |
 | `docs/archive/`, dated readiness/restart/checkpoint documents | Consolidate the current instructions, retain historical records under a clear archive entry point, and check every statement against the final evidence. Do not silently erase previous numerical results or caveats. |
 
 The source directory contains several preparation/restart helpers that were

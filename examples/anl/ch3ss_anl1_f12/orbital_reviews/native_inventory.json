@@ -1,0 +1,779 @@
+{
+  "schema": 1,
+  "case": "ch3ss",
+  "archive": "caspt2_native.evidence.tar.gz",
+  "archive_sha256": "fa5291c6f46bcf1c4fd5a043c700e65fff3878c3670fb4d3570b8681028bbe72",
+  "files": [
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__center/adz__center.inp",
+      "sha256": "269a1925887274fd673a61244333748727a6fd0b30307b8e53f51e7799c561c3",
+      "bytes": 1721,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__center/adz__center.native.inp",
+      "sha256": "e3f5c19a9a586dea64c8700be3fbb7dd87c8a79f5d25f088a520f9e10ada7ac8",
+      "bytes": 1708,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__center/adz__center.natural.orbitals.xml",
+      "sha256": "3c3b5879e21894faee00f1cd995cce74d1e2e35d2a053c5831886b6f4d407481",
+      "bytes": 689840,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__center/adz__center.out",
+      "sha256": "9b403b37a6db30777ea3233d32bd0005bb0e18b64ac84011a76bbbbd21750972",
+      "bytes": 62189,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__center/execution.json",
+      "sha256": "30d712c78af9cee3e9b08d017da1b34f3a00794b5e1b84ac2b8fe942aecaec2c",
+      "bytes": 2418,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__far/adz__far.inp",
+      "sha256": "a5c4796b819984f3d6742cf09670f07fb8ff1d9fe35ac7a03b927d98e1fa5e54",
+      "bytes": 1722,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__far/adz__far.native.inp",
+      "sha256": "9bffe0fae908cb2cbdc88f166a321468b6aab1c310471897b70d3240eebc165f",
+      "bytes": 1773,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__far/adz__far.natural.orbitals.xml",
+      "sha256": "ed35da9043555f42970d6d49c4fef99ddb773fd34350a643671f5ea9680b80f4",
+      "bytes": 455424,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__far/adz__far.out",
+      "sha256": "1a18b964ec9543a59d33400386300245f23612de55ccf7b8cebb1bccaca62e7c",
+      "bytes": 65944,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__far/execution.json",
+      "sha256": "c1c0b76e1a6c32e15f666cebe200468002ca88ba4d51cf6991bcdeddead2064f",
+      "bytes": 2820,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__inner/adz__inner.inp",
+      "sha256": "af4c2d8e57027078ccf01017ed425cec845c10dc1be798ca3de39315e8c1524d",
+      "bytes": 1717,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__inner/adz__inner.native.inp",
+      "sha256": "f5070d5e1586755153b9051ff4f2f5edfd42ab125a1b3d88bbcacf3edcb8e4b9",
+      "bytes": 1705,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__inner/adz__inner.natural.orbitals.xml",
+      "sha256": "58755052446e4a88a0faff7ed7cc0be1e7760cc0be96356600ba863487599276",
+      "bytes": 684086,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__inner/adz__inner.out",
+      "sha256": "3b2700ac210d0a6177c1ce164275a54edbe63999ef72e53faf93ea822ce97697",
+      "bytes": 62263,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__inner/execution.json",
+      "sha256": "15304b9aca636eb78276bb40cb485c0e96acfd987564ef9bf4aef161de6e8376",
+      "bytes": 2408,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__return/adz__return.inp",
+      "sha256": "9d5f6875e24ed633154b8a6260bacc345717b97a2ae284939900ebd14ac7c03f",
+      "bytes": 1721,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__return/adz__return.native.inp",
+      "sha256": "5c0422548c6217588ad243f26e2b47b112d23e3a197fcc5d4a2947aa77b1079a",
+      "bytes": 1708,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__return/adz__return.natural.orbitals.xml",
+      "sha256": "28654cb6063a1334c10ec04fd2d348a6bb176561373724707bbe00ee787acae6",
+      "bytes": 689816,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__return/adz__return.out",
+      "sha256": "3e0d41eec017ee932bfa54ed22d93a24e1beb22cc3caca7f69c3ddc7e41a60e1",
+      "bytes": 59926,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__return/execution.json",
+      "sha256": "df30eb5543a9b7f5caaee072cf0b752d7ed2f6f376c4a1a5af615a0fb507c79e",
+      "bytes": 2421,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__tilted/adz__tilted.inp",
+      "sha256": "3810eaaaa5afc892d4ff0eb8a4987077d103545239f533f23b9486ca2bde659a",
+      "bytes": 1721,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__tilted/adz__tilted.native.inp",
+      "sha256": "45418476ae84883a19c6671c2db824d8e24414754f26b16ab80c2492aad494f5",
+      "bytes": 1708,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__tilted/adz__tilted.natural.orbitals.xml",
+      "sha256": "7ef964741e172ac0022e3c5dd773f2fec2db8dbe751ebee402162c5894746a0c",
+      "bytes": 683801,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__tilted/adz__tilted.out",
+      "sha256": "ab142930b4d4a79c6a19c7e34101c62f1455331fa5c955030bf57a5160fae3ec",
+      "bytes": 60177,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_adz_caspt2/adz__tilted/execution.json",
+      "sha256": "d131aa9f409604504bccfa330340d3ffe51d6aa54616e1f7ef19fb45f180b6ae",
+      "bytes": 2420,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__center/atz__center.inp",
+      "sha256": "1455c9270a2ba9bb1fb70f709eab88a1d3990ec62b65c9896d72a6a3bc8877d8",
+      "bytes": 1721,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__center/atz__center.native.inp",
+      "sha256": "672502172e035c6b9ed86c584edc4ea03858bceb7a6f30a4e6bc52b764c15f58",
+      "bytes": 1708,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__center/atz__center.natural.orbitals.xml",
+      "sha256": "2055808bfc128030fe538039a70602246d396d1f4c0c60bb2e67237da0e9b6b2",
+      "bytes": 2267162,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__center/atz__center.out",
+      "sha256": "297feb34cee6f563b28f6c56119e6d2b949cbeab2e214142fef15959b0e44caf",
+      "bytes": 63629,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__center/execution.json",
+      "sha256": "4828c88821f945e4817055c48a9bfb41bda32fd8d5c11b957a600d71715071ba",
+      "bytes": 2421,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__far/atz__far.inp",
+      "sha256": "2cacdeed8c2c5ddd900e11ecc967988c6f01646436a0f8d4f13d395a5cbeaec9",
+      "bytes": 1722,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__far/atz__far.native.inp",
+      "sha256": "21fd27fab62af7c040dbea519ee2ed802afc91540b1cfdac84389d2142da7f1b",
+      "bytes": 1712,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__far/atz__far.natural.orbitals.xml",
+      "sha256": "0eb825aea594c503ae8a3ddb923bb64d777fe799b70678f9707bd1067294446f",
+      "bytes": 1419449,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__far/atz__far.out",
+      "sha256": "a0de2bbbdb5f635168b82059293c245f486f2ab70395bb7a584d00efe93ce799",
+      "bytes": 69873,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__far/execution.json",
+      "sha256": "25962afd346069fc4065245d199cfdcc9494097856fbb1f5fbb73909ec58f3e5",
+      "bytes": 2382,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__inner/atz__inner.inp",
+      "sha256": "5e5a1ab49d718df69de49d5f08852c8aa0b8de698d587d403a7f08689a10afd8",
+      "bytes": 1717,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__inner/atz__inner.native.inp",
+      "sha256": "feccb7df111c4a1e95e6e9ca1e217314891aab3782c763b75dcf45eeed89b598",
+      "bytes": 1705,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__inner/atz__inner.natural.orbitals.xml",
+      "sha256": "c6090e3c1de1350bd1e3c703023feeb5bf577bbe3cf8b576329fbc01c074f458",
+      "bytes": 2239379,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__inner/atz__inner.out",
+      "sha256": "d3c29dfb3c44f5513e73b1e3ed989cc82ed3fdcfae6132b4cd29f5b815adec3e",
+      "bytes": 62688,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__inner/execution.json",
+      "sha256": "c9f93f1ad580b008967c5138bbf8ff7631243ce7134dcb2f802ba6db230ba10f",
+      "bytes": 2408,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__return/atz__return.inp",
+      "sha256": "2bd3bb9880876300552b75f76f6d39b1561b865ac205dfb4a106840ad6344e52",
+      "bytes": 1721,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__return/atz__return.native.inp",
+      "sha256": "9b30ed53f029c3dacde4e7c0fd1badc2f0d7b57b8463b092028ddd3892c18f82",
+      "bytes": 1708,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__return/atz__return.natural.orbitals.xml",
+      "sha256": "ea53fd0b4c06305071216db750ec752afdf902a5c87523ae61fecfde4044e8b6",
+      "bytes": 2267127,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__return/atz__return.out",
+      "sha256": "cd92c44dc9f86b8396d9e457a6e24bc6a01ac6b593493c35cedcfad53cfd263a",
+      "bytes": 60782,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__return/execution.json",
+      "sha256": "14ce3a8ed72ce00a8f578466043f051d2a71b2c2f499d19c09abcf368eb92c44",
+      "bytes": 2421,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__tilted/atz__tilted.inp",
+      "sha256": "178236b296d2993e97b3bcb48af83439cfb26cdb3ba7e9f36af6b05bde815c6e",
+      "bytes": 1721,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__tilted/atz__tilted.native.inp",
+      "sha256": "1d8890baa7e006cf0fe9cded69b37fca034047d17b5c82301a47e7a618db0d6b",
+      "bytes": 1708,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__tilted/atz__tilted.natural.orbitals.xml",
+      "sha256": "7e717862ef913183159b5986dcc4f84da4b96077869df873e669ad13b83b049e",
+      "bytes": 2240619,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__tilted/atz__tilted.out",
+      "sha256": "b782eba3b967abfacbfdc0c4f53da6c68efd6a9f2cfefe1ec194dca1ce16f35f",
+      "bytes": 60484,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_cs_atz_caspt2/atz__tilted/execution.json",
+      "sha256": "f7abb5160d6a47ba5b92c57c65ba3044a7210ed91048028d95e3c27e795cfda9",
+      "bytes": 2421,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2.evidence.tar.gz",
+      "source_archive_sha256": "4c80871bfb7ddb8f20d930a076bfabe8906bdba0df10b8d76c168f47ac2625fb"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__center/adz__center.inp",
+      "sha256": "6a41f85d4ce28281537db42e3f2477e0de453c5473f6dfa014775fde609bf8e5",
+      "bytes": 6466,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__center/adz__center.native.inp",
+      "sha256": "bfdcfc36729d9bc41e7dfac6506fa125b5800587b539c11dea708ea36d82b7cf",
+      "bytes": 6436,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__center/adz__center.natural.orbitals.xml",
+      "sha256": "2a8d3ecaec1b2c7cd8c01442a2e5f6fa63a56076bfb85dab3da7b70316937f6b",
+      "bytes": 696292,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__center/adz__center.out",
+      "sha256": "28d72ada88a52b02e5146f9990818b5e8beae77eb55f01c5b4ef723ed2295368",
+      "bytes": 233382,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__center/execution.json",
+      "sha256": "1db66f6a9b318bafb40ec73cc2c548b9f967bc2327751adf07a1be2f543aa70e",
+      "bytes": 2577,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__far/adz__far.inp",
+      "sha256": "e7f71c5bd8112cc317153c5f9d0111a25654eaca597e3ec66517fc02250ab249",
+      "bytes": 6441,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__far/adz__far.native.inp",
+      "sha256": "36e7887107cff78dde4b6fcc53656f259282e017fecd3e3f220986f9fb3b48d3",
+      "bytes": 6414,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__far/adz__far.natural.orbitals.xml",
+      "sha256": "24ca34d1fa22724d3eaab969401fc9be66949ef20b2a8f5630410ae99d1609b0",
+      "bytes": 504885,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__far/adz__far.out",
+      "sha256": "14705eb0d3254b4cf6faa15b1a00d8c3ac5c33ce2668e7514ace7413a0597c94",
+      "bytes": 217736,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__far/execution.json",
+      "sha256": "6bac917af32c08d4bf9182d6f541aa98c297cae3b1e357adcba994129cf2cf17",
+      "bytes": 2538,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__inner/adz__inner.inp",
+      "sha256": "7dcd9410fb6e25f441439bb02775fbab5ee33c767371aa3b50921cc8d2c937d8",
+      "bytes": 6461,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__inner/adz__inner.native.inp",
+      "sha256": "b1777bc876f256bf45fd4838ac7ab9c84b45a2251d5f54a3572e3ff96f986ae5",
+      "bytes": 6432,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__inner/adz__inner.natural.orbitals.xml",
+      "sha256": "c8fffbc9d6d0326eecc2c12a3147e532d8a1ba3b482bfdb860578146655f24fb",
+      "bytes": 691920,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__inner/adz__inner.out",
+      "sha256": "dc706b29134d99f70c4235a7d45a2c0415b75cfdeff89da1be19691fbefb3ffa",
+      "bytes": 235323,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__inner/execution.json",
+      "sha256": "7f9479e00af679d7d8399cf8d19d200e8923dd5265b34c8cd0f50eaf836cefa2",
+      "bytes": 2564,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__return/adz__return.inp",
+      "sha256": "7c6cc291d9d11b971386fb4568d39869f52e40b31e81b97daeb58c6c01221594",
+      "bytes": 6466,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__return/adz__return.native.inp",
+      "sha256": "39fa2ec3916c2c3963582dc3fc58bb54817f995f15badd606f095edcd2baf8ca",
+      "bytes": 6436,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__return/adz__return.natural.orbitals.xml",
+      "sha256": "d1d88ae74abda061248dab458455fa3a23e5b9b23317297d07b8dbc4e841f1ec",
+      "bytes": 696301,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__return/adz__return.out",
+      "sha256": "61e57b30749ac8f55068c71466aa209ef24dcef057ec4e566c4ee48e8519ac10",
+      "bytes": 234008,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__return/execution.json",
+      "sha256": "e9c1bbd70aaa3e8def9fb6f460ac12d2bf81c293693b87086943bf0f4ceb3914",
+      "bytes": 2576,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__tilted/adz__tilted.inp",
+      "sha256": "2e0c2c6703994a7e528207cc4887b3f27803aeae3194f43d4ef9bd666490001a",
+      "bytes": 6464,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__tilted/adz__tilted.native.inp",
+      "sha256": "9ce6b0cf9ed96ba1f66cb22925299658e8720a247f3e6bf80a7bfb1dcc9ec5b5",
+      "bytes": 6434,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__tilted/adz__tilted.natural.orbitals.xml",
+      "sha256": "9f6a658418d974bf60aee65155d0db69a91a9859a2d41154e7ded9e017300b5a",
+      "bytes": 690830,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__tilted/adz__tilted.out",
+      "sha256": "e1d3086945900aa497090c01f0c72d6f9d0740ad350024ef112daea8d47fe4c8",
+      "bytes": 236313,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shared_reference/adz__tilted/execution.json",
+      "sha256": "aef2dc201c4e1bfdf2396f964ff2d04dc593cf03d703a12bd177e9f7512f7013",
+      "bytes": 2575,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shift01/adz__inner/adz__inner.inp",
+      "sha256": "bd0b398b55fa4d92cb25ca3e1f6c0cad94040abf62a3c5f3b9039aca347aae59",
+      "bytes": 6440,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shift01/adz__inner/adz__inner.native.inp",
+      "sha256": "5c08f45db24c3dd8f3f4f63e434c04d0c164ec189ab986e757269f9d7e03fa85",
+      "bytes": 6420,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shift01/adz__inner/adz__inner.natural.orbitals.xml",
+      "sha256": "15a7e978eea641d4cb972d8a74a59fd18e6428d907d446ecdb84c61c3b0b83fc",
+      "bytes": 691961,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shift01/adz__inner/adz__inner.out",
+      "sha256": "c3d44dd6f78ab35c12a683594d806ff0ad6bb8272b103377688337f07271098a",
+      "bytes": 226110,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_adz_caspt2_shift01/adz__inner/execution.json",
+      "sha256": "bc8383040ecd2ed917cbb03431a6e07d79e35171b787a5b864bee9cff5f5452a",
+      "bytes": 2486,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__center/atz__center.inp",
+      "sha256": "8417653873b637365ff8900c8d62c44fed70cd04f969c5e5933e8ee76cb7ba78",
+      "bytes": 6466,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__center/atz__center.native.inp",
+      "sha256": "54842e0d6d50b9c40d8f9eb8ef576695b38a700187909bf2f17872b25594f608",
+      "bytes": 6436,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__center/atz__center.natural.orbitals.xml",
+      "sha256": "445041a3e63059c381bf9585aaaf0d7041825dde75bfbca7a7c7e634ae5dfb90",
+      "bytes": 2273822,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__center/atz__center.out",
+      "sha256": "a72949e9c0561d892bf50ed0618547a4d683c8501598d1768d9129e728a6f7d8",
+      "bytes": 232405,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__center/execution.json",
+      "sha256": "c7b7704e57696f069b7fb77db31301ab67ad38ef38c7c70356127ee0419aeca2",
+      "bytes": 2576,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__far/atz__far.inp",
+      "sha256": "76e0dbd77213dc73a5bd2419c72b3fc30f46efec2987f87f2d2d0265959a8282",
+      "bytes": 6441,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__far/atz__far.native.inp",
+      "sha256": "4b1592ca0c5c09772244955005d89cce4d0a0d02bf6ee8650ce043f86edce2e7",
+      "bytes": 6414,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__far/atz__far.natural.orbitals.xml",
+      "sha256": "10d6178878af7bd2f819645a4e84bbdfe3f6b91bc5f11c1ef3088b00c0e448ea",
+      "bytes": 1615200,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__far/atz__far.out",
+      "sha256": "7b279d67567f5bc2f3e9668842d7e149d5f9ae1b83fdad3d4c07b4f2ee3075ab",
+      "bytes": 219993,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__far/execution.json",
+      "sha256": "9f837ae99fe08b5a1339dbe1d40061d271f062827d7b8712d9325fb83b6102be",
+      "bytes": 2535,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__inner/atz__inner.inp",
+      "sha256": "53a9164e718b992301cc335b18b3a1010509783f74bb7d0b29edbf02e9699c50",
+      "bytes": 6461,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__inner/atz__inner.native.inp",
+      "sha256": "6237ce043177ada86b493416acbb1df8d9190441450c6e583314725080c711b4",
+      "bytes": 6432,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__inner/atz__inner.natural.orbitals.xml",
+      "sha256": "c44337894a81669a18170ae082185a2a0056267d751c4fb4668129d4496bfddf",
+      "bytes": 2252374,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__inner/atz__inner.out",
+      "sha256": "cd6e7a11afdb181cd9bd948fc8e8d9f8464995eda7bde297af42be400c6ff6b9",
+      "bytes": 234524,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__inner/execution.json",
+      "sha256": "5e93193d5c74953f2779bc0bb29a223aa6c8ce2536f8b75d73f222ed25105bb8",
+      "bytes": 2563,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__return/atz__return.inp",
+      "sha256": "3498930ad26360d7d3ebb5f3a9ae155c0020be0ebbe1c4a86d5fd6f068083d48",
+      "bytes": 6466,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__return/atz__return.native.inp",
+      "sha256": "62011ccf76c5d392d0561e95b744499303eed23fb093039a8c8ec72d0421e5b7",
+      "bytes": 6436,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__return/atz__return.natural.orbitals.xml",
+      "sha256": "2df61b9aa8ce117212baa3394b10b88db9ab79c371a45ab8ee490f865e4ef090",
+      "bytes": 2273811,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__return/atz__return.out",
+      "sha256": "7af3c6700b3c0e885b62c2abb20c02890c992a314baa8afb4b0494d1a35dc0e9",
+      "bytes": 234286,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__return/execution.json",
+      "sha256": "969f46dd0e2d7f49d7b20d19ef25d0eb8c0c16ed377c5b16ed2752036b004d2b",
+      "bytes": 2576,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__tilted/atz__tilted.inp",
+      "sha256": "861cbfa0af6a5f3494a7ba410fba0db629cdf8b5f9087fa2591682192ab9ee8c",
+      "bytes": 6464,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__tilted/atz__tilted.native.inp",
+      "sha256": "ad799eb98d188463f94cf90772f319e4e9fb41b12dc4f8785e0aa884f932a35b",
+      "bytes": 6434,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__tilted/atz__tilted.natural.orbitals.xml",
+      "sha256": "4839dafb6f0d1a0bb2614134e870427c35e1952398e367522246f54730976b39",
+      "bytes": 2252306,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__tilted/atz__tilted.out",
+      "sha256": "d6bf240326f55814c32ece669f63f4330db631127d4523e79d4c8c59bfaefa5a",
+      "bytes": 236653,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shared_reference/atz__tilted/execution.json",
+      "sha256": "cd9f74b91dd1571446d2f07e27b10dcfd479fc9e5f07b92f998b1296a29ecf72",
+      "bytes": 2575,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_r2_recovery.evidence.tar.gz",
+      "source_archive_sha256": "d81a79cb60661f174199eb1ac43c01981c1ee025eb4e315fb284273cb5dea5c3"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shift01/atz__inner/atz__inner.inp",
+      "sha256": "e508bf77217be33844f34acb44294c2b75e489ec3793c90210671a3e6f804744",
+      "bytes": 6440,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shift01/atz__inner/atz__inner.native.inp",
+      "sha256": "5984ffb415506274276ca8e860f60846d45dc6fa9009e4611169d10a5c4e72f9",
+      "bytes": 6420,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shift01/atz__inner/atz__inner.natural.orbitals.xml",
+      "sha256": "702e8280f29846776b99bbe2b128ad2e46b6fb99588f63281bd578ceb7d840a0",
+      "bytes": 2252385,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shift01/atz__inner/atz__inner.out",
+      "sha256": "74556c98bf4e2423202ba2634af9f0d05762a6d54ec782ef010c0e394901a5d5",
+      "bytes": 225776,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    },
+    {
+      "member": "ch3ss_ss_atz_caspt2_shift01/atz__inner/execution.json",
+      "sha256": "15e8dc8e4244209a0949faaf683f468588c641265cf6a64b454aac7d05cb0915",
+      "bytes": 2485,
+      "source_archive": "minimum_active_space_molpro_confirmation_20261016_shift01.evidence.tar.gz",
+      "source_archive_sha256": "9d2f4a9a060604bb8c65bf165f75f5f4b8d69c0eb6c17bde2e46bdf0e3b07988"
+    }
+  ],
+  "note": "Native files copied byte-for-byte from prior exports. No calculation rerun. Original mixed archives retained under CH3SS orbital_reviews/joint_history."
+}

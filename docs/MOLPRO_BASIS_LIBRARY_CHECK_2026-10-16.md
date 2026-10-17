@@ -35,7 +35,7 @@ The library-loading procedure follows the Molpro
 [basis-input](https://www.molpro.net/manual/doku.php?id=basis_input) and
 [integration](https://www.molpro.net/manual/doku.php?id=integration) documentation.
 
-The [retained script](../examples/anl/caspt2_production/check_molpro_basis_library.sh)
+The [retained script](../examples/anl/tools/check_molpro_basis_library.sh)
 redirects launcher stdin from `/dev/null`. The original version allowed the
 launcher to consume the loop's basis-list stdin and stopped after one lookup.
 A local mock-launcher regression reproduced that failure and verified all
@@ -44,4 +44,4 @@ basis. The user's subsequent native run reported all 27 loaded.
 
 This check changes no scientific settings and submits no scheduled calculations.
 For the later Gaussian failure and the current clean-restart command, use the
-[production handoff](../CASPT2_PRODUCTION_HANDOFF.md).
+[production handoff](../examples/anl/tools/README.md).

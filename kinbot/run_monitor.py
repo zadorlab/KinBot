@@ -20,16 +20,19 @@ EVENT = re.compile(r'^\d{2}-\w{3}-\d{2} \d\d:\d\d:\d\d-(?:INFO|DEBUG|WARNING|ERR
 ERROR = re.compile(r'-ERROR:|-CRITICAL:|Traceback \(most recent|QPErr|'
                    r'Error termination|segmentation (?:violation|fault)|'
                    r'GLOBAL ERROR|\?\s*Error|\b\w*(?:Error|Exception):|'
-                   r'Permission denied|No space left|oom.kill|OUT_OF_MEMORY', re.I)
+                   r'Permission denied|No space left|oom.kill|OUT_OF_MEMORY|'
+                   r'Worker failure:|Frequency validation failed|'
+                   r'Converged but frequency check failed', re.I)
 PROGRESS = re.compile(r'PROGRAM\s*\*|SCF Done:|Step number|Optimization completed|'
                       r'Normal termination|Maximum Force|RMS Force|Maximum Displacement|'
-                      r'RMS Displacement|^\s*(?:Sella|BFGS|LBFGS|FIRE):|'
+                      r'RMS Displacement|^\s*(?:Sella|BFGS|LBFGS|FIRE)(?::|\s+\d+\s)|'
+                      r'Frequencies\s+--|Zero-point correction|Minimum recovery \d|'
                       r'^\s*\d+\s+\d+\s+\d+\s+[-+]?\d+\.\d+|'
                       r'^\s*\?\s*\S|convergence|\bKBGAP\w*\s*=', re.I)
 LOG_NAMES = {'driver.log', 'pes.log', 'kinbot.log', 'kinbot.err', 'kinbot.out'}
 STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'mess_execution.json', '.kinbot_post_reaction_branches.json',
-               'kinbot_status.json', 'pes_status.json'}
+               'kinbot_status.json', 'pes_status.json', 'recovery.json'}
 REACTION_STAGES = {-999: 'failed/rejected', -1: 'accepted', 0: 'TS search',
                    1: 'barrier/IRC', 2: 'product characterization',
                    3: 'start product/TS optimization', 4: 'product/TS optimization',
@@ -93,6 +96,12 @@ def inventory(root, warnings):
     def walk_error(error):
         warnings.append(str(error))
     for directory, dirs, files in os.walk(root, followlinks=False, onerror=walk_error):
+        if Path(directory).name.endswith('_minimum_recovery'):
+            # Retained rejected Hessians and trial logs are historical evidence,
+            # not new failures of the current optimization. Show their reports.
+            paths.extend(sorted(Path(directory).glob('attempt_*/recovery.json')))
+            dirs[:] = []
+            continue
         dirs[:] = sorted(d for d in dirs if not (
             d.startswith('.') or '.stopped.' in d or d.startswith('restart_')
             or d in {'assets', 'orbitals', 'scratch', '__pycache__', 'archive', 'archives'}
@@ -103,7 +112,7 @@ def inventory(root, warnings):
             break
         for name in files:
             path = Path(directory, name)
-            if (name.endswith(('.execution.json', '.rotdpy.json')) or
+            if (name.endswith(('.execution.json', '.rotdpy.json', '.result.json')) or
                     name in LOG_NAMES | STATE_NAMES | {'kinbot_monitor.out', 'pes_summary.txt',
                 'kinbot_optimization_monitor.json'} or
                     path.suffix in {'.log', '.err', '.stdout', '.stderr', '.exitcode', '.out'}):
@@ -123,7 +132,12 @@ def log_record(path, root, now):
     events = [line.strip() for line in lines if EVENT.match(line) and
               line.split(': ', 1)[-1].strip() and
               not re.search(r'INFO: (?:KinBot \d|RDKit |Input parameters)', line)]
-    errors = [line.strip() for line in lines if ERROR.search(line)]
+    errors = []
+    for index, line in enumerate(lines):
+        if ERROR.search(line):
+            errors.append(line.strip())
+            if 'Converged but frequency check failed' in line and index + 1 < len(lines):
+                errors.append(lines[index + 1].strip())
     progress = [line.strip() for line in lines if PROGRESS.search(line)]
     return {'path': str(path.relative_to(root)), 'mtime': path.stat().st_mtime,
             'age_seconds': max(0, now-path.stat().st_mtime),
@@ -168,7 +182,7 @@ def reaction_summary(path, warnings):
 def artifacts(paths, root, warnings):
     results = []
     for path in paths:
-        if path.name not in STATE_NAMES and not path.name.endswith(('.execution.json', '.rotdpy.json')):
+        if path.name not in STATE_NAMES and not path.name.endswith(('.execution.json', '.rotdpy.json', '.result.json')):
             continue
         data = read_json(path, warnings)
         if not data:
@@ -191,6 +205,12 @@ def artifacts(paths, root, warnings):
         elif path.name == '.kinbot_post_reaction_branches.json':
             item.update(branches=data.get('branches'), mess_gate=data.get('mess_gate'),
                         final_solver=data.get('final_solver'))
+        elif path.name == 'recovery.json':
+            item['recovery'] = {key: data.get(key) for key in
+                ('attempt', 'frequency_cm-1', 'displacement_angstrom',
+                 'selected', 'energy_change_eV')}
+        elif path.name.endswith('.result.json'):
+            item['recovery'] = {'completed_attempts': data.get('minimum_recovery_attempts', 0)}
         elif path.name == 'execution.json' and data.get('status') not in ('failed', 'unavailable'):
             continue  # Per-task successful execution is covered by state.json.
         if data.get('error'):
@@ -202,6 +222,23 @@ def artifacts(paths, root, warnings):
 def case_snapshot(root, jobs, processes, now, *, log_limit=40):
     warnings = []
     files = inventory(root, warnings)
+    exit_records = []
+    failed_log_names = set()
+    for path in files:
+        if path.suffix != '.exitcode':
+            continue
+        try:
+            values = tail(path, 1024).split()
+            if len(values) not in (1, 2):
+                raise ValueError('expected exit code or job-id/exit-code')
+            code = int(values[-1])
+            exit_records.append({'path': str(path.relative_to(root)), 'returncode': code,
+                                 'job_id': values[0] if len(values) == 2 else None})
+            if code:
+                failed_log_names.update(path.stem + suffix for suffix in
+                    ('.log', '_sella.log', '.err', '.stdout', '.stderr', '.out'))
+        except (ValueError, OSError) as error:
+            warnings.append(f'{path}: {error}')
     par = read_json(root/'input.json', warnings)
     summary = pes_summary(root/'pes_summary.txt', warnings)
     logs = [p for p in files if p.name in LOG_NAMES or p.suffix in {'.log', '.err', '.stderr', '.stdout'}
@@ -212,8 +249,10 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40):
             mtimes[path] = path.stat().st_mtime
         except OSError as error:
             warnings.append(str(error))
-    # Always include actual controller/worker logs, then recent native logs.
-    chosen = sorted(mtimes, key=lambda p: (p.name in LOG_NAMES, mtimes[p]), reverse=True)
+    # Failed jobs' native/worker diagnostics must not be crowded out by many
+    # newer successful calculations. Controller logs retain first priority.
+    chosen = sorted(mtimes, key=lambda p: (p.name in LOG_NAMES,
+                    p.name in failed_log_names, mtimes[p]), reverse=True)
     records = []
     for path in chosen[:log_limit]:
         try:
@@ -235,19 +274,6 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40):
         workers.append({'directory': name, 'reported_pes_state': summary['workers'].get(name),
                         'status': status, 'events': log.get('events', []),
                         'reactions': rows, 'optimizations': optimization.get('reactions', [])})
-    exit_records = []
-    for path in files:
-        if path.suffix != '.exitcode':
-            continue
-        try:
-            values = tail(path, 1024).split()
-            if len(values) not in (1, 2):
-                raise ValueError('expected exit code or job-id/exit-code')
-            code = int(values[-1])
-            exit_records.append({'path': str(path.relative_to(root)), 'returncode': code,
-                                 'job_id': values[0] if len(values) == 2 else None})
-        except (ValueError, OSError) as error:
-            warnings.append(f'{path}: {error}')
     sampling = []
     for path in files:
         if path.name.startswith('kb_') and path.is_dir():
@@ -331,7 +357,7 @@ def render(report, *, include_all=False, lines=4):
                     out.append('    '+json.dumps(row.get('optimizers', [])))
         for item in case['artifacts']:
             out.append(f'RECORD {item["path"]}: {item["status"]}')
-            for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'error'):
+            for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error'):
                 if item.get(key) is not None:
                     out.append(f'  {key}: {item[key]}')
             tasks = item.get('tasks', [])

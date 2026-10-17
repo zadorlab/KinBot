@@ -33,9 +33,8 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert par['selected_reactions'] == {}
     assert par['vrc_tst_scan_gradient'] == 'numerical'
     assert par['vrc_tst_active_space']['mode'] == 'selected'
-    assert par['vrc_tst_state_model_file'] == (
-        '../caspt2_production/ch3s_cs_state_model.json' if name == 'ch3s' else '')
-    assert par['vrc_tst_surface_model_file'] == f'{name}_surface_model.json'
+    assert par['vrc_tst_state_model_file'] == par['vrc_tst_surface_model_file'] == ''
+    assert par['vrc_tst_surface_model']['channels']
     assert par['homolytic_bonds'] == {'initial': ([[0, 1]] if name == 'ch3s' else [[0, 1], [1, 2]])}
     assert par['vrc_tst_sample_basis'] == 'avdz-f12'
     assert par['vrc_tst_scan_basis'] == 'avtz-f12'
@@ -62,12 +61,12 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert species.mult == 2
     assert 'S' in species.atom
 
-    reconnaissance = path.with_name('orbital_reconnaissance.json')
+    reconnaissance = path.parent/'orbital_reviews/orbital_reconnaissance.json'
     assert reconnaissance.is_file()
 
 
 def test_validation_recipe_preserves_comparison_level_and_requested_scan_grid():
-    root = Path(__file__).parents[1] / 'examples/anl/orbital_reviews'
+    root = Path(__file__).parents[1] / 'examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history'
     spec = importlib.util.spec_from_file_location('example_validation', root / 'prepare_validation.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -91,7 +90,7 @@ def test_validation_recipe_preserves_comparison_level_and_requested_scan_grid():
 
 
 def test_cas75_addition_keeps_pi_pair_and_matches_the_existing_potential_stencil(monkeypatch):
-    root = Path(__file__).parents[1] / 'examples/anl/orbital_reviews'
+    root = Path(__file__).parents[1] / 'examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history'
     monkeypatch.syspath_prepend(str(root))
     from prepare_cas75 import definition
     from prepare_validation import plan

@@ -10,7 +10,7 @@ from kinbot import molpro_reconnaissance as recon
 from kinbot.execution import atomic_json, file_sha256
 
 
-SOURCE = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json'
+SOURCE = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reviews/orbital_reconnaissance.json'
 
 
 def test_correlated_order_diagnostic_keeps_method_controls_and_root_labels():
@@ -127,7 +127,8 @@ def test_plan_does_not_accept_stale_chemistry(tmp_path):
 
 
 def test_plan_exposes_requested_rotd_controls_and_unreviewed_stages(tmp_path):
-    context = json.loads((SOURCE.parent / 'ch3s.json').read_text())
+    context = json.loads((SOURCE.parent.parent / 'ch3s.json').read_text())
+    context.pop('vrc_tst_surface_model', None)
     context.update(title='arbitrary_title', vrc_tst_sample_basis='avdz-f12',
                    vrc_tst_scan_points=[4., 4.3, 4.6], rotdpy_dist=[6., 7.],
                    rotdpy_flux_parameters={'flux_rel_err': 2.5, 'pot_smp_max': 1500,
@@ -208,7 +209,7 @@ def test_cc_anchor_rejects_failed_scf_and_wrong_f12_selector():
 def test_followup_preparation_keeps_new_basis_fresh_and_uses_basis_specific_seeds(
         tmp_path, partition_source, monkeypatch):
     import importlib.util
-    folder = SOURCE.parents[1] / 'orbital_reviews'
+    folder = Path(__file__).parents[1] / 'examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history'
     monkeypatch.syspath_prepend(str(folder))
     spec = importlib.util.spec_from_file_location('example_followup', folder / 'prepare_followup.py')
     followup = importlib.util.module_from_spec(spec)
@@ -619,16 +620,16 @@ def test_different_inner_outer_spaces_install_without_selecting_physics(tmp_path
                                       surface_file=surface_file, bond=[1, 2], stage='inner')
     larger = _selected(tmp_path, 9, 6)
     installed = review.install_selection(first, larger, tmp_path / 'final.json',
-        surface_file=tmp_path / 'inner.surfaces.json', bond=[2, 1], stage='outer')
+        bond=[2, 1], stage='outer')
     data = json.loads(installed.read_text())
     assert data['composite_method'] == 'ANL1-F12' and data['run_me'] == 1
     with pytest.raises(ValueError, match='reviewed=true'):
         load_surface_model(data)
     # Emulate the user's separate physical-surface review, then exercise the
     # exact production loader/leaf path with two independently selected spaces.
-    final_surface = json.loads(Path(data['vrc_tst_surface_model_file']).read_text())
-    final_surface['reviewed'] = True
-    atomic_json(Path(data['vrc_tst_surface_model_file']), final_surface)
+    data['vrc_tst_surface_model']['reviewed'] = True
+    assert not data.get('vrc_tst_surface_model_file')
+    assert not list(tmp_path.glob('*.surfaces.json'))
     loaded, _ = load_surface_model(data)
     for stage, electrons in zip(loaded['channels'][0]['bottlenecks'], [5, 9]):
         leaf = state_parameters(data, stage, stage['states'][0], [2, 3])

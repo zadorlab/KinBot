@@ -16,7 +16,7 @@ does not establish them. The unsubmitted example models and new automatic VRC
 spin-orbit offsets/population redistribution were removed. Retain and audit the
 existing sulfur fine-structure treatment in thermochemistry separately. A
 confirmation geometry called `inner` is not evidence of an inner kinetic
-bottleneck. See the [current production scope](CASPT2_PRODUCTION_TRANSITION_2026-10-16.md).
+bottleneck. See the [current production scope](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/CASPT2_PRODUCTION_TRANSITION_2026-10-16.md).
 
 ## Current status: CASPT2 production handoff prepared
 
@@ -28,17 +28,17 @@ provenance, not production prerequisites. The user has ended MRCI retries.
 | 1. Literature/minimum active spaces | Complete for handoff: (5,4), (7,5), (7,5) | Physical reactive components and distinct SA weights are explicit in the production models. |
 | 2. Local ORCA evidence | Complete | Retain 47 curated native points and reproducible analysis. |
 | 3. Molpro confirmation | CASPT2 complete, including matched shift 0.1 | MRCI branch closed by user; no further benchmark needed. |
-| 4. General JSON controls | Complete for handoff; regression-tested | Full same-spin references and lowest-quartet selector are general explicit controls. |
+| 4. General JSON controls | Complete for handoff; regression-tested | Single JSON per PES; per-bond indices, basis records, roots, weights, same-spin references and lowest-quartet selector are explicit general controls. |
 | 5. General orbital reconnaissance | Complete for handoff; documented and tested | Chemical selection still requires review; it is not a unique-CAS oracle. |
 | 6. Production inputs | Complete and locally checked | Six portable orbital records, ordinary VRC surfaces, full inputs and launch/preflight helper supplied. Native production remains pending. |
-| 7. End-to-end production follow-through | First attempt failed; clean restart prepared | Malformed Gaussian SCF route repaired. No production ANL/RotdPy/MESS result yet. User runs fresh `_r2`; follow-through remains active. |
-| 8. Integration/general defaults | Full repair regression audit passed | 1,748 tests + 424 subtests, zero failures/skips, with native RotdPy/MESS/MESSPF checks enabled. Source audit and limits recorded in the repair report; native production remains pending. |
+| 7. End-to-end production follow-through | DFT-preset clean restart prepared | `_r2` exposed CH3S L2 and product L1 minimum rejections. New `_r3_dft` uses Gaussian DFT at L1 and bounded minimum recovery. No completed production ANL/RotdPy/MESS result yet. |
+| 8. Integration/general defaults | Profile routing and minimum recovery audited | Current coverage and exact full-suite results are in the [DFT restart validation](../examples/anl/tools/dft_restart_validation.json). Native production remains pending. |
 | 9. Evidence/documentation | Complete for handoff | Parameter-by-parameter provenance, native evidence, limitations and commands linked below. |
-| 10. Cleanup inventory | Prepared; cleanup deferred | Do not remove native evidence or run directories before both examples finish. |
-| 11. Consolidated production handoff | Revised after first runtime defect | Corrected route rendering, explicit worker outcomes, general detailed monitor and clean restart supplied. Native Gaussian retry remains to be executed by user. |
-| 12. Previous-run retirement | Nine orbital campaigns archived; first production retirement pending | New helper stops both marked production PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
+| 10. Cleanup inventory | Example/configuration cleanup complete; native purge deferred | Removed obsolete external model JSONs, caspt2_production and acetaldehyde example. Each PES has one root input with its own checkpoints/evidence/docs below orbital_reviews. Original mixed evidence is retained once; do not purge before production finishes. |
+| 11. Consolidated production handoff | Revised for DFT L1 and general recovery | New preset, 1% RotdPy target, tight L1/L2/L3 criteria, both-level preflight, detailed two-PES monitor, bounded retries, and `_r2` to `_r3_dft` restart supplied. Native Gaussian recovery still requires execution. |
+| 12. Previous-run retirement | Nine orbital campaigns and original production retired; `_r2` retirement prepared | Helper stops both marked `_r2` PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
 
-The [production handoff](../CASPT2_PRODUCTION_HANDOFF.md) and its linked full
+The [production handoff](../examples/anl/tools/README.md) and its linked full
 parameter reference are authoritative for the new runs. “Complete for handoff”
 means the requested preparation is done, not that the two PES calculations,
 their scientific acceptance, or deferred cleanup have already happened.
@@ -60,14 +60,16 @@ Subsequent native logs show both Gaussian initial L2 jobs rejected
 resolved in the generic merger/writer and covered by actual rendered-input
 tests. PES failure propagation and monitoring are also repaired. See
 [the full repair record](GAUSSIAN_PRODUCTION_REPAIR_2026-10-16.md). User requested
-a clean restart; the previous tree will be archived and a fresh `_r2` tree
-launched. No scientific completion claim follows from the local tests.
+a clean restart and ran `_r2`. That attempt passed Gaussian syntax but exposed
+the two minimum rejections documented in the [DFT restart plan](MINIMUM_RECOVERY_2026-10-16.md).
+The current handoff replaces `_r2` with `_r3_dft`. No scientific completion
+claim follows from local tests.
 
 The new shift export verifies 58/58 inventoried files and 24/24 correlated
 energies. The matched CASSCF/reference energies and active orbital subspaces
 are unchanged. The lowest D–Q gap changes by 0.255453 kcal/mol at aDZ,
 0.264439 at aTZ and 0.267019 in the power-3.7 estimate. See the
-[native shift review](CASPT2_SHIFT01_NATIVE_REVIEW_2026-10-16.md).
+[native shift review](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/CASPT2_SHIFT01_NATIVE_REVIEW_2026-10-16.md).
 This is acceptance of the requested matched-point check, not proof of
 shift-independent rates or all-geometry root continuity.
 
@@ -141,7 +143,7 @@ Current evidence: [minimum comparison](../local_runs/qchem_casscf_20261015/minim
 The previous CH3S (13,8) recommendation was withdrawn; its numerical comparison
 is retained as diagnostic evidence.
 
-The [16 October state-averaging literature recheck](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md#state-averaging-and-the-vrc-tst-objective-literature-recheck-16-october-2026)
+The [16 October state-averaging literature recheck](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md#state-averaging-and-the-vrc-tst-objective-literature-recheck-16-october-2026)
 compares the NH2O protocol with additional VRC-TST applications, including an
 explicit MS-MR example. Keep reference averaging, multistate mixing and physical
 surface flux accounting separate. XMS is not an automatic additional handoff
@@ -160,7 +162,7 @@ The final local choices are **(5,4), (7,5), (7,5)**, with different orbital
 subspaces for the two CH3SS channels. All local inward/return checks are complete;
 47 curated points have been reparsed from native outputs. Maximum native-label
 return differences are 0.00000986, 0.00001097 and 0.00008911 kcal/mol, respectively.
-See [the decision and caveats](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md).
+See [the decision and caveats](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md).
 No extra full-valence expansion is needed merely to match absolute energies.
 
 ## 3. Minimal one-time Molpro confirmation — CASPT2 accepted; MRCI branch closed
@@ -197,10 +199,10 @@ The center-only comparison with the installed 2023 executable then reproduced
 the same DSYGV failure. The user closed this MRCI branch; its unresolved
 points are excluded from production. All five completed multistate points are preserved;
 no CASPT2 or active-space survey is repeated. The
-[diagnosis and controlled comparison](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
+[diagnosis and controlled comparison](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
 distinguish documented controls from the unproven crash mechanism. See the
-[current native review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md),
-[historical diagnosis](MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md), and
+[current native review](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/MOLPRO_RECOVERY_REVIEW_2026-10-16.md),
+[historical diagnosis](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md), and
 [submission handoff](../MOLPRO_CONFIRMATION_HANDOFF.md). The three S–S results
 are not relabelled as successes by the CASPT2-only production decision.
 
@@ -278,7 +280,7 @@ new native calculations. See
 The final CASPT2-only handoff pass adds 571 passing focused tests and 31 subtests,
 plus five separate native RotdPy/MESS/MESSPF checks. These counts are different
 test selections and must not be added to the historical counts as unique tests.
-The [parameter reference](../examples/anl/caspt2_production/PARAMETERS.md)
+The [parameter reference](../examples/anl/ch3s_anl1_f12/orbital_reviews/PARAMETERS.md)
 records explicit input provenance against master. New lowest-manifold energy
 selection is regression-tested; its constituent native root calculations,
 rather than a newly submitted wrapper calculation, supply the electronic evidence.
@@ -351,6 +353,20 @@ retires only the explicit superseded campaign list after its preflight succeeds.
 
 ## Maintenance record
 
+- 2026-10-16, production L2 follow-up: the corrected Gaussian input reaches a
+  small-force CH3S stationary point, but its fresh Hessian has a −587.334 cm⁻¹
+  mode. Independent energy/force displacements confirm negative curvature.
+  Added general bounded minimum recovery in the normal worker, detailed
+  rejection reporting and a two-PES monitor regression. The
+  [evidence and retry plan](MINIMUM_RECOVERY_2026-10-16.md) retain the L2
+  method. CH3SS subsequently rejected its CH3S L1 UMA product (−53.062 cm⁻¹).
+  At the user's request both examples now select the general
+  `b3lyp-b2plyp-anl` preset, with B3LYP-D3(BJ)/cc-pVDZ at L1 and unchanged
+  B2PLYP-D3(BJ)/cc-pVTZ at L2. Profile propagation repairs cover preliminary
+  reaction paths, scans and IRC options. The current scoped restart archives
+  both `_r2` trees and launches `_r3_dft`, monitoring both. Native recovery and
+  end-to-end production remain unverified. No active-space or VRC model changes.
+
 - 2026-10-15: user approved the eleven deliverables, added the literature-based
   minimum-space criterion, and clarified that handoff is followed by user-run
   Blodgett production with continued assistant bug-fix support.
@@ -390,12 +406,12 @@ retires only the explicit superseded campaign list after its preflight succeeds.
   do not change running jobs or relabel historical 0.3 Eh evidence. Modest
   CASPT2 relative-energy sensitivity is a working expectation, not a proven
   result for the full PES. No added long parameter survey was requested.
-  The [decision record](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md) now lists all
+  The [decision record](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md) now lists all
   three checkpoint-bound active orbital sets, the already-applied C–S seed
   permutation, and the distinction between preserved active spans, physical
   state reordering, and the remaining S–S collapse/solver acceptance checks.
 - 2026-10-16: on the user's request, added the detailed
-  [orbital-selection evidence](SULFUR_ACTIVE_ORBITAL_EVIDENCE.md). Re-extracted
+  [orbital-selection evidence](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_ACTIVE_ORBITAL_EVIDENCE.md). Re-extracted
   three larger-parent occupation/character tables from the retained archive,
   rechecked 30 completed native output hashes and their natural occupations,
   and recorded all tables and source hashes in `native_occupation_evidence.json`.

@@ -13,9 +13,13 @@ from kinbot.stationary_pt import StationaryPoint
 
 
 @pytest.fixture(scope='module')
-def acetaldehyde_path_context():
-    parameters = Parameters(
-        'examples/anl/acetaldehyde_cbh_anl0_f12/acetaldehyde.json')
+def acetaldehyde_path_context(tmp_path_factory):
+    import json
+    path = tmp_path_factory.mktemp('path_input')/'input.json'
+    path.write_text(json.dumps({'smiles': 'CC=O', 'charge': 0, 'mult': 1,
+        'barrier_threshold': 100., 'theory_preset': 'uma-b2plyp-anl',
+        'composite_method': 'ANL0-F12', 'queue_job_limit': 8}))
+    parameters = Parameters(str(path))
     qc = QuantumChemistry(parameters.par)
     species = StationaryPoint('acetaldehyde', 0, 1, smiles='CC=O')
     species.characterize()

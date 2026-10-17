@@ -80,7 +80,7 @@ def apply_vrc_accuracy_preset(parameters, user_keys=()):
                          'anl1-f12.') from exc
     explicit = set(user_keys)
     choices = ('vrc_tst_active_space', 'vrc_tst_state_model_file',
-               'vrc_tst_state_model', 'vrc_tst_surface_model_file')
+               'vrc_tst_state_model', 'vrc_tst_surface_model_file', 'vrc_tst_surface_model')
     if name != 'legacy' and not any(key in explicit and parameters.get(key) for key in choices):
         raise ValueError('The anl1-f12 VRC preset specifies energy levels, not a chemical active space. '
                          'Supply vrc_tst_active_space explicitly or install an orbital/state or '
@@ -89,6 +89,22 @@ def apply_vrc_accuracy_preset(parameters, user_keys=()):
     for key, value in _VRC_ACCURACY_PRESETS[name].items():
         if key not in explicit:
             parameters[key] = deepcopy(value)
+    space = active_space_settings(parameters)
+    if space is not None and space.get('selection') == 'selected_orbital_subspace':
+        apply_selected_active_space_methods(parameters, space)
+    return parameters
+
+
+def apply_selected_active_space_methods(parameters, active_space):
+    """Keep human-readable method labels consistent with the selected CAS."""
+    for key in ('vrc_tst_scan_method', 'vrc_tst_sample_method', 'vrc_tst_high_method'):
+        if parameters.get(key):
+            parameters[key] = method_with_active_space(parameters[key], active_space)
+    if isinstance(parameters.get('vrc_tst_spin_splitting'), dict):
+        parameters['vrc_tst_spin_splitting'] = deepcopy(parameters['vrc_tst_spin_splitting'])
+        for level in parameters['vrc_tst_spin_splitting'].get('gap_levels', []):
+            if isinstance(level, dict) and 'method' in level:
+                level['method'] = method_with_active_space(level['method'], active_space)
     return parameters
 
 
@@ -502,14 +518,14 @@ def validate_vrc_levels(parameters):
         state_model = parameters.get('vrc_tst_state_model')
         state_file = parameters.get('vrc_tst_state_model_file', '')
         inline = (isinstance(state_model, dict)
-                  and isinstance(state_model.get('orbital_selection'), dict)
-                  and state_model['orbital_selection'].get('mode')
-                  in ('molpro_record', 'avas'))
+                  and ((isinstance(state_model.get('orbital_selection'), dict)
+                        and state_model['orbital_selection'].get('mode') in ('molpro_record', 'avas'))
+                       or (state_model.get('schema') == 2 and bool(state_model.get('basis_models')))))
         external = isinstance(state_file, str) and bool(state_file.strip())
         if inline and external:
             raise ValueError('Configure either vrc_tst_state_model or '
                              'vrc_tst_state_model_file, not both.')
-        if not inline and not external and not parameters.get('vrc_tst_surface_model_file'):
+        if not inline and not external and not (parameters.get('vrc_tst_surface_model_file') or parameters.get('vrc_tst_surface_model')):
             raise ValueError(
                 'A selected VRC active space requires '
                 'vrc_tst_state_model.orbital_selection or '
@@ -615,6 +631,8 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
     if explicit is not None and isinstance(state_file, str) and state_file.strip():
         raise ValueError('Configure either vrc_tst_state_model or '
                          'vrc_tst_state_model_file, not both.')
+    payload = explicit if isinstance(explicit, dict) and explicit.get('schema') == 2 else None
+    path = Path(parameters.get('input_file') or Path.cwd() / 'input.json').expanduser().resolve()
     if explicit is None and isinstance(state_file, str) and state_file.strip():
         path = Path(state_file).expanduser()
         if not path.is_absolute():
@@ -628,6 +646,7 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
                 f'Reviewed VRC state-model file is unavailable: {path}. '
                 'Run and audit the Molpro orbital reconnaissance first.')
         payload = json.loads(path.read_text())
+    if payload is not None:
         if (not isinstance(payload, dict) or payload.get('schema') not in (1, 2)
                 or not isinstance(payload.get('active_space'), dict)):
             raise ValueError('Reviewed VRC state-model file has an invalid '
@@ -855,9 +874,9 @@ def expected_levels(parameters, *, symbols=None, charge=0, settings=None,
             'weighting': settings['weighting'],
         }
     external = parameters.get('vrc_tst_state_model_file', '')
+    inline_basis_model = (parameters.get('vrc_tst_state_model') or {}).get('schema') == 2
     state_models = None
-    if (active_space is not None and isinstance(external, str)
-            and external.strip()):
+    if active_space is not None and (inline_basis_model or (isinstance(external, str) and external.strip())):
         bases = (list(sampling['basis']) if isinstance(sampling['basis'], list)
                  else [sampling['basis']])
         if correction_model(parameters) == 'direct':

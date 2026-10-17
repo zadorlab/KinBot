@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 
 import numpy as np
 from ase import Atoms
@@ -11,7 +12,7 @@ from sella import Sella
 from kinbot.constants import EVtoHARTREE
 from kinbot.ase_modules.calculators.{code} import {Code}
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.frequencies import calc_vibrations, get_frequencies
+from kinbot.frequencies import calc_vibrations, get_frequencies, frequency_validation_error
 
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom},
@@ -34,7 +35,17 @@ frequency_mode = '{frequency_mode}'
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
+
+def report_failure(reason):
+    message = 'Worker failure: ' + reason
+    print(message, file=sys.stderr, flush=True)
+    with open('{label}_sella.log', 'a') as stream:
+        stream.write(message + '\n')
+    return reason
+
 sella_kwargs = {sella_kwargs}
+from kinbot.minimum_recovery import pop_worker_controls
+imagfreq_threshold = pop_worker_controls(sella_kwargs)['imagfreq_threshold']
 sella_kwargs.setdefault('internal', True)
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
     sella_kwargs['internal'] = False
@@ -49,12 +60,16 @@ steps = {steps}
 mol.calc.label = '{label}'
 
 converged = False
+failure_reason = ''
 try:
     converged = opt.run(fmax=fmax, steps=steps)
     traj = read('{label}.traj', index=':')
     write('{label}.xyz', traj, format='xyz')
-except:
-    pass
+    if not converged:
+        failure_reason = report_failure('Optimization did not converge within {steps} steps.')
+except Exception as error:
+    failure_reason = report_failure(
+        f'Optimization failed: {{type(error).__name__}}: {{error}}')
 if converged:
     try:
         if frequency_mode == 'native_hessian' and '{Code}' == 'Gaussian':
@@ -76,30 +91,29 @@ if converged:
             hessian = None
         else:
             freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
-        if freqs is None:
-            converged = False
-        elif (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-            or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
-            or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+        rejection = frequency_validation_error(freqs, 1, imagfreq_threshold)
+        if rejection:
+            failure_reason = report_failure(rejection)
             converged = False
         else:
             e = mol.get_potential_energy()
+            if not np.isfinite(e) or not np.isfinite(zpe):
+                raise ValueError('Nonfinite energy or zero-point energy.')
             data = {{'energy': e, 'frequencies': freqs, 'zpe': zpe,
                     'status': 'normal'}}
             if hessian is not None:
                 data['hess'] = hessian
             db.write(mol, name='{label}', data=data)
     except Exception as error:
-        with open('{label}_sella.log', 'a') as f:
-            f.write(f'Frequency evaluation failed: '
-                    f'{{type(error).__name__}}: {{error}}\n')
+        failure_reason = report_failure(
+            f'Frequency evaluation failed: {{type(error).__name__}}: {{error}}')
         converged = False
 
 if 'vib' in os.getcwd():
     os.chdir("..")
 
 if not converged:
-    data = {{'status': 'error'}}
+    data = {{'status': 'error', 'error': failure_reason}}
     data['frequencies'] = freqs
     db.write(mol, name='{label}', data=data)
 

@@ -73,6 +73,9 @@ def _backend_parameters(par, profile):
                          'by the KinBot reaction workflow.') from exc
     values['method'] = profile.method
     values['basis'] = profile.basis
+    # Backend-local marker: an explicit level profile also owns preliminary
+    # constrained TS/ring searches; legacy AM1 shortcuts must not replace it.
+    values['_profiled_backend'] = True
     values['high_level_method'] = profile.method
     values['high_level_basis'] = profile.basis
     values['calc_kwargs'] = dict(profile.calculator_kwargs)

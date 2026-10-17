@@ -7,7 +7,7 @@
   "conformer_search": 1,
   "high_level": 1,
   "rotor_scan": 1,
-  "theory_preset": "uma-b2plyp-anl",
+  "theory_preset": "b3lyp-b2plyp-anl",
   "composite_method": "ANL1-F12",
   "anl_f12_augmented": 1,
   "vrc_tst_accuracy_preset": "anl1-f12",
@@ -18,7 +18,6 @@
     "active_orbitals": 5,
     "source": "Native-confirmed minimum subspace; exact basis-specific records in the per-bond surface model."
   },
-  "vrc_tst_state_model_file": "",
   "rotdpy_run": 1,
   "rotdpy_validation_profile": "production",
   "rotdpy_mess_mode": "production",
@@ -97,7 +96,6 @@
       ]
     ]
   },
-  "vrc_tst_surface_model_file": "ch3ss_surface_model.json",
   "vrc_tst_scan_shift": 0.1,
   "vrc_tst_scan_ipea": 0.25,
   "vrc_tst_spin_splitting": {
@@ -108,7 +106,7 @@
     "gap_levels": [
       {
         "label": "caspt2_f12",
-        "method": "caspt2-f12(2,2)",
+        "method": "caspt2-f12(7,5)",
         "basis": [
           "avdz-f12",
           "avtz-f12"
@@ -122,11 +120,11 @@
       "model": "arithmetic_mean"
     }
   },
-  "vrc_tst_scan_method": "caspt2-f12(2,2)",
+  "vrc_tst_scan_method": "caspt2-f12(7,5)",
   "vrc_tst_scan_basis": "avtz-f12",
   "vrc_tst_scan_gradient": "numerical",
-  "vrc_tst_sample_method": "caspt2-f12(2,2)",
-  "vrc_tst_high_method": "caspt2-f12(2,2)",
+  "vrc_tst_sample_method": "caspt2-f12(7,5)",
+  "vrc_tst_high_method": "caspt2-f12(7,5)",
   "vrc_tst_high_basis": [
     "avdz-f12",
     "avtz-f12"
@@ -160,7 +158,550 @@
     "pot_smp_min": 100,
     "tot_smp_max": 15000,
     "tot_smp_min": 100,
-    "flux_rel_err": 5,
+    "flux_rel_err": 1,
     "smp_len": 1
-  }
+  },
+  "vrc_tst_surface_model": {
+    "schema": 1,
+    "reviewed": true,
+    "review_note": "Single VRC bottleneck. CH3S ground 2E uses two reactive spatial components; CH3SS ground 2A uses one per bond. Orbital state averages are larger and are not all counted as reactive flux. This spin-free adiabatic surface assignment is a model assumption, not proof about nonadiabatic dynamics. See production handoff.",
+    "channels": [
+      {
+        "bond": [
+          1,
+          2
+        ],
+        "combination": "single",
+        "bottlenecks": [
+          {
+            "name": "single",
+            "coordinate": "reactive",
+            "distances_angstrom": [
+              3.0,
+              3.2,
+              3.4,
+              3.6,
+              3.8,
+              4.0,
+              4.2,
+              4.4,
+              4.6,
+              4.8,
+              5.0,
+              5.2,
+              5.4,
+              5.6,
+              5.8,
+              6.0,
+              6.2,
+              6.4,
+              6.6,
+              6.8,
+              7.0,
+              7.2,
+              7.4,
+              7.6,
+              7.8,
+              8.0,
+              8.2,
+              8.4,
+              8.6,
+              8.8,
+              9.0,
+              9.2,
+              9.4,
+              9.6,
+              9.8,
+              10.0,
+              10.2,
+              10.4,
+              10.6,
+              10.8,
+              11.0,
+              11.2,
+              11.4,
+              11.6,
+              11.8,
+              12.0,
+              12.2,
+              12.4,
+              12.6,
+              12.8,
+              13.0,
+              13.2,
+              13.4,
+              13.6,
+              13.8,
+              14.0,
+              14.2,
+              14.4,
+              14.6,
+              14.8,
+              15.0,
+              15.2,
+              15.4,
+              15.6,
+              15.8,
+              16.0,
+              16.2,
+              16.4,
+              16.6,
+              16.8,
+              17.0,
+              17.2,
+              17.4,
+              17.6,
+              17.8,
+              18.0,
+              18.2,
+              18.4,
+              18.6,
+              18.8,
+              19.0,
+              19.2,
+              19.4,
+              19.6,
+              19.8,
+              20.0
+            ],
+            "parameters": {
+              "vrc_tst_active_space": {
+                "mode": "selected",
+                "active_electrons": 7,
+                "active_orbitals": 5,
+                "source": "Native-reviewed minimum space; see orbital_reviews/ACTIVE_SPACE.md"
+              },
+              "vrc_tst_state_model": {
+                "schema": 2,
+                "state_average_policy": "reviewed",
+                "active_space": {
+                  "mode": "selected",
+                  "active_electrons": 7,
+                  "active_orbitals": 5,
+                  "source": "Native two-basis CASPT2 confirmation; see orbital_reviews/ACTIVE_SPACE.md"
+                },
+                "basis_models": {
+                  "avdz-f12": {
+                    "orbital_selection": {
+                      "mode": "molpro_record",
+                      "path": "orbital_reviews/orbitals/ch3ss_cs_adz.wfu",
+                      "sha256": "be16f61efaf1fcad243696a30b4f471b21538639296e2b38c22ff09449e93b1c",
+                      "record": "2140.2",
+                      "orbital_type": "natural",
+                      "align_active_orbitals": false,
+                      "active_indices": [
+                        18,
+                        19,
+                        20,
+                        21,
+                        22
+                      ]
+                    },
+                    "state_average": [
+                      {
+                        "multiplicity": 2,
+                        "roots": 1,
+                        "weights": [
+                          1.0
+                        ]
+                      },
+                      {
+                        "multiplicity": 4,
+                        "roots": 1,
+                        "weights": [
+                          1.0
+                        ]
+                      }
+                    ],
+                    "selected_roots": {
+                      "2": 1,
+                      "4": 1
+                    },
+                    "canonical_orbitals": true,
+                    "casscf_options": {
+                      "solver": "so_sci",
+                      "exact_diagonalization": true,
+                      "quasi_newton": true,
+                      "energy_convergence": 1e-08,
+                      "gradient_convergence": 1e-05,
+                      "max_iterations": 999
+                    },
+                    "correlation_options": {
+                      "reference_policy": "state_average",
+                      "energy_convergence": 1e-08,
+                      "coefficient_convergence": 1e-05,
+                      "max_iterations": 2000,
+                      "max_reference_iterations": 2000,
+                      "max_reference_vectors": 60
+                    },
+                    "energy_selection": {
+                      "4": "lowest"
+                    }
+                  },
+                  "avtz-f12": {
+                    "orbital_selection": {
+                      "mode": "molpro_record",
+                      "path": "orbital_reviews/orbitals/ch3ss_cs_atz.wfu",
+                      "sha256": "0397a116407a35cf7e045c974d5e3e3704e032d9894dd46359f0ec8528e50d59",
+                      "record": "2140.2",
+                      "orbital_type": "natural",
+                      "align_active_orbitals": false,
+                      "active_indices": [
+                        18,
+                        19,
+                        20,
+                        21,
+                        22
+                      ]
+                    },
+                    "state_average": [
+                      {
+                        "multiplicity": 2,
+                        "roots": 1,
+                        "weights": [
+                          1.0
+                        ]
+                      },
+                      {
+                        "multiplicity": 4,
+                        "roots": 1,
+                        "weights": [
+                          1.0
+                        ]
+                      }
+                    ],
+                    "selected_roots": {
+                      "2": 1,
+                      "4": 1
+                    },
+                    "canonical_orbitals": true,
+                    "casscf_options": {
+                      "solver": "so_sci",
+                      "exact_diagonalization": true,
+                      "quasi_newton": true,
+                      "energy_convergence": 1e-08,
+                      "gradient_convergence": 1e-05,
+                      "max_iterations": 999
+                    },
+                    "correlation_options": {
+                      "reference_policy": "state_average",
+                      "energy_convergence": 1e-08,
+                      "coefficient_convergence": 1e-05,
+                      "max_iterations": 2000,
+                      "max_reference_iterations": 2000,
+                      "max_reference_vectors": 60
+                    },
+                    "energy_selection": {
+                      "4": "lowest"
+                    }
+                  }
+                },
+                "molecule": {
+                  "symbols": [
+                    "C",
+                    "S",
+                    "S",
+                    "H",
+                    "H",
+                    "H"
+                  ],
+                  "charge": 0
+                }
+              }
+            },
+            "states": [
+              {
+                "multiplicity": 2,
+                "root": 1,
+                "weight": 1.0,
+                "energy_offset_cm_inverse": 0.0,
+                "energy_reference_note": "Common spin-free ground-fragment asymptote. Reactive ground-parent doublet component; no added distance-dependent spin-orbit model."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "bond": [
+          2,
+          3
+        ],
+        "combination": "single",
+        "bottlenecks": [
+          {
+            "name": "single",
+            "coordinate": "reactive",
+            "distances_angstrom": [
+              3.0,
+              3.2,
+              3.4,
+              3.6,
+              3.8,
+              4.0,
+              4.2,
+              4.4,
+              4.6,
+              4.8,
+              5.0,
+              5.2,
+              5.4,
+              5.6,
+              5.8,
+              6.0,
+              6.2,
+              6.4,
+              6.6,
+              6.8,
+              7.0,
+              7.2,
+              7.4,
+              7.6,
+              7.8,
+              8.0,
+              8.2,
+              8.4,
+              8.6,
+              8.8,
+              9.0,
+              9.2,
+              9.4,
+              9.6,
+              9.8,
+              10.0,
+              10.2,
+              10.4,
+              10.6,
+              10.8,
+              11.0,
+              11.2,
+              11.4,
+              11.6,
+              11.8,
+              12.0,
+              12.2,
+              12.4,
+              12.6,
+              12.8,
+              13.0,
+              13.2,
+              13.4,
+              13.6,
+              13.8,
+              14.0,
+              14.2,
+              14.4,
+              14.6,
+              14.8,
+              15.0,
+              15.2,
+              15.4,
+              15.6,
+              15.8,
+              16.0,
+              16.2,
+              16.4,
+              16.6,
+              16.8,
+              17.0,
+              17.2,
+              17.4,
+              17.6,
+              17.8,
+              18.0,
+              18.2,
+              18.4,
+              18.6,
+              18.8,
+              19.0,
+              19.2,
+              19.4,
+              19.6,
+              19.8,
+              20.0
+            ],
+            "parameters": {
+              "vrc_tst_active_space": {
+                "mode": "selected",
+                "active_electrons": 7,
+                "active_orbitals": 5,
+                "source": "Native-reviewed minimum space; see orbital_reviews/ACTIVE_SPACE.md"
+              },
+              "vrc_tst_state_model": {
+                "schema": 2,
+                "state_average_policy": "reviewed",
+                "active_space": {
+                  "mode": "selected",
+                  "active_electrons": 7,
+                  "active_orbitals": 5,
+                  "source": "Native two-basis CASPT2 confirmation; see orbital_reviews/ACTIVE_SPACE.md"
+                },
+                "basis_models": {
+                  "avdz-f12": {
+                    "orbital_selection": {
+                      "mode": "molpro_record",
+                      "path": "orbital_reviews/orbitals/ch3ss_ss_adz.wfu",
+                      "sha256": "9fb0a6daf99e51ba09ef16f2f7bdd16ebdcc78c2eaa9e5f7f1349098d3045e84",
+                      "record": "2140.2",
+                      "orbital_type": "natural",
+                      "align_active_orbitals": false,
+                      "active_indices": [
+                        18,
+                        19,
+                        20,
+                        21,
+                        22
+                      ]
+                    },
+                    "state_average": [
+                      {
+                        "multiplicity": 2,
+                        "roots": 6,
+                        "weights": [
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666
+                        ]
+                      },
+                      {
+                        "multiplicity": 4,
+                        "roots": 6,
+                        "weights": [
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666
+                        ]
+                      }
+                    ],
+                    "selected_roots": {
+                      "2": 1,
+                      "4": 1
+                    },
+                    "canonical_orbitals": true,
+                    "casscf_options": {
+                      "solver": "so_sci",
+                      "exact_diagonalization": true,
+                      "quasi_newton": true,
+                      "energy_convergence": 1e-08,
+                      "gradient_convergence": 1e-05,
+                      "max_iterations": 999
+                    },
+                    "correlation_options": {
+                      "reference_policy": "state_average",
+                      "energy_convergence": 1e-08,
+                      "coefficient_convergence": 1e-05,
+                      "max_iterations": 2000,
+                      "max_reference_iterations": 2000,
+                      "max_reference_vectors": 60
+                    },
+                    "energy_selection": {
+                      "4": "lowest"
+                    }
+                  },
+                  "avtz-f12": {
+                    "orbital_selection": {
+                      "mode": "molpro_record",
+                      "path": "orbital_reviews/orbitals/ch3ss_ss_atz.wfu",
+                      "sha256": "f498addcbd0b289dc4850e5abcb4e63f16b9f5c492863ab42dece87602c8e14c",
+                      "record": "2140.2",
+                      "orbital_type": "natural",
+                      "align_active_orbitals": false,
+                      "active_indices": [
+                        18,
+                        19,
+                        20,
+                        21,
+                        22
+                      ]
+                    },
+                    "state_average": [
+                      {
+                        "multiplicity": 2,
+                        "roots": 6,
+                        "weights": [
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666
+                        ]
+                      },
+                      {
+                        "multiplicity": 4,
+                        "roots": 6,
+                        "weights": [
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666,
+                          0.16666666666666666
+                        ]
+                      }
+                    ],
+                    "selected_roots": {
+                      "2": 1,
+                      "4": 1
+                    },
+                    "canonical_orbitals": true,
+                    "casscf_options": {
+                      "solver": "so_sci",
+                      "exact_diagonalization": true,
+                      "quasi_newton": true,
+                      "energy_convergence": 1e-08,
+                      "gradient_convergence": 1e-05,
+                      "max_iterations": 999
+                    },
+                    "correlation_options": {
+                      "reference_policy": "state_average",
+                      "energy_convergence": 1e-08,
+                      "coefficient_convergence": 1e-05,
+                      "max_iterations": 2000,
+                      "max_reference_iterations": 2000,
+                      "max_reference_vectors": 60
+                    },
+                    "energy_selection": {
+                      "4": "lowest"
+                    }
+                  }
+                },
+                "molecule": {
+                  "symbols": [
+                    "C",
+                    "S",
+                    "S",
+                    "H",
+                    "H",
+                    "H"
+                  ],
+                  "charge": 0
+                }
+              }
+            },
+            "states": [
+              {
+                "multiplicity": 2,
+                "root": 1,
+                "weight": 1.0,
+                "energy_offset_cm_inverse": 0.0,
+                "energy_reference_note": "Common spin-free ground-fragment asymptote. Reactive ground-parent doublet component; no added distance-dependent spin-orbit model."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sella_fmax": 0.0001,
+  "anl_geometry_fmax": 0.0001,
+  "anl_scf_convergence": 1e-10,
+  "anl_cc_convergence": 1e-08,
+  "vrc_tst_scf_convergence": 1e-10,
+  "vrc_tst_correlation_convergence": 1e-08
 }

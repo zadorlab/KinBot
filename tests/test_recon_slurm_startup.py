@@ -390,7 +390,7 @@ def test_documented_incident_repair_preserves_live_and_started_jobs(tmp_path, mo
         return {}
     monkeypatch.setattr(recon, 'retry_failed', retry)
     document = (Path(__file__).parents[1] /
-                'docs/SULFUR_REMAINING_CHECKS_2026-10-15.md').read_text()
+                'examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_REMAINING_CHECKS_2026-10-15.md').read_text()
     section = document.split('## Resume Batch A after the node21 startup failures')[1]
     snippet = section.split('<<\'PY\'\n', 1)[1].split('\nPY\n', 1)[0]
     exec(compile(snippet, '<documented incident repair>', 'exec'), {})

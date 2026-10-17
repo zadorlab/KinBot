@@ -30,6 +30,7 @@ from kinbot import exceptions
 from kinbot.execution import scheduler_unavailable as _scheduler_unavailable
 from kinbot.execution import slurm_job_record, SLURM_TERMINAL_STATES as _SLURM_TERMINAL_STATES
 from kinbot.theory import profiled_requested
+from kinbot.minimum_recovery import worker_sella_kwargs
 
 logger = logging.getLogger('KinBot')
 
@@ -458,8 +459,9 @@ class QuantumChemistry:
                 kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
-                kwargs['method'] = 'am1'
-                kwargs['basis'] = ''
+                if not self.par.get('_profiled_backend'):
+                    kwargs['method'] = 'am1'
+                    kwargs['basis'] = ''
 
                 if step == 0:
                     if not self.par['bimol']:
@@ -886,8 +888,9 @@ class QuantumChemistry:
             kwargs = self.merge_kwargs(kwargs)
         kwargs.pop('opt', None)
         kwargs.pop('chk', None)
-        kwargs['method'] = 'am1'
-        kwargs['basis'] = ''
+        if not self.par.get('_profiled_backend'):
+            kwargs['method'] = 'am1'
+            kwargs['basis'] = ''
 
         if self.qc == 'gauss':
             code = 'gaussian'
@@ -975,12 +978,16 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            # Only native Gaussian MC conformers retain their checkpoints.
-            # Sella owns its force evaluations and preliminary conformers do
-            # not provide the selected Hessian used by the MC optical check.
+            # Native Gaussian conformers retain selected Hessian checkpoints
+            # for the MC optical check. Sella also needs a checkpoint for its
+            # Guess=Read force calls, independently of the MC setting.
             keep_checkpoint = (self.par.get('multi_conf_tst')
                                and not self.use_sella and not semi_emp)
-            if not keep_checkpoint:
+            if self.use_sella:
+                # The external optimizer uses Guess=Read after its first
+                # force call. Gaussian runs inside the label's directory.
+                kwargs['chk'] = os.path.basename(job)
+            elif not keep_checkpoint:
                 kwargs.pop('chk', None)
             else:
                 # Native Gaussian templates execute from the run root, where
@@ -1029,7 +1036,8 @@ class QuantumChemistry:
                                    code=code,    # Sella
                                    Code=Code,    # Sella
                                    order=species.wellorts,      # Sella
-                                   sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                   sella_kwargs=(worker_sella_kwargs(self.par) if self.use_sella
+                                                 else self.par['sella_kwargs']),  # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
                                    frequency_mode=self.frequency_mode,
@@ -1227,7 +1235,8 @@ class QuantumChemistry:
                                    code=code,    # Sella
                                    Code=Code,    # Sella
                                    order=0,      # Sella
-                                   sella_kwargs=self.par['sella_kwargs'], # Sella
+                                   sella_kwargs=(worker_sella_kwargs(self.par) if self.use_sella
+                                                 else self.par['sella_kwargs']), # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
                                    frequency_mode=self.frequency_mode,
@@ -1301,7 +1310,8 @@ class QuantumChemistry:
                                    working_dir=os.getcwd(),
                                    code=code, # Sella
                                    Code=Code, # Sella
-                                   sella_kwargs=self.par['sella_kwargs'], # Sella
+                                   sella_kwargs=(worker_sella_kwargs(self.par) if self.use_sella
+                                                 else self.par['sella_kwargs']), # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
                                    frequency_mode=self.frequency_mode,

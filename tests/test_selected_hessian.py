@@ -210,7 +210,7 @@ class TestSelectedHessian(unittest.TestCase):
         self.assertIn('WARNING: unresolved symmetry number', text)
         self.assertIn('using optical factor 1', text)
 
-    def test_only_native_gaussian_mc_conformers_retain_checkpoints(self):
+    def test_gaussian_conformer_checkpoints_match_their_execution_directory(self):
         for mc, sella, preliminary in ((0, False, 0), (1, False, 0),
                                       (1, True, 0), (1, False, 1)):
             with self.subTest(mc=mc, sella=sella, preliminary=preliminary):
@@ -223,9 +223,9 @@ class TestSelectedHessian(unittest.TestCase):
                 kwargs = next(ast.literal_eval(node.value) for node in tree.body
                     if isinstance(node, ast.Assign) and any(
                         isinstance(t, ast.Name) and t.id == 'kwargs' for t in node.targets))
-                self.assertEqual('chk' in kwargs, bool(mc and not sella and not preliminary))
+                self.assertEqual('chk' in kwargs, bool(sella or (mc and not preliminary)))
                 if 'chk' in kwargs:
-                    self.assertEqual(kwargs['chk'], job)
+                    self.assertEqual(kwargs['chk'], Path(job).name if sella else job)
 
     def test_accepted_parent_replaces_l1_provenance_and_hessian_together(self):
         for refinement in (False, True):

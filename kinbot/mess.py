@@ -1603,7 +1603,7 @@ class MESS:
             message = (f'{name}: multi-conformer VRC requires a separate sampled flux '
                        'for each fragment conformer combination; the selected-structure '
                        'flux cannot be convolved with a conformer union.')
-            if mode in ('required', 'production') or self.par.get('vrc_tst_surface_model_file'):
+            if mode in ('required', 'production') or (self.par.get('vrc_tst_surface_model') or self.par.get('vrc_tst_surface_model_file')):
                 raise NotImplementedError(message)
             logger.warning('%s Using the existing phase-space conformer union.', message)
             return None

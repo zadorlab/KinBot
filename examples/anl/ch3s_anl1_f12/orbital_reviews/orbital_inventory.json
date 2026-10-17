@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "status": "native_orbitals_and_matched_shift_accepted_production_run_pending",
+  "seeds": [
+    {
+      "case": "ch3s_cs",
+      "basis": "avdz-f12",
+      "file": "orbitals/ch3s_cs_adz.wfu",
+      "sha256": "098c4e09b1150797a0ffc2f4c7d59b75bdbbac333b4cb6209e0976863a3beb1f",
+      "bytes": 14134744,
+      "source": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery/ch3s_cs_adz_caspt2_shared_reference/adz__far/adz__far.wfu",
+      "source_output_sha256": "bb8d7692aa72b4b8a4356c3b4bf5b60656d63ef18b15740e258361a1a309e550",
+      "natural_record": "2140.2",
+      "active_indices": [
+        11,
+        12,
+        13,
+        14
+      ]
+    },
+    {
+      "case": "ch3s_cs",
+      "basis": "avtz-f12",
+      "file": "orbitals/ch3s_cs_atz.wfu",
+      "sha256": "8223e04cbbb7981255bb77b7a12e248e28abcf18bff0a5b959dc40bd11a3a170",
+      "bytes": 20066688,
+      "source": "/home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_recovery/ch3s_cs_atz_caspt2_shared_reference/atz__far/atz__far.wfu",
+      "source_output_sha256": "0fd0c3b03decc4ab401fd889fe7ea51debb1a8e3549b4ce79bb3ba5d76777493",
+      "natural_record": "2140.2",
+      "active_indices": [
+        11,
+        12,
+        13,
+        14
+      ]
+    }
+  ],
+  "previous_combined_archive_sha256": "af3d32772521f02e1e9c7ef6bd513e3b971ade63951f47804de7cf03978b7f8c",
+  "storage": "Native WFU files tracked directly; no extraction or other settings JSON is needed."
+}

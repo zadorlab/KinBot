@@ -446,7 +446,7 @@ def test_casscf_rejects_invalid_diagnostic_verbosity(tmp_path, verbosity):
     'missing_hash', 'wrong_command', 'nonzero_returncode', 'partial_modern',
     'null_native_path', 'missing_native_hash', 'wrong_native_hash'])
 def test_real_blodgett_molden_pilot_execution_evidence(tmp_path, monkeypatch, execution_format):
-    source = (Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json')
+    source = (Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reviews/orbital_reconnaissance.json')
     path = prepare(source, tmp_path / 'recon')
     job = json.loads(path.read_text())['jobs'][0]
     directory, name = Path(job['directory']), job['name']
@@ -559,7 +559,7 @@ def test_select_accumulates_basis_specific_reviewed_records(tmp_path):
 
 @pytest.mark.parametrize('name,channels', [('ch3s', 1), ('ch3ss', 2)])
 def test_sulfur_recon_covers_production_basis_and_derives_channel_states(tmp_path, name, channels):
-    source = Path(__file__).parents[1] / 'examples' / 'anl' / f'{name}_anl1_f12' / 'orbital_reconnaissance.json'
+    source = Path(__file__).parents[1] / 'examples' / 'anl' / f'{name}_anl1_f12' / 'orbital_reviews' / 'orbital_reconnaissance.json'
     manifest = json.loads(prepare(source, tmp_path / name).read_text())
     jobs = manifest['jobs']
     assert {job['basis'] for job in jobs} == {'avtz-f12'}
@@ -1310,7 +1310,7 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
 def test_completed_long_name_probe_recovers_exact_native_checkpoint(tmp_path, checkpoint_form):
     """Regression for Blodgett job 52907323: all evidence but FILE,2 passed."""
     from kinbot.molpro import molpro_wfu_name
-    source = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json'
+    source = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reviews/orbital_reconnaissance.json'
     path = prepare(source, tmp_path / 'recon')
     manifest = json.loads(path.read_text())
     job = next(job for job in manifest['jobs'] if job['orientation'])

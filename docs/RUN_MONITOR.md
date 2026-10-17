@@ -10,7 +10,7 @@ python -m kinbot.run_monitor /path/to/run --follow
 python -m kinbot.run_monitor /path/to/run --json
 ```
 
-`examples/anl/caspt2_production/handoff.py monitor RUN` accepts the same
+`examples/anl/tools/run_examples.py monitor RUN` accepts the same
 options. `watch -n 10 'python -m kinbot.run_monitor RUN'` refreshes a snapshot.
 `--follow` shows a snapshot then follows newly appended controller and native
 QC text, discovering new logs and handling rotation/truncation. Ctrl-C stops
@@ -25,6 +25,11 @@ The snapshot shows:
   records, PES worker counts, and nonzero QC exit markers.
 - Actual recent `pes.log`/`kinbot.log` events and native Gaussian/Molpro
   progress/errors with file paths and ages; driver license banners are omitted.
+- Signed frequency rejection reasons, latest Sella progress, minimum-recovery
+  attempts/selected displacement and final `.result.json` status. Archived
+  rejected Hessians are skipped so they do not masquerade as new failures.
+  Failed QC exit markers prioritize that job's native/Sella logs ahead of
+  newer routine output; old worker frequency-rejection messages are recognized.
 - Reaction-stage counts, pending optimizations and failures, ANL/VRC dispatch
   task counts and dependency blockers, post-reaction/MESS execution gates.
 - RotdPy execution records and surface-output file counts. File counts do not

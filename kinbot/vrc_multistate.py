@@ -126,10 +126,51 @@ def validate_surface_model(payload, *, reviewed=True):
     return model
 
 
+def resolve_state_model_paths(payload, base):
+    """Resolve binary record paths relative to the containing single input."""
+    from kinbot.molpro import resolve_orbital_record_path
+    model = deepcopy(payload)
+    if isinstance(model, dict) and model.get('schema') == 2:
+        if not isinstance(model.get('active_space'), dict) or not isinstance(model.get('basis_models'), dict) or not model['basis_models']:
+            raise ValueError('Inline state model requires active_space and nonempty basis_models.')
+        if any(not isinstance(entry, dict) for entry in model['basis_models'].values()):
+            raise ValueError('Every inline basis model must be an object.')
+        model['basis_models'] = {basis: resolve_orbital_record_path(entry, base)
+                                 for basis, entry in model.get('basis_models', {}).items()}
+    elif isinstance(model, dict):
+        model = resolve_orbital_record_path(model, base)
+    return model
+
+
+def normalize_inline_model_paths(parameters, base):
+    if parameters.get('vrc_tst_state_model') is not None:
+        parameters['vrc_tst_state_model'] = resolve_state_model_paths(parameters['vrc_tst_state_model'], base)
+    surface = parameters.get('vrc_tst_surface_model')
+    if surface is not None:
+        surface = validate_surface_model(surface, reviewed=False)
+        for channel in surface['channels']:
+            for stage in channel['bottlenecks']:
+                normalize_inline_model_paths(stage['parameters'], base)
+        parameters['vrc_tst_surface_model'] = surface
+
+
 def load_surface_model(parameters):
     name = parameters.get('vrc_tst_surface_model_file', '')
-    if not name:
+    inline = parameters.get('vrc_tst_surface_model')
+    if inline is not None and name:
+        raise ValueError('Specify vrc_tst_surface_model or vrc_tst_surface_model_file, not both.')
+    if inline is None and not name:
         return None
+    base = (Path(parameters['input_file']).expanduser().resolve().parent
+            if parameters.get('input_file') else Path.cwd())
+    if inline is not None:
+        import hashlib
+        model = validate_surface_model(inline)
+        holder = {'vrc_tst_surface_model': model}
+        normalize_inline_model_paths(holder, base)
+        model = holder['vrc_tst_surface_model']
+        digest = hashlib.sha256(json.dumps(model, sort_keys=True).encode()).hexdigest()
+        return model, {'source': 'inline:vrc_tst_surface_model', 'sha256': digest}
     path = Path(name).expanduser()
     if not path.is_absolute():
         base = (Path(parameters['input_file']).expanduser().resolve().parent
@@ -147,6 +188,7 @@ def load_surface_model(parameters):
             if name:
                 stage['parameters']['vrc_tst_state_model_file'] = str(
                     (path.parent / name).resolve())
+            normalize_inline_model_paths(stage['parameters'], path.parent)
     return model, {'source': str(path), 'sha256': file_sha256(path)}
 
 
@@ -178,6 +220,7 @@ def state_parameters(parameters, stage, state, fragment_multiplicities):
     par = deepcopy(parameters)
     par.update(deepcopy(stage['parameters']))
     par['vrc_tst_surface_model_file'] = ''  # scalar leaf, no recursive expansion
+    par['vrc_tst_surface_model'] = None
     par['mult'] = state['multiplicity']
     spin = deepcopy(par.get('vrc_tst_spin_splitting') or {})
     spin.pop('singlet_multiplicity', None)
@@ -260,6 +303,7 @@ def create_inputs(par, payload, reactant, products, barrier, folder, correction_
             leaf_par = deepcopy(par)
             leaf_par.update(leaf['surface_parameters'])
             leaf_par['vrc_tst_surface_model_file'] = ''
+            leaf_par['vrc_tst_surface_model'] = None
             leaf_par['vrc_tst_scan'] = {reactant: [state['reaction']]}
             leaf_par['vrc_tst_noscan'] = {}
             files = create_rotdpy_inputs(leaf_par,

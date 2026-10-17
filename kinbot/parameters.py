@@ -11,6 +11,7 @@ import logging
 import numpy as np
 from ase import units
 from kinbot import pp_tables
+from kinbot.minimum_recovery import RECOVERY_DEFAULTS
 from kinbot.theory import (automatic_cbh_anl_requested, profiled_requested,
                            convergence_exponent, resolve_profiles,
                            validate_anl_size_policy)
@@ -233,6 +234,7 @@ class Parameters:
             # exact thresholds, rather than backend-specific exponents.
             'anl_scf_convergence': 1.e-10,
             'anl_cc_convergence': 1.e-8,
+            'anl_geometry_fmax': 1.e-4,
             # Optional full augmentation of the F12 reference branch.
             # Conventional ANL reference bases are always fully augmented,
             # including hydrogen.
@@ -350,6 +352,11 @@ class Parameters:
             'sella_fmax': 0.005,
             # steps for Sella
             'sella_steps': 250,
+            # Native Gaussian Hessians may expose a saddle after small forces.
+            # Retry minima only, along a downhill imaginary mode; 0 disables.
+            'minimum_recovery_attempts': RECOVERY_DEFAULTS['minimum_recovery_attempts'],
+            # Full Cartesian displacement norm in Angstrom, doubled on retry 2.
+            'minimum_recovery_displacement': RECOVERY_DEFAULTS['minimum_recovery_displacement'],
             # Continue a Sella HIR point from its last finite geometry when
             # the constrained optimization exhausts its step budget.  The
             # original calculation remains immutable evidence; recovery uses
@@ -459,6 +466,7 @@ class Parameters:
             'vrc_tst_state_model_file': '',
             # Reviewed physical state contributions, separate from SA orbitals.
             'vrc_tst_surface_model_file': '',
+            'vrc_tst_surface_model': None,
             'vrc_tst_selected_roots': {},
             'vrc_tst_high_extrapolation_power': 3.7,
             'vrc_tst_state_average_roots': {},
@@ -648,12 +656,34 @@ class Parameters:
 
         if self.input_file is not None:
             self.read_user_input()
+        # Serialize absolute checkpoint paths before PES workers change cwd.
+        from pathlib import Path
+        from kinbot.vrc_multistate import normalize_inline_model_paths
+        base_input = self.par.get('input_file') or self.input_file
+        normalize_inline_model_paths(self.par, Path(base_input).resolve().parent if base_input else Path.cwd())
+        if self.par['theory_preset'] == 'b3lyp-b2plyp-anl' and 'sella_fmax' not in self.user_keys:
+            self.par['sella_fmax'] = 1.e-4
 
         from kinbot.vrc_correction import apply_vrc_accuracy_preset
         apply_vrc_accuracy_preset(self.par, self.user_keys)
 
         self.par['profiled_theory'] = int(profiled_requested(self.par))
         self.theory_profiles = resolve_profiles(self.par)
+        if self.theory_profiles:
+            # Legacy scan defaults must not silently change a selected L1/L2
+            # profile (or combine MP2 with a DFT dispersion keyword). Keep
+            # explicit legacy overrides and serialize the resolved values so
+            # child PES/CBH inputs retain exactly the same choices.
+            for method_key, basis_key, level in (
+                    ('scan_method', 'scan_basis', 'l1'),
+                    ('barrierless_saddle_method', 'barrierless_saddle_basis', 'l1'),
+                    ('barrierless_saddle_method_high', 'barrierless_saddle_basis_high', 'l2')):
+                profile = self.theory_profiles[level]
+                if profile.calculator == 'gaussian':
+                    if method_key not in self.user_keys:
+                        self.par[method_key] = profile.method
+                    if basis_key not in self.user_keys:
+                        self.par[basis_key] = profile.basis
 
         # One queue limit controls the complete automatic calculation.  This
         # includes KinBot QC jobs, VRC correction jobs, ROTD_py samples, and
@@ -753,6 +783,10 @@ class Parameters:
             self.par['anl_scf_convergence'], 'anl_scf_convergence')
         convergence_exponent(
             self.par['anl_cc_convergence'], 'anl_cc_convergence')
+        for key in ('sella_fmax', 'anl_geometry_fmax'):
+            value = self.par[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value) or value <= 0:
+                raise ValueError(f'{key} must be a positive finite force threshold in eV/angstrom.')
         if (isinstance(self.par['anl_f12_augmented'], bool)
                 or self.par['anl_f12_augmented'] not in (0, 1)):
             raise ValueError('anl_f12_augmented must be 0 or 1.')
@@ -826,6 +860,8 @@ class Parameters:
         electronic_state_models(self.par)
         if not isinstance(self.par['vrc_tst_surface_model_file'], str):
             raise ValueError('vrc_tst_surface_model_file must be a path string')
+        if self.par['vrc_tst_surface_model'] is not None and self.par['vrc_tst_surface_model_file']:
+            raise ValueError('Specify an inline surface model or a surface-model file, not both.')
         for key in ('vrc_tst_selected_roots', 'vrc_tst_state_average_roots'):
             from kinbot.vrc_correction import root_overrides
             root_overrides(self.par, key)
@@ -851,7 +887,9 @@ class Parameters:
                                            spin_splitting_settings,
                                            validate_vrc_levels)
         from kinbot.molpro import validate_vrc_state_model
-        validate_vrc_state_model(self.par['vrc_tst_state_model'])
+        state_model = self.par['vrc_tst_state_model']
+        if not (isinstance(state_model, dict) and state_model.get('schema') == 2):
+            validate_vrc_state_model(state_model)
         validate_vrc_levels(self.par)
         if correction_model(self.par) == 'spin_splitting':
             spin_splitting_settings(self.par)
@@ -897,6 +935,14 @@ class Parameters:
 
         if self.par['multi_conf_tst'] and not self.par['conformer_search']:
             err = 'For multi conformer tst calculation conformer search needs to be activated.'
+
+        attempts = self.par['minimum_recovery_attempts']
+        if isinstance(attempts, bool) or not isinstance(attempts, int) or attempts < 0:
+            raise ValueError('minimum_recovery_attempts must be a nonnegative integer.')
+        displacement = self.par['minimum_recovery_displacement']
+        if (isinstance(displacement, bool) or not isinstance(displacement, (int, float))
+                or not np.isfinite(displacement) or displacement <= 0):
+            raise ValueError('minimum_recovery_displacement must be finite and positive.')
 
         if self.par['imagfreq_threshold'] < 0:
             err = 'The threshold for imaginary freqency has to be a positive number, interpreted as an imaginary value.'

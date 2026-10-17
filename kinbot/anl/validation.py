@@ -808,6 +808,7 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                              vpt2_dispersion='GD3BJ',
                              scf_convergence=1.e-10,
                              cc_convergence=1.e-8,
+                             geometry_fmax=1.e-4,
                              f12_augmented=False):
     """Build the automatic post-L2 graph for one stable point or tight TS.
 
@@ -836,6 +837,8 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         cc_convergence, 'CC convergence')
     scf_threshold = fortran_threshold(scf_convergence, 'SCF convergence')
     cc_threshold = fortran_threshold(cc_convergence, 'CC convergence')
+    if isinstance(geometry_fmax, bool) or not isinstance(geometry_fmax, (int, float)) or not math.isfinite(geometry_fmax) or geometry_fmax <= 0:
+        raise ValueError('geometry_fmax must be a positive finite force threshold in eV/angstrom.')
     source = molecule.get('source') if isinstance(molecule, dict) else None
     if (not isinstance(source, dict)
             or not re.fullmatch(r'[0-9a-f]{64}', str(
@@ -978,6 +981,8 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                 and 'geometry_fallback' not in task)]
     for task in tasks:
         profile = task.get('profile')
+        if task.get('kind') == 'ase_optimize':
+            task['optimizer']['fmax'] = geometry_fmax
         if isinstance(profile, dict):
             calculator = str(profile.get('calculator', '')).casefold()
             kwargs = dict(profile.get('calculator_kwargs', {}))
@@ -1029,6 +1034,7 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             'convergence': {
                 'scf': scf_convergence,
                 'coupled_cluster_or_ci': cc_convergence,
+                'geometry_fmax_ev_angstrom': geometry_fmax,
             },
             'f12_augmented': f12_augmented,
             'claim': 'automatic-cbh-anl-production',

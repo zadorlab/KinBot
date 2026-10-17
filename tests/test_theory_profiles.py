@@ -157,9 +157,83 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual(qc.l2.get_qc_arguments(
             'job_high', 1, 0, 10, high_level=1)['method'], 'B2PLYP')
         self.assertEqual(qc.l2.par['calc_kwargs']['EmpiricalDispersion'],
-                         'GD3BJ')
+                'GD3BJ')
+
+    def test_dft_preset_resolves_scan_defaults_and_preserves_explicit_overrides(self):
+        parameters = self.parameters(theory_preset='b3lyp-b2plyp-anl',
+                                     composite_method='ANL1-F12')
+        qc = QuantumChemistry(parameters.par)
+        for level, method, basis in (('l1', 'B3LYP', 'cc-pVDZ'),
+                                     ('l2', 'B2PLYP', 'cc-pVTZ')):
+            backend = getattr(qc, level)
+            assert backend.qc == 'gauss' and backend.use_sella
+            assert backend.frequency_mode == 'native_hessian'
+            for mult in (1, 2, 3):
+                for label, flags in (('well', {}), ('scan', {'scan': 1}),
+                        ('R_Addition_MultipleBond', {'ts': 1, 'step': 1, 'max_step': 1}),
+                        ('barrierless_saddle', {}), ('IRC', {'irc': 'Forward'})):
+                    options = backend.merge_kwargs(backend.get_qc_arguments(
+                        label, mult, 0, 26 if mult != 2 else 25,
+                        high_level=int(level == 'l2'), **flags))
+                    assert (options['method'], options['basis']) == (method, basis)
+                    assert options['EmpiricalDispersion'] == 'GD3BJ'
+                    assert options['mult'] == mult
+        Path('resolved.json').write_text(json.dumps(parameters.par))
+        reread = Parameters('resolved.json').par
+        assert reread['scan_method'] == 'B3LYP'
+        assert reread['scan_basis'] == 'cc-pVDZ'
+        custom = self.parameters(theory_preset='b3lyp-b2plyp-anl',
+                                 scan_method='PBE1PBE', scan_basis='cc-pVTZ')
+        assert custom.par['scan_method'] == 'PBE1PBE'
+        assert custom.par['scan_basis'] == 'cc-pVTZ'
+
+    def test_dft_preset_generated_l1_workers_do_not_call_uma_or_legacy_mp2(self):
+        import ast
+        parameters = self.parameters(theory_preset='b3lyp-b2plyp-anl',
+                                     composite_method='ANL1-F12')
+        qc = QuantumChemistry(parameters.par)
+        species = StationaryPoint('acetaldehyde', 0, 1, smiles='CC=O')
+        species.characterize()
+        Path('conf').mkdir()
+        with patch.object(qc.l1, 'submit_qc', return_value=1):
+            qc.qc_opt(species, species.geom)
+            qc.qc_opt(species, species.geom, mp2=1)
+            qc.qc_conf(species, species.geom, 0)
+            qc.qc_ring_conf(species, species.geom, [[1, 2]], [], 0, 0)
+            reaction = H2Elim(species, qc, parameters.par, [3, 0, 1, 6],
+                              'acetaldehyde_h2_elim_4_7')
+            with patch.object(reac_family.modify_geom, 'modify_coordinates',
+                              return_value=(1, species.geom.copy())):
+                reac_family.carry_out_reaction(reaction, 0, '')
+            with patch.object(qc, 'get_qc_geom', return_value=(0, species.geom.copy())):
+                IRC(reaction, parameters.par).do_irc_calculations()
+            reaction.instance_name += '_final'
+            with patch.object(qc, 'check_qc', return_value='normal'), \
+                    patch.object(qc, 'get_qc_geom', return_value=(0, species.geom.copy())), \
+                    patch.object(reaction, 'get_constraints',
+                                 return_value=(reaction.max_step, [], [], [])):
+                reac_family.carry_out_reaction(reaction, reaction.max_step, '')
+            species.wellorts = 1
+            qc.qc_opt_ts(species, species.geom)
+        scripts = list(Path('.').rglob('*.py'))
+        assert len(scripts) == 9
+        for path in scripts:
+            text = path.read_text()
+            tree = ast.parse(text)
+            assert 'fairchem' not in text.lower() and 'load_predictor' not in text
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Assign) and any(
+                        isinstance(t, ast.Name) and t.id in ('kwargs', 'prod_kwargs')
+                        for t in node.targets) and isinstance(node.value, ast.Dict):
+                    options = ast.literal_eval(node.value)
+                    assert (options['method'], options['basis']) == ('B3LYP', 'cc-pVDZ')
+                    assert options.get('EmpiricalDispersion') == 'GD3BJ', (path, options)
+                    assert options['scf'] == 'xqc,conver=10'
         self.assertEqual(qc.l2.frequency_mode, 'native_hessian')
-        self.assertFalse(Path('kinbot.db').exists())
+        from ase.db import connect
+        # Generation may record the input stereochemistry; no QC result ran.
+        assert all(row.data.get('status') == 'input_reference'
+                   for row in connect('kinbot.db').select())
 
     def test_profiled_ts_modes_follow_each_jobs_frequency_artifact(self):
         parameters = self.parameters(

@@ -2354,7 +2354,8 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
 
 def select_record(wfu, output, *, record, active_electrons, active_orbitals,
                   state_average, selected_roots, review_note, basis=None,
-                  state_average_policy='reviewed', casscf_options=None, correlation_options=None):
+                  state_average_policy='reviewed', casscf_options=None, correlation_options=None,
+                  active_indices=None, orbital_type='auto', align_active_orbitals=False):
     path = Path(wfu).expanduser().resolve()
     if not path.is_file() or not path.stat().st_size:
         raise FileNotFoundError(f'Reviewed Molpro WFU is unavailable: {path}.')
@@ -2367,6 +2368,9 @@ def select_record(wfu, output, *, record, active_electrons, active_orbitals,
             'mode': 'molpro_record', 'path': str(path),
             'record': record,
             'sha256': file_sha256(path),
+            'orbital_type': orbital_type,
+            'align_active_orbitals': align_active_orbitals,
+            **({'active_indices': active_indices} if active_indices is not None else {}),
         },
         'state_average': state_average,
         'selected_roots': selected_roots,
@@ -2437,6 +2441,11 @@ def main(argv=None):
     select.add_argument('--basis')
     select.add_argument('--active-electrons', type=int, required=True)
     select.add_argument('--active-orbitals', type=int, required=True)
+    select.add_argument('--active-indices', type=int, nargs='+',
+                        help='One-based C1 indices in this exact WFU/record, in desired initial order.')
+    select.add_argument('--orbital-type', choices=['auto', 'natural', 'canonical'], default='auto')
+    select.add_argument('--align-active-orbitals', action='store_true',
+                        help='Use DIAB only with a previously packed, reviewed active block.')
     select.add_argument('--state-average-json', required=True)
     select.add_argument('--selected-roots-json', default='{}')
     select.add_argument('--casscf-options-json', help='Reviewed CASSCF solver/tolerances to preserve in production.')
@@ -2468,6 +2477,8 @@ def main(argv=None):
             args.wfu, args.output, record=args.record,
             active_electrons=args.active_electrons,
             active_orbitals=args.active_orbitals,
+            active_indices=args.active_indices, orbital_type=args.orbital_type,
+            align_active_orbitals=args.align_active_orbitals,
             state_average=json.loads(args.state_average_json),
             selected_roots=json.loads(args.selected_roots_json),
             review_note=args.review_note, basis=args.basis,

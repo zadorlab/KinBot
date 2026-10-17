@@ -11,22 +11,43 @@ from kinbot.vrc_correction import resolved_state_model, spin_splitting_settings,
 from kinbot.vrc_tst_scan import vrc_dispatch_resources
 
 ROOT = Path(__file__).parents[1]
-PACKAGE = ROOT / 'examples/anl/caspt2_production'
+PACKAGE = ROOT / 'examples/anl/tools'
 
 
 @pytest.fixture(scope='module')
 def installed(tmp_path_factory):
+    """Copy real, tracked seeds using only the single per-PES input."""
     import shutil
+    from kinbot.execution import file_sha256
     directory = tmp_path_factory.mktemp('portable_orbitals')
-    for name in ('orbital_inventory.json', 'reviewed_orbitals.tar.gz',
-                 'ch3s_cs_state_model.json', 'ch3ss_cs_state_model.json', 'ch3ss_ss_state_model.json'):
-        shutil.copyfile(PACKAGE/name, directory/name)
-    spec = importlib.util.spec_from_file_location('install_seeds', PACKAGE/'install_orbitals.py')
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    assert mod.install(directory)['installed'] == 6
-    assert mod.install(directory)['installed'] == 6  # immutable/idempotent
+    (directory/'orbitals').mkdir()
+    count = 0
+    for case in ('ch3s', 'ch3ss'):
+        example = ROOT/f'examples/anl/{case}_anl1_f12'
+        data = json.loads((example/f'{case}.json').read_text())
+        for channel in data['vrc_tst_surface_model']['channels']:
+            for stage in channel['bottlenecks']:
+                for model in stage['parameters']['vrc_tst_state_model']['basis_models'].values():
+                    selection = model['orbital_selection']
+                    source = example/selection['path']
+                    assert source.is_file()
+                    assert file_sha256(source) == selection['sha256']
+                    shutil.copyfile(source, directory/'orbitals'/source.name)
+                    count += 1
+    assert count == 6
     return directory
+
+
+
+def inline_selection(case, installed):
+    molecule = case.split('_')[0]
+    data = json.loads((ROOT/f'examples/anl/{molecule}_anl1_f12/{molecule}.json').read_text())
+    index = 1 if case == 'ch3ss_ss' else 0
+    payload = data['vrc_tst_surface_model']['channels'][index]['bottlenecks'][0]['parameters']['vrc_tst_state_model']
+    for model in payload['basis_models'].values():
+        selection = model['orbital_selection']
+        selection['path'] = str(installed/'orbitals'/Path(selection['path']).name)
+    return payload
 
 
 @pytest.mark.parametrize('case,nel,norb,closed,occupied,roots', [
@@ -35,9 +56,9 @@ def installed(tmp_path_factory):
 @pytest.mark.parametrize('basis', ['avdz-f12', 'avtz-f12'])
 def test_actual_six_reviewed_seeds_reach_production_renderer(installed, tmp_path, case, nel, norb,
                                                            closed, occupied, roots, basis):
-    payload = json.loads((installed/(case+'_state_model.json')).read_text())
+    payload = inline_selection(case, installed)
     parameters = {'vrc_tst_active_space': payload['active_space'],
-                  'vrc_tst_state_model_file': str(installed/(case+'_state_model.json'))}
+                  'vrc_tst_state_model': payload}
     settings = {'target_multiplicity': 2, 'reference_multiplicity': 4}
     symbols = payload['molecule']['symbols']
     model = resolved_state_model(parameters, symbols, 0, settings, basis=basis)
@@ -61,9 +82,8 @@ def test_actual_six_reviewed_seeds_reach_production_renderer(installed, tmp_path
 
 
 def test_ground_reference_evaluates_the_whole_manifold_with_unchanged_h0(installed, tmp_path):
-    path = installed/'ch3s_cs_state_model.json'
-    payload = json.loads(path.read_text())
-    par = {'vrc_tst_active_space': payload['active_space'], 'vrc_tst_state_model_file': str(path)}
+    payload = inline_selection('ch3s_cs', installed)
+    par = {'vrc_tst_active_space': payload['active_space'], 'vrc_tst_state_model': payload}
     model = resolved_state_model(par, payload['molecule']['symbols'], 0,
         {'target_multiplicity': 2, 'reference_multiplicity': 4}, basis='avtz-f12')
     model = stage_vrc_state_model(model, tmp_path, 'minimum')
@@ -131,10 +151,10 @@ def test_production_model_routing_and_pes_parameter_round_trip(name, tmp_path, i
     for channel in model['channels']:
         assert channel['combination'] == 'single' and 'equilibration' not in channel
         stage, = channel['bottlenecks']
-        # A fresh checkout carries the archive, not extracted checkpoints.
-        model_name = Path(stage['parameters']['vrc_tst_state_model_file']).name
-        assert (installed/model_name).is_file()
-        stage['parameters']['vrc_tst_state_model_file'] = str(installed/model_name)
+        # The checkout carries each seed directly; this test also exercises relocation.
+        for basis_model in stage['parameters']['vrc_tst_state_model']['basis_models'].values():
+            selection = basis_model['orbital_selection']
+            selection['path'] = str(installed/'orbitals'/Path(selection['path']).name)
         for state in stage['states']:
             scalar = state_parameters(worker, stage, state, [2, 3])
             symbols = ['C', 'S'] + (['S'] if name == 'ch3ss' else []) + ['H']*3
@@ -152,3 +172,61 @@ def test_production_model_routing_and_pes_parameter_round_trip(name, tmp_path, i
                     assert 'shift=0.1,ipea=0.25' in deck
                     assert 'refstate,' in deck and ';weight,' in deck
                     assert 'thrvar=1.d-10' in deck and 'maxit,999;' in deck
+
+
+@pytest.mark.parametrize('case', ['ch3s', 'ch3ss'])
+def test_each_example_runs_from_one_json_and_its_own_seed_data(case, tmp_path):
+    """No other example, inventory, review JSON or installer supplies settings."""
+    import shutil
+    from kinbot.parameters import Parameters
+    from kinbot.vrc_multistate import load_surface_model
+    from kinbot.execution import file_sha256
+    source = ROOT/f'examples/anl/{case}_anl1_f12'
+    assert sorted(p.name for p in source.iterdir() if p.is_file()) == [case+'.json']
+    destination = tmp_path/'standalone'
+    destination.mkdir()
+    shutil.copyfile(source/f'{case}.json', destination/f'{case}.json')
+    shutil.copytree(source/'orbital_reviews/orbitals', destination/'orbital_reviews/orbitals')
+    par = Parameters(str(destination/f'{case}.json')).par
+    surface, _ = load_surface_model(par)
+    for channel in surface['channels']:
+        for stage in channel['bottlenecks']:
+            envelope = stage['parameters']['vrc_tst_state_model']
+            for basis, model in envelope['basis_models'].items():
+                selection = model['orbital_selection']
+                seed = Path(selection['path'])
+                assert seed.is_relative_to(destination)
+                assert file_sha256(seed) == selection['sha256']
+                resolved = resolved_state_model(stage['parameters'], envelope['molecule']['symbols'], 0,
+                    {'target_multiplicity': 2, 'reference_multiplicity': 4}, basis=basis)
+                space = envelope['active_space']
+                method = f"caspt2-f12({space['active_electrons']},{space['active_orbitals']})"
+                deck, _ = _vrc_multireference_method(method, 25 if case == 'ch3s' else 41, 1,
+                    state_model=stage_vrc_state_model(resolved, tmp_path/basis/('_'.join(map(str, channel['bond']))), 'standalone'))
+                assert 'start,2140.2,type=natural' in deck
+                assert 'shift=0.1,ipea=0.25' in deck
+
+
+@pytest.mark.parametrize('case', ['ch3s', 'ch3ss'])
+def test_retained_native_evidence_hashes_and_seed_sources(case):
+    import tarfile
+    import hashlib
+    from kinbot.execution import file_sha256
+    review = ROOT/f'examples/anl/{case}_anl1_f12/orbital_reviews'
+    inventory = json.loads((review/'native_inventory.json').read_text())
+    archive = review/inventory['archive']
+    assert file_sha256(archive) == inventory['archive_sha256']
+    expected = {entry['member']: entry for entry in inventory['files']}
+    observed = set()
+    with tarfile.open(archive) as tar:
+        for member in tar:
+            data = tar.extractfile(member).read()
+            assert hashlib.sha256(data).hexdigest() == expected[member.name]['sha256']
+            assert len(data) == expected[member.name]['bytes']
+            observed.add(member.name)
+    assert observed == set(expected)
+    seed_inventory = json.loads((review/'orbital_inventory.json').read_text())
+    native_hashes = {e['sha256'] for e in expected.values() if e['member'].endswith('.out')}
+    for seed in seed_inventory['seeds']:
+        assert file_sha256(review/seed['file']) == seed['sha256']
+        assert seed['source_output_sha256'] in native_hashes

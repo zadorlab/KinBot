@@ -182,7 +182,7 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
-            if self.rxn.par['calc_kwargs']:
+            if runtime_par['calc_kwargs']:
                 kwargs = self.rxn.qc.merge_kwargs(kwargs)
                 prod_kwargs = self.rxn.qc.merge_kwargs(prod_kwargs)
             if self.rxn.qc.use_sella:

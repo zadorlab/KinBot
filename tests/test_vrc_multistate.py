@@ -46,6 +46,7 @@ def test_channel_matching_uses_bond_and_input_terms_not_molecule_names(tmp_path)
     par, _, _ = sulfur_correction(tmp_path)
     path = tmp_path / 'surfaces.json'
     path.write_text(json.dumps(model()))
+    par['vrc_tst_surface_model'] = None
     par['vrc_tst_surface_model_file'] = str(path)
     products = [StationaryPoint('a', 0, 2, smiles='[CH3]'),
                 StationaryPoint('b', 0, 3, smiles='[S]')]

@@ -783,12 +783,14 @@ class VTS:
             raise RuntimeError(
                 'A multireference scan completed without an electronic-state '
                 'model; orbital continuity cannot be certified.')
-        next_state_model['orbital_selection'] = {
-            'mode': 'molpro_record',
-            'path': str(checkpoint.resolve()),
-            'record': '2140.2',
-            'sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
-        }
+        from ase.data import atomic_numbers
+        from kinbot.molpro import continued_vrc_state_model
+        contract = vrc_multireference_energy_contract(method)
+        next_state_model = continued_vrc_state_model(
+            next_state_model, checkpoint,
+            nelectron=sum(atomic_numbers[s] for s in molecule['symbols']) - molecule['charge'],
+            active_electrons=contract['active_electrons'],
+            active_orbitals=contract['active_orbitals'])
         return atoms, energy_ev, run_dir, execution, next_state_model
 
     @staticmethod

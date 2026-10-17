@@ -408,7 +408,8 @@ def validate_vrc_state_model(model, *, active_electrons=None,
             raise ValueError('orbital_selection must be an object.')
         mode = str(orbitals.get('mode', '')).casefold()
         if mode == 'molpro_record':
-            allowed_record = {'mode', 'path', 'record', 'sha256', 'orbital_type', 'align_active_orbitals'}
+            allowed_record = {'mode', 'path', 'record', 'sha256', 'orbital_type',
+                              'align_active_orbitals', 'active_indices'}
             unknown_record = set(orbitals) - allowed_record
             if unknown_record:
                 raise ValueError('Unknown Molpro-record option(s): '
@@ -438,6 +439,16 @@ def validate_vrc_state_model(model, *, active_electrons=None,
             if not isinstance(align, bool):
                 raise ValueError('align_active_orbitals must be boolean.')
             result['orbital_selection'].update(orbital_type=kind, align_active_orbitals=align)
+            if 'active_indices' in orbitals:
+                indices = orbitals['active_indices']
+                if (not isinstance(indices, list) or not indices
+                        or any(type(i) is not int or i < 1 for i in indices)
+                        or len(set(indices)) != len(indices)):
+                    raise ValueError('active_indices must be distinct positive '
+                                     'one-based C1 orbital numbers in the source record.')
+                if active_orbitals is not None and len(indices) != active_orbitals:
+                    raise ValueError('active_indices count differs from active_orbitals.')
+                result['orbital_selection']['active_indices'] = list(indices)
             orbitals = None
         elif mode != 'avas':
             raise ValueError('orbital_selection mode must be avas or '
@@ -539,6 +550,41 @@ def stage_vrc_state_model(model, directory, stem):
     return staged
 
 
+def active_orbital_swaps(indices, closed):
+    """Pack explicitly chosen source C1 orbitals into the target active block.
+
+    Apply swaps to positions, tracking the source identity through every swap.
+    The list order determines the initial active order; subsequent natural
+    orbitals may rotate within this subspace. No chemical identity is inferred.
+    """
+    identities = {}
+    swaps = []
+    for target, source in zip(range(closed + 1, closed + 1 + len(indices)), indices):
+        position = next((i for i, identity in identities.items() if identity == source), source)
+        if target != position:
+            identities[target], identities[position] = (
+                identities.get(position, position), identities.get(target, target))
+            swaps.append((target, position))
+    return swaps
+
+
+def continued_vrc_state_model(model, checkpoint, *, nelectron,
+                              active_electrons, active_orbitals):
+    """Bind a propagated checkpoint to its new, already packed active block."""
+    updated = deepcopy(model)
+    previous = updated.get('orbital_selection', {})
+    closed = (nelectron - active_electrons) // 2
+    updated['orbital_selection'] = {
+        'mode': 'molpro_record', 'path': str(Path(checkpoint).resolve()),
+        'record': '2140.2', 'sha256': file_sha256(checkpoint),
+        'orbital_type': 'natural',
+        'active_indices': list(range(closed + 1, closed + active_orbitals + 1)),
+        'align_active_orbitals': previous.get('align_active_orbitals', True),
+    }
+    return validate_vrc_state_model(updated, active_electrons=active_electrons,
+                                    active_orbitals=active_orbitals, nelectron=nelectron)
+
+
 def _render_vrc_state_model(model, *, nelectron, active_electrons,
                             active_orbitals, spin):
     """Render AVAS and SA-CASSCF directives for one selected spin surface."""
@@ -586,8 +632,16 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
                 f'file,2,{filename}\n')
         kind = orbital_selection.get('orbital_type', 'auto')
         suffix = '' if kind == 'auto' else f',type={kind}'
+        indices = orbital_selection.get('active_indices', list(range(closed + 1, occupied + 1)))
+        swaps = active_orbital_swaps(indices, closed)
+        if swaps and orbital_selection.get('align_active_orbitals', True):
+            raise ValueError('Repacking source active_indices requires align_active_orbitals=false; '
+                             'DIAB would otherwise reference the old active block. '
+                             'Validate the packed checkpoint before enabling alignment.')
         space = (f'start,{orbital_selection["record"]}{suffix}\n'
-                 f'occ,{occupied}\nclosed,{closed}\n')
+                 '! Source active indices: ' + ','.join(map(str, indices)) + '\n'
+                 + ''.join(f'rotate,{a}.1,{b}.1,0\n' for a, b in swaps)
+                 + f'occ,{occupied}\nclosed,{closed}\n')
         if orbital_selection.get('align_active_orbitals', True):
             space += f'diab,{orbital_selection["record"]}\n'
     else:

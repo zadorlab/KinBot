@@ -53,12 +53,12 @@ and both orbital XML exports. WFU files remain on Blodgett; their recorded
 hashes and source paths are retained but their bytes cannot be reverified
 from this archive. Native output confirms CASCI, with no orbital optimization.
 
-The reproducible [analyzer](../examples/anl/ch3s_anl1_f12/review/analyze.py)
+The reproducible [analyzer](../examples/anl/ch3s_anl1_f12/orbital_reviews/initial_review/analyze.py)
 reads archive members without extracting or executing them. It produces the
-[full numerical report and native orbital tables](../examples/anl/ch3s_anl1_f12/review/results/summary.json)
+[full numerical report and native orbital tables](../examples/anl/ch3s_anl1_f12/orbital_reviews/initial_review/results/summary.json)
 and this figure:
 
-![CH3S orbital and asymptote diagnostics](../examples/anl/ch3s_anl1_f12/review/results/diagnostics.png)
+![CH3S orbital and asymptote diagnostics](../examples/anl/ch3s_anl1_f12/orbital_reviews/initial_review/results/diagnostics.png)
 
 ```bash
 bash <<'BASH'
@@ -67,8 +67,8 @@ cd /Users/hrishikeshram/KinBot
 MPLCONFIGDIR=/Users/hrishikeshram/KinBot/.mpl-cache \
 XDG_CACHE_HOME=/private/tmp/kinbot-font-cache \
     /Users/hrishikeshram/KinBot/.venv/bin/python \
-    examples/anl/ch3s_anl1_f12/review/analyze.py \
-    examples/anl/ch3s_anl1_f12/ch3s_tzf12_review_coz08qx7.tar.gz \
+    examples/anl/ch3s_anl1_f12/orbital_reviews/initial_review/analyze.py \
+    examples/anl/ch3s_anl1_f12/orbital_reviews/native_exports/ch3s_tzf12_review_coz08qx7.tar.gz \
     examples/anl/ch3s_anl1_f12/review/results
 BASH
 ```

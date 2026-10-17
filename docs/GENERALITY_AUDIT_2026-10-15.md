@@ -91,7 +91,7 @@ molecule converges or that every native integration is correct.
 There are no CH3S/CH3SS names, campaign paths or proposed CAS counts in the
 shared reconnaissance, VRC/ROTD or automatic CBH/ANL production logic. The new
 example candidate spaces, chemical rationales and seed anchors live in
-`examples/anl/orbital_reviews/validation_candidates.json`. Its preparation
+`examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/validation_candidates.json`. Its preparation
 script derives methods and radial points from the linked KinBot requests.
 
 Published energies, fits and geometries in `anl.literature`/`anl.kinetics` are
@@ -126,14 +126,14 @@ The sulfur examples now have completed local ORCA CASPT2 evidence, including
 the minimum S–S radial/return check. Final orbital/surface approval, native
 Molpro method/basis checks and the production run remain. Local regression
 success cannot replace those calculations. The current transfer package is
-[the minimal Molpro confirmation](../examples/anl/orbital_reviews/molpro_confirmation/README.md).
-The older [correlated validation notes](SULFUR_CORRELATED_VALIDATION.md)
+[the minimal Molpro confirmation](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/README.md).
+The older [correlated validation notes](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_CORRELATED_VALIDATION.md)
 retain the historical broad campaign and its recovery evidence.
 
 ## Native follow-up
 
 The first correlated batch exposed a shared MR energy-selector bug that the
-mocked tests had missed. The [failure and recovery audit](SULFUR_CORRELATED_VALIDATION.md#native-selector-failure-and-recovery)
+mocked tests had missed. The [failure and recovery audit](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_CORRELATED_VALIDATION.md#native-selector-failure-and-recovery)
 corrects the method contract, documents the native evidence and provides an
 in-place resume preserving 18 completed calculations. Production readers now
 reject undefined-variable assignments. The supplied complete native output

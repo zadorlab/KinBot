@@ -56,7 +56,10 @@ def _rotd_target(context_path):
               'active_space_status': 'Counts in method strings/presets do not approve a candidate CAS.',
               'surface_model': None}
     name = par.get('vrc_tst_surface_model_file')
-    if name:
+    if par.get('vrc_tst_surface_model'):
+        target['surface_model'] = {'path': str(context_path), 'available': True,
+            'sha256': file_sha256(context_path), 'model': deepcopy(par['vrc_tst_surface_model'])}
+    elif name:
         path = (context_path.parent / name).resolve()
         target['surface_model'] = {'path': str(path), 'available': path.is_file(),
             'sha256': file_sha256(path) if path.is_file() else None,
@@ -140,7 +143,10 @@ def plan(source, output):
     if context_path:
         context_data = json.loads(context_path.read_text())
         surface_name = context_data.get('vrc_tst_surface_model_file')
-        if surface_name:
+        if context_data.get('vrc_tst_surface_model'):
+            payload['surface_model_context'] = {'path': str(context_path), 'available': True,
+                'model': deepcopy(context_data['vrc_tst_surface_model'])}
+        elif surface_name:
             surface_path = (context_path.parent / surface_name).resolve()
             payload['surface_model_context'] = {'path': str(surface_path),
                 'available': surface_path.is_file(),
@@ -635,6 +641,7 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
     invents electronic weights, or claims that a kinetics run has passed.
     """
     from kinbot.molpro import validate_vrc_state_model
+    from kinbot.vrc_correction import apply_selected_active_space_methods
     from kinbot.vrc_multistate import validate_surface_model
     input_file, selection_file = (Path(p).expanduser().resolve() for p in (input_file, selection_file))
     data = json.loads(input_file.read_text())
@@ -658,28 +665,36 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
     for key in ('vrc_tst_state_model_file', 'vrc_tst_surface_model_file'):
         if data.get(key):
             data[key] = str((input_file.parent / data[key]).resolve())
-    updates = {'vrc_tst_active_space': space, 'vrc_tst_state_model_file': str(selection_file)}
+    from kinbot.vrc_multistate import resolve_state_model_paths
+    updates = {'vrc_tst_active_space': space,
+               'vrc_tst_state_model': resolve_state_model_paths(selection, selection_file.parent)}
     output = _fresh(output)
-    if surface_file is None:
-        if bond is not None or stage is not None:
-            raise ValueError('A stage selection requires surface_file, bond and stage.')
-        if data.get('vrc_tst_surface_model_file'):
+    if surface_file is None and bond is None and stage is None:
+        if data.get('vrc_tst_surface_model_file') or data.get('vrc_tst_surface_model'):
             raise ValueError('Input has a surface model; select an explicit bond/stage.')
         data.update(updates)
-        data.pop('vrc_tst_state_model', None)
+        apply_selected_active_space_methods(data, space)
+        data.pop('vrc_tst_state_model_file', None)
         data.pop('vrc_tst_state_average_roots', None)
         data.pop('vrc_tst_selected_roots', None)
     else:
         if bond is None or stage is None:
             raise ValueError('A stage selection requires bond and stage.')
-        surface_file = Path(surface_file).expanduser().resolve()
-        surface = validate_surface_model(json.loads(surface_file.read_text()), reviewed=False)
+        if surface_file is None:
+            surface = validate_surface_model(data['vrc_tst_surface_model'], reviewed=False)
+            surface_base = input_file.parent
+        else:
+            surface_file = Path(surface_file).expanduser().resolve()
+            surface_base = surface_file.parent
+            surface = validate_surface_model(json.loads(surface_file.read_text()), reviewed=False)
         matches = []
         for channel in surface['channels']:
             for bottleneck in channel['bottlenecks']:
                 par = bottleneck['parameters']
                 if par.get('vrc_tst_state_model_file'):
-                    par['vrc_tst_state_model_file'] = str((surface_file.parent / par['vrc_tst_state_model_file']).resolve())
+                    par['vrc_tst_state_model_file'] = str((surface_base / par['vrc_tst_state_model_file']).resolve())
+                if par.get('vrc_tst_state_model'):
+                    par['vrc_tst_state_model'] = resolve_state_model_paths(par['vrc_tst_state_model'], surface_base)
                 if sorted(channel['bond']) == sorted(bond) and bottleneck['name'] == stage:
                     matches.append(bottleneck)
         if len(matches) != 1:
@@ -690,15 +705,22 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
             if any(state['root'] > counts.get(state['multiplicity'], 0) for state in bottleneck['states']):
                 raise ValueError('Selected average cannot supply a requested bottleneck surface.')
         bottleneck['parameters'].update(updates)
-        for key in ('vrc_tst_state_model', 'vrc_tst_state_average_roots', 'vrc_tst_selected_roots'):
+        # Materialize inherited methods here so the selected channel never
+        # advertises a different CAS size in its JSON.
+        inherited = {**data, **bottleneck['parameters']}
+        apply_selected_active_space_methods(inherited, space)
+        for key in ('vrc_tst_scan_method', 'vrc_tst_sample_method',
+                    'vrc_tst_high_method', 'vrc_tst_spin_splitting'):
+            if key in inherited:
+                bottleneck['parameters'][key] = inherited[key]
+        for key in ('vrc_tst_state_model_file', 'vrc_tst_state_average_roots', 'vrc_tst_selected_roots'):
             bottleneck['parameters'].pop(key, None)
         # Empty leaf overrides prevent unrelated global root selections/counts
         # leaking into this independently reviewed region.
         bottleneck['parameters']['vrc_tst_state_average_roots'] = {}
         bottleneck['parameters']['vrc_tst_selected_roots'] = {}
-        surface_output = _fresh(output.with_suffix('.surfaces.json'))
-        atomic_json(surface_output, surface)
-        data['vrc_tst_surface_model_file'] = str(surface_output)
+        data.pop('vrc_tst_surface_model_file', None)
+        data['vrc_tst_surface_model'] = surface
     atomic_json(output, data)
     return output
 

@@ -104,8 +104,8 @@ KB_PY=/home/hram/KinBot/.venv/bin/python
 CAMPAIGN="/home/hram/kinbot-runs/ch3s_ch3ss_orbital_$(date +%Y%m%d_%H%M%S)"
 export KINBOT_MOLPRO_SCRATCH="/scratch/$USER/kinbot-molpro"
 "$KB_PY" -m kinbot.orbital_campaign prepare "$CAMPAIGN" \
-    "$KB_REPO/examples/anl/ch3s_anl1_f12/orbital_reconnaissance.json" \
-    "$KB_REPO/examples/anl/ch3ss_anl1_f12/orbital_reconnaissance.json"
+    "$KB_REPO/examples/anl/ch3s_anl1_f12/orbital_reviews/orbital_reconnaissance.json" \
+    "$KB_REPO/examples/anl/ch3ss_anl1_f12/orbital_reviews/orbital_reconnaissance.json"
 
 "$KB_PY" -m kinbot.orbital_campaign exclude-bases "$CAMPAIGN" \
     --basis aug-cc-pV5Z --basis av5z-f12

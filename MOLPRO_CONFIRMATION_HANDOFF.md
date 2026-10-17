@@ -2,7 +2,7 @@
 
 **Superseded for submission:** Molpro 2023 reproduced the S–S MRCI DSYGV
 failure. The user closed MRCI, and the matched CASPT2 shift-0.1 check passed.
-Use the [CASPT2 production handoff](CASPT2_PRODUCTION_HANDOFF.md) for the next
+Use the [CASPT2 production handoff](examples/anl/tools/README.md) for the next
 launch. The commands below are retained as historical diagnostic provenance;
 do not rerun these MRCI probes as production prerequisites.
 
@@ -22,7 +22,7 @@ trial's electronic input and original starting seed identical. It is a
 controlled comparison of executables/builds, not a known cure or a decision
 to downgrade production. All six roots per spin, CABS=3, SFIX, tolerances,
 0.1 Eh shifts and relaxed-Davidson selectors are retained. See the
-[native diagnosis and documentation review](docs/MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md).
+[native diagnosis and documentation review](examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md).
 No public release note found in this review establishes a fix for this error.
 
 The user has selected **IPEA=0.25, CASPT2 real SHIFT=0.1 Eh, and MRCI
@@ -30,7 +30,7 @@ Davidson iteration denominator shifts of 0.1 Eh** for the eventual production
 KinBot inputs. The failed retry used the requested MRCI shifts.
 Completed CASPT2 confirmation remains documented at SHIFT=0.3 Eh. This is a
 recorded production choice, not a change to existing runs or a claim of
-validated shift insensitivity. The [decision record](docs/SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md)
+validated shift insensitivity. The [decision record](examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md)
 lists the three reviewed orbital sets and the remaining native state audit.
 
 ## Submit the one-point build comparison
@@ -40,7 +40,7 @@ The user handles SSH. On Blodgett:
 ```bash
 cd /home/hram/KinBot
 git pull --ff-only origin composite
-bash examples/anl/orbital_reviews/molpro_confirmation/probe_mrci_build_on_blodgett.sh
+bash examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/probe_mrci_build_on_blodgett.sh
 ```
 
 Source:
@@ -59,7 +59,7 @@ WFU. Exact prepared-input and seed hashes must match the failed shift trial.
 All previous results remain intact; the completed S–S far spectrum still
 needs independent native review.
 
-The [plan JSON](examples/anl/orbital_reviews/molpro_confirmation/mrci_build_probe_plan.json)
+The [plan JSON](examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/mrci_build_probe_plan.json)
 changes no electronic controls and contains no tilted point. A successful
 center would justify review and matched-build far/tilted validation before
 production use. A checkpoint/input incompatibility in the older build is
@@ -78,7 +78,7 @@ settings for unrelated KinBot calculations are changed.
 ## Monitor and export
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_multistate_molpro23_probe --all --roots'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/run_confirmation.py monitor /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_multistate_molpro23_probe --all --roots'
 ```
 
 Expect one center point with two simultaneous calls (doublet and quartet),
@@ -90,7 +90,7 @@ failed center context. This is independent of the new retry:
 
 ```bash
 cd /home/hram/KinBot
-.venv/bin/python examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py collect \
+.venv/bin/python examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/run_confirmation.py collect \
   /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_multistate \
   --output /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_multistate.evidence.tar.gz
 ```
@@ -99,7 +99,7 @@ The shift retry has stopped. Export it with:
 
 ```bash
 cd /home/hram/KinBot
-.venv/bin/python examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py collect \
+.venv/bin/python examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/run_confirmation.py collect \
   /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_multistate_solver_retry \
   --output /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_multistate_solver_retry.evidence.tar.gz
 ```
@@ -108,12 +108,12 @@ After the build probe stops, collect its evidence as well:
 
 ```bash
 cd /home/hram/KinBot
-.venv/bin/python examples/anl/orbital_reviews/molpro_confirmation/run_confirmation.py collect \
+.venv/bin/python examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/run_confirmation.py collect \
   /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_multistate_molpro23_probe \
   --output /home/hram/kinbot-runs/minimum_active_space_molpro_confirmation_20261016_r2_multistate_molpro23_probe.evidence.tar.gz
 ```
 
-The user transfers the archives to `examples/anl/orbital_reviews`. Collection
+The user transfers the archives to `examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history`. Collection
 refuses to overwrite an existing archive or collect a live/uncertain run.
 Original historical failures remain in their monitors and are not new failures
 of this trial.

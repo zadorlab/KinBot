@@ -134,3 +134,59 @@ def test_follower_handles_native_out_and_overlong_lines(tmp_path):
         stream.write('x'*monitor.TAIL_BYTES+'\nnew progress\n')
     assert follower.poll(tmp_path)[1]
     assert 'new progress' in follower.poll(tmp_path)[0][0][1]
+
+
+def test_sella_progress_and_frequency_rejection_are_visible(production):
+    root, case = production
+    put(case/'well/well_high_sella.log',
+        'Sella   6 19:11:56 -11916.528873 0.0055 0.0000 0.1000 1.2245 6\n'
+        'Worker failure: Frequency validation failed for minimum: imaginary '
+        'modes [cm^-1] = -587.3340; 1 below -50 cm^-1.\ndone\n')
+    put(case/'well/well_high.log',
+        ' Frequencies --  -587.3340 727.3799 979.8327\n'
+        ' Normal termination of Gaussian 16\n')
+    text = monitor.render(monitor.snapshot(root))
+    assert 'Sella   6' in text
+    assert 'Frequency validation failed for minimum' in text
+    assert '-587.3340' in text
+
+
+def test_older_failed_product_spectrum_not_hidden_by_newer_jobs(production):
+    import os
+    root, case = production
+    put(case/'well/product_well.exitcode', '52908315 1\n')
+    failure = case/'well/product_well_sella.log'
+    put(failure, 'Converged but frequency check failed (order=0); frequencies (cm-1):\n'
+        '[np.float64(-53.062370746758766), np.float64(303.6845755216985)]\ndone\n')
+    os.utime(failure, (1., 1.))
+    for i in range(45):
+        put(case/f'well/recent_{i}.log', 'Normal termination of Gaussian 16\n')
+    text = monitor.render(monitor.snapshot(root))
+    assert 'FAILED QC EXIT' in text
+    assert 'Converged but frequency check failed' in text
+    assert '-53.062370746758766' in text
+
+
+def test_both_pes_remain_visible_during_targeted_minimum_check(production, monkeypatch):
+    root, first = production
+    second = root/'second_pes'
+    put(root/'prepared.json', {'inputs': [str(first/'input.json'), str(second/'input.json')]})
+    put(second/'input.json', {'queue_job_limit': 10})
+    put(second/'well/kinbot.log', '16-Oct-26 20:00:00-INFO: Starting rotor scan\n')
+    check = first/'minimum_recovery_check'
+    put(check/'well_high_sella.log', 'Minimum recovery 1/2: selected plus displacement\n'
+        'Sella   7 20:00:00 -10.5 0.0001 0.0\n')
+    archive = check/'well_high_minimum_recovery/attempt_1_example'
+    put(archive/'well_high.log', 'Error termination HISTORICAL ONLY\n')
+    put(archive/'recovery.json', {'status': 'descent_selected', 'attempt': 1,
+        'selected': 'plus', 'energy_change_eV': -.0002})
+    job = {'job_id': '43', 'state': 'RUNNING', 'nodes': 'node20', 'elapsed': '1:00',
+           'limit': '24:00:00', 'cpus': '8', 'memory': '10G', 'excluded_nodes': 'node16',
+           'name': 'well_high', 'reason': 'node20', 'directory': str(check)}
+    monkeypatch.setattr(monitor, 'queue', lambda: ([job, dict(job, job_id='44', directory=str(second))], None))
+    report = monitor.snapshot(root)
+    assert len(report['cases']) == 2
+    assert [c['jobs'][0]['job_id'] for c in report['cases']] == ['43', '44']
+    text = monitor.render(report)
+    assert 'Starting rotor scan' in text and 'Minimum recovery 1/2' in text
+    assert 'descent_selected' in text and 'HISTORICAL ONLY' not in text

@@ -24,6 +24,7 @@ from kinbot.molpro import (
     molpro_wfu_name,
     validate_molpro_convergence,
     validate_vrc_state_model,
+    continued_vrc_state_model,
     vrc_multireference_energy_contract,
 )
 from kinbot.theory import fortran_threshold
@@ -530,13 +531,11 @@ class Molpro(Calculator):
                 'selected_roots': {self.mult: 1},
                 'canonical_orbitals': True,
             }
-            updated['orbital_selection'] = {
-                'mode': 'molpro_record',
-                'path': str(checkpoint.resolve()),
-                'record': '2140.2',
-                'sha256': file_sha256(checkpoint),
-            }
-            self._orbital_checkpoint_model = validate_vrc_state_model(updated)
+            contract = vrc_multireference_energy_contract(self.method)
+            self._orbital_checkpoint_model = continued_vrc_state_model(
+                updated, checkpoint, nelectron=int(sum(atoms.numbers)) - self.charge,
+                active_electrons=contract['active_electrons'],
+                active_orbitals=contract['active_orbitals'])
         xml_name = f'{stem}.xml'
         if (self.work_directory / xml_name).is_file():
             self.generated_files.append(xml_name)

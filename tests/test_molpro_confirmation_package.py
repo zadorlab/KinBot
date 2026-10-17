@@ -15,7 +15,7 @@ import pytest
 
 from kinbot.execution import file_sha256
 
-PACKAGE = Path(__file__).parents[1] / 'examples/anl/orbital_reviews/molpro_confirmation'
+PACKAGE = Path(__file__).parents[1] / 'examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation'
 
 
 def module(name):

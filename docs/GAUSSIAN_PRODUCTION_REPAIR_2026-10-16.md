@@ -81,7 +81,7 @@ passed; zero failures or skips** (80.29 seconds). Native MESS and MESSPF
 executables were supplied, so their optional checks ran. The suite also ran
 the actual RotdPy free-pair integrator check. Two warnings were emitted.
 The reproducible command and source hashes are recorded in
-[repair_validation.json](../examples/anl/caspt2_production/repair_validation.json).
+[repair_validation.json](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/production_checks/repair_validation.json).
 
 | Workflow area | Checks and relevant coverage |
 | --- | --- |

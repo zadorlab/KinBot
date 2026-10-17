@@ -327,7 +327,7 @@ def _main():
     masterpar = Parameters(input_file, show_warnings=True)
     par = masterpar.par
     input_file = masterpar.input_file
-    if par.get('vrc_tst_surface_model_file'):
+    if (par.get('vrc_tst_surface_model') or par.get('vrc_tst_surface_model_file')):
         # Validate reviewed chemistry inputs before expensive discovery/QC.
         from kinbot.vrc_multistate import load_surface_model
         load_surface_model(par)

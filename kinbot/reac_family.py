@@ -180,6 +180,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         code = 'fairchem'
         Code = 'Fairchem'
 
+    # Preliminary searches must retain an explicit profile's method options
+    # too (notably dispersion). Legacy early AM1 steps keep their old policy.
+    if (runtime_par.get('calc_kwargs')
+            and (runtime_par.get('_profiled_backend') or step >= rxn.max_step)):
+        kwargs = rxn.qc.merge_kwargs(kwargs)
+
     if step < rxn.max_step:
         if rxn.qc.use_sella:
             kwargs.pop('addsec', None)
@@ -210,8 +216,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 fc_device=runtime_par['fc_device'],
                                 )
     else:
-        if rxn.par['calc_kwargs']:
-            kwargs = rxn.qc.merge_kwargs(kwargs)
+        from kinbot.minimum_recovery import worker_sella_kwargs
         if rxn.qc.use_sella:
             kwargs.pop('freq', None)
             kwargs.pop('opt', None)
@@ -229,7 +234,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
                                    Code=Code,  # Sella
-                                   sella_kwargs=runtime_par['sella_kwargs'],  # Sella
+                                   sella_kwargs=(worker_sella_kwargs(runtime_par)
+                                                 if rxn.qc.use_sella
+                                                 else runtime_par['sella_kwargs']),
+                                   frequency_mode=getattr(rxn.qc, 'frequency_mode', 'auto'),
                                    fmax=runtime_par['sella_fmax'],
                                    steps=runtime_par['sella_steps'],
                                    fc_model_path=runtime_par['fc_model_path'],

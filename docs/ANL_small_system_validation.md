@@ -103,7 +103,7 @@ compatibility aliases, recorded as such in the method contract; new presets
 use `-f12`. MR `-f12a` is rejected because it has no implemented native meaning.
 CCSD(T)-F12b retains its established convention unchanged.
 
-See the [native failure/recovery audit](SULFUR_CORRELATED_VALIDATION.md#native-selector-failure-and-recovery)
+See the [native failure/recovery audit](../examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/docs/SULFUR_CORRELATED_VALIDATION.md#native-selector-failure-and-recovery)
 and the Molpro [RS2](https://www.molpro.net/manual/doku.php?id=multireference_rayleigh_schroedinger_perturbation_theory)
 and [MRCI](https://www.molpro.net/manual/doku.php?id=the_mrci_program) manuals.
 The earlier tests reproduced an incorrect array-index assumption and did not
@@ -168,8 +168,9 @@ structurally valid rung through CBH-3 for each connectivity, plans all lower
 reference reactions needed to terminate at CBH-0/ATcT, and then selects the
 highest rung having one common completed energy label within that reaction.
 Species in different ladder reactions may use different ANL fallback tiers.
-The checked input is
-`examples/anl/acetaldehyde_cbh_anl0_f12/acetaldehyde.json`.
+The former public acetaldehyde example was removed at the user’s request.
+Its general automatic-input and reaction-discovery checks remain in
+`tests/test_anl_automatic_input.py`, independent of example folders.
 
 The automatic CBH and VRC planners consume the accepted reaction network;
 neither requires a user-selected family, atom motif, or CBH rung.

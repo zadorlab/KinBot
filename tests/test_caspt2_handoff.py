@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-PACKAGE = Path(__file__).parents[1]/'examples/anl/caspt2_production'
+PACKAGE = Path(__file__).parents[1]/'examples/anl/tools'
 
 
 @pytest.fixture
 def handoff(monkeypatch):
     monkeypatch.syspath_prepend(str(PACKAGE))
-    spec = importlib.util.spec_from_file_location('caspt2_handoff', PACKAGE/'handoff.py')
+    spec = importlib.util.spec_from_file_location('caspt2_handoff', PACKAGE/'run_examples.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -26,13 +26,16 @@ def test_prepared_package_is_portable_immutable_and_records_resolved_settings(ha
         resolved = json.loads((root/case/'resolved_parameters.json').read_text())
         assert resolved['epsilon_unit'] == 'cm-1'
         assert resolved['queue_job_limit'] == 10
-        assert str(Path(resolved['vrc_tst_surface_model_file']).parent) == str(root/case)
+        assert resolved['vrc_tst_surface_model_file'] == ''
+        assert resolved['vrc_tst_surface_model']['channels']
+        assert resolved['rotdpy_flux_parameters']['flux_rel_err'] == 1
+        assert resolved['sella_fmax'] == resolved['anl_geometry_fmax'] == 1e-4
         assert f'{case}/resolved_parameters.json' in record['sha256']
-    model = root/'assets/ch3s_cs_state_model.json'
+    model = root/'ch3s/input.json'
     model.write_text('{}')
     with pytest.raises(ValueError, match='Prepared artifact changed'):
         handoff.verify(root)
-    with pytest.raises(ValueError, match='Existing prepared artifact differs'):
+    with pytest.raises(ValueError, match='Existing prepared settings differ'):
         handoff.prepare(root)
 
 
@@ -99,10 +102,11 @@ def test_rendered_preflight_uses_both_real_production_profiles(handoff, tmp_path
     root = handoff.prepare(tmp_path/'production')
     result = handoff.render_gaussian_inputs(root, handoff.verify(root))
     assert os.environ['SBATCH_EXCLUDE'] == 'existing-exclusion'
-    assert len(result['files']) == 36
+    assert len(result['files']) == 72
     for item in result['files']:
         text = (root/item['path']).read_text()
-        assert 'B2PLYP/cc-pVTZ' in text
+        l2 = Path(item['path']).name.startswith('l2_')
+        assert ('B2PLYP/cc-pVTZ' if l2 else 'B3LYP/cc-pVDZ') in text
         assert 'scf(xqc,conver=10)' in text
         assert 'scf(xqc,(' not in text
         assert 'EmpiricalDispersion(GD3BJ)' in text
@@ -158,3 +162,17 @@ def test_cleanup_refuses_unrecognized_or_overlapping_production(handoff, monkeyp
     (old/'prepared.json').write_text(json.dumps(data))
     with pytest.raises(ValueError, match='Unrecognized previous'):
         handoff.retire_production(root, old)
+
+
+def test_inline_vrc_preflight_renders_all_reviewed_channels_and_roots(handoff, tmp_path):
+    root = handoff.prepare(tmp_path/'production')
+    result = handoff.render_vrc_inputs(root, handoff.verify(root))
+    assert len(result['files']) == 20  # Four physical surfaces, five MR components each.
+    for entry in result['files']:
+        assert entry['method'] in ('caspt2-f12(5,4)', 'caspt2-f12(7,5)')
+        text = (root/entry['path']).read_text()
+        assert 'shift=0.1,ipea=0.25' in text and 'refstate,' in text
+        assert 'rotate,' not in text and 'diab,' not in text
+        assert entry['active_indices'] == (list(range(11,15)) if 'ch3s/' in entry['path'] else list(range(18,23)))
+    assert not list((root/'assets').glob('*state_model.json'))
+    assert not list(root.rglob('surfaces.json'))

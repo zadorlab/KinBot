@@ -131,6 +131,36 @@ class TheoryProfile:
 
 
 THEORY_PRESETS = {
+    'b3lyp-b2plyp-anl': {
+        'l1': {
+            'calculator': 'gaussian',
+            'method': 'B3LYP',
+            'basis': 'cc-pVDZ',
+            'calculator_kwargs': {
+                'EmpiricalDispersion': 'GD3BJ',
+                'Symm': 'None',
+                'scf': 'xqc,conver=10',
+                'integral': 'UltraFine',
+            },
+            'optimizer': 'sella',
+            'frequency_mode': 'native_hessian',
+            'label': 'B3LYP-D3(BJ)/cc-pVDZ',
+        },
+        'l2': {
+            'calculator': 'gaussian',
+            'method': 'B2PLYP',
+            'basis': 'cc-pVTZ',
+            'calculator_kwargs': {
+                'EmpiricalDispersion': 'GD3BJ',
+                'Symm': 'None',
+                'scf': 'xqc,conver=10',
+                'integral': 'UltraFine',
+            },
+            'optimizer': 'sella',
+            'frequency_mode': 'native_hessian',
+            'label': 'B2PLYP-D3(BJ)/cc-pVTZ',
+        },
+    },
     'uma-b2plyp-anl': {
         'l1': {
             'calculator': 'fairchem',

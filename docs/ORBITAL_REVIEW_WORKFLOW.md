@@ -683,11 +683,10 @@ every production surface.
 
 The surface model already has `channels[].bond` and
 `bottlenecks[].parameters`. Each bottleneck can override
-`vrc_tst_active_space` and `vrc_tst_state_model_file`. Thus different channels
+`vrc_tst_active_space` and inline `vrc_tst_state_model`. Thus different channels
 and inner/outer regions can use different CAS counts, orbital records and
-state averages. A state-model file may contain several basis-specific WFU
-records for the same space; use a different state-model file for a different
-space or state average.
+state averages inside one main input. Each inline model can contain several
+basis-specific WFU records. Legacy external state-model files remain readable.
 
 Install each user-selected model into a **new** KinBot input using:
 
@@ -696,10 +695,11 @@ python -m kinbot.orbital_review install-selection INPUT.json SELECTED.json NEXT.
     --surface-file SURFACES.json --bond 1 2 --stage inner
 ```
 
-The command writes `NEXT.json` and `NEXT.surfaces.json`, preserves other
+The command writes only `NEXT.json`, embedding the selection and preserving other
 bottlenecks, checks that the selected average can supply that stage's surfaces,
 and prevents inherited global root overrides from changing the selection.
-Use those new files as the inputs for the next stage selection. It leaves the
+Use `NEXT.json` for the next stage selection; omit `--surface-file` to update
+its inline surface model. It leaves the
 surface model's `reviewed` flag unchanged: selecting orbitals does not approve
 electronic statistical weights, energy offsets or equilibration assumptions.
 Without a surface model the command installs a global selection instead.
@@ -866,3 +866,71 @@ state the requested `rotdpy_flux_parameters.flux_rel_err` and sample ceilings:
 a sample ceiling is not evidence that the uncertainty target was achieved.
 Production mode must retain completion/thermochemistry/flux checks through
 MESS. Passing parser and orchestration tests is not a native end-to-end result.
+
+## Single-input production selection (current interface)
+
+After reviewing orbitals, supply their **one-based C1 indices in the exact
+source record**, not indices from another basis or from an unbound SCF run.
+`molpro_reconnaissance select` accepts `--active-indices 3 6 8`, for example,
+with `--active-electrons 4 --active-orbitals 3`, the checkpoint, record, basis,
+reviewed state averages and solver options. The numbers here illustrate an
+interface; they are not a chemical recommendation for an arbitrary molecule.
+`--orbital-type natural` identifies the intended set in a record that may hold
+multiple orbital types. Each basis has its own source record and index list.
+
+`orbital_review install-selection INPUT SELECTION OUTPUT` now embeds the
+whole selection in `OUTPUT` as `vrc_tst_state_model`; the selection JSON is
+not a runtime dependency. For distinct reaction spaces, supply `--bond i j
+--stage single`: the model is embedded under
+`vrc_tst_surface_model.channels[].bottlenecks[].parameters`. An existing
+external surface definition can be imported with `--surface-file`, but the
+resulting output is still one JSON. No second surface JSON is written.
+The user can also edit these fields directly in the final input.
+
+Within each inline `basis_models[BASIS]`, `orbital_selection` contains:
+
+```json
+{
+  "mode": "molpro_record",
+  "path": "orbitals/reviewed.wfu",
+  "sha256": "REPLACE_WITH_THE_SHA256_OF_THE_REVIEWED_BINARY",
+  "record": "2140.2",
+  "orbital_type": "natural",
+  "active_indices": [3, 6, 8],
+  "align_active_orbitals": false
+}
+```
+
+This illustrative fragment must be paired with its actual electron/orbital
+counts and state model. Positive distinct indices and list length are checked;
+file bytes are checked against the SHA-256. Basis lookup, molecular atom order
+and charge are checked when resolving the selection. Relative binary paths
+belong to the containing input and become absolute in generated worker inputs.
+The binary is required electronic-structure data, not another configuration
+file. It cannot be replaced by naked MO indices or a different molecule's WFU.
+
+For N electrons and CAS(n,m), KinBot computes `CLOSED=(N-n)/2` and
+`OCC=CLOSED+m`. It packs the selected indices into that active block using
+[Molpro's documented zero-angle ROTATE exchanges](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#rotating_pairs_of_initial_orbitals).
+The input list gives the initial order. The remaining orbitals follow the
+resulting permutation; choosing orbital character and the appropriate closed
+space still requires review. Repacking with `align_active_orbitals=true` is
+rejected because DIAB would refer to the source's different active block.
+Use the packed, validated checkpoint before enabling DIAB. The `select`
+command defaults alignment to false; legacy direct models retain their prior
+default when the field is absent. Production records explicitly set it.
+
+After a completed optimization, the next checkpoint model records the packed
+indices, natural type, new hash, and the same alignment choice. Source swaps
+are therefore not repeated. Method labels are materialized with the selected
+CAS counts. Changing counts alone does not choose orbitals: the index list,
+checkpoint and state manifold must agree. `state_average` roots are required;
+omitted weights default equally within a spin block and block weights default
+to one. `selected_roots` defaults to root one, and all numerical options remain
+user overrides. The sulfur examples explicitly retain their validated solver
+options and shared correlation references; those choices are data, not
+molecule-name branches in the implementation.
+
+The two production examples now show the full interface in their main JSON
+files, including all six aDZ/aTZ index lists. Their old duplicate state/surface
+configuration files were removed. Historical native evidence is retained.

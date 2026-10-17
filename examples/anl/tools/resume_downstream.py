@@ -202,6 +202,91 @@ def repair_graph(graph, archive):
                                              for e in state['tasks'].values())}
 
 
+def restore_archived_vrc_fragments(root, case, archive):
+    """Recover completed fragment artifacts moved by the earlier broad archive.
+
+    The invalid Molpro scans remain archived. Fragment recovery requires both
+    the retained normal database result and an archived successful worker
+    handoff/native log. Existing files are never overwritten.
+    """
+    from ase.db import connect
+    from kinbot.qc import _worker_exit_status
+    restored = []
+    selected = set()
+    for manifest in sorted(root.parent.glob(root.name + '.repair_archive.*/manifest.json'),
+                           reverse=True):
+        history = manifest.parent.resolve()
+        if history == archive.path.resolve() or manifest.is_symlink():
+            continue
+        for entry in json.loads(manifest.read_text()):
+            original = Path(entry['source'])
+            saved = Path(entry['archive'])
+            if (entry.get('action') != 'move' or original.name != 'vrctst'
+                    or not original.is_relative_to(case)
+                    or original.parent.parent != case
+                    or saved.is_symlink() or not saved.resolve().is_relative_to(history)
+                    or not saved.is_dir()):
+                continue
+            worker = original.parent
+            db_path = worker / 'kinbot.db'
+            if not db_path.is_file():
+                continue
+            db = connect(str(db_path))
+            for marker in sorted(saved.glob('*_vts.exitcode')):
+                if marker.is_symlink():
+                    raise ValueError(f'Refusing archived fragment symlink: {marker}')
+                outcome = _worker_exit_status(marker)
+                if outcome is None or outcome[0] != 0:
+                    continue
+                name = marker.stem
+                if (original, name) in selected:
+                    continue
+                log = saved / (name + '.log')
+                rows = list(db.select(name='vrctst/' + name))
+                if (not rows or rows[-1].data.get('status') != 'normal'
+                        or not log.is_file() or log.is_symlink()
+                        or 'Normal termination of Gaussian' not in log.read_text(errors='replace')):
+                    continue
+                selected.add((original, name))
+                # Restore the whole matching artifact set, including checkpoint
+                # and exit marker. Preserve any regenerated worker script.
+                for source in sorted(saved.glob(name + '.*')):
+                    if source.is_symlink() or not source.is_file():
+                        raise ValueError(f'Unexpected archived fragment artifact: {source}')
+                    target = original / source.name
+                    if target.exists() or target.is_symlink():
+                        if target.is_symlink():
+                            raise ValueError(f'Refusing live fragment symlink: {target}')
+                        if target.suffix not in ('.py', '.slurm', '.pbs') and file_sha256(target) != file_sha256(source):
+                            raise ValueError(f'Live fragment differs from archived result: {target}')
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, target)
+                    restored.append({'source': str(source), 'restored': str(target),
+                                     'sha256': file_sha256(target)})
+    return restored
+
+
+def archive_invalid_vrc(vrc, archive):
+    """Retire the failed scans while keeping isolated-fragment handoffs usable."""
+    for state_file in vrc.glob('molpro_scan/*/state.json'):
+        state = json.loads(state_file.read_text())
+        if any(e.get('status') == 'complete' for e in state['tasks'].values()):
+            raise RuntimeError(f'{state_file}: accepted VRC point needs review before migration.')
+    moved = []
+    for path in list(vrc.iterdir()):
+        # These optimizations predate the failed multireference scan and have
+        # their own database rows, native files, checkpoint and exit marker.
+        if re.fullmatch(r'.+_vts\.[^/]+', path.name):
+            continue
+        target = archive.save(path, move=True, group='invalid_vrc')
+        if target is not None:
+            moved.append(str(target))
+    if not any(vrc.iterdir()):
+        vrc.rmdir()
+    return moved
+
+
 def repair_before_resume(root, record):
     """Repair an inactive prepared handoff, leaving all accepted QC in place."""
     from kinbot import run_cleanup
@@ -218,11 +303,14 @@ def repair_before_resume(root, record):
     archive = Archive(root)
     atomic_json(archive.path / 'inventory.json', inventories)
     archive.save(root / 'resume_provenance.json')
-    result = {'archive': str(archive.path), 'graphs': [], 'vrc_archived': []}
+    result = {'archive': str(archive.path), 'graphs': [], 'vrc_archived': [],
+              'vrc_fragments_restored': []}
     result['electronic_inputs_updated'] = update_electronic_inputs(root, record, archive)
     result['electronic_postprocessing_archived'] = []
     for case in cases:
         archive.save(case / 'resume_provenance.json')
+        result['vrc_fragments_restored'].extend(
+            restore_archived_vrc_fragments(root, case, archive))
         # A previous invocation may have updated both inputs, then stopped
         # partway through the first case. Finish invalidating derived data
         # even when this invocation finds the inputs already current.
@@ -239,14 +327,7 @@ def repair_before_resume(root, record):
                 continue
             result['graphs'].append(repair_graph(graph_file.parent, archive))
         for vrc in case.glob('*/vrctst'):
-            # This migration is for the failed first scan, not a completed
-            # VRC production run. Never silently retire accepted scan points.
-            for state_file in vrc.glob('molpro_scan/*/state.json'):
-                state = json.loads(state_file.read_text())
-                if any(e.get('status') == 'complete' for e in state['tasks'].values()):
-                    raise RuntimeError(f'{state_file}: accepted VRC point needs review before migration.')
-            target = archive.save(vrc, move=True, group='invalid_vrc')
-            result['vrc_archived'].append(str(target))
+            result['vrc_archived'].extend(archive_invalid_vrc(vrc, archive))
         historical_exits = {}
         from kinbot.qc import _worker_exit_status
         for marker in list(case.rglob('*.exitcode')):

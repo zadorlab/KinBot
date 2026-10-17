@@ -155,6 +155,41 @@ def test_branch_restart_replaces_stale_failure_and_rejoins_completed_work(
     assert 'error' not in state['branches']['cbh_anl']
 
 
+@pytest.mark.parametrize('fails', [True, False])
+def test_composite_outcome_is_visible_while_vrc_still_runs(monkeypatch, tmp_path, fails):
+    import time
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(automatic, 'prepare_automatic_cbh_anl',
+                        lambda *args, **kwargs: {'status': 'planned'})
+
+    def auto(*args):
+        if fails:
+            raise RuntimeError('reference L2 failed')
+        return {'status': 'complete'}
+
+    def vrc(*args):
+        deadline = time.monotonic() + 2.
+        while time.monotonic() < deadline:
+            state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+            if state['branches']['cbh_anl']['status'] != 'running':
+                break
+            time.sleep(.01)
+        assert state['branches']['cbh_anl']['status'] == ('failed' if fails else 'complete')
+        assert state['branches']['vrc_tst']['status'] == 'running'
+        assert state['mess_gate'] == ('blocked' if fails else 'waiting')
+        return {'status': 'complete'}
+
+    monkeypatch.setattr(kb, '_execute_automatic_branch', auto)
+    monkeypatch.setattr(kb, '_execute_vrc_branch', vrc)
+    if fails:
+        with pytest.raises(RuntimeError, match='MESS was not started'):
+            _post_reaction_branches(object(), _branch_parameters(tmp_path),
+                                    object(), 'input.json', True)
+    else:
+        assert _post_reaction_branches(object(), _branch_parameters(tmp_path),
+                                      object(), 'input.json', True)['status'] == 'complete'
+
+
 def test_mess_gate_stays_blocked_until_both_independent_branches_succeed(
         monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)

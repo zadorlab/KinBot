@@ -233,9 +233,9 @@ class Parameters:
             # Native convergence contracts used by every automatic ANL
             # geometry, frequency, and single-point calculation.  Values are
             # exact thresholds, rather than backend-specific exponents.
-            'anl_scf_convergence': 1.e-10,
-            'anl_cc_convergence': 1.e-8,
-            'anl_geometry_fmax': 1.e-4,
+            'anl_scf_convergence': 1.e-8,
+            'anl_cc_convergence': 1.e-7,
+            'anl_geometry_fmax': 5.e-4,
             'anl_minimum_recovery': dict(ANL_RECOVERY_DEFAULTS),
             # Optional full augmentation of the F12 reference branch.
             # Conventional ANL reference bases are always fully augmented,
@@ -472,8 +472,10 @@ class Parameters:
             'vrc_tst_selected_roots': {},
             'vrc_tst_high_extrapolation_power': 3.7,
             'vrc_tst_state_average_roots': {},
-            'vrc_tst_scf_convergence': 1.e-10,
-            'vrc_tst_correlation_convergence': 1.e-8,
+            'vrc_tst_scf_convergence': 1.e-8,
+            'vrc_tst_correlation_convergence': 1.e-7,
+            # Maximum constrained force (eV/angstrom) for Molpro relaxed scans.
+            'vrc_tst_scan_fmax': 5.e-4,
             # Gaussian orbitals are used only to construct HOMO-directed
             # pivot points.  They never supply a VRC scan geometry or energy.
             'vrc_tst_pivot_method': 'ub3lyp',
@@ -664,7 +666,7 @@ class Parameters:
         base_input = self.par.get('input_file') or self.input_file
         normalize_inline_model_paths(self.par, Path(base_input).resolve().parent if base_input else Path.cwd())
         if self.par['theory_preset'] == 'b3lyp-b2plyp-anl' and 'sella_fmax' not in self.user_keys:
-            self.par['sella_fmax'] = 1.e-4
+            self.par['sella_fmax'] = 5.e-4
 
         from kinbot.vrc_correction import apply_vrc_accuracy_preset
         apply_vrc_accuracy_preset(self.par, self.user_keys)
@@ -785,7 +787,7 @@ class Parameters:
             self.par['anl_scf_convergence'], 'anl_scf_convergence')
         convergence_exponent(
             self.par['anl_cc_convergence'], 'anl_cc_convergence')
-        for key in ('sella_fmax', 'anl_geometry_fmax'):
+        for key in ('sella_fmax', 'anl_geometry_fmax', 'vrc_tst_scan_fmax'):
             value = self.par[key]
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value) or value <= 0:
                 raise ValueError(f'{key} must be a positive finite force threshold in eV/angstrom.')

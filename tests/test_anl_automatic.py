@@ -465,7 +465,7 @@ def test_automatic_f12_augmentation_updates_native_tasks_and_intent():
     assert tasks['f12_qz']['result_parser']['basis'] == 'aug-cc-pVQZ-F12'
     assert 'basis=aug-cc-pVTZ-F12' in tasks['f12_tz']['input_template']
     assert spec['intent']['f12_augmented'] is True
-    assert tasks['l3_geometry']['optimizer']['fmax'] == 1e-4
+    assert tasks['l3_geometry']['optimizer']['fmax'] == 5e-4
     tight = automatic_composite_spec(mol, highest_tier='ANL1-F12', geometry_fmax=5e-5)
     assert all(t['optimizer']['fmax'] == 5e-5 for t in tight['tasks'] if t['kind'] == 'ase_optimize')
     assert all(t['optimizer']['minimum_recovery']['attempts'] == 2

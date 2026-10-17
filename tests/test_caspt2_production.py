@@ -77,6 +77,8 @@ def test_actual_six_reviewed_seeds_reach_production_renderer(installed, tmp_path
         assert ';orbital,2141.2,type=canonical;' in deck
         assert 'maxit,999;' in deck and 'maxit=2000,maxiti=2000,maxvi=60' in deck
         assert 'thrvar=1.d-10' in deck
+        assert 'thrden=1.d-7' in deck
+        assert 'accuracy,energy=1.d-8,gradient=1.d-5' in deck
     with pytest.raises(ValueError, match='atom order'):
         resolved_state_model(parameters, list(reversed(symbols)), 0, settings, basis=basis)
 
@@ -145,7 +147,10 @@ def test_production_model_routing_and_pes_parameter_round_trip(name, tmp_path, i
     worker = Parameters(str(saved)).par
     assert worker['epsilon'] == par['epsilon']
     assert worker['epsilon_unit'] == 'cm-1'
-    assert worker['simultaneous_kinbot'] == 1 and worker['barrier_threshold'] == 1000
+    assert worker['simultaneous_kinbot'] == 1
+    assert worker['barrier_threshold_L2'] == 400
+    assert worker['barrier_threshold'] == 410
+    assert worker['TemperatureList'] == list(range(300, 5001, 100))
     model, _ = load_surface_model(worker)
     assert len(model['channels']) == (1 if name == 'ch3s' else 2)
     for channel in model['channels']:

@@ -108,10 +108,10 @@ def test_legacy_interface_audit_is_readable_but_recipe_incompatible(monkeypatch)
                                       .replace('rhf\n', 'hf\n')
                                       .replace(
                                           '{uccsd(t);thresh,energy=1.d-8,'
-                                          'coeff=1.d-8}', 'ccsd(t)')
+                                          'coeff=1.d-10}', 'ccsd(t)')
                                       .replace(
                                           '{uccsd(t)-f12b,scale_trip=1;'
-                                          'thresh,energy=1.d-8,coeff=1.d-8}',
+                                          'thresh,energy=1.d-8,coeff=1.d-10}',
                                           'ccsd(t)-f12,scale_trip=1'))
     state = {'tasks': {task['id']: {'status': 'complete'}
                        for task in spec['tasks']}}
@@ -166,7 +166,7 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     radical['multiplicity'] = 2
     opened = higher_order_validation_spec(radical)
     open_tasks = {task['id']: task for task in opened['tasks']}
-    assert '\n{uccsd(t);thresh,energy=1.d-8,coeff=1.d-8}\n' in \
+    assert '\n{uccsd(t);thresh,energy=1.d-8,coeff=1.d-10}\n' in \
         open_tasks['ccsdt_tz']['input_template'].lower()
     assert 'uhf_uccsd' not in open_tasks['ccsdt_tz']['input_template'].lower()
     for ident in ('ccsdtq_tz', 'ccsdtq_dz', 'ccsdtqp_dz'):
@@ -205,7 +205,7 @@ def test_common_corrections_graph_pins_core_and_relativistic_differences():
                           'rel_dkh', 'rel_nonrel'}
     for ident in ('cv_ae_tz', 'cv_ae_qz', 'rel_dkh', 'rel_nonrel'):
         assert tasks[ident]['result_parser']['core'] == 'all-electron'
-        assert ';core;thresh,energy=1.d-8,coeff=1.d-8}' in \
+        assert ';core;thresh,energy=1.d-8,coeff=1.d-10}' in \
             tasks[ident]['input_template'].lower()
     for ident in ('cv_fc_tz', 'cv_fc_qz'):
         assert tasks[ident]['result_parser']['core'] == 'frozen'

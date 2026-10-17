@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Clean replacement of r5 after the restart-geometry/VPT2/reference repairs.
+# Clean replacement of r5 with SCF 1e-8, CC 1e-7 and tight geometries.
 # Run after git pull. Never delete the previous native evidence.
 set -euo pipefail
 cd /home/hram/KinBot
 KB_PY=/home/hram/KinBot/.venv/bin/python
 KB_TOOL=/home/hram/KinBot/examples/anl/tools/run_examples.py
 KB_PREVIOUS=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r5_dft
-KB_REPLACEMENT=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r6_dft
+KB_REPLACEMENT=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261017_r6_dft_scf8
 export PATH=/home/hram/KinBot/.venv/bin:$PATH
 export PYTHONPATH=/home/hram/KinBot${PYTHONPATH:+:$PYTHONPATH}
 export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro

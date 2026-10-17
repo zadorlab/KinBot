@@ -28,7 +28,7 @@ from kinbot.molpro import (
     initialize_molpro_restart,
     vrc_multireference_energy_contract,
 )
-from kinbot.theory import fortran_threshold
+from kinbot.theory import fortran_threshold, molpro_cc_thresholds
 from kinbot.execution import file_sha256
 
 
@@ -212,6 +212,10 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                      'startcmd=multi\n')
         body += f'put,xyz,{geometry_name}\n'
         return initialize_molpro_restart(header + body)
+    if cc_command:
+        cc_energy, cc_coefficient = molpro_cc_thresholds(correlation_convergence)
+        cc_command = (f'{{{cc_command};thresh,energy={cc_energy},'
+                      f'coeff={cc_coefficient}}}')
     return initialize_molpro_restart(header + f'rhf\n{cc_command}\n'
             f'kb_geom_energy=energy\n'
             f'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'

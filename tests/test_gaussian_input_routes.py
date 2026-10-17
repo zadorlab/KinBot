@@ -57,7 +57,7 @@ def test_all_anl_l2_routes_render_without_duplicate_or_nested_scf(method, flags,
                           properties=properties, **options)
         route = stream.getvalue().split('\n\n')[0]
         assert route.count('scf(') == 1
-        assert 'scf(xqc,conver=10)' in route
+        assert 'scf(xqc,conver=8)' in route
         assert 'scf(xqc,(' not in route
         assert 'EmpiricalDispersion(GD3BJ)' in route
         assert 'integral(UltraFine)' in route
@@ -77,5 +77,5 @@ def test_production_high_level_worker_renders_real_route(tmp_path, monkeypatch):
     kwargs.pop('label')
     stream = StringIO()
     write_gaussian_in(stream, Atoms('CH3S', positions=np.zeros((5, 3))), **kwargs)
-    assert 'scf(xqc,conver=10)' in stream.getvalue()
+    assert 'scf(xqc,conver=8)' in stream.getvalue()
     assert 'B2PLYP/cc-pVTZ' in stream.getvalue()

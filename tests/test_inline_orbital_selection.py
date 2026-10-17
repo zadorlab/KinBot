@@ -96,7 +96,7 @@ def test_tight_preset_defaults_and_explicit_force_override(tmp_path):
     base = {'smiles': 'O', 'mult': 1, 'barrier_threshold': 1000,
             'theory_preset': 'b3lyp-b2plyp-anl'}
     path.write_text(json.dumps(base))
-    assert Parameters(str(path)).par['sella_fmax'] == 1e-4
+    assert Parameters(str(path)).par['sella_fmax'] == 5e-4
     path.write_text(json.dumps({**base, 'sella_fmax': 5e-5, 'anl_geometry_fmax': 2e-4}))
     par = Parameters(str(path)).par
     assert par['sella_fmax'] == 5e-5 and par['anl_geometry_fmax'] == 2e-4

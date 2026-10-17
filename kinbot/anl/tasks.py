@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from kinbot.theory import convergence_exponent, fortran_threshold
+from kinbot.theory import convergence_exponent, fortran_threshold, molpro_cc_thresholds
 
 
 MOLPRO_HEADER = """***,KinBot ANL calculation
@@ -20,8 +20,8 @@ set,spin={{SPIN}}
 
 
 def _molpro_correlation_command(command, cc_convergence=1.e-8):
-    """Attach the same explicit CC/CI threshold to one Molpro command."""
-    threshold = fortran_threshold(cc_convergence, 'CC convergence')
+    """Attach explicit energy and squared-amplitude thresholds to a CC command."""
+    threshold, coefficient = molpro_cc_thresholds(cc_convergence)
     source = str(command).strip()
     if not source:
         return source
@@ -30,7 +30,7 @@ def _molpro_correlation_command(command, cc_convergence=1.e-8):
     if re.search(r'(?:^|;)\s*thresh\s*,', source, re.IGNORECASE):
         raise ValueError('Molpro command already contains a THRESH card.')
     return (f'{{{source};thresh,energy={threshold},'
-            f'coeff={threshold}}}')
+            f'coeff={coefficient}}}')
 
 
 def molpro_ccsdt_command(multiplicity, *, all_electron=False,

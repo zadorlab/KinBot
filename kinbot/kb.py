@@ -230,15 +230,25 @@ def _post_reaction_branches(well, parameters, qc, input_file,
               if preparation_error is not None else [])
     requested_count = int(vrc_requested) + int(
         automatic_requested and preparation_error is None)
+    state_lock = threading.Lock()
+
+    def publish_branch(name, **update):
+        # The composite thread can finish while VRC is still polling/running.
+        # Publish that outcome immediately instead of hiding it until join().
+        with state_lock:
+            state['branches'][name].update(update)
+            if update.get('status') == 'failed':
+                state['mess_gate'] = 'blocked'
+            _atomic_json(state_path, state)
+
     def record(name, function, *args):
         try:
             results[name] = function(*args)
         except Exception as error:
             errors.append((name, error))
-            state['branches'][name].update(status='failed', error=str(error))
+            publish_branch(name, status='failed', error=str(error))
         else:
-            state['branches'][name]['status'] = 'complete'
-        _atomic_json(state_path, state)
+            publish_branch(name, status='complete')
 
     if concurrent and preparation_error is None:
         # Keep VRC in the main thread. Its ROTD_py wrapper installs signal
@@ -255,8 +265,10 @@ def _post_reaction_branches(well, parameters, qc, input_file,
                 value = _execute_automatic_branch(
                     well, automatic_parameters, input_file, directory, plan)
             except BaseException as error:
+                publish_branch('cbh_anl', status='failed', error=str(error))
                 channel.put(('error', error))
             else:
+                publish_branch('cbh_anl', status='complete')
                 channel.put(('result', value))
 
         # A daemon worker is deliberate. On SIGTERM the main-thread VRC

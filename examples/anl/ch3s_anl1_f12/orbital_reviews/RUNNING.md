@@ -15,27 +15,25 @@ initial minima but encountered a sulfur-atom Gaussian QC-SCF failure. The
 r4 restart used the same preset and a [bounded SCF retry](../../../../docs/GAUSSIAN_SCF_RECOVERY_2026-10-16.md).
 The later native atomic-symmetry test met Conver10 in 9 cycles. The general
 atom policy and a strict reader now address the earlier false-success SCF.
-The 22:17 PDT r4 snapshot permits continuing: CH3S C-S is accepted with
-later converged sulfur conformer/L2 results; CH3SS initial L2 is still running.
-A pull updates new workers and the monitor without stopping jobs. The clean
-restart command below is optional and replaces r4 with r5.
+The later r5 run reached CBH-ANL and VRC but exposed downstream interface failures. The current handoff replaces r5 with fresh r6 runs after the repairs and numerical-policy changes described below.
 
 The current inputs are **one JSON per PES**: all channel, state, solver and
 orbital-index choices are inline. The obsolete separate surface/state JSON
 files have been removed. Only the six hash-checked binary orbital checkpoints
 are staged as data. Methods explicitly read CAS(5,4) or CAS(7,5). RotdPy's
 statistical target is **1%**. Final L1/L2 and automatic L3 force thresholds
-are **0.0001 eV/angstrom**, with SCF Conver10 / Molpro 1e-10 and CC 1e-8.
+are **0.0005 eV/angstrom**, with SCF Conver8 / Molpro 1e-8 and CC/CASPT2/MRCI energy 1e-7. CASSCF orbital settings and the distinct coefficient tolerances remain as documented in PARAMETERS.md.
 Preflight renders both Gaussian profiles and every declared CASPT2
 channel/root/basis before stopping the old run.
 
-## Current saved-results restart (17 October)
+## Current fresh restart (17 October)
 
-Use [the shared handoff commands](../../tools/README.md#resume-accepted-results-after-the-downstream-repairs)
-for the latest `_r5_dft` in-place resume and monitor. The earlier fresh-restart
-commands below are historical. The [downstream repair record](../../../../docs/PRODUCTION_DOWNSTREAM_REPAIR_2026-10-17.md)
-describes cache preservation and the external failure archive. Experimental
-CH3S/SH levels, their additive ANL SO corrections and MESS/PF use are documented in the
+Use [the shared handoff commands](../../tools/README.md#fresh-two-pes-restart-after-the-downstream-repairs)
+for the fresh `_20261017_r6_dft_scf8` runs and monitor. Both old r5 trees are
+stopped and archived after preflight; no old calculated results or cross-PES
+results are reused. The [numerical/restart record](../../../../docs/PRODUCTION_CONVERGENCE_RESTART_2026-10-17.md)
+records fixes, tolerance meanings and the 5000 K screening policy. Experimental
+CH3S/SH levels, additive ANL SO corrections and MESS/PF use are documented in the
 [spectroscopy review](../../../../docs/SULFUR_ELECTRONIC_LEVELS_2026-10-17.md).
 
 ## Accepted electronic model
@@ -107,7 +105,7 @@ remains pending; the isolated Gaussian check is optional.
    TS and IRC checks determine accepted chemistry. Preliminary constrained
    searches, scan references and IRC calculations retain the L1 profile too;
    legacy AM1/MP2 defaults do not replace it. No UMA model is loaded.
-   The search barrier cutoff is **1000 kcal/mol**, with all reaction families
+   The L2 search barrier cutoff is **400 kcal/mol** (L1 screening: 410), with all reaction families
    enabled. Only the three explicitly reviewed initial-well homolytic bonds
    receive VRC treatment; newly found isomers do not silently reuse their
    orbital records merely because the element counts match.
@@ -178,8 +176,8 @@ every nested state/orbital/surface control, consequential defaults, and which
 keys existed in master versus this branch. Transport epsilon/sigma and the
 default energy-relaxation model are provisional example choices, not measured
 or fitted evidence for these systems. They matter for pressure-dependent rates.
-The 1000 kcal/mol search cutoff is separate from MESS's 400 kcal/mol model
-energy limit. See also the [backend/interface audit](../../ch3ss_anl1_f12/orbital_reviews/joint_history/docs/CASPT2_PRODUCTION_TRANSITION_2026-10-16.md).
+The 400 kcal/mol L2 search cutoff is separate from MESS's 800 kcal/mol model
+energy limit. MESS and RotdPy explicitly cover 300–5000 K. See also the [backend/interface audit](../../ch3ss_anl1_f12/orbital_reviews/joint_history/docs/CASPT2_PRODUCTION_TRANSITION_2026-10-16.md).
 
 ## Prepare and launch on Blodgett
 
@@ -201,7 +199,8 @@ BASH
 ```
 
 The script calls `run_examples.py launch NEW --replace-production OLD` with the
-previous `_r4_dft` production directory and a fresh `_r5_dft` destination. It inventories
+previous `_20261016_r5_dft` production directory and a fresh
+`_20261017_r6_dft_scf8` destination. It inventories
 both old PES trees, stops their detached controllers and scoped Slurm jobs,
 waits for teardown, then archives the common parent as `.stopped.*`.
 It launches fresh detached controllers on the login host. It never uses
@@ -221,13 +220,12 @@ The controller can use fewer allocations while dependencies are pending.
 The actual scheduler's `ExcNodeList` remains the runtime verification.
 
 ```bash
-# If you opted for the clean restart, change _r4_dft to _r5_dft.
-watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft --all'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261017_r6_dft_scf8'
 ```
 
 ```bash
 /home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py \
-  monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft --follow
+  monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261017_r6_dft_scf8 --follow
 ```
 
 The helper refuses a duplicate launch after `launch.json` exists. `--all`

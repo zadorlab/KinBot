@@ -268,6 +268,77 @@ def test_active_run_refused_before_archiving(repair, tmp_path, monkeypatch):
     assert not list(tmp_path.glob('*.repair_archive.*'))
 
 
+def test_vrc_fragments_survive_scan_archive_and_old_archive_is_recoverable(repair, tmp_path, monkeypatch):
+    from ase import Atoms
+    from ase.db import connect
+    from kinbot.qc import QuantumChemistry
+    root = tmp_path / 'run'
+    case = root / 'ch3s'
+    worker = case / 'well'
+    vrc = worker / 'vrctst'
+    (vrc / 'molpro_scan/point').mkdir(parents=True)
+    atomic_json(vrc / 'molpro_scan/point/state.json',
+                {'tasks': {'relaxed_scan': {'status': 'failed'}}})
+    db = connect(str(worker / 'kinbot.db'))
+    db.write(Atoms('HH', positions=[[0, 0, 0], [0, 0, .74]]),
+             name='vrctst/fragment_vts', data={'energy': -1., 'status': 'normal'})
+    expected = {'.log': 'Normal termination of Gaussian 16\ndone\n',
+                '.chk': 'accepted checkpoint', '.exitcode': '142 0\n',
+                '.com': 'accepted input', '.py': 'original worker'}
+    for suffix, text in expected.items():
+        (vrc / ('fragment_vts' + suffix)).write_text(text)
+    # Reproduce the previous helper's broad archive exactly, then a resume
+    # that rewrites only the worker script and sees an old database job ID.
+    old = repair.Archive(root)
+    old.save(vrc, move=True, group='invalid_vrc')
+    vrc.mkdir()
+    (vrc / 'fragment_vts.py').write_text('regenerated worker')
+    current = repair.Archive(root)
+    restored = repair.restore_archived_vrc_fragments(root, case, current)
+    assert len(restored) == 4
+    assert (vrc / 'fragment_vts.py').read_text() == 'regenerated worker'
+    for suffix in ('.log', '.chk', '.exitcode', '.com'):
+        assert (vrc / ('fragment_vts' + suffix)).read_text() == expected[suffix]
+    assert not (vrc / 'molpro_scan').exists()  # wrong-geometry scans not restored
+    assert repair.restore_archived_vrc_fragments(root, case, current) == []
+    (vrc / 'molpro_scan/point').mkdir(parents=True)
+    atomic_json(vrc / 'molpro_scan/point/state.json',
+                {'tasks': {'relaxed_scan': {'status': 'failed'}}})
+    moved = repair.archive_invalid_vrc(vrc, current)
+    assert len(moved) == 1 and not (vrc / 'molpro_scan').exists()
+    assert (vrc / 'fragment_vts.chk').read_text() == expected['.chk']
+    # The ordinary QC cache reader must accept the restored generation
+    # without querying Slurm, polling 60 seconds, or submitting another job.
+    monkeypatch.chdir(worker)
+    qc = QuantumChemistry.__new__(QuantumChemistry)
+    qc.db, qc.qc, qc.queuing, qc.use_sella = db, 'gauss', 'slurm', True
+    qc.job_ids = {'vrctst/fragment_vts': '142'}
+    qc.job_generation_tagged = {'vrctst/fragment_vts': True}
+    monkeypatch.setattr('kinbot.qc._slurm_job_active',
+                        lambda *args: pytest.fail('completed fragment queried in Slurm'))
+    assert qc.check_qc('vrctst/fragment_vts') == 'normal'
+
+
+def test_vrc_restore_refuses_to_overwrite_new_native_output(repair, tmp_path):
+    from ase import Atoms
+    from ase.db import connect
+    root = tmp_path / 'run'
+    case = root / 'ch3ss'
+    vrc = case / 'well/vrctst'
+    vrc.mkdir(parents=True)
+    connect(str(vrc.parent / 'kinbot.db')).write(
+        Atoms('H'), name='vrctst/fragment_vts', data={'status': 'normal'})
+    (vrc / 'fragment_vts.exitcode').write_text('142 0\n')
+    (vrc / 'fragment_vts.log').write_text('Normal termination of Gaussian\n')
+    old = repair.Archive(root)
+    old.save(vrc, move=True, group='invalid_vrc')
+    vrc.mkdir()
+    (vrc / 'fragment_vts.log').write_text('new calculation evidence')
+    with pytest.raises(ValueError, match='differs from archived'):
+        repair.restore_archived_vrc_fragments(root, case, repair.Archive(root))
+    assert (vrc / 'fragment_vts.log').read_text() == 'new calculation evidence'
+
+
 def test_interrupted_two_case_repair_finishes_after_inputs_already_updated(repair, tmp_path, monkeypatch):
     import run_examples
     from kinbot import run_cleanup

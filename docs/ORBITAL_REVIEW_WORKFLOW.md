@@ -599,7 +599,7 @@ Campaign execution settings can be supplied in `ROOT/campaign_settings.json`
     "scf": {"energy_convergence": 1e-8, "max_iterations": 2000},
     "casscf": {"energy_convergence": 1e-8, "gradient_convergence": 1e-5, "max_iterations": 999},
     "correlation": {
-      "energy_convergence": 1e-8, "coefficient_convergence": 1e-5,
+      "energy_convergence": 1e-7, "coefficient_convergence": 1e-5,
       "max_iterations": 2000, "max_reference_iterations": 2000,
       "max_reference_vectors": 60
     }
@@ -630,7 +630,7 @@ new submissions and explicit `retry-failed --job-id` targets. Completed results
 retain their original settings; running or queued jobs are not rewritten.
 Energy thresholds are in hartree. The coefficient tolerance is a norm: `1e-5`
 means the literal Molpro `THRVAR=1e-10`, not `1e-20`. MR calculations also receive
-local `THRDEN=1e-8`, independent of SCF settings. Fresh generated MR inputs and
+local `THRDEN=1e-7`, independent of SCF settings. Fresh generated MR inputs and
 production VRC MR inputs use these two defaults unless overridden in the state
 model's `correlation_options`. The legacy coupling of global COEFF to the SCF
 energy tolerance was a bug. No convergence checks are bypassed. A numerical

@@ -47,7 +47,7 @@ def test_native_controls_preserve_chemistry_and_are_idempotent():
 @pytest.mark.parametrize('method', ['CASPT2(5,4)', 'CASPT2-F12(5,4)', 'MRCI+Q(5,4)', 'MRCI-F12+Q(5,4)'])
 def test_production_and_recon_share_explicit_mr_tolerances(method):
     deck, _ = _vrc_multireference_method(method, 25, 1)
-    assert 'thrden=1.d-8,thrvar=1.d-10' in deck
+    assert 'thrden=1.d-7,thrvar=1.d-10' in deck
     deck, _ = _vrc_multireference_method(method, 25, 1, state_model={
         'state_average': [{'multiplicity': 2, 'roots': 1, 'weights': [1]}],
         'selected_roots': {'2': 1},

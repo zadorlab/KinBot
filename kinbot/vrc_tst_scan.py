@@ -682,14 +682,15 @@ class VTS:
                     'gradient_mode': self.par.get(
                         'vrc_tst_scan_gradient', 'auto'),
                     'scf_convergence': self.par.get(
-                        'vrc_tst_scf_convergence', 1.e-10),
+                        'vrc_tst_scf_convergence', 1.e-8),
                     'correlation_convergence': self.par.get(
-                        'vrc_tst_correlation_convergence', 1.e-8),
+                        'vrc_tst_correlation_convergence', 1.e-7),
                 },
                 'label': f'RS2-{method.upper()}/{basis}',
             },
             'optimizer': {
-                'fmax': 0.03, 'steps': 100, 'order': 0,
+                'fmax': self.par.get('vrc_tst_scan_fmax', 5.e-4),
+                'steps': 100, 'order': 0,
                 'sella_kwargs': {'internal': False},
                 'constraints': constraints,
             },

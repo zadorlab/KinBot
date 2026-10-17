@@ -116,7 +116,7 @@ def test_documented_molpro_force_input_and_parser_contract():
     deck = render_input(atoms, basis='cc-pVTZ', geometry_name='step.xyz')
     assert ('set,charge=0\nset,spin=0\n'
             'gthresh,energy=1.d-10,coeff=1.d-8,civec=1.d-8\n') in deck
-    assert ('rhf\nuccsd(t)\nkb_geom_energy=energy\n'
+    assert ('rhf\n{uccsd(t);thresh,energy=1.d-8,coeff=1.d-10}\nkb_geom_energy=energy\n'
             'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             'put,xyz,step.xyz') in deck
     assert 'optg' not in deck.lower()
@@ -425,5 +425,5 @@ def test_molpro_calculator_and_input_support_restricted_open_shell():
                                 [-0.9, 0, -0.3]]),
         basis='cc-pVTZ', geometry_name='ch3.xyz', charge=0, mult=2)
     assert 'set,charge=0\nset,spin=1' in deck
-    assert '\nrhf\nuccsd(t)\n' in deck.lower()
+    assert '\nrhf\n{uccsd(t);thresh,energy=1.d-8,coeff=1.d-10}\n' in deck.lower()
     assert 'uhf_uccsd' not in deck.lower()

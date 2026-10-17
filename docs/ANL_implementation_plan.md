@@ -400,11 +400,11 @@ into each calculation directory, rechecks the hash, and emits Molpro `FILE`
 and `START` directives. This makes a manually selected orbital ordering
 reproducible without embedding molecule-specific orbital numbers in KinBot.
 
-Automatic ANL calculations use `anl_scf_convergence=1e-10` and
-`anl_cc_convergence=1e-8` by default.  The values are translated into native
+Automatic ANL calculations use `anl_scf_convergence=1e-8` and
+`anl_cc_convergence=1e-7` by default.  The values are translated into native
 Gaussian, Molpro, CFOUR, and MRCC controls.  VRC calculations independently
-use `vrc_tst_scf_convergence=1e-10` and
-`vrc_tst_correlation_convergence=1e-8`, allowing expert inputs to change VRC
+use `vrc_tst_scf_convergence=1e-8` and
+`vrc_tst_correlation_convergence=1e-7`, allowing expert inputs to change VRC
 thresholds without weakening the thermochemistry graph.
 
 ROTD_py owns and records every submitted sample job. Resume logic counts

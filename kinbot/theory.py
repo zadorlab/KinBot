@@ -53,6 +53,17 @@ def fortran_threshold(value, label='convergence threshold'):
     return f'1.d-{exponent}'
 
 
+def molpro_cc_thresholds(value):
+    """CC energy tolerance and a squared-amplitude tolerance no looser than default.
+
+    Molpro THRESH,COEFF tests the square sum of amplitude changes, unlike
+    CFOUR CC_CONV. Do not loosen Molpro's 1e-10 amplitude default when the
+    user requests an energy threshold such as 1e-7.
+    """
+    return (fortran_threshold(value, 'CC convergence'),
+            fortran_threshold(min(value, 1.e-10), 'CC squared-amplitude convergence'))
+
+
 def automatic_cbh_anl_requested(parameters):
     """Return whether an ordinary input requests the production solver.
 
@@ -139,7 +150,7 @@ THEORY_PRESETS = {
             'calculator_kwargs': {
                 'EmpiricalDispersion': 'GD3BJ',
                 'Symm': 'None',
-                'scf': 'xqc,conver=10',
+                'scf': 'xqc,conver=8',
                 'integral': 'UltraFine',
             },
             'optimizer': 'sella',
@@ -153,7 +164,7 @@ THEORY_PRESETS = {
             'calculator_kwargs': {
                 'EmpiricalDispersion': 'GD3BJ',
                 'Symm': 'None',
-                'scf': 'xqc,conver=10',
+                'scf': 'xqc,conver=8',
                 'integral': 'UltraFine',
             },
             'optimizer': 'sella',
@@ -316,15 +327,21 @@ def resolve_profiles(par):
         values = _merge(values, override)
         values['calculator'] = _ALIASES.get(values['calculator'].lower(),
                                             values['calculator'].lower())
-        if (level == 'l2' and par.get('composite_method')
+        if ((level == 'l2' and par.get('composite_method')
+             or par.get('theory_preset') == 'b3lyp-b2plyp-anl')
                 and values['calculator'] == 'gaussian'):
             exponent = convergence_exponent(
-                par.get('anl_scf_convergence', 1.e-10),
+                par.get('anl_scf_convergence', 1.e-8),
                 'anl_scf_convergence')
-            values['calculator_kwargs'] = {
-                **values.get('calculator_kwargs', {}),
-                'scf': f'xqc,conver={exponent}',
-            }
+            # A per-profile SCF control remains an explicit user override.
+            # Otherwise apply the common threshold to both DFT preset levels.
+            if not any(k.lower() == 'scf' for k in override.get('calculator_kwargs', {})):
+                from kinbot.gaussian_input import merge_route_options
+                kwargs = dict(values.get('calculator_kwargs', {}))
+                key = next((k for k in kwargs if k.lower() == 'scf'), 'scf')
+                kwargs[key] = merge_route_options(kwargs.get(key, 'xqc'),
+                                                 f'conver={exponent}')
+                values['calculator_kwargs'] = kwargs
         if values['calculator'] == 'fairchem':
             # Explicit profile > legacy/global option > portable preset.
             # Keeping this precedence preserves existing site-local inputs

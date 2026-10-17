@@ -301,8 +301,8 @@ def _rotdpy_sampling_calculator(par, pp_info, metadata):
         'state_models_by_basis': {basis: models[basis] for basis in bases},
         'shift': par.get('vrc_tst_scan_shift', 0.1),
         'ipea': par.get('vrc_tst_scan_ipea', 0.25),
-        'scf_convergence': par.get('vrc_tst_scf_convergence', 1.e-10),
-        'correlation_convergence': par.get('vrc_tst_correlation_convergence', 1.e-8),
+        'scf_convergence': par.get('vrc_tst_scf_convergence', 1.e-8),
+        'correlation_convergence': par.get('vrc_tst_correlation_convergence', 1.e-7),
     }
 
 

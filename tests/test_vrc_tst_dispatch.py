@@ -389,6 +389,40 @@ def test_molpro_dispatch_normalizes_numpy_charge_and_multiplicity():
             os.chdir(previous)
 
 
+@pytest.mark.parametrize('fmax', [None, 2.e-4])
+def test_relaxed_scan_dispatch_receives_force_and_electronic_thresholds(
+        tmp_path, monkeypatch, fmax):
+    monkeypatch.chdir(tmp_path)
+    geom = np.asarray([[0., 0., 0.], [0., 0., 2.5]])
+    reaction = SimpleNamespace(
+        scan_coo=[0, 1], equiv=[[0], [1]], products=[],
+        species=SimpleNamespace(atom=['H', 'H'], charge=0, mult=1))
+    par = dict(vrc_tst_scan_method='caspt2(2,2)', vrc_tst_scan_basis='vdz',
+               vrc_tst_walltime='01:00:00', single_point_ppn=4,
+               vrc_tst_min_stack_mw=50, queue_name='short')
+    if fmax is not None:
+        par['vrc_tst_scan_fmax'] = fmax
+    captured = {}
+
+    class Prepared(Exception):
+        pass
+
+    def prepare(spec, run_dir):
+        captured.update(spec)
+        raise Prepared
+
+    monkeypatch.setattr('kinbot.anl.dispatch.prepare', prepare)
+    with pytest.raises(Prepared):
+        VTS(SimpleNamespace(), par, None)._molpro_multireference_scan_task(
+            reaction, geom, 2.5, 'test_point')
+    task = captured['tasks'][0]
+    assert task['optimizer']['fmax'] == (5.e-4 if fmax is None else fmax)
+    assert task['optimizer']['constraints']['fixed_bonds'] == [[0, 1]]
+    kw = task['profile']['calculator_kwargs']
+    assert kw['scf_convergence'] == 1.e-8
+    assert kw['correlation_convergence'] == 1.e-7
+
+
 def test_molpro_dispatch_surfaces_native_task_failure():
     with TemporaryDirectory() as temporary:
         previous = Path.cwd()

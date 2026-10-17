@@ -108,7 +108,7 @@ def test_same_print_contract_for_general_mr_methods(method):
     deck, selected = _vrc_multireference_method(method, 25, 1, state_model=model)
     assert 'gprint,orbitals,orben,civector,ref' in deck
     assert 'gthresh,thrprint=0.02,printci=0.03' in deck and 'orbprint,3' in deck
-    assert 'thrden=1.d-8,thrvar=1.d-10' in deck
+    assert 'thrden=1.d-7,thrvar=1.d-10' in deck
     if method.startswith('MRCI'):
         assert 'KBVRCSEL=energd(1)' in deck
     else:

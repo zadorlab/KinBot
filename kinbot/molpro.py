@@ -1069,10 +1069,10 @@ class Molpro:
                                        ))
         elif VTS:
             scf_threshold = fortran_threshold(
-                self.par.get('vrc_tst_scf_convergence', 1.e-10),
+                self.par.get('vrc_tst_scf_convergence', 1.e-8),
                 'vrc_tst_scf_convergence')
             correlation_threshold = fortran_threshold(
-                self.par.get('vrc_tst_correlation_convergence', 1.e-8),
+                self.par.get('vrc_tst_correlation_convergence', 1.e-7),
                 'vrc_tst_correlation_convergence')
             options = 'memory,3200,M\n' \
                       'GPRINT,ORBITALS,ORBEN,CIVECTOR\n' \
@@ -1142,7 +1142,14 @@ class Molpro:
                     case _:
                         method += (" {rhf;wf," +
                                    f"{nelectron},{symm},{spin}" + "}\n")
-                        method += "{}\n".format(l3_method)
+                        if re.match(r'^[ru]?ccsd', str(l3_method), re.I):
+                            from kinbot.theory import molpro_cc_thresholds
+                            cc_energy, cc_coefficient = molpro_cc_thresholds(
+                                self.par.get('vrc_tst_correlation_convergence', 1.e-7))
+                            method += (f'{{{l3_method};thresh,energy={cc_energy},'
+                                       f'coeff={cc_coefficient}}}\n')
+                        else:
+                            method += "{}\n".format(l3_method)
                         energy_expression = 'energy'
 
             with open('vrctst/molpro/' + fname + '.inp', 'w') as f:

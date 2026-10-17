@@ -152,7 +152,7 @@ def test_vrc_mrci_q_uses_davidson_corrected_energy():
     assert 'occ,10' in method
     assert 'closed,8' in method
     assert 'wf,18,1,0' in method
-    assert '{mrci,thrden=1.d-8,thrvar=1.d-10;option,cluster=0;}' in method
+    assert '{mrci,thrden=1.d-7,thrvar=1.d-10;option,cluster=0;}' in method
     assert 'KBVRCVAR=energy(1)' in method
     assert 'KBVRCSEL=energd(1)' in method
     assert energy == 'KBVRCSEL'

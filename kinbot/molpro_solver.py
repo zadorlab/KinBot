@@ -22,7 +22,7 @@ def validate_casscf_iterations(value, key='casscf_options.max_iterations'):
 
 def mr_thresholds(options):
     """Molpro THRVAR is a squared coefficient norm, not an energy tolerance."""
-    energy = fortran_threshold(options.get('energy_convergence', 1.e-8))
+    energy = fortran_threshold(options.get('energy_convergence', 1.e-7))
     exponent = convergence_exponent(options.get('coefficient_convergence', 1.e-5))
     return {'thrden': energy, 'thrvar': f'1.d-{2 * exponent}'}
 

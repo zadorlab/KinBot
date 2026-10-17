@@ -630,10 +630,10 @@ def build_network_request(root, parameters):
             'cores_per_job': int(parameters.get('ppn', 1)),
             'global_max_jobs': max_jobs,
             'scf_convergence': float(parameters.get(
-                'anl_scf_convergence', 1.e-10)),
+                'anl_scf_convergence', 1.e-8)),
             'cc_convergence': float(parameters.get(
-                'anl_cc_convergence', 1.e-8)),
-            'geometry_fmax': float(parameters.get('anl_geometry_fmax', 1.e-4)),
+                'anl_cc_convergence', 1.e-7)),
+            'geometry_fmax': float(parameters.get('anl_geometry_fmax', 5.e-4)),
             'minimum_recovery': parameters.get('anl_minimum_recovery', {}),
             'f12_augmented': bool(parameters.get(
                 'anl_f12_augmented', 0)),

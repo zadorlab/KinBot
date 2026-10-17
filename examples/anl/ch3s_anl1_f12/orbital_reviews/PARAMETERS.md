@@ -8,7 +8,13 @@ Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “
 | `smiles` | `"[CH3][S]"` / `"C[S][S]"` | Master key. Initial molecular connectivity; explicit hydrogens are generated in the recorded atom order. |
 | `charge` | `0` | Master key. Neutral total charge. |
 | `mult` | `2` | Master key. Doublet parent; fragment multiplicities are assigned separately. |
-| `barrier_threshold` | `1000.0` | Master key. Search cutoff in kcal/mol. 1000 keeps high candidate barriers available; it does not certify their stationary points or enlarge the MESS energy grid. |
+| `barrier_threshold_L2` | `400.0` | Master key. ZPE-corrected L2 barrier ceiling in kcal/mol; a conservative screen for the requested 5000 K maximum. |
+| `barrier_threshold_add` | `10.0` | Master key. L1 screening allowance above the L2 ceiling: resolved L1 limit is 410 kcal/mol. |
+| `TemperatureList` | `300,400,...,5000` | Master MESS/PF temperature list in kelvin. |
+| `rotdpy_temperature_grid` | `[300,100,1,48]` | Existing RotdPy grid hook: start, initial interval, interval multiplier, count. Matches the MESS temperature list. |
+| `rotdpy_energy_grid` | `[0,10,1.05,190]` | Existing grid hook in kelvin; retains the usual energy grid, ending near 4018 kcal/mol. |
+| `ModelEnergyLimit` | `800` | Master MESS partition-function/model energy ceiling, kcal/mol; separate from the reaction-search cutoff. |
+| `ExcessEnergyOverTemperature` | `30` | Master MESS control; relaxation matrix extends 30 RT above the highest model barrier. |
 | `conformer_search` | `1` | Master key. Search conformations before final thermochemistry. |
 | `high_level` | `1` | Master key. Refine accepted structures at the L2 profile. |
 | `rotor_scan` | `1` | Master key. Build hindered-rotor potentials where chemically applicable. |
@@ -57,12 +63,13 @@ Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “
 | `simultaneous_kinbot` | `1` | Master key. One PES worker at a time, so ten jobs per worker remains ten per PES rather than multiplying across wells. |
 | `rotdpy_flux_parameters` | nested object/list: detailed below | Branch hook. Monte Carlo minimum/maximum counts and 1 percent relative statistical target. A sample ceiling does not establish convergence. |
 | `vrc_tst_surface_model` | `nested inline object` | Inline channels, physical surfaces, per-bond CAS counts and basis-specific orbital indices/checkpoints, states, weights and solver controls. No second configuration file. |
-| `sella_fmax` | `1e-4` | Final L1/L2 maximum force norm 0.0001 eV/angstrom, followed by native Hessian validation. Gaussian Opt keywords do not control Sella. |
-| `anl_geometry_fmax` | `1e-4` | Final automatic L3 geometry maximum force norm 0.0001 eV/angstrom; configurable for every molecule. |
-| `anl_scf_convergence` | `1e-10` | SCF 1e-10 control: Gaussian density Conver=10; Molpro/CFOUR/MRCC backend-mapped threshold. |
-| `anl_cc_convergence` | `1e-8` | Coupled-cluster convergence 1e-8, mapped to each ANL backend. |
-| `vrc_tst_scf_convergence` | `1e-10` | Molpro VRC SCF convergence 1e-10. |
-| `vrc_tst_correlation_convergence` | `1e-8` | Molpro VRC correlation convergence 1e-8. |
+| `sella_fmax` | `5e-4` | Final L1/L2 maximum force norm 0.0005 eV/angstrom, followed by native Hessian validation. Gaussian Opt keywords do not control Sella. |
+| `anl_geometry_fmax` | `5e-4` | Final automatic L3 geometry maximum force norm 0.0005 eV/angstrom; configurable for every molecule. |
+| `anl_scf_convergence` | `1e-8` | SCF 1e-8 control across DFT L1 and L2: Gaussian density Conver=8; Molpro/CFOUR/MRCC backend-mapped threshold. |
+| `anl_cc_convergence` | `1e-7` | Coupled-cluster convergence 1e-7, mapped to each ANL backend. |
+| `vrc_tst_scf_convergence` | `1e-8` | Molpro VRC SCF convergence 1e-8. |
+| `vrc_tst_scan_fmax` | `5e-4` | Maximum constrained force norm for Molpro relaxed scans, eV/angstrom. |
+| `vrc_tst_correlation_convergence` | `1e-7` | Molpro VRC CC energy convergence 1e-7; local CASPT2 controls are specified in each basis model. |
 | `minimum_recovery_attempts` | `2` | Branch hook. Bounded Gaussian L1/L2 minimum descent and reoptimization, with fresh native Hessian each time. |
 | `minimum_recovery_displacement` | `0.02` | Branch hook. Full Cartesian displacement in angstrom; second attempt uses 0.04. Both signs must be evaluated. |
 | `imagfreq_threshold` | `50.0` | Existing minimum/TS frequency policy, in cm^-1. No threshold relaxation was used to accept the failed minima. |
@@ -84,7 +91,7 @@ Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “
 
 `energy_selection={"4":"lowest"}` evaluates the full declared correlated quartet manifold with the same shared reference and chooses the minimum for the ground-state CC correction anchor in all three channels. CH3S needs this at the reviewed center point; one-root CH3SS C–S adds no work, while S–S retains protection if the reference order changes during the relaxed cut. It is a reusable energy-only policy; it does not claim state-character tracking or permit a mismatched gradient. Reconnaissance always reports individual root energies, even when a production model contains this selector.
 
-`casscf_options`: `solver=so_sci`, `exact_diagonalization=true`, `quasi_newton=true`, `energy_convergence=1e-8`, `gradient_convergence=1e-5`, `max_iterations=999`. `correlation_options`: `reference_policy=state_average` sends the full same-spin REFSTATE and equal WEIGHT values; `energy_convergence=1e-8`, `coefficient_convergence=1e-5` gives native THRVAR=1e-10, `max_iterations=2000`, `max_reference_iterations=2000`, `max_reference_vectors=60`. These are not the obsolete THRVAR=1e-20 settings. Molpro numerical failure invalidates the whole point.
+`casscf_options`: `solver=so_sci`, `exact_diagonalization=true`, `quasi_newton=true`, `energy_convergence=1e-8`, `gradient_convergence=1e-5`, `max_iterations=999`. `correlation_options`: `reference_policy=state_average` sends the full same-spin REFSTATE and equal WEIGHT values; `energy_convergence=1e-7`, `coefficient_convergence=1e-5` gives native THRVAR=1e-10, `max_iterations=2000`, `max_reference_iterations=2000`, `max_reference_vectors=60`. These are not the obsolete THRVAR=1e-20 settings. Molpro numerical failure invalidates the whole point.
 
 ## Relevant implicit settings
 
@@ -120,7 +127,7 @@ The constrained correction scan defaults to 2.5–19.9 angstrom in 0.2 steps plu
 
 RotdPy uses the existing 0.85 local recrossing factor once. Its temperature, energy and angular grids default to [10,10,1.05,70], [0,10,1.05,190], [0,1,1.1,80] in RotdPy grid notation. Slurm retry budgets and all native inputs/results retain execution history. This is not a new trajectory-based dynamical calculation.
 
-MESS defaults: 300–2000 K in 100 K increments; pressures 7.6,76,760,7600,76000 Torr; direct solver; ModelEnergyLimit 400 kcal/mol; EnergyStepOverTemperature 0.2; ExcessEnergyOverTemperature 30; ChemicalEigenvalueMax 0.2. Exponential-down energy relaxation uses Factor 200 cm^-1, Power 0.85, ExponentCutoff 15. These transport/collision assumptions are distinct from the 1000 kcal/mol reaction-search cutoff and need scrutiny for quantitative pressure-dependent rates.
+MESS explicitly uses 300–5000 K in 100 K increments and ModelEnergyLimit 800 kcal/mol. Unchanged defaults: pressures 7.6,76,760,7600,76000 Torr; direct solver; EnergyStepOverTemperature 0.2; ChemicalEigenvalueMax 0.2. The explicit ExcessEnergyOverTemperature 30 retains its usual value. Exponential-down energy relaxation uses Factor 200 cm^-1, Power 0.85, ExponentCutoff 15. These transport/collision assumptions are distinct from the 400 kcal/mol L2 reaction-search cutoff and need scrutiny for quantitative pressure-dependent rates. The general temperature, energy-grid and barrier defaults are unchanged; these are per-example JSON choices.
 
 All reaction families are searched on each explored well, but the explicit homolytic-bond map enables only the three reviewed initial-well VRC channels. Newly found isomers do not automatically inherit a sulfur seed with matching element counts. Geometry/TS/IRC checks determine the accepted network. The candidate inventory is not a prediction that every candidate is a real pathway.
 
@@ -145,12 +152,12 @@ with documented Molpro `ROTATE,i.1,j.1,0` exchanges. Already packed records
 require no exchange; continued checkpoints explicitly use the packed indices
 and preserve the alignment choice. See the [general interface](../../../../docs/ORBITAL_REVIEW_WORKFLOW.md).
 
-Final L1/L2 and automatic L3 use `fmax=1e-4` eV/angstrom (about
-1.94e-6 Eh/bohr). This is the VeryTight force scale, not a claim that Sella
-uses Gaussian Berny's full force/displacement test. Gaussian
-[VeryTight belongs to Berny](https://conflex.co.jp/gaussian_support/opt.php).
-The independent frequency test remains required. Preliminary constrained TS
-path steps retain their looser exploration criterion. VRC constrained
-CASPT2 numerical-gradient relaxation has its own controls and is not an L1/L2
-stationary-point optimization. SCF Conver=10 controls Gaussian density
-convergence; it must not be described as a 1e-10 total-energy error bound.
+Final L1/L2 and automatic L3 use `fmax=5e-4` eV/angstrom (about
+9.72e-6 Eh/bohr), a tight force criterion. Sella does not use Gaussian Berny's
+complete force/displacement test. Native Hessian validation remains required;
+preliminary constrained reaction-search steps keep their exploration criteria.
+Molpro VRC relaxation uses the explicit `vrc_tst_scan_fmax=5e-4` force threshold.
+SCF Conver=8 controls Gaussian density convergence, not a 1e-8 energy-error bound.
+Molpro CC uses local energy 1e-7 and squared-amplitude 1e-10; CASPT2 uses
+THRDEN=1e-7 and THRVAR=1e-10. CASSCF orbital convergence is unchanged.
+See the [restart numerical contract](../../../../docs/PRODUCTION_CONVERGENCE_RESTART_2026-10-17.md).

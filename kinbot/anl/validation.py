@@ -32,7 +32,7 @@ from kinbot.anl.recipes import (ANL0_NATIVE_REFERENCE_BASES,
 from kinbot.anl.results import legacy_molpro_parser
 from kinbot.anl.tasks import (higher_order_task, molpro_ccsdt_command,
                               molpro_task as native_molpro_task)
-from kinbot.theory import (convergence_exponent, fortran_threshold)
+from kinbot.theory import (convergence_exponent, fortran_threshold, molpro_cc_thresholds)
 from kinbot.anl.workflow import (_verified_task_result,
                                  atomic_zero_vibrational_component,
                                  cbs_task_component,
@@ -193,7 +193,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
                 'KinBot DBOC interface validation\n{{CARTESIAN}}\n\n'
                 '*CFOUR(CALC=SCF\nBASIS=cc-pVTZ\nDBOC=ON\n'
                 'COORDINATES=CARTESIAN\nUNITS=ANGSTROM\nCHARGE={{CHARGE}}\n'
-                'MULTIPLICITY={{MULT}}\nMEM_UNIT=MB\n'
+                'MULTIPLICITY={{MULT}}\nSCF_CONV=10\nMEM_UNIT=MB\n'
                 'MEMORY_SIZE={{WORK_MEMORY_MB}})\n'),
             'command': ['xcfour'], 'stdout': 'cfour.out',
             'stderr': 'cfour.err', 'required_outputs': ['cfour.out'],
@@ -806,9 +806,9 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                              vpt2_method='B2PLYP',
                              vpt2_basis='cc-pVTZ',
                              vpt2_dispersion='GD3BJ',
-                             scf_convergence=1.e-10,
-                             cc_convergence=1.e-8,
-                             geometry_fmax=1.e-4,
+                             scf_convergence=1.e-8,
+                             cc_convergence=1.e-7,
+                             geometry_fmax=5.e-4,
                              minimum_recovery=None,
                              f12_augmented=False):
     """Build the automatic post-L2 graph for one stable point or tight TS.
@@ -840,7 +840,7 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
     cc_exponent = convergence_exponent(
         cc_convergence, 'CC convergence')
     scf_threshold = fortran_threshold(scf_convergence, 'SCF convergence')
-    cc_threshold = fortran_threshold(cc_convergence, 'CC convergence')
+    cc_threshold, cc_coefficient = molpro_cc_thresholds(cc_convergence)
     if isinstance(geometry_fmax, bool) or not isinstance(geometry_fmax, (int, float)) or not math.isfinite(geometry_fmax) or geometry_fmax <= 0:
         raise ValueError('geometry_fmax must be a positive finite force threshold in eV/angstrom.')
     source = molecule.get('source') if isinstance(molecule, dict) else None
@@ -1015,9 +1015,9 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                  f'civec={cc_threshold}'), template,
                 flags=re.IGNORECASE | re.MULTILINE)
             template = re.sub(
-                r'thresh\s*,\s*energy\s*=\s*1\.d-\d+\s*,\s*'
+                r'(?<![A-Za-z])thresh\s*,\s*energy\s*=\s*1\.d-\d+\s*,\s*'
                 r'coeff\s*=\s*1\.d-\d+',
-                f'thresh,energy={cc_threshold},coeff={cc_threshold}',
+                f'thresh,energy={cc_threshold},coeff={cc_coefficient}',
                 template, flags=re.IGNORECASE)
         elif task.get('backend') == 'mrcc':
             template = re.sub(r'^sctol=\d+$', f'sctol={scf_exponent}',

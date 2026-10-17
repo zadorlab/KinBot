@@ -1,5 +1,7 @@
 # Downstream repairs after the r5 overnight run
 
+**Superseded restart choice:** the user now requests a full clean restart of both PES, with no result reuse and relaxed numerical tolerances. Use the [current restart contract](PRODUCTION_CONVERGENCE_RESTART_2026-10-17.md); the saved-results instructions below are historical.
+
 ## Native evidence and diagnosis
 
 Run: `/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r5_dft`.

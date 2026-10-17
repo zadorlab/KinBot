@@ -6,6 +6,12 @@ and launches them on Blodgett; subsequent failures/results will be reviewed
 through completion. Example/configuration cleanup is complete; purging historical native evidence
 remains deferred until production finishes.
 
+Latest local verification: **1930 tests + 424 subtests** passed, followed by
+**53 tests + 11 subtests** after the 5000 K screening/input change. The
+[current validation record](convergence_restart_validation.json) includes
+commands, native smoke-test coverage and limits. Passing these checks does
+not certify the remaining native Gaussian/Molpro production calculations.
+
 **Repair update, 16 October 2026:** the first launch at 18:31 PDT (`c340cc89`)
 passed the five small backend preflight tests and archived nine old campaigns,
 but both initial L2 jobs failed at 18:35 with a malformed Gaussian SCF option
@@ -19,11 +25,14 @@ relaxed scan, then failed in interfaces documented in the
 The repairs place WFU loading before the requested Molpro geometry in every
 production renderer, separate Gaussian VPT2 framework labels from its symmetry
 cap, bypass VPT2 symmetry processing, and preserve requested CBH reference
-identity across equivalent bond-order perception. The user selected saved-results
-resume in `_r5_dft`, with an external archive of obsolete attempts and fresh
-controller logs, using the commands below. Native confirmation of these repairs
-and completion of ANL/RotdPy/MESS remain pending. The barrier cutoff remains
-1000; it did not cause these failures and does not prevent failed TS searches.
+identity across equivalent bond-order perception. After a subsequent SH SCF
+failure and a resume bug that moved fragment checkpoints, the user selected a
+**full fresh restart**, with no calculated results reused between the PES or
+from r5. The [convergence and restart record](../../../docs/PRODUCTION_CONVERGENCE_RESTART_2026-10-17.md)
+documents the repairs and the new numerical settings. Native confirmation of these repairs
+and completion of ANL/RotdPy/MESS remain pending. The previous 1000 kcal/mol cutoff did not cause these interface failures.
+The new user-selected screening policy uses 400 kcal/mol at L2, with a
+10 kcal/mol L1 allowance, for temperatures through 5000 K.
 
 This repair passed **403 regression tests and five native RotdPy/MESS/MESSPF
 checks**. [Commands, source hashes and limits](downstream_repair_validation.json)
@@ -61,8 +70,11 @@ The current inputs are **one JSON per PES**: all channel, state, solver and
 orbital-index choices are inline. The obsolete separate surface/state JSON
 files have been removed. Only the six hash-checked binary orbital checkpoints
 are staged as data. Methods explicitly read CAS(5,4) or CAS(7,5). RotdPy's
-statistical target is **1%**. Final L1/L2 and automatic L3 force thresholds
-are **0.0001 eV/angstrom**, with SCF Conver10 / Molpro 1e-10 and CC 1e-8.
+statistical target is **1%**. Final L1/L2, automatic L3 and constrained VRC force
+thresholds are **0.0005 eV/angstrom**, with SCF Conver8 / Molpro 1e-8 and
+CC/CASPT2/MRCI energy convergence 1e-7. Molpro coefficient tolerances remain
+separate: CC squared-amplitude and CAS/MRCI `THRVAR` are 1e-10. The reviewed
+CASSCF orbital energy/gradient tolerances remain 1e-8/1e-5.
 Preflight renders both Gaussian profiles and every declared CASPT2
 channel/root/basis before stopping the old run.
 
@@ -93,7 +105,8 @@ Production uses ordinary **single-bottleneck VRC**, CASPT2-F12 sampling at
 aDZ-F12, a constrained relaxed CASPT2-F12/aTZ-F12 target-root scan, and
 aDZ/aTZ spin gaps extrapolated with **exponent 3.7** and anchored to ground
 high-spin ROHF-UCCSD(T)-F12b/aTZ-F12. **IPEA=0.25, real SHIFT=0.1 Eh** apply
-to all new CASPT2 stages. MRCI is excluded. The search cutoff is 1000 kcal/mol.
+to all new CASPT2 stages. MRCI is excluded. The L2 search cutoff is 400 kcal/mol (L1: 410); MESS/RotdPy cover 300–5000 K.
+MESS ModelEnergyLimit is 800 kcal/mol, separate from the search cutoff.
 ANL1-F12/CBH thermochemistry is a separate, higher-level workflow.
 
 The user subsequently verified all 27 H/C/S basis-library lookups on Blodgett
@@ -145,31 +158,24 @@ experimental sources, the complete discovered inventory, the CH3S JT caveat,
 and separate energy-zero/partition-function uses. Transport parameters remain
 provisional example estimates.
 
-## Resume accepted results after the downstream repairs
+## Fresh two-PES restart after the downstream repairs
 
-The helper checks the saved `_r5_dft` run, including rendered inputs and small
-native backend tests. Both PES must be inactive; otherwise it leaves their
-jobs untouched and refuses migration. It retains accepted calculations and
-genuine reaction rejections, archives obsolete attempts/controller logs in a
-dated `.repair_archive.*` sibling, updates the experimental levels and SO
-corrections, archives obsolete derived thermochemistry/MESS files,
-and resumes both controllers detached on the login host. SH's successful VPT2
-is reparsed without QC. Failed H2S VPT2 and the invalid first VRC scans are
-restaged. HSS's accepted L2 reference is retained with checked identity handling.
-Full reports are saved; terminal output summarizes the archive and launch PIDs.
-
-If the earlier invocation stopped with `cannot migrate unavailable`, pull the
-repair and rerun this same block. The helper now recognizes optional native
-VPT2 failures and finishes a partially applied input/derived-data migration.
-Accepted QC is retained; this does not require a fresh PES search. Preflight
-unavailability is not treated as a native symmetry failure.
+The helper prepares `_20261017_r6_dft_scf8`, checks the rendered inputs and
+runs the small native RotdPy/MESS/MESSPF tests before stopping anything. It
+then stops only both r5 PES trees, waits for their jobs/processes to disappear,
+and archives the complete r5 parent to a dated `.stopped.*` sibling. Both fresh
+controllers detach on the login host. The new run contains no old database,
+failure markers, energies or thermochemistry models. The reviewed WFU files
+remain orbital-selection inputs. No calculated results are shared across PES.
+Earlier external repair archives remain intact. Full reports are saved;
+terminal output summarizes the fresh paths and launch PIDs.
 
 ```bash
 bash <<'BASH'
 set -euo pipefail
 cd /home/hram/KinBot
 git pull --ff-only origin composite
-bash examples/anl/tools/resume_on_blodgett.sh
+bash examples/anl/tools/restart_on_blodgett.sh
 BASH
 ```
 
@@ -177,14 +183,11 @@ Each PES has one active worker and a 10-allocation cap: at most 20 allocations
 across the two runs. All eleven known bad nodes are excluded:
 `node[1,9-10,13-14,16,21,23-24,30,33]`. Actual scheduler exclusions remain a
 runtime check. Preparation saves complete resolved JSON and input hashes.
-The helper refuses duplicate launch. A preflight, active-job or unreviewed-failure
-check prevents launch; unrelated jobs and shared scratch remain untouched.
-The archive manifest records each original path. `resume_report.json` and
-`resume_provenance.json` record the migration. Accepted database/native records
-remain in place. Small failed-job markers retain negative cache decisions;
-the monitor identifies hash-matched historical outcomes separately. Old failure
-history remains accessible in the archive. Reconstructed rejection decisions
-can still appear in new logs; no scientific result is relabeled as successful.
+The helper refuses duplicate launch. Failed preflight or incomplete retirement
+prevents launch; unrelated jobs and shared scratch remain untouched.
+`production_retirement.*.json` records the scoped inventory and archive;
+`launch_report.json` records the new controllers. Old native evidence remains
+accessible in the archive. All reactions are reconsidered in the fresh search.
 
 Both automatic branches write `anl_automatic/electronic_state_audit.json`.
 It covers PES species, every planned CBH rung/reference, and terminal ATcT
@@ -193,11 +196,10 @@ identities, with input sources and any unreviewed open-shell states. The
 the requested future experimental SO database; present data remain explicit
 in each single input JSON.
 
-`restart_on_blodgett.sh` remains an optional **fresh r6 replacement** command;
-it is not the saved-results restart selected here.
+The old saved-results `resume_on_blodgett.sh` is not used for this restart.
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.run_monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r5_dft'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.run_monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261017_r6_dft_scf8'
 ```
 
 The parent directory monitors both PES. Both overviews appear first; routine

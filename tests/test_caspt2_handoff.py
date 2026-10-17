@@ -29,7 +29,27 @@ def test_prepared_package_is_portable_immutable_and_records_resolved_settings(ha
         assert resolved['vrc_tst_surface_model_file'] == ''
         assert resolved['vrc_tst_surface_model']['channels']
         assert resolved['rotdpy_flux_parameters']['flux_rel_err'] == 1
-        assert resolved['sella_fmax'] == resolved['anl_geometry_fmax'] == 1e-4
+        assert resolved['sella_fmax'] == resolved['anl_geometry_fmax'] == 5e-4
+        assert resolved['vrc_tst_scan_fmax'] == 5e-4
+        assert resolved['anl_scf_convergence'] == resolved['vrc_tst_scf_convergence'] == 1e-8
+        assert resolved['anl_cc_convergence'] == resolved['vrc_tst_correlation_convergence'] == 1e-7
+        assert resolved['barrier_threshold_L2'] == 400
+        assert resolved['barrier_threshold'] == 410
+        assert max(resolved['TemperatureList']) == 5000
+        # Match the actual RotdPy grid generator used in the rendered worker.
+        def grid(values):
+            start, interval, factor, count = values
+            points = [start]
+            for _ in range(1, count):
+                start += interval
+                points.append(start)
+                interval *= factor
+            return points
+        assert grid(resolved['rotdpy_temperature_grid']) == resolved['TemperatureList']
+        gas_constant = .00198720425864083  # kcal mol-1 K-1
+        assert resolved['ModelEnergyLimit'] > (resolved['barrier_threshold'] +
+            resolved['ExcessEnergyOverTemperature'] * gas_constant * 5000)
+        assert grid(resolved['rotdpy_energy_grid'])[-1] * gas_constant > resolved['ModelEnergyLimit']
         assert f'{case}/resolved_parameters.json' in record['sha256']
     model = root/'ch3s/input.json'
     model.write_text('{}')
@@ -107,7 +127,7 @@ def test_rendered_preflight_uses_both_real_production_profiles(handoff, tmp_path
         text = (root/item['path']).read_text()
         l2 = Path(item['path']).name.startswith('l2_')
         assert ('B2PLYP/cc-pVTZ' if l2 else 'B3LYP/cc-pVDZ') in text
-        assert 'scf(xqc,conver=10)' in text
+        assert 'scf(xqc,conver=8)' in text
         assert 'scf(xqc,(' not in text
         assert 'EmpiricalDispersion(GD3BJ)' in text
         assert 'integral(UltraFine)' in text
@@ -115,6 +135,74 @@ def test_rendered_preflight_uses_both_real_production_profiles(handoff, tmp_path
         if item['path'].endswith('_energy.com'):
             assert '\nfreq' not in text
     assert not (root/'ch3s/launch.json').exists()
+
+
+def test_current_inputs_propagate_thresholds_into_reference_and_all_l3_backends(handoff, tmp_path):
+    from ase.build import molecule
+    from kinbot.parameters import Parameters
+    from kinbot.theory import resolve_profiles
+    from kinbot.anl.automatic import _reference_input
+    from kinbot.anl.validation import automatic_composite_spec
+    from kinbot.ase_modules.calculators.molpro import render_input
+    root = handoff.prepare(tmp_path/'production')
+    for case in handoff.CASES:
+        par = Parameters(str(root/case/'input.json')).par
+        directory = root/case/'reference'
+        directory.mkdir()
+        ref = _reference_input(root/case/'input.json',
+            {'smiles': '[SH]', 'charge': 0, 'multiplicity': 2},
+            directory, directory/'thermochemistry_model.json')
+        ref_par = Parameters(str(ref)).par
+        assert ref_par['anl_scf_convergence'] == 1e-8
+        assert ref_par['sella_fmax'] == 5e-4
+        for profile in resolve_profiles(ref_par).values():
+            assert profile.calculator_kwargs['scf'] == 'xqc,conver=8'
+        atoms = molecule('CH4')
+        spec = automatic_composite_spec({
+            'symbols': atoms.get_chemical_symbols(), 'positions': atoms.positions.tolist(),
+            'charge': 0, 'multiplicity': 1,
+            'source': {'geometry_sha256': '1'*64, 'record_sha256': '2'*64,
+                       'energy_hartree': -40., 'harmonic_zpe_hartree': .04}},
+            highest_tier=par['composite_method'], scf_convergence=par['anl_scf_convergence'],
+            cc_convergence=par['anl_cc_convergence'], geometry_fmax=par['anl_geometry_fmax'])
+        for task in spec['tasks']:
+            if task.get('kind') == 'ase_optimize':
+                assert task['optimizer']['fmax'] == 5e-4
+                kw = task['profile']['calculator_kwargs']
+                assert (kw['scf_convergence'], kw['correlation_convergence']) == (1e-8, 1e-7)
+                deck = render_input(atoms, basis='cc-pVTZ', geometry_name='step.xyz',
+                    scf_convergence=kw['scf_convergence'], correlation_convergence=kw['correlation_convergence'])
+                assert 'gthresh,energy=1.d-8,' in deck
+                assert 'thresh,energy=1.d-7,coeff=1.d-10}' in deck
+            template = task.get('input_template', '')
+            if task.get('backend') == 'gaussian':
+                assert 'SCF=(XQC,Conver=8)' in template
+            elif task.get('backend') == 'molpro':
+                assert 'gthresh,energy=1.d-8,' in template
+                if ';thresh,energy=' in template:
+                    assert 'thresh,energy=1.d-7,coeff=1.d-10}' in template
+            elif task.get('backend') == 'mrcc':
+                assert 'sctol=8\n' in template and 'cctol=7\n' in template
+            elif task.get('backend') == 'cfour':
+                assert 'SCF_CONV=8\n' in template
+                if task['id'] == 'cfour_dboc':
+                    assert 'CALC=SCF\n' in template
+                else:
+                    assert 'CC_CONV=7\n' in template
+
+
+def test_profile_threshold_overrides_remain_available(handoff, tmp_path):
+    from kinbot.parameters import Parameters
+    from kinbot.theory import resolve_profiles
+    root = handoff.prepare(tmp_path/'production')
+    par = Parameters(str(root/'ch3s/input.json')).par
+    par['anl_scf_convergence'] = 1e-9
+    assert all(p.calculator_kwargs['scf'] == 'xqc,conver=9'
+               for p in resolve_profiles(par).values())
+    par['l1_profile'] = {'calculator_kwargs': {'scf': 'diis,conver=7'}}
+    profiles = resolve_profiles(par)
+    assert profiles['l1'].calculator_kwargs['scf'] == 'diis,conver=7'
+    assert profiles['l2'].calculator_kwargs['scf'] == 'xqc,conver=9'
 
 
 @pytest.mark.parametrize('stop_fails', [False, True])

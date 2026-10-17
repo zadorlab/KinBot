@@ -228,7 +228,7 @@ class TestTheoryProfiles(unittest.TestCase):
                     options = ast.literal_eval(node.value)
                     assert (options['method'], options['basis']) == ('B3LYP', 'cc-pVDZ')
                     assert options.get('EmpiricalDispersion') == 'GD3BJ', (path, options)
-                    assert options['scf'] == 'xqc,conver=10'
+                    assert options['scf'] == 'xqc,conver=8'
         self.assertEqual(qc.l2.frequency_mode, 'native_hessian')
         from ase.db import connect
         # Generation may record the input stereochemistry; no QC result ran.

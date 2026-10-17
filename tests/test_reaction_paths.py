@@ -204,11 +204,17 @@ class TestReactionPaths(unittest.TestCase):
                                        ('propylperoxy_control', [4, 3, 2, 1], {8})]:
             for treatment, mc in [('hir', 0), ('mc_rrho', 1)]:
                 filename = directory / f'{parent}_{treatment}.json'
-                # These are portable templates. Discovery needs no QC backend.
+                # These are portable templates. Discovery needs no QC backend,
+                # but Parameters accepts only a supported qc, so resolve that
+                # placeholder in a copy as a user would.
                 raw = json.loads(filename.read_text())
                 self.assertIsInstance(raw['ppn'], str)
                 self.assertIsInstance(raw['queue_job_limit'], str)
-                par = Parameters(str(filename), show_warnings=False).par
+                self.assertEqual(raw['qc'], 'SET_QC_BACKEND')
+                with TemporaryDirectory() as tmp:
+                    resolved = Path(tmp) / filename.name
+                    resolved.write_text(json.dumps(dict(raw, qc='gauss')))
+                    par = Parameters(str(resolved), show_warnings=False).par
                 p = StationaryPoint('input', par['charge'], par['mult'],
                                     structure=par['structure'], smiles=par['smiles'] or None)
                 p.characterize()

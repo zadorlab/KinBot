@@ -32,8 +32,7 @@ class TestHIRRestartCache(unittest.TestCase):
              patch('kinbot.qc.subprocess.Popen', return_value=process), \
              patch('kinbot.qc.time.sleep'):
             for backend, suffix in (('gauss', '.log'), ('qchem', '.out'),
-                                    ('nwchem', '.out'), ('orca', '_sella.log'),
-                                    ('fc', '_sella.log'), ('nn_pes', None)):
+                                    ('orca', '_sella.log'), ('fc', '_sella.log')):
                 for scan in (True, False):
                     with self.subTest(backend=backend, scan=scan):
                         self.qc.qc = backend

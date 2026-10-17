@@ -31,10 +31,6 @@ class ReactionFinderBimol:
         self.prod_bonds = set()
         for i, bond in enumerate(par['form_bonds']):
             self.prod_bonds.add(frozenset(par['form_bonds'][i]))
-        try:
-            self.barrierless_saddle = par['barrierless_saddle'][str(self.species.chemid)]
-        except KeyError:
-            self.barrierless_saddle = None
         # keys: names of the families
         # values: list of instances
         # this dict is used to keep track of the unique reactions found,

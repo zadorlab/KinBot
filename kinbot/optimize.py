@@ -531,12 +531,8 @@ class Optimize:
                 if self.par['L3_calc'] == 1:
                     if self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)
-                        if 'barrierless_saddle' in self.name:
-                            key = self.par['barrierless_saddle_single_point_key']
-                            molp.create_molpro_input(bls=1)
-                        else:
-                            key = self.par['single_point_key']
-                            molp.create_molpro_input(do_vdW=self.just_high)
+                        key = self.par['single_point_key']
+                        molp.create_molpro_input(do_vdW=self.just_high)
                         if self.par['queuing'] != 'local':
                             molp.create_molpro_submit(do_vdW=self.just_high)
                         status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.just_high)
@@ -670,7 +666,15 @@ class Optimize:
             else:
                 l1_file = 'conf/{}_low'.format(self.log_name(0))
             l2_file = job
-            imagmode = self.qc.read_imag_mode(l1_file, self.species.natom)
+            try:
+                imagmode = self.qc.read_imag_mode(l1_file, self.species.natom)
+            except FileNotFoundError:
+                # Searches finished before the selected conformer's mode file
+                # was kept: compare with the original L1 saddle instead.
+                logger.warning('%s has no imaginary mode file; comparing the L2 saddle '
+                               'with the original L1 saddle %s instead.', l1_file, self.log_name(0))
+                l1_file = self.log_name(0)
+                imagmode = self.qc.read_imag_mode(l1_file, self.species.natom)
             imagmode_high = self.qc.read_imag_mode(l2_file, self.species.natom)
             # either geom is roughly same with closely matching imaginary modes, or geometry is very close
             # maybe we need to do IRC at the high level as well...

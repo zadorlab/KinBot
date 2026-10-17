@@ -2,6 +2,33 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## Conformer restart shortcut for every QC code
+
+A finished conformer search is recognised on restart by the output file
+copied for the selected conformer, `conf/<name>_low.<ext>`, together with
+the last conformer's output. Both were looked up under Gaussian's `.log`
+name, so Q-Chem and the Sella-driven codes repeated the whole conformer
+sweep on every restart. The lookup, the copy and the removal that forces
+a new search after a lower rotor point now use each code's own output
+name (`.log`, `.out`, `_sella.log`).
+
+## Remove NWChem support
+
+NWChem is not used by anyone. `qc: nwchem` and the `methodclass` option are
+no longer accepted; the supported codes are Gaussian, Q-Chem, ORCA and FairChem.
+
+## Remove the NNPES surrogate calculator
+
+The `nn_pes` calculator depended on a private package that is not available
+and is superseded by FairChem/UMA. `qc: nn_pes` and `nn_model` are no longer accepted.
+
+## Remove the barrierless_saddle reaction family
+
+The `barrierless_saddle` family scanned a user-selected bond, optimized its maximum as
+a saddle point and wrote a MESS `Variational` barrier with a CASPT2-oriented Molpro L3.
+It is removed; `hom_sci` and VRC-TST remain the barrierless treatments, and the
+`barrierless_saddle*` input options are no longer accepted, nor is the never-used `variational` option.
+
 ## FairChem compilation option
 
 Add the global `fc_compile` option, with a default of `false`. This avoids
@@ -15,8 +42,8 @@ results remain usable if this option changes on restart.
 ## Independent calculation levels
 
 - Keep Gaussian AM1 and Q-Chem B3LYP/STO-3G preliminary TS steps when profiles
-  are enabled. The final TS uses L1; scan and barrierless-saddle method options
-  keep their existing meaning. FairChem uses its assigned model throughout.
+  are enabled. The final TS uses L1; scan method options keep their existing
+  meaning. FairChem uses its assigned model throughout.
 - Allow executable paths and CPU/GPU devices to change on restart. Record them
   separately from methods, models, optimizer and frequency settings. Earlier
   profile records require a fresh directory because search defaults changed.
@@ -40,10 +67,9 @@ results remain usable if this option changes on restart.
   runs receive this flag when restarted with their original settings.
 - Apply the same theory checks to PES before species-input replacement and
   result reading, including `pes ... no-kinbot`, without creating calculators.
-- Reject NWChem profiles during input validation. Refuse Q-Chem ring preparation
-  before writing or submitting that job; use Gaussian or FairChem at L0 for
-  ring preparation. Q-Chem remains available for ordinary conformer optimization
-  and for L1/L2 calculations.
+- Refuse Q-Chem ring preparation before writing or submitting that job; use
+  Gaussian or FairChem at L0 for ring preparation. Q-Chem remains available for
+  ordinary conformer optimization and for L1/L2 calculations.
 - Q-Chem profiles require `optimizer: "native"`. Switching a profile to Q-Chem
   selects that optimizer; Sella/BFGS is rejected before a worker can request an
   internal Q-Chem optimization in place of a force evaluation.
@@ -52,8 +78,8 @@ results remain usable if this option changes on restart.
   search now fails only that reaction, with its job name in the log. Keep its
   files and continue other reactions. A missing initial reactant result still
   stops the run. L0 and L2 remain enabled.
-- Refuse unsupported optimizer combinations before submission. ORCA, FairChem
-  and NNPES require Sella or BFGS. Errors identify settings inherited from the
+- Refuse unsupported optimizer combinations before submission. ORCA and
+  FairChem require Sella or BFGS. Errors identify settings inherited from the
   main input when no profile was supplied for the affected level.
 - Save each job's level before submission. Refuse rotor results without that
   record instead of inferring their method from the current `high_level` flag.

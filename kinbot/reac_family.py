@@ -113,7 +113,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             fix.append(c[:-1])
         change = []
 
-    if qc.qc == 'gauss' or (qc.qc == 'nn_pes' and step < rxn.max_step):
+    if qc.qc == 'gauss':
         code = 'gaussian'
         Code = 'Gaussian'
         kwargs['addsec'] = ''
@@ -165,10 +165,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     elif qc.qc == 'orca':
         code = 'orca'
         Code = 'ORCA'
-
-    elif qc.qc == 'nn_pes' and step >= rxn.max_step:
-        code = 'nn_pes'
-        Code = 'Nn_surr'
 
     elif qc.qc == 'fc':
         code = 'fairchem'

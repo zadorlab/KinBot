@@ -78,7 +78,7 @@ def _legacy_profile(par, level):
         'basis': par[basis_key],
         'command': par['qc_command'],
         'calculator_kwargs': deepcopy(par.get('calc_kwargs', {})),
-        'optimizer': 'sella' if par['use_sella'] or calculator in ('fairchem', 'orca', 'nn_pes') else 'native',
+        'optimizer': 'sella' if par['use_sella'] or calculator in ('fairchem', 'orca') else 'native',
     }
     if level == 'l0':
         # Preliminary searches keep the user's backend and command.
@@ -162,12 +162,9 @@ def resolve_profiles(par):
         if values['calculator'] == 'fairchem':
             values['method'], values['basis'] = '', ''
         profile = TheoryProfile.from_dict(level, values)
-        if profile.calculator == 'nwchem':
-            raise ValueError(f'{context}: NWChem calculation workers are not '
-                             'supported by the profile workflow. Select Gaussian, '
-                             'FairChem, or Q-Chem with optimizer=native instead.')
-        if profile.calculator not in ('gaussian', 'qchem', 'orca', 'nn_pes', 'fairchem'):
-            raise ValueError(f'{context} has unsupported calculator {profile.calculator!r}.')
+        if profile.calculator not in ('gaussian', 'qchem', 'orca', 'fairchem'):
+            raise ValueError(f'{context} has unsupported calculator {profile.calculator!r}; '
+                             'select gaussian, qchem, orca or fairchem.')
         if profile.calculator == 'qchem' and profile.optimizer != 'native':
             raise ValueError(f'{context} Q-Chem requires optimizer=native; '
                              'its Sella/BFGS workers do not support force-only calculations.')
@@ -175,7 +172,7 @@ def resolve_profiles(par):
             raise ValueError(f'{context} native_hessian requires Gaussian or Q-Chem.')
         if profile.frequency_mode == 'ase_forces' and profile.optimizer == 'native':
             raise ValueError(f'{context} ase_forces requires a Sella or BFGS optimizer.')
-        if profile.calculator in ('orca', 'nn_pes', 'fairchem') and profile.optimizer == 'native':
+        if profile.calculator in ('orca', 'fairchem') and profile.optimizer == 'native':
             raise ValueError(f'{context}: {profile.calculator} requires optimizer=sella '
                              'or bfgs; bfgs applies to wells and Sella to TS searches.')
         profiles[level] = profile
@@ -199,7 +196,5 @@ def calculation_label(par):
         return label
     if par['qc'] == 'fc':
         return f"FairChem {par['fc_model_path']} ({par['fc_task_name']})"
-    if par['qc'] == 'nn_pes':
-        return f"nn_pes {par['nn_model']}"
     prefix = 'high_level_' if par['high_level'] else ''
     return f"{par[prefix + 'method']}/{par[prefix + 'basis']}"

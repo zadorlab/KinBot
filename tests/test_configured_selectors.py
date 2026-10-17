@@ -21,11 +21,10 @@ def test_configured_selector_precedes_legacy_for_two_enantiomers(tmp_path):
     for mapping in ({legacy: [[0, 1]]}, {legacy: [[0, 1]], names[0]: [[1, 2]], names[1]: []}):
         for species in (p, mirror):
             expected = mapping.get(routing_name(species), mapping[legacy])
-            params = dict(par, barrierless_saddle=mapping, homolytic_bonds=mapping)
+            params = dict(par, homolytic_bonds=mapping)
             finder = ReactionFinder(species, params, None)
             finder.new_reaction = Mock()
             finder.search_hom_sci(species.natom, species.atom, species.bond, species.rads[0])
-            assert finder.barrierless_saddle == expected
             assert finder.new_reaction.call_args.args[0] == expected
             assert configured_selection(mapping, species) == expected
 

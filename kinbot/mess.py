@@ -446,7 +446,7 @@ class MESS:
                     if self.species.reac_ts_done[index] == -1:
                         ts_zeroenergy = (reaction.ts.energy + reaction.ts.zpe) * constants.AUtoKCAL
                         left_reference_job = getattr(self.species, 'source_job', None)
-                        if not self.par['high_level'] and reaction.mp2 == 1 and self.par['qc'] != 'nn_pes':
+                        if not self.par['high_level'] and reaction.mp2 == 1:
                             jobname = '{}_well_mp2'.format(routing_name(self.species))
                             well_zeroenergy = self.get_zeroenergy(jobname, qc)
                             left_reference_job = jobname

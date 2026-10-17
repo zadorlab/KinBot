@@ -367,7 +367,6 @@ def test_restart_refuses_to_mix_results_after_model_change(workspace):
 @pytest.mark.parametrize('calculator, option, original, replacement', [
     ('orca', 'orcasimpleinput', 'D3BJ', 'D4'),
     ('orca', 'orcablocks', '%method Grid 4 end', '%method Grid 5 end'),
-    ('nn_pes', 'nn_model', '/models/old.pt', '/models/new.pt'),
     ('gaussian', 'integral', 'UltraFine', 'FineGrid'),
 ])
 def test_restart_checks_backend_settings_before_reusing_methanol(
@@ -383,8 +382,7 @@ def test_restart_checks_backend_settings_before_reusing_methanol(
     qc.qc_opt(point, point.geom, high_level=high_level)
     job = routing_name(point) + ('_well_high' if high_level else '_well')
     used = literal(script(job), 'kwargs')
-    key = 'fname' if option == 'nn_model' else option
-    assert original in used[key]
+    assert original in used[option]
     qc.db.write(molecule('CH3OH'), name=job, data=dict(energy=-100., status='normal'))
     Path(job + '_sella.log').write_text('done\n')
     before = file_contents(workspace)
@@ -432,7 +430,7 @@ def test_restart_checks_method_choices_outside_profiles(
     assert file_contents(workspace) == before
 
 
-@pytest.mark.parametrize('calculator', ['gaussian', 'orca', 'nn_pes'])
+@pytest.mark.parametrize('calculator', ['gaussian', 'orca'])
 def test_old_records_without_backend_settings_refuse_restart(workspace, calculator):
     import hashlib
 
@@ -457,7 +455,7 @@ def test_unused_calculator_settings_do_not_change_uma_records(workspace):
     qc = QuantumChemistry(par)
     before = file_contents(workspace)
     changed = dict(par, orcasimpleinput='D4', orcablocks='%method Grid 5 end',
-                   nn_model='/models/different.pt', integral='FineGrid', guessmix=1)
+                   integral='FineGrid', guessmix=1)
     assert QuantumChemistry(changed)._fingerprint == qc._fingerprint
     assert file_contents(workspace) == before
 
@@ -621,7 +619,7 @@ def test_existing_custom_record_gains_flag_only_on_calculation_restart(workspace
 
 @pytest.mark.parametrize('change', [
     'l1_model', 'l2_method', 'remove_profiles', 'orcasimpleinput', 'orcablocks',
-    'nn_model', 'integral', 'rotor_l1_to_l2', 'rotor_l2_to_l1',
+    'integral', 'rotor_l1_to_l2', 'rotor_l2_to_l1',
 ])
 @pytest.mark.parametrize('entry', ['postprocess', 'write_input', 'write_input_keep', 'cli'])
 def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
@@ -635,8 +633,6 @@ def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
     if change in ('orcasimpleinput', 'orcablocks'):
         options = dict(l1_profile=dict(calculator='orca', method='B3LYP',
             basis='6-31G(d)'), orcasimpleinput='D3BJ', orcablocks='%method Grid 4 end')
-    elif change == 'nn_model':
-        options = dict(l1_profile=dict(calculator='nn_pes'), nn_model='/models/old.pt')
     elif change == 'integral':
         options = dict(integral='UltraFine')
     elif change.startswith('rotor_'):
@@ -671,7 +667,7 @@ def test_pes_rejects_changed_theory_before_reading_or_overwriting_results(
         changed['high_level'] = 1 - par['high_level']
     else:
         changed[change] = dict(orcasimpleinput='D4', orcablocks='%method Grid 5 end',
-                              nn_model='/models/new.pt', integral='FineGrid')[change]
+                              integral='FineGrid')[change]
     changed['smiles'] = 'CO'
     Path('input.json').write_text(json.dumps(changed))
     before = file_contents(workspace)
@@ -1160,7 +1156,7 @@ def test_gaussian_startup_failure_finishes_profiled_conformer_as_error(
     assert qc.check_qc(job) == 'error'
 
 
-@pytest.mark.parametrize('calculator', ['orca', 'nn_pes', 'fairchem'])
+@pytest.mark.parametrize('calculator', ['orca', 'fairchem'])
 def test_force_calculators_reject_unsupported_optimizer(workspace, calculator):
     with pytest.raises(ValueError, match='requires optimizer=sella or bfgs'):
         profile_parameters(l1_profile=dict(calculator=calculator, optimizer='native'))
@@ -1275,7 +1271,7 @@ def test_gaussian_checkpoint_remains_relative_after_directory_move(workspace, jo
     assert relocated / calculator.directory / kwargs['chk'] == relocated / job
 
 
-@pytest.mark.parametrize('calculator', ['fc', 'orca', 'qchem', 'nn_pes'])
+@pytest.mark.parametrize('calculator', ['fc', 'orca', 'qchem'])
 def test_flat_l0_backend_switch_has_same_optimizer_as_alias(workspace, calculator):
     flat = resolve_profiles(parameters(l0_qc=calculator, calc_kwargs={'gaussian_only': 1}))
     alias = resolve_profiles(parameters(l0=calculator, calc_kwargs={'gaussian_only': 1}))
@@ -1406,3 +1402,59 @@ def test_failed_ts_frequency_calculation_writes_error_and_completion(workspace, 
     runpy.run_path(rxn.instance_name + '.py')
     assert qc.db.get(name=rxn.instance_name).data['status'] == 'error'
     assert Path(rxn.instance_name + '_sella.log').read_text().endswith('done\n')
+
+
+def test_fairchem_conformer_worker_keeps_the_saddle_mode_file(workspace, monkeypatch):
+    """Run the generated FairChem conformer worker for a saddle and read its mode."""
+    import runpy
+    import sys
+    import sella
+    from ase.calculators.calculator import Calculator, all_changes
+    from ase.io import write
+    from kinbot import fairchem_utils, frequencies
+
+    Path('input.json').write_text(json.dumps(dict(
+        barrier_threshold=100., qc='fc', fc_model_path='/models/uma.pt', queuing='local',
+        ppn=4, queue_job_limit=5)))
+    par = Parameters('input.json', show_warnings=False).par
+    qc = QuantumChemistry(par)
+    point = methanol(wellorts=1, name='methanol_ts')
+    qc.qc_conf(point, point.geom, 0)
+    job = 'conf/methanol_ts_0000'
+
+    class FakeFairchem(Calculator):
+        implemented_properties = ['energy', 'forces']
+
+        def __init__(self, predictor, task_name):
+            super().__init__()
+
+        def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+            super().calculate(atoms, properties, system_changes)
+            self.results = {'energy': -10., 'forces': np.zeros((len(atoms), 3))}
+
+    class FakeSella:
+        def __init__(self, mol, trajectory, logfile, **kwargs):
+            self.mol, self.trajectory, self.logfile = mol, trajectory, logfile
+
+        def run(self, **kwargs):
+            write(self.trajectory, self.mol)
+            Path(self.logfile).write_text('mock converged\n')
+            return True
+
+    def vibrate(mol, label):
+        path = Path(label + '_vib')
+        path.mkdir()
+        path.joinpath('vib.xyz').write_text(str(len(mol)) + '\nmode\n' + ''.join(
+            f'{symbol} 0 0 0 1 2 3\n' for symbol in mol.get_chemical_symbols()))
+        return [-100.] + [100.] * (3 * len(mol) - 7), .01, np.eye(3 * len(mol))
+
+    monkeypatch.setitem(sys.modules, 'fairchem', SimpleNamespace(core=SimpleNamespace(FAIRChemCalculator=FakeFairchem)))
+    monkeypatch.setitem(sys.modules, 'fairchem.core', SimpleNamespace(FAIRChemCalculator=FakeFairchem))
+    monkeypatch.setattr(fairchem_utils, 'load_predictor', lambda *args, **kwargs: None)
+    monkeypatch.setattr(sella, 'Sella', FakeSella)
+    monkeypatch.setattr(frequencies, 'calc_vibrations', vibrate)
+    runpy.run_path(job + '.py')
+    assert Path(job + '_sella.log').read_text().endswith('done\n')
+    assert not Path(job + '_vib').exists()
+    assert Path(job + '_vib.xyz').is_file()
+    np.testing.assert_array_equal(qc.read_imag_mode(job, point.natom), [[1, 2, 3]] * point.natom)

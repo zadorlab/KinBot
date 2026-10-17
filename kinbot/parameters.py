@@ -202,7 +202,7 @@ class Parameters:
 
             # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
-            'qc': 'gauss',  # or nwchem or nn_pes
+            'qc': 'gauss',  # or nwchem
             # Rishi's opt-in theory profiles, extended to preliminary L0 jobs.
             'l0_qc': '',
             'l0_basis': '',
@@ -306,8 +306,6 @@ class Parameters:
             'calc_kwargs': {},
             # Threshold to accept negative frequencies for floppy structures, this is a positive number
             'imagfreq_threshold': 50.,
-            # List of files containing the parameters for the NN model.
-            'nn_model': None,
             # FairChem MLIP model configuration (used when qc = 'fc')
             # Path to local checkpoint file, e.g. /path/to/uma-s-1p2.pt
             'fc_model_path': '',
@@ -550,6 +548,9 @@ class Parameters:
             logger.warning('Choose for instance M06-2X or wB97XD.')
             print('B3LYP is not recommended as L1 for bimolecular reactions.')
             print('Choose for instance M06-2X.')
+
+        if self.par['qc'] == 'nn_pes':
+            raise ValueError('The nn_pes calculator was removed; use qc "fc" (FairChem/UMA) instead.')
 
         if self.par['bimol'] and len(self.par['structure']) != 2:
             err = 'For bimolecular reactions two fragments need to be defined.'

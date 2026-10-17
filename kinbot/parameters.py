@@ -76,17 +76,9 @@ class Parameters:
             'keep_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
             'skip_reactions': ['none'],
-            # perform variational calculations for the homolytic scissions
-            'variational': 0,
-            # break specific bonds in the homolytic search
+            # break specific bonds in the hom_sci family
             # this is a dictionary written as:
-            # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
-            'barrierless_saddle': {},
-            # starting distance for barrierless_saddle searches in A
-            'barrierless_saddle_start': 2.0,
-            # step size in A 
-            'barrierless_saddle_step': 0.2,
-            # for the hom_sci family, using the same format as in barrierless_saddle
+            # {chemid1: [[atom1, atom2], [atom3, atom4], ...], chemid2: [..]}
             'homolytic_bonds': {},
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
@@ -202,7 +194,7 @@ class Parameters:
 
             # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
-            'qc': 'gauss',  # or nwchem or nn_pes
+            'qc': 'gauss',  # or nwchem
             # Rishi's opt-in theory profiles, extended to preliminary L0 jobs.
             'l0_qc': '',
             'l0_basis': '',
@@ -232,14 +224,6 @@ class Parameters:
             'scan_method': 'mp2',
             # Basis set to use for scans
             'scan_basis': '6-31G',
-            # Method to scan bonds in barrierless_saddle family
-            'barrierless_saddle_method': 'b3lyp',
-            # Basis set to scan bonds in barrierless_saddle family
-            'barrierless_saddle_basis': '6-31G',
-            # Method to scan bonds in barrierless_saddle family
-            'barrierless_saddle_method_high': 'b3lyp',
-            # Basis set to scan bonds in barrierless_saddle family
-            'barrierless_saddle_basis_high': '6-31G',
             # for Gaussian, request CalcAll for TS optimization
             'calcall_ts': 1,
             # Quantum chemistry method to use for high-level L2
@@ -274,18 +258,6 @@ class Parameters:
             # The keyword to be searched for in Molpro for the desired
             # energy. Compulsory if Molpro energies are used.
             'single_point_key': 'mytza',
-            # L3 for barrierless template, CASPT2-like molpro is expected
-            'barrierless_saddle_single_point_template': '',
-            # L3 for barrierless template for product, CASPT2-like molpro is expected
-            'barrierless_saddle_prod_single_point_template': '',
-            # active orbitals
-            'barrierless_saddle_norbital': 0,
-            # number of electrons on them 
-            'barrierless_saddle_nelectron': 0,
-            # number of states
-            'barrierless_saddle_nstate': 0,
-            # single point key for barrierless
-            'barrierless_saddle_single_point_key': '',
             # Command string to be used for single point energy calculation
             'single_point_command': '',
             # Hindered rotor max optimization steps
@@ -306,8 +278,6 @@ class Parameters:
             'calc_kwargs': {},
             # Threshold to accept negative frequencies for floppy structures, this is a positive number
             'imagfreq_threshold': 50.,
-            # List of files containing the parameters for the NN model.
-            'nn_model': None,
             # FairChem MLIP model configuration (used when qc = 'fc')
             # Path to local checkpoint file, e.g. /path/to/uma-s-1p2.pt
             'fc_model_path': '',
@@ -550,6 +520,9 @@ class Parameters:
             logger.warning('Choose for instance M06-2X or wB97XD.')
             print('B3LYP is not recommended as L1 for bimolecular reactions.')
             print('Choose for instance M06-2X.')
+
+        if self.par['qc'] == 'nn_pes':
+            raise ValueError('The nn_pes calculator was removed; use qc "fc" (FairChem/UMA) instead.')
 
         if self.par['bimol'] and len(self.par['structure']) != 2:
             err = 'For bimolecular reactions two fragments need to be defined.'

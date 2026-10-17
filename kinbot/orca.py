@@ -16,8 +16,7 @@ class Orca:
     def create_orca_input(self, name=''):
         """
         Create the input for orca based on the template,
-        which is provided by the use.
-        : bls is whether it is a bls rection
+        which is provided by the user.
         """
         tpl_file = self.par['single_point_template']
 

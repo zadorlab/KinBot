@@ -444,18 +444,11 @@ def postprocess(par, jobs, task, names, mass):
                 # overwrite energies with mp2 energy if needed
                 if any([mm in reaction_name for mm in constants.mp2_list]) \
                        and not par['high_level'] \
-                       and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
+                       and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
                                               mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
-
-                # overwrite energies with bls energy if needed
-                if 'barrierless_saddle' in reaction_name and not par['high_level']:
-                    bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                              bls=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
-                    base_energy_bls, base_zpe_bls = bls_energies
-                    barrier = 0. - base_energy_bls - base_zpe_bls
 
                 #Different treatment between homolytic scission and normal reaction
                 if "hom_sci" in line:
@@ -554,34 +547,15 @@ def postprocess(par, jobs, task, names, mass):
             if len(reac) > 4:#vdW 
                 vdW_well = f"{reac[1]}{reac[5].split('vdW')[1]}"
                 reac[4] = well_energies[vdW_well]
-            if 'barrierless_saddle' in reac[1]:
-                zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
-                status, l3energy = get_l3energy(reac[1], par, bls=1)
-
-                status_prod1, l3energy_prod1 = get_l3energy(reac[2][0], par)
-                status_prod2, l3energy_prod2 = get_l3energy(reac[2][1], par)
-
-                status_prod, l3energy_prod = get_l3energy(reac[1] + '_prod', par, bls=1)
-
-                if not status * status_prod:
-                    l3done = 0
-                    batch_submit += f'{cmd} {reac[1]}.{ext}\n'
-                elif not par['L3_calc']:
-                    pass
-                else:
-                    delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
-                    delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
-                    ts_l3energies[reac[1]] = (delta2 - delta1) * constants.AUtoKCAL
+            zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
+            status, l3energy = get_l3energy(reac[1], par)
+            if not status:
+                l3done = 0
+                batch_submit += f'{cmd} {reac[1]}.{ext}\n'
+            elif not par['L3_calc']:
+                pass
             else:
-                zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
-                status, l3energy = get_l3energy(reac[1], par)
-                if not status:
-                    l3done = 0
-                    batch_submit += f'{cmd} {reac[1]}.{ext}\n'
-                elif not par['L3_calc']:
-                    pass
-                else:
-                    ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+                ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logger.info('l3done status {}'.format(l3done))
     # clean duplicates
@@ -600,8 +574,6 @@ def postprocess(par, jobs, task, names, mass):
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
             if 'hom_sci' not in reac[1]:
-                reac[3] = ts_l3energies[reac[1]]
-            if 'barrierless_saddle' in reac[1]:
                 reac[3] = ts_l3energies[reac[1]]
             if len(reac) > 4: #vdW 
                 vdW_well = f"{reac[1]}{reac[5].split('vdW')[1]}"
@@ -1657,7 +1629,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
         f.write(template)
 
 
-def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
+def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
                rotor_scan=None, optical_population=None):
     
     if ts:
@@ -1669,8 +1641,6 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
         j = f'conf/{job}_low'
     if mp2:
         j += '_mp2'
-    if bls:
-        j += '_bls'
     if high_level:
         j += '_high'
     energy = np.inf
@@ -1718,16 +1688,13 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
     return energy, zpe
 
 
-def get_l3energy(job, par, bls=0):
+def get_l3energy(job, par):
     """
     Get the L3, single-point energies.
     This is not object oriented.
     """
 
-    if bls:
-        key = par['barrierless_saddle_single_point_key']
-    else:
-        key = par['single_point_key']
+    key = par['single_point_key']
 
     if job == '10000000000000000001':  # proton
         return 1, 0.0
@@ -1776,7 +1743,7 @@ def get_l3energy(job, par, bls=0):
     return 0, -1  # job not yet started to run or not finished
 
 
-def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
+def get_zpe(jobdir, job, ts, high_level, mp2=0):
     if "IRC" in job:
         jobdir = job.split("_")[0]
     ensure_current_run(jobdir)
@@ -1787,8 +1754,6 @@ def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
         j = job + '_well'
     if mp2:
         j += '_mp2'
-    if bls:
-        j += '_bls'
     if high_level:
         j += '_high'
     rows = db.select(name=j)
@@ -1845,11 +1810,6 @@ def submit_job(chemid, par):
     if par['single_point_template'] != '':
         shutil.copyfile('{}'.format(par['single_point_template']), 
                         '{}/{}'.format(chemid, par['single_point_template']))
-    if par['barrierless_saddle_single_point_template'] != '':
-        shutil.copyfile('{}'.format(par['barrierless_saddle_single_point_template']), '{}/{}'
-                        .format(chemid, par['barrierless_saddle_single_point_template']))
-        shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
-                        .format(chemid, par['barrierless_saddle_prod_single_point_template']))
     if par['vrc_tst_scan_molpro_tpl'] != '':
         shutil.copyfile('{}'.format(par['vrc_tst_scan_molpro_tpl']), 
                         '{}/{}'.format(chemid, par['vrc_tst_scan_molpro_tpl']))

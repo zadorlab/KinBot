@@ -49,12 +49,8 @@ class QuantumChemistry:
         self.basis = par['basis']
         self.scan_method = par['scan_method']
         self.scan_basis = par['scan_basis']
-        self.bls_method = par['barrierless_saddle_method']
-        self.bls_basis = par['barrierless_saddle_basis']
         self.high_level_method = par['high_level_method']
         self.high_level_basis = par['high_level_basis']
-        self.bls_high_level_method = par['barrierless_saddle_method_high']
-        self.bls_high_level_basis = par['barrierless_saddle_basis_high']
         self.vts_method = par['vrc_tst_scan_method']
         self.vts_basis = par['vrc_tst_scan_basis']
         self.single_point_template = par['single_point_template']
@@ -87,9 +83,6 @@ class QuantumChemistry:
         self.frequency_mode = par.get('frequency_mode', 'auto')
         self.optimizer = 'sella' if self.use_sella else 'native'
         self.theory_level = None
-        if not self.use_sella and self.qc.lower() == 'nn_pes':
-            logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
-            self.use_sella = True
         if not self.use_sella and self.qc.lower() == 'orca':
             logger.warning('ORCA not supported without Sella. Turning "use_sella" on.')
             self.use_sella = True
@@ -134,7 +127,7 @@ class QuantumChemistry:
         scan: this calculation is part of a scan of a bond length
         '''
 
-        if self.qc == 'gauss' or (self.qc == 'nn_pes' and step < max_step):
+        if self.qc == 'gauss':
             # arguments for Gaussian
             kwargs = {
                 'method': self.method,
@@ -152,8 +145,6 @@ class QuantumChemistry:
                 'pop': 'None',
             }
             if self.par['guessmix'] == 1 or \
-                'barrierless_saddle' in job or \
-                'bls' in job or \
                 (mult == 1 and 'R_Addition_MultipleBond' in job):
                 kwargs['guess'] = 'Mix,Always'
             if ts:
@@ -172,7 +163,6 @@ class QuantumChemistry:
                     kwargs['opt'] = 'ModRedun,Loose,CalcFC'
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or \
-                        'barrierless_saddle' in job or \
                         (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix,Always'
                     if self.par['bimol']:
@@ -201,15 +191,11 @@ class QuantumChemistry:
             if (scan or 'R_Addition_MultipleBond' in job) and not vts:
                 kwargs['method'] = self.scan_method
                 kwargs['basis'] = self.scan_basis
-            if 'barrierless_saddle' in job or 'bls' in job:
-                kwargs['method'] = self.bls_method
-                kwargs['basis'] = self.bls_basis
             if irc is not None:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
                     if self.par['guessmix'] == 1 or \
-                        'barrierless_saddle' in job or \
                         (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
                     else:
@@ -239,11 +225,6 @@ class QuantumChemistry:
                         kwargs['freq'] = 'freq'
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
-                if 'barrierless_saddle' in job:  # completely overwrite normal settings
-                    kwargs['method'] = self.bls_high_level_method
-                    kwargs['basis'] = self.bls_high_level_basis
-                    kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
-                    kwargs.pop('freq', None)
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
                 #if (not ts) or (ts and (not self.par['calcall_ts'])):
@@ -346,9 +327,6 @@ class QuantumChemistry:
             if scan or 'R_Addition_MultipleBond' in job:
                 kwargs['method'] = self.scan_method
                 kwargs['basis'] = self.scan_basis
-            if 'barrierless_saddle' in job or 'bls' in job:
-                kwargs['method'] = self.bls_method
-                kwargs['basis'] = self.bls_basis
             if vts:
                 kwargs['method'] = self.vts_method
                 kwargs['basis'] = self.vts_basis
@@ -381,11 +359,6 @@ class QuantumChemistry:
                 kwargs['orcasimpleinput'] = f'EnGrad TightSCF {self.high_level_method} {self.high_level_basis} {self.orcasimpleinput}'
                 kwargs['orcablocks'] = f'{self.orcablocks} %pal nprocs {min(nel, self.ppn)} end'
 
-        elif self.qc == 'nn_pes':
-            if self.par['nn_model']:
-                kwargs = {'fname': self.par['nn_model']}
-            else:
-                kwargs = {}
         elif self.qc == 'fc':
             kwargs = {
                     'mult': mult,
@@ -452,9 +425,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -592,11 +562,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            kwargs.pop('method', None)
-            kwargs.pop('basis', None)
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -683,9 +648,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -821,7 +783,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
+    def qc_opt(self, species, geom, high_level=0, mp2=0, ext=None, 
                fdir=None, do_vdW=False, initial_product=False):
         '''
         Creates a geometry optimization input and runs it.
@@ -837,9 +799,6 @@ class QuantumChemistry:
                 job = routing_name(species) + '_well_high'
             if mp2:
                 job = routing_name(species) + '_well_mp2'
-            if bls:
-                job = routing_name(species) + '_well_bls'
-
         else:
             job = routing_name(species) + ext
 
@@ -878,9 +837,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -965,9 +921,6 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
@@ -1184,6 +1137,11 @@ class QuantumChemistry:
         data = dict(source.data)
         if chemical_context is not None:
             data['chemical_context'] = chemical_context
+        # conf/<name>_low records the number of conformers of the finished
+        # search; a published refinement of that conformer must keep it.
+        previous = [row.data.get('nconf') for row in rows if row.data.get('nconf')]
+        if previous and 'nconf' not in data:
+            data['nconf'] = previous[-1]
         data.update(copied_from_job=source.name, copied_from_row_id=source.id)
         keys = dict(source.key_value_pairs, name=target)
         result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)
@@ -1736,8 +1694,6 @@ class QuantumChemistry:
                     log_file = job + '_sella.log'
                 elif self.qc == 'fc':
                     log_file = job + '_sella.log'
-                elif self.qc == 'nn_pes':
-                    log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
                 # The Sella templates stamp 'done' in {job}_sella.log, the
@@ -1745,8 +1701,7 @@ class QuantumChemistry:
                 # kinds of job run, so take the Sella log when it is there.
                 if getattr(self, 'use_sella', False) and os.path.exists(job + '_sella.log'):
                     log_file = job + '_sella.log'
-                if self.qc != 'nn_pes':
-                    log_file_exists = os.path.exists(log_file)
+                log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     with open(log_file, 'r') as f:
                         try:
@@ -1763,8 +1718,6 @@ class QuantumChemistry:
                                 return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
-                elif self.qc == 'nn_pes':
-                    pass
                 else:
                     if self.queuing == 'local' and not self.par['error_missing_local']:
                         return 'error'

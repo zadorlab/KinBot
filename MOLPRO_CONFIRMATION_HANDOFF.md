@@ -1,4 +1,12 @@
-# Molpro confirmation: S–S MRCI build comparison after failed shift trial
+# Historical Molpro confirmation handoff
+
+**Superseded for submission:** Molpro 2023 reproduced the S–S MRCI DSYGV
+failure. The user closed MRCI, and the matched CASPT2 shift-0.1 check passed.
+Use the [CASPT2 production handoff](CASPT2_PRODUCTION_HANDOFF.md) for the next
+launch. The commands below are retained as historical diagnostic provenance;
+do not rerun these MRCI probes as production prerequisites.
+
+## S–S MRCI build comparison after failed shift trial (historical)
 
 The minimum spaces remain **CH3S C–S (5,4), CH3SS C–S (7,5), CH3SS S–S
 (7,5)**. The CASPT2 confirmation and four simultaneous-root CH3S MRCI points

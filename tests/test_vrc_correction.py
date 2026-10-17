@@ -41,23 +41,25 @@ def _parameters(**updates):
     return values
 
 
-def test_default_spin_splitting_uses_tz_qz_cbs_for_all_three_branches():
+def test_default_spin_splitting_uses_dz_tz_caspt2_gap_on_tz_cc_anchor():
     settings = spin_splitting_settings(_parameters())
-    assert settings['triplet_reference']['basis'] == [
-        'avtz-f12', 'avqz-f12']
-    assert [level['basis'] for level in settings['gap_levels']] == [
-        ['avtz-f12', 'avqz-f12'], ['avtz-f12', 'avqz-f12']]
-    assert all(level['extrapolation_power'] == pytest.approx(3.7)
-               for level in [settings['triplet_reference'],
-                             *settings['gap_levels']])
-    assert [level['method'] for level in settings['gap_levels']] == [
-        'caspt2-f12(2,2)', 'mrci-f12+q(2,2)']
-    components = correction_components(_parameters())
-    assert len(components) == 11
-    assert {component['multiplicity'] for component in components[1:]} == {
-        1, 3}
-    assert expected_levels(_parameters())['trusted_correction']['model'] == \
-        'spin_splitting'
+    assert settings['reference']['basis'] == 'avtz-f12'
+    assert len(settings['gap_levels']) == 1
+    level = settings['gap_levels'][0]
+    assert level['basis'] == ['avdz-f12', 'avtz-f12']
+    assert level['extrapolation_power'] == 3.7
+    assert level['method'] == 'caspt2-f12(2,2)'
+    assert (level['ipea'], level['shift']) == (.25, .1)
+    assert len(correction_components(_parameters())) == 6
+
+
+def legacy_cbs_comparison():
+    # Explicit expert model retained for legacy arithmetic/regression tests.
+    return {'reference': {'basis': ['avtz-f12', 'avqz-f12'], 'extrapolation_power': 3.7},
+            'gap_levels': [{'label': label, 'method': method,
+                'basis': ['avtz-f12', 'avqz-f12'], 'extrapolation_power': 3.7}
+                for label, method in [('caspt2_f12', 'caspt2-f12(2,2)'),
+                                      ('mrci_f12_q', 'mrci-f12+q(2,2)')]]}
 
 
 def test_general_triplet_pair_uses_highest_available_reference_spin():
@@ -113,6 +115,7 @@ def test_explicit_spin_settings_cannot_relabel_the_accepted_channel(override, me
 
 def test_distance_switch_prefers_mrci_short_and_caspt2_long_range():
     settings = spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
+        **legacy_cbs_comparison(),
         'weighting': {'model': 'distance_switch',
                      'distance_knots_angstrom': [2.5, 3.125, 3.75, 4.375, 5.0],
                      'weights': {'caspt2_f12': [.2, .4, .5, .6, .8],
@@ -131,7 +134,7 @@ def test_default_weights_have_no_molecule_specific_distance_preference():
     settings = spin_splitting_settings(_parameters())
     assert settings['weighting'] == {'model': 'arithmetic_mean'}
     weights = spin_splitting_weights([1., 5., 50.], settings)
-    assert weights['caspt2_f12'] == pytest.approx([.5, .5, .5])
+    assert weights['caspt2_f12'] == pytest.approx([1., 1., 1.])
     with pytest.raises(ValueError):
         spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
             'weighting': {'model': 'distance_switch'}}))
@@ -471,10 +474,10 @@ def test_anl1_f12_vrc_preset_is_augmented_and_preserves_overrides():
     assert parameters['vrc_tst_active_space'] == 'full_valence'
     assert parameters['vrc_tst_scan_basis'] == 'aug-cc-pVQZ'
     assert parameters['vrc_tst_scan_gradient'] == 'numerical'
-    assert parameters['vrc_tst_sample_basis'] == 'avtz-f12'
+    assert parameters['vrc_tst_sample_basis'] == 'avdz-f12'
     assert parameters['vrc_tst_spin_splitting']['reference']['basis'] == 'avtz-f12'
-    assert parameters['vrc_tst_high_basis'] == 'avtz-f12'
-    assert all(level['basis'] == 'avtz-f12'
+    assert parameters['vrc_tst_high_basis'] == ['avdz-f12', 'avtz-f12']
+    assert all(level['basis'] == ['avdz-f12', 'avtz-f12']
                for level in parameters['vrc_tst_spin_splitting']['gap_levels'])
 
 
@@ -524,7 +527,7 @@ def test_sampling_surface_accepts_an_adjacent_cbs_pair():
 
 
 def test_spin_splitting_extrapolates_triplet_and_both_gap_states():
-    settings = spin_splitting_settings(_parameters())
+    settings = spin_splitting_settings(_parameters(vrc_tst_spin_splitting=legacy_cbs_comparison()))
     distances = [2.5, 5.0]
     energies = {
         'triplet_reference:0': [-10.0, -9.0],

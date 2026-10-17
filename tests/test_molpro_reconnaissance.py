@@ -58,6 +58,24 @@ def test_partition_chain_applies_source_swaps_once_and_keeps_basis_dependencies(
     assert json.loads(prepare(source, tmp_path / 'recon').read_text())['jobs'] == manifest['jobs']
 
 
+def test_recon_records_individual_roots_even_for_a_production_minimum_selector(tmp_path):
+    data = _partition_chain_configuration(tmp_path)
+    model = data['probe_definition']['state_model']
+    model['state_average'] = [{'multiplicity': 1, 'roots': 2}]
+    model['energy_selection'] = {'1': 'lowest'}
+    model['correlation_options'] = {'reference_policy': 'state_average'}
+    data['correlation_checks'] = [{'method': 'caspt2-f12(6,6)', 'shift': .1, 'ipea': .25}]
+    source = tmp_path/'input.json'
+    source.write_text(json.dumps(data))
+    manifest = json.loads(prepare(source, tmp_path/'recon').read_text())
+    for job in manifest['jobs']:
+        deck = (Path(job['directory'])/(job['name']+'.inp')).read_text()
+        assert deck.count('{rs2-f12,') == 2
+        assert 'state,1,1;refstate,2,1,2;' in deck
+        assert 'state,1,2;refstate,2,1,2;' in deck
+        assert 'KBGAPS' not in deck
+
+
 def test_cross_basis_initial_projection_is_explicit_and_not_repeated(tmp_path):
     data = _partition_chain_configuration(tmp_path)
     data['initial_records']['dz__far'].update(basis='avtz-f12', project_orbitals=True)

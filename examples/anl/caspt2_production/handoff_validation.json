@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "status": "handoff preparation tested; native sulfur production pending",
+  "focused_tests_passed": 571,
+  "subtests_passed": 31,
+  "native_backend_tests_passed": 5,
+  "test_groups": [
+    [
+      "tests/test_caspt2_production.py",
+      "tests/test_vrc_multistate.py",
+      "tests/test_electronic_states.py",
+      "tests/test_vrc_correction.py",
+      "tests/test_molpro_ase.py",
+      "tests/test_rotdpy_profiles.py",
+      "tests/test_molpro_reconnaissance.py",
+      "tests/test_orbital_review.py",
+      "tests/test_molpro_confirmation_package.py",
+      "tests/test_mess_execution.py",
+      "tests/test_mess_finalization.py",
+      "tests/test_parameters.py",
+      "tests/test_run_cleanup.py",
+      "tests/test_anl_automatic.py",
+      "tests/test_anl_mess_thermochemistry.py",
+      "tests/test_pes_optimization_selection.py"
+    ],
+    [
+      "tests/test_caspt2_handoff.py"
+    ],
+    [
+      "tests/test_anl_sulfur_examples.py",
+      "tests/test_vrc_tst_dispatch.py",
+      "tests/test_kb_vrc_selection.py",
+      "tests/test_rotdpy.py",
+      "tests/test_anl_dispatch.py",
+      "tests/test_anl_end_to_end.py",
+      "tests/test_anl_cbh_table_handoff.py"
+    ]
+  ],
+  "native_backend_evidence": "backend_smoke_review.json",
+  "prepared_local_directory": "local_runs/caspt2_production_prepare_final",
+  "limits": [
+    "No SSH or Blodgett production launch performed.",
+    "New minimum-selection wrapper has input-rendering coverage; constituent CASPT2 calls have native evidence.",
+    "No guarantee of convergence, all-geometry orbital/state continuity or total kinetic uncertainty."
+  ],
+  "test_source_sha256": {
+    "tests/test_caspt2_production.py": "a0c922df28fb58d35d002928d409c274d3ce963ec7a25a4b975b05849bbdbcd3",
+    "tests/test_vrc_multistate.py": "382693992c704934d9817f23a338a72d1a35d954b2e1fbbf4451cd44a3411f83",
+    "tests/test_electronic_states.py": "ea15ef5f802ea1e7fa5a03c1e9cc6a342ecd7117c60ce5f8f9a28b27c81256d2",
+    "tests/test_vrc_correction.py": "4d510d2d9038fa584565f54035cd58075c663844eea37e5c090203b24282472d",
+    "tests/test_molpro_ase.py": "ff8605270f2797ef3492419e7cba132d9cab1feae90fd213f6e68a328579621e",
+    "tests/test_rotdpy_profiles.py": "8cd1cf40446b2f7b13b082a4374358b0115e3cc5b95542a7119960326e459b0b",
+    "tests/test_molpro_reconnaissance.py": "78fe4f3869fe293683267fc01cff16a00cbd828d873245ef787c898f1e64d247",
+    "tests/test_orbital_review.py": "4a926b9c51c7c0b354e26efa03052855574a9eff19e9c5cefe2a9b0da1d92203",
+    "tests/test_molpro_confirmation_package.py": "80eaa406712f12126ab51956c5b0e8251aa9b7022777ac95a8798f3d5079657e",
+    "tests/test_mess_execution.py": "45aa353b9af5f8992dfe2a17007f4d74d649244a3cbc1702582513602d175529",
+    "tests/test_mess_finalization.py": "960ec23560031ddb0bfe9712c5a9a136ae3aadc5128c51fb73427f4c4f43ffdb",
+    "tests/test_parameters.py": "1b4a49c398c516516206dbbae45c09cd23dbc9414cb7e861ae45bec193b68307",
+    "tests/test_run_cleanup.py": "837e09566b055ba44306a81efc617b0c6083f66e88be7cc6598377b0bd5bda1f",
+    "tests/test_anl_automatic.py": "db9631b9aa3a5248b7d61a40ff915d1af0e736da296669d6cdd74c3e56c4420c",
+    "tests/test_anl_mess_thermochemistry.py": "ae93bd6ae47c75da9a9c0662d91e8b277bbc121d0599595d9068ffb9f65a4255",
+    "tests/test_pes_optimization_selection.py": "43c48fd8e926e662e1ad0a4bf2b06eaaf4cafbf5fec346fe4631068a7d2cd420",
+    "tests/test_caspt2_handoff.py": "9388674a5942f9c129f7e0f5e3046beaf261c59e8216f5ce1ef510fdca31641d",
+    "tests/test_anl_sulfur_examples.py": "9e3d934c8ca2e43112f680e948fe3e233a9b8896c583d27c5913e0e9efdcba95",
+    "tests/test_vrc_tst_dispatch.py": "f708b331a41fca85289eadfeab3dfc3da01819fa502d38443d9ea2fb3a331849",
+    "tests/test_kb_vrc_selection.py": "ec57509cbbdb1bdcbdbd420758ba28ade214d23f946f33ca1a33726a7008ecd6",
+    "tests/test_rotdpy.py": "5fa1299696dc3fb7f9ca4a66320150a4a67a0eed3e6bde43d895e1b393b602b0",
+    "tests/test_anl_dispatch.py": "555555b572b3c05ddb1b1e4ee1c8022495f31eb870049f3f89980d3a4120370c",
+    "tests/test_anl_end_to_end.py": "f032da6374e3b2b033df026e9030eeb0a2a3fa5f70b8b715efc7d2a95edf7469",
+    "tests/test_anl_cbh_table_handoff.py": "3acd2ce7364c9595620b372098031fc4413dc2a45c24cea696c23bed45d172ca"
+  }
+}

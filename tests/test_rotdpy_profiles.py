@@ -24,6 +24,7 @@ def sulfur_correction(tmp_path, name='ch3s', roots=3, sample_basis=None):
     if sample_basis is not None:
         par['vrc_tst_sample_basis'] = sample_basis
     par.update(input_file=str(tmp_path / 'input.json'), rotdpy_run=0,
+               vrc_tst_state_model_file=f'{name}_state_model.json',
                pp_orient='geometric',
                vrc_tst_scan={'parent': ['parent_hom_sci_1_2']})
     models = {}

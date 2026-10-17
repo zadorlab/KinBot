@@ -277,7 +277,19 @@ def test_spin_splitting_dispatches_all_cbs_components_and_records_provenance():
                 'vrc_tst_high_method': 'mrci+q(2,2)',
                 'vrc_tst_high_basis': 'vtz',
                 'vrc_tst_correction_model': 'spin_splitting',
-                'vrc_tst_spin_splitting': None,
+                # Explicit optional multi-method model: production defaults
+                # now use one CASPT2 gap and a single-basis CC anchor.
+                'vrc_tst_spin_splitting': {
+                    'reference': {'method': 'uccsd(t)-f12b',
+                                  'basis': ['avtz-f12', 'avqz-f12'],
+                                  'extrapolation_power': 3.7},
+                    'gap_levels': [
+                        {'label': 'caspt2_f12', 'method': 'caspt2-f12(2,2)',
+                         'basis': ['avtz-f12', 'avqz-f12'],
+                         'extrapolation_power': 3.7, 'shift': .1, 'ipea': .25},
+                        {'label': 'mrci_f12_q', 'method': 'mrci-f12+q(2,2)',
+                         'basis': ['avtz-f12', 'avqz-f12'],
+                         'extrapolation_power': 3.7}]},
             }
             vts = VTS(well, parameters, None)
             product_a = SimpleNamespace(

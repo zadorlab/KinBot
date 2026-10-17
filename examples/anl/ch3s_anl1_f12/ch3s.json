@@ -16,9 +16,9 @@
     "mode": "selected",
     "active_electrons": 5,
     "active_orbitals": 4,
-    "source": "Minimum candidate supported by local ORCA: methyl radical plus all three sulfur 3p orbitals; pending basis-specific native Molpro confirmation"
+    "source": "Native-confirmed minimum subspace; exact basis-specific records in the per-bond surface model."
   },
-  "vrc_tst_state_model_file": "ch3s_state_model.json",
+  "vrc_tst_state_model_file": "../caspt2_production/ch3s_cs_state_model.json",
   "rotdpy_run": 1,
   "rotdpy_validation_profile": "production",
   "rotdpy_mess_mode": "production",
@@ -32,7 +32,7 @@
   "queuing": "slurm",
   "queue_name": "month-long-cpu",
   "ppn": 8,
-  "queue_job_limit": 20,
+  "queue_job_limit": 10,
   "electronic_state_models": [
     {
       "smiles": "[S]",
@@ -79,7 +79,7 @@
     ]
   },
   "vrc_tst_surface_model_file": "ch3s_surface_model.json",
-  "vrc_tst_scan_shift": 0.3,
+  "vrc_tst_scan_shift": 0.1,
   "vrc_tst_scan_ipea": 0.25,
   "vrc_tst_spin_splitting": {
     "reference": {
@@ -90,18 +90,58 @@
       {
         "label": "caspt2_f12",
         "method": "caspt2-f12(2,2)",
-        "basis": "avtz-f12",
-        "shift": 0.3,
+        "basis": [
+          "avdz-f12",
+          "avtz-f12"
+        ],
+        "extrapolation_power": 3.7,
+        "shift": 0.1,
         "ipea": 0.25
-      },
-      {
-        "label": "mrci_f12_q",
-        "method": "mrci-f12+q(2,2)",
-        "basis": "avtz-f12"
       }
     ],
     "weighting": {
       "model": "arithmetic_mean"
     }
+  },
+  "vrc_tst_scan_method": "caspt2-f12(2,2)",
+  "vrc_tst_scan_basis": "avtz-f12",
+  "vrc_tst_scan_gradient": "numerical",
+  "vrc_tst_sample_method": "caspt2-f12(2,2)",
+  "vrc_tst_high_method": "caspt2-f12(2,2)",
+  "vrc_tst_high_basis": [
+    "avdz-f12",
+    "avtz-f12"
+  ],
+  "vrc_tst_high_extrapolation_power": 3.7,
+  "vrc_tst_correction_model": "spin_splitting",
+  "single_point_ppn": 8,
+  "vrc_tst_max_nodes": 10,
+  "vrc_tst_min_stack_mw": 1000,
+  "rotdpy_max_jobs": 10,
+  "rotdPy_mem": 1000,
+  "rotdpy_processors": 8,
+  "slurm_exclude_nodes": [
+    "node1",
+    "node9",
+    "node10",
+    "node13",
+    "node14",
+    "node16",
+    "node21",
+    "node23",
+    "node24",
+    "node30",
+    "node33"
+  ],
+  "rotdpy_exclusive": 1,
+  "vrc_tst_memory_mb": 104000,
+  "simultaneous_kinbot": 1,
+  "rotdpy_flux_parameters": {
+    "pot_smp_max": 1000,
+    "pot_smp_min": 100,
+    "tot_smp_max": 15000,
+    "tot_smp_min": 100,
+    "flux_rel_err": 5,
+    "smp_len": 1
   }
 }

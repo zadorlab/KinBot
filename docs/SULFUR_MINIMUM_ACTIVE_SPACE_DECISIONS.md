@@ -6,13 +6,10 @@ The completed local evidence supports **CAS(5,4) for CH3S C–S and CAS(7,5)
 for both CH3SS C–S and S–S**. All minimum-space inward and exact-return
 checks are complete. The native shared-reference CASPT2 aDZ/aTZ confirmation
 now supports these choices, including asymptotes and active-subspace returns.
-CH3S simultaneous-root MRCI and matched coupled-CABS checks now also pass;
-the corresponding S–S far point completed per the controller, while the
-interacting center/tilted pair remains unresolved after the 0.1 Eh
-preconditioning retry also failed at the first generalized eigensolve.
-A center-only build comparison is prepared; this is not a validated cure or
-approval to install the final production models. The tilted CH3S
-root collapse is resolved with the same (5,4) space. See the
+The matched CASPT2 shift-0.1 check also passes. The user closed the optional
+MRCI branch after Molpro 2023 reproduced the 2024 DSYGV failure. Its unresolved
+S–S center/tilted calculations are not used in production. The separate
+tilted CH3S MRCI root collapse was resolved with the same (5,4) space. See the
 [native recovery review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md). These are minimum-space recommendations for corrected
 VRC sampling, not claims of full-valence total-energy accuracy or completed
 production kinetics.
@@ -29,29 +26,28 @@ numbers alone cannot establish the selected chemical subspace.
 
 ## Production settings selected by the user — October 16, 2026
 
-For the eventual end-to-end KinBot inputs, use:
+The final CASPT2-only inputs use:
 
 | Stage/method | Requested setting |
 | --- | --- |
 | CASPT2-F12 sampling and correction | `IPEA=0.25`, real `SHIFT=0.1` Eh |
-| MRCI-F12+Q correction | Davidson iteration denominator shifts `SHIFTP=0.1,SHIFTS=0.1,SHIFTI=0.1` Eh |
+| Spin-gap basis estimate | aDZ/aTZ-F12, exponent 3.7 |
+| High-spin anchor | ROHF-UCCSD(T)-F12b/aTZ-F12 ground quartet |
 
-The MRCI shifts precondition the iterative solve; they do not change the
-definition of the relaxed-Davidson +Q correction. The current two-point
-S–S retry used these 0.1 Eh denominator shifts and still failed with DSYGV.
-The requested production settings remain recorded, but the shift has not
-been demonstrated to make this S–S solver robust. See the
-[retry rationale](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md) and
-[Molpro denominator-shift documentation](https://www.molpro.net/manual/doku.php?id=the_mrci_program#denominator_shifts).
-Retain the reviewed same-spin CASPT2 reference averaging, simultaneous MRCI
-roots where needed, and relaxed-Davidson energy convention when installing
-the final stage models.
+Historical MRCI denominator-shift trials remain in the
+[diagnosis](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md). No MRCI energies or
+keywords enter the final production route. Same-spin CASPT2 reference
+averaging remains explicit. All three quartet correction references evaluate
+their complete declared manifold and select its lowest correlated energy;
+this handles the observed CH3S root reordering without changing its H0.
 
 This records the user's production choice; it does not alter running jobs,
-the confirmation catalogue, or completed native inputs/results. Completed
-Molpro CASPT2 confirmation used real shift 0.3 Eh and IPEA 0.25. A modest
-change in the relevant relative energies at shift 0.1 is a working expectation,
-not demonstrated shift insensitivity over the production PES. No additional
+the confirmation catalogue, or completed native inputs/results.
+The original Molpro CASPT2 confirmation used real shift 0.3 Eh and IPEA 0.25.
+The subsequent matched shift-0.1 check gives a 0.267019 kcal/mol change in
+the exponent-3.7 spin-gap estimate at the sensitive S–S geometry; see the
+[native review](CASPT2_SHIFT01_NATIVE_REVIEW_2026-10-16.md). This does not
+establish shift insensitivity over the production PES. No additional
 long CASPT2 parameter survey is requested. Do not mix 0.3 Eh asymptotic
 energies with 0.1 Eh interacting energies when building a production potential.
 
@@ -341,11 +337,11 @@ equivalent declared checks, including the native evidence used for selection.
 It assists a chemical decision; it does not independently infer a unique CAS
 from electron counts or natural occupations.
 
-After native review, install separate basis-specific records for each bond
-and sampling/correction stage, and finish the physical state/surface model.
-Then the intended launch is ordinary KinBot on the two supplied inputs:
+The [production package](../examples/anl/caspt2_production/README.md) now installs
+separate basis-specific records for each bond and declares the physical
+state/surface model. The intended launch is ordinary KinBot on the two supplied inputs:
 CBH/ANL1-F12, constrained relaxed/frozen correction scans, aDZ-F12 orientation
-sampling, aTZ-F12 CASPT2-F12/MRCI-F12+Q averaged spin gaps with the
+sampling, aDZ/aTZ-F12 CASPT2-F12 power-3.7 spin gaps with the
 RHF/ROHF-UCCSD(T)-F12b reference, RotdPy and MESS. This route is implemented
 and locally tested; these examples have not yet completed it natively.
 The user handles SSH and launch, with assistant support for fixes through

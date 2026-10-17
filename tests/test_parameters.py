@@ -63,7 +63,7 @@ class TestBackendWarnings(unittest.TestCase):
         self.read_parameters(pes=1, vrc_tst_surface_model_file='reviewed.json')
         self.assertEqual(self.read_parameters(pes=1)['rotdpy_mess_mode'], 'auto')
 
-    def test_spin_splitting_is_additive_and_defaults_to_tz_qz_cbs(self):
+    def test_spin_splitting_is_additive(self):
         direct = self.read_parameters()
         self.assertEqual(direct['vrc_tst_correction_model'], 'direct')
         spin = self.read_parameters(
@@ -81,7 +81,12 @@ class TestBackendWarnings(unittest.TestCase):
                          'caspt2-f12(2,2)')
         self.assertEqual(parameters['vrc_tst_scan_gradient'], 'numerical')
         self.assertEqual(parameters['vrc_tst_sample_basis'],
-                         'avtz-f12')
+                         'avdz-f12')
+        self.assertEqual(parameters['vrc_tst_scan_shift'], 0.1)
+        self.assertEqual(parameters['vrc_tst_scan_ipea'], 0.25)
+        gap, = parameters['vrc_tst_spin_splitting']['gap_levels']
+        self.assertEqual(gap['basis'], ['avdz-f12', 'avtz-f12'])
+        self.assertEqual(gap['extrapolation_power'], 3.7)
         self.assertEqual(parameters['vrc_tst_correction_model'],
                          'spin_splitting')
 

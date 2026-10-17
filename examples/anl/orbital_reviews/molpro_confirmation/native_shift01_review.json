@@ -1,0 +1,714 @@
+{
+  "cases": [
+    {
+      "absolute_energy_changes_kcal": [
+        -3.366657354435026,
+        -3.380293135279837,
+        -3.673710290238865,
+        -3.5956230112638785,
+        -3.6312216237881265,
+        -3.63178638226342,
+        -3.6221101862020775,
+        -3.507771684902829,
+        -3.705048113407172,
+        -3.862207861156884,
+        -3.615784890679541,
+        -3.7114361598555545
+      ],
+      "active_indices_one_based": [
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      "active_overlap": {
+        "active_absolute_overlap": [
+          [
+            1.0000000000000029,
+            4.0875939785745e-14,
+            3.6961319421768835e-14,
+            1.5056478199632073e-14,
+            4.818541399220777e-14
+          ],
+          [
+            4.0235176301806064e-14,
+            1.0000000000000004,
+            1.9447984889175984e-14,
+            3.707082384118987e-14,
+            6.161737786669619e-15
+          ],
+          [
+            3.720678279361955e-14,
+            1.8207223922983573e-14,
+            1.0000000000000004,
+            3.452012981020047e-14,
+            2.1149748619109232e-14
+          ],
+          [
+            1.4415552085367267e-14,
+            3.298012904440206e-14,
+            3.4302422013965383e-14,
+            1.0000000000000016,
+            7.608063484765282e-15
+          ],
+          [
+            4.958360111384508e-14,
+            4.378875734234455e-15,
+            1.7543475352987947e-14,
+            4.778295814578115e-15,
+            1.000000000000001
+          ]
+        ],
+        "active_singular_values": [
+          1.0000000000000029,
+          1.0000000000000027,
+          1.000000000000002,
+          1.0,
+          0.9999999999999987
+        ],
+        "definition": "Same-geometry MO expansion; assumes native MO normalization",
+        "reconstruction_max_error": 7.35393587642457e-14,
+        "unitarity_max_error": 1.0142234274990426e-13
+      },
+      "additional_input_difference": "DIAB,2140.2 removed; title changed. Initial checkpoint hash identical.",
+      "basis": "adz",
+      "casscf_max_change_hartree": 0.0,
+      "doublet_minus_quartet1_gap_kcal": {
+        "change": [
+          0.2554528317670588,
+          0.24181705092224348,
+          -0.05160010403678683,
+          0.02648717493819852,
+          -0.00911143758604993,
+          -0.009676196061342068
+        ],
+        "shift01": [
+          -75.97626805564862,
+          -59.32627052597682,
+          -8.234919779822581,
+          4.029094005765687,
+          17.884440442127932,
+          18.130524557505833
+        ],
+        "shift03": [
+          -76.23172088741568,
+          -59.56808757689906,
+          -8.183319675785794,
+          4.002606830827489,
+          17.893551879713982,
+          18.140200753567175
+        ]
+      },
+      "equal_label_spin_gap_changes_kcal": [
+        0.25545283176705147,
+        0.12747854962299163,
+        0.031337823168307334,
+        0.2665848498930059,
+        -0.015436733108585737,
+        0.0796497775921348
+      ],
+      "native_input_sha256": [
+        "b1777bc876f256bf45fd4838ac7ab9c84b45a2251d5f54a3572e3ff96f986ae5",
+        "5c08f45db24c3dd8f3f4f63e434c04d0c164ec189ab986e757269f9d7e03fa85"
+      ],
+      "native_output_sha256": [
+        "dc706b29134d99f70c4235a7d45a2c0415b75cfdeff89da1be19691fbefb3ffa",
+        "c3d44dd6f78ab35c12a683594d806ff0ad6bb8272b103377688337f07271098a"
+      ],
+      "native_outputs": [
+        "ch3ss_ss_adz_caspt2_shared_reference/adz__inner/adz__inner.out",
+        "ch3ss_ss_adz_caspt2_shift01/adz__inner/adz__inner.out"
+      ],
+      "new_shift01_calls": [
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.71510248,
+          "root": 1,
+          "squared_norm": 1.17065274
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.68930051,
+          "root": 2,
+          "squared_norm": 1.17077636
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.59619813,
+          "root": 3,
+          "squared_norm": 1.17918102
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.57959158,
+          "root": 4,
+          "squared_norm": 1.17723777
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.55759854,
+          "root": 5,
+          "squared_norm": 1.17807417
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.55486747,
+          "root": 6,
+          "squared_norm": 1.17887153
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.59005896,
+          "root": 1,
+          "squared_norm": 1.17767981
+        },
+        {
+          "iterations": 5,
+          "reference_energy_hartree": -834.54363853,
+          "root": 2,
+          "squared_norm": 1.17391169
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.49706804,
+          "root": 3,
+          "squared_norm": 1.17935702
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.4808883,
+          "root": 4,
+          "squared_norm": 1.18335137
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.47622324,
+          "root": 5,
+          "squared_norm": 1.17654827
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.38626503,
+          "root": 6,
+          "squared_norm": 1.17884746
+        }
+      ],
+      "new_shift01_energies_hartree": [
+        -835.28189538,
+        -835.25536192,
+        -835.17394267,
+        -835.15439872,
+        -835.13231882,
+        -835.13192666,
+        -835.16081949,
+        -835.10937242,
+        -835.06705721,
+        -835.05628566,
+        -835.04117972,
+        -834.95719307
+      ],
+      "old_shift03_calls": [
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.71510248,
+          "root": 1,
+          "squared_norm": 1.14314836
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.68930051,
+          "root": 2,
+          "squared_norm": 1.14315583
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.59619813,
+          "root": 3,
+          "squared_norm": 1.14911026
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.57959158,
+          "root": 4,
+          "squared_norm": 1.14782641
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.55759854,
+          "root": 5,
+          "squared_norm": 1.14836565
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.55486747,
+          "root": 6,
+          "squared_norm": 1.1491685
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.59005896,
+          "root": 1,
+          "squared_norm": 1.14804773
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.54363853,
+          "root": 2,
+          "squared_norm": 1.14522678
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.49706804,
+          "root": 3,
+          "squared_norm": 1.14902537
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.4808883,
+          "root": 4,
+          "squared_norm": 1.15169295
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.47622324,
+          "root": 5,
+          "squared_norm": 1.14695985
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.38626503,
+          "root": 6,
+          "squared_norm": 1.14844656
+        }
+      ],
+      "old_shift03_energies_hartree": [
+        -835.27653027,
+        -835.24997508,
+        -835.16808824,
+        -835.14866873,
+        -835.1265321,
+        -835.12613904,
+        -835.15504729,
+        -835.10378243,
+        -835.06115284,
+        -835.05013084,
+        -835.0354176,
+        -834.95127852
+      ],
+      "state_order_by_energy": {
+        "shift01": [
+          [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        ],
+        "shift03": [
+          [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        ]
+      }
+    },
+    {
+      "absolute_energy_changes_kcal": [
+        -3.5705916583902915,
+        -3.5876473658708132,
+        -3.8872078385318787,
+        -3.816801275619883,
+        -3.850002801906471,
+        -3.856641852129577,
+        -3.8350304258203605,
+        -3.7274502015675313,
+        -3.9281465566362455,
+        -4.088054795922498,
+        -3.8413745466420526,
+        -3.9450328366383847
+      ],
+      "active_indices_one_based": [
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      "active_overlap": {
+        "active_absolute_overlap": [
+          [
+            0.9999999999999949,
+            2.5165823201375725e-14,
+            3.674578002987872e-15,
+            6.1573467678710525e-15,
+            2.1448121056977243e-14
+          ],
+          [
+            1.9500893955193277e-14,
+            0.9999999999999967,
+            1.0673753547685294e-14,
+            1.8015428558670887e-14,
+            2.9504176879413535e-14
+          ],
+          [
+            4.54081217071689e-14,
+            6.4413806320079425e-15,
+            0.9999999999999992,
+            7.325848369772736e-14,
+            4.912736883966318e-14
+          ],
+          [
+            8.197869466597396e-15,
+            8.562852575437485e-15,
+            5.4375571428323666e-14,
+            1.000000000000004,
+            1.4713924523235278e-14
+          ],
+          [
+            3.261627079531593e-14,
+            2.4595614173811287e-14,
+            7.111845834462116e-14,
+            8.677032616727365e-15,
+            1.0000000000000047
+          ]
+        ],
+        "active_singular_values": [
+          1.000000000000024,
+          1.0000000000000056,
+          1.0000000000000047,
+          0.9999999999999938,
+          0.9999999999999714
+        ],
+        "definition": "Same-geometry MO expansion; assumes native MO normalization",
+        "reconstruction_max_error": 1.2079226507921703e-13,
+        "unitarity_max_error": 1.3160306178244938e-13
+      },
+      "additional_input_difference": "DIAB,2140.2 removed; title changed. Initial checkpoint hash identical.",
+      "basis": "atz",
+      "casscf_max_change_hartree": 0.0,
+      "doublet_minus_quartet1_gap_kcal": {
+        "change": [
+          0.26443876743007877,
+          0.24738305994954857,
+          -0.052177412711518656,
+          0.018229150200477662,
+          -0.014972376086111794,
+          -0.021611426309217308
+        ],
+        "shift01": [
+          -76.66521070721663,
+          -60.26442856511407,
+          -8.797023941368183,
+          4.254482858679884,
+          15.901315976152587,
+          17.811109685029955
+        ],
+        "shift03": [
+          -76.92964947464671,
+          -60.51181162506362,
+          -8.744846528656664,
+          4.236253708479406,
+          15.916288352238698,
+          17.832721111339172
+        ]
+      },
+      "equal_label_spin_gap_changes_kcal": [
+        0.2644387674300692,
+        0.13980283569671806,
+        0.04093871810436679,
+        0.2712535203026157,
+        -0.008628255264418266,
+        0.08839098450880797
+      ],
+      "native_input_sha256": [
+        "6237ce043177ada86b493416acbb1df8d9190441450c6e583314725080c711b4",
+        "5984ffb415506274276ca8e860f60846d45dc6fa9009e4611169d10a5c4e72f9"
+      ],
+      "native_output_sha256": [
+        "cd6e7a11afdb181cd9bd948fc8e8d9f8464995eda7bde297af42be400c6ff6b9",
+        "74556c98bf4e2423202ba2634af9f0d05762a6d54ec782ef010c0e394901a5d5"
+      ],
+      "native_outputs": [
+        "ch3ss_ss_atz_caspt2_shared_reference/atz__inner/atz__inner.out",
+        "ch3ss_ss_atz_caspt2_shift01/atz__inner/atz__inner.out"
+      ],
+      "new_shift01_calls": [
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.72927027,
+          "root": 1,
+          "squared_norm": 1.18678923
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.7035761,
+          "root": 2,
+          "squared_norm": 1.18706883
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.61031883,
+          "root": 3,
+          "squared_norm": 1.19568193
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.59151549,
+          "root": 4,
+          "squared_norm": 1.19405253
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.57056456,
+          "root": 5,
+          "squared_norm": 1.19565086
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.56990267,
+          "root": 6,
+          "squared_norm": 1.19502823
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.60236448,
+          "root": 1,
+          "squared_norm": 1.19400257
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.5558539,
+          "root": 2,
+          "squared_norm": 1.19056106
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.51035408,
+          "root": 3,
+          "squared_norm": 1.1960541
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.49345345,
+          "root": 4,
+          "squared_norm": 1.20010059
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.48995501,
+          "root": 5,
+          "squared_norm": 1.19337801
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.39686525,
+          "root": 6,
+          "squared_norm": 1.19608157
+        }
+      ],
+      "new_shift01_energies_hartree": [
+        -835.30811043,
+        -835.28197412,
+        -835.19995559,
+        -835.17915669,
+        -835.16059628,
+        -835.15755283,
+        -835.18593664,
+        -835.1348641,
+        -835.09352511,
+        -835.08223513,
+        -835.06860752,
+        -834.98153885
+      ],
+      "old_shift03_calls": [
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.72927027,
+          "root": 1,
+          "squared_norm": 1.15763234
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.7035761,
+          "root": 2,
+          "squared_norm": 1.15776777
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.61031883,
+          "root": 3,
+          "squared_norm": 1.16387962
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.59151549,
+          "root": 4,
+          "squared_norm": 1.16284639
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.57056456,
+          "root": 5,
+          "squared_norm": 1.16417848
+        },
+        {
+          "iterations": 8,
+          "reference_energy_hartree": -834.56990267,
+          "root": 6,
+          "squared_norm": 1.16348993
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.60236448,
+          "root": 1,
+          "squared_norm": 1.16264296
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.5558539,
+          "root": 2,
+          "squared_norm": 1.16009321
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.51035408,
+          "root": 3,
+          "squared_norm": 1.16391173
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.49345345,
+          "root": 4,
+          "squared_norm": 1.16660671
+        },
+        {
+          "iterations": 5,
+          "reference_energy_hartree": -834.48995501,
+          "root": 5,
+          "squared_norm": 1.16195859
+        },
+        {
+          "iterations": 7,
+          "reference_energy_hartree": -834.39686525,
+          "root": 6,
+          "squared_norm": 1.16378296
+        }
+      ],
+      "old_shift03_energies_hartree": [
+        -835.30242033,
+        -835.27625684,
+        -835.19376093,
+        -835.17307423,
+        -835.15446091,
+        -835.15140688,
+        -835.17982513,
+        -835.12892403,
+        -835.08726521,
+        -835.0757204,
+        -835.0624859,
+        -834.97525204
+      ],
+      "state_order_by_energy": {
+        "shift01": [
+          [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        ],
+        "shift03": [
+          [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        ]
+      }
+    }
+  ],
+  "cbs_gap_estimate_kcal": {
+    "change": [
+      0.2670189464205066,
+      0.2489812574095822,
+      -0.05234317838906222,
+      0.015857980104264868,
+      -0.016655258197571854,
+      -0.02503845177281505
+    ],
+    "power": 3.7,
+    "qualification": "Two-basis estimate, not a calibrated CASPT2-F12 extrapolation uncertainty.",
+    "shift01": [
+      -76.86303043593959,
+      -60.53380681942744,
+      -8.95842386703388,
+      4.319199946000855,
+      15.331891013145478,
+      17.719394411952504
+    ],
+    "shift03": [
+      -77.1300493823601,
+      -60.78278807683702,
+      -8.906080688644817,
+      4.30334196589659,
+      15.34854627134305,
+      17.74443286372532
+    ]
+  },
+  "interpretation": "The shift-0.1 matched points converge with unchanged CASSCF/reference states and active subspaces. Use 0.1 consistently in production; this does not establish shift independence or a rate uncertainty.",
+  "inventory_sha256": {
+    "current": "d6fe4481f16740c73269c850dcbebbdedc9a41699a69e9aceae2ad6b8658e582",
+    "previous": "0b90247188910d85ad725ad828da51bd2b1ded41dd4248ebcbad014b6e8833d7"
+  },
+  "production_end_to_end_validated": false,
+  "schema": 1,
+  "status": "matched_point_review_complete",
+  "verified_files": {
+    "current": 58,
+    "previous": 539
+  }
+}

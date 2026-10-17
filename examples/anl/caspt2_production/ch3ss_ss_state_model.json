@@ -1,0 +1,143 @@
+{
+  "schema": 2,
+  "state_average_policy": "reviewed",
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 7,
+    "active_orbitals": 5,
+    "source": "Native two-basis CASPT2 confirmation; see docs/SULFUR_ACTIVE_ORBITAL_EVIDENCE.md"
+  },
+  "basis_models": {
+    "avdz-f12": {
+      "orbital_selection": {
+        "mode": "molpro_record",
+        "path": "orbitals/ch3ss_ss_adz.wfu",
+        "sha256": "9fb0a6daf99e51ba09ef16f2f7bdd16ebdcc78c2eaa9e5f7f1349098d3045e84",
+        "record": "2140.2",
+        "orbital_type": "natural",
+        "align_active_orbitals": false
+      },
+      "state_average": [
+        {
+          "multiplicity": 2,
+          "roots": 6,
+          "weights": [
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666
+          ]
+        },
+        {
+          "multiplicity": 4,
+          "roots": 6,
+          "weights": [
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666
+          ]
+        }
+      ],
+      "selected_roots": {
+        "2": 1,
+        "4": 1
+      },
+      "canonical_orbitals": true,
+      "casscf_options": {
+        "solver": "so_sci",
+        "exact_diagonalization": true,
+        "quasi_newton": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_options": {
+        "reference_policy": "state_average",
+        "energy_convergence": 1e-08,
+        "coefficient_convergence": 1e-05,
+        "max_iterations": 2000,
+        "max_reference_iterations": 2000,
+        "max_reference_vectors": 60
+      },
+      "energy_selection": {
+        "4": "lowest"
+      }
+    },
+    "avtz-f12": {
+      "orbital_selection": {
+        "mode": "molpro_record",
+        "path": "orbitals/ch3ss_ss_atz.wfu",
+        "sha256": "f498addcbd0b289dc4850e5abcb4e63f16b9f5c492863ab42dece87602c8e14c",
+        "record": "2140.2",
+        "orbital_type": "natural",
+        "align_active_orbitals": false
+      },
+      "state_average": [
+        {
+          "multiplicity": 2,
+          "roots": 6,
+          "weights": [
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666
+          ]
+        },
+        {
+          "multiplicity": 4,
+          "roots": 6,
+          "weights": [
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666
+          ]
+        }
+      ],
+      "selected_roots": {
+        "2": 1,
+        "4": 1
+      },
+      "canonical_orbitals": true,
+      "casscf_options": {
+        "solver": "so_sci",
+        "exact_diagonalization": true,
+        "quasi_newton": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_options": {
+        "reference_policy": "state_average",
+        "energy_convergence": 1e-08,
+        "coefficient_convergence": 1e-05,
+        "max_iterations": 2000,
+        "max_reference_iterations": 2000,
+        "max_reference_vectors": 60
+      },
+      "energy_selection": {
+        "4": "lowest"
+      }
+    }
+  },
+  "molecule": {
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "charge": 0
+  }
+}

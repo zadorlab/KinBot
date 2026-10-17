@@ -31,6 +31,10 @@ from kinbot.execution import file_sha256
 
 
 def _mr_gradient_variable(contract, state_model, mult):
+    selection = (state_model or {}).get('energy_selection', {})
+    if selection.get(mult, selection.get(str(mult))) == 'lowest':
+        raise ValueError('Lowest-manifold selection is supported for energies only; '
+                         'a geometry gradient requires an explicit root.')
     if ((state_model or {}).get('correlation_options', {}).get('state_policy') == 'simultaneous'
             and contract['method'].startswith('MRCI')):
         roots = state_model['selected_roots']
@@ -80,7 +84,7 @@ def _caspt2_space(method, electron_count):
 
 def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                  mult=1, method='CCSD(T)', effective_method=None,
-                 caspt2_shift=0.3, caspt2_ipea=0.25,
+                 caspt2_shift=0.1, caspt2_ipea=0.25,
                  state_model=None,
                  orbital_file=None,
                  gradient_mode='auto', scf_convergence=1.e-10,
@@ -104,6 +108,9 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
     requested_method = str(method).strip()
     electron_count = int(sum(atoms.numbers)) - charge
     contract = vrc_multireference_energy_contract(requested_method)
+    if contract is not None:
+        # Never differentiate the final root while reporting MIN(all roots).
+        _mr_gradient_variable(contract, state_model, mult)
     if gradient_mode not in ('auto', 'analytic', 'numerical'):
         raise ValueError('Molpro gradient_mode must be auto, analytic, or '
                          'numerical.')
@@ -371,7 +378,7 @@ class Molpro(Calculator):
     def __init__(self, *, directory, label, method, basis, command='molpro',
                  charge=0, mult=1, nproc=1, stack_mw=256,
                  scratch_min_mb=4096, effective_method=None,
-                 caspt2_shift=0.3, caspt2_ipea=0.25,
+                 caspt2_shift=0.1, caspt2_ipea=0.25,
                  state_model=None,
                  gradient_mode='auto', scf_convergence=1.e-10,
                  correlation_convergence=1.e-8):
@@ -426,6 +433,8 @@ class Molpro(Calculator):
                              'or numerical.')
         self.gradient_mode = gradient_mode
         contract = vrc_multireference_energy_contract(method)
+        if contract is not None:
+            _mr_gradient_variable(contract, self.state_model, self.mult)
         analytic_available = (
             contract is not None and contract['method'] == 'CASPT2'
             and not contract['explicitly_correlated'])

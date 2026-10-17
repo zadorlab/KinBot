@@ -6,6 +6,51 @@ Update statuses and evidence links as work completes; do not replace outstanding
 requirements with a new plan. The example-specific choices belong in example
 data, not in general KinBot implementation.
 
+**16 October scope clarification:** the user selected CASPT2-only production
+spin gaps (IPEA 0.25, real shift 0.1 Eh), with aDZ/aTZ extrapolation and the
+existing high-spin CC anchor. MRCI is a historical benchmark. The latest user instruction selects ordinary
+single-bottleneck VRC for both examples. Existing optional inner/outer backend
+hooks remain available but are not used here. The particular physical surfaces and statistical
+assumptions must be documented separately; successful electronic convergence
+does not establish them. The unsubmitted example models and new automatic VRC
+spin-orbit offsets/population redistribution were removed. Retain and audit the
+existing sulfur fine-structure treatment in thermochemistry separately. A
+confirmation geometry called `inner` is not evidence of an inner kinetic
+bottleneck. See the [current production scope](CASPT2_PRODUCTION_TRANSITION_2026-10-16.md).
+
+## Current status: CASPT2 production handoff prepared
+
+This table is the current status; the historical MRCI experiments below remain
+provenance, not production prerequisites. The user has ended MRCI retries.
+
+| Item | Status | Remaining work before or after handoff |
+| --- | --- | --- |
+| 1. Literature/minimum active spaces | Complete for handoff: (5,4), (7,5), (7,5) | Physical reactive components and distinct SA weights are explicit in the production models. |
+| 2. Local ORCA evidence | Complete | Retain 47 curated native points and reproducible analysis. |
+| 3. Molpro confirmation | CASPT2 complete, including matched shift 0.1 | MRCI branch closed by user; no further benchmark needed. |
+| 4. General JSON controls | Complete for handoff; regression-tested | Full same-spin references and lowest-quartet selector are general explicit controls. |
+| 5. General orbital reconnaissance | Complete for handoff; documented and tested | Chemical selection still requires review; it is not a unique-CAS oracle. |
+| 6. Production inputs | Complete and locally checked | Six portable orbital records, ordinary VRC surfaces, full inputs and launch/preflight helper supplied. Native production remains pending. |
+| 7. End-to-end production follow-through | Pending user launch | Actual ANL/RotdPy/MESS results cannot be certified before those runs. |
+| 8. Integration/general defaults | Complete for handoff | 571 focused tests + 31 subtests; separately five native RotdPy/MESS/MESSPF checks passed. Actual cluster preflight repeats backend checks. |
+| 9. Evidence/documentation | Complete for handoff | Parameter-by-parameter provenance, native evidence, limitations and commands linked below. |
+| 10. Cleanup inventory | Prepared; cleanup deferred | Do not remove native evidence or run directories before both examples finish. |
+| 11. Consolidated production handoff | Prepared | User pulls and runs the helper; no SSH or cluster launch was performed locally. |
+| 12. Previous-run retirement | Scoped transition prepared and tested | Fresh inventory/stop/archive occurs on user launch; no blanket cancellation. |
+
+The [production handoff](../CASPT2_PRODUCTION_HANDOFF.md) and its linked full
+parameter reference are authoritative for the new runs. “Complete for handoff”
+means the requested preparation is done, not that the two PES calculations,
+their scientific acceptance, or deferred cleanup have already happened.
+
+The new shift export verifies 58/58 inventoried files and 24/24 correlated
+energies. The matched CASSCF/reference energies and active orbital subspaces
+are unchanged. The lowest D–Q gap changes by 0.255453 kcal/mol at aDZ,
+0.264439 at aTZ and 0.267019 in the power-3.7 estimate. See the
+[native shift review](CASPT2_SHIFT01_NATIVE_REVIEW_2026-10-16.md).
+This is acceptance of the requested matched-point check, not proof of
+shift-independent rates or all-geometry root continuity.
+
 ## Objective and handoff
 
 Determine the **minimum chemically adequate active space** for the requested
@@ -98,15 +143,16 @@ return differences are 0.00000986, 0.00001097 and 0.00008911 kcal/mol, respectiv
 See [the decision and caveats](SULFUR_MINIMUM_ACTIVE_SPACE_DECISIONS.md).
 No extra full-valence expansion is needed merely to match absolute energies.
 
-## 3. Minimal one-time Molpro confirmation — CASPT2 and CH3S MRCI accepted; S–S MRCI pending
+## 3. Minimal one-time Molpro confirmation — CASPT2 accepted; MRCI branch closed
 
 - [x] Supply reproducible aDZ-F12/aTZ-F12 CASPT2-F12 checks of the selected spaces.
 - [x] Establish basis-specific orbital initialization, states/asymptotes,
   active-space continuity and representative radial/angular/return behavior
   for CASPT2, reusing the original CH3SS C–S results.
 - [x] Supply sparse aTZ-F12 MRCI-F12+Q checks and explicit acceptance review.
-- [ ] Finish correlated MRCI root protection and matched coupled-CABS interactions;
-  then install final reference-stage settings.
+- [x] Complete the requested matched shift-0.1 CASPT2 check in both bases.
+- MRCI root/CABS investigations are retained as historical benchmarks. The user
+  removed MRCI from the production route after the second-build DSYGV failure.
 
 The original run completed 35/39 points. The subsequent recovery completed
 20 CASPT2 points plus the MAXDAV20 MRCI point, with two CABS=2 failures and
@@ -127,18 +173,18 @@ completed per the controller; its full native export awaits review. Center
 failed in the first simultaneous MRCI iteration with `dsygv failed`, leaving
 tilted dependent on center. The 0.1 Eh numerical preconditioning trial also
 failed at the same first-iteration solve (job 52908243); tilted remains unrun.
-One center-only comparison with the installed 2023 executable is prepared,
-with identical electronic input and original seed. It is a build diagnostic,
-not an established cure. All five completed multistate points are preserved;
+The center-only comparison with the installed 2023 executable then reproduced
+the same DSYGV failure. The user closed this MRCI branch; its unresolved
+points are excluded from production. All five completed multistate points are preserved;
 no CASPT2 or active-space survey is repeated. The
 [diagnosis and controlled comparison](MOLPRO_MRCI_DSYGV_RECOVERY_2026-10-16.md)
 distinguish documented controls from the unproven crash mechanism. See the
 [current native review](MOLPRO_RECOVERY_REVIEW_2026-10-16.md),
 [historical diagnosis](MOLPRO_CONFIRMATION_RESOLUTION_2026-10-16.md), and
 [submission handoff](../MOLPRO_CONFIRMATION_HANDOFF.md). The three S–S results
-are not accepted before execution and review.
+are not relabelled as successes by the CASPT2-only production decision.
 
-## 4. General user controls in KinBot JSON — audited; simultaneous MRCI confirmed for CH3S
+## 4. General user controls in KinBot JSON — implemented and checked for handoff
 
 - [x] Verify per-reaction and per-stage CAS counts, exact orbital selection or
   reviewed ordered records, basis-specific initialization, state averages,
@@ -151,10 +197,10 @@ are not accepted before execution and review.
 Explicit MRCI `correlation_options.state_policy="simultaneous"` computes the
 full same-spin manifold, records energy-order labels and selects the matching
 relaxed-Davidson array/gradient slot. The default independent policy is unchanged.
-- [ ] After the S–S check, apply the confirmed root-protection guidance to the
-  general multiroot workflow and production stage models. Preserve explicit
-  state conventions; do not assume identical CASSCF/CASPT2/MRCI integer root
-  labels mean identical character, or impose multiroot work on a one-root case.
+- [x] Preserve explicit root/reference conventions and native-confirmed shared-
+  reference CASPT2 settings. Do not infer equivalent character from integer
+  root labels, or impose multiroot work on a one-root case. Historical MRCI
+  simultaneous-root controls remain available but are unused in production.
 
 ## 5. General orbital reconnaissance procedure — revised and locally tested
 
@@ -168,22 +214,21 @@ relaxed-Davidson array/gradient slot. The default independent policy is unchange
 
 Procedure: [ORBITAL_REVIEW_WORKFLOW.md](ORBITAL_REVIEW_WORKFLOW.md).
 
-## 6. Complete production inputs for both examples — pending native choices
+## 6. Complete production inputs for both examples — prepared and locally checked
 
 - [x] Configure all three hom_sci channels with the selected per-bond CAS counts.
 - [x] Record the user's October 16 production settings: CASPT2-F12
-  `IPEA=0.25`, real `SHIFT=0.1` Eh for sampling/correction; MRCI Davidson
-  iteration denominator shifts 0.1 Eh for pairs, singles and internals.
-  Validate the latter in the current S–S retry. These are recorded choices,
-  not a claim that final production inputs are already installed or validated.
-- [ ] Install their native-confirmed, basis-specific orbital and surface models.
-- [ ] Provide the requested CASPT2-F12/aDZ-F12 sampling and aTZ-F12
-  CASPT2-F12/MRCI-F12+Q averaged-spin-splitting correction referenced to
-  RHF-UCCSD(T)-F12b, including the configured geometry-relaxation correction.
+  `IPEA=0.25`, real `SHIFT=0.1` Eh for sampling/correction. The requested
+  matched check now passes. MRCI is no longer used in production.
+- [x] Install their native-confirmed, basis-specific orbital and surface models.
+- [x] Provide the requested CASPT2-F12/aDZ-F12 sampling and aTZ-F12 relaxed scan,
+  CASPT2-F12 aDZ/aTZ power-3.7 spin-gap estimate referenced to
+  RHF-UCCSD(T)-F12b/aTZ-F12, including geometry-relaxation correction.
+  Retain the TZ-only gap and extrapolation difference for review.
 - [ ] Complete CBH-ANL at the requested ANL1-F12 levels, RotdPy to the requested
   Monte Carlo uncertainty, and MESS with checked formation enthalpies,
   thermochemistry and fluxes.
-- [ ] State the actual level/root used for relaxed geometry scans. A composite
+- [x] State the actual level/root used for relaxed geometry scans. A composite
   energy correction must not be described as a composite-gradient optimization.
 
 ## 7. Honest readiness and production follow-through — continuing
@@ -196,7 +241,7 @@ Procedure: [ORBITAL_REVIEW_WORKFLOW.md](ORBITAL_REVIEW_WORKFLOW.md).
   Retry recoverable I/O/infrastructure errors with provenance while preserving
   completed valid results; do not disguise scientific failures as successes.
 
-## 8. Generality and integration audit relative to master — local audit complete
+## 8. Generality and integration audit relative to master — complete for handoff
 
 - [x] Audit added features for molecule-specific assumptions, configuration
   propagation, failure/restart behavior, and connections between workflow stages.
@@ -210,6 +255,13 @@ transformations, energy/gradient indexing and simultaneous-call monitoring. This
 all 39 original and 26 supplemental native-input transformation paths, not
 new native calculations. See
 [the audit](GENERALITY_AUDIT_2026-10-15.md) for coverage and native limitations.
+The final CASPT2-only handoff pass adds 571 passing focused tests and 31 subtests,
+plus five separate native RotdPy/MESS/MESSPF checks. These counts are different
+test selections and must not be added to the historical counts as unique tests.
+The [parameter reference](../examples/anl/caspt2_production/PARAMETERS.md)
+records explicit input provenance against master. New lowest-manifold energy
+selection is regression-tested; its constituent native root calculations,
+rather than a newly submitted wrapper calculation, supply the electronic evidence.
 
 ## 9. Current documentation and retained native evidence — verified
 
@@ -241,11 +293,11 @@ Initial plan: [REPOSITORY_CLEANUP_PLAN.md](REPOSITORY_CLEANUP_PLAN.md), with
 [full top-level inventory](REPOSITORY_CLEANUP_INVENTORY_2026-10-15.json).
 Refresh after native production; no cleanup has been performed.
 
-## 11. Consolidated handoff — Molpro launch prepared; production handoff follows native review
+## 11. Consolidated handoff — CASPT2 production launch prepared
 
 - [x] Give all three CAS decisions and their evidence/limitations.
 - [x] Give the minimal Molpro validation package, commands and native acceptance checks.
-- [ ] After native review, give the final production launch/configuration instructions.
+- [x] After native review, give the final production launch/configuration instructions.
 - [x] Answer explicitly whether the standalone study and general tool supply
   equivalent evidence, and what remains before a normal end-to-end run.
 - [x] Include the cleanup inventory and link this maintained checklist.
@@ -263,16 +315,19 @@ Refresh after native production; no cleanup has been performed.
   singles orthogonalization after converged MRCI. Do not accept partial energies.
 - [x] User ran the transition and one-time confirmation; native exports and
   subsequent recovery/gate outputs are retained with hashes.
-- [ ] Reconcile the original broad campaign retirement inventory at production
-  handoff; the later confirmation exports do not by themselves count every
-  earlier allocation or preserved job.
+- [x] Supply a scoped transition that inventories all named previous campaigns,
+  verifies the new seeds and environment first, then stops and archives the old
+  directories while preserving native files. Its scope/preservation/duplicate
+  protections are tested. The user executes the live inventory and retirement;
+  local exports do not certify the current scheduler state.
 
-General defaults remain CABS=1 and relaxed Davidson. Both CABS=3 gates now
+Historical MRCI defaults remain CABS=1 and relaxed Davidson. Both CABS=3 gates
 pass native review. The MRCI supplement explicitly chooses simultaneous roots,
 energy-ordered `ENERGD(i)` and matched coupled-CABS interactions; no old
 calculation is silently assigned those new conventions. MAXDAV20 completed
-numerically but did not protect separate roots from collapse. This new
-submission cancels/deletes nothing and preserves independently running work.
+numerically but did not protect separate roots from collapse. That
+historical submission cancelled/deleted nothing. The new production helper
+retires only the explicit superseded campaign list after its preflight succeeds.
 
 ## Maintenance record
 
@@ -325,3 +380,14 @@ submission cancels/deletes nothing and preserves independently running work.
   rechecked 30 completed native output hashes and their natural occupations,
   and recorded all tables and source hashes in `native_occupation_evidence.json`.
   No new electronic-structure jobs or production-approval changes were made.
+
+- 2026-10-16 17:34 PDT: shift-0.1 export independently reviewed (58 files, 24 energies). User closed MRCI after Molpro23 reproduced DSYGV. CASPT2-only production remains the active scope; final integration and handoff are still in progress.
+
+- 2026-10-16, final scope clarification: ordinary single-bottleneck VRC only in these examples. Added a general, explicit lowest-correlated-manifold energy selector for the CH3S quartet correction reference; shared CASPT2 reference weights remain fixed. It does not claim universal state tracking or permit a mismatched gradient. The aDZ/aTZ exponent remains 3.7. Final handoff integration is still being checked.
+
+- 2026-10-16, handoff preparation complete: installed the same general ground-
+  quartet minimum policy in all three models, retained explicit target roots,
+  and completed inputs, parameter provenance, native backend checks and scoped
+  transition tests. The user launches both PES runs; production acceptance and
+  repository cleanup remain future work. No claim of universal root continuity
+  or successful end-to-end kinetics is made.

@@ -817,6 +817,48 @@ spatial roots. A ground-state coupled-cluster calculation cannot stand in for
 an excited high-spin root. Orbital identity, electronic statistical weights,
 spin-orbit offsets and equilibration assumptions are separate review items.
 
+### Shared CASPT2 references and a ground-state high-spin anchor
+
+Two independent choices must be recorded. `correlation_options.reference_policy`
+set to `"state_average"` emits `REFSTATE` for the entire declared same-spin
+manifold and its normalized `WEIGHT` values in every CASPT2 call. This gives
+the roots a common reference density in the zeroth-order Hamiltonian. CASSCF
+state averaging alone does not make this CASPT2 choice. The native sulfur
+controls show why it matters: the apparent atomic-component splitting with
+separate IPEA references disappears with equal same-spin reference weights,
+while genuine fragment excitation gaps remain. This is shared-reference,
+independent-root CASPT2, not an implicit switch to MS/XMS-CASPT2.
+
+For a ground-state high-spin CC anchor, a CASPT2 root number need not remain
+the lowest correlated energy at every geometry. The general state-model
+option `"energy_selection": {"4": "lowest"}` evaluates every declared quartet
+root with those same shared-reference settings and returns their minimum.
+Multiplicity 4 is an example, not a hardcoded spin. Each value is retained
+in the native `KBGAPS` vector; `KBVRCSEL=MIN(KBGAPS)` is the returned energy.
+The array is reset for each evaluation, so values restored from a checkpoint
+cannot enter the minimum. A failure in any requested root invalidates the
+evaluation; the code does not select only the successfully computed subset.
+This policy requires CASPT2, shared references, and `selected_roots` equal to
+1 for that multiplicity. Remove the `energy_selection` entry to request a
+particular fixed root instead. Geometry derivatives require a fixed root:
+the calculator rejects lowest-manifold gradients rather than differentiating
+the last root while reporting a different energy.
+
+Use this option when reconnaissance establishes the relevant manifold and
+the intended reference is its ground state. It handles energy reordering
+without a molecule-specific root switch. It does not discover missing states,
+prove the CC solution's character, repair a changing active subspace, or
+guarantee smoothness through every crossing. Confirm those separately with
+the reconnaissance checks. All three example production models enable it for
+the quartet correction reference. CH3S demonstrates why: the native center
+point has its lowest quartet CASPT2 energy at root 3; other reviewed points
+have root 1. A one-root manifold incurs no extra correlation call.
+
+These controls are available for any reviewed active space. They are not
+silently imposed on arbitrary excited-state or diabatic calculations.
+Native syntax: [Molpro CASPT2 reference controls](https://www.molpro.net/manual/doku.php?id=multireference_rayleigh_schroedinger_perturbation_theory)
+and [indexed variables and MIN](https://www.molpro.net/manual/doku.php?id=variables).
+
 The sampling basis may differ from the correction basis. Specify it explicitly
 and validate the corrected potential; selecting an accuracy preset alone does
 not establish that it matches the user's requested sampling cost. Likewise,

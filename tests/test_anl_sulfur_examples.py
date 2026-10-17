@@ -33,12 +33,13 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert par['selected_reactions'] == {}
     assert par['vrc_tst_scan_gradient'] == 'numerical'
     assert par['vrc_tst_active_space']['mode'] == 'selected'
-    assert par['vrc_tst_state_model_file'] == f'{name}_state_model.json'
+    assert par['vrc_tst_state_model_file'] == (
+        '../caspt2_production/ch3s_cs_state_model.json' if name == 'ch3s' else '')
     assert par['vrc_tst_surface_model_file'] == f'{name}_surface_model.json'
     assert par['homolytic_bonds'] == {'initial': ([[0, 1]] if name == 'ch3s' else [[0, 1], [1, 2]])}
     assert par['vrc_tst_sample_basis'] == 'avdz-f12'
     assert par['vrc_tst_scan_basis'] == 'avtz-f12'
-    assert par['vrc_tst_scan_shift'] == .3
+    assert par['vrc_tst_scan_shift'] == .1
     assert par['vrc_tst_scan_ipea'] == .25
     species = StationaryPoint(name, 0, 2, smiles=smiles)
     species.characterize()
@@ -53,10 +54,11 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert settings['target_multiplicity'] == 2
     assert settings['reference_multiplicity'] == 4
     assert settings['reference']['basis'] == 'avtz-f12'
-    assert all(level['basis'] == 'avtz-f12'
-               for level in settings['gap_levels'])
-    assert settings['gap_levels'][0]['shift'] == .3
-    assert settings['gap_levels'][0]['ipea'] == .25
+    gap, = settings['gap_levels']
+    assert gap['basis'] == ['avdz-f12', 'avtz-f12']
+    assert gap['extrapolation_power'] == 3.7
+    assert gap['shift'] == .1
+    assert gap['ipea'] == .25
     assert species.mult == 2
     assert 'S' in species.atom
 

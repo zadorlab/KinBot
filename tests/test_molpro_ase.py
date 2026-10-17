@@ -177,7 +177,7 @@ def test_caspt2_analytic_gradient_input_and_xyzgrad_contract():
     assert 'basis=aug-cc-pvtz' in lowered
     assert ('{multi,\nocc,5\nclosed,3\nwf,8,1,0\nmaxit,50;}'
             in lowered)
-    assert '{rs2,shift=0.3,ipea=0.25}' in lowered
+    assert '{rs2,shift=0.1,ipea=0.25}' in lowered
     assert 'forces\nput,xyzgrad,step.xyzgrad' in lowered
     assert 'forces,numerical' not in lowered
     with TemporaryDirectory() as temporary:

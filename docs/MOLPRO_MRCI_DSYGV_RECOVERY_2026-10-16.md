@@ -2,6 +2,17 @@
 
 ## Evidence and current status
 
+**Closed after the user's 17:32 PDT snapshot:** the Molpro23 build probe
+also fails with `dsygv failed` in `cif12solve` after the first iteration,
+with zero of twelve correlated markers (job 52908248, node20). The reported
+reference energies and first-iteration diagnostics match the Molpro24 retry.
+This provides no working alternate build and does not isolate the exact
+internal cause; both attempts ran on node20. The user chose CASPT2-only
+production. No further MRCI retry is required or scheduled, and MRCI is no
+longer a production prerequisite. Preserve this evidence and the earlier
+successful benchmarks. The new result is from the pasted monitor; no full
+Molpro23 native archive has been independently reviewed.
+
 **Update at the user's 16:45 PDT snapshot:** the 0.1 Eh denominator-shift
 trial also failed. Job **52908243**, node20, in
 `_r2_multistate_solver_retry/ch3ss_ss_atz_mrci_preconditioned/atz__center`

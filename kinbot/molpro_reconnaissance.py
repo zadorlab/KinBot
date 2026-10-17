@@ -641,8 +641,7 @@ def _deck(data, basis, anchor, stem, previous=None):
         opening = '{multi,cas-ci;' if method == 'casci' else '{multi,'
         multi = multi.replace('{multi,', opening)
         # Always emit natural orbitals, including when canonical_orbitals=false.
-        multi = multi.replace('canonical,2140.2\n', '')
-        multi = multi.replace('maxit,50;', 'natorb,2140.2\nmaxit,50;')
+        multi = multi.replace('canonical,2141.2\n', '')
         if data.get('correlation_checks'):
             # A reused WFU can contain canonical orbitals for an older/larger
             # space. Save this optimization separately and select it explicitly
@@ -720,6 +719,9 @@ def _deck(data, basis, anchor, stem, previous=None):
                 roots = [1] if simultaneous else range(1, entry['roots'] + 1)
                 for root in roots:
                     selected = deepcopy(model)
+                    # Reconnaissance records each labelled root. A production
+                    # minimum selector must not relabel a minimum as root 1.
+                    selected.pop('energy_selection', None)
                     if 'reference_policy' in check:
                         selected.setdefault('correlation_options', {})['reference_policy'] = check['reference_policy']
                     selected['selected_roots'][entry['multiplicity']] = root
@@ -736,6 +738,7 @@ def _deck(data, basis, anchor, stem, previous=None):
                     correlation = body[len(prefix):]
                     orbital = ('2141.2,type=canonical' if check['method'].lower().startswith('caspt2')
                                else '2140.2,type=natural')
+                    correlation = re.sub(r';orbital,[^;]+;', ';', correlation, count=1)
                     correlation = correlation.replace(';wf,', f';orbital,{orbital};wf,', 1)
                     deck += correlation + f'reconc{counter}={variable}\nshow,reconc{counter}\n'
                     if simultaneous:

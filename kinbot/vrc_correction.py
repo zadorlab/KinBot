@@ -20,77 +20,42 @@ from kinbot.molpro import (automatic_vrc_state_model,
                            vrc_multireference_energy_contract)
 
 
+# Use the requested ANL exponent for the two-point gap estimate as well.
+# Retain its basis sensitivity; this is not a calibrated error certificate.
+CASPT2_GAP_CBS_POWER = ORIGINAL_ANL_POWER
 _SPIN_SPLITTING_DEFAULTS = {
     'target_multiplicity': 1,
     'reference_multiplicity': 3,
     'fragment_multiplicities': None,
-    'reference': {
-        'method': 'uccsd(t)-f12b',
-        'basis': ['avtz-f12', 'avqz-f12'],
-        'extrapolation_power': ORIGINAL_ANL_POWER,
-    },
-    'gap_levels': [
-        {
-            'label': 'caspt2_f12',
-            'method': 'caspt2-f12(2,2)',
-            'basis': ['avtz-f12', 'avqz-f12'],
-            'extrapolation_power': ORIGINAL_ANL_POWER,
-            'shift': 0.2,
-            'ipea': 0.25,
-        },
-        {
-            'label': 'mrci_f12_q',
-            'method': 'mrci-f12+q(2,2)',
-            'basis': ['avtz-f12', 'avqz-f12'],
-            'extrapolation_power': ORIGINAL_ANL_POWER,
-        },
-    ],
-    # No molecule-specific preference as a function of separation. An equal
-    # mean remains a model to validate, not an accuracy guarantee. A distance
-    # switch is supported only with explicit user-supplied knots and weights.
+    'reference': {'method': 'uccsd(t)-f12b', 'basis': 'avtz-f12'},
+    'gap_levels': [{
+        'label': 'caspt2_f12', 'method': 'caspt2-f12(2,2)',
+        'basis': ['avdz-f12', 'avtz-f12'],
+        'extrapolation_power': CASPT2_GAP_CBS_POWER,
+        'shift': 0.1, 'ipea': 0.25,
+    }],
     'weighting': {'model': 'arithmetic_mean'},
 }
 
-
 _VRC_ACCURACY_PRESETS = {
     'legacy': {},
-    # These CAS(2,2) tokens are method templates. An explicitly chosen orbital
-    # policy or reviewed model supplies the space at the reaction boundary.
-    # An accuracy preset must not select a chemical active space implicitly.
+    # CAS(2,2) is a method template, replaced by the reviewed reaction CAS.
+    # No chemical active space, roots or physical surfaces are inferred here.
     'anl1-f12': {
         'vrc_tst_scan_method': 'caspt2-f12(2,2)',
         'vrc_tst_scan_basis': 'avtz-f12',
         'vrc_tst_scan_gradient': 'numerical',
+        'vrc_tst_scan_shift': 0.1,
+        'vrc_tst_scan_ipea': 0.25,
         'vrc_tst_sample_method': 'caspt2-f12(2,2)',
-        'vrc_tst_sample_basis': 'avtz-f12',
-        'vrc_tst_sample_extrapolation_power': ORIGINAL_ANL_POWER,
-        'vrc_tst_high_method': 'mrci-f12+q(2,2)',
-        'vrc_tst_high_basis': 'avtz-f12',
+        'vrc_tst_sample_basis': 'avdz-f12',
+        'vrc_tst_high_method': 'caspt2-f12(2,2)',
+        'vrc_tst_high_basis': ['avdz-f12', 'avtz-f12'],
+        'vrc_tst_high_extrapolation_power': CASPT2_GAP_CBS_POWER,
         'vrc_tst_correction_model': 'spin_splitting',
         'vrc_tst_spin_splitting': {
-            'weighting': {'model': 'arithmetic_mean'},
-            'reference': {
-                'method': 'uccsd(t)-f12b',
-                'basis': 'avtz-f12',
-                'extrapolation_power': ORIGINAL_ANL_POWER,
-            },
-            'gap_levels': [
-                {
-                    'label': 'caspt2_f12',
-                    'method': 'caspt2-f12(2,2)',
-                    'basis': 'avtz-f12',
-                    'extrapolation_power': ORIGINAL_ANL_POWER,
-                    'shift': 0.2,
-                    'ipea': 0.25,
-                },
-                {
-                    'label': 'mrci_f12_q',
-                    'method': 'mrci-f12+q(2,2)',
-                    'basis': 'avtz-f12',
-                    'extrapolation_power': ORIGINAL_ANL_POWER,
-                },
-            ],
-        },
+            key: deepcopy(_SPIN_SPLITTING_DEFAULTS[key])
+            for key in ('reference', 'gap_levels', 'weighting')},
     },
 }
 
@@ -544,11 +509,12 @@ def validate_vrc_levels(parameters):
         if inline and external:
             raise ValueError('Configure either vrc_tst_state_model or '
                              'vrc_tst_state_model_file, not both.')
-        if not inline and not external:
+        if not inline and not external and not parameters.get('vrc_tst_surface_model_file'):
             raise ValueError(
                 'A selected VRC active space requires '
                 'vrc_tst_state_model.orbital_selection or '
-                'vrc_tst_state_model_file with a reviewed Molpro record.')
+                'vrc_tst_state_model_file with a reviewed Molpro record, '
+                'or per-channel selections in vrc_tst_surface_model_file.')
     method = parameters.get('vrc_tst_scan_method')
     basis = parameters.get('vrc_tst_scan_basis')
     if not isinstance(method, str) or not method.strip():
@@ -666,6 +632,11 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
                 or not isinstance(payload.get('active_space'), dict)):
             raise ValueError('Reviewed VRC state-model file has an invalid '
                              'schema.')
+        molecule = payload.get('molecule')
+        if molecule is not None and symbols is not None:
+            if (molecule.get('symbols') != list(map(str, symbols))
+                    or molecule.get('charge') != charge):
+                raise ValueError('Reviewed orbital record atom order or charge differs from the calculation.')
         average_policy = payload.get('state_average_policy', 'channel_derived')
         if average_policy not in ('reviewed', 'channel_derived'):
             raise ValueError('Unknown reviewed state_average_policy.')
@@ -702,6 +673,8 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
             if not isinstance(matches[key], dict):
                 raise ValueError('Reviewed VRC basis model must be an object.')
             explicit = matches[key]
+        from kinbot.molpro import resolve_orbital_record_path
+        explicit = resolve_orbital_record_path(explicit, path.parent)
         external = True
     if explicit is not None:
         active_space = active_space_settings(parameters, symbols, charge)
@@ -1071,6 +1044,12 @@ def assemble_spin_splitting_reference(distances, energies, settings):
                 'target': target_cbs,
                 'reference': reference_cbs,
                 'gap_hartree': (target - reference_state).tolist(),
+                'upper_basis_gap_hartree': (np.asarray(target_cbs['upper_hartree'])
+                    - np.asarray(reference_cbs['upper_hartree'])).tolist(),
+                'cbs_minus_upper_gap_hartree': (target - reference_state
+                    - np.asarray(target_cbs['upper_hartree'])
+                    + np.asarray(reference_cbs['upper_hartree'])).tolist(),
+                'interpretation': 'two-point basis estimate; not an uncertainty bound',
             }
     if not np.isfinite(result).all():
         raise ValueError('Spin-splitting reference energies must be finite.')
@@ -1089,7 +1068,9 @@ def assemble_spin_splitting_reference(distances, energies, settings):
             'absolute_spread': np.ptp(np.asarray(list(reconstructed.values())), axis=0).tolist(),
             'asymptote_referenced_spread': np.ptp(np.asarray([
                 np.asarray(curve) - curve[-1] for curve in reconstructed.values()]), axis=0).tolist(),
-            'interpretation': 'method disagreement diagnostic, not a statistical error bar',
+            'interpretation': ('method disagreement diagnostic, not a statistical error bar'
+                               if len(reconstructed) > 1 else
+                               'one method only: zero spread supplies no uncertainty estimate'),
         },
     }
     if cbs_metadata is not None:

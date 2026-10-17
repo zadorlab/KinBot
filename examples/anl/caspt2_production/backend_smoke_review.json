@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "status": "5 native smoke tests passed",
+  "scope": "Analytic free-pair RotdPy normalization; real MESS single/statistical/minimum table combinations; real atomic MESSPF electronic-level ratio. Not sulfur kinetics or Slurm.",
+  "test_source": "tests/test_vrc_backend_native.py",
+  "test_source_sha256": "b6819a843ef9db5112172bacce3941afc5512fa0f2fbb0ad901a5a6e7ec6036c",
+  "source_url": "https://github.com/keceli/MESS",
+  "source_commit": "Not present in the downloaded source snapshot; retained complete source archive is authoritative.",
+  "retained_source_archive": "local_runs/backend_native_evidence_20261016/mess_source.tar.gz",
+  "source_archive_sha256": "911085be5322c7de2686ac789d0f3a2516f70b971c19ee88f55d542f6a45c908",
+  "build_recipe": "local_runs/backend_native_evidence_20261016/CMakeLists.txt",
+  "native_executables": {
+    "mess_driver": {
+      "path": "/private/tmp/kinbot-mess-native-check/build/mess_driver",
+      "sha256": "9d32a49f0d008010deec9763b9bc59ea19ba1cb48a1c21a3e09ff4bdf42ad0df"
+    },
+    "partition_function": {
+      "path": "/private/tmp/kinbot-mess-native-check/build/partition_function",
+      "sha256": "45d99d17c710261ff085aa791e63ebdf3b6431fbdcf1b34abe53ef1d15675296"
+    }
+  },
+  "files": {
+    "test_actual_mess_accepts_kinbo0/Ne.dat": {
+      "bytes": 30050,
+      "sha256": "7ffaed29559472c7ca52bae17d193e198dba756b0c2a55ae9ae9def9e21c3788"
+    },
+    "test_actual_mess_accepts_kinbo0/micro.out": {
+      "bytes": 1706,
+      "sha256": "7c9e2f402bb1f1ad3a33ace669d30b4f61f2174295c9aa25f8fa37cf065a1a4d"
+    },
+    "test_actual_mess_accepts_kinbo0/smoke.aux": {
+      "bytes": 3088,
+      "sha256": "60ba4b444e58a725ec53ebeb334d328a0946fa0a4a07fa9139b83fba659b196b"
+    },
+    "test_actual_mess_accepts_kinbo0/smoke.inp": {
+      "bytes": 1247,
+      "sha256": "4a455a093d0188570038570897a9bd4d0a3a7cb766e8c90a3d481906cce5a1fd"
+    },
+    "test_actual_mess_accepts_kinbo0/smoke.log": {
+      "bytes": 12577,
+      "sha256": "350b406a73732ec2e2e971393c477ddc13f778c07a2ab944fadd79bb7e58b7a8"
+    },
+    "test_actual_mess_accepts_kinbo0/smoke.out": {
+      "bytes": 3290,
+      "sha256": "cd9145ef59868bf185e1a0ea0c84cf659ac5e5ae9876758e9d5d79490a5592c2"
+    },
+    "test_actual_mess_accepts_kinbo0/stdout.txt": {
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    "test_actual_mess_accepts_kinbo1/Ne.dat": {
+      "bytes": 30050,
+      "sha256": "e2dd106a4aebe1b79cd10993f99f69373831bd9993bad946a39233fd0af1cbbd"
+    },
+    "test_actual_mess_accepts_kinbo1/micro.out": {
+      "bytes": 1706,
+      "sha256": "8a8576471c54d06b35410c9c55bf07cba6d27a9723fb7f804619c81452cb2af7"
+    },
+    "test_actual_mess_accepts_kinbo1/smoke.aux": {
+      "bytes": 3091,
+      "sha256": "cacd81869270bbf521879f84049a39e2f4610e14b6bd545bfb8a8d0731ef5627"
+    },
+    "test_actual_mess_accepts_kinbo1/smoke.inp": {
+      "bytes": 1595,
+      "sha256": "9a4c36f19937ce7b5758fc6cb19701dcb6c8393558414f6a9ded7491047a0721"
+    },
+    "test_actual_mess_accepts_kinbo1/smoke.log": {
+      "bytes": 14934,
+      "sha256": "fa7ab4aeffbe72294023d3f5842696a57bd07ac058627d6008e585981add0ead"
+    },
+    "test_actual_mess_accepts_kinbo1/smoke.out": {
+      "bytes": 3290,
+      "sha256": "84983ad8df86bdbfef61565605837fa7c63b3fbb80c7dc62145ed85821e0fa4a"
+    },
+    "test_actual_mess_accepts_kinbo1/stdout.txt": {
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    "test_actual_mess_accepts_kinbo2/Ne.dat": {
+      "bytes": 30050,
+      "sha256": "4e6f10af8c6104c41aa153dc2d6b5d7572e23e3213d7afcf4643390c4b5d7182"
+    },
+    "test_actual_mess_accepts_kinbo2/micro.out": {
+      "bytes": 1706,
+      "sha256": "7c9e2f402bb1f1ad3a33ace669d30b4f61f2174295c9aa25f8fa37cf065a1a4d"
+    },
+    "test_actual_mess_accepts_kinbo2/smoke.aux": {
+      "bytes": 3091,
+      "sha256": "94ad6a9f54429473f9d07298a8e43d9ec330f79411e64a968104e59c3d1fe7b6"
+    },
+    "test_actual_mess_accepts_kinbo2/smoke.inp": {
+      "bytes": 1593,
+      "sha256": "64ce133d84cb66aaf25e8c30dafd3137c09b29749ec41beb23dd5938f8daf98b"
+    },
+    "test_actual_mess_accepts_kinbo2/smoke.log": {
+      "bytes": 14937,
+      "sha256": "5c5a1a6fb1da15412e60f64fe87f7542cad06f85116099dbb96356af0a816a62"
+    },
+    "test_actual_mess_accepts_kinbo2/smoke.out": {
+      "bytes": 3290,
+      "sha256": "6c456da79febdb63eba5bf228a82c3609caae08eb1471f71e82a1593f2c8a254"
+    },
+    "test_actual_mess_accepts_kinbo2/stdout.txt": {
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    "test_actual_messpf_counts_decl0/fine.aux": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test_actual_messpf_counts_decl0/fine.dat": {
+      "bytes": 514,
+      "sha256": "829b11b99e1364547f0017845e27e7d27cae9f8969879f5ecadf5ffe678987db"
+    },
+    "test_actual_messpf_counts_decl0/fine.inp": {
+      "bytes": 304,
+      "sha256": "daf10e13c01ba8dac960b8df38ff29a65549c59292a1722a5dbb6543042aef88"
+    },
+    "test_actual_messpf_counts_decl0/fine.log": {
+      "bytes": 47,
+      "sha256": "9e19d7fa8e74ab77e905d9cb3a5201f3a34d46fcb7ba3d40577bc546ff09ecae"
+    },
+    "test_actual_messpf_counts_decl0/fine.stdout": {
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    "test_actual_messpf_counts_decl0/ground.aux": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test_actual_messpf_counts_decl0/ground.dat": {
+      "bytes": 514,
+      "sha256": "460ab550c6a21be7805b4f369c216186669047584ebc3ef85bcd568c9c8e2c1f"
+    },
+    "test_actual_messpf_counts_decl0/ground.inp": {
+      "bytes": 273,
+      "sha256": "4dbb3e074d5b379a96c47a1064a72aef1df2aca2d798998f280933702697ce79"
+    },
+    "test_actual_messpf_counts_decl0/ground.log": {
+      "bytes": 47,
+      "sha256": "9e19d7fa8e74ab77e905d9cb3a5201f3a34d46fcb7ba3d40577bc546ff09ecae"
+    },
+    "test_actual_messpf_counts_decl0/ground.stdout": {
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    }
+  },
+  "evidence_archive_sha256": "b4d9965337e03f18a6fe97fdaafb17043f6672063944ef791395834912d2fb73"
+}

@@ -38,6 +38,18 @@ from kinbot.electronic_states import apply_electronic_state_model, state_average
 logger = logging.getLogger('KinBot')
 
 
+def vrc_dispatch_resources(parameters):
+    """One memory/rank contract shared by relaxed scans and correction jobs."""
+    memory = parameters.get('vrc_tst_memory_mb')
+    if memory is not None and (type(memory) is not int or memory < 1):
+        raise ValueError('vrc_tst_memory_mb must be a positive integer or null.')
+    return {'cores': 'auto', 'memory_mb': 'node' if memory is None else memory,
+            'walltime': parameters['vrc_tst_walltime'],
+            'max_cores': parameters['single_point_ppn'],
+            'min_stack_mw': parameters['vrc_tst_min_stack_mw'],
+            'partition': parameters['queue_name']}
+
+
 def fragment_routing_state(species, fallback=None):
     """Serialize a configured fragment, with legacy connectivity fallback."""
     try:
@@ -663,7 +675,7 @@ class VTS:
                 'frequency_mode': 'ase_forces',
                 'calculator_kwargs': {
                     'caspt2_shift': self.par.get(
-                        'vrc_tst_scan_shift', 0.3),
+                        'vrc_tst_scan_shift', 0.1),
                     'caspt2_ipea': self.par.get(
                         'vrc_tst_scan_ipea', 0.25),
                     'state_model': state_model,
@@ -681,13 +693,7 @@ class VTS:
                 'sella_kwargs': {'internal': False},
                 'constraints': constraints,
             },
-            'resources': {
-                'cores': 'auto', 'memory_mb': 'node',
-                'walltime': self.par['vrc_tst_walltime'],
-                'max_cores': self.par['single_point_ppn'],
-                'min_stack_mw': self.par['vrc_tst_min_stack_mw'],
-                'partition': self.par['queue_name'],
-            },
+            'resources': vrc_dispatch_resources(self.par),
         }
         fingerprint = hashlib.sha256(json.dumps({
             'molecule': molecule, 'task': task,
@@ -1206,13 +1212,7 @@ class VTS:
             tasks.append({
                 'id': job, 'kind': 'external', 'backend': 'molpro',
                 'geometry_from': 'initial',
-                'resources': {
-                    'cores': 'auto', 'memory_mb': 'node',
-                    'walltime': self.par['vrc_tst_walltime'],
-                    'max_cores': self.par['single_point_ppn'],
-                    'min_stack_mw': self.par['vrc_tst_min_stack_mw'],
-                    'partition': self.par['queue_name'],
-                },
+                'resources': vrc_dispatch_resources(self.par),
                 'input_name': f'{job}.inp',
                 'input_template': input_path.read_text(),
                 'command': ['molpro', '-n', '{cores}', '-m',

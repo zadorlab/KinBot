@@ -262,6 +262,16 @@ def _avas_orbital_count(label):
         kind, 1)
 
 
+def resolve_orbital_record_path(model, directory):
+    """Resolve a checkpoint relative to its containing selection JSON."""
+    model = deepcopy(model)
+    selection = model.get('orbital_selection', {})
+    if selection.get('mode') == 'molpro_record' and selection.get('path'):
+        path = Path(selection['path']).expanduser()
+        selection['path'] = str((Path(directory) / path).resolve())
+    return model
+
+
 def validate_vrc_state_model(model, *, active_electrons=None,
                              active_orbitals=None, nelectron=None,
                              atom_count=None):
@@ -276,7 +286,7 @@ def validate_vrc_state_model(model, *, active_electrons=None,
         return None
     if not isinstance(model, dict):
         raise ValueError('vrc_tst_state_model must be an object.')
-    allowed = {'orbital_selection', 'state_average', 'selected_roots',
+    allowed = {'orbital_selection', 'state_average', 'selected_roots', 'energy_selection',
                'canonical_orbitals', 'casscf_options', 'correlation_options'}
     unknown = set(model) - allowed
     if unknown:
@@ -380,13 +390,25 @@ def validate_vrc_state_model(model, *, active_electrons=None,
         selected_normalized.setdefault(multiplicity, 1)
     result['selected_roots'] = selected_normalized
 
+    selection = result.get('energy_selection', {})
+    if not isinstance(selection, dict):
+        raise ValueError('energy_selection must map multiplicities to lowest.')
+    normalized_selection = {}
+    for key, value in selection.items():
+        if (str(key) not in {str(mult) for mult in roots_by_mult}
+                or value != 'lowest' or selected_normalized[int(key)] != 1):
+            raise ValueError('energy_selection=lowest requires a declared multiplicity and selected_root=1.')
+        normalized_selection[int(key)] = value
+    if selection:
+        result['energy_selection'] = normalized_selection
+
     orbitals = result.get('orbital_selection')
     if orbitals is not None:
         if not isinstance(orbitals, dict):
             raise ValueError('orbital_selection must be an object.')
         mode = str(orbitals.get('mode', '')).casefold()
         if mode == 'molpro_record':
-            allowed_record = {'mode', 'path', 'record', 'sha256'}
+            allowed_record = {'mode', 'path', 'record', 'sha256', 'orbital_type', 'align_active_orbitals'}
             unknown_record = set(orbitals) - allowed_record
             if unknown_record:
                 raise ValueError('Unknown Molpro-record option(s): '
@@ -409,6 +431,13 @@ def validate_vrc_state_model(model, *, active_electrons=None,
                 'mode': mode, 'path': str(path), 'record': record,
                 'sha256': digest,
             }
+            kind = orbitals.get('orbital_type', 'auto')
+            if kind not in ('auto', 'natural', 'canonical'):
+                raise ValueError('orbital_type must be auto, natural or canonical.')
+            align = orbitals.get('align_active_orbitals', True)
+            if not isinstance(align, bool):
+                raise ValueError('align_active_orbitals must be boolean.')
+            result['orbital_selection'].update(orbital_type=kind, align_active_orbitals=align)
             orbitals = None
         elif mode != 'avas':
             raise ValueError('orbital_selection mode must be avas or '
@@ -555,9 +584,12 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
             raise ValueError('Stage the Molpro orbital record under a short lowercase basename before rendering.')
         avas = (f'! KinBot orbital source SHA-256: {orbital_selection["sha256"]}\n'
                 f'file,2,{filename}\n')
-        space = (f'start,{orbital_selection["record"]}\n'
-                 f'occ,{occupied}\nclosed,{closed}\n'
-                 f'diab,{orbital_selection["record"]}\n')
+        kind = orbital_selection.get('orbital_type', 'auto')
+        suffix = '' if kind == 'auto' else f',type={kind}'
+        space = (f'start,{orbital_selection["record"]}{suffix}\n'
+                 f'occ,{occupied}\nclosed,{closed}\n')
+        if orbital_selection.get('align_active_orbitals', True):
+            space += f'diab,{orbital_selection["record"]}\n'
     else:
         space = f'occ,{occupied}\nclosed,{closed}\n'
     multi = '{multi,\n' + space
@@ -568,7 +600,8 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
                                         for value in (entry.get('block_weight', 1.) * weight
                                                       for weight in entry['weights'])) + '\n')
     if model['canonical_orbitals']:
-        multi += 'canonical,2140.2\n'
+        multi += 'canonical,2141.2\n'
+    multi += 'natorb,2140.2\n'
     options = model.get('casscf_options', {})
     controls = []
     if 'solver' in options:
@@ -707,6 +740,10 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
     f12 = contract['explicitly_correlated']
     selected = contract['energy_variable'].casefold()
     controls = validate_mr_correlation_options((state_model or {}).get('correlation_options', {}))
+    lowest = (state_model or {}).get('energy_selection', {}).get(
+        int(spin) + 1, (state_model or {}).get('energy_selection', {}).get(str(int(spin) + 1))) == 'lowest'
+    if lowest and (family != 'caspt2' or controls.get('reference_policy') != 'state_average'):
+        raise ValueError('Lowest correlated energy selection requires CASPT2 and the shared state-average reference.')
     simultaneous = controls.get('state_policy', 'independent') == 'simultaneous'
     if simultaneous and (family != 'mrci' or selected_root is None
                          or controls.get('reference_policy') != 'state_average'):
@@ -743,20 +780,33 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
                    else ('rs2c' if int(spin) == 0 else 'rs2'))
         options = []
         if shift is None:
-            shift = 0.3
+            shift = 0.1
         if shift is not None:
             options.append(f'shift={float(shift):g}')
+        if ipea is None:
+            ipea = 0.25
         if ipea is not None:
             options.append(f'ipea={float(ipea):g}')
         command = ','.join([program, *options,
                             *(f'{k}={v}' for k, v in mr_thresholds(controls).items())])
         state = ('' if selected_root is None else
+                 ('orbital,2141.2,type=canonical;' if (state_model or {}).get('canonical_orbitals', True) else 'orbital,2140.2,type=natural;') +
                  f'wf,{int(nelectron)},1,{int(spin)};'
                  f'state,1,{selected_root};')
         audit = (f'! KinBot energy contract: {contract["method"]} = '
                  f'{contract["energy_variable"]}\n'
                  f'KBVRCSEL={selected}\n')
         body = command if not (state or iteration_card) else f'{command};{state}{reference_card}{iteration_card}'
+        if lowest:
+            # Repeat the already validated independent-root calculations; MIN
+            # changes only which converged result is returned, not H0 or roots.
+            calls = ('! Lowest converged correlated energy in the declared spin manifold\n'
+                     'KBGAPS=0\n')
+            for root in range(1, entry['roots'] + 1):
+                root_body = body.replace(f'state,1,{selected_root};', f'state,1,{root};', 1)
+                calls += f'{{{root_body}}}\nKBGAPS({root})=energy(1)\n'
+            calls += 'show,KBGAPS\nKBVRCSEL=min(KBGAPS)\n'
+            return avas + multi + calls, 'KBVRCSEL'
         return avas + multi + f'{{{body}}}\n' + audit, 'KBVRCSEL'
     program = (f'mrci-f12,scalf12=1,cabs_singles={controls.get("cabs_singles", 1)}' if f12 else 'mrci')
     energy_index = selected_root if simultaneous else 1

@@ -647,7 +647,9 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
     models = selection.get('basis_models', {})
     if not models:
         raise ValueError('Selection has no basis-specific orbital models.')
+    from kinbot.molpro import resolve_orbital_record_path
     for model in models.values():
+        model = resolve_orbital_record_path(model, selection_file.parent)
         validated = validate_vrc_state_model(model, active_electrons=space['active_electrons'],
                                              active_orbitals=space['active_orbitals'])
         if validated.get('orbital_selection', {}).get('mode') != 'molpro_record':

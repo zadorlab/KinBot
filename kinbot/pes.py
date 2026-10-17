@@ -299,7 +299,7 @@ def _rotdpy_sampling_calculator(par, pp_info, metadata):
         'charge': context['charge'], 'multiplicity': context['multiplicity'],
         'parent_symbols': list(symbols), 'sampling_atom_order': list(order),
         'state_models_by_basis': {basis: models[basis] for basis in bases},
-        'shift': par.get('vrc_tst_scan_shift', 0.3),
+        'shift': par.get('vrc_tst_scan_shift', 0.1),
         'ipea': par.get('vrc_tst_scan_ipea', 0.25),
         'scf_convergence': par.get('vrc_tst_scf_convergence', 1.e-10),
         'correlation_convergence': par.get('vrc_tst_correlation_convergence', 1.e-8),
@@ -2149,6 +2149,9 @@ def write_input(input_file, species, threshold, threshold_L2, root, me):
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
     par2 = Parameters(input_file).par
+    # Generated worker inputs must resolve external reviewed models relative
+    # to the original input, even when PES was launched with a relative path.
+    par2['input_file'] = os.path.abspath(input_file)
     # overwrite the title
     par2['title'] = routing_name(species)
     par2['charge'], par2['mult'] = int(species.charge), int(species.mult)

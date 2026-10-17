@@ -89,14 +89,22 @@ def build_model(parameters, context, ground_energy, destination='me'):
         from kinbot.vrc_multistate import render_mess
         zero += provenance['baseline_cm_inverse'] * constants.AUtoKCAL / constants.AUtoCM
         def rrho(stage):
-            return context['template'].format(**common, file=stage['file'],
+            return format_rotd_rrho(context['template'], **common, file=stage['file'],
                 nelec=1, electronic_levels='            0 1',
                 zeroenergy=zero + stage['ground_cm_inverse'] * constants.AUtoKCAL / constants.AUtoCM,
                 provenance_sha256=stage['source_sha256'])
         return render_mess(provenance, rrho), provenance
-    return context['template'].format(**common, **context['electronic'],
+    return format_rotd_rrho(context['template'], **common, **context['electronic'],
         file=target.name, zeroenergy=zero,
         provenance_sha256=provenance['source_sha256']), provenance
+
+
+def format_rotd_rrho(template, **fields):
+    """MESS requires omission, not a zero count, for vibration-free fragments."""
+    text = template.format(**fields)
+    if fields['nfreq'] == 0:
+        text = re.sub(r'(?m)^\s*Frequencies\[1/cm\]\s+0\s*$', '', text)
+    return text
 
 
 def defer_model(context, fallback, directory='me/rotdpy_models'):

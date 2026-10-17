@@ -423,6 +423,9 @@ class Parameters:
             'vrc_tst_walltime': '24:00:00',
             # Minimum Molpro memory stack (MW) available to every MPI rank
             'vrc_tst_min_stack_mw': 3200,
+            # Explicit whole-node allocation ceiling for VRC jobs; None lets
+            # site discovery choose within the available node memory.
+            'vrc_tst_memory_mb': None,
             # Relaxed VRC paths use a multireference surface by default.
             # Molpro's RS2 implementation supplies analytic CASPT2 gradients
             # to Sella while the reaction-coordinate distance is constrained.
@@ -441,7 +444,7 @@ class Parameters:
             # supplies the requested energy derivative and a numerical
             # gradient otherwise.  Expert inputs may force either contract.
             'vrc_tst_scan_gradient': 'auto',
-            'vrc_tst_scan_shift': 0.3,
+            'vrc_tst_scan_shift': 0.1,
             'vrc_tst_scan_ipea': 0.25,
             # Optional validated AVAS/state-average model shared by the
             # relaxed scan and multireference correction energies.  This is
@@ -682,6 +685,10 @@ class Parameters:
                 self.par['epsilon'] *= units.J / units.mol / units.invcm
             else:
                 err = 'Unknown unit for epsilon, has to be K, J/mol or cm-1'
+            if err is None:
+                # PES writes resolved parameters to worker inputs. Retain the
+                # resolved unit so a worker does not convert epsilon twice.
+                self.par['epsilon_unit'] = 'cm-1'
                 
         if self.par['families'] != ['all'] and self.par['skip_families'] != ['none']:
             err = 'Only one of the "families" or "skip_families" parameters can be defined.'

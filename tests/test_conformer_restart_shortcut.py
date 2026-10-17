@@ -39,8 +39,15 @@ def search(tmp_path, monkeypatch):
     assert len(point.conf_dihed) == 1
     search.atoms = atoms
 
-    def finish(count, missing=()):
-        """Record `count` finished conformer jobs, as a completed search leaves them."""
+    def finish(count, missing=(), record_count=True):
+        """Record `count` finished conformer jobs, as a completed search leaves them.
+
+        A finished search also writes the conf/<name>_low row with the number of
+        attempted conformers; searches from before that have no such entry.
+        """
+        if record_count:
+            search.db.write(atoms, name=f'conf/{search.get_name()}_low',
+                            data={'energy': -1., 'zpe': .02, 'status': 'normal', 'nconf': count})
         for i in range(count):
             if i in missing:
                 continue
@@ -48,7 +55,7 @@ def search(tmp_path, monkeypatch):
                             data={'energy': -1. - i, 'zpe': .02, 'frequencies': [100.] * 6, 'status': 'normal'})
         search.last = search.get_job_name(count - 1)
     search.finish = finish
-    finish(search.grid)
+    finish(search.grid, record_count=False)
     return search
 
 
@@ -83,6 +90,33 @@ def test_crashed_conformer_does_not_hide_the_later_ones(search):
     assert search.conf == 12
     assert search.conf_status[5] == 1
     assert search.conf_status[11] == -1
+
+
+def test_old_low_row_without_a_count_is_scanned(search, monkeypatch):
+    search.finish(12, missing=(5,), record_count=False)
+    Path(search.low_log()).write_text('done\n')
+    monkeypatch.setattr(search.db, 'count', lambda **kwargs: (_ for _ in ()).throw(AssertionError('probe used')))
+    assert search.completed_conformers() == 12
+    assert search.conf_status[5] == 1
+
+
+def test_recorded_count_is_probed_without_scanning_the_database(search, monkeypatch):
+    search.finish(12, missing=(5,))
+    Path(search.low_log()).write_text('done\n')
+    original = search.db.select
+
+    def select(*args, **kwargs):
+        assert kwargs.get('name'), 'a full database scan is not allowed'
+        return original(*args, **kwargs)
+    monkeypatch.setattr(search.db, 'select', select)
+    assert search.completed_conformers() == 12
+    assert search.conf_status[5] == 1
+
+
+def test_gaussian_through_sella_uses_the_sella_log(search):
+    search.qc.qc, search.qc.use_sella = 'gauss', True
+    assert search.log_ext(search.get_job_name(0)) == '_sella.log'
+    assert search.low_log().endswith('_low_sella.log')
 
 
 def test_unfinished_search_is_not_skipped(search):

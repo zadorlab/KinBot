@@ -18,7 +18,18 @@ CH3S C–S homolysis when the sulfur atom's Gaussian QC-SCF line search aborted.
 The [general bounded SCF retry](../../../docs/GAUSSIAN_SCF_RECOVERY_2026-10-16.md)
 retains Conver10 and the requested theory and adds a CDIIS/full-integral-accuracy
 retry. The user selected fresh `_r4_dft` runs for both PES, archiving `_r3_dft`.
-Native success of this retry remains to be checked.
+The initial sulfur L1 retry subsequently proved unconverged despite normal
+termination. The reader now rejects that false success. A native isolated
+atomic-symmetry test genuinely converged in 9 cycles at Conver10; general
+single-atom handling now uses that policy, with `atomic_scf_symmetry=false`
+available in Gaussian kwargs. Molecular settings are unchanged.
+
+The 22:17 PDT `_r4_dft` snapshot shows CH3S C-S **accepted**, a later converged
+sulfur conformer, and normal sulfur L2 completion. CH3SS initial L2 is still
+running. A full restart is not required by this snapshot. Pulling updates
+new QC workers and the monitor without stopping current jobs; already running
+Python processes retain their imported code. Keep the earlier unconverged
+L1 log as history. See the linked recovery record for evidence and limitations.
 
 **Earlier minimum repair:** the `_r2` CH3S L2 minimum failed its Hessian;
 independent displacements confirmed negative curvature. CH3SS passed its
@@ -116,11 +127,14 @@ potential. No inner/outer stages or automatic equilibration are enabled.
 The full reference explains the separate energy-zero and partition-function
 uses and their tests. Transport parameters remain provisional example estimates.
 
-## Blodgett clean restart with the DFT preset
+## Continue r4, or optionally clean-restart with the DFT preset
 
-The helper prepares/checks a fresh `_r4_dft` run, including rendered inputs and
+To continue existing runs, use only `git pull --ff-only origin composite` in
+`/home/hram/KinBot`, and retain the `_r4_dft` parent monitor below.
+
+For an explicitly chosen **full clean restart**, the helper prepares/checks a fresh `_r5_dft` run, including rendered inputs and
 small native backend tests. It then stops controllers and QC allocations
-under both `_r3_dft` production PES directories, waits for them to disappear,
+under both `_r4_dft` production PES directories, waits for them to disappear,
 and moves their parent to a dated `.stopped.*` archive. It launches both fresh
 PES controllers detached on the login host. There is no selective reuse of
 early results and no second retirement of the old orbital campaigns.
@@ -150,6 +164,9 @@ to move any folder containing tracked files. The destination is recorded in
 ```bash
 watch -n 2 '/home/hram/KinBot/.venv/bin/python -m kinbot.run_monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft --all'
 ```
+
+If you chose the clean restart, replace `_r4_dft` with `_r5_dft` in that
+monitor command. Either parent directory monitors both PES.
 
 For live native/controller log text instead of snapshots, run the same Python
 monitor command with `--follow`. `--all` expands reaction/dispatch rows. The

@@ -21,7 +21,7 @@ def test_parenthesized_merge_and_direct_writer_are_equivalent():
     assert merged == {'scf': 'XQC,Conver=10'}
     for kwargs in (merged, {'scf': '(XQC,Conver=10)'}):
         stream = StringIO()
-        write_gaussian_in(stream, Atoms('H'), method='HF', basis='STO-3G', mult=2, **kwargs)
+        write_gaussian_in(stream, Atoms('H2'), method='HF', basis='STO-3G', mult=1, **kwargs)
         assert 'scf(XQC,Conver=10)' in stream.getvalue()
 
 

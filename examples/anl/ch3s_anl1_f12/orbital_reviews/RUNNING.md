@@ -12,8 +12,13 @@ frequency-rejected minima: CH3S at L2 (−587.334 cm⁻¹) and its L1 UMA produc
 inside CH3SS (−53.062 cm⁻¹). The user selected a DFT L1 replacement. The
 earlier command started `_r3_dft` with `b3lyp-b2plyp-anl`. That run passed
 initial minima but encountered a sulfur-atom Gaussian QC-SCF failure. The
-current command archives both `_r3_dft` trees and starts **`_r4_dft`** with
-the same preset and a [bounded SCF retry](../../../../docs/GAUSSIAN_SCF_RECOVERY_2026-10-16.md).
+r4 restart used the same preset and a [bounded SCF retry](../../../../docs/GAUSSIAN_SCF_RECOVERY_2026-10-16.md).
+The later native atomic-symmetry test met Conver10 in 9 cycles. The general
+atom policy and a strict reader now address the earlier false-success SCF.
+The 22:17 PDT r4 snapshot permits continuing: CH3S C-S is accepted with
+later converged sulfur conformer/L2 results; CH3SS initial L2 is still running.
+A pull updates new workers and the monitor without stopping jobs. The clean
+restart command below is optional and replaces r4 with r5.
 
 The current inputs are **one JSON per PES**: all channel, state, solver and
 orbital-index choices are inline. The obsolete separate surface/state JSON
@@ -184,7 +189,7 @@ BASH
 ```
 
 The script calls `run_examples.py launch NEW --replace-production OLD` with the
-previous `_r3_dft` production directory and a fresh `_r4_dft` destination. It inventories
+previous `_r4_dft` production directory and a fresh `_r5_dft` destination. It inventories
 both old PES trees, stops their detached controllers and scoped Slurm jobs,
 waits for teardown, then archives the common parent as `.stopped.*`.
 It launches fresh detached controllers on the login host. It never uses
@@ -204,6 +209,7 @@ The controller can use fewer allocations while dependencies are pending.
 The actual scheduler's `ExcNodeList` remains the runtime verification.
 
 ```bash
+# If you opted for the clean restart, change _r4_dft to _r5_dft.
 watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft --all'
 ```
 

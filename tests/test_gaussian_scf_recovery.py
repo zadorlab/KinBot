@@ -103,8 +103,109 @@ def test_retry_renders_native_route_through_real_calculation_path(tmp_path, monk
                          integral='UltraFine', EmpiricalDispersion='GD3BJ')
     assert atom.get_potential_energy() == -1.
     assert len(decks) == 2
-    assert 'scf(xqc,conver=10)' in decks[0]
-    assert 'scf(conver=10,CDIIS,NoVarAcc,NoIncFock,MaxCycle=256)' in decks[1]
+    assert 'scf(xqc,conver=10,Symm,NoVarAcc,NoIncFock,MaxCycle=256)' in decks[0]
+    assert 'scf(conver=10,CDIIS,MaxCycle=256,Symm,NoVarAcc,NoIncFock)' in decks[1]
     for text in decks:
         assert 'scf_recovery' not in text and 'B3LYP/cc-pVDZ' in text
         assert 'integral(UltraFine)' in text and '\n0 3\n' in text
+
+
+def test_atom_policy_is_general_and_can_be_disabled():
+    from io import StringIO
+    from ase import Atoms
+    from kinbot.ase_modules.io.gaussian import write_gaussian_in
+    from kinbot.gaussian_input import atomic_scf_parameters, merge_gaussian_kwargs
+    original = {'Symm': 'None', 'SCF': 'XQC,Conver=10,NoSymm,MaxCycle=512',
+                'integral': 'UltraFine', 'guess': 'Read', 'chk': 'example'}
+    effective = atomic_scf_parameters(original)
+    assert effective['scf'] == 'XQC,Conver=10,MaxCycle=512,Symm,NoVarAcc,NoIncFock'
+    assert effective['guess'] == 'Read' and effective['integral'] == 'UltraFine'
+    assert 'SCF' in original and 'Symm' in original
+    assert atomic_scf_parameters(effective) == effective
+    assert merge_gaussian_kwargs({}, {'atomic_scf_symmetry': False}) == {'atomic_scf_symmetry': False}
+    for symbol, mult in [('S', 3), ('O', 3), ('H', 2), ('Ne', 1)]:
+        for enabled in (True, False):
+            stream = StringIO()
+            write_gaussian_in(stream, Atoms(symbol, positions=[[1, 2, 3]]),
+                method='B3LYP', basis='cc-pVDZ', charge=0, mult=mult,
+                atomic_scf_symmetry=enabled, **original)
+            native = stream.getvalue()
+            assert 'atomic_scf_symmetry' not in native
+            assert ('Symm(None)' in native) == (not enabled)
+            assert ('NoIncFock' in native) == enabled
+            assert f'\n0 {mult}\n' in native
+            assert 'Conver=10' in native and 'PG=' not in native
+    stream = StringIO()
+    write_gaussian_in(stream, Atoms('OH'), method='B3LYP', basis='cc-pVDZ', mult=2, **original)
+    assert 'Symm(None)' in stream.getvalue() and 'NoIncFock' not in stream.getvalue()
+
+
+# Condensed native sulfur evidence, not a mocked read_results implementation.
+ORIENTATION = ''' Input orientation:
+ ---------------------------------------------------------------------
+ Center     Atomic      Atomic             Coordinates (Angstroms)
+ Number     Number       Type             X           Y           Z
+ ---------------------------------------------------------------------
+      1         16           0        0.000000    0.000000    0.000000
+ ---------------------------------------------------------------------
+'''
+UNCONVERGED = ''' RMSDP=3.86D-06 MaxDP=3.22D-05 DE=4.48D-11 OVMax=9.68D-05
+ >>>>>>>>>> Convergence criterion not met.
+ SCF Done:  E(UB3LYP) = -398.125080444 A.U. after 257 cycles
+ NFock=256 Conv=0.39D-05 -V/T=2.0022
+'''
+CONVERGED = ''' RMSDP=1.26D-11 MaxDP=1.32D-10 DE=0.00D+00 OVMax=2.11D-13
+ SCF Done: E(UB3LYP) = -398.125080451 A.U. after 9 cycles
+ NFock=9 Conv=0.13D-10 -V/T=2.0022
+'''
+QC_CONVERGED = ''' Quadratic Convergence SCF Method.
+ Rotation gradient small -- convergence achieved.
+ SCF Done: E(UB3LYP) = -398.125080452 a.u. after 1 cycles
+'''
+
+
+@pytest.mark.parametrize('tail', ['', 'Normal termination of Gaussian 16\n',
+    r'1\1\GINC'+'\nNormal termination of Gaussian 16\n',
+    ORIENTATION + QC_CONVERGED + 'Normal termination of Gaussian 16\n'])
+def test_reader_rejects_native_nonconvergence_even_with_zero_exit(tail):
+    from io import StringIO
+    from kinbot.ase_modules.io.gaussian import read_gaussian_out
+    with pytest.raises(RuntimeError, match='Gaussian SCF did not converge'):
+        read_gaussian_out(StringIO(ORIENTATION + UNCONVERGED + tail))
+
+
+@pytest.mark.parametrize('scf', [CONVERGED, UNCONVERGED + QC_CONVERGED])
+def test_reader_accepts_converged_diis_and_successful_xqc(scf):
+    from io import StringIO
+    from ase.units import Hartree
+    from kinbot.ase_modules.io.gaussian import read_gaussian_out
+    atom = read_gaussian_out(StringIO(ORIENTATION + scf + 'Normal termination of Gaussian 16\n'))
+    assert atom.get_potential_energy()/Hartree == pytest.approx(-398.125080451, abs=2e-9)
+
+
+def test_zero_exit_unconverged_retry_fails_and_clears_results(tmp_path, monkeypatch):
+    from ase import Atoms
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Gaussian, 'command', 'true')
+    calls = []
+    def execute(self):
+        calls.append(1)
+        if len(calls) == 1:
+            Path(self.label+'.log').write_text('No lower point found -- run aborted.\n'
+                'Error termination via Lnk1e in /opt/gaussian/g16/l508.exe')
+            raise RuntimeError('Gaussian exited with error code 1')
+        Path(self.label+'.log').write_text(ORIENTATION + UNCONVERGED +
+                                         'Normal termination of Gaussian 16\n')
+        self.results['energy'] = -1.  # must not survive a rejected native result
+    monkeypatch.setattr(Gaussian, 'execute', execute)
+    atom = Atoms('S')
+    atom.calc = Gaussian(label='atom', method='B3LYP', basis='cc-pVDZ', mult=3,
+                         scf='xqc,conver=10')
+    with pytest.raises(RuntimeError, match='Gaussian SCF did not converge'):
+        atom.get_potential_energy()
+    assert calls == [1, 1]
+    assert atom.calc.results == {}
+    assert atom.calc.parameters['scf'] == 'xqc,conver=10'
+    report = json.loads(Path('atom.scf_recovery.json').read_text())
+    assert report['status'] == 'failed'
+    assert 'SCF did not converge' in report['error']

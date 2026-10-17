@@ -31,12 +31,12 @@ provenance, not production prerequisites. The user has ended MRCI retries.
 | 4. General JSON controls | Complete for handoff; regression-tested | Single JSON per PES; per-bond indices, basis records, roots, weights, same-spin references and lowest-quartet selector are explicit general controls. |
 | 5. General orbital reconnaissance | Complete for handoff; documented and tested | Chemical selection still requires review; it is not a unique-CAS oracle. |
 | 6. Production inputs | Complete and locally checked | Six portable orbital records, ordinary VRC surfaces, full inputs and launch/preflight helper supplied. Native production remains pending. |
-| 7. End-to-end production follow-through | r4 DFT clean restart prepared | `_r3_dft` passed initial minima but rejected CH3S C–S after the sulfur QC-SCF failure. A general bounded SCF retry and fresh two-PES restart are prepared; native retry success and production ANL/RotdPy/MESS completion remain pending. |
+| 7. End-to-end production follow-through | r4 running; atomic SCF fix natively supported | At 22:17 PDT CH3S C-S is accepted, sulfur later conformer converged and L2 completed normally; CH3SS initial L2 remains active. An isolated automatic-symmetry atomic test meets Conver10 in 9 cycles. Earlier false-success L1 acceptance is repaired; production ANL/RotdPy/MESS completion remains pending. |
 | 8. Integration/general defaults | Profile routing and minimum recovery audited | Current coverage and exact full-suite results are in the [DFT restart validation](../examples/anl/tools/dft_restart_validation.json). Native production remains pending. |
 | 9. Evidence/documentation | Complete for handoff | Parameter-by-parameter provenance, native evidence, limitations and commands linked below. |
 | 10. Cleanup inventory | Example/configuration cleanup complete; native purge deferred | Removed obsolete external model JSONs, caspt2_production and acetaldehyde example. Each PES has one root input with its own checkpoints/evidence/docs below orbital_reviews. Original mixed evidence is retained once; do not purge before production finishes. |
-| 11. Consolidated production handoff | Revised for bounded Gaussian QC-SCF recovery | Same DFT preset, 1% RotdPy target, tight L1/L2/L3 criteria, CASPT2 settings and two-PES monitor. `_r3_dft` to `_r4_dft` restart supplied at the user's request. Native retry success is not yet established. |
-| 12. Previous-run retirement | r3 retirement prepared | Helper stops both marked `_r3_dft` PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
+| 11. Consolidated production handoff | Atomic SCF and strict native reader updated | Same DFT preset, 1% RotdPy target, tight L1/L2/L3 criteria, CASPT2 settings and two-PES monitor. Pull applies to new workers; current evidence permits continuing r4. Optional clean r5 restart also supplied. |
+| 12. Previous-run retirement | r4 running; optional r5 replacement prepared | If selected, helper stops both marked `_r4_dft` PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
 
 The [production handoff](../examples/anl/tools/README.md) and its linked full
 parameter reference are authoritative for the new runs. “Complete for handoff”
@@ -66,6 +66,13 @@ That handoff replaced `_r2` with `_r3_dft`. The latest clean restart replaces
 `_r3_dft` with `_r4_dft` following the [sulfur QC-SCF failure](GAUSSIAN_SCF_RECOVERY_2026-10-16.md).
 The user explicitly chose to stop and archive both runs and restart fresh.
 No scientific completion claim follows from local tests.
+
+Later `_r4_dft` evidence revealed that Gaussian can return exit 0 with an
+explicit SCF nonconvergence warning. The reader now rejects this case.
+The [atomic symmetry correction and continuation assessment](GAUSSIAN_SCF_RECOVERY_2026-10-16.md)
+documents the actual converged single-atom check and the later accepted
+CH3S channel. No new clean restart is required by the 22:17 snapshot;
+an optional r4-to-r5 replacement is available if requested.
 
 The new shift export verifies 58/58 inventoried files and 24/24 correlated
 energies. The matched CASSCF/reference energies and active orbital subspaces

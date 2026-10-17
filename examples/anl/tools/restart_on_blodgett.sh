@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Replace the r3 DFT attempt with the Gaussian SCF-recovery fix. Run after git pull.
+# Optional clean replacement of r4 after the atomic-SCF fix. Run after git pull.
+# A pull alone is sufficient for new QC workers in the continuing r4 runs.
 set -euo pipefail
 cd /home/hram/KinBot
 KB_PY=/home/hram/KinBot/.venv/bin/python
 KB_TOOL=/home/hram/KinBot/examples/anl/tools/run_examples.py
-KB_PREVIOUS=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r3_dft
-KB_REPLACEMENT=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft
+KB_PREVIOUS=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft
+KB_REPLACEMENT=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r5_dft
 export PATH=/home/hram/KinBot/.venv/bin:$PATH
 export PYTHONPATH=/home/hram/KinBot${PYTHONPATH:+:$PYTHONPATH}
 export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro

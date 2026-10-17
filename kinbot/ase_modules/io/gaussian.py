@@ -336,6 +336,12 @@ def write_gaussian_in(fd, atoms, properties=['energy'],
     params = deepcopy(params)
     # KinBot calculator control; also omit it in direct input previews.
     params.pop('scf_recovery', None)
+    atomic_symmetry = params.pop('atomic_scf_symmetry', True)
+    if atomic_symmetry not in (True, False, 0, 1):
+        raise ValueError('atomic_scf_symmetry must be true or false.')
+    if len(atoms) == 1 and atomic_symmetry:
+        from kinbot.gaussian_input import atomic_scf_parameters
+        params = atomic_scf_parameters(params)
 
     if properties is None:
         properties = ['energy']
@@ -1227,7 +1233,37 @@ def _compare_merge_configs(configs, new):
         oldres.update(newres)
 
 
+def gaussian_scf_error(lines):
+    """Return an unresolved native SCF failure, including exit-zero failures.
+
+    XQC can print a conventional-SCF warning before successfully solving the
+    same SCF problem in Link 508. Only an explicit subsequent QC convergence
+    message clears that warning; SCF Done/normal termination alone cannot.
+    Do not allow a later geometry or linked job to hide the failed SCF.
+    """
+    pending = None
+    boundary = re.compile(
+        r'orientation:|normal termination|error termination|1\\1\\GINC|'
+        r'Forces \(Hartrees/Bohr\)|^\s*(?:E2\s*[=(]|E3\s*=|E4\(|DEMP5\s*=)', re.I)
+    for number, line in enumerate(lines, 1):
+        lower = line.lower()
+        if ('convergence criterion not met' in lower or
+                'convergence failure -- run terminated' in lower):
+            pending = f'line {number}: {line.strip()}'
+        elif pending and 'rotation gradient small -- convergence achieved' in lower:
+            pending = None
+        elif pending and boundary.search(line):
+            return pending
+    return pending
+
+
 def read_gaussian_out(fd, index=-1):
+    position = fd.tell()
+    error = gaussian_scf_error(fd)
+    fd.seek(position)
+    if error:
+        raise RuntimeError(f'Gaussian SCF did not converge ({error}); '
+                           'SCF Done or normal termination does not validate this result.')
     configs = []
     atoms = None
     energy = None

@@ -48,12 +48,35 @@ def merge_route_options(base, override):
     return ','.join(merged.values())
 
 
+def atomic_scf_parameters(parameters):
+    """Use detected atomic symmetry without imposing a molecular point group.
+
+    Call only for a single atom. The writer's atomic_scf_symmetry=False control
+    bypasses this policy for users who need their own symmetry settings.
+    """
+    result = dict(parameters)
+    for key in tuple(result):
+        if key.lower() in {'symm', 'symmetry', 'nosymm', 'nosymmetry'}:
+            result.pop(key)
+    key = next((k for k in result if k.lower() == 'scf'), 'scf')
+    options = route_options(result.pop(key, ''))
+    replaced = {'symm', 'nosymm', 'varacc', 'novaracc', 'varint', 'novarint',
+                'incfock', 'noincfock'}
+    options = [opt for opt in options if opt.split('=', 1)[0].lower() not in replaced]
+    options.extend(['Symm', 'NoVarAcc', 'NoIncFock'])
+    if not any(opt.split('=', 1)[0].lower() in {'maxcycle', 'maxcycles'} for opt in options):
+        options.append('MaxCycle=256')
+    result['scf'] = ','.join(options)
+    return result
+
+
 def merge_gaussian_kwargs(base, override):
     # These are whole calculator/Link-0 values, not option lists.
     scalar = {'method', 'basis', 'fitting_basis', 'xc', 'charge', 'mult',
               'label', 'directory', 'mem', 'chk', 'oldchk', 'nprocshared',
               'nprocs', 'cpu', 'rwf', 'command', 'basisfile', 'basis_set',
-              'addsec', 'ioplist', 'extra', 'spinlist', 'output_type', 'scf_recovery'}
+              'addsec', 'ioplist', 'extra', 'spinlist', 'output_type', 'scf_recovery',
+              'atomic_scf_symmetry'}
     result = dict(base)
     for key, value in override.items():
         existing = next((k for k in result if k.lower() == key.lower()), key)

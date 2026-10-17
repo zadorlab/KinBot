@@ -303,6 +303,10 @@ class Gaussian(FileIOCalculator):
               format='gaussian-in', parallel=False, **self.parameters)
 
     def read_results(self):
+        # A rejected native SCF must not leave a previous geometry's cached
+        # energy/forces available to the caller.
+        self.results = {}
+        self.calc = None
         output = read(self.label + '.log', format='gaussian-out')
         self.calc = output.calc
         self.results = output.calc.results

@@ -6,6 +6,8 @@ Use either one PES directory or a production handoff parent containing
 ```bash
 python -m kinbot.run_monitor /path/to/run
 python -m kinbot.run_monitor /path/to/run --all
+python -m kinbot.run_monitor /path/to/run --all --details
+python -m kinbot.run_monitor /path/to/run --all --raw-logs --lines 12
 python -m kinbot.run_monitor /path/to/run --follow
 python -m kinbot.run_monitor /path/to/run --json
 ```
@@ -16,6 +18,27 @@ options. `watch -n 10 'python -m kinbot.run_monitor RUN'` refreshes a snapshot.
 QC text, discovering new logs and handling rotation/truncation. Ctrl-C stops
 only the viewer. `--lines N` changes recent progress lines; `--interval N`
 sets the follower poll interval (1–60 seconds; default 3).
+
+The dashboard separates **KINBOT LOGS** (including each `kinbot.log` and
+`pes.log` tail) from **QC OUTPUT** (native solver and Sella progress/errors).
+Input-parameter dictionaries are excluded from the progress view. Coordinate
+tables are not treated as solver iterations. Shared exclusions appear once;
+Slurm exclusions are grouped by their actual scheduler value. Paths within a
+PES are relative to that PES and process rows show module names/PIDs. Long
+diagnostics wrap to the terminal width without truncation.
+
+`--all` still includes completed tasks, all reaction rows and more logs; it
+does not dump input dictionaries. `--details` expands full process commands,
+work directories, duplicate status records and recovery metadata. `--raw-logs`
+shows the unfiltered last `--lines` lines of each log instead of selected
+progress. Use it to inspect output not recognized by the progress filter.
+`--json` retains original paths, commands, status records and bounded raw tails.
+`--follow` continues to stream newly appended raw text, including new logs.
+
+A monitor-only code update can be pulled while calculations run. An existing
+`watch` invocation loads the updated viewer on its next refresh. A persistent
+`--follow` viewer needs to be stopped with Ctrl-C and started again; that stops
+only the viewer. No restart of the PES controllers or QC jobs is needed.
 
 The snapshot shows:
 

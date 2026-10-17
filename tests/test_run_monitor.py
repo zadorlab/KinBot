@@ -202,3 +202,96 @@ def test_both_pes_remain_visible_during_targeted_minimum_check(production, monke
     text = monitor.render(report)
     assert 'Starting rotor scan' in text and 'Minimum recovery 1/2' in text
     assert 'descent_selected' in text and 'HISTORICAL ONLY' not in text
+
+
+def test_dashboard_separates_both_kinbot_tails_from_qc_without_parameter_dump(production):
+    root, first = production
+    second = root/'second_pes'
+    put(root/'prepared.json', {'inputs': [str(first/'input.json'), str(second/'input.json')]})
+    for case in (first, second):
+        put(case/'input.json', {'queue_job_limit': 10, 'slurm_exclude_nodes': ['node16']})
+        put(case/'well/kinbot_status.json', {'status': 'running'})
+        put(case/'well/kinbot.log',
+            '    vrc_tst_surface_model: '+str({'convergence': 1e-8, 'payload': 'x'*12000})+'\n'
+            '    anl_cc_convergence: 1e-8\n'
+            '16-Oct-26 21:04:01-INFO: Starting optimization of initial well...\n'
+            '16-Oct-26 21:04:02-WARNING: Runtime warning stays visible\n')
+        put(case/'well/energy.log', ' SCF Done: E(UB3LYP) = -437.123 A.U.\n'
+            ' 3 16 0 1.054795 3.058235 -0.304045\n')
+        put(case/'well/energy_sella.log', ' Step Time Energy fmax cmax rtrust rho trjid\n'
+            ' Sella 4 21:05:06 -11920.123 0.0521 0.0 0.1 1.2 4\n')
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root, include_all=True)
+    text = monitor.render(report, include_all=True, width=100)
+    assert text.count('KINBOT LOGS') == text.count('QC OUTPUT') == 2
+    assert text.count('Starting optimization of initial well') == 2
+    assert text.count('Runtime warning stays visible') == 2
+    assert text.count('SCF Done: E(UB3LYP)') == text.count('Sella 4') == 2
+    assert text.count('Configured exclusions: node16') == 1
+    assert 'kinbot_status.json' not in text  # status already on WORKER row
+    assert text.count('WORKER well: running') == 2
+    assert 'surface_model' not in text and 'anl_cc_convergence' not in text
+    assert '1.054795' not in text  # coordinates are not solver iterations
+    assert 'Step Time Energy fmax' in text
+    assert len(text) < 5000 and max(map(len, text.splitlines())) <= 100
+    assert text.index('KINBOT LOGS') < text.index('QC OUTPUT')
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+
+def test_numeric_native_iterations_and_error_reasons_remain_visible(tmp_path):
+    path = tmp_path/'molpro.out'
+    put(path, ' PROGRAM * MRCI-F12\n'
+        ' ITER. STATE ROOT SQ.NORM CORR.ENERGY TOTAL ENERGY ENERGY CHANGE\n'
+        ' 8 1 2 1.11667027 -0.33129541 -437.41636132 -0.00000002 0.32D-08\n'
+        ' ? Error\n ? dsygv failed\n ? The problem occurs in cif12solve\n'
+        ' GLOBAL ERROR fehler on processor 0\n')
+    record = monitor.log_record(path, tmp_path, path.stat().st_mtime)
+    content = monitor.log_content(record, lines=8)
+    assert any('ITER. STATE ROOT' in line for line in content)
+    assert any('-437.41636132' in line for line in content)
+    assert any('dsygv failed' in line for line in content)
+    assert any('cif12solve' in line for line in content)
+
+
+def test_details_and_raw_tails_retain_full_metadata(production, monkeypatch):
+    root, case = production
+    command = f'/opt/python -u -m kinbot.pes {case}/input.json'
+    from kinbot import run_cleanup
+    monkeypatch.setattr(run_cleanup, '_processes', lambda *a: [
+        {'pid': 123, 'state': 'S', 'cwd': str(case), 'command': command}])
+    put(case/'well/kinbot.log', '16-Oct-26 21:04:01-INFO: Starting KinBot\n')
+    put(case/'well/native.log', 'unclassified backend detail\n1 6 0 1.2 3.4 5.6\n')
+    put(case/'well/kinbot_status.json', {'status': 'running'})
+    report = monitor.snapshot(root, log_lines=20)
+    compact = monitor.render(report, width=1000)
+    expanded = monitor.render(report, details=True, raw_logs=True, lines=20, width=1000)
+    assert 'kinbot.pes PID 123 [S]' in compact and command not in compact
+    assert command in expanded
+    assert 'kinbot_status.json' in expanded
+    assert 'unclassified backend detail' in expanded
+    assert '1 6 0 1.2 3.4 5.6' in expanded
+    assert report['cases'][0]['processes'][0]['command'] == command
+    assert 'unclassified backend detail' in json.dumps(report)
+
+
+def test_lines_option_applies_to_collection_and_live_cli(production, capsys):
+    import argparse
+    root, case = production
+    put(case/'well/kinbot.log', ''.join(
+        f'16-Oct-26 21:04:01-INFO: Event {i}\n' for i in range(25)))
+    parser = argparse.ArgumentParser()
+    monitor.add_arguments(parser)
+    args = parser.parse_args(['--all', '--details', '--raw-logs', '--lines', '20'])
+    monitor.run(root, args)
+    text = capsys.readouterr().out
+    assert 'Event 5\n' in text and 'Event 24\n' in text
+    assert 'Event 4\n' not in text
+
+
+def test_narrow_display_wraps_long_errors_without_losing_tail(production):
+    root, case = production
+    message = 'RuntimeError: '+('long diagnostic '*30)+'END OF ERROR'
+    put(case/'well/perm/failed.err', message+'\n')
+    text = monitor.render(monitor.snapshot(root), width=70)
+    assert max(map(len, text.splitlines())) <= 70
+    assert 'END OF ERROR' in text

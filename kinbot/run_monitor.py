@@ -12,7 +12,10 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
+import shutil
 import subprocess
+import textwrap
 import time
 
 TAIL_BYTES = 65536
@@ -27,8 +30,16 @@ PROGRESS = re.compile(r'PROGRAM\s*\*|SCF Done:|Step number|Optimization complete
                       r'Normal termination|Maximum Force|RMS Force|Maximum Displacement|'
                       r'RMS Displacement|^\s*(?:Sella|BFGS|LBFGS|FIRE)(?::|\s+\d+\s)|'
                       r'Frequencies\s+--|Zero-point correction|Minimum recovery \d|'
-                      r'^\s*\d+\s+\d+\s+\d+\s+[-+]?\d+\.\d+|'
-                      r'^\s*\?\s*\S|convergence|\bKBGAP\w*\s*=', re.I)
+                      r'^\s*\?\s*\S|convergence|\b(?:KBGAP|RECONC)\w*\s*=|'
+                      r'E\((?:U?B2PLYP|R?MP2)\)\s*=|!.*(?:STATE|Energy)|'
+                      r'SCF failed|Convergence failure', re.I)
+# Molpro iterations have three integer columns followed by at least four
+# numeric fields. A Gaussian orientation row has only three coordinates.
+NUMBER = r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[DdEe][-+]?\d+)?'
+ITERATION = re.compile(r'^\s*\d+\s+\d+\s+\d+\s+' +
+                       rf'(?:{NUMBER}\s+){{3}}{NUMBER}(?:\s|$)')
+TABLE_HEADER = re.compile(r'^\s*(?:Step\s+Time\s+Energy|ITER\.?\s+.*(?:ENERGY|STATE)|'
+                          r'ITERATION\s+.*ENERGY)', re.I)
 LOG_NAMES = {'driver.log', 'pes.log', 'kinbot.log', 'kinbot.err', 'kinbot.out'}
 STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'mess_execution.json', '.kinbot_post_reaction_branches.json',
@@ -127,7 +138,7 @@ def inventory(root, warnings):
     return paths
 
 
-def log_record(path, root, now):
+def log_record(path, root, now, *, tail_lines=4):
     raw = tail(path)
     lines = raw.splitlines()
     events = [line.strip() for line in lines if EVENT.match(line) and
@@ -139,11 +150,18 @@ def log_record(path, root, now):
             errors.append(line.strip())
             if 'Converged but frequency check failed' in line and index + 1 < len(lines):
                 errors.append(lines[index + 1].strip())
-    progress = [line.strip() for line in lines if PROGRESS.search(line)]
-    return {'path': str(path.relative_to(root)), 'mtime': path.stat().st_mtime,
-            'age_seconds': max(0, now-path.stat().st_mtime),
-            'bytes': path.stat().st_size, 'events': events[-8:],
-            'errors': errors[-6:], 'progress': progress[-6:]}
+    # KinBot parameter dumps are not QC progress. In particular "convergence"
+    # can occur inside a many-kilobyte inline state model in kinbot.log.
+    progress = [] if path.name in LOG_NAMES else [line.strip() for line in lines
+                if PROGRESS.search(line) or ITERATION.match(line)]
+    headers = [line.strip() for line in lines if TABLE_HEADER.match(line)]
+    stat = path.stat()
+    return {'path': str(path.relative_to(root)), 'mtime': stat.st_mtime,
+            'age_seconds': max(0, now-stat.st_mtime),
+            'bytes': stat.st_size, 'events': events[-max(8, tail_lines):],
+            'errors': errors[-6:], 'progress': progress[-max(6, tail_lines):],
+            'table_header': headers[-1] if headers else None,
+            'raw_tail': lines[-tail_lines:]}
 
 
 def pes_summary(path, warnings):
@@ -223,7 +241,7 @@ def artifacts(paths, root, warnings):
     return results
 
 
-def case_snapshot(root, jobs, processes, now, *, log_limit=40):
+def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
     warnings = []
     files = inventory(root, warnings)
     exit_records = []
@@ -260,7 +278,7 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40):
     records = []
     for path in chosen[:log_limit]:
         try:
-            records.append(log_record(path, root, now))
+            records.append(log_record(path, root, now, tail_lines=log_lines))
         except OSError as error:
             warnings.append(f'{path}: {error}')
     if len(chosen) > log_limit:
@@ -293,7 +311,7 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40):
             'warnings': warnings}
 
 
-def snapshot(root, *, include_all=False):
+def snapshot(root, *, include_all=False, log_lines=4):
     root = Path(root).expanduser().resolve(strict=True)
     warnings = []
     prepared = read_json(root/'prepared.json', warnings)
@@ -311,7 +329,7 @@ def snapshot(root, *, include_all=False):
     return {'time': datetime.fromtimestamp(now).astimezone().isoformat(timespec='seconds'),
             'directory': str(root), 'scheduler_error': queue_error, 'process_error': process_error,
             'warnings': warnings, 'cases': [case_snapshot(d, jobs, processes, now,
-                log_limit=200 if include_all else 40) for d in directories]}
+                log_limit=200 if include_all else 40, log_lines=log_lines) for d in directories]}
 
 
 def age(seconds):
@@ -322,28 +340,114 @@ def age(seconds):
     return f'{seconds/3600:.1f}h'
 
 
-def render(report, *, include_all=False, lines=4):
-    out = [report['time'], report['directory']]
+def relative_path(value, root):
+    """Shorten display paths only; snapshot/JSON retain original metadata."""
+    try:
+        return str(Path(value).relative_to(root))
+    except ValueError:
+        return str(value)
+
+
+def process_label(command):
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return command
+    if '-m' in words and words.index('-m') + 1 < len(words):
+        return words[words.index('-m') + 1]
+    return Path(words[0]).name if words else 'process'
+
+
+def log_content(log, *, lines=4, raw=False):
+    if raw:
+        return log.get('raw_tail', [])[-lines:]
+    content = log['events'][-lines:] + log['progress'][-lines:] + log['errors']
+    if log.get('table_header') and any(
+            ITERATION.match(line) or re.match(r'^(?:Sella|BFGS|LBFGS|FIRE)(?::|\s)', line)
+            for line in content):
+        content.insert(0, log['table_header'])
+    return list(dict.fromkeys(content))
+
+
+def render_logs(case, *, include_all=False, lines=4, raw=False):
+    """Keep controller tails above QC, irrespective of native output volume."""
+    out = []
+    for controller, title in ((True, 'KINBOT LOGS'), (False, 'QC OUTPUT')):
+        logs = [log for log in case['logs'] if (Path(log['path']).name in LOG_NAMES) == controller]
+        if controller:
+            logs.sort(key=lambda r: (Path(r['path']).name != 'pes.log', r['path']))
+        else:
+            logs.sort(key=lambda r: (bool(r['errors']), r['mtime']), reverse=True)
+        shown = 0
+        for log in logs:
+            content = log_content(log, lines=lines, raw=raw)
+            if not content:
+                continue
+            if not shown:
+                out.append('  '+title+(' (raw tails)' if raw else ''))
+            if shown >= (200 if include_all else 12):
+                out.append('    More log tails available with --all.')
+                break
+            shown += 1
+            out.append(f'    {log["path"]} | {age(log["age_seconds"])} ago | {log["bytes"]:,} B')
+            for line in content:
+                # Show the event's clock and severity; date/root are already
+                # in the dashboard header. Raw tails and JSON stay untouched.
+                if not raw and EVENT.match(line):
+                    line = line.split(' ', 1)[1].replace(case['directory']+'/', '')
+                out.append('      '+line)
+    return out
+
+
+def wrap_display(out, width):
+    """Wrap, never truncate, long diagnostics; keep continuation indentation."""
+    wrapped = []
+    for line in out:
+        indent = len(line) - len(line.lstrip())
+        wrapped.extend(textwrap.wrap(line, width=max(60, width),
+                       subsequent_indent=' '*(indent+2),
+                       replace_whitespace=False, drop_whitespace=True) or [''])
+    return '\n'.join(wrapped)
+
+
+def render(report, *, include_all=False, lines=4, details=False, raw_logs=False, width=None):
+    out = [f'KINBOT  {report["time"]}', report['directory']]
     for key in ('scheduler_error', 'process_error'):
         if report[key]:
             out.append(f'{key.upper()}: UNKNOWN — {report[key]}')
+    common_exclusions = report['cases'][0]['configured_exclusions'] if report['cases'] else []
+    same_exclusions = all(c['configured_exclusions'] == common_exclusions for c in report['cases'])
+    if same_exclusions:
+        out.append('Configured exclusions: '+(','.join(common_exclusions) or '(none)'))
     for case in report['cases']:
         out += ['', f'=== {case["name"]} ===']
         out.append(f'Slurm: {"UNKNOWN" if report["scheduler_error"] else len(case["jobs"])} allocations'
                    f' / cap {case["allocation_cap"] or "unspecified"}; '
                    f'local processes: {"UNKNOWN" if report["process_error"] else len(case["processes"])}')
-        out.append('Configured exclusions: '+(','.join(case['configured_exclusions']) or '(none)'))
-        out.append('JOB       STATE       NODES       ELAPSED / LIMIT   CPU  MEMORY  NAME')
+        if not same_exclusions:
+            out.append('Configured exclusions: '+(','.join(case['configured_exclusions']) or '(none)'))
+        if case['jobs']:
+            out.append('JOB       STATE       NODES       ELAPSED / LIMIT   CPU  MEMORY  NAME')
         for job in case['jobs']:
             out.append(f'{job["job_id"]:<9} {job["state"]:<11} {job["nodes"]:<11} '
                        f'{job["elapsed"]} / {job["limit"]}  {job["cpus"]}  {job["memory"]}  {job["name"]}')
-            out.append(f'  WorkDir: {job["directory"]}; Slurm exclusions: {job["excluded_nodes"] or "(none)"}')
+            out.append('  WorkDir: '+(job['directory'] if details else relative_path(job['directory'], case['directory'])))
             if job['state'] != 'RUNNING':
                 out.append('  Reason: '+job['reason'])
-        for process in case['processes']:
-            out.append(f'PID {process["pid"]} [{process["state"]}] {process["command"]}')
+        # squeue uses a compressed host list; display that exact value once
+        # per group instead of repeating it for every allocation.
+        for exclusion in dict.fromkeys(j['excluded_nodes'] for j in case['jobs']):
+            ids = ','.join(j['job_id'] for j in case['jobs'] if j['excluded_nodes'] == exclusion)
+            out.append(f'  Slurm exclusions: {exclusion or "(none)"} [jobs {ids}]')
+        if case['processes']:
+            if details:
+                for process in case['processes']:
+                    out.append(f'PID {process["pid"]} [{process["state"]}] {process["command"]}')
+            else:
+                out.append('Local: '+'; '.join(f'{process_label(p["command"])} PID {p["pid"]} [{p["state"]}]'
+                                              for p in case['processes']))
         if case['pes']['counts']:
-            out.append('PES worker counts: '+str(case['pes']['counts'])+' (legacy Finished means exited, not successful)')
+            out.append('PES workers: '+'  '.join(f'{k.lower()}={v}' for k, v in case['pes']['counts'].items()))
         failures = [r for r in case['exit_records'] if r['returncode']]
         for failure in failures:
             out.append(f'FAILED QC EXIT: {failure["path"]} job={failure["job_id"] or "unknown"} exit={failure["returncode"]}')
@@ -360,10 +464,19 @@ def render(report, *, include_all=False, lines=4):
                 if include_all:
                     out.append('    '+json.dumps(row.get('optimizers', [])))
         for item in case['artifacts']:
+            if not details and not item.get('error') and Path(item['path']).name == 'kinbot_status.json':
+                continue  # Already in the WORKER row above.
             out.append(f'RECORD {item["path"]}: {item["status"]}')
             for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error'):
                 if item.get(key) is not None:
-                    out.append(f'  {key}: {item[key]}')
+                    value = item[key]
+                    if key == 'recovery' and not details and 'curvature_checks' in value:
+                        out.append(f'  curvature_checks: {len(value["curvature_checks"])}; controls: {value.get("controls")}')
+                        for check in value['curvature_checks']:
+                            out.append('    '+str({k: v for k, v in check.items() if k in
+                                ('attempt', 'status', 'lowest_frequency_cm_inverse', 'selected_energy_eV', 'error')}))
+                    else:
+                        out.append(f'  {key}: {value}')
             tasks = item.get('tasks', [])
             for task in tasks if include_all else [t for t in tasks if t['status'] in ('failed', 'blocked', 'submitted', 'unavailable')][:12]:
                 out.append(f'  {task["name"]}: {task["status"]} job={task["job_id"]}; waiting for={task["blocked_by"]}; {task["error"] or ""}')
@@ -371,25 +484,16 @@ def render(report, *, include_all=False, lines=4):
             out.append(f'ROTD {sampling["directory"]}: {sampling["surface_output_files"]}/'
                        f'{sampling["surface_directories"]} surface output files; '
                        'file counts only, final flux validation is separate.')
-        out.append('RECENT LOG ACTIVITY (bounded tails; warnings/errors may belong to earlier attempts):')
-        displayed = 0
-        for log in sorted(case['logs'], key=lambda r: (bool(r['errors']), r['mtime']), reverse=True):
-            content = log['events'][-lines:] + log['progress'][-lines:] + log['errors']
-            content = list(dict.fromkeys(content))
-            if not content:
-                continue
-            if displayed >= (200 if include_all else 12):
-                out.append('  More logs omitted; use --all.')
-                break
-            displayed += 1
-            out.append(f'  {log["path"]} [modified {age(log["age_seconds"])} ago; {log["bytes"]} bytes]')
-            out.extend('    '+line for line in content)
+        out.extend(render_logs(case, include_all=include_all, lines=lines, raw=raw_logs))
         out.extend('READ WARNING: '+warning for warning in case['warnings'])
         if not case['jobs'] and not case['processes'] and not report['scheduler_error'] and not report['process_error']:
             out.append('INACTIVE: no live jobs/controllers observed. This is not a completion verdict.')
     out.extend('READ WARNING: '+warning for warning in report['warnings'])
-    out.append('\nRead-only. Record statuses are not a new scientific audit. Quiet output is not proof of a stall.')
-    return '\n'.join(out)
+    out += ['', 'Read-only | --details: full metadata | --raw-logs: unfiltered tails | --json: structured snapshot',
+            'Tails may include earlier errors; quiet output is not proof of a stall. Statuses are not a scientific audit.']
+    if any(c['pes']['counts'] for c in report['cases']):
+        out.append('Legacy PES Finished means exited, not successful.')
+    return wrap_display(out, width or min(160, shutil.get_terminal_size((120, 24)).columns))
 
 
 class LogFollower:
@@ -434,6 +538,8 @@ class LogFollower:
 def add_arguments(parser):
     parser.add_argument('--all', action='store_true', help='Show completed tasks, all reaction rows and more log tails.')
     parser.add_argument('--lines', type=int, default=4, help='Recent event/native progress lines per log (default 4).')
+    parser.add_argument('--details', action='store_true', help='Expand process commands, paths and recovery metadata.')
+    parser.add_argument('--raw-logs', action='store_true', help='Show unfiltered last --lines lines instead of selected log progress.')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--json', action='store_true', help='Machine-readable snapshot.')
     mode.add_argument('--follow', action='store_true', help='Snapshot then follow new controller and QC log text.')
@@ -444,8 +550,9 @@ def run(root, args):
     root = Path(root).expanduser().resolve(strict=True)
     if args.lines < 1 or not 1 <= args.interval <= 60:
         raise ValueError('--lines must be positive; --interval must be between 1 and 60 seconds.')
-    report = snapshot(root, include_all=args.all)
-    print(json.dumps(report, indent=2) if args.json else render(report, include_all=args.all, lines=args.lines), flush=True)
+    report = snapshot(root, include_all=args.all, log_lines=args.lines)
+    print(json.dumps(report, indent=2) if args.json else render(report, include_all=args.all,
+          lines=args.lines, details=args.details, raw_logs=args.raw_logs), flush=True)
     if args.follow:
         follower = LogFollower()
         # Snapshot already showed existing activity; follow only newly written text.

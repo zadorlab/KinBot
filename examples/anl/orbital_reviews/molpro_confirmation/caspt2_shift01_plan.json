@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "max_jobs": 2,
+  "purpose": "One matched CH3SS S-S inner geometry in both correction bases; compare real SHIFT=0.1 to the retained SHIFT=0.3 result at unchanged IPEA=0.25 and shared-reference treatment. This tests the largest first-order norm in the reviewed shared-reference set; it is not a new active-space survey or a full PES sensitivity certificate.",
+  "chains": [
+    {
+      "title": "ch3ss_ss_adz_caspt2_shift01",
+      "source_chain": "ch3ss_ss_adz_caspt2_shared_reference",
+      "points": ["inner"],
+      "seed_from_completed": "center",
+      "correlation_options": {"reference_policy": "state_average"},
+      "correlation_checks": [{"method": "caspt2-f12(7,5)", "ipea": 0.25, "shift": 0.1}],
+      "reason": "Use the same center predecessor as the completed inner calculation, all six roots per spin, the same basis/geometry and numerical thresholds; change only the correlation shift."
+    },
+    {
+      "title": "ch3ss_ss_atz_caspt2_shift01",
+      "source_chain": "ch3ss_ss_atz_caspt2_shared_reference",
+      "points": ["inner"],
+      "seed_from_completed": "center",
+      "correlation_options": {"reference_policy": "state_average"},
+      "correlation_checks": [{"method": "caspt2-f12(7,5)", "ipea": 0.25, "shift": 0.1}],
+      "reason": "Largest observed shifted first-order total norm among the reviewed shared-reference jobs: SQ.NORM=1.16660671 at SHIFT=0.3. The matched aDZ point has 1.15169295."
+    }
+  ]
+}

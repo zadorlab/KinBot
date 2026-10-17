@@ -57,6 +57,17 @@ input correction during assembly. All three CAS root manifolds are unchanged. CH
 a plausible contributor to the earlier negative mode, not a proven diagnosis;
 the independent negative curvature required reoptimization in any case.
 
+The resume helper's `cannot migrate unavailable` error is repaired, including
+rerunning an interrupted migration without repeating accepted QC. Electronic
+coverage now includes the recursively expanded CBH rungs and terminal ATcT
+references, not just reaction products; no additional species appears in that
+expansion of the supplied inventory. Each automatic branch writes a general
+`electronic_state_audit.json` report. **Future work requested 17 October:** add
+a curated, sourced experimental SO database with explicit energy-reference
+conventions and user overrides. Requirements and present species decisions
+are in the spectroscopy review above. The database is not yet implemented
+and is not required for these inputs, which already contain their reviewed data.
+
 The user also completed the [27-entry Molpro basis-library check](MOLPRO_BASIS_LIBRARY_CHECK_2026-10-16.md)
 on Blodgett 2024.1: all H/C/S lookups loaded, including augmented 5Z-F12.
 This resolves the basis-availability concern without changing the ANL pair.

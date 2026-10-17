@@ -2054,7 +2054,7 @@ def advance(run_dir, submit=False, submit_only=None):
                     run_dir, spec, state, task, entry, previous)
             except ValueError:
                 pass
-        if (entry.get('status') == 'failed' and previous is not None
+        if (entry.get('status') in ('failed', 'unavailable') and previous is not None
                 and _native_success_recovery_candidate(task, previous)
                 and _native_success_present(
                     run_dir / 'tasks' / ident, task)):
@@ -2070,6 +2070,8 @@ def advance(run_dir, submit=False, submit_only=None):
                              automatically_reparsed=True)
                 entry.pop('error', None)
                 entry.pop('job_id', None)
+                entry.pop('unavailable_reason', None)
+                entry.pop('failure_phase', None)
                 if actual_hash is not None:
                     entry['final_geometry_sha256'] = actual_hash
                 previous = recovered
@@ -2200,6 +2202,21 @@ def advance(run_dir, submit=False, submit_only=None):
             if state['tasks'].get(dependency, {}).get('status') in
             ('failed', 'blocked', 'unavailable', 'skipped')]
         entry = state['tasks'].get(ident)
+        if (entry is not None and entry.get('status') == 'skipped'
+                and entry.get('skipped_by')
+                and all(state['tasks'].get(source, {}).get('status') == 'complete'
+                        for source in entry['skipped_by'])):
+            # A verified native reparse can recover an optional source that
+            # was previously unavailable. Release only its derived skips;
+            # unrelated unavailability and deliberate fallback skips remain.
+            if entry.get('resume_status') == 'staged':
+                entry['status'] = 'staged'
+                for key in ('resume_status', 'skipped_by', 'skip_reason',
+                            'component_families'):
+                    entry.pop(key, None)
+            else:
+                state['tasks'].pop(ident)
+                entry = None
         if entry is not None and entry.get('status') == 'blocked':
             if failed_dependencies:
                 entry['blocked_by'] = failed_dependencies

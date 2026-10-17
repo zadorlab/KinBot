@@ -99,6 +99,22 @@ Unreviewed failures prevent launch. HSS's accepted reference model is reused
 through the general identity check. The entire invalid VRC first-scan trees
 are archived; they must be recomputed with the corrected geometry ordering.
 
+The first resume stopped at `gaussian_vpt2: cannot migrate unavailable`.
+That was a helper defect: optional native execution failures transition from
+`failed` to `unavailable`, but the migration only handled `failed`. The exact
+production status is now covered by a regression. Both statuses reach the
+same native-error check; only the recognized Gaussian framework-group failure
+is restaged. Preflight-unavailable components remain unavailable, and unrelated
+native failures still require review. Native-success reparsing likewise handles
+an old optional failure only after validating the native files and provenance;
+derived skips are released only when their own failed sources have recovered.
+
+Rerunning the same resume command also handles the interrupted migration:
+updating both input JSONs during the first invocation no longer prevents the
+second invocation from archiving stale derived data for the remaining case.
+The interruption regression checks this explicitly and preserves accepted
+native records. Another fresh PES restart is not required by this helper error.
+
 Failed TS decisions and compact exit markers remain cached; deleting these
 would incorrectly erase genuine reaction exclusions. Their old native attempts
 are archived, and the monitor identifies the hash-matched markers as cached
@@ -131,8 +147,10 @@ not local executions of licensed Gaussian or Molpro. In particular the new
 H2S Symmetry=None VPT2 route and corrected seed-to-2.5 A gradient still require
 native confirmation after resume; passing Python tests is not an end-to-end guarantee.
 
-Final local verification after SO integration: **419 regression tests and seven native
-RotdPy/MESS/MESSPF checks passed**, zero failures/skips. One Sella/JAX cache
+The prior SO integration passed **419 regression tests and seven native
+RotdPy/MESS/MESSPF checks**, zero failures/skips. After the resume-status
+and full CBH electronic-state coverage changes, **428 regression tests passed**
+in 24.71 s, with zero failures/skips. One Sella/JAX cache
 permission warning occurred in a passing test. Shell syntax and whitespace
 checks passed. [Commands, counts, source hashes and limits](../examples/anl/tools/downstream_repair_validation.json)
 are retained. These targeted checks cover the changed paths; they are not a

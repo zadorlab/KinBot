@@ -158,6 +158,12 @@ is reparsed without QC. Failed H2S VPT2 and the invalid first VRC scans are
 restaged. HSS's accepted L2 reference is retained with checked identity handling.
 Full reports are saved; terminal output summarizes the archive and launch PIDs.
 
+If the earlier invocation stopped with `cannot migrate unavailable`, pull the
+repair and rerun this same block. The helper now recognizes optional native
+VPT2 failures and finishes a partially applied input/derived-data migration.
+Accepted QC is retained; this does not require a fresh PES search. Preflight
+unavailability is not treated as a native symmetry failure.
+
 ```bash
 bash <<'BASH'
 set -euo pipefail
@@ -179,6 +185,13 @@ remain in place. Small failed-job markers retain negative cache decisions;
 the monitor identifies hash-matched historical outcomes separately. Old failure
 history remains accessible in the archive. Reconstructed rejection decisions
 can still appear in new logs; no scientific result is relabeled as successful.
+
+Both automatic branches write `anl_automatic/electronic_state_audit.json`.
+It covers PES species, every planned CBH rung/reference, and terminal ATcT
+identities, with input sources and any unreviewed open-shell states. The
+[review](../../../docs/SULFUR_ELECTRONIC_LEVELS_2026-10-17.md) also records
+the requested future experimental SO database; present data remain explicit
+in each single input JSON.
 
 `restart_on_blodgett.sh` remains an optional **fresh r6 replacement** command;
 it is not the saved-results restart selected here.

@@ -104,6 +104,45 @@
       ],
       "source": "Experimental ground-state A0=-376.835 cm-1: Milan et al., Chem. Phys. Lett. 239 (1995) 326-331, https://doi.org/10.1016/0009-2614(95)00488-2 . Electronic components only; rotational multiplicity is counted by the rotor. Experimental ground-term centroid approximation: add -376.835/2 cm^-1 once to the scalar ANL energy; retain scalar anharmonic ZPE.",
       "spin_free_reference": "term_centroid"
+    },
+    {
+      "smiles": "[CH3]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 1,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2
+        }
+      ],
+      "source": "Methyl X 2A2-double-prime, orbital nondegenerate; ground spin only. Neutral fragment term: Cole-Filipiak et al., JCP 138, 054301 (2013), https://bromine.cchem.berkeley.edu/grppub/xbeam15.pdf . No added first-order orbital SO correction."
+    },
+    {
+      "smiles": "[H]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 1,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2
+        }
+      ],
+      "source": "Hydrogen 1s 2S1/2, L=0: no first-order orbital SO splitting. https://physics.nist.gov/PhysRefData/Handbook/Tables/hydrogentable1.htm . Hyperfine structure is omitted."
+    },
+    {
+      "smiles": "C=[SH]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 1,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2
+        }
+      ],
+      "source": "CH2SH connectivity, nondegenerate ground doublet; do not transfer the CH3S 2E correction between isomers. Karaev et al., PCCP 26 (2024) 28939-28946, https://doi.org/10.1039/D4CP03906H . Ground spin only; no added first-order SO centroid correction."
     }
   ],
   "homolytic_bonds": {

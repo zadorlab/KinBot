@@ -22,12 +22,15 @@ def repair(monkeypatch):
     return module
 
 
-def graph_fixture(root):
+def graph_fixture(root, *, optional=False):
     spec = dispatch_spec()
     spec['tasks'] = [t for t in spec['tasks'] if t['id'] in
                      ('l2_geometry', 'l3_geometry', 'gaussian_vpt2')]
     spec['tasks'][-1]['input_template'] = spec['tasks'][-1]['input_template'].replace(
         'NoSymm', 'Symmetry=(PG=C1)')
+    if optional:
+        spec['tasks'][-1].update(failure_policy='skip_component',
+                                component_families=['vpt2_correction'])
     graph = dispatch.prepare(spec, root / 'composite')
     _mock_execution(graph, 'l2_geometry', geometry='final.xyz')
     dispatch.advance(graph)
@@ -36,7 +39,7 @@ def graph_fixture(root):
     return graph
 
 
-def fail_vpt2(graph, native):
+def fail_vpt2(graph, native, *, failure_phase=None):
     directory = graph / 'tasks/gaussian_vpt2'
     (directory / 'vpt2.log').write_text(native)
     (directory / 'vpt2.err').write_text('')
@@ -45,19 +48,27 @@ def fail_vpt2(graph, native):
         'schema': 1, 'task_id': 'gaussian_vpt2', 'status': 'failed',
         'geometry_sha256': task['geometry_sha256'], 'error': 'Old parser failure',
         'traceback': 'parse_result(native)',
+        **({'failure_phase': failure_phase} if failure_phase is not None else {}),
     })
     state = json.loads((graph / 'state.json').read_text())
     state['tasks']['gaussian_vpt2']['status'] = 'failed'
     atomic_json(graph / 'state.json', state)
 
 
-def test_native_success_reparsed_without_qc_and_history_external(repair, tmp_path):
+@pytest.mark.parametrize('unavailable', [False, True])
+def test_native_success_reparsed_without_qc_and_history_external(repair, tmp_path, unavailable):
     root = tmp_path / 'run'
     graph = graph_fixture(root)
     native = _GAUSSIAN_VPT2.replace('B3LYP', 'B2PLYP').replace(
         'NoSymm', 'Symmetry=(PG=C1) EmpiricalDispersion=GD3BJ')
     native = native.replace(' Fundamental Bands', ' Full point group C*V\n Fundamental Bands')
     fail_vpt2(graph, native)
+    if unavailable:
+        state = json.loads((graph / 'state.json').read_text())
+        state['tasks']['gaussian_vpt2'].update(
+            status='unavailable', failure_phase='execution',
+            unavailable_reason='old launcher failure after native success')
+        atomic_json(graph / 'state.json', state)
     accepted = (graph / 'tasks/l3_geometry/execution.json').read_bytes()
     archive = repair.Archive(root)
     result = repair.repair_graph(graph, archive)
@@ -66,6 +77,8 @@ def test_native_success_reparsed_without_qc_and_history_external(repair, tmp_pat
     history = graph / 'tasks/gaussian_vpt2/execution.failed.json'
     assert history.is_symlink() and history.resolve().is_relative_to(archive.path)
     assert dispatch.advance(graph)['tasks']['gaussian_vpt2']['status'] == 'complete'
+    entry = dispatch.advance(graph)['tasks']['gaussian_vpt2']
+    assert 'unavailable_reason' not in entry and 'failure_phase' not in entry
 
 
 def test_framework_retry_preserves_geometry_and_finished_siblings(repair, tmp_path):
@@ -82,6 +95,91 @@ def test_framework_retry_preserves_geometry_and_finished_siblings(repair, tmp_pa
     assert not (graph / 'tasks/gaussian_vpt2/execution.json').exists()
     assert not (graph / 'attempts').exists()
     assert list(archive.path.rglob('vpt2.log'))
+
+
+def test_native_reparse_releases_derived_skips_but_not_unrelated_work(tmp_path):
+    from copy import deepcopy
+    spec = dispatch_spec()
+    base = next(t for t in spec['tasks'] if t['id'] == 'gaussian_vpt2')
+    base = deepcopy(base)
+    base.pop('depends_on', None)
+    base['geometry_from'] = 'l2_geometry'
+    base.update(id='source', failure_policy='skip_component',
+                component_families=['vpt2_correction'],
+                failure_skips=['larger'])
+    larger = deepcopy(base)
+    larger.update(id='larger', failure_skips=[])
+    unrelated = deepcopy(base)
+    unrelated.update(id='unrelated', failure_skips=['other_larger'])
+    other = deepcopy(larger)
+    other['id'] = 'other_larger'
+    child = deepcopy(larger)
+    child.update(id='child', depends_on=['source'])
+    geometry = next(t for t in spec['tasks'] if t['id'] == 'l2_geometry')
+    spec['tasks'] = [geometry, base, larger, unrelated, other, child]
+    graph = dispatch.prepare(spec, tmp_path / 'graph')
+    _mock_execution(graph, 'l2_geometry', geometry='final.xyz')
+    dispatch.advance(graph)
+    for ident in ('source', 'unrelated'):
+        task_dir = graph / 'tasks' / ident
+        entry = json.loads((graph / 'state.json').read_text())['tasks'][ident]
+        atomic_json(task_dir / 'execution.json', {
+            'schema': 1, 'task_id': ident, 'geometry_sha256': entry['geometry_sha256'],
+            'status': 'failed', 'failure_phase': 'execution', 'error': 'native failure'})
+    state = dispatch.advance(graph)
+    assert state['tasks']['larger']['resume_status'] == 'staged'
+    assert state['tasks']['child']['status'] == 'skipped'
+    # Simulate the native file becoming visible after an old launcher failure;
+    # the real parser and provenance checks must accept it before skips clear.
+    native = _GAUSSIAN_VPT2.replace('B3LYP', 'B2PLYP').replace(
+        'NoSymm', 'NoSymm EmpiricalDispersion=GD3BJ')
+    (graph / 'tasks/source/vpt2.log').write_text(native)
+    (graph / 'tasks/source/vpt2.err').write_text('')
+    state = dispatch.advance(graph)
+    assert state['tasks']['source']['status'] == 'complete'
+    assert state['tasks']['source']['automatically_reparsed']
+    assert state['tasks']['larger']['status'] == 'staged'
+    assert state['tasks']['child']['status'] == 'staged'
+    assert state['tasks']['unrelated']['status'] == 'unavailable'
+    assert state['tasks']['other_larger']['status'] == 'skipped'
+
+
+def test_optional_native_framework_failure_retries_from_unavailable(repair, tmp_path):
+    root = tmp_path / 'run'
+    graph = graph_fixture(root, optional=True)
+    fail_vpt2(graph, 'ERROR: Inconsistency found in framework group definition:\n'
+              'New: CS - Old: C1\nError termination via Lnk1e in l717.exe\n',
+              failure_phase='execution')
+    # Production optional components become unavailable after native failure;
+    # the earlier fixture's parser failure had remained simply failed.
+    assert dispatch.advance(graph)['tasks']['gaussian_vpt2']['status'] == 'unavailable'
+    accepted = (graph / 'tasks/l3_geometry/execution.json').read_bytes()
+    geometry = (graph / 'tasks/gaussian_vpt2/geometry.xyz').read_bytes()
+    result = repair.repair_graph(graph, repair.Archive(root))
+    assert result['recovered_vpt2'] == ['gaussian_vpt2']
+    assert dispatch.advance(graph)['tasks']['gaussian_vpt2']['status'] == 'staged'
+    assert (graph / 'tasks/gaussian_vpt2/geometry.xyz').read_bytes() == geometry
+    assert (graph / 'tasks/l3_geometry/execution.json').read_bytes() == accepted
+    assert 'Symmetry=None' in (graph / 'tasks/gaussian_vpt2/vpt2.com').read_text()
+    # Rerunning an interrupted migration does not create another QC attempt.
+    again = repair.repair_graph(graph, repair.Archive(root))
+    assert again['recovered_vpt2'] == []
+    assert dispatch.advance(graph)['tasks']['gaussian_vpt2']['attempt'] == 2
+
+
+def test_preflight_unavailable_component_is_not_reenabled(repair, tmp_path):
+    root = tmp_path / 'run'
+    graph = graph_fixture(root, optional=True)
+    spec = json.loads((graph / 'workflow.json').read_text())
+    state = json.loads((graph / 'state.json').read_text())
+    dispatch._mark_preflight_unavailable(spec, state, 'gaussian_vpt2', 'test unavailable backend')
+    atomic_json(graph / 'state.json', state)
+    before = (graph / 'tasks/gaussian_vpt2/vpt2.com').read_bytes()
+    repair.repair_graph(graph, repair.Archive(root))
+    state = dispatch.advance(graph)['tasks']['gaussian_vpt2']
+    assert state['status'] == 'unavailable'
+    assert state['unavailable_reason'] == 'test unavailable backend'
+    assert (graph / 'tasks/gaussian_vpt2/vpt2.com').read_bytes() == before
 
 
 def test_unknown_failure_stops_instead_of_erasing_evidence(repair, tmp_path):
@@ -168,3 +266,49 @@ def test_active_run_refused_before_archiving(repair, tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match='inactive'):
         repair.repair_before_resume(root, {'inputs': [str(case / 'input.json')]})
     assert not list(tmp_path.glob('*.repair_archive.*'))
+
+
+def test_interrupted_two_case_repair_finishes_after_inputs_already_updated(repair, tmp_path, monkeypatch):
+    import run_examples
+    from kinbot import run_cleanup
+    root = run_examples.prepare(tmp_path / 'run')
+    for case in ('ch3s', 'ch3ss'):
+        path = root / case / 'input.json'
+        data = json.loads(path.read_text())
+        data['electronic_state_models'] = [m for m in data['electronic_state_models']
+                                           if m['smiles'] != '[SH]']
+        atomic_json(path, data)
+        base = root / case / 'well/anl_automatic'
+        (base / 'profiles').mkdir(parents=True)
+        (base / 'profiles/old.json').write_text('old derived energy')
+        (base / 'network_request.json').write_text('frozen QC request')
+    graph = graph_fixture(root / 'ch3s/well/anl_automatic/states/state_h2s', optional=True)
+    fail_vpt2(graph, 'ERROR: Inconsistency found in framework group definition:\n'
+              'New: CS - Old: C1\nError termination via Lnk1e in l717.exe\n',
+              failure_phase='execution')
+    accepted = (graph / 'tasks/l3_geometry/execution.json').read_bytes()
+    record = json.loads((root / 'prepared.json').read_text())
+    record['sha256'] = {n: file_sha256(root/n) for n in record['sha256']}
+    atomic_json(root / 'prepared.json', record)
+    monkeypatch.setattr(run_cleanup, 'inspect', lambda p: {'jobs': [], 'processes': []})
+    real_repair = repair.repair_graph
+
+    def interrupted(*args):
+        # Fail at the same point as the reported helper, after both input
+        # files changed but before CH3SS postprocessing was archived.
+        raise RuntimeError('simulated unavailable migration interruption')
+
+    monkeypatch.setattr(repair, 'repair_graph', interrupted)
+    with pytest.raises(RuntimeError, match='simulated unavailable'):
+        repair.repair_before_resume(root, run_examples.verify(root))
+    assert not (root / 'ch3s/well/anl_automatic/profiles').exists()
+    assert (root / 'ch3ss/well/anl_automatic/profiles').exists()
+    monkeypatch.setattr(repair, 'repair_graph', real_repair)
+    result = repair.repair_before_resume(root, run_examples.verify(root))
+    assert result['electronic_inputs_updated'] == []
+    assert not (root / 'ch3ss/well/anl_automatic/profiles').exists()
+    assert (graph / 'tasks/l3_geometry/execution.json').read_bytes() == accepted
+    assert dispatch.advance(graph)['tasks']['gaussian_vpt2']['attempt'] == 2
+    assert (root / 'ch3ss/well/anl_automatic/network_request.json').read_text() == 'frozen QC request'
+    assert len(list(tmp_path.glob('run.repair_archive.*'))) == 2
+    run_examples.verify(root)

@@ -1,6 +1,6 @@
 {
   "date": "2026-10-17",
-  "scope": "r5 saved-results downstream repair, experimental MESS electronic levels and approved S/SH/CH3S additive ANL spin-orbit corrections",
+  "scope": "r5 saved-results downstream repair, experimental MESS electronic levels and approved S/SH/CH3S additive ANL spin-orbit corrections; optional-failure/interrupted-resume repair and full recursive CBH electronic-state coverage",
   "tests": [
     {
       "command": ".venv/bin/python -m pytest -q tests/test_molpro_ase.py tests/test_anl_results.py tests/test_anl_automatic.py tests/test_reference_identity.py tests/test_rotdpy_profiles.py tests/test_run_monitor.py tests/test_anl_validation.py tests/test_anl_dispatch.py tests/test_vrc_correction.py tests/test_caspt2_production.py tests/test_caspt2_handoff.py tests/test_run_cleanup.py tests/test_vrc_tst_dispatch.py tests/test_resume_downstream.py tests/test_electronic_states.py tests/test_anl_mess_thermochemistry.py",
@@ -40,6 +40,16 @@
       "failed": 0,
       "seconds": 9.97,
       "scope": "Native RotdPy analytic integration, MESS parsing, S/SH/CH3S MESSPF population ratios; no production kinetics claim."
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q tests/test_molpro_ase.py tests/test_anl_results.py tests/test_anl_automatic.py tests/test_reference_identity.py tests/test_rotdpy_profiles.py tests/test_run_monitor.py tests/test_anl_validation.py tests/test_anl_dispatch.py tests/test_vrc_correction.py tests/test_caspt2_production.py tests/test_caspt2_handoff.py tests/test_run_cleanup.py tests/test_vrc_tst_dispatch.py tests/test_resume_downstream.py tests/test_electronic_states.py tests/test_anl_mess_thermochemistry.py tests/test_anl_recipes.py tests/test_anl_end_to_end.py tests/test_kb_vrc_selection.py",
+      "passed": 428,
+      "failed": 0,
+      "seconds": 24.71,
+      "warnings": [
+        "Sella JAX persistent compilation cache read permission; calculation test passed"
+      ],
+      "scope": "Final optional unavailable-state recovery, interrupted two-PES resume, selective dependency release, and complete supplied PES/recursive-CBH/terminal electronic-state coverage. Earlier runs are history, not additive coverage."
     }
   ],
   "limits": [
@@ -52,23 +62,23 @@
     "kinbot/molpro.py": "fc6c962b9ce55079796d2fbf0f5b0ccfebe19859d259f64315fd367d342941d7",
     "kinbot/ase_modules/calculators/molpro.py": "06d989ad94e82bbe5a632a904e84f0c7d8ae71e37230a7cc577a1e03f2c2302b",
     "kinbot/rotdpy_molpro.py": "e95d7cbbd8ce78d844073f2a266ab82f85483f712cb00659ff83d263f7b1bc40",
-    "kinbot/anl/automatic.py": "a8f89032c74e38a8d3f5b902a704cc61b17fc78d00509e7d46cb565b17686f4d",
-    "kinbot/anl/dispatch.py": "20fa09213e9818f508896c311d8907c300e2bf6b9bcf572cff7a429a8b62e6df",
+    "kinbot/anl/automatic.py": "ab07985cceefbe40e06eb9c7eb66759adff87e3997d112ae2a2ca00040fc6916",
+    "kinbot/anl/dispatch.py": "7188307e5a05a2611eb24235706668e6e942b18a4cd79466a1b9b3eb32eb3ce6",
     "kinbot/anl/results.py": "806173858cf2f84fed9237f66f5c0d0e7866de91ad2f25de278aabd0052c06e1",
     "kinbot/anl/validation.py": "06e68292f8c64dc856c62907548b5550c65a123ff90ac6a7efcea160bbc50db8",
     "kinbot/reference_identity.py": "7f24689c4ced8a596cbdec563f43ea415bd62966c465448749a64e85ff2ac816",
     "kinbot/mess.py": "8d337b90157eee9bda0e6d584a4d6dcb321f9e9cc329576622ae30be800a41c2",
     "kinbot/run_monitor.py": "703e6eea4f1235944160c035b98b1dfaa5df58417f0bb58209a38f38c4ae344f",
     "kinbot/vrc_tst_scan.py": "d0c53f91a8b098c826384b7c5f17dc475df9d24fa9ea3339a527fd0d13556d9d",
-    "examples/anl/tools/resume_downstream.py": "65d4b3d8a5c8ba1480b63f5423adf2a6ed76a473190d3d451fdc5a392d3ba8ad",
+    "examples/anl/tools/resume_downstream.py": "f299dab4f6a53b81e215b68909b66cac11bff1cf8821bcd663fe3a79696d035f",
     "examples/anl/tools/resume_on_blodgett.sh": "c5898cb1ca11de87ac7913267487572f4e6adf08bdf77f87c6c5be9b62b05a33",
     "examples/anl/tools/run_examples.py": "5ccfd5d462c0adc8cafdd33bafb13eac69aa132d6b8c7705050c595e53dc55b5",
-    "examples/anl/ch3s_anl1_f12/ch3s.json": "8d5293cc3559d6380acef65be44d90087479d6356a71bf9142fd4648a40b4353",
-    "examples/anl/ch3ss_anl1_f12/ch3ss.json": "f079a07f7ce2d8ceeea8723d50c8f5843dcbb1ee063d76bb58213a748a9461e4",
-    "kinbot/electronic_states.py": "7e1e8448b79c1aa30882f011ad76494e864713e987279d71ef10a47d58f3ef9f",
-    "tests/test_electronic_states.py": "2e184bd0831d50462630f2f90a5c1d2e775a7c723f6c2b2463dbd7c5f494dd58",
-    "tests/test_anl_automatic.py": "05fd9522ebb6e61b078fe0d1e427f9b1add96168545c496d65e1ca80abddeda4",
-    "tests/test_resume_downstream.py": "be6427ffc3c17969ae4b5a312bdf6e65e325544a3b5a727e26fa3f3655702ce0",
+    "examples/anl/ch3s_anl1_f12/ch3s.json": "225cd734ccb07821a92c339e4a1b5d2463ff982f4f243977f470c468404902fd",
+    "examples/anl/ch3ss_anl1_f12/ch3ss.json": "3b2f13e79f1d5eff42bafb9b3cbbd5029c6ac49ee574c480d20f13bd8c910822",
+    "kinbot/electronic_states.py": "a0091f52fe96150743db299a288eb175039a12e28296c812e6008d87793069a3",
+    "tests/test_electronic_states.py": "5883a0f0f47c419d71e6a88646e0db5e57184fdd28638b1febe94cc77bbb5728",
+    "tests/test_anl_automatic.py": "c850aba60ea920f06203162da4a6df7392a1e79b853dc082608310fcc6f510dc",
+    "tests/test_resume_downstream.py": "cce5f8f5f8359c103fc1dd4c244d98e7d8b89ebc8fde7504022b9abcd51f1273",
     "tests/test_vrc_backend_native.py": "4db3441c3d68a5d4b20d0883935933d9e2921745d8f9b9a326675a5c092849d2"
   },
   "spin_orbit_model": {
@@ -80,5 +90,27 @@
       "CH3S": -127.5
     },
     "cache_policy": "Resolve current input during assembly; preserve raw QC/source hashes and archive derived old thermochemistry/MESS artifacts."
+  },
+  "electronic_coverage": {
+    "scope": "Supplied two-PES inventory, every recursive CBH rung 0-3, all ATcT terminal species",
+    "canonical_states": {
+      "ch3s": 9,
+      "ch3ss": 17
+    },
+    "additional_species_from_cbh_expansion": [],
+    "atct_terminal_smiles": [
+      "C",
+      "S",
+      "[H][H]",
+      "[SH]",
+      "[H]"
+    ],
+    "experimental_corrections": [
+      "[S]",
+      "[SH]",
+      "C[S]"
+    ],
+    "runtime_report": "anl_automatic/electronic_state_audit.json",
+    "future_work": "Curated experimental SO database with source, identity, charge, spin/term, isotope scope, uncertainty and energy-zero/rotational/vibronic conventions; explicit input overrides and lookup provenance. Not implemented in this patch."
   }
 }

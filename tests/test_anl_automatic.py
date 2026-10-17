@@ -57,6 +57,23 @@ def _species(name, smiles, atoms, multiplicity=1, energy=-1., zpe=.01):
         freq=[500., 1000.], source_job=name + '_high', source_row_id=7)
 
 
+def test_electronic_audit_includes_all_cbh_roles_and_not_ts_labels():
+    from kinbot.anl.automatic import _electronic_state_audit
+    plan = {'network': {
+        'stable_species': [dict(smiles='C', molecule=dict(charge=0, multiplicity=1))],
+        'transition_states': {'ts': dict(smiles='[CH]', molecule=dict(charge=0, multiplicity=2))}},
+        'cbh': {'calculated_states': [dict(smiles='[SH]', charge=0, multiplicity=2)],
+                'thermochemistry_states': [dict(smiles='[H]', charge=0, multiplicity=2)],
+                'terminal_atct_species': {'[C]': {'state': [0, 3]}}}}
+    report = _electronic_state_audit(plan, {})
+    rows = {r['smiles']: r for r in report['states']}
+    assert set(rows) == {'C', '[SH]', '[H]', '[C]'}
+    assert rows['[C]']['roles'] == ['atct_terminal']
+    assert rows['[SH]']['roles'] == ['cbh_calculated_states']
+    assert rows['[H]']['roles'] == ['cbh_thermochemistry_states']
+    assert {r['smiles'] for r in report['requires_review']} == {'[C]', '[SH]', '[H]'}
+
+
 def test_explicit_spin_orbit_correction_survives_l2_fallback_expression(tmp_path, monkeypatch):
     from kinbot.anl.automatic import assemble_available_profiles
     from kinbot.anl.cbh import zero_k_from_composite_record

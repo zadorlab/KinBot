@@ -185,6 +185,51 @@ def model_for_species(species, parameters):
     return models.get((canonical, int(getattr(species, 'charge', 0))))
 
 
+def audit_electronic_states(states, parameters):
+    """Inventory supplied states without inferring SO data from composition.
+
+    This is a postprocessing coverage report, not an electronic-state solver.
+    Missing open-shell models remain explicitly unreviewed. Molecular/atomic
+    distinctions follow SMILES, so C (methane) cannot stand in for [C].
+    """
+    models = electronic_state_models(parameters)
+    rows = {}
+    for state in states:
+        smiles = _canonical_smiles(state['smiles'])
+        charge, mult = int(state['charge']), int(state['multiplicity'])
+        key = (smiles, charge, mult)
+        row = rows.setdefault(key, dict(smiles=smiles, charge=charge,
+                                       multiplicity=mult, roles=[]))
+        role = state.get('role', 'unspecified')
+        if role not in row['roles']:
+            row['roles'].append(role)
+        model = models.get((smiles, charge))
+        if model is None:
+            row['status'] = 'singlet_no_first_order_so' if mult == 1 else 'unreviewed_open_shell'
+            continue
+        if model['ground_multiplicity'] != mult:
+            row['status'] = 'configured_multiplicity_mismatch'
+        elif 'spin_orbit_correction' in model:
+            row['status'] = 'configured_correction'
+            row['spin_orbit_correction'] = deepcopy(model['spin_orbit_correction'])
+        elif (model.get('term_orbital_degeneracy') == 1
+              and len(model['levels']) == 1):
+            row['status'] = 'declared_unsplit_ground_term'
+        else:
+            row['status'] = 'levels_only_no_energy_correction'
+        row['levels'] = deepcopy(model['levels'])
+        row['source'] = model['source']
+    entries = [rows[key] for key in sorted(rows)]
+    return {'schema': 1, 'scope': 'first-order ground-term SO and configured electronic levels',
+            'states': entries,
+            'requires_review': [dict(smiles=r['smiles'], charge=r['charge'],
+                                     multiplicity=r['multiplicity'], status=r['status'])
+                                for r in entries if r['status'] in (
+                                    'unreviewed_open_shell', 'configured_multiplicity_mismatch')],
+            'note': 'Coverage is not a guarantee of thermochemical accuracy; '
+                    'no new correction or excited-state ladder is inferred.'}
+
+
 def apply_electronic_state_model(species, parameters):
     """Apply an explicit ground state before QC job names are constructed."""
     model = model_for_species(species, parameters)

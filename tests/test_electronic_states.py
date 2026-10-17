@@ -181,6 +181,66 @@ def test_molecular_centroid_is_general_and_can_be_explicitly_overridden():
     assert electronic_state_models(par)[('[OH]', 0)]['spin_orbit_correction']['value_hartree'] == -.001
 
 
+@pytest.mark.parametrize('case', ['ch3s', 'ch3ss'])
+def test_entire_supplied_network_and_reference_inventory_has_a_decision(case):
+    import json
+    from pathlib import Path
+    from kinbot.electronic_states import audit_electronic_states
+    # Exact labels/spins in the user's 17 October network_request inventory,
+    # including the two Lewis representations of HSS and reverse CH2SHS.
+    inventory = {'C': 1, 'C=[SH]': 2, 'C[S]': 2, 'S': 1, '[CH3]': 2,
+                 '[H]': 2, '[H][H]': 1, '[SH]': 2, '[S]': 3}
+    if case == 'ch3ss':
+        inventory.update({'C=S': 1, 'C=S=[SH]': 2, 'C=[SH][S]': 2,
+                          'CS': 1, 'CS[S]': 2, 'S=[SH]': 2,
+                          '[S]S': 2, '[S]S=C': 2, '[S][S]': 3})
+    par = json.loads((Path(__file__).parents[1] /
+                     f'examples/anl/{case}_anl1_f12/{case}.json').read_text())
+    states = [dict(smiles=s, charge=0, multiplicity=m, role='reported_inventory')
+              for s, m in inventory.items()]
+    # Rebuild every rung, including recursive lower-rung references. Terminal
+    # ATcT species are dictionary keys, not necessarily objects with a smiles
+    # field, so a generic JSON field scan alone is not a coverage check.
+    from kinbot.anl.cbh import (generate_cbh_reaction, cbh_network_states,
+                               cbh_network_requirements)
+    terminals = set()
+    for smiles, mult in inventory.items():
+        for rung in range(4):
+            reaction = generate_cbh_reaction(smiles, rung, charge=0, multiplicity=mult)
+            if reaction is None:
+                continue
+            states.extend(dict(smiles=s, charge=q, multiplicity=m,
+                               role=f'calculated_cbh_rung_{rung}')
+                          for s, (q, m) in cbh_network_states(reaction).items())
+            _, leaves = cbh_network_requirements(reaction)
+            terminals.update(leaves)
+            states.extend(dict(smiles=s, charge=state[0], multiplicity=state[1],
+                               role='atct_terminal')
+                          for s, (_, state) in leaves.items())
+    assert terminals == {'C', 'S', '[H][H]', '[SH]', '[H]'}
+    report = audit_electronic_states(states, par)
+    assert report['requires_review'] == []
+    assert len(report['states']) == (9 if case == 'ch3s' else 17)
+    corrected = {r['smiles'] for r in report['states']
+                 if r['status'] == 'configured_correction'}
+    assert corrected == {'[S]', '[SH]', 'C[S]'}
+    # A newly encountered radical/atom is NOT silently covered by methane,
+    # a molecular fragment, or a declaration for the same element/formula.
+    report = audit_electronic_states(states + [
+        dict(smiles='[CH]', charge=0, multiplicity=2),
+        dict(smiles='[C]', charge=0, multiplicity=3)], par)
+    assert {r['smiles'] for r in report['requires_review']} == {'[CH]', '[C]'}
+
+
+def test_electronic_audit_keeps_roles_and_reports_wrong_spin():
+    from kinbot.electronic_states import audit_electronic_states
+    states = [dict(smiles='[S]', charge=0, multiplicity=m, role=role)
+              for m, role in [(3, 'network'), (3, 'cbh_reference'), (1, 'other_state')]]
+    report = audit_electronic_states(states, _parameters())
+    assert report['requires_review'][0]['status'] == 'configured_multiplicity_mismatch'
+    assert next(r for r in report['states'] if r['multiplicity'] == 3)['roles'] == ['network', 'cbh_reference']
+
+
 @pytest.mark.parametrize('configured', [False, True])
 def test_cached_reference_receives_current_mess_levels_without_changing_qc(tmp_path, configured):
     import json

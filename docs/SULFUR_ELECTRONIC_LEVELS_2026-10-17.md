@@ -1,7 +1,8 @@
 # Electronic levels and spin–orbit corrections for the sulfur PES runs
 
-The 17 October user-supplied `network_request.json` inventory covers both PES
-and their CBH references. All entries are neutral. Each main example JSON
+The 17 October user-supplied `network_request.json` inventory was checked
+against newly expanded CBH rungs 0–3, including recursive references and
+terminal ATcT identities. All entries are neutral. Each main example JSON
 contains the data, reference convention and sources under
 `electronic_state_models`; no second configuration file is required.
 
@@ -112,7 +113,7 @@ Existing minimum recovery and fresh Hessian acceptance remain enabled.
 | `C`, `S`, `CS`, `C=S`, `[H][H]` | CH4, H2S, CH3SH, CH2S, H2: ground singlets. Plain C and S here are hydrogen-saturated SMILES, not atoms. |
 | `[CH3]`, `[H]` | Ground doublets with no additional orbital SO pair. |
 | `C=[SH]` | CH2SH connectivity: nondegenerate ground doublet, not the CH3S 2E term. |
-| `C=S=[SH]`, `C=[SH][S]`, `[S]S=C` | Retain the discovered doublets; no established experimental ground-term SO multiplet correction for these specific isomers was identified. No correction is transferred by elemental composition. |
+| `C=S=[SH]`, `C=[SH][S]`, `[S]S=C` | CH2SSH and CH2SHS connectivity: nondegenerate doublets at the reported C1 equilibrium structures. No first-order orbital SO centroid term is assigned; higher-order SO is omitted. No correction is transferred by elemental composition. |
 
 Thus **no additional experimental first-order ground-term SO correction is
 added for the current inventory**. This does not assert that second-order SO,
@@ -123,9 +124,70 @@ Supporting sources: [CH3SS photoelectron study](https://doi.org/10.1063/1.134308
 [HSS rotational spectroscopy](https://pubmed.ncbi.nlm.nih.gov/10712872/),
 [CH2SH photoelectron study](https://pubs.rsc.org/en/content/getauthorversionpdf/D4CP03906H),
 and [S2 electronic-state calculations](https://doi.org/10.1021/acsearthspacechem.3c00116).
+The CH2SSH/CH2SHS structures and CH3SS/methyl term assignments are also
+reported by [Cole-Filipiak et al., JCP 138, 054301 (2013), Fig. 1](https://bromine.cchem.berkeley.edu/grppub/xbeam15.pdf),
+which cites [Cheung, Li and Ng's isomer study](https://doi.org/10.1016/0166-1280(95)04154-X).
 S2 has higher singlet terms near 0.545 and 0.989 eV; they are distinct electronic
 excitations, not a missing first-order SO correction. They remain outside this
 ground-term model. See [Sun et al. (2019)](https://pmc.ncbi.nlm.nih.gov/articles/PMC6699204/).
+
+## Coverage of the entire CBH network
+
+The supplied CH3S inventory has 9 identities. The combined CH3SS inventory
+has 18 reported labels, 17 canonical SMILES, and 16 connectivity groups:
+`[S]S=C` canonicalizes to `C=[SH][S]`, while the two HSS bond-order labels
+remain separate input identities for compatibility with saved QC records.
+Every listed open-shell identity has an explicit sourced model in its main
+input, including ground-only models where no additional SO correction is used.
+Closed-shell identities receive the ordinary singlet treatment.
+
+Rebuilding all four CBH rungs for every supplied identity, and recursively
+expanding their lower-rung references, introduces no additional species.
+The terminal ATcT set is CH4 (`C`), H2S (`S`), H2 (`[H][H]`), SH (`[SH]`)
+and H (`[H]`). These experimental enthalpies are unchanged. Calculated SH
+reference energies receive the configured SO term once, like calculated
+SH products; using SH's experimental formation enthalpy does not apply it again.
+
+This check is reproducible with:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_electronic_states.py -k entire_supplied_network
+```
+
+Each automatic run writes `anl_automatic/electronic_state_audit.json` covering
+accepted network species, calculated CBH states, thermochemistry references
+and terminal ATcT species. Terminal identities are read from dictionary keys,
+not just from nested `smiles` fields. Rows retain their roles, declared spin,
+input sources, levels, and correction decisions. New open-shell identities
+without a configured model appear in `requires_review`; the report does not
+invent a correction or claim automatic spectroscopic verification.
+Tests cover CBH-only references, terminal-only references, multiplicity
+mismatches, and species absent from the current inputs. TS routing labels do
+not inherit a stable-species SO model.
+
+**CH and atomic C:** neither occurs in these inventories or their recursive
+CBH expansion. They must not be confused with methane (`C`). Both would need
+a separate review if encountered in another network. In particular, CH is not
+a safe application of the simple half-gap approximation: the coupled
+rotational/electronic treatment gives its lowest level about +0.16 cm-1
+relative to the spin-free electronic energy plus purely vibrational ZPE,
+rather than -14.02 cm-1. See [Thorpe et al., PCCP 25 (2023) 21162–21172](https://pubs.rsc.org/de-ch/content/getauthorversionpdf/D2CP03964H).
+This result is not inserted into the present inputs or combined with an
+inconsistent independent-rotor level ladder.
+
+## Future experimental SO database — requested, not implemented
+
+Add a curated, versioned KinBot database for experimentally supported SO
+levels and thermochemical reference conventions. Each record should retain
+species identity, charge, electronic term and multiplicity, isotopic scope,
+level energies/degeneracies, citation and uncertainty, energy-zero convention,
+and any rotational or vibronic approximation. Store explicit reviewed
+ground-only decisions too. Input overrides must remain available, and every
+resolved lookup must be recorded in provenance. Missing entries must remain
+visible; no formula-based transfer or automatic half-gap assumption is valid
+for all molecules. Coverage must include the complete recursive CBH network
+and ATcT terminals as well as PES species. This is future work, not a dependency
+of the present resume, whose reviewed data are already in each input JSON.
 
 ## Restart and VRC behavior
 

@@ -1854,6 +1854,25 @@ def prepare_automatic_cbh_anl(root_species, parameters, *,
     return plan
 
 
+def _electronic_state_audit(plan, parameters):
+    """Cover the accepted network and every planned CBH rung/reference."""
+    from kinbot.electronic_states import audit_electronic_states
+    states = []
+    for record in plan['network']['stable_species']:
+        states.append(dict(smiles=record['smiles'],
+                           charge=record['molecule']['charge'],
+                           multiplicity=record['molecule']['multiplicity'],
+                           role='network_stable'))
+    for field in ('calculated_states', 'thermochemistry_states'):
+        for record in plan['cbh'][field]:
+            states.append(dict(smiles=record['smiles'], charge=record['charge'],
+                               multiplicity=record['multiplicity'], role='cbh_' + field))
+    for smiles, record in plan['cbh']['terminal_atct_species'].items():
+        states.append(dict(smiles=smiles, charge=record['state'][0],
+                           multiplicity=record['state'][1], role='atct_terminal'))
+    return audit_electronic_states(states, parameters)
+
+
 def run_automatic_cbh_anl(root_species, parameters, input_file, *,
                           directory='anl_automatic', interval=20., plan=None):
     """Build, execute, solve, and publish a complete automatic CBH/ANL DAG."""
@@ -1873,6 +1892,9 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
     if _sha256_json(saved_plan) != _sha256_json(plan):
         raise ValueError(
             'Prepared automatic CBH/ANL plan differs from its published file.')
+
+    atomic_json(base / 'electronic_state_audit.json',
+                _electronic_state_audit(plan, parameters))
 
     # Resolve the pinned terminal thermochemistry before launching any
     # licensed electronic-structure calculation. A proxy, cache, identity,

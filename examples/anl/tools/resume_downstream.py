@@ -98,7 +98,8 @@ def archive_electronic_postprocessing(case, archive):
     retired = []
     for base in case.glob('*/anl_automatic'):
         for name in ('profiles', 'formations', 'handoff.json', 'execution.json',
-                     'final_report.json', 'cbh_thermochemistry_models.json'):
+                     'final_report.json', 'cbh_thermochemistry_models.json',
+                     'electronic_state_audit.json'):
             target = archive.save(base / name, move=True, group='old_postprocessing')
             if target is not None:
                 retired.append(str(target))
@@ -125,7 +126,15 @@ def repair_graph(graph, archive):
         status = state['tasks'].get(ident, {}).get('status')
         if status in ('submitted', 'submitting'):
             raise RuntimeError(f'{graph}/{ident}: unresolved submission; no restart launched.')
-        if status != 'failed':
+        # Optional native execution failures are recorded as unavailable by
+        # advance(), so they must reach the same evidence-checked recovery.
+        # Preflight unavailability has no native attempt to repair.
+        if status == 'unavailable' and (
+                task.get('result_parser', {}).get('kind') != 'gaussian_vpt2'
+                or state['tasks'][ident].get('failure_phase') == 'preflight'
+                or not (graph / 'tasks' / ident / 'execution.json').is_file()):
+            continue
+        if status not in ('failed', 'unavailable'):
             continue
         if task.get('result_parser', {}).get('kind') != 'gaussian_vpt2':
             raise RuntimeError(f'{graph}/{ident}: unreviewed failure; no restart launched.')
@@ -145,7 +154,7 @@ def repair_graph(graph, archive):
         ident = task['id']
         entry = state['tasks'].get(ident, {})
         if (task.get('result_parser', {}).get('kind') != 'gaussian_vpt2'
-                or entry.get('status') == 'complete'):
+                or entry.get('status') in ('complete', 'unavailable')):
             continue
         template, count = re.subn(
             r'(?i)Symmetry\s*=\s*\(\s*PG\s*=\s*C1\s*\)',
@@ -214,9 +223,11 @@ def repair_before_resume(root, record):
     result['electronic_postprocessing_archived'] = []
     for case in cases:
         archive.save(case / 'resume_provenance.json')
-        if result['electronic_inputs_updated']:
-            result['electronic_postprocessing_archived'].extend(
-                archive_electronic_postprocessing(case, archive))
+        # A previous invocation may have updated both inputs, then stopped
+        # partway through the first case. Finish invalidating derived data
+        # even when this invocation finds the inputs already current.
+        result['electronic_postprocessing_archived'].extend(
+            archive_electronic_postprocessing(case, archive))
         # Copy database files only after all writers have stopped. Do not
         # remove unsuccessful reaction decisions or turn them into successes.
         for database in case.rglob('kinbot.db'):

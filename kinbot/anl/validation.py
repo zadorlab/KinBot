@@ -212,7 +212,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
             'input_name': 'vpt2.com',
             'input_template': (
                 '%nprocshared={{CORES}}\n%mem={{WORK_MEMORY_MB}}MB\n'
-                '#p B2PLYP/cc-pVTZ Freq=Anharmonic Symmetry=(PG=C1) SCF=XQC '
+                '#p B2PLYP/cc-pVTZ Freq=Anharmonic Symmetry=None SCF=XQC '
                 'EmpiricalDispersion=GD3BJ Integral=UltraFine\n\n'
                 'KinBot frequency-only VPT2 interface validation\n\n'
                 '{{CHARGE}} {{MULT}}\n{{CARTESIAN}}\n\n'),
@@ -880,7 +880,7 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             task['input_template'] = (
                 '%nprocshared={{CORES}}\n%mem={{WORK_MEMORY_MB}}MB\n'
                 f'#p {vpt2_method}/{vpt2_basis} Freq=Anharmonic '
-                f'Symmetry=(PG=C1) SCF=XQC{dispersion} Integral=UltraFine\n\n'
+                f'Symmetry=None SCF=XQC{dispersion} Integral=UltraFine\n\n'
                 'KinBot frequency-only VPT2 automatic calculation\n\n'
                 '{{CHARGE}} {{MULT}}\n{{CARTESIAN}}\n\n')
             task['result_parser'] = {

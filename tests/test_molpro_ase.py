@@ -22,6 +22,41 @@ from kinbot.ase_modules.calculators.molpro import (
 )
 
 
+@pytest.mark.parametrize('method', ['CASPT2-F12(5,4)', 'MRCI-F12+Q(5,4)'])
+def test_seed_restart_precedes_geometry_basis_and_state(tmp_path, method):
+    import hashlib
+    from kinbot.molpro import validate_vrc_state_model, initialize_molpro_restart
+    seed = tmp_path / 'seed.wfu'
+    seed.write_bytes(b'saved geometry at 30 angstrom')
+    model = validate_vrc_state_model({
+        'orbital_selection': {'mode': 'molpro_record', 'path': str(seed),
+                             'record': '2140.2',
+                             'sha256': hashlib.sha256(seed.read_bytes()).hexdigest()},
+        'state_average': [{'multiplicity': 2, 'roots': 3},
+                          {'multiplicity': 4, 'roots': 3}],
+    })
+    atoms = Atoms('CSH3', positions=[[0, 0, 0], [2.5, 0, 0],
+                                    [-.3, 0, 1], [-.3, .9, -.5], [-.3, -.9, -.5]])
+    deck = render_input(atoms, basis='aug-cc-pVTZ-F12', geometry_name='point.xyz',
+                        method=method, mult=2, state_model=model)
+    assert deck.count('file,2,') == 1
+    assert deck.index('file,2,') < deck.index('symmetry,nosym')
+    assert deck.index('file,2,') < deck.index('geometry={') < deck.index('basis=')
+    assert deck.index('file,2,') < deck.index('set,spin=1')
+    assert 'S 2.500000000000 0.000000000000 0.000000000000' in deck
+    assert initialize_molpro_restart(deck) == deck
+    assert 'start,2140.2' in deck and 'diab,2140.2' in deck
+    # The coordinate safeguard must still reject the 30 A seed result,
+    # rather than silently assign its forces to the requested 2.5 A point.
+    from kinbot.ase_modules.calculators.molpro import _xyz_atom_order
+    from ase.io import write
+    atoms[1].position[0] = 30.
+    write(tmp_path / 'wrong.xyz', atoms, format='xyz')
+    atoms[1].position[0] = 2.5
+    with pytest.raises(ValueError, match='cannot be mapped'):
+        _xyz_atom_order(tmp_path / 'wrong.xyz', atoms)
+
+
 FAKE_MOLPRO = r'''#!{python}
 import math
 from pathlib import Path

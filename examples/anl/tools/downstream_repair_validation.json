@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-17",
+  "scope": "r5 saved-results downstream repair and experimental MESS electronic levels",
+  "tests": [
+    {
+      "command": ".venv/bin/python -m pytest -q tests/test_molpro_ase.py tests/test_anl_results.py tests/test_anl_automatic.py tests/test_reference_identity.py tests/test_rotdpy_profiles.py tests/test_run_monitor.py tests/test_anl_validation.py tests/test_anl_dispatch.py tests/test_vrc_correction.py tests/test_caspt2_production.py tests/test_caspt2_handoff.py tests/test_run_cleanup.py tests/test_vrc_tst_dispatch.py tests/test_resume_downstream.py tests/test_electronic_states.py tests/test_anl_mess_thermochemistry.py",
+      "passed": 374,
+      "failed": 0,
+      "seconds": 24.98,
+      "warnings": [
+        "Sella JAX persistent compilation cache read permission; calculation test passed"
+      ]
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q tests/test_anl_recipes.py tests/test_anl_end_to_end.py",
+      "passed": 29,
+      "failed": 0,
+      "seconds": 1.17
+    },
+    {
+      "command": "KINBOT_TEST_MESS=/private/tmp/kinbot-mess-native-check/build/mess_driver KINBOT_TEST_MESSPF=/private/tmp/kinbot-mess-native-check/build/partition_function .venv/bin/python -m pytest -q tests/test_vrc_backend_native.py",
+      "passed": 5,
+      "failed": 0,
+      "seconds": 9.56,
+      "scope": "native RotdPy analytic integration, MESS parsing, MESSPF sulfur level populations; not production kinetics"
+    }
+  ],
+  "limits": [
+    "No SSH or changes to Blodgett performed locally.",
+    "Corrected Molpro restart-gradient and H2S Symmetry=None VPT2 inputs still need native cluster confirmation.",
+    "The saved remote run itself is not mounted locally; migration checks inactivity and accepted-cache contracts before launch.",
+    "No claim that all bugs or all kinetic uncertainties are eliminated."
+  ],
+  "source_sha256": {
+    "kinbot/molpro.py": "fc6c962b9ce55079796d2fbf0f5b0ccfebe19859d259f64315fd367d342941d7",
+    "kinbot/ase_modules/calculators/molpro.py": "06d989ad94e82bbe5a632a904e84f0c7d8ae71e37230a7cc577a1e03f2c2302b",
+    "kinbot/rotdpy_molpro.py": "e95d7cbbd8ce78d844073f2a266ab82f85483f712cb00659ff83d263f7b1bc40",
+    "kinbot/anl/automatic.py": "796ff996d0fa8553ee761eaa0702bb9e890a78a48a34985c67dc42b1316d4141",
+    "kinbot/anl/dispatch.py": "20fa09213e9818f508896c311d8907c300e2bf6b9bcf572cff7a429a8b62e6df",
+    "kinbot/anl/results.py": "806173858cf2f84fed9237f66f5c0d0e7866de91ad2f25de278aabd0052c06e1",
+    "kinbot/anl/validation.py": "06e68292f8c64dc856c62907548b5550c65a123ff90ac6a7efcea160bbc50db8",
+    "kinbot/reference_identity.py": "7f24689c4ced8a596cbdec563f43ea415bd62966c465448749a64e85ff2ac816",
+    "kinbot/mess.py": "8d337b90157eee9bda0e6d584a4d6dcb321f9e9cc329576622ae30be800a41c2",
+    "kinbot/run_monitor.py": "703e6eea4f1235944160c035b98b1dfaa5df58417f0bb58209a38f38c4ae344f",
+    "kinbot/vrc_tst_scan.py": "d0c53f91a8b098c826384b7c5f17dc475df9d24fa9ea3339a527fd0d13556d9d",
+    "examples/anl/tools/resume_downstream.py": "0b1a34eda19578a68566488b78c8d81298857cb08e7ba3689ead02a1d882464a",
+    "examples/anl/tools/resume_on_blodgett.sh": "c5898cb1ca11de87ac7913267487572f4e6adf08bdf77f87c6c5be9b62b05a33",
+    "examples/anl/tools/run_examples.py": "5ccfd5d462c0adc8cafdd33bafb13eac69aa132d6b8c7705050c595e53dc55b5",
+    "examples/anl/ch3s_anl1_f12/ch3s.json": "61cb4c7b95ce3b211e5d2ef1bcad7657c41a1206cd83a6a936d875868d96a1de",
+    "examples/anl/ch3ss_anl1_f12/ch3ss.json": "baedfb2bec68a1d36b1df4144dd2c5ca84e716cfbb2ef266d4c56f530cb25e79"
+  }
+}

@@ -248,6 +248,8 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
     files = inventory(root, warnings)
     exit_records = []
     failed_log_names = set()
+    archived_exits = read_json(root/'resume_provenance.json', warnings).get(
+        'archived_failure_exits', {})
     for path in files:
         if path.suffix != '.exitcode':
             continue
@@ -256,9 +258,14 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
             if len(values) not in (1, 2):
                 raise ValueError('expected exit code or job-id/exit-code')
             code = int(values[-1])
+            from kinbot.execution import file_sha256
+            relative = str(path.relative_to(root))
+            historical = (relative in archived_exits
+                          and archived_exits[relative] == file_sha256(path))
             exit_records.append({'path': str(path.relative_to(root)), 'returncode': code,
-                                 'job_id': values[0] if len(values) == 2 else None})
-            if code:
+                                 'job_id': values[0] if len(values) == 2 else None,
+                                 'archived_failure': historical})
+            if code and not historical:
                 failed_log_names.update(path.stem + suffix for suffix in
                     ('.log', '_sella.log', '.err', '.stdout', '.stderr', '.out'))
         except (ValueError, OSError) as error:
@@ -371,7 +378,7 @@ def log_content(log, *, lines=4, raw=False):
     return list(dict.fromkeys(content))
 
 
-def render_logs(case, *, include_all=False, lines=4, raw=False):
+def render_logs(case, *, include_all=False, lines=4, raw=False, details=False):
     """Keep controller tails above QC, irrespective of native output volume."""
     out = []
     for controller, title in ((True, 'KINBOT LOGS'), (False, 'QC OUTPUT')):
@@ -387,8 +394,8 @@ def render_logs(case, *, include_all=False, lines=4, raw=False):
                 continue
             if not shown:
                 out.append('  '+title+(' (raw tails)' if raw else ''))
-            if shown >= (200 if include_all else 12):
-                out.append('    More log tails available with --all.')
+            if shown >= (200 if details else (6 if include_all else 4)):
+                out.append('    More log tails available with --all --details (or --json).')
                 break
             shown += 1
             out.append(f'    {log["path"]} | {age(log["age_seconds"])} ago | {log["bytes"]:,} B')
@@ -421,6 +428,16 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
     same_exclusions = all(c['configured_exclusions'] == common_exclusions for c in report['cases'])
     if same_exclusions:
         out.append('Configured exclusions: '+(','.join(common_exclusions) or '(none)'))
+    # Show every PES before expanding either one; a long failed QC log must
+    # never make the other run invisible on a terminal/watch display.
+    for case in report['cases']:
+        branches = [item for item in case['artifacts'] if item.get('branches')]
+        states = '; '.join(f'{name}={value.get("status", "unknown")}'
+                           for item in branches for name, value in item['branches'].items())
+        out.append(f'OVERVIEW {case["name"]}: '
+                   f'jobs={len(case["jobs"]) if not report["scheduler_error"] else "UNKNOWN"}; '
+                   f'controllers={len(case["processes"]) if not report["process_error"] else "UNKNOWN"}; '
+                   + (states or 'no post-reaction branch record yet'))
     for case in report['cases']:
         out += ['', f'=== {case["name"]} ===']
         out.append(f'Slurm: {"UNKNOWN" if report["scheduler_error"] else len(case["jobs"])} allocations'
@@ -450,10 +467,22 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                                               for p in case['processes']))
         if case['pes']['counts']:
             out.append('PES workers: '+'  '.join(f'{k.lower()}={v}' for k, v in case['pes']['counts'].items()))
-        failures = [r for r in case['exit_records'] if r['returncode']]
+        failures = [r for r in case['exit_records'] if r['returncode']
+                    and not r.get('archived_failure')]
+        historical = [r for r in case['exit_records'] if r['returncode']
+                      and r.get('archived_failure')]
+        if historical:
+            out.append(f'Cached rejected QC outcomes: {len(historical)}; native attempts archived before restart.')
         for failure in failures:
             out.append(f'FAILED QC EXIT: {failure["path"]} job={failure["job_id"] or "unknown"} exit={failure["returncode"]}')
-        for worker in case['workers']:
+        workers = case['workers']
+        if not details:
+            completed = [w for w in workers if '/' in w['directory']
+                         and w['status'].get('status') == 'complete']
+            workers = [w for w in workers if w not in completed]
+            if completed:
+                out.append(f'Reference/subtask workers: {len(completed)} complete (--details lists them).')
+        for worker in workers:
             status = worker['status'].get('status', 'no completion record')
             out.append(f'WORKER {worker["directory"]}: {status}; PES says {worker["reported_pes_state"] or "unlisted"}')
             if worker['reactions']:
@@ -465,7 +494,23 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                 out.append(f'  Optimizing {row["reaction"]}: pending={row.get("pending")} failures={row.get("failures")}')
                 if include_all:
                     out.append('    '+json.dumps(row.get('optimizers', [])))
-        for item in case['artifacts']:
+        items = case['artifacts']
+        if not details:
+            healthy = [item for item in items if not item.get('error')
+                       and not item.get('branches') and not item.get('tasks')
+                       and item['status'] in ('normal', 'complete', 'running', 'recorded')
+                       and not item.get('recovery', {}).get('completed_attempts')
+                       and not item.get('recovery', {}).get('reason')]
+            items = [item for item in items if item not in healthy]
+            if healthy:
+                out.append(f'Other status/result records: {dict(Counter(i["status"] for i in healthy))}')
+            items = sorted(items, key=lambda i: (not bool(i.get('branches')),
+                           not bool(i.get('error') or any(t['status'] in ('failed', 'unavailable')
+                                                        for t in i.get('tasks', [])))))
+            if len(items) > 8:
+                out.append(f'Displaying 8/{len(items)} detailed records; all retained in --details / --json.')
+            items = items[:8]
+        for item in items:
             if not details and not item.get('error') and Path(item['path']).name == 'kinbot_status.json':
                 continue  # Already in the WORKER row above.
             out.append(f'RECORD {item["path"]}: {item["status"]}')
@@ -480,13 +525,19 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                     else:
                         out.append(f'  {key}: {value}')
             tasks = item.get('tasks', [])
-            for task in tasks if include_all else [t for t in tasks if t['status'] in ('failed', 'blocked', 'submitted', 'unavailable')][:12]:
+            visible = tasks if details else [t for t in tasks if t['status'] in ('failed', 'unavailable', 'submitted')][:4]
+            for task in visible:
                 out.append(f'  {task["name"]}: {task["status"]} job={task["job_id"]}; waiting for={task["blocked_by"]}; {task["error"] or ""}')
+            if not details:
+                blocked = [t for t in tasks if t['blocked_by']]
+                if blocked:
+                    blockers = {k: v for t in blocked for k, v in t['blocked_by'].items()}
+                    out.append(f'  {len(blocked)} dependent tasks waiting for={blockers}')
         for sampling in case['sampling']:
             out.append(f'ROTD {sampling["directory"]}: {sampling["surface_output_files"]}/'
                        f'{sampling["surface_directories"]} surface output files; '
                        'file counts only, final flux validation is separate.')
-        out.extend(render_logs(case, include_all=include_all, lines=lines, raw=raw_logs))
+        out.extend(render_logs(case, include_all=include_all, lines=lines, raw=raw_logs, details=details))
         out.extend('READ WARNING: '+warning for warning in case['warnings'])
         if not case['jobs'] and not case['processes'] and not report['scheduler_error'] and not report['process_error']:
             out.append('INACTIVE: no live jobs/controllers observed. This is not a completion verdict.')
@@ -538,7 +589,7 @@ class LogFollower:
 
 
 def add_arguments(parser):
-    parser.add_argument('--all', action='store_true', help='Show completed tasks, all reaction rows and more log tails.')
+    parser.add_argument('--all', action='store_true', help='Show all reaction rows and more log tails; use --details for every task/record.')
     parser.add_argument('--lines', type=int, default=4, help='Recent event/native progress lines per log (default 4).')
     parser.add_argument('--details', action='store_true', help='Expand process commands, paths and recovery metadata.')
     parser.add_argument('--raw-logs', action='store_true', help='Show unfiltered last --lines lines instead of selected log progress.')

@@ -54,6 +54,21 @@ def test_unknown_scheduler_not_reported_as_empty(production, monkeypatch):
     assert 'INACTIVE:' not in text
 
 
+def test_archived_failure_is_cached_outcome_but_new_attempt_is_visible(production):
+    from kinbot.execution import file_sha256
+    root, case = production
+    marker = case / 'well/rejected.exitcode'
+    put(marker, '42 1\n')
+    put(case / 'resume_provenance.json', {
+        'archived_failure_exits': {'well/rejected.exitcode': file_sha256(marker)}})
+    text = monitor.render(monitor.snapshot(root))
+    assert 'Cached rejected QC outcomes: 1' in text
+    assert 'FAILED QC EXIT' not in text
+    put(marker, '43 1\n')
+    text = monitor.render(monitor.snapshot(root))
+    assert 'FAILED QC EXIT' in text
+
+
 def test_anl_curvature_recovery_report_is_visible(production):
     root, case = production
     put(case/'anl/tasks/l3_geometry/minimum_recovery.json', {
@@ -308,3 +323,31 @@ def test_narrow_display_wraps_long_errors_without_losing_tail(production):
     text = monitor.render(monitor.snapshot(root), width=70)
     assert max(map(len, text.splitlines())) <= 70
     assert 'END OF ERROR' in text
+
+
+def test_many_composite_records_do_not_bury_second_pes(tmp_path, monkeypatch):
+    root = tmp_path / 'both'
+    cases = [root / name for name in ('first', 'second')]
+    put(root / 'prepared.json', {'inputs': [str(c / 'input.json') for c in cases]})
+    monkeypatch.setattr(monitor, 'queue', lambda: ([], None))
+    from kinbot import run_cleanup
+    monkeypatch.setattr(run_cleanup, '_processes', lambda *a: [])
+    for case in cases:
+        put(case / 'input.json', {'queue_job_limit': 10})
+        put(case / 'well/kinbot.log', '17-Oct-26 00:09:24-ERROR: branch failure\n')
+        put(case / 'well/.kinbot_post_reaction_branches.json', {
+            'status': 'failed', 'branches': {'vrc_tst': {'status': 'failed', 'error': 'geometry mismatch'}}})
+        for i in range(40):
+            put(case / f'well/task{i}.result.json', {'status': 'normal'})
+            put(case / f'well/composite{i}/state.json', {'tasks': {
+                f'stage{j}': {'status': 'staged'} for j in range(25)}})
+            put(case / f'well/composite{i}/vpt2.log', 'Normal termination of Gaussian\n')
+    report = monitor.snapshot(root, include_all=True)
+    compact = monitor.render(report, include_all=True, width=120)
+    expanded = monitor.render(report, include_all=True, details=True, width=120)
+    assert compact.index('OVERVIEW second') < compact.index('=== first ===')
+    assert compact.count('KINBOT LOGS') == 2
+    assert compact.count('QC OUTPUT') == 2
+    assert len(compact.splitlines()) < 150
+    assert len(expanded.splitlines()) > 1500
+    assert len(report['cases'][0]['artifacts']) == 81  # no data deleted to simplify display

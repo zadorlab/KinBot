@@ -728,6 +728,9 @@ class VTS:
                 _, _, state = _load(run_dir)
                 error = state['tasks']['relaxed_scan'].get(
                     'error', 'unknown task failure')
+                execution_path = run_dir / 'tasks' / 'relaxed_scan' / 'execution.json'
+                if execution_path.is_file():
+                    error = json.loads(execution_path.read_text()).get('error') or error
                 raise RuntimeError(
                     f'Molpro multireference VRC scan failed at {distance:g} '
                     f'angstrom; inspect {run_dir}: {error}')

@@ -11,6 +11,7 @@ record; users never enumerate CBH reference species or balance reactions.
 from __future__ import annotations
 
 from dataclasses import asdict
+from copy import deepcopy
 from collections import Counter
 import hashlib
 from itertools import combinations
@@ -1093,12 +1094,30 @@ def _model_record(model_path, entry, l2_theory):
     canonical = _canonical_smiles(entry['smiles'])
     matches = [value for key, value in models.items()
                if _canonical_smiles(key) == canonical]
+    if not matches:
+        # Legacy exported reference models used the geometry-perceived
+        # localized bond orders as the library key. Reconcile only the
+        # requested reference; never broaden ATcT/database identity matching.
+        from kinbot.reference_identity import reference_smiles_match
+        matches = [value for key, value in models.items()
+                   if reference_smiles_match(entry['smiles'], key)]
     if len(matches) != 1:
         raise ValueError(f'{model_path}: expected one model for {canonical}.')
-    model = matches[0]
+    model = deepcopy(matches[0])
     if (model.get('charge') != entry['charge']
             or model.get('multiplicity') != entry['multiplicity']):
         raise ValueError(f'{canonical}: automatic L2 model state differs.')
+    if _canonical_smiles(model['smiles']) != canonical:
+        from kinbot.reference_identity import reference_smiles_match
+        if not reference_smiles_match(entry['smiles'], model['smiles']):
+            raise ValueError(f'{canonical}: automatic L2 model identity differs.')
+        # Preserve the original source payload and its record hash. This
+        # reconciliation describes the imported model, not a rewritten source.
+        model['identity_reconciliation'] = {
+            'perceived_smiles': model['smiles'],
+            'requested_smiles': entry['smiles'],
+        }
+        model['smiles'] = canonical
     symbols = list(model.get('symbols', ()))
     positions = model.get('positions')
     atoms = Atoms(symbols=symbols, positions=positions)

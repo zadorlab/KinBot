@@ -516,13 +516,23 @@ class MESS:
             'geometry_sha256': _geometry_hash(Atoms(
                 symbols=symbols, positions=positions)),
         }
+        identity = species.smiles
+        requested = self.par.get('smiles')
+        if self.par.get('thermochemistry_model_output') and requested:
+            from kinbot.reference_identity import reference_smiles_match
+            if not reference_smiles_match(requested, identity):
+                raise ValueError('Accepted reference connectivity differs from '
+                                 f'input: {requested!r} -> {identity!r}.')
+            source['requested_smiles'] = requested
+            source['perceived_smiles'] = identity
+            identity = requested
         if getattr(species, 'spin_orbit_correction', None) is not None:
             source['spin_orbit_correction'] = dict(species.spin_orbit_correction)
         source['record_sha256'] = hashlib.sha256(json.dumps(
             source, sort_keys=True,
             separators=(',', ':')).encode()).hexdigest()
         return {
-            'smiles': _canonical_smiles(species.smiles),
+            'smiles': _canonical_smiles(identity),
             'name': routing_name(species),
             'charge': int(species.charge),
             'multiplicity': int(species.mult),
@@ -611,6 +621,19 @@ class MESS:
             'orbital_degeneracy': 1,
             'degeneracy': model['multiplicity'],
         }])
+        # A cached reference geometry/frequency model may predate a user's
+        # electronic-level specification. Apply the current input at the
+        # MESSPF boundary, just as for network species, without modifying
+        # the cached QC source or its energy zero.
+        from types import SimpleNamespace
+        from kinbot.electronic_states import model_for_species
+        electronic_species = SimpleNamespace(
+            smiles=model['smiles'], charge=model['charge'],
+            mult=model['multiplicity'])
+        configured = model_for_species(electronic_species, self.par)
+        if configured is not None and configured['levels']:
+            electronic_levels = electronic_levels_for_species(
+                electronic_species, self.par)
         if (not isinstance(electronic_levels, list) or not electronic_levels
                 or any(not isinstance(level, dict)
                        or not {'energy_cm_inverse', 'degeneracy'} <= set(level)

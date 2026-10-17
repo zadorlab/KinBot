@@ -739,6 +739,18 @@ def test_molpro_reads_audited_davidson_f12b_assignment(tmp_path):
                        'shift': .2, 'ipea': .25})
         assert 'KBVRCSEL=energy(1)' in (
             directory / 'caspt2.inp').read_text()
+        source = tmp_path / 'seed.wfu'
+        source.write_bytes(b'reviewed seed')
+        seed_model = validate_vrc_state_model({
+            'orbital_selection': {'mode': 'molpro_record', 'path': str(source),
+                'record': '2140.2', 'sha256': hashlib.sha256(source.read_bytes()).hexdigest()},
+            'state_average': [{'multiplicity': 1, 'roots': 1}]})
+        molpro.create_molpro_input(name='seeded', VTS=True,
+            vrc_level={'method': 'caspt2-f12b(2,2)', 'basis': 'avtz-f12',
+                       'multiplicity': 1, 'state_model': seed_model})
+        seeded = (directory / 'seeded.inp').read_text()
+        assert seeded.index('memory,') < seeded.index('file,2,') < seeded.index('basis =')
+        assert seeded.index('file,2,') < seeded.index('geometry={')
         (directory / 'caspt2.out').write_text(
             ' SETTING F12A     = -39.100000000000 AU\n'
             ' SETTING F12B     = -39.200000000000 AU\n'

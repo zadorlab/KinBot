@@ -635,7 +635,7 @@ def test_gaussian_framework_group_failure_has_narrow_same_geometry_recovery():
         recovered = (directory / 'vpt2.com').read_text()
         assert 'Freq=Anharmonic' in recovered
         assert 'NoSymm' not in recovered
-        assert 'Symmetry=(PG=C1)' in recovered
+        assert 'Symmetry=None' in recovered
         assert 'B2PLYP/cc-pVTZ' in recovered
         workflow = json.loads((run_dir / 'workflow.json').read_text())
         task = next(item for item in workflow['tasks']
@@ -646,11 +646,12 @@ def test_gaussian_framework_group_failure_has_narrow_same_geometry_recovery():
         assert state['tasks']['gaussian_vpt2']['attempt'] == 2
 
 
-def test_gaussian_framework_recovery_adds_c1_to_prior_symmetry_retry():
+@pytest.mark.parametrize('prior', ['', ' Symmetry=(PG=C1)'])
+def test_gaussian_framework_recovery_disables_prior_symmetry_retry(prior):
     spec = dispatch_spec()
     task = next(item for item in spec['tasks']
                 if item['id'] == 'gaussian_vpt2')
-    task['input_template'] = task['input_template'].replace(' NoSymm', '')
+    task['input_template'] = task['input_template'].replace(' NoSymm', prior)
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         run_dir = prepare(_write_spec(root, spec), root / 'run')
@@ -673,11 +674,12 @@ def test_gaussian_framework_recovery_adds_c1_to_prior_symmetry_retry():
         archive = recover_gaussian_vpt2_symmetry(
             run_dir, 'gaussian_vpt2')
         assert archive.name == '2'
-        assert 'Symmetry=(PG=C1)' not in (archive / 'vpt2.com').read_text()
+        assert 'Symmetry=None' not in (archive / 'vpt2.com').read_text()
         assert (directory / 'geometry.xyz').read_bytes() == original_geometry
         recovered = (directory / 'vpt2.com').read_text()
-        assert recovered.count('Symmetry=(PG=C1)') == 1
-        assert 'Freq=Anharmonic Symmetry=(PG=C1)' in recovered
+        assert recovered.count('Symmetry=None') == 1
+        assert 'Symmetry=(PG=C1)' not in recovered
+        assert 'Freq=Anharmonic Symmetry=None' in recovered
         workflow = json.loads((run_dir / 'workflow.json').read_text())
         recovered_task = next(item for item in workflow['tasks']
                               if item['id'] == 'gaussian_vpt2')

@@ -25,6 +25,7 @@ from kinbot.molpro import (
     validate_molpro_convergence,
     validate_vrc_state_model,
     continued_vrc_state_model,
+    initialize_molpro_restart,
     vrc_multireference_energy_contract,
 )
 from kinbot.theory import fortran_threshold
@@ -210,8 +211,8 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
             body += (f'forces,numerical,variable={gradient_variable},'
                      'startcmd=multi\n')
         body += f'put,xyz,{geometry_name}\n'
-        return header + body
-    return (header + f'rhf\n{cc_command}\n'
+        return initialize_molpro_restart(header + body)
+    return initialize_molpro_restart(header + f'rhf\n{cc_command}\n'
             f'kb_geom_energy=energy\n'
             f'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             f'put,xyz,{geometry_name}\n')

@@ -989,12 +989,14 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
                              re.IGNORECASE)):
         raise ValueError('Gaussian output does not echo the requested Freq=Anharmonic route.')
     framework_cap = _gaussian_framework_group_cap(route)
-    if framework_cap and not re.search(
-            rf'^\s*Framework group\s+{re.escape(framework_cap)}\b', output,
-            re.IGNORECASE | re.MULTILINE):
-        raise ValueError(
-            'Gaussian output does not confirm the requested '
-            f'{framework_cap} framework.')
+    # PG caps computational symmetry; it does not guarantee that Gaussian
+    # labels the nuclear framework with that group (e.g. linear SH remains
+    # C*V in G16 B.01). Retain native labels rather than reject a complete
+    # VPT2 result on this representation detail. A Link 717 framework error
+    # is still rejected by the final normal-termination requirement above.
+    framework_groups = list(dict.fromkeys(re.findall(
+        r'^\s*Framework group\s*:?\s+([A-Za-z0-9*]+)', output,
+        re.IGNORECASE | re.MULTILINE)))
     requested_dispersion = dispersion.upper()
     dispersion_evidence = route + '\n' + output
     if ((requested_dispersion and not _gaussian_declares_dispersion(
@@ -1035,6 +1037,7 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
     return {'kind': 'gaussian_vpt2', 'method': method, 'basis': basis,
             'dispersion': dispersion.upper(),
             'framework_group_cap': framework_cap,
+            'framework_groups_observed': framework_groups,
             'optimized_in_job': bool(re.search(r'\bOpt\s*(?:=|\()', route,
                                                re.IGNORECASE)),
             'zpe_cm_inverse': components,

@@ -133,6 +133,7 @@ def test_worker_evaluates_both_bases_with_correct_spin_and_parent_atom_order(
     for index, basis in enumerate(bases):
         deck = (tmp_path / f'sample_basis_{index}.inp').read_text()
         assert f'basis={basis}\n' in deck
+        assert deck.index('file,2,') < deck.index('geometry={') < deck.index('basis=')
         assert 'gprint,orbitals,orben,civector,ref' in deck
         assert 'gthresh,thrprint=0.05,printci=0.05' in deck
         assert 'orbprint,2' in deck

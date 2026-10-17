@@ -365,7 +365,7 @@ def monitor(root, args=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['prepare', 'preflight', 'launch', 'monitor'])
+    parser.add_argument('action', choices=['prepare', 'preflight', 'launch', 'resume', 'monitor'])
     parser.add_argument('root', type=Path)
     parser.add_argument('--retire-parent', type=Path,
                         help='Explicitly stop/archive only the listed superseded campaigns under this directory.')
@@ -381,12 +381,17 @@ if __name__ == '__main__':
     if args.action == 'monitor':
         monitor(args.root.expanduser().resolve(strict=True), args)
         sys.exit(0)
-    root = prepare(args.root)
+    root = (args.root.expanduser().resolve(strict=True)
+            if args.action == 'resume' else prepare(args.root))
     with (root/'.handoff.lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         result = {'prepared': str(root)}
-        if args.action in ('preflight', 'launch'):
+        if args.action in ('preflight', 'launch', 'resume'):
             result['preflight'] = preflight(root)
+        if args.action == 'resume':
+            from resume_downstream import repair_before_resume
+            result['repair'] = repair_before_resume(root, verify(root))
+            result['launched'] = start(root)
         if args.action == 'launch':
             assert_not_started(root)
             result['archived_repository_layout'] = archive_legacy_example_layout(root)
@@ -395,4 +400,19 @@ if __name__ == '__main__':
             if args.replace_production:
                 result['retired_production'] = retire_production(root, args.replace_production)
             result['launched'] = start(root)
-        print(json.dumps(result, indent=2))
+        # Keep the terminal handoff short; all paths and check results remain
+        # in the machine-readable report for later review.
+        report_path = root / (args.action + '_report.json')
+        atomic_json(report_path, result)
+        summary = {'run': str(root), 'report': str(report_path)}
+        if 'preflight' in result:
+            summary['preflight'] = 'passed; details in preflight.json'
+        if 'repair' in result:
+            repair = result['repair']
+            summary['archive'] = repair['archive']
+            summary['accepted_composite_tasks_preserved'] = sum(
+                g['complete_tasks_preserved'] for g in repair['graphs'])
+            summary['invalid_vrc_trees_archived'] = len(repair['vrc_archived'])
+        if 'launched' in result:
+            summary['launched'] = result['launched']
+        print(json.dumps(summary, indent=2))

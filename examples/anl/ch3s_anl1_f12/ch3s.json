@@ -66,7 +66,42 @@
       "charge": 0,
       "ground_multiplicity": 2,
       "term_orbital_degeneracy": 2,
-      "source": "CH3S spin-free X(2E) spatial components: https://pmc.ncbi.nlm.nih.gov/articles/PMC5995305/ ; resolved spin-vibronic levels are not supplied by this term declaration"
+      "source": "Gas-phase IR/VUV photoionization: 255 +/- 4 cm-1, https://www.sciencedirect.com/science/article/pii/S0009261411008153 . Two Kramers components, g=2 each; RRHO electronic-level approximation, not a full Jahn-Teller vibronic partition function. No molecular centroid energy correction requested.",
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2E3/2"
+        },
+        {
+          "energy_cm_inverse": 255.0,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2E1/2"
+        }
+      ]
+    },
+    {
+      "smiles": "[SH]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 2,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2Pi3/2"
+        },
+        {
+          "energy_cm_inverse": 376.835,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2Pi1/2"
+        }
+      ],
+      "source": "Experimental ground-state A0=-376.835 cm-1: Milan et al., Chem. Phys. Lett. 239 (1995) 326-331, https://doi.org/10.1016/0009-2614(95)00488-2 . Electronic components only; rotational multiplicity is counted by the rotor. No additional energy-zero correction requested."
     }
   ],
   "homolytic_bonds": {

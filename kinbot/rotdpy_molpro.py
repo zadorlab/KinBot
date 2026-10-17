@@ -18,7 +18,8 @@ from rotd_py.sample.multi_sample import MultiSample
 
 from kinbot.anl.extrapolation import two_point_cbs
 from kinbot.ase_modules.calculators.molpro import parse_output
-from kinbot.molpro import _vrc_multireference_method, stage_vrc_state_model
+from kinbot.molpro import (_vrc_multireference_method, stage_vrc_state_model,
+                           initialize_molpro_restart)
 from kinbot.theory import fortran_threshold
 from kinbot.vrc_correction import sampling_settings, _basis_cardinal
 from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
@@ -69,7 +70,7 @@ class MolproSample(LegacyMolpro):
                                  'CASPT2 or Davidson-corrected MRCI.')
             method, selected_energy = rendered
             child = LegacyMolpro(name, atoms, self.calc.copy())
-            Path(f'{name}.inp').write_text(
+            Path(f'{name}.inp').write_text(initialize_molpro_restart(
                 f'***,KinBot ROTD sampling\nmemory,{self.memory_in_MW},m\n'
                 'angstrom\norient,noorient\nsymmetry,nosym\n'
                 f'set,charge={model["charge"]}\nset,spin={mult - 1}\n'
@@ -78,7 +79,7 @@ class MolproSample(LegacyMolpro):
                 +
                 f'gthresh,energy={scf},coeff={correlation},civec={correlation}\n'
                 + method + f'kb_geom_energy={selected_energy}\n'
-                f'MYENERGY={selected_energy}\n')
+                f'MYENERGY={selected_energy}\n'))
             self.basis_jobs.append(child)
 
     def run(self):

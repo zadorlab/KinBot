@@ -137,3 +137,55 @@ def test_spatial_term_declaration_does_not_invent_unresolved_mess_levels():
     assert state_average_roots(fragments, [2, 4], parameters) == {2: 6, 4: 6}
     assert electronic_levels_for_species(fragments[0], parameters) == [
         {'energy_cm_inverse': 0., 'degeneracy': 2}]
+
+
+@pytest.mark.parametrize('case', ['ch3s', 'ch3ss'])
+def test_reviewed_molecular_levels_preserve_cas_terms_and_energy_zero(case):
+    import json
+    from pathlib import Path
+    from kinbot.electronic_states import state_average_roots
+    path = Path(__file__).parents[1] / f'examples/anl/{case}_anl1_f12/{case}.json'
+    parameters = json.loads(path.read_text())
+    models = electronic_state_models(parameters)
+    for smiles, gap in [('C[S]', 255.), ('[SH]', 376.835)]:
+        model = models[(smiles, 0)]
+        assert [(x['energy_cm_inverse'], x['degeneracy']) for x in model['levels']] == [(0., 2), (gap, 2)]
+        assert 'spin_orbit_correction' not in model
+    methyl = SimpleNamespace(smiles='[CH3]', charge=0, mult=2)
+    sulfur = SimpleNamespace(smiles='[S]', charge=0, mult=3)
+    methylthiyl = SimpleNamespace(smiles='C[S]', charge=0, mult=2)
+    disulfur = SimpleNamespace(smiles='[S][S]', charge=0, mult=3)
+    assert state_average_roots([methyl, sulfur], [2, 4], parameters) == {2: 3, 4: 3}
+    if case == 'ch3ss':
+        assert state_average_roots([methyl, disulfur], [2, 4], parameters) == {2: 1, 4: 1}
+        assert state_average_roots([methylthiyl, sulfur], [2, 4], parameters) == {2: 6, 4: 6}
+
+
+@pytest.mark.parametrize('configured', [False, True])
+def test_cached_reference_receives_current_mess_levels_without_changing_qc(tmp_path, configured):
+    import json
+    from copy import deepcopy
+    from pathlib import Path
+    from kinbot import kb_path
+    writer = MESS.__new__(MESS)
+    writer.par = {'TemperatureList': [300., 2000.],
+                  'freq_uq_ref': 100., 'freq_uq_max_exp': 4.}
+    if configured:
+        path = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/ch3s.json'
+        writer.par.update(electronic_state_models=json.loads(path.read_text())['electronic_state_models'])
+    writer.pftpl = Path(kb_path, 'tpl/mess_pf.tpl').read_text()
+    model = {'smiles': '[SH]', 'name': 'SH', 'charge': 0, 'multiplicity': 2,
+             'symbols': ['S', 'H'], 'positions': [[0., 0., 0.], [1.34, 0., 0.]],
+             'symmetry_factor': 1., 'frequencies_cm_inverse': [2600.],
+             'electronic_levels': [{'energy_cm_inverse': 0., 'degeneracy': 2}],
+             'source': {'record_sha256': 'original QC provenance', 'energy_hartree': -398.}}
+    original = deepcopy(model)
+    text = writer.write_partition_function_model(model, tmp_path/'SH.inp').read_text()
+    assert model == original
+    assert f'ElectronicLevels[1/cm] {2 if configured else 1}' in ' '.join(text.split())
+    assert ('376.835 2' in text) == configured
+    assert '2600' in text
+    if configured:
+        model['multiplicity'] = 4
+        with pytest.raises(ValueError, match='multiplicity disagrees'):
+            writer.write_partition_function_model(model, tmp_path/'bad.inp')

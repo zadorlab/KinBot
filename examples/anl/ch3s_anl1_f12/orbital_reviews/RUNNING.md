@@ -29,6 +29,15 @@ are **0.0001 eV/angstrom**, with SCF Conver10 / Molpro 1e-10 and CC 1e-8.
 Preflight renders both Gaussian profiles and every declared CASPT2
 channel/root/basis before stopping the old run.
 
+## Current saved-results restart (17 October)
+
+Use [the shared handoff commands](../../tools/README.md#resume-accepted-results-after-the-downstream-repairs)
+for the latest `_r5_dft` in-place resume and monitor. The earlier fresh-restart
+commands below are historical. The [downstream repair record](../../../../docs/PRODUCTION_DOWNSTREAM_REPAIR_2026-10-17.md)
+describes cache preservation and the external failure archive. Experimental
+CH3S/SH levels and their MESS/PF use are documented in the
+[spectroscopy review](../../../../docs/SULFUR_ELECTRONIC_LEVELS_2026-10-17.md).
+
 ## Accepted electronic model
 
 | Reaction | CAS | Natural active indices in the supplied records | CASSCF spatial roots |

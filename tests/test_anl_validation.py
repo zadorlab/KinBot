@@ -61,6 +61,7 @@ def test_non_mrcc_graph_has_geometry_barrier_and_parallel_fanout():
                   'cfour_dboc'):
         assert tasks[ident]['geometry_from'] == 'l3_geometry'
     assert tasks['gaussian_vpt2']['geometry_from'] == 'l2_geometry'
+    assert 'Symmetry=None' in tasks['gaussian_vpt2']['input_template']
     assert 'depends_on' not in tasks['gaussian_vpt2']
     assert tasks['l3_sp_l2']['geometry_from'] == 'l2_geometry'
     assert spec['intent']['mrcc_enabled'] is False

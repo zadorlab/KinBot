@@ -1686,14 +1686,14 @@ def retry_failed(run_dir, ident):
 
 
 def recover_gaussian_vpt2_symmetry(run_dir, ident):
-    """Retry the Gaussian framework-group VPT2 failure in a fixed C1 group.
+    """Retry a native framework-group VPT2 failure without symmetry handling.
 
     Gaussian 16 can classify the input and Eckart-oriented structures with
     different framework groups. Link 717 then aborts with an explicit
     framework-group inconsistency. This migration is intentionally narrow: it
     accepts only that native error with named, different old and new groups,
-    replaces ``NoSymm`` (or an implicit symmetry setting) with the documented
-    ``Symmetry=(PG=C1)`` cap, keeps the same accepted L2 geometry and method,
+    replaces ``NoSymm`` or ``Symmetry=(PG=...)`` with the documented
+    ``Symmetry=None``, keeps the same accepted L2 geometry and method,
     and archives the entire failed attempt before staging the retry.
     """
     run_dir, spec, state = _load(run_dir)
@@ -1739,30 +1739,30 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
             f'{ident}: native output is not the framework-group VPT2 failure.')
     replacement = deepcopy(task)
     original_template = replacement['input_template']
-    if re.search(r'(?i)Symm(?:etry)?\s*=\s*\(\s*PG\s*=\s*C1\s*\)',
+    if re.search(r'(?i)Symm(?:etry)?\s*=\s*\(?\s*None\b',
                  original_template):
         raise RuntimeError(
-            f'{ident}: input already fixes the Gaussian framework to C1.')
-    occurrences = len(re.findall(
-        r'(?i)(?<!\S)NoSymm(?:etry)?(?!\S)', original_template))
+            f'{ident}: input already disables Gaussian symmetry handling.')
+    symmetry_keyword = (r'(?i)(?<!\S)(?:NoSymm(?:etry)?|'
+                        r'Symm(?:etry)?\s*=\s*\(\s*PG\s*=\s*[A-Za-z0-9*]+\s*\))(?!\S)')
+    occurrences = len(re.findall(symmetry_keyword, original_template))
     if occurrences > 1:
-        raise RuntimeError(f'{ident}: input has multiple NoSymm keywords.')
+        raise RuntimeError(f'{ident}: input has multiple symmetry keywords.')
     if occurrences == 1:
         template = re.sub(
-            r'(?i)(?<!\S)NoSymm(?:etry)?(?!\S)', 'Symmetry=(PG=C1)',
+            symmetry_keyword, 'Symmetry=None',
             original_template, count=1)
     else:
         template, count = re.subn(
             r'(?i)(\bFreq\s*=\s*Anharmonic\b)',
-            r'\1 Symmetry=(PG=C1)', original_template, count=1)
+            r'\1 Symmetry=None', original_template, count=1)
         if count != 1:
             raise RuntimeError(
                 f'{ident}: input has no unique Freq=Anharmonic keyword.')
     replacement['input_template'] = template
     replacement['recovery'] = {
         'kind': 'gaussian_vpt2_framework_group',
-        'change': ('fixed Gaussian framework at C1 with the documented '
-                   'Symmetry=(PG=C1) option'),
+        'change': 'bypassed Gaussian symmetry processing with Symmetry=None',
         'observed_framework_change': framework_change.group(0),
         'geometry_changed': False,
     }
@@ -1795,7 +1795,7 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     state['tasks'][ident]['attempt'] = attempt + 1
     state['tasks'][ident]['previous_attempt'] = str(archive)
     state['tasks'][ident]['migration'] = \
-        'Gaussian VPT2 framework-group recovery with Symmetry=(PG=C1)'
+        'Gaussian VPT2 framework-group recovery with Symmetry=None'
     _clear_blocked_tasks(state)
     _atomic_json(run_dir / 'state.json', state)
     return archive

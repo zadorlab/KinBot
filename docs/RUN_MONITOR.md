@@ -27,8 +27,12 @@ Slurm exclusions are grouped by their actual scheduler value. Paths within a
 PES are relative to that PES and process rows show module names/PIDs. Long
 diagnostics wrap to the terminal width without truncation.
 
-`--all` still includes completed tasks, all reaction rows and more logs; it
-does not dump input dictionaries. `--details` expands full process commands,
+Both PES overviews appear before either expanded section. Routine successful
+result records and completed reference workers are counted together; dependent
+waiting tasks are summarized by their blockers. A waiting task is not a failed
+QC calculation. The normal display shows at most eight detailed records and
+four controller/four QC tails per PES. `--all` shows every reaction row and up
+to six controller/six QC tails. `--details` expands every task/record and full process commands,
 work directories, duplicate status records and recovery metadata. `--raw-logs`
 shows the unfiltered last `--lines` lines of each log instead of selected
 progress. Use it to inspect output not recognized by the progress filter.
@@ -56,6 +60,10 @@ The snapshot shows:
   ANL `minimum_recovery.json` reports show curvature checks, retry controls,
   selected descent energies and explicit failure reasons before dependent
   geometry tasks are released.
+- After the explicit saved-results migration, hash-matched rejected QC exit
+  markers are shown as cached outcomes, with their original native attempts
+  in the external archive. A marker written by a new failed attempt is shown
+  as a current failure. This does not turn a rejected reaction into a success.
 - Reaction-stage counts, pending optimizations and failures, ANL/VRC dispatch
   task counts and dependency blockers, post-reaction/MESS execution gates.
 - RotdPy execution records and surface-output file counts. File counts do not
@@ -68,8 +76,15 @@ record `kinbot_status.json` and `pes_status.json`; a completed controller is
 still distinct from scientific acceptance of its outputs.
 
 The view reads bounded tails (64 KiB/file, normally up to 40 logs, up to 200
-with `--all`). It prioritizes controller logs and errors. Use `--all` for all
-reaction/task rows, including accepted/completed entries. It skips archives,
+with `--all`). It prioritizes controller logs and errors. Use `--all --details` for all
+reaction/task rows, including accepted/completed entries. Save this view to a
+file instead of trying to capture a long `watch` screen:
+
+```bash
+python -m kinbot.run_monitor /path/to/run --all --details > monitor-report.txt
+```
+
+It skips archives,
 scratch, checkpoint payloads and per-sample RotdPy trees, and does not follow
 external symlinks. Log warnings may describe earlier attempts; quiet output
 alone does not prove a stall. The monitor never advances a dispatcher,

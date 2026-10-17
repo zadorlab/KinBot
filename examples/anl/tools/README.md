@@ -13,7 +13,24 @@ list. The input merger/writer is repaired; PES now records worker failure
 instead of attempting postprocessing. A clean replacement and detailed monitor
 are supplied below. See the [failure evidence and audit](../../../docs/GAUSSIAN_PRODUCTION_REPAIR_2026-10-16.md).
 
-**Current restart update:** `_r3_dft` passed the initial minima, then rejected
+**Current restart update, 17 October:** `_r5_dft` reached CBH-ANL and the VRC
+relaxed scan, then failed in interfaces documented in the
+[downstream repair record](../../../docs/PRODUCTION_DOWNSTREAM_REPAIR_2026-10-17.md).
+The repairs place WFU loading before the requested Molpro geometry in every
+production renderer, separate Gaussian VPT2 framework labels from its symmetry
+cap, bypass VPT2 symmetry processing, and preserve requested CBH reference
+identity across equivalent bond-order perception. The user selected saved-results
+resume in `_r5_dft`, with an external archive of obsolete attempts and fresh
+controller logs, using the commands below. Native confirmation of these repairs
+and completion of ANL/RotdPy/MESS remain pending. The barrier cutoff remains
+1000; it did not cause these failures and does not prevent failed TS searches.
+
+This repair passed **403 regression tests and five native RotdPy/MESS/MESSPF
+checks**. [Commands, source hashes and limits](downstream_repair_validation.json)
+are retained. The new Gaussian/Molpro repair inputs still need native Blodgett
+confirmation; this is not a claim of completed kinetics or absence of all bugs.
+
+**Previous atomic-SCF repair:** `_r3_dft` passed the initial minima, then rejected
 CH3S C–S homolysis when the sulfur atom's Gaussian QC-SCF line search aborted.
 The [general bounded SCF retry](../../../docs/GAUSSIAN_SCF_RECOVERY_2026-10-16.md)
 retains Conver10 and the requested theory and adds a CDIIS/full-integral-accuracy
@@ -24,12 +41,9 @@ atomic-symmetry test genuinely converged in 9 cycles at Conver10; general
 single-atom handling now uses that policy, with `atomic_scf_symmetry=false`
 available in Gaussian kwargs. Molecular settings are unchanged.
 
-The 22:17 PDT `_r4_dft` snapshot shows CH3S C-S **accepted**, a later converged
-sulfur conformer, and normal sulfur L2 completion. CH3SS initial L2 is still
-running. A full restart is not required by this snapshot. Pulling updates
-new QC workers and the monitor without stopping current jobs; already running
-Python processes retain their imported code. Keep the earlier unconverged
-L1 log as history. See the linked recovery record for evidence and limitations.
+The 22:17 PDT `_r4_dft` snapshot showed CH3S C-S **accepted**, a later converged
+sulfur conformer, and normal sulfur L2 completion. The user subsequently chose
+clean `_r5_dft` runs overnight. Keep the earlier unconverged L1 log as history.
 
 **Earlier minimum repair:** the `_r2` CH3S L2 minimum failed its Hessian;
 independent displacements confirmed negative curvature. CH3SS passed its
@@ -120,31 +134,34 @@ records the command, source hashes and coverage limits.
 Cluster preflight now also renders 72 Gaussian input previews from the actual
 production profiles. Native Gaussian execution remains a Blodgett check.
 
-Atomic sulfur fine-structure levels are forwarded to MESS/PF using its existing
+Atomic sulfur, CH3S and SH fine-structure levels are forwarded to MESS/PF using its existing
 electronic-level capability. The KinBot JSON forwarding and explicit term-
 centroid energy hook were added on this branch; neither invents a VRC SOC
 potential. No inner/outer stages or automatic equilibration are enabled.
-The full reference explains the separate energy-zero and partition-function
-uses and their tests. Transport parameters remain provisional example estimates.
+Only atomic S requests that separate energy correction. The
+[species review](../../../docs/SULFUR_ELECTRONIC_LEVELS_2026-10-17.md) records
+experimental sources, the complete discovered inventory, the CH3S JT caveat,
+and separate energy-zero/partition-function uses. Transport parameters remain
+provisional example estimates.
 
-## Continue r4, or optionally clean-restart with the DFT preset
+## Resume accepted results after the downstream repairs
 
-To continue existing runs, use only `git pull --ff-only origin composite` in
-`/home/hram/KinBot`, and retain the `_r4_dft` parent monitor below.
-
-For an explicitly chosen **full clean restart**, the helper prepares/checks a fresh `_r5_dft` run, including rendered inputs and
-small native backend tests. It then stops controllers and QC allocations
-under both `_r4_dft` production PES directories, waits for them to disappear,
-and moves their parent to a dated `.stopped.*` archive. It launches both fresh
-PES controllers detached on the login host. There is no selective reuse of
-early results and no second retirement of the old orbital campaigns.
+The helper checks the saved `_r5_dft` run, including rendered inputs and small
+native backend tests. Both PES must be inactive; otherwise it leaves their
+jobs untouched and refuses migration. It retains accepted calculations and
+genuine reaction rejections, archives obsolete attempts/controller logs in a
+dated `.repair_archive.*` sibling, updates the experimental electronic levels,
+and resumes both controllers detached on the login host. SH's successful VPT2
+is reparsed without QC. Failed H2S VPT2 and the invalid first VRC scans are
+restaged. HSS's accepted L2 reference is retained with checked identity handling.
+Full reports are saved; terminal output summarizes the archive and launch PIDs.
 
 ```bash
 bash <<'BASH'
 set -euo pipefail
 cd /home/hram/KinBot
 git pull --ff-only origin composite
-bash examples/anl/tools/restart_on_blodgett.sh
+bash examples/anl/tools/resume_on_blodgett.sh
 BASH
 ```
 
@@ -152,24 +169,29 @@ Each PES has one active worker and a 10-allocation cap: at most 20 allocations
 across the two runs. All eleven known bad nodes are excluded:
 `node[1,9-10,13-14,16,21,23-24,30,33]`. Actual scheduler exclusions remain a
 runtime check. Preparation saves complete resolved JSON and input hashes.
-The helper refuses duplicate launch. A preflight/stop failure prevents the
-replacement launch; unrelated jobs and shared scratch remain untouched.
-The complete archived path is recorded in `production_retirement.*.json`.
-Old untracked copies left by `git pull` in the three obsolete example folders
-(`caspt2_production`, `orbital_reviews`, `acetaldehyde_cbh_anl0_f12`) are moved
-to an `anl_example_layout.stopped.*` sibling of the new run. This step refuses
-to move any folder containing tracked files. The destination is recorded in
-`repository_layout_archive.json`; original exports/checkpoints are retained.
+The helper refuses duplicate launch. A preflight, active-job or unreviewed-failure
+check prevents launch; unrelated jobs and shared scratch remain untouched.
+The archive manifest records each original path. `resume_report.json` and
+`resume_provenance.json` record the migration. Accepted database/native records
+remain in place. Small failed-job markers retain negative cache decisions;
+the monitor identifies hash-matched historical outcomes separately. Old failure
+history remains accessible in the archive. Reconstructed rejection decisions
+can still appear in new logs; no scientific result is relabeled as successful.
+
+`restart_on_blodgett.sh` remains an optional **fresh r6 replacement** command;
+it is not the saved-results restart selected here.
 
 ```bash
-watch -n 2 '/home/hram/KinBot/.venv/bin/python -m kinbot.run_monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r4_dft --all'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.run_monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r5_dft'
 ```
 
-If you chose the clean restart, replace `_r4_dft` with `_r5_dft` in that
-monitor command. Either parent directory monitors both PES.
+The parent directory monitors both PES. Both overviews appear first; routine
+result records and dependency waits are summarized. For a full report, redirect
+`--all --details` to a file rather than capturing a long watch screen.
 
 For live native/controller log text instead of snapshots, run the same Python
-monitor command with `--follow`. `--all` expands reaction/dispatch rows. The
+monitor command with `--follow`. `--all` expands reaction rows and log coverage;
+`--details` expands dispatch records. The
 [monitor guide](../../../docs/RUN_MONITOR.md) explains status meanings and bounded reads.
 
 After launch, review optimized structures/IRC, accepted channels, ANL component

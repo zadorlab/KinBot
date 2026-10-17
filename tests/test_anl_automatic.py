@@ -324,6 +324,7 @@ def test_automatic_anl0_and_f12_graphs_have_distinct_reference_fallbacks():
     f12 = automatic_composite_spec(mol, highest_tier='ANL0-F12')
     conventional = automatic_composite_spec(mol, highest_tier='ANL0')
     f12_tasks = {task['id']: task for task in f12['tasks']}
+    assert 'Symmetry=None' in f12_tasks['gaussian_vpt2']['input_template']
     conventional_ids = {task['id'] for task in conventional['tasks']}
     assert {'f12_tz', 'f12_qz', 'anl0_qz', 'anl0_5z'} <= set(f12_tasks)
     assert {'f12_5z', 'anl1_5z', 'anl1_6z'}.isdisjoint(f12_tasks)
@@ -596,6 +597,26 @@ def test_exported_reference_model_becomes_a_hash_bound_l2_source(tmp_path):
     assert record['energy_hartree'] == -40.
     assert record['molecule']['source']['geometry_hash_format'] == \
         'symbols-and-positions-json'
+
+    # G16's accepted HSS reference was exported with a different localized
+    # bond/radical assignment. Keep the requested reference and provenance.
+    hss = Atoms('SSH', positions=[[0, 0, 0], [1.98, 0, 0], [2.3, 1.3, 0]])
+    alternative = dict(model, smiles='S=[SH]', multiplicity=2,
+                       symbols=list(hss.symbols), positions=hss.positions.tolist(),
+                       source=dict(model['source'], geometry_sha256=_geometry_hash(hss)))
+    other = tmp_path / 'hss.json'
+    other.write_text(json.dumps({'schema': 1, 'species': {'S=[SH]': alternative}}))
+    resolved = _model_record(other, {'smiles': '[S]S', 'charge': 0, 'multiplicity': 2},
+                             record['l2_theory'])
+    assert resolved['smiles'] == resolved['thermochemistry_model']['smiles'] == '[S]S'
+    assert resolved['thermochemistry_model']['identity_reconciliation']['perceived_smiles'] == 'S=[SH]'
+    assert resolved['thermochemistry_model']['source'] == alternative['source']
+    with pytest.raises(ValueError, match='expected one model'):
+        _model_record(other, {'smiles': '[S][S]', 'charge': 0, 'multiplicity': 3}, record['l2_theory'])
+    alternative['smiles'] = '[S][S]'
+    other.write_text(json.dumps({'schema': 1, 'species': {'S=[SH]': alternative}}))
+    with pytest.raises(ValueError, match='model identity differs'):
+        _model_record(other, {'smiles': '[S]S', 'charge': 0, 'multiplicity': 2}, record['l2_theory'])
 
     model['source']['geometry_sha256'] = hashlib.sha256(np.asarray(
         atoms.positions, dtype='<f8').tobytes()).hexdigest()

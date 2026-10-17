@@ -373,18 +373,28 @@ _GAUSSIAN_VPT2 = """#p B3LYP/cc-pVTZ Opt=(Tight,CalcFC) Freq=Anharmonic NoSymm
 """
 
 
-def test_gaussian_vpt2_c1_route_requires_native_framework_confirmation():
+def test_gaussian_vpt2_records_framework_without_confusing_it_with_pg_cap():
     requested = _GAUSSIAN_VPT2.replace(
         'Freq=Anharmonic NoSymm',
         'Freq=Anharmonic Symmetry=(PG=C1)')
-    with pytest.raises(ValueError, match='confirm the requested C1'):
-        parse_gaussian_vpt2(
-            requested, method='B3LYP', basis='cc-pVTZ')
+    result = parse_gaussian_vpt2(requested, method='B3LYP', basis='cc-pVTZ')
+    assert result['framework_groups_observed'] == []
     confirmed = requested.replace(
         ' WARNING:', ' Framework group  C1[X(C,H4)]\n WARNING:', 1)
     result = parse_gaussian_vpt2(
         confirmed, method='B3LYP', basis='cc-pVTZ')
     assert result['framework_group_cap'] == 'C1'
+    assert result['framework_groups_observed'] == ['C1']
+    # Actual G16 B.01 SH output retains its linear nuclear framework even
+    # with PG=C1. A normally completed VPT2 result must remain usable.
+    linear = confirmed.replace('C1[X(C,H4)]', 'C*V[C*(HS)]')
+    result = parse_gaussian_vpt2(linear, method='B3LYP', basis='cc-pVTZ')
+    assert result['framework_groups_observed'] == ['C*V']
+    failed = linear.rsplit('Normal termination', 1)[0] + (
+        'ERROR: Inconsistency found in framework group definition:\n'
+        'New: CS - Old: C1\nError termination via Lnk1e in l717.exe\n')
+    with pytest.raises(ValueError, match='normal termination'):
+        parse_gaussian_vpt2(failed, method='B3LYP', basis='cc-pVTZ')
 
 
 def test_gaussian_vpt2_dispersion_value_may_wrap_inside_token():

@@ -21,6 +21,29 @@ import math
 logger = logging.getLogger('KinBot')
 
 
+def initialize_molpro_restart(contents):
+    """Open a generated deck's WFU before setting geometry, basis and spin.
+
+    FILE restores saved geometry/variables as well as orbitals. Placing it
+    inside the method block can silently replace the requested geometry by
+    the seed geometry. Molpro's documented order is title, memory, FILE,
+    then the current geometry/basis. Only use on generated single-job decks.
+    """
+    lines = contents.splitlines(keepends=True)
+    files = [line for line in lines if re.match(r'^\s*file\s*,\s*2\s*,', line, re.I)]
+    if not files:
+        return contents
+    if len(files) != 1:
+        raise ValueError('A generated Molpro deck must open exactly one file 2.')
+    lines.remove(files[0])
+    index = 0
+    while index < len(lines) and (not lines[index].strip() or re.match(
+            r'^\s*(?:\*\*\*|memory\s*,|!)', lines[index], re.I)):
+        index += 1
+    lines.insert(index, files[0])
+    return ''.join(lines)
+
+
 def validate_molpro_convergence(output, *, allow_scf_guess_failure=False):
     """Reject explicit native solver failures even after normal termination.
 
@@ -1130,7 +1153,7 @@ class Molpro:
                                       methods=method,
                                       key=self.par['vrc_tst_scan_molpro_key'].upper(),
                                       energy_expression=energy_expression)
-                f.write(compact_molpro_titles(contents))
+                f.write(initialize_molpro_restart(compact_molpro_titles(contents)))
 
         # Also cover user-supplied MR templates and legacy barrierless paths.
         # The shared generated renderer is already marked and left unchanged.

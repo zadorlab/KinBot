@@ -31,17 +31,29 @@ provenance, not production prerequisites. The user has ended MRCI retries.
 | 4. General JSON controls | Complete for handoff; regression-tested | Single JSON per PES; per-bond indices, basis records, roots, weights, same-spin references and lowest-quartet selector are explicit general controls. |
 | 5. General orbital reconnaissance | Complete for handoff; documented and tested | Chemical selection still requires review; it is not a unique-CAS oracle. |
 | 6. Production inputs | Complete and locally checked | Six portable orbital records, ordinary VRC surfaces, full inputs and launch/preflight helper supplied. Native production remains pending. |
-| 7. End-to-end production follow-through | r4 running; atomic SCF fix natively supported | At 22:17 PDT CH3S C-S is accepted, sulfur later conformer converged and L2 completed normally; CH3SS initial L2 remains active. An isolated automatic-symmetry atomic test meets Conver10 in 9 cycles. Earlier false-success L1 acceptance is repaired; production ANL/RotdPy/MESS completion remains pending. |
+| 7. End-to-end production follow-through | r5 reached CBH-ANL and VRC, then failed; saved-results resume prepared | Four blockers repaired in code: WFU restored seed geometry after requested geometry, SH VPT2 framework-label rejection, H2S native framework mismatch, HSS reference bond-order label mismatch. Native confirmation and ANL/RotdPy/MESS completion remain pending. |
 | 8. Integration/general defaults | Profile routing and minimum recovery audited | Current coverage and exact full-suite results are in the [DFT restart validation](../examples/anl/tools/dft_restart_validation.json). Native production remains pending. |
 | 9. Evidence/documentation | Complete for handoff | Parameter-by-parameter provenance, native evidence, limitations and commands linked below. |
 | 10. Cleanup inventory | Example/configuration cleanup complete; native purge deferred | Removed obsolete external model JSONs, caspt2_production and acetaldehyde example. Each PES has one root input with its own checkpoints/evidence/docs below orbital_reviews. Original mixed evidence is retained once; do not purge before production finishes. |
-| 11. Consolidated production handoff | Atomic SCF and strict native reader updated | Same DFT preset, 1% RotdPy target, tight L1/L2/L3 criteria, CASPT2 settings and two-PES monitor. Pull applies to new workers; current evidence permits continuing r4. Optional clean r5 restart also supplied. |
-| 12. Previous-run retirement | r4 running; optional r5 replacement prepared | If selected, helper stops both marked `_r4_dft` PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
+| 11. Consolidated production handoff | Downstream repair and bounded monitor prepared | Same DFT preset, 1% RotdPy target, tight L1/L2/L3 criteria and CASPT2 settings. Both PES summaries appear first; full records remain available in details/JSON views. |
+| 12. Previous-run retirement | User selected in-place r5 resume with external failure archive | Helper requires both PES inactive, archives obsolete attempts/logs outside the run, preserves accepted QC and rejected reaction decisions, then resumes both controllers. No unrelated work or shared scratch is removed. |
 
 The [production handoff](../examples/anl/tools/README.md) and its linked full
 parameter reference are authoritative for the new runs. “Complete for handoff”
 means the requested preparation is done, not that the two PES calculations,
 their scientific acceptance, or deferred cleanup have already happened.
+
+The [17 October downstream repair record](PRODUCTION_DOWNSTREAM_REPAIR_2026-10-17.md)
+contains native errors, the documented input changes, validation limits and
+the decision to retain the broad barrier window for this repair. The 30 A
+seed-geometry evaluations are not valid 2.5 A production scan points.
+
+The [species spectroscopy review](SULFUR_ELECTRONIC_LEVELS_2026-10-17.md)
+records the complete supplied inventory. Experimental CH3S and SH level pairs
+are in both main JSONs for MESS/MESSPF. Atomic S's existing energy-zero
+correction and all three CAS root manifolds are unchanged. CH3S JT coupling is
+a plausible contributor to the earlier negative mode, not a proven diagnosis;
+the independent negative curvature required reoptimization in any case.
 
 The user also completed the [27-entry Molpro basis-library check](MOLPRO_BASIS_LIBRARY_CHECK_2026-10-16.md)
 on Blodgett 2024.1: all H/C/S lookups loaded, including augmented 5Z-F12.

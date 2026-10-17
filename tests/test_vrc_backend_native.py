@@ -78,6 +78,52 @@ def test_actual_messpf_counts_declared_atomic_levels_once(tmp_path):
         assert np.exp(fine.ln_q-ground.ln_q) == pytest.approx(expected, rel=1e-4)
 
 
+@pytest.mark.parametrize('smiles,symbols,positions,frequencies,gap', [
+    ('[SH]', ['S', 'H'], [[0., 0., 0.], [1.34, 0., 0.]], [2600.], 376.835),
+    ('C[S]', ['C', 'S', 'H', 'H', 'H'],
+     [[0., 0., 0.], [0., 0., 1.8], [1., 0., -.3],
+      [-.5, .866, -.3], [-.5, -.866, -.3]], [500.] * 9, 255.),
+])
+def test_actual_messpf_molecular_levels_do_not_repeat_so_energy_shift(
+        tmp_path, smiles, symbols, positions, frequencies, gap):
+    import json
+    from copy import deepcopy
+    from ase import units
+    from kinbot import kb_path
+    from kinbot.mess import MESS
+    from kinbot.anl.thermochemistry import parse_messpf_output
+    executable = os.environ.get('KINBOT_TEST_MESSPF')
+    if not executable:
+        pytest.skip('Set KINBOT_TEST_MESSPF to run native molecular partition checks')
+    writer = MESS.__new__(MESS)
+    writer.par = json.loads((Path(__file__).parents[1] /
+        'examples/anl/ch3s_anl1_f12/ch3s.json').read_text())
+    writer.par['TemperatureList'] = [298.15, 600., 1500.]
+    writer.par.update(freq_uq_ref=100., freq_uq_max_exp=4.)
+    writer.pftpl = Path(kb_path, 'tpl/mess_pf.tpl').read_text()
+    model = dict(smiles=smiles, name='test', charge=0, multiplicity=2,
+                 symbols=symbols, positions=positions, symmetry_factor=1.,
+                 frequencies_cm_inverse=frequencies,
+                 electronic_levels=[dict(energy_cm_inverse=0., degeneracy=2)],
+                 source={'record_sha256': 'unchanged scalar QC'})
+    original = deepcopy(model)
+    outputs = []
+    for name in ('fine', 'ground'):
+        if name == 'ground':
+            for item in writer.par['electronic_state_models']:
+                item['levels'] = item['levels'][:1]
+                item.pop('spin_free_reference', None)
+        inp = writer.write_partition_function_model(model, tmp_path / (name + '.inp'))
+        result = subprocess.run([executable, inp.name], cwd=tmp_path,
+                                text=True, capture_output=True, timeout=60)
+        assert result.returncode == 0, result.stderr
+        outputs.append(parse_messpf_output(tmp_path / (name + '.dat')))
+    for fine, ground in zip(*outputs):
+        expected = 1 + np.exp(-gap * units.invcm / (units.kB * fine.temperature_k))
+        assert np.exp(fine.ln_q - ground.ln_q) == pytest.approx(expected, rel=1e-4)
+    assert model == original
+
+
 @pytest.mark.parametrize('combination', ['single', 'statistical', 'minimum'])
 def test_actual_mess_accepts_kinbot_rotd_and_existing_two_ts_blocks(tmp_path, combination):
     executable = os.environ.get('KINBOT_TEST_MESS')

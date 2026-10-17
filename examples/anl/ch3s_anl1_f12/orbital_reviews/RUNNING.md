@@ -35,7 +35,7 @@ Use [the shared handoff commands](../../tools/README.md#resume-accepted-results-
 for the latest `_r5_dft` in-place resume and monitor. The earlier fresh-restart
 commands below are historical. The [downstream repair record](../../../../docs/PRODUCTION_DOWNSTREAM_REPAIR_2026-10-17.md)
 describes cache preservation and the external failure archive. Experimental
-CH3S/SH levels and their MESS/PF use are documented in the
+CH3S/SH levels, their additive ANL SO corrections and MESS/PF use are documented in the
 [spectroscopy review](../../../../docs/SULFUR_ELECTRONIC_LEVELS_2026-10-17.md).
 
 ## Accepted electronic model
@@ -168,7 +168,10 @@ JSON matching/forwarding hook. The atomic S list `(0,5), (396.055,3),
 term-centroid convention supplies **-195.756111 cm^-1** to the atomic ground-J
 energy in ANL. These are two separate uses of the data, with duplicate
 component protection. The code does not add a new SOC potential to VRC.
-Molecular spin-vibronic spectra are not invented from term degeneracies.
+SH and CH3S likewise request -188.4175 and -127.5 cm^-1 corrections
+once in ANL, with scalar anharmonic ZPE retained. CH3S uses the approved
+effective experimental approximation; no separate JT correction is added.
+Current input data also apply when resuming cached reference calculations.
 
 [PARAMETERS.md](PARAMETERS.md) explains every explicitly supplied parameter,
 every nested state/orbital/surface control, consequential defaults, and which

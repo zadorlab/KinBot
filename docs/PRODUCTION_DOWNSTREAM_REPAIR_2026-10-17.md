@@ -108,12 +108,14 @@ archive. Fresh controller logs begin on resume; scientific history is not
 rewritten to pretend failed attempts succeeded. Reconstructed reaction decisions
 may appear again in the new logs.
 
-The migration also updates only the electronic-level data in prepared input
-JSONs and refreshes their preparation hashes. See the
+The migration updates electronic-level and SO postprocessing data in prepared
+input JSONs and refreshes their preparation hashes. See the
 [species spectroscopy review](SULFUR_ELECTRONIC_LEVELS_2026-10-17.md).
-No new molecular energy-zero correction is applied. Current input levels are
-used when rendering cached references for MESSPF, without changing their QC
-source hashes, geometries, frequencies or electronic energies.
+The approved additive convention now corrects S, SH and CH3S once in ANL
+assembly. Current input corrections and MESSPF levels also apply to cached
+references, without changing their QC source hashes, geometries, frequencies,
+raw electronic energies or ZPE. Old derived profiles/formation records/MESS
+outputs are archived and regenerated. Other numerical QC settings remain unchanged.
 
 The helper does not delete shared scratch or unrelated jobs.
 Each PES retains its 10-allocation cap and the
@@ -129,7 +131,7 @@ not local executions of licensed Gaussian or Molpro. In particular the new
 H2S Symmetry=None VPT2 route and corrected seed-to-2.5 A gradient still require
 native confirmation after resume; passing Python tests is not an end-to-end guarantee.
 
-Final local verification: **403 regression tests and five native
+Final local verification after SO integration: **419 regression tests and seven native
 RotdPy/MESS/MESSPF checks passed**, zero failures/skips. One Sella/JAX cache
 permission warning occurred in a passing test. Shell syntax and whitespace
 checks passed. [Commands, counts, source hashes and limits](../examples/anl/tools/downstream_repair_validation.json)

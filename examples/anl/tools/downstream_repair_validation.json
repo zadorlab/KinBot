@@ -1,6 +1,6 @@
 {
   "date": "2026-10-17",
-  "scope": "r5 saved-results downstream repair and experimental MESS electronic levels",
+  "scope": "r5 saved-results downstream repair, experimental MESS electronic levels and approved S/SH/CH3S additive ANL spin-orbit corrections",
   "tests": [
     {
       "command": ".venv/bin/python -m pytest -q tests/test_molpro_ase.py tests/test_anl_results.py tests/test_anl_automatic.py tests/test_reference_identity.py tests/test_rotdpy_profiles.py tests/test_run_monitor.py tests/test_anl_validation.py tests/test_anl_dispatch.py tests/test_vrc_correction.py tests/test_caspt2_production.py tests/test_caspt2_handoff.py tests/test_run_cleanup.py tests/test_vrc_tst_dispatch.py tests/test_resume_downstream.py tests/test_electronic_states.py tests/test_anl_mess_thermochemistry.py",
@@ -23,6 +23,23 @@
       "failed": 0,
       "seconds": 9.56,
       "scope": "native RotdPy analytic integration, MESS parsing, MESSPF sulfur level populations; not production kinetics"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q tests/test_molpro_ase.py tests/test_anl_results.py tests/test_anl_automatic.py tests/test_reference_identity.py tests/test_rotdpy_profiles.py tests/test_run_monitor.py tests/test_anl_validation.py tests/test_anl_dispatch.py tests/test_vrc_correction.py tests/test_caspt2_production.py tests/test_caspt2_handoff.py tests/test_run_cleanup.py tests/test_vrc_tst_dispatch.py tests/test_resume_downstream.py tests/test_electronic_states.py tests/test_anl_mess_thermochemistry.py tests/test_anl_recipes.py tests/test_anl_end_to_end.py tests/test_kb_vrc_selection.py",
+      "passed": 419,
+      "failed": 0,
+      "seconds": 24.42,
+      "warnings": [
+        "Sella JAX persistent compilation cache read permission; calculation test passed"
+      ],
+      "scope": "After SO assembly and saved-results migration changes; preceding runs retained as history, not additive coverage."
+    },
+    {
+      "command": "KINBOT_TEST_MESS=/private/tmp/kinbot-mess-native-check/build/mess_driver KINBOT_TEST_MESSPF=/private/tmp/kinbot-mess-native-check/build/partition_function .venv/bin/python -m pytest -q tests/test_vrc_backend_native.py",
+      "passed": 7,
+      "failed": 0,
+      "seconds": 9.97,
+      "scope": "Native RotdPy analytic integration, MESS parsing, S/SH/CH3S MESSPF population ratios; no production kinetics claim."
     }
   ],
   "limits": [
@@ -35,7 +52,7 @@
     "kinbot/molpro.py": "fc6c962b9ce55079796d2fbf0f5b0ccfebe19859d259f64315fd367d342941d7",
     "kinbot/ase_modules/calculators/molpro.py": "06d989ad94e82bbe5a632a904e84f0c7d8ae71e37230a7cc577a1e03f2c2302b",
     "kinbot/rotdpy_molpro.py": "e95d7cbbd8ce78d844073f2a266ab82f85483f712cb00659ff83d263f7b1bc40",
-    "kinbot/anl/automatic.py": "796ff996d0fa8553ee761eaa0702bb9e890a78a48a34985c67dc42b1316d4141",
+    "kinbot/anl/automatic.py": "a8f89032c74e38a8d3f5b902a704cc61b17fc78d00509e7d46cb565b17686f4d",
     "kinbot/anl/dispatch.py": "20fa09213e9818f508896c311d8907c300e2bf6b9bcf572cff7a429a8b62e6df",
     "kinbot/anl/results.py": "806173858cf2f84fed9237f66f5c0d0e7866de91ad2f25de278aabd0052c06e1",
     "kinbot/anl/validation.py": "06e68292f8c64dc856c62907548b5550c65a123ff90ac6a7efcea160bbc50db8",
@@ -43,10 +60,25 @@
     "kinbot/mess.py": "8d337b90157eee9bda0e6d584a4d6dcb321f9e9cc329576622ae30be800a41c2",
     "kinbot/run_monitor.py": "703e6eea4f1235944160c035b98b1dfaa5df58417f0bb58209a38f38c4ae344f",
     "kinbot/vrc_tst_scan.py": "d0c53f91a8b098c826384b7c5f17dc475df9d24fa9ea3339a527fd0d13556d9d",
-    "examples/anl/tools/resume_downstream.py": "0b1a34eda19578a68566488b78c8d81298857cb08e7ba3689ead02a1d882464a",
+    "examples/anl/tools/resume_downstream.py": "65d4b3d8a5c8ba1480b63f5423adf2a6ed76a473190d3d451fdc5a392d3ba8ad",
     "examples/anl/tools/resume_on_blodgett.sh": "c5898cb1ca11de87ac7913267487572f4e6adf08bdf77f87c6c5be9b62b05a33",
     "examples/anl/tools/run_examples.py": "5ccfd5d462c0adc8cafdd33bafb13eac69aa132d6b8c7705050c595e53dc55b5",
-    "examples/anl/ch3s_anl1_f12/ch3s.json": "61cb4c7b95ce3b211e5d2ef1bcad7657c41a1206cd83a6a936d875868d96a1de",
-    "examples/anl/ch3ss_anl1_f12/ch3ss.json": "baedfb2bec68a1d36b1df4144dd2c5ca84e716cfbb2ef266d4c56f530cb25e79"
+    "examples/anl/ch3s_anl1_f12/ch3s.json": "8d5293cc3559d6380acef65be44d90087479d6356a71bf9142fd4648a40b4353",
+    "examples/anl/ch3ss_anl1_f12/ch3ss.json": "f079a07f7ce2d8ceeea8723d50c8f5843dcbb1ee063d76bb58213a748a9461e4",
+    "kinbot/electronic_states.py": "7e1e8448b79c1aa30882f011ad76494e864713e987279d71ef10a47d58f3ef9f",
+    "tests/test_electronic_states.py": "2e184bd0831d50462630f2f90a5c1d2e775a7c723f6c2b2463dbd7c5f494dd58",
+    "tests/test_anl_automatic.py": "05fd9522ebb6e61b078fe0d1e427f9b1add96168545c496d65e1ca80abddeda4",
+    "tests/test_resume_downstream.py": "be6427ffc3c17969ae4b5a312bdf6e65e325544a3b5a727e26fa3f3655702ce0",
+    "tests/test_vrc_backend_native.py": "4db3441c3d68a5d4b20d0883935933d9e2921745d8f9b9a326675a5c092849d2"
+  },
+  "spin_orbit_model": {
+    "date": "2026-10-17",
+    "approved_convention": "Experimental term-centroid approximation added once; retain scalar ANL and anharmonic ZPE. CH3S uses the observed effective gap, without a separate JT correction.",
+    "corrections_cm_inverse": {
+      "S": -195.7561111111111,
+      "SH": -188.4175,
+      "CH3S": -127.5
+    },
+    "cache_policy": "Resolve current input during assembly; preserve raw QC/source hashes and archive derived old thermochemistry/MESS artifacts."
   }
 }

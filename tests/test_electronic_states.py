@@ -140,9 +140,10 @@ def test_spatial_term_declaration_does_not_invent_unresolved_mess_levels():
 
 
 @pytest.mark.parametrize('case', ['ch3s', 'ch3ss'])
-def test_reviewed_molecular_levels_preserve_cas_terms_and_energy_zero(case):
+def test_reviewed_molecular_corrections_preserve_cas_terms(case):
     import json
     from pathlib import Path
+    from ase.units import invcm, Hartree
     from kinbot.electronic_states import state_average_roots
     path = Path(__file__).parents[1] / f'examples/anl/{case}_anl1_f12/{case}.json'
     parameters = json.loads(path.read_text())
@@ -150,7 +151,9 @@ def test_reviewed_molecular_levels_preserve_cas_terms_and_energy_zero(case):
     for smiles, gap in [('C[S]', 255.), ('[SH]', 376.835)]:
         model = models[(smiles, 0)]
         assert [(x['energy_cm_inverse'], x['degeneracy']) for x in model['levels']] == [(0., 2), (gap, 2)]
-        assert 'spin_orbit_correction' not in model
+        assert model['spin_orbit_correction']['value_hartree'] == pytest.approx(-gap / 2 * invcm / Hartree)
+    assert {smiles for (smiles, charge), model in models.items()
+            if 'spin_orbit_correction' in model} == {'[S]', '[SH]', 'C[S]'}
     methyl = SimpleNamespace(smiles='[CH3]', charge=0, mult=2)
     sulfur = SimpleNamespace(smiles='[S]', charge=0, mult=3)
     methylthiyl = SimpleNamespace(smiles='C[S]', charge=0, mult=2)
@@ -159,6 +162,23 @@ def test_reviewed_molecular_levels_preserve_cas_terms_and_energy_zero(case):
     if case == 'ch3ss':
         assert state_average_roots([methyl, disulfur], [2, 4], parameters) == {2: 1, 4: 1}
         assert state_average_roots([methylthiyl, sulfur], [2, 4], parameters) == {2: 6, 4: 6}
+
+
+def test_molecular_centroid_is_general_and_can_be_explicitly_overridden():
+    from ase.units import invcm, Hartree
+    # An illustrative OH input exercises the same generic Pi-term interface;
+    # this synthetic gap is not added to the sulfur examples as spectroscopic data.
+    item = dict(smiles='[OH]', charge=0, ground_multiplicity=2,
+                term_orbital_degeneracy=2, spin_free_reference='term_centroid',
+                levels=[dict(energy_cm_inverse=x, multiplicity=2, degeneracy=2)
+                        for x in (0., 140.)])
+    par = {'electronic_state_models': [item]}
+    assert electronic_state_models(par)[('[OH]', 0)]['spin_orbit_correction']['value_hartree'] == pytest.approx(-70 * invcm / Hartree)
+    item['spin_orbit_correction_hartree'] = -.001
+    with pytest.raises(ValueError, match='not both'):
+        electronic_state_models(par)
+    item.pop('spin_free_reference')
+    assert electronic_state_models(par)[('[OH]', 0)]['spin_orbit_correction']['value_hartree'] == -.001
 
 
 @pytest.mark.parametrize('configured', [False, True])

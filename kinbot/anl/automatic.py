@@ -802,7 +802,8 @@ def _component_family_omissions(availability):
 
 
 def assemble_available_profiles(run_dir, source_record, destination, *,
-                                state_id, stationary_point='minimum'):
+                                state_id, stationary_point='minimum',
+                                parameters=None):
     """Assemble every complete tier without converting bad data to fallback."""
     run_dir, spec, state = _load(run_dir)
     if spec.get('name') != 'anl-automatic-post-l2':
@@ -810,6 +811,21 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
     if stationary_point not in ('minimum', 'transition_state'):
         raise ValueError('Invalid stationary point.')
     molecule = spec['molecule']
+    # SO is a post-QC additive component. Resolve current input data also for
+    # cached L2 reference models, without changing their native QC provenance.
+    # A TS uses a reactant SMILES only as a routing anchor: it must not inherit
+    # that stable species' spectroscopic correction.
+    if parameters is not None and stationary_point == 'minimum':
+        from kinbot.electronic_states import model_for_species
+        model = model_for_species(SimpleNamespace(
+            smiles=source_record['smiles'], charge=molecule['charge']), parameters)
+        if model is not None:
+            if model['ground_multiplicity'] != molecule['multiplicity']:
+                raise ValueError('Cached QC multiplicity disagrees with its electronic-state model.')
+            source_record = deepcopy(source_record)
+            source_record.pop('spin_orbit_correction', None)
+            if 'spin_orbit_correction' in model:
+                source_record['spin_orbit_correction'] = deepcopy(model['spin_orbit_correction'])
     theory = source_record.get('l2_theory')
     if (not isinstance(theory, dict)
             or theory.get('composite_method') not in ('B3LYP',
@@ -842,6 +858,11 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
             record['electronic_terms'].append({'component': 'spin_orbit', 'coefficient': 1})
             record['electronic_hartree'] += component.value_hartree
             record['zero_k_hartree'] += component.value_hartree
+        if correction is not None:
+            if abs(record['components']['spin_orbit']['value_hartree']
+                   - correction['value_hartree']) > 1.e-12:
+                raise ValueError('Assembled spin-orbit component disagrees with the requested correction.')
+            record['spin_orbit_model'] = deepcopy(correction)
         path = destination / filename
         path.write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
         profiles[role][label] = str(path)
@@ -1765,6 +1786,27 @@ def _ordered_methods(energies):
     return tuple(sorted(labels, key=rank))
 
 
+def _network_qc_contract(plan):
+    """Compare frozen QC while allowing stable-species SO postprocessing edits.
+
+    Only SO metadata and the two record hashes derived from it are omitted.
+    Geometry hashes, raw energies, frequencies, states, methods, resources and
+    all TS records remain part of the exact comparison.
+    """
+    result = deepcopy(plan)
+    records = list(result['network']['stable_species'])
+    records.extend(entry['network_record']
+                   for entry in result['cbh']['calculated_states']
+                   if entry.get('network_record') is not None)
+    for record in records:
+        if record.get('provider') != 'kinbot-accepted-l2':
+            continue
+        record.pop('spin_orbit_correction', None)
+        record.pop('record_sha256', None)
+        record['molecule']['source'].pop('record_sha256', None)
+    return result
+
+
 def prepare_automatic_cbh_anl(root_species, parameters, *,
                               directory='anl_automatic'):
     """Freeze and atomically publish the accepted network before execution.
@@ -1780,9 +1822,30 @@ def prepare_automatic_cbh_anl(root_species, parameters, *,
     if plan_path.is_file():
         previous = _read_json(plan_path, 'automatic network request')
         if _sha256_json(previous) != _sha256_json(plan):
-            raise ValueError(
-                'Accepted KinBot network differs from the existing automatic plan; '
-                'use a fresh calculation directory.')
+            same_qc = (_sha256_json(_network_qc_contract(previous))
+                       == _sha256_json(_network_qc_contract(plan)))
+            if same_qc:
+                from kinbot.electronic_states import model_for_species
+                for old, new in zip(previous['network']['stable_species'],
+                                    plan['network']['stable_species']):
+                    if _sha256_json(old) == _sha256_json(new):
+                        continue
+                    # Only an explicit current input model can replace the
+                    # frozen correction. Do not discard standalone source
+                    # corrections, or accept unexplained record-hash changes.
+                    if (old.get('spin_orbit_correction') == new.get('spin_orbit_correction')
+                            or model_for_species(SimpleNamespace(
+                                smiles=new['smiles'], charge=new['molecule']['charge']),
+                                parameters) is None):
+                        same_qc = False
+                        break
+            if not same_qc:
+                raise ValueError(
+                    'Accepted KinBot network differs from the existing automatic plan; '
+                    'use a fresh calculation directory.')
+            # Keep original cache hashes. Assembly reads the current input SO
+            # data independently and records it in each composite expression.
+            return previous
     else:
         temporary = plan_path.with_suffix('.json.tmp')
         temporary.write_text(json.dumps(
@@ -1851,7 +1914,7 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
             graphs['stable:' + key], sources[key],
             profile_root / _safe_state_directory(
                 entry['smiles'], entry['charge'], entry['multiplicity']),
-            state_id=key)
+            state_id=key, parameters=parameters)
     for name, record in plan['network']['transition_states'].items():
         profiles['ts:' + name] = assemble_available_profiles(
             graphs['ts:' + name], record,

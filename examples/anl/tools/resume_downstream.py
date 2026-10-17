@@ -47,7 +47,7 @@ class Archive:
 
 
 def update_electronic_inputs(root, record, archive):
-    """Explicitly migrate MESS level data, preserving numerical QC settings."""
+    """Migrate reviewed electronic postprocessing, preserving numerical QC."""
     from kinbot.electronic_states import electronic_state_models
     package = Path(__file__).resolve().parents[1]
     updated = []
@@ -62,10 +62,14 @@ def update_electronic_inputs(root, record, archive):
         for key, old in electronic_state_models(existing).items():
             new = new_models.get(key)
             if new is None or any(old.get(field) != new.get(field) for field in (
-                    'smiles', 'ground_multiplicity', 'term_orbital_degeneracy',
-                    'spin_orbit_correction')):
-                raise ValueError('This migration only updates MESS levels; '
-                                 'existing spin, term and energy-zero contracts must match.')
+                    'smiles', 'ground_multiplicity', 'term_orbital_degeneracy')):
+                raise ValueError('Electronic postprocessing migration requires '
+                                 'unchanged spin and spatial term contracts.')
+            old_so = old.get('spin_orbit_correction')
+            new_so = new.get('spin_orbit_correction', {})
+            if old_so is not None and any(old_so.get(field) != new_so.get(field)
+                                         for field in ('value_hartree', 'reference')):
+                raise ValueError('Existing SO correction differs from the reviewed model.')
         # PES regenerates its worker input on restart. Update existing child
         # and reference inputs as well so no restarted child sees stale levels.
         for path in case.rglob('*.json'):
@@ -87,6 +91,21 @@ def update_electronic_inputs(root, record, archive):
         record['sha256'][name] = file_sha256(root / name)
     atomic_json(root / 'prepared.json', record)
     return updated
+
+
+def archive_electronic_postprocessing(case, archive):
+    """Retire derived energies/populations, keeping all accepted QC caches."""
+    retired = []
+    for base in case.glob('*/anl_automatic'):
+        for name in ('profiles', 'formations', 'handoff.json', 'execution.json',
+                     'final_report.json', 'cbh_thermochemistry_models.json'):
+            target = archive.save(base / name, move=True, group='old_postprocessing')
+            if target is not None:
+                retired.append(str(target))
+        target = archive.save(base.parent / 'me', move=True, group='old_postprocessing')
+        if target is not None:
+            retired.append(str(target))
+    return retired
 
 
 def repair_graph(graph, archive):
@@ -192,8 +211,12 @@ def repair_before_resume(root, record):
     archive.save(root / 'resume_provenance.json')
     result = {'archive': str(archive.path), 'graphs': [], 'vrc_archived': []}
     result['electronic_inputs_updated'] = update_electronic_inputs(root, record, archive)
+    result['electronic_postprocessing_archived'] = []
     for case in cases:
         archive.save(case / 'resume_provenance.json')
+        if result['electronic_inputs_updated']:
+            result['electronic_postprocessing_archived'].extend(
+                archive_electronic_postprocessing(case, archive))
         # Copy database files only after all writers have stopped. Do not
         # remove unsuccessful reaction decisions or turn them into successes.
         for database in case.rglob('kinbot.db'):

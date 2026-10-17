@@ -80,6 +80,102 @@ def test_explicit_spin_orbit_correction_survives_l2_fallback_expression(tmp_path
             assert zero_k_from_composite_record('[S]', path).hartree == pytest.approx(-398.001)
 
 
+@pytest.mark.parametrize('smiles,symbols,mult,shift', [
+    ('[S]', ['S'], 3, -(3 * 396.055 + 573.640) / 9),
+    ('[SH]', ['S', 'H'], 2, -376.835 / 2),
+    ('C[S]', ['C', 'S', 'H', 'H', 'H'], 2, -255. / 2),
+])
+def test_current_input_so_applies_once_to_cached_profiles_with_zpe(
+        tmp_path, monkeypatch, smiles, symbols, mult, shift):
+    from copy import deepcopy
+    from ase.units import invcm, Hartree
+    from kinbot.anl.automatic import (assemble_available_profiles,
+                                      _l2_species_record, _l2_source_component)
+    from kinbot.anl.cbh import zero_k_from_composite_record
+    point = _species('cached', smiles, symbols, mult, energy=-400., zpe=.01)
+    theory = {'composite_method': 'B2PLYP-D3BJ', 'basis': 'cc-pVTZ',
+              'label': 'B2PLYP-D3BJ/cc-pVTZ'}
+    source = _l2_species_record(point, theory)
+    # A saved model can carry obsolete postprocessing metadata, never a
+    # modified raw QC energy. The current single input must take precedence.
+    source['spin_orbit_correction'] = {'value_hartree': -.123, 'source': 'obsolete'}
+    before = deepcopy(source)
+    spec = {'name': 'anl-automatic-post-l2', 'molecule': source['molecule'],
+            'tasks': [{'id': 'gaussian_vpt2'}]}
+    monkeypatch.setattr('kinbot.anl.automatic._load', lambda path: (
+        tmp_path, spec, {'tasks': {'gaussian_vpt2': {'status': 'complete'}}}))
+    vibrational = tuple(_l2_source_component(
+        source, key=k, quantity='zpe', value=v, method='B2PLYP-D3BJ',
+        basis='cc-pVTZ', state_id='cached') for k, v in (
+            ('harmonic_zpe', .01), ('vpt2_correction', -.001)))
+    monkeypatch.setattr('kinbot.anl.automatic._vpt2_zpe_components',
+                        lambda *a, **kw: vibrational)
+    par = json.loads((Path(__file__).parents[1] /
+                     'examples/anl/ch3s_anl1_f12/ch3s.json').read_text())
+    paths = assemble_available_profiles(tmp_path, source, tmp_path / 'profiles',
+                                        state_id='cached', parameters=par)
+    for path in set(paths['thermochemistry'].values()):
+        record = json.loads(Path(path).read_text())
+        zpe = .009 if 'vpt2_correction' in record['components'] else .01
+        assert record['zero_point_hartree'] == pytest.approx(zpe)
+        assert record['electronic_hartree'] == pytest.approx(-400. + shift * invcm / Hartree)
+        assert sum(t['component'] == 'spin_orbit' for t in record['electronic_terms']) == 1
+        assert record['spin_orbit_model']['reference'] == 'term_centroid'
+        assert zero_k_from_composite_record(smiles, path).hartree == pytest.approx(
+            -400. + zpe + shift * invcm / Hartree)
+    assert source == before
+    # A current levels-only model explicitly withdraws a cached correction.
+    for model in par['electronic_state_models']:
+        model.pop('spin_free_reference', None)
+    paths = assemble_available_profiles(tmp_path, source, tmp_path / 'withdrawn',
+                                        state_id='cached', parameters=par)
+    assert all('spin_orbit' not in json.loads(Path(p).read_text())['components']
+               for p in paths['thermochemistry'].values())
+
+
+def test_stable_so_model_not_applied_to_reactant_labelled_ts(tmp_path, monkeypatch):
+    from kinbot.anl.automatic import assemble_available_profiles, _l2_species_record
+    point = _species('ts', '[SH]', ['S', 'H'], 2)
+    source = _l2_species_record(point, {'composite_method': 'B2PLYP-D3BJ',
+        'basis': 'cc-pVTZ', 'label': 'B2PLYP-D3BJ/cc-pVTZ'})
+    spec = {'name': 'anl-automatic-post-l2', 'molecule': source['molecule'], 'tasks': []}
+    monkeypatch.setattr('kinbot.anl.automatic._load', lambda path: (tmp_path, spec, {'tasks': {}}))
+    par = {'electronic_state_models': [{'smiles': '[SH]', 'charge': 0,
+            'ground_multiplicity': 2, 'term_orbital_degeneracy': 2,
+            'spin_orbit_correction_hartree': -.001}]}
+    profiles = assemble_available_profiles(tmp_path, source, tmp_path / 'profiles',
+        state_id='ts', stationary_point='transition_state', parameters=par)
+    assert all('spin_orbit' not in json.loads(Path(p).read_text())['components']
+               for p in profiles['barrier'].values())
+    par['electronic_state_models'][0]['ground_multiplicity'] = 4
+    with pytest.raises(ValueError, match='Cached QC multiplicity'):
+        assemble_available_profiles(tmp_path, source, tmp_path / 'bad', state_id='bad', parameters=par)
+
+
+def test_so_only_plan_change_reuses_qc_but_geometry_and_energy_do_not(tmp_path):
+    from kinbot.anl.automatic import prepare_automatic_cbh_anl
+    point = _species('sulfur', '[S]', ['S'], 3, energy=-398., zpe=0.)
+    point.reac_obj = []
+    par = {'composite_method': 'ANL0-F12'}
+    prepare_automatic_cbh_anl(point, par, directory=tmp_path)
+    native_plan = (tmp_path / 'network_request.json').read_bytes()
+    point.spin_orbit_correction = {'value_hartree': -.001, 'source': 'experiment'}
+    with pytest.raises(ValueError, match='network differs'):
+        prepare_automatic_cbh_anl(point, par, directory=tmp_path)
+    par['electronic_state_models'] = [{'smiles': '[S]', 'charge': 0,
+        'ground_multiplicity': 3, 'term_orbital_degeneracy': 3,
+        'spin_orbit_correction_hartree': -.001, 'source': 'experiment'}]
+    assert prepare_automatic_cbh_anl(point, par, directory=tmp_path) == json.loads(native_plan)
+    assert (tmp_path / 'network_request.json').read_bytes() == native_plan
+    point.energy -= .01
+    with pytest.raises(ValueError, match='network differs'):
+        prepare_automatic_cbh_anl(point, par, directory=tmp_path)
+    point.energy = -398.
+    point.geom[0][0] = .1
+    with pytest.raises(ValueError, match='network differs'):
+        prepare_automatic_cbh_anl(point, par, directory=tmp_path)
+
+
 def test_network_request_generates_recursive_cbh_states_without_user_species():
     acetaldehyde = _species(
         'acetaldehyde', 'CC=O', ['C', 'C', 'O', 'H', 'H', 'H', 'H'],

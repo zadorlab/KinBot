@@ -116,6 +116,7 @@ def test_inactive_migration_retains_db_and_rejected_marker_and_updates_only_leve
             for m in data['electronic_state_models']:
                 if m['smiles'] == '[CH3][S]':
                     m.pop('levels', None)
+                    m.pop('spin_free_reference', None)
             atomic_json(path, data)
     record = json.loads((root / 'prepared.json').read_text())
     record['sha256'] = {n: file_sha256(root/n) for n in record['sha256']}
@@ -127,6 +128,12 @@ def test_inactive_migration_retains_db_and_rejected_marker_and_updates_only_leve
     (worker / 'failed_ts.log').write_text('native failure')
     (worker / 'kinbot.log').write_text('old controller failure')
     (worker / 'accepted.log').write_text('Normal termination')
+    composite = worker / 'anl_automatic'
+    (composite / 'profiles').mkdir(parents=True)
+    (composite / 'profiles/old.json').write_text('old derived energy')
+    (composite / 'network_request.json').write_text('frozen QC request')
+    (worker / 'me').mkdir()
+    (worker / 'me/mess.inp').write_text('old populations and energies')
     (root / 'ch3s/launch.json').write_text('{}')
     vrc = worker / 'vrctst/molpro_scan/point'
     vrc.mkdir(parents=True)
@@ -141,6 +148,10 @@ def test_inactive_migration_retains_db_and_rejected_marker_and_updates_only_leve
     assert (worker / 'failed_ts.exitcode').read_text() == '100 1\n'
     assert (worker / 'accepted.log').read_text() == 'Normal termination'
     assert (worker / 'kinbot.db').read_text() == 'accepted and rejected result cache'
+    assert (composite / 'network_request.json').read_text() == 'frozen QC request'
+    assert not (composite / 'profiles').exists()
+    assert not (worker / 'me').exists()
+    assert (Path(result['archive']) / 'old_postprocessing/ch3s/well/anl_automatic/profiles/old.json').read_text() == 'old derived energy'
     assert not (root / 'ch3s/launch.json').exists()
     new = json.loads((root / 'ch3s/input.json').read_text())
     assert new.pop('electronic_state_models') != original.pop('electronic_state_models')

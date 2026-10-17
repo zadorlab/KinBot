@@ -138,7 +138,8 @@ Atomic sulfur, CH3S and SH fine-structure levels are forwarded to MESS/PF using 
 electronic-level capability. The KinBot JSON forwarding and explicit term-
 centroid energy hook were added on this branch; neither invents a VRC SOC
 potential. No inner/outer stages or automatic equilibration are enabled.
-Only atomic S requests that separate energy correction. The
+S, SH and CH3S request that correction once in ANL: -195.756111, -188.4175
+and -127.5 cm^-1, respectively; CH3S uses the approved effective approximation. The
 [species review](../../../docs/SULFUR_ELECTRONIC_LEVELS_2026-10-17.md) records
 experimental sources, the complete discovered inventory, the CH3S JT caveat,
 and separate energy-zero/partition-function uses. Transport parameters remain
@@ -150,7 +151,8 @@ The helper checks the saved `_r5_dft` run, including rendered inputs and small
 native backend tests. Both PES must be inactive; otherwise it leaves their
 jobs untouched and refuses migration. It retains accepted calculations and
 genuine reaction rejections, archives obsolete attempts/controller logs in a
-dated `.repair_archive.*` sibling, updates the experimental electronic levels,
+dated `.repair_archive.*` sibling, updates the experimental levels and SO
+corrections, archives obsolete derived thermochemistry/MESS files,
 and resumes both controllers detached on the login host. SH's successful VPT2
 is reparsed without QC. Failed H2S VPT2 and the invalid first VRC scans are
 restaged. HSS's accepted L2 reference is retained with checked identity handling.

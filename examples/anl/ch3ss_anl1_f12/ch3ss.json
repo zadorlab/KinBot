@@ -81,7 +81,7 @@
       "charge": 0,
       "ground_multiplicity": 2,
       "term_orbital_degeneracy": 2,
-      "source": "Gas-phase IR/VUV photoionization: 255 +/- 4 cm-1, https://www.sciencedirect.com/science/article/pii/S0009261411008153 . Two Kramers components, g=2 each; RRHO electronic-level approximation, not a full Jahn-Teller vibronic partition function. No molecular centroid energy correction requested.",
+      "source": "Gas-phase IR/VUV photoionization: 255 +/- 4 cm-1, https://www.sciencedirect.com/science/article/pii/S0009261411008153 . Two Kramers components, g=2 each; RRHO electronic-level approximation, not a full Jahn-Teller vibronic partition function. Effective experimental centroid approximation: add -255/2 cm^-1 once to the scalar ANL energy; retain scalar anharmonic ZPE. This approximates coupled JT/SO dynamics; no separate JT correction is added.",
       "levels": [
         {
           "energy_cm_inverse": 0.0,
@@ -95,7 +95,8 @@
           "degeneracy": 2,
           "label": "X 2E1/2"
         }
-      ]
+      ],
+      "spin_free_reference": "term_centroid"
     },
     {
       "smiles": "[SH]",
@@ -116,7 +117,8 @@
           "label": "X 2Pi1/2"
         }
       ],
-      "source": "Experimental ground-state A0=-376.835 cm-1: Milan et al., Chem. Phys. Lett. 239 (1995) 326-331, https://doi.org/10.1016/0009-2614(95)00488-2 . Electronic components only; rotational multiplicity is counted by the rotor. No additional energy-zero correction requested."
+      "source": "Experimental ground-state A0=-376.835 cm-1: Milan et al., Chem. Phys. Lett. 239 (1995) 326-331, https://doi.org/10.1016/0009-2614(95)00488-2 . Electronic components only; rotational multiplicity is counted by the rotor. Experimental ground-term centroid approximation: add -376.835/2 cm^-1 once to the scalar ANL energy; retain scalar anharmonic ZPE.",
+      "spin_free_reference": "term_centroid"
     }
   ],
   "homolytic_bonds": {

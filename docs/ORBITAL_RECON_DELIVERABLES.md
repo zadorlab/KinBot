@@ -50,8 +50,10 @@ seed-geometry evaluations are not valid 2.5 A production scan points.
 
 The [species spectroscopy review](SULFUR_ELECTRONIC_LEVELS_2026-10-17.md)
 records the complete supplied inventory. Experimental CH3S and SH level pairs
-are in both main JSONs for MESS/MESSPF. Atomic S's existing energy-zero
-correction and all three CAS root manifolds are unchanged. CH3S JT coupling is
+are in both main JSONs for MESS/MESSPF. S, SH and CH3S now explicitly request
+one additive experimental-centroid SO correction in ANL (CH3S uses the
+approved effective approximation). Saved reference models receive the current
+input correction during assembly. All three CAS root manifolds are unchanged. CH3S JT coupling is
 a plausible contributor to the earlier negative mode, not a proven diagnosis;
 the independent negative curvature required reoptimization in any case.
 

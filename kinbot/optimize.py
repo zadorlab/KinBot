@@ -675,6 +675,8 @@ class Optimize:
             except FileNotFoundError:
                 # Searches finished before the selected conformer's mode file
                 # was kept: compare with the original L1 saddle instead.
+                logger.warning('%s has no imaginary mode file; comparing the L2 saddle '
+                               'with the original L1 saddle %s instead.', l1_file, self.log_name(0))
                 l1_file = self.log_name(0)
                 imagmode = self.qc.read_imag_mode(l1_file, self.species.natom)
             imagmode_high = self.qc.read_imag_mode(l2_file, self.species.natom)

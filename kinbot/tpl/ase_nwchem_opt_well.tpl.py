@@ -53,7 +53,7 @@ try:
     
     db = connect('kinbot.db')
     db.write(mol, name = label, data = {{'energy': e, 'status' : 'normal'}})
-except RuntimeError, e: 
+except RuntimeError as e:
     db = connect('kinbot.db')
     db.write(mol, name = label, data = {{'status' : 'error'}})
     

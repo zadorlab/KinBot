@@ -31,17 +31,37 @@ provenance, not production prerequisites. The user has ended MRCI retries.
 | 4. General JSON controls | Complete for handoff; regression-tested | Full same-spin references and lowest-quartet selector are general explicit controls. |
 | 5. General orbital reconnaissance | Complete for handoff; documented and tested | Chemical selection still requires review; it is not a unique-CAS oracle. |
 | 6. Production inputs | Complete and locally checked | Six portable orbital records, ordinary VRC surfaces, full inputs and launch/preflight helper supplied. Native production remains pending. |
-| 7. End-to-end production follow-through | Pending user launch | Actual ANL/RotdPy/MESS results cannot be certified before those runs. |
-| 8. Integration/general defaults | Complete for handoff | 571 focused tests + 31 subtests; separately five native RotdPy/MESS/MESSPF checks passed. Actual cluster preflight repeats backend checks. |
+| 7. End-to-end production follow-through | First attempt failed; clean restart prepared | Malformed Gaussian SCF route repaired. No production ANL/RotdPy/MESS result yet. User runs fresh `_r2`; follow-through remains active. |
+| 8. Integration/general defaults | Full repair regression audit passed | 1,748 tests + 424 subtests, zero failures/skips, with native RotdPy/MESS/MESSPF checks enabled. Source audit and limits recorded in the repair report; native production remains pending. |
 | 9. Evidence/documentation | Complete for handoff | Parameter-by-parameter provenance, native evidence, limitations and commands linked below. |
 | 10. Cleanup inventory | Prepared; cleanup deferred | Do not remove native evidence or run directories before both examples finish. |
-| 11. Consolidated production handoff | Prepared | User pulls and runs the helper; no SSH or cluster launch was performed locally. |
-| 12. Previous-run retirement | Scoped transition prepared and tested | Fresh inventory/stop/archive occurs on user launch; no blanket cancellation. |
+| 11. Consolidated production handoff | Revised after first runtime defect | Corrected route rendering, explicit worker outcomes, general detailed monitor and clean restart supplied. Native Gaussian retry remains to be executed by user. |
+| 12. Previous-run retirement | Nine orbital campaigns archived; first production retirement pending | New helper stops both marked production PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
 
 The [production handoff](../CASPT2_PRODUCTION_HANDOFF.md) and its linked full
 parameter reference are authoritative for the new runs. “Complete for handoff”
 means the requested preparation is done, not that the two PES calculations,
 their scientific acceptance, or deferred cleanup have already happened.
+
+The user also completed the [27-entry Molpro basis-library check](MOLPRO_BASIS_LIBRARY_CHECK_2026-10-16.md)
+on Blodgett 2024.1: all H/C/S lookups loaded, including augmented 5Z-F12.
+This resolves the basis-availability concern without changing the ANL pair.
+
+The user's launch transcript reports successful preparation and native backend
+preflight (`5 passed in 9.58s`), nine archived campaign directories, and new
+CH3S/CH3SS controller PIDs 1008942/1008943 at 18:31:10 PDT on 16 October.
+The immediate monitor reported one process and zero Slurm allocations per
+PES. This confirms launch only; it is not evidence of completed QC work or
+later controller health. The run root is
+`/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016`.
+
+Subsequent native logs show both Gaussian initial L2 jobs rejected
+`scf(xqc,(xqc,conver=10))` before any SCF iteration. This regression is
+resolved in the generic merger/writer and covered by actual rendered-input
+tests. PES failure propagation and monitoring are also repaired. See
+[the full repair record](GAUSSIAN_PRODUCTION_REPAIR_2026-10-16.md). User requested
+a clean restart; the previous tree will be archived and a fresh `_r2` tree
+launched. No scientific completion claim follows from the local tests.
 
 The new shift export verifies 58/58 inventoried files and 24/24 correlated
 energies. The matched CASSCF/reference energies and active orbital subspaces

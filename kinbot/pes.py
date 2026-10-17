@@ -307,8 +307,12 @@ def _rotdpy_sampling_calculator(par, pp_info, metadata):
 
 
 def main():
+    # Compatibility rejection must not write new status/log files into an
+    # unsupported legacy calculation directory.
+    ensure_current_run(create=not (len(sys.argv) > 2 and sys.argv[2] == 'no-kinbot'))
     try:
-        return _main()
+        from kinbot.driver_status import run_recorded
+        return run_recorded(_main, 'pes_status.json')
     except (StereoRoutingError, UnsupportedStereochemistry) as error:
         logging.getLogger('KinBot').error('KinBot stopped: %s', error)
         raise SystemExit(1) from None
@@ -477,6 +481,8 @@ def _main():
         # check if a thread is done
         for job in running:
             if not check_status(job, pids[job]):
+                if not no_kinbot:
+                    require_worker_success(job, pids[job])
                 t = datetime.datetime.now()
                 logger.info('Finished job {} at {}'.format(job, t))
                 finished.append(job)
@@ -2077,7 +2083,32 @@ def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
     return zpe
 
 
+_worker_processes = {}
+
+
+def require_worker_success(job, pid):
+    """Do not postprocess an exited worker lacking a successful handoff."""
+    from pathlib import Path
+    import json
+    path = Path(job) / 'kinbot_status.json'
+    try:
+        record = json.loads(path.read_text())
+    except (OSError, ValueError) as error:
+        raise RuntimeError(f'KinBot worker {job} exited without a readable completion '
+                           f'record. Inspect {job}/kinbot.log and {job}/kinbot.err.') from error
+    process = _worker_processes.get(pid)
+    code = process.poll() if process is not None else None
+    if (record.get('pid') != pid or record.get('status') != 'complete'
+            or record.get('returncode') != 0 or code not in (None, 0)):
+        raise RuntimeError(f'KinBot worker {job} failed or was interrupted '
+                           f'(exit={code}, recorded status={record.get("status")}). '
+                           f'{record.get("error", "")} Inspect {job}/kinbot.log '
+                           f'and {job}/kinbot.err. PES postprocessing was not started.')
+
+
 def check_status(job, pid):
+    if pid in _worker_processes:
+        return int(_worker_processes[pid].poll() is None)
     command = ['ps', '-u', 'root', '-N', '-o', 'pid,s,user,%cpu,%mem,etime,args']
     process = subprocess.Popen(command,
                                shell=False,
@@ -2099,7 +2130,7 @@ def submit_job(chemid, par):
     Submit a kinbot run using subprocess and return the pid
     """
     ensure_current_run(chemid)
-    command = ["kinbot", chemid + ".json", "&"]
+    command = [sys.executable, '-m', 'kinbot.kb', chemid + '.json']
     # purge previous summary and monitor files, so that pes doesn't think
     # everything is done
     # relevant if jobs are killed
@@ -2128,13 +2159,14 @@ def submit_job(chemid, par):
     if par['vrc_tst_scan_molpro_tpl'] != '':
         shutil.copyfile('{}'.format(par['vrc_tst_scan_molpro_tpl']), 
                         '{}/{}'.format(chemid, par['vrc_tst_scan_molpro_tpl']))
-    outfile = open(f'{chemid}/kinbot.out', 'w')
-    errfile = open(f'{chemid}/kinbot.err', 'w')
-    process = subprocess.Popen(command,
-                               cwd=chemid,
-                               stdout=outfile,
-                               stdin=subprocess.PIPE,
-                               stderr=errfile)
+    with open(f'{chemid}/kinbot.out', 'w') as outfile, \
+            open(f'{chemid}/kinbot.err', 'w') as errfile:
+        process = subprocess.Popen(command,
+                                   cwd=chemid,
+                                   stdout=outfile,
+                                   stdin=subprocess.DEVNULL,
+                                   stderr=errfile)
+    _worker_processes[process.pid] = process
     time.sleep(1)
     pid = process.pid
     return pid

@@ -99,6 +99,7 @@ def preflight(root):
     from kinbot.anl.site import render_site_setup
     record = verify(root)
     report = {'time_utc': datetime.now(timezone.utc).isoformat(), 'cases': {}}
+    report['rendered_gaussian_inputs'] = render_gaussian_inputs(root, record)
     # No calculation is submitted by these checks. The actual numerical
     # backends will still be checked inside their allocated jobs.
     for path in record['inputs']:
@@ -130,6 +131,100 @@ def preflight(root):
         raise RuntimeError('Native RotdPy/MESS/MESSPF preflight failed; see '+str(root/'backend_preflight.log'))
     report['native_backend_check'] = {'directory': str(native), 'output': result.stdout.strip()}
     atomic_json(root/'preflight.json', report)
+    return report
+
+
+def render_gaussian_inputs(root, record):
+    """Exercise the actual profile merge/writer, without running Gaussian."""
+    from copy import deepcopy
+    from ase import Atoms
+    from ase.data import atomic_numbers
+    from kinbot.qc import QuantumChemistry
+    from kinbot.stationary_pt import StationaryPoint
+    from kinbot.ase_modules.io.gaussian import write_gaussian_in
+    from kinbot.ase_modules.calculators.gaussian import fixed_frequency_parameters
+    variants = {'well': {}, 'ts': {'ts': 1, 'step': 1, 'max_step': 1},
+                'irc': {'irc': 'Forward'}, 'rotor': {'hir': 1},
+                'rigid_rotor': {'hir': 1, 'rigid': 1}, 'scan': {'scan': 1}}
+    paths = []
+    previous = Path.cwd()
+    previous_exclusions = os.environ.get('SBATCH_EXCLUDE')
+    try:
+        for filename in record['inputs']:
+            directory = root/'input_preflight'/Path(filename).parent.name
+            directory.mkdir(parents=True, exist_ok=True)
+            os.chdir(directory)
+            par = Parameters(filename).par
+            species = StationaryPoint('preflight', par['charge'], par['mult'],
+                                      smiles=par['smiles'], structure=par['structure'])
+            atoms = Atoms(species.atom, positions=species.geom)
+            electrons = sum(atomic_numbers[a] for a in species.atom)-par['charge']
+            router = QuantumChemistry(par)
+            qc = getattr(router, 'l2', router)
+            if qc.qc != 'gauss':
+                raise ValueError('Reviewed production L2 must use Gaussian.')
+            for name, flags in variants.items():
+                options = qc.merge_kwargs(qc.get_qc_arguments(
+                    'preflight', par['mult'], par['charge'], electrons,
+                    high_level=1, **flags))
+                options.pop('label', None)
+                if qc.use_sella:
+                    # Native force/Hessian calls use the external optimizer;
+                    # do not leave Gaussian optimization/IRC directives in previews.
+                    for key in ('opt', 'freq'):
+                        options.pop(key, None)
+                    if flags.get('irc'):
+                        for key in ('irc', 'geom', 'guess'):
+                            options.pop(key, None)
+                for mode, props, kwargs in (
+                        ('energy', ['energy'], options),
+                        ('forces', ['energy', 'forces'], options),
+                        ('hessian', ['energy'], fixed_frequency_parameters(options))):
+                    path = directory/f'{name}_{mode}.com'
+                    with path.open('w') as handle:
+                        write_gaussian_in(handle, atoms, properties=props, **deepcopy(kwargs))
+                    paths.append({'path': str(path.relative_to(root)), 'sha256': file_sha256(path)})
+    finally:
+        os.chdir(previous)
+        # QC construction propagates exclusions to child submitters. Preview
+        # construction must not leak one case's settings into later preflights.
+        if previous_exclusions is None:
+            os.environ.pop('SBATCH_EXCLUDE', None)
+        else:
+            os.environ['SBATCH_EXCLUDE'] = previous_exclusions
+    return {'execution': 'render only; Gaussian not executed', 'files': paths}
+
+
+def retire_production(root, previous):
+    """Stop each marked PES, then archive the complete old handoff tree."""
+    from kinbot import run_cleanup
+    root = Path(root).resolve(strict=True)
+    previous = Path(previous).expanduser().resolve(strict=True)
+    if previous == root or previous in root.parents or root in previous.parents:
+        raise ValueError('Replacement and previous production must be separate directories.')
+    record = json.loads((previous/'prepared.json').read_text())
+    expected = {previous/case/'input.json' for case in CASES}
+    actual = {Path(p) for p in record.get('inputs', [])}
+    if actual != expected or any(path.is_symlink() or path.parent.is_symlink() for path in actual):
+        raise ValueError('Unrecognized previous production input directories.')
+    # Check every tree before the first stop. An unavailable scheduler aborts.
+    inventories = {str(p.parent): run_cleanup.inspect(p.parent) for p in sorted(actual)}
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    audit = root/f'production_retirement.{stamp}.json'
+    report = {'previous': str(previous), 'inventories': inventories, 'stopped': []}
+    atomic_json(audit, report)
+    for path in sorted(actual):
+        report['stopped'].append(run_cleanup.stop(path.parent, archive=False, timeout=300.))
+        atomic_json(audit, report)
+    # Recheck both before moving their shared parent.
+    for path in sorted(actual):
+        live = run_cleanup.inspect(path.parent)
+        if live['jobs'] or live['processes']:
+            raise RuntimeError(f'Work appeared during retirement: {path.parent}; not archived.')
+    destination = previous.with_name(previous.name+'.stopped.'+stamp)
+    previous.rename(destination)
+    report['archive'] = str(destination)
+    atomic_json(audit, report)
     return report
 
 
@@ -187,21 +282,12 @@ def start(root):
     return launched
 
 
-def monitor(root):
-    from kinbot.run_cleanup import inspect
-    print(datetime.now().astimezone().isoformat(timespec='seconds'))
-    for case in CASES:
-        directory = root/case
-        report = inspect(directory)
-        print(f'\n{case}: {len(report["jobs"])} Slurm allocations; {len(report["processes"])} local processes')
-        for job in report['jobs']:
-            print(job['job_id'], job['state'], job['reason'], job['directory'])
-        log = directory/'driver.log'
-        if log.exists():
-            with log.open('rb') as handle:
-                handle.seek(max(0, log.stat().st_size-8192))
-                print('\n'.join(handle.read().decode(errors='replace').splitlines()[-12:]))
-    print('\nNo active jobs is not a success verdict. Review driver/worker logs and final ANL, VRC and MESS reports.')
+def monitor(root, args=None):
+    from kinbot import run_monitor
+    if args is None:
+        print(run_monitor.render(run_monitor.snapshot(root)))
+    else:
+        run_monitor.run(root, args)
 
 
 if __name__ == '__main__':
@@ -210,9 +296,17 @@ if __name__ == '__main__':
     parser.add_argument('root', type=Path)
     parser.add_argument('--retire-parent', type=Path,
                         help='Explicitly stop/archive only the listed superseded campaigns under this directory.')
+    parser.add_argument('--replace-production', type=Path,
+                        help='On launch, stop both PES trees in this previous handoff and archive its parent.')
+    from kinbot.run_monitor import add_arguments
+    add_arguments(parser)
     args = parser.parse_args()
+    if (args.retire_parent or args.replace_production) and args.action != 'launch':
+        parser.error('Retirement options require launch.')
+    if args.retire_parent and args.replace_production:
+        parser.error('Choose old campaigns or a previous production handoff, not both.')
     if args.action == 'monitor':
-        monitor(args.root.expanduser().resolve(strict=True))
+        monitor(args.root.expanduser().resolve(strict=True), args)
         sys.exit(0)
     root = prepare(args.root)
     with (root/'.handoff.lock').open('a+') as lock:
@@ -224,5 +318,7 @@ if __name__ == '__main__':
             assert_not_started(root)
             if args.retire_parent:
                 result['retired'] = retire(root, args.retire_parent)
+            if args.replace_production:
+                result['retired_production'] = retire_production(root, args.replace_production)
             result['launched'] = start(root)
         print(json.dumps(result, indent=2))

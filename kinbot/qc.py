@@ -2563,6 +2563,9 @@ class QuantumChemistry:
     def merge_kwargs(self, kwargs, user_kwargs=None):
         if user_kwargs is None:
             user_kwargs = self.par['calc_kwargs']
+        if self.qc == 'gauss':
+            from kinbot.gaussian_input import merge_gaussian_kwargs
+            return merge_gaussian_kwargs(kwargs, user_kwargs)
         for key, uvalue in user_kwargs.items():
             if key in kwargs:
                 user_val_dict, val_dict = {}, {}

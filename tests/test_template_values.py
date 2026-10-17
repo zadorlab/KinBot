@@ -1,7 +1,9 @@
 """Values pasted into generated job scripts must be builtin Python types (#84)."""
 
+import ast
 import pathlib
 import re
+from string import Formatter
 import unittest
 
 import numpy as np
@@ -12,6 +14,17 @@ KINBOT = pathlib.Path(__file__).resolve().parent.parent / 'kinbot'
 
 
 class TestPlainTemplateValues(unittest.TestCase):
+    def test_all_python_worker_templates_compile_after_rendering(self):
+        """Catch legacy syntax even in backends unavailable to local tests."""
+        for path in sorted((KINBOT / 'tpl').glob('*.tpl.py')):
+            with self.subTest(template=path.name):
+                source = path.read_text()
+                fields = {name for _, name, _, _ in Formatter().parse(source) if name}
+                values = dict.fromkeys(fields, '0')
+                values.update(code='gaussian', Code='Gaussian', label='probe',
+                              kwargs='{}', atom="['H', 'H']", geom='[[0,0,0],[0,0,1]]')
+                ast.parse(source.format(**values), filename=str(path))
+
     def test_symbols_from_numpy_array_are_builtin_str(self):
         symbols = plain_symbols(np.array(['F', 'C', 'O']))
         self.assertEqual(symbols, ['F', 'C', 'O'])

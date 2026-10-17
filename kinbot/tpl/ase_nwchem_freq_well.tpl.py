@@ -67,7 +67,7 @@ try:
 
     db = connect('kinbot.db')
     db.write(mol,name = label,data={{'energy': e, 'frequencies': np.asarray(freq), 'zpe':zpe, 'status' : 'normal'}})
-except RuntimeError, e: 
+except RuntimeError as e:
     db = connect('kinbot.db')
     db.write(mol, name = label, data = {{'status' : 'error'}})
 
@@ -77,4 +77,3 @@ except RuntimeError, e:
 f = open(label + '.out','a')
 f.write('done\n')
 f.close()
-

@@ -293,7 +293,7 @@ def resolve_profiles(par):
                 'anl_scf_convergence')
             values['calculator_kwargs'] = {
                 **values.get('calculator_kwargs', {}),
-                'scf': f'(xqc,conver={exponent})',
+                'scf': f'xqc,conver={exponent}',
             }
         if values['calculator'] == 'fairchem':
             # Explicit profile > legacy/global option > portable preset.

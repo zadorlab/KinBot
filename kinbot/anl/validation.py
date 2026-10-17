@@ -982,7 +982,7 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             calculator = str(profile.get('calculator', '')).casefold()
             kwargs = dict(profile.get('calculator_kwargs', {}))
             if calculator == 'gaussian':
-                kwargs['scf'] = f'(xqc,conver={scf_exponent})'
+                kwargs['scf'] = f'xqc,conver={scf_exponent}'
             elif calculator == 'molpro':
                 kwargs.update(
                     scf_convergence=scf_convergence,

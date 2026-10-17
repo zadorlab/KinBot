@@ -4,6 +4,12 @@ This package prepares the two ordinary KinBot PES runs. It submits no more
 orbital-reconnaissance or MRCI jobs. The user runs the commands on Blodgett;
 the helper does not use SSH. Full production results are still to be obtained.
 
+The first production attempt failed on an invalid generated Gaussian SCF
+option list. That defect, worker failure propagation and monitoring are
+repaired. The [repair audit](../../../docs/GAUSSIAN_PRODUCTION_REPAIR_2026-10-16.md)
+records the native diagnosis and test coverage. Use the clean-restart command
+below, which archives the failed attempt and starts a fresh `_r2` directory.
+
 ## Accepted electronic model
 
 | Reaction | CAS | Natural active indices in the supplied records | CASSCF spatial roots |
@@ -123,33 +129,34 @@ energy limit. See also the [backend/interface audit](../../../docs/CASPT2_PRODUC
 
 ## Prepare and launch on Blodgett
 
-These commands preserve native files. Preparation checks/copies all six
-checkpoints before any old work is stopped. Preflight checks installed
-dependencies and executes small native RotdPy/MESS/MESSPF tests, without QC
+These commands archive native files and restart cleanly. Preparation checks/copies
+all six checkpoints before any old work is stopped. Preflight renders 36
+Gaussian route previews from the actual input profiles, checks installed
+dependencies, and executes small native RotdPy/MESS/MESSPF tests, without QC
 submissions. A missing dependency or failed check stops the transition.
 The environment must include `pytest` to execute those small preflight checks.
 Preparation also saves and hashes each complete `resolved_parameters.json`.
 
 ```bash
+bash <<'BASH'
+set -euo pipefail
 cd /home/hram/KinBot
 git pull --ff-only origin composite
-export PATH=/home/hram/KinBot/.venv/bin:$PATH
-export PYTHONPATH=/home/hram/KinBot${PYTHONPATH:+:$PYTHONPATH}
-export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
-mkdir -p "$KINBOT_MOLPRO_SCRATCH"
-KB_PROD=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016
-/home/hram/KinBot/.venv/bin/python examples/anl/caspt2_production/handoff.py \
-  launch "$KB_PROD" --retire-parent /home/hram/kinbot-runs
+bash examples/anl/caspt2_production/restart_on_blodgett.sh
+BASH
 ```
 
-`prepare` or `preflight` can replace `launch` for preparation without
-retirement/submission. The launch command inventories and stops only the
-named old orbital campaigns listed in `handoff.py`, then moves each stopped
-directory to a dated `.stopped.*` sibling. It never runs `scancel -u`, deletes
-native output, or deletes shared scratch. The retirement JSON records the
+The script calls `handoff.py launch NEW --replace-production OLD` with the
+original production directory and a fresh `_r2` destination. It inventories
+both old PES trees, stops their detached controllers and scoped Slurm jobs,
+waits for teardown, then archives the common parent as `.stopped.*`.
+It launches fresh detached controllers on the login host. It never uses
+user-wide cancellation or deletes shared scratch. Retirement JSON records
 old/new locations. Historical absolute manifest paths remain provenance;
-those archives are not in-place resumable campaigns after the move.
-The production seeds are already copied and independent of those paths.
+these archives are not in-place resumable after the move. Seeds are copied
+independently. The old orbital campaigns were already archived on the first
+launch; they are not processed again. `prepare`/`preflight` actions allow
+preparation/checks separately, without retirement or submission.
 
 Each PES has one active KinBot worker and a shared **10-allocation cap**,
 giving at most **20 allocations across these two runs**, excluding unrelated
@@ -160,18 +167,19 @@ The controller can use fewer allocations while dependencies are pending.
 The actual scheduler's `ExcNodeList` remains the runtime verification.
 
 ```bash
-watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/caspt2_production/handoff.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016'
+watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/caspt2_production/handoff.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r2'
 ```
 
 ```bash
-squeue -u hram -o '%.18i %.12T %.12N %.12m %.32x %Z'
-tail -n 40 -F /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016/ch3s/driver.log
-# In another terminal, the same path with ch3ss/driver.log.
+/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/caspt2_production/handoff.py \
+  monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r2 --follow
 ```
 
-The helper refuses a duplicate launch after `launch.json` exists. A failed
-controller is diagnosed/resumed in its own directory; do not erase results
-or re-run a broad retirement command to resolve a single job error.
+The helper refuses a duplicate launch after `launch.json` exists. `--all`
+expands task/reaction detail and `--json` exports a machine-readable snapshot.
+The monitor reads actual PES/worker/native logs and execution records, rather
+than relying on driver stdout or Slurm accounting. See the
+[general monitor guide](../../../docs/RUN_MONITOR.md).
 Shells/processes on Blodgett remain under the user's control.
 
 ## Acceptance after launch
@@ -196,6 +204,12 @@ and `backend_smoke.evidence.tar.gz`. These are backend checks, not sulfur kineti
 The lowest-manifold wrapper has rendered-input regression coverage; its
 constituent CASPT2 root calls were confirmed natively, but the new wrapper has
 not yet run in Molpro. The actual Blodgett dependencies are checked again at launch.
+
+The subsequent full production-repair audit passed **1,748 tests and 424
+subtests**, with zero failures/skips and the native backend checks enabled.
+See [repair_validation.json](repair_validation.json) and the
+[audit report](../../../docs/GAUSSIAN_PRODUCTION_REPAIR_2026-10-16.md).
+The earlier focused counts above are historical, not additional unique coverage.
 
 The maintained [12-item checklist](../../../docs/ORBITAL_RECON_DELIVERABLES.md)
 distinguishes completed handoff work from the user's production launch and

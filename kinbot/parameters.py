@@ -431,8 +431,9 @@ class Parameters:
             # to Sella while the reaction-coordinate distance is constrained.
             'vrc_tst_scan_sella': 1,
             # ``legacy`` retains historical levels. ``anl1-f12`` expands one
-            # compact request into a full-valence, augmented-basis production
-            # VRC model while preserving every explicit expert override.
+            # compact request into an augmented-basis production VRC model.
+            # The active space must be chosen explicitly; expert overrides
+            # are preserved.
             'vrc_tst_accuracy_preset': 'legacy',
             # explicit preserves the historical user-supplied CAS;
             # radical_pair is a guarded CAS(2,2) shortcut for two doublets;
@@ -476,9 +477,9 @@ class Parameters:
             'vrc_tst_sample_extrapolation_power': 3.7,
             'vrc_tst_high_basis': 'avtz',
             # ``direct`` preserves the original single trusted calculation.
-            # ``spin_splitting`` reconstructs the singlet from a
-            # RHF-UCCSD(T)-F12b triplet and explicitly selected F12b
-            # CASPT2 and Davidson-corrected MRCI singlet-triplet gaps.
+            # ``spin_splitting`` reconstructs the selected lower-spin energy
+            # from a high-spin RHF-UCCSD(T)-F12b anchor and configured
+            # multireference spin gaps (CASPT2-F12 in the production preset).
             'vrc_tst_correction_model': 'direct',
             # Optional overrides to the documented spin-splitting preset.
             'vrc_tst_spin_splitting': None,

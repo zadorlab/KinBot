@@ -1,6 +1,9 @@
 import sys,os
 import subprocess
-import threading, time
+import time
+from pathlib import Path
+
+_processes = {}
 
 def run_threads(jobs, name, max_running=10, pes=0):
     """
@@ -13,6 +16,8 @@ def run_threads(jobs, name, max_running=10, pes=0):
     max_running is the maximum threads that are allowed to run simultaneously 
     """
 
+    if type(max_running) is not int or max_running < 1:
+        raise ValueError('max_running must be a positive integer.')
     running = []
     finished = []
     pids = {}
@@ -52,14 +57,13 @@ def run_threads(jobs, name, max_running=10, pes=0):
         time.sleep(1)
 
 def check_status(job,pid):
-    command = ['ps','-u','root','-N','-o','pid,s,user,%cpu,%mem,etime,args']
-    process = subprocess.Popen(command,shell=False,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    out,err = process.communicate()
-    lines = out.split('\n')
-    for line in lines:
-        if len(line)> 0:
-            if '%i'%pid == line.split()[0]:
-                return 1
+    process = _processes[pid]
+    code = process.poll()
+    if code is None:
+        return 1
+    if code:
+        raise RuntimeError(f'KinBot in {job} exited with status {code}; '
+                           'inspect thread_kinbot.out and thread_kinbot.err.')
     return 0
 
 
@@ -67,12 +71,13 @@ def submit_job(job, inpfile, pes):
     """
     Submit a kinbot run using subprocess and return the pid
     """
-    if pes:
-        command = ["python","/home/jzador/KinBot/kinbot/pes.py",inpfile,"&"]
-    else:
-        command = ["python","/home/jzador/KinBot/kinbot/kb.py",inpfile,"&"]
-    process = subprocess.Popen(command,cwd = os.path.expanduser(job), stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    time.sleep(1)
+    command = [sys.executable, '-m', 'kinbot.pes' if pes else 'kinbot.kb', inpfile]
+    directory = Path(job).expanduser()
+    # PIPEs that nobody drains can deadlock a verbose worker.
+    with (directory/'thread_kinbot.out').open('ab') as output, \
+            (directory/'thread_kinbot.err').open('ab') as errors:
+        process = subprocess.Popen(command, cwd=directory, stdout=output,
+                                   stdin=subprocess.DEVNULL, stderr=errors)
+    _processes[process.pid] = process
     pid = process.pid
     return pid 
-

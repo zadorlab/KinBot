@@ -195,6 +195,7 @@ def _format_method_basis(output_type, method, basis, fitting_basis):
 def _format_route_params(params):
     '''Get keywords and values from the params dictionary and return
     as a list of lines to add to the gaussian input file'''
+    from kinbot.gaussian_input import route_options
     out = []
     for key, val in params.items():
         # assume bare keyword if val is falsey, i.e. '', None, False, etc.
@@ -202,10 +203,8 @@ def _format_route_params(params):
         # val are the same
         if not val or (isinstance(val, str) and key.lower() == val.lower()):
             out.append(key)
-        elif not isinstance(val, str) and isinstance(val, Iterable):
-            out.append('{}({})'.format(key, ','.join(val)))
         else:
-            out.append('{}({})'.format(key, val))
+            out.append('{}({})'.format(key, ','.join(route_options(val))))
     return out
 
 

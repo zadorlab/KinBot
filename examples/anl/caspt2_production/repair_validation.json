@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "status": "full local repair audit passed; native production restart pending",
+  "recorded_utc": "2026-10-17T02:09:26.450952+00:00",
+  "base_commit": "c340cc8961ad8f3d2caf25c4425537530fee9a9b",
+  "pytest": {
+    "passed": 1748,
+    "subtests_passed": 424,
+    "failed": 0,
+    "skipped": 0,
+    "warnings": 2,
+    "elapsed_seconds": 80.29,
+    "junit_attributes": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "2172",
+      "time": "80.157",
+      "timestamp": "2026-10-16T19:07:46.825592-07:00",
+      "hostname": "Hrishikeshs-MacBook-Pro.local"
+    },
+    "junit_local_path": "local_runs/production_repair_audit_20261016/pytest.xml",
+    "junit_sha256": "a99b2d03da6226c4d68e8261fff7ba8eacacf06a45ef11f9883affb467144eb9",
+    "command": "KINBOT_TEST_MESS=/private/tmp/kinbot-mess-native-check/build/mess_driver KINBOT_TEST_MESSPF=/private/tmp/kinbot-mess-native-check/build/partition_function .venv/bin/python -m pytest tests -q --disable-warnings -ra --junitxml=local_runs/production_repair_audit_20261016/pytest.xml",
+    "native_backend_checks_enabled": true
+  },
+  "static_validation": {
+    "runtime_python_modules_parsed": 170,
+    "rendered_python_templates_parsed": 33,
+    "shell_scripts": [
+      "examples/anl/caspt2_production/restart_on_blodgett.sh",
+      "examples/anl/caspt2_production/check_molpro_basis_library.sh"
+    ]
+  },
+  "source_sha256": {
+    "examples/anl/caspt2_production/check_molpro_basis_library.sh": "0b331a6a9319513acfab5a5fa7c8958a76a22e7dabe0a36ee14baa916a0530a6",
+    "examples/anl/caspt2_production/handoff.py": "c521ff735bbc5ea68f317dadb3d3bbc737f03d5ab062c6d469b0756f33ba7edc",
+    "examples/anl/caspt2_production/restart_on_blodgett.sh": "4d47789a36f27a320195d76e3aacdf984ea0ebf0c570a1271379f51b15e2394c",
+    "kinbot/anl/validation.py": "68e6d90d17b0a377a44cb27b5022fb9b85630a8049946df2d83dc9f77acebc55",
+    "kinbot/ase_modules/io/gaussian.py": "3dd4e0690d71ab004e726bd433bf172f62069f96a9f47711121b1ff67598053c",
+    "kinbot/driver_status.py": "cc1986a44ee6145d2381200c1743bf6e69019670152f844d897924cbdddef33a",
+    "kinbot/gaussian_input.py": "030c7decb8aef68c99713221770cd7905375bf04cee4affc7f4b62e17f47b1cb",
+    "kinbot/kb.py": "f76f7c9a3e8850b124e1cfa90a054fde27999029c6ba438ee222ba1c4e306493",
+    "kinbot/parameters.py": "7058987d349c3f508c069a512ce8ceeb6658c5fbeb38da4ff7d5c4ff559ced18",
+    "kinbot/pes.py": "e829745c67ba9a6efe521603e2e7201da1e2cf1d9290d3e1d55b56b3ae67a4bf",
+    "kinbot/qc.py": "4e6169c7bdd0acb5148c1cd550fcb55440f3ce31254fbdbd48168421c080b5df",
+    "kinbot/run_monitor.py": "f63c5ff461d2ce3a196c1a6e6d57ec92807a59d15e0fa865c08982470aec7432",
+    "kinbot/theory.py": "40de3e82f6a7890c0cae0f605d4831e62edf457b09eb2b675890fe80f47eb5d4",
+    "kinbot/thread_kinbot.py": "800480d7355c5f9e51dce6f2cfa8601ee52e293eb90353d3fbc14b2a8a7f6c6b",
+    "kinbot/tpl/ase_nwchem_freq_well.tpl.py": "7e59b2f9cf1850b2cdaf95bec006332f2ab8ee5a61cd1dc6d4ccb0ce6f519ffa",
+    "kinbot/tpl/ase_nwchem_opt_well.tpl.py": "6adc74d8ac20edb12cfa4bbd5ef911ec81e62277dc7274ab9a22bbaaca029082",
+    "kinbot/tpl/ase_nwchem_ts_end.tpl.py": "ab2cce5d0c8e23bf63cabfa356c0e04440d5d5882f223fede75f8a798baba80e",
+    "kinbot/tpl/ase_nwchem_ts_search.tpl.py": "22a291140ca318c9b933192c4787a818a705daeb9990037cfec21a6a54f07130",
+    "tests/test_caspt2_handoff.py": "c7a9b1c84a2d1e455be351d3d5c7521481094f173305a99b9b52463772f2bc5a",
+    "tests/test_driver_status.py": "27b5085a6b7b2022445f3efc9dbd5c3914a3a07f2b8692cf979d9e9bfb02cf75",
+    "tests/test_gaussian_input_routes.py": "5ff2f20d2a8dfc2cede909276538bc14269c81ce55f43140f5f5d062039bdc50",
+    "tests/test_run_monitor.py": "b96b4b8e8c5dfb598e141f3d64879d05457b7b18dac103dd736a0d44513db31a",
+    "tests/test_template_values.py": "096169e8d5bd5fef55ac6101de2a58c349ac5d50a7cf947996449f6f4bcc9b4c",
+    "tests/test_thread_kinbot.py": "e7e8004c311d431becd05b35fe176ae87f16e609a6634f7f32dc88230da28e07"
+  },
+  "runtime_inventory": {
+    "file_count": 255,
+    "path_and_content_digest_sha256": "ddd03a052695541b19ff12d33a9255f8f51c56c64d5dcd9dbfa3cf637fd807f1"
+  },
+  "test_source_inventory": {
+    "file_count": 144,
+    "path_and_content_digest_sha256": "f05de0e9cf13888434a9401c322cf2c968ccc52b9fac7dad37f91efda34b08a5"
+  },
+  "limits": [
+    "No SSH or remote restart performed by assistant.",
+    "Native Gaussian/Molpro/CFOUR/MRCC production is not executed by this local test suite.",
+    "No claim of all-geometry electronic continuity, native convergence or completed end-to-end kinetics.",
+    "Environment, installed backend versions and real cluster behavior still require production observation."
+  ]
+}

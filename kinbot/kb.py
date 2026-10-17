@@ -71,7 +71,8 @@ def _driver_lock():
 def main():
     with _driver_lock():
         try:
-            return _main()
+            from kinbot.driver_status import run_recorded
+            return run_recorded(_main, 'kinbot_status.json')
         except (StereoRoutingError, UnsupportedStereochemistry) as error:
             logging.getLogger('KinBot').error('KinBot stopped: %s', error)
             raise SystemExit(1) from None

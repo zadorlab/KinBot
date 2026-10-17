@@ -860,9 +860,12 @@ class Conformers:
 
     def low_log(self):
         """Output file copied for the selected conformer; its presence lets a
-        restart skip the conformer search and read conf/<name>_low directly."""
-        job = self.get_job_name(0, add='semi_emp_' if self.semi_emp else '')
-        return f'conf/{self.get_name()}_low{self.log_ext(job)}'
+        restart skip the conformer search and read conf/<name>_low directly.
+
+        The file is written by the L1 search, so its name follows the L1
+        backend also when the L0 search (another backend under profiles) asks.
+        """
+        return f'conf/{self.get_name()}_low{self.log_ext(self.get_job_name(0))}'
 
     def completed_conformers(self):
         """Number of conformers of a finished search, or 0 if it did not finish.

@@ -4,6 +4,12 @@ The general entry point is `python -m kinbot.orbital_review`. It uses the
 existing Molpro/Slurm execution machinery. There are no molecule-name branches
 or prescribed sulfur active spaces in the implementation.
 
+Recon and production share [native orbital/state printing and extracted
+per-output evidence](MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md). Each CAS/MRCI output
+gets an adjacent `.orbital_audit.json` with occupations, labeled AO coefficients,
+state information and source hashes. Evidence completeness is distinguished
+from orbital/state continuity.
+
 The target is the **requested eventual ROTD calculation**: chemically adequate
 states, accurate interfragment potentials and spin gaps, continuity throughout
 the contributing geometries, and affordable sampling. These requirements are

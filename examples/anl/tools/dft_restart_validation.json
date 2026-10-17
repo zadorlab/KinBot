@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "captured_utc": "2026-10-17T03:50:22.562743+00:00",
-  "base_commit": "15866e0d8d36b28f3790a117d05557090525fe26",
+  "captured_utc": "2026-10-17T04:05:52.498414+00:00",
+  "base_commit": "397a798596db88480c451fc704d6bfad1e4801ce",
   "status": "local_checks_passed_native_production_pending",
   "command": "KINBOT_TEST_MESS=/private/tmp/kinbot-mess-native-check/build/mess_driver KINBOT_TEST_MESSPF=/private/tmp/kinbot-mess-native-check/build/partition_function .venv/bin/python -m pytest tests -q --disable-warnings -ra --tb=short --junitxml=/tmp/kinbot-dft-handoff-final.xml",
   "result": {
-    "tests_passed": 1834,
+    "tests_passed": 1856,
     "subtests_passed": 424,
     "failures": 0,
     "errors": 0,
     "skipped": 0,
     "warnings": 2,
-    "seconds": 80.26
+    "seconds": 83.49
   },
   "native_backend_tests": [
     "test_actual_rotd_microcanonical_integral_has_analytic_normalization",
@@ -31,18 +31,23 @@
     "Scoped stop/archive/fresh restart, duplicate-launch refusal, early preflight failure leaves old calculations intact.",
     "ANL L3 unconstrained minima: projected central-force curvature, bounded two-sign downhill recovery before publishing final geometry; native harmonic validation unchanged.",
     "Input comparison against previous layout commit: all existing keys and values unchanged; four explicit minimum-recovery controls added to each input; six WFU hashes still match.",
-    "Obsolete untracked example folders are archived after preflight; all candidates checked for tracked files before any move."
+    "Obsolete untracked example folders are archived after preflight; all candidates checked for tracked files before any move.",
+    "Native CAS/MRCI print directives across recon, VRC, ASE, RotdPy and custom Molpro dispatcher templates; print tolerances preserved by solver retries.",
+    "Per-output native evidence reports with source hashes, occupations, labeled AO coefficients, CI/state/reference information, missing-evidence and mismatch reporting. 32 retained native CASPT2 outputs checked; failed and repeated calls covered."
   ],
   "limitations": [
     "Gaussian and Molpro are not run by the local template/integration tests.",
     "Native acceptance of the new DFT L1 and bounded L2 minimum recovery requires the fresh Blodgett run.",
     "The 1% RotdPy target does not establish achieved convergence; final flux and MESS results remain to be reviewed.",
     "Passing tests is bounded evidence, not proof that no unknown bug or backend failure exists.",
-    "New ANL curvature recovery is tested with physical model surfaces, not native Molpro locally. It adds 6N force evaluations per check; Molpro conventional CCSD(T) forces use numerical energy derivatives."
+    "New ANL curvature recovery is tested with physical model surfaces, not native Molpro locally. It adds 6N force evaluations per check; Molpro conventional CCSD(T) forces use numerical energy derivatives.",
+    "Added print directives are documented and renderer-tested; native production execution of them remains a Blodgett check. Reports do not certify no orbital/state swapping."
   ],
   "artifacts": {
-    "validation/pytest.log": "573a3c80f02cb086acf3d0117c0e4f7df32bca2f9f34034810e8a50196494f21",
-    "validation/pytest.xml.gz": "47087df288021144b0b5ad41dbf4d6b0e46416ca8cfcc20f75b4c4cfa9341908"
+    "validation/native_diagnostics.log": "147747a2940b22c2fa8d543f09bef6f3e06d4674eee0ebaa580048684cf8300a",
+    "validation/native_diagnostics.xml.gz": "f23ed664f41e83e40b4676f65e160e4976444b2c4d648a7d669f61322b2ff268",
+    "validation/pytest.log": "0232cee49e8a4a60e1104dd89368b7e3c4ef7e4daa3b0f8821a9e2504738f3ab",
+    "validation/pytest.xml.gz": "640820bd8f0c15556e538c942f1a4bcc5e510427b6587768905da9b01ceae927"
   },
   "source_sha256": {
     "examples/anl/ch3s_anl1_f12/ch3s.json": "9634d68905cb10fe4799fed712718f2bd755a1c4d060560a0d77cbd8a0252457",
@@ -52,14 +57,14 @@
     "examples/anl/tools/run_examples.py": "92ac749da8b0ca9d367b31fc781d8c51d41cc9d20581bafdf8e7bff840f9b72b",
     "kinbot/anl/automatic.py": "faed320f068b5a5f2a3a919ce08ba83acb258e83e8791b3180f10117231ce5cd",
     "kinbot/anl/validation.py": "18de25f21d48a249e91a0620ffb65f7da8656aff5b01bbd544d53cbbc1bd22f1",
-    "kinbot/ase_modules/calculators/molpro.py": "22edc52c2ff71c1afefa23a5098dae7b39a87d6a22ebefaf0011eec7e3d521c2",
+    "kinbot/ase_modules/calculators/molpro.py": "2f5a9594aff5552a7e0c0bb54f871bac25702860c7422c12624dd4feac498501",
     "kinbot/frequencies.py": "5d4542d45165af3e2a54e5e12bf2436feaf789187b12cf7e1bcb452f14269ad5",
     "kinbot/irc.py": "974a6472e0742cf9306fbc41b52d762bbf2fd3fdde57ddc1132f678215518d6d",
     "kinbot/kb.py": "13978b57e4b2c9e6cfc1ba4a35c5e22b4482272083bc632280b7fe0b2477b17e",
     "kinbot/mess.py": "de94ff07fcefb46a8c24ec9ceb8190079b352bf95a0bd2aaf798811bd018d02b",
     "kinbot/minimum_recovery.py": "d08760a8136dbd149f524a4775d90996c7c913a05ccf898e49b78e99b4c8eed3",
-    "kinbot/molpro.py": "bfb3cb583cc05c5f06ab50fcc6d7b172380be8c008fa217c4fa2375cd90f6d27",
-    "kinbot/molpro_reconnaissance.py": "5eb2ca765b1f8fd54b5be33cfe609eff0800dfe9897b27136480dc64e5795e56",
+    "kinbot/molpro.py": "2a632f25d80c1b097adcfa8caba8d119113f3f7b80fc5499684c2c50ce5931dd",
+    "kinbot/molpro_reconnaissance.py": "ed153a846a76ddaf2140fe79b80a842850e76a23d999f5b34107d2dc23c5b318",
     "kinbot/orbital_review.py": "28c6786153f8bea8561af0a3eeaa8b535f9b6eab7065fea4c6712f75344fd1fd",
     "kinbot/parameters.py": "ab58acbb99b9b520debea1bd9be875ae4ae859ce5f2f4348cc5437e4864747fd",
     "kinbot/profiled_qc.py": "16f0e27f125abcdc29cabe9812122462bdd9e331e5705a8fc40afc4a38456a5a",
@@ -91,11 +96,21 @@
     "tests/test_sella_worker_results.py": "549c7e359c391cee4b97e5ee37ad479ac234f068536615840a09f2817ba15490",
     "tests/test_theory_profiles.py": "1b465eea1bd374ea55dd7627e7d64acdcd1601f363adfa0f82af864a2fe22733",
     "tests/test_vrc_multistate.py": "a5234fc695885eefb78eb8324b570cea627e9381c8a4914824cac03757419cec",
-    "kinbot/anl/dispatch.py": "2e50a3c04a37e37523c5cb349f66011f2291f07a5dbbb10d624e08fe826357f0",
-    "tests/test_anl_minimum_recovery.py": "744490bbc800487b48767161a60aac11fb8eeff4fa7e33ff2c7183f37c4d2af2"
+    "kinbot/anl/dispatch.py": "186ee8b1592545484c890f86cc9273ae5b4c3ef3473a1d4bf34c6b6c25655519",
+    "tests/test_anl_minimum_recovery.py": "744490bbc800487b48767161a60aac11fb8eeff4fa7e33ff2c7183f37c4d2af2",
+    "kinbot/molpro_diagnostics.py": "1bdbffd17235bcbfbc6ba17ec02e73c56f2a5b1fffe53c30db27d36f299731da",
+    "kinbot/molpro_solver.py": "52cbd19a14c8f34acfd8a024f574ab85defb8addc87bd3bfe223fbbbe91a3262",
+    "kinbot/rotdpy_molpro.py": "70bbbca70dfaccbb487e43bc2d751c479600fabfe76a3d846dad9c68428d3cce",
+    "tests/test_molpro_diagnostics.py": "0527d910c6b72e453243460b876ac421fa590c571becea9fbdf9f82f42b95740"
   },
   "retained_test_logs": {
     "examples/anl/tools/validation/pytest.log": "1952767991e37f0dc961d2451bfdaf387483fa89afc723e4c1b69162abf160ac",
     "examples/anl/tools/validation/pytest.xml.gz": "a3d063b2d9411ab41915d78f00e1ef26b3f3d3bf7e781406b178576c857d7a80"
+  },
+  "focused_diagnostics": {
+    "command": ".venv/bin/python -m pytest tests/test_molpro_diagnostics.py -q --disable-warnings --tb=short",
+    "tests_passed": 22,
+    "seconds": 5.06,
+    "note": "Repeated after final missing-CI/state-evidence checks; all 32 retained native CASPT2 outputs extracted."
   }
 }

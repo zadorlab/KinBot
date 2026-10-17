@@ -93,6 +93,8 @@ class MolproSample(LegacyMolpro):
             with Path(f'{child.name}.stdout').open('w') as stdout, \
                     Path(f'{child.name}.stderr').open('w') as stderr:
                 result = subprocess.run(command, env=env, stdout=stdout, stderr=stderr, check=False)
+            from kinbot.molpro_diagnostics import write_native_report
+            write_native_report(Path(f'{child.name}.out'))
             if result.returncode:
                 raise RuntimeError(f'Molpro sample {child.name} exited with status {result.returncode}.')
         finally:

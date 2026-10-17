@@ -181,12 +181,13 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
     header += 'gprint,orbitals,orben,civector\n'
     if contract is not None:
         if analytic_caspt2 and state_model is None:
+            from kinbot.molpro_diagnostics import native_print_directives
             active_electrons, active_orbitals, closed, occupied = \
                 _caspt2_space(requested_method, electron_count)
             method_block = (
-                '{multi,\n'
+                native_print_directives() + '{multi,\n'
                 f'occ,{occupied}\nclosed,{closed}\n'
-                f'wf,{electron_count},1,{mult - 1}\nmaxit,50;}}\n\n'
+                f'wf,{electron_count},1,{mult - 1}\norbprint,2\nmaxit,50;}}\n\n'
                 f'{{rs2,shift={float(caspt2_shift):g},'
                 f'ipea={float(caspt2_ipea):g}}}\n'
                 '! KinBot energy contract: CASPT2/RS2 = ENERGY\n')
@@ -503,6 +504,11 @@ class Molpro(Calculator):
         finally:
             cleanup_qc_runtime(runtime)
         self.generated_files.extend([stdout_name, stderr_name])
+        from kinbot.molpro_diagnostics import write_native_report
+        report = write_native_report(self.work_directory / output_name,
+                                     self.work_directory / input_name)
+        if report is not None:
+            self.generated_files.append(report.name)
         if result.returncode:
             raise RuntimeError(f'Molpro force evaluation {stem} exited with '
                                f'status {result.returncode}.')

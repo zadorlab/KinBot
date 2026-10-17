@@ -1178,6 +1178,10 @@ def _execute(job):
             result = subprocess.run(command, cwd=directory, env=env, check=False,
                                     stdout=stdout, stderr=stderr)
         execution['returncode'] = result.returncode
+        from kinbot.molpro_diagnostics import write_native_report
+        report = write_native_report(directory / (name + '.out'), native)
+        if report is not None:
+            execution['orbital_audit'] = {'path': str(report), 'sha256': file_sha256(report)}
         if result.returncode:
             output = directory / (name + '.out')
             detail = ('\n' + '\n'.join(output.read_text(errors='replace').splitlines()[-20:])

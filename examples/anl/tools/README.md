@@ -34,7 +34,12 @@ are **0.0001 eV/angstrom**, with SCF Conver10 / Molpro 1e-10 and CC 1e-8.
 Preflight renders both Gaussian profiles and every declared CASPT2
 channel/root/basis before stopping the old run.
 
-Current full regression: **1,834 tests and 424 subtests passed**, zero failures
+Every CAS/MRCI evaluation now retains [native orbital/state diagnostics and an
+extracted report](../../../docs/MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md) beside the
+output, including RotdPy samples. It records occupations, printed AO coefficients,
+CI/state information and hashes; it does not infer no-swapping from dimensions.
+
+Current full regression: **1,856 tests and 424 subtests passed**, zero failures
 or skips, including native backend checks. The [validation record](dft_restart_validation.json)
 retains the command, source hashes and compressed test report. This is local
 verification; native Gaussian/Molpro recovery and production remain to be run.

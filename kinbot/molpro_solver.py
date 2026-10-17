@@ -69,7 +69,9 @@ def apply_solver_options(text, options):
     if 'coefficient_convergence' in options.get('correlation', {}):
         global_values['coeff'] = fortran_threshold(options['correlation']['coefficient_convergence'])
     if global_values:
-        pattern = r'(?im)^gthresh,[^\n]+'
+        # Printing-only GTHRESH cards (THRPRINT/PRINTCI) are independent of
+        # numerical solver accuracy and must survive retries unchanged.
+        pattern = r'(?im)^gthresh,(?=[^\n]*\b(?:energy|coeff|civec)\s*=)[^\n]+'
         def global_energy(match):
             body = match[0]
             for key, value in global_values.items():

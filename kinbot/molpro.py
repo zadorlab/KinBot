@@ -287,13 +287,17 @@ def validate_vrc_state_model(model, *, active_electrons=None,
     if not isinstance(model, dict):
         raise ValueError('vrc_tst_state_model must be an object.')
     allowed = {'orbital_selection', 'state_average', 'selected_roots', 'energy_selection',
-               'canonical_orbitals', 'casscf_options', 'correlation_options'}
+               'canonical_orbitals', 'casscf_options', 'correlation_options',
+               'orbital_diagnostics'}
     unknown = set(model) - allowed
     if unknown:
         raise ValueError('Unknown vrc_tst_state_model option(s): '
                          + ', '.join(sorted(unknown)))
 
     result = dict(model)
+    if 'orbital_diagnostics' in result:
+        from kinbot.molpro_diagnostics import diagnostic_options
+        result['orbital_diagnostics'] = diagnostic_options(result['orbital_diagnostics'])
     canonical = result.get('canonical_orbitals', True)
     if not isinstance(canonical, bool):
         raise ValueError('canonical_orbitals must be true or false.')
@@ -591,13 +595,17 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
     model = validate_vrc_state_model(
         model, active_electrons=active_electrons,
         active_orbitals=active_orbitals, nelectron=nelectron)
+    from kinbot.molpro_diagnostics import diagnostic_options, native_print_directives
+    diagnostics = diagnostic_options((model or {}).get('orbital_diagnostics'))
+    printing = native_print_directives(diagnostics)
+    orbprint = f'orbprint,{diagnostics["virtual_orbitals"]}\n'
     if model is None:
         inactive = nelectron - active_electrons
         closed = inactive // 2
         occupied = closed + active_orbitals
-        return ('', '{multi,\n'
+        return (printing, '{multi,\n'
                 f'occ,{occupied}\nclosed,{closed}\n'
-                f'wf,{nelectron},1,{spin}\nmaxit,50;}}\n\n', None)
+                f'wf,{nelectron},1,{spin}\n' + orbprint + 'maxit,50;}\n\n', None)
     multiplicity = spin + 1
     roots = {entry['multiplicity']: entry['roots']
              for entry in model['state_average']}
@@ -669,8 +677,8 @@ def _render_vrc_state_model(model, *, nelectron, active_electrons,
                 for key in ('energy_convergence', 'gradient_convergence') if key in options]
     if accuracy:
         multi += 'accuracy,' + ','.join(accuracy) + '\n'
-    multi += f'maxit,{options.get("max_iterations", 50)};}}\n\n'
-    return avas, multi, model['selected_roots'][multiplicity]
+    multi += orbprint + f'maxit,{options.get("max_iterations", 50)};}}\n\n'
+    return printing + avas, multi, model['selected_roots'][multiplicity]
 
 
 def vrc_multireference_energy_contract(method):
@@ -1123,7 +1131,15 @@ class Molpro:
                                       key=self.par['vrc_tst_scan_molpro_key'].upper(),
                                       energy_expression=energy_expression)
                 f.write(compact_molpro_titles(contents))
-                                       
+
+        # Also cover user-supplied MR templates and legacy barrierless paths.
+        # The shared generated renderer is already marked and left unchanged.
+        from kinbot.molpro_diagnostics import ensure_native_printing
+        input_path = Path('vrctst/molpro' if VTS else 'molpro') / (fname + '.inp')
+        original = input_path.read_text()
+        printed = ensure_native_printing(original)
+        if printed != original:
+            input_path.write_text(printed)
         return 0
 
     def get_molpro_energy(self, key, name='', do_vdW=False, VTS=False):
@@ -1154,6 +1170,8 @@ class Molpro:
             if status:
                 molpro_dir = 'vrctst/molpro/'
         if status:
+            from kinbot.molpro_diagnostics import write_native_report
+            write_native_report(Path(molpro_dir) / (fname + '.out'))
             with open(f"{molpro_dir}{fname}.out") as f:
                 lines = f.readlines()
             output = ''.join(lines)

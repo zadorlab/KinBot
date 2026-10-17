@@ -353,10 +353,12 @@ retires only the explicit superseded campaign list after its preflight succeeds.
 
 ## Maintenance record
 
+- Native CAS/MRCI evidence: general recon/production renderers now share documented orbital/CI printing. Per-output `.orbital_audit.json` files extract native occupations, AO coefficients, state/reference information, input declarations and hashes; 32 retained native CASPT2 outputs are regression fixtures. These reports record evidence and inconsistencies, not a universal no-swapping verdict. See [the diagnostic contract](MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md).
+
 - Final restart audit: self-contained inputs retain all existing settings and six
   checkpoint hashes. Added explicit bounded ANL L3 minimum recovery before
   dependent energies; tests cover recovery and bounded failure. Current full
-  regression: 1,834 tests plus 424 subtests, zero failures/skips. Native recovery
+  regression: 1,856 tests plus 424 subtests, zero failures/skips. Native recovery
   and the end-to-end acceptance remain pending. Obsolete untracked example
   folders are archived, not deleted, by the restart helper.
 

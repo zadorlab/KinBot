@@ -88,6 +88,8 @@ Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “
 
 ## Relevant implicit settings
 
+**Native orbital diagnostics (general branch hook).** Each inline basis state model may override `orbital_diagnostics`: `orbital_coefficient_threshold=0.05`, `ci_coefficient_threshold=0.05`, `virtual_orbitals=2`. Defaults enable documented native printing for CAS/MRCI without changing convergence or electronic settings. Each native output gets an adjacent `.orbital_audit.json`, extracting actual occupations, AO coefficients and states with source hashes. See [the print/report contract](../../../../docs/MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md).
+
 The new reusable DFT preset is explicit in both example inputs; the old UMA
 presets and implicit ANL preset selection remain available. No new electronic
 structure method is implemented. Gaussian supplies B3LYP/B2PLYP and D3(BJ);

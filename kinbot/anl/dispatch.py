@@ -560,7 +560,7 @@ def _task_dependencies(task, state=None):
     return dependencies
 
 
-def _render_input(template, atoms, molecule, resources):
+def _render_input(template, atoms, molecule, resources, backend=None):
     symbols = atoms.get_chemical_symbols()
     coordinates = '\n'.join(
         f'{symbol:<2} {x: .12f} {y: .12f} {z: .12f}'
@@ -585,7 +585,11 @@ def _render_input(template, atoms, molecule, resources):
         except KeyError as exc:
             raise ValueError(f'Unknown input token {match.group(0)}.') from exc
 
-    return _TOKEN.sub(replace, template)
+    rendered = _TOKEN.sub(replace, template)
+    if backend and backend.lower() == 'molpro':
+        from kinbot.molpro_diagnostics import ensure_native_printing
+        rendered = ensure_native_printing(rendered)
+    return rendered
 
 
 def _runtime_profile(task):
@@ -707,7 +711,7 @@ def _stage_task(run_dir, spec, state, task):
     atoms = read(directory / 'geometry.xyz')
     if task['kind'] == 'external':
         rendered = _render_input(task['input_template'], atoms,
-                                 spec['molecule'], task['resources'])
+                                 spec['molecule'], task['resources'], _backend(task))
         if _backend(task) == 'cfour':
             rendered = normalize_cfour_zmat(rendered)
         (directory / task['input_name']).write_text(rendered)
@@ -881,6 +885,12 @@ def _run_external(directory, record):
         if stdin:
             stdin.close()
         cleanup_qc_runtime(runtime)
+    orbital_report = None
+    if task['backend'].lower() == 'molpro':
+        from kinbot.molpro_diagnostics import write_native_report
+        orbital_report = write_native_report(
+            (directory / task['input_name']).with_suffix('.out'),
+            directory / task['input_name'])
     if result.returncode:
         error_file = directory / task.get('stderr', 'stderr.txt')
         detail = error_file.read_text(errors='replace').strip()[-1200:]
@@ -889,6 +899,9 @@ def _run_external(directory, record):
             f'Program exited with status {result.returncode}.{suffix}')
     _validate_external_outputs(directory, task)
     details = {'command': command, 'returncode': result.returncode, **runtime}
+    if orbital_report is not None:
+        details['orbital_audit'] = orbital_report.name
+        details['generated_files'] = [orbital_report.name]
     if task.get('result_parser'):
         from kinbot.anl.results import parse_result
         requested = task['result_parser']
@@ -1276,6 +1289,7 @@ def run_task(task_file):
                       task.get('stderr', 'stderr.txt')}
             names.update(task['required_outputs'])
             names.update(task.get('files_from_env', {}))
+            names.update(details.get('generated_files', []))
         else:
             names |= {'final.xyz', 'optimization.log'}
             if (directory / 'optimization.traj').is_file():

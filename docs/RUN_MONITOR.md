@@ -51,3 +51,9 @@ scratch, checkpoint payloads and per-sample RotdPy trees, and does not follow
 external symlinks. Log warnings may describe earlier attempts; quiet output
 alone does not prove a stall. The monitor never advances a dispatcher,
 modifies an ASE database, submits jobs, or retries calculations.
+
+For detailed native CAS/MRCI orbital evidence, workers separately write
+`*.orbital_audit.json` alongside their outputs. The heavier recursive
+`python -m kinbot.molpro_diagnostics RUN` command can rebuild/list those reports
+for both PES trees without changing calculations. It is deliberately separate
+from this bounded live dashboard; see the [native evidence contract](MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md).

@@ -152,3 +152,29 @@ def test_missing_output_warns_instead_of_failing(search, caplog):
     search.copy_low_log(search.last)
     assert not Path(search.low_log()).exists()
     assert 'restart will check every conformer again' in caplog.text
+
+
+def test_l0_search_does_not_use_the_l1_count(search):
+    # L0 screened three conformers, two passed to L1; the L1 search recorded
+    # its count, 2, in conf/<name>_low. The L0 restart must still see all three.
+    l0 = Conformers(search.species, search.par if hasattr(search, 'par') else Parameters('input.json').par,
+                    search.qc, semi_emp=1)
+    for i in range(3):
+        search.db.write(search.atoms, name=l0.get_job_name(i, add='semi_emp_'),
+                        data={'energy': -1. - i, 'zpe': .02, 'frequencies': [100.] * 6, 'status': 'normal'})
+    search.finish(2)  # the L1 search: two jobs, count 2 recorded
+    Path(search.low_log()).write_text('done\n')
+    assert search.completed_conformers() == 2
+    assert l0.completed_conformers() == 3
+    assert l0.conf_status == [-1, -1, -1]
+
+
+def test_publishing_the_selected_conformer_keeps_the_count(search):
+    search.finish(12)
+    source = list(search.db.select(name=search.last))[-1]
+    search.qc.publish_result(source, f'conf/{search.get_name()}_low')
+    latest = list(search.db.select(name=f'conf/{search.get_name()}_low'))[-1]
+    assert latest.data['copied_from_job'] == search.last
+    assert latest.data['nconf'] == 12
+    Path(search.low_log()).write_text('done\n')
+    assert search.completed_conformers() == 12

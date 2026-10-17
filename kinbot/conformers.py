@@ -876,8 +876,12 @@ class Conformers:
         if not os.path.exists(self.low_log()):
             return 0
         add = 'semi_emp_' if self.semi_emp else ''
-        low_rows = list(self.db.select(name=f'conf/{self.get_name()}_low'))
-        nconf = low_rows[-1].data.get('nconf') if low_rows else None
+        # conf/<name>_low belongs to the L1 search; its count does not apply
+        # to the L0 (_semi_emp_) search, which is found by name instead.
+        nconf = None
+        if not self.semi_emp:
+            low_rows = list(self.db.select(name=f'conf/{self.get_name()}_low'))
+            nconf = low_rows[-1].data.get('nconf') if low_rows else None
         if nconf:
             found = {i for i in range(int(nconf))
                      if self.db.count(name=self.get_job_name(i, add=add))}

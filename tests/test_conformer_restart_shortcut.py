@@ -157,8 +157,7 @@ def test_missing_output_warns_instead_of_failing(search, caplog):
 def test_l0_search_does_not_use_the_l1_count(search):
     # L0 screened three conformers, two passed to L1; the L1 search recorded
     # its count, 2, in conf/<name>_low. The L0 restart must still see all three.
-    l0 = Conformers(search.species, search.par if hasattr(search, 'par') else Parameters('input.json').par,
-                    search.qc, semi_emp=1)
+    l0 = Conformers(search.species, Parameters('input.json').par, search.qc, semi_emp=1)
     for i in range(3):
         search.db.write(search.atoms, name=l0.get_job_name(i, add='semi_emp_'),
                         data={'energy': -1. - i, 'zpe': .02, 'frequencies': [100.] * 6, 'status': 'normal'})
@@ -178,3 +177,14 @@ def test_publishing_the_selected_conformer_keeps_the_count(search):
     assert latest.data['nconf'] == 12
     Path(search.low_log()).write_text('done\n')
     assert search.completed_conformers() == 12
+
+
+def test_l0_search_under_profiles_uses_the_l1_low_file(search, monkeypatch):
+    # With l0_profile fairchem and l1_profile gaussian the L0 backend writes
+    # _sella.log, but conf/<name>_low is the L1 search's file.
+    from types import SimpleNamespace
+    l0 = Conformers(search.species, Parameters('input.json').par, search.qc, semi_emp=1)
+    backends = {True: SimpleNamespace(qc='fc', use_sella=True), False: SimpleNamespace(qc='gauss', use_sella=False)}
+    monkeypatch.setattr(search.qc, 'for_job', lambda job: backends['_semi_emp_' in job])
+    assert l0.log_ext(l0.get_job_name(0, add='semi_emp_')) == '_sella.log'
+    assert l0.low_log() == search.low_log() == f'conf/{search.get_name()}_low.log'

@@ -462,7 +462,8 @@ class Conformers:
                     data = {'energy': last_row.data.get('energy'),
                             'frequencies': last_row.data.get('frequencies'),
                             'zpe': last_row.data.get('zpe'),
-                            'status': last_row.data.get('status')}
+                            'status': last_row.data.get('status'),
+                            'nconf': self.conf}
                     self.db.write(mol, name='conf/{}_low'.format(name), 
                                   data=data)
                     #logger.warning(f'All conformer optimizations failed for {name}.')
@@ -624,8 +625,10 @@ class Conformers:
                     data = {'energy': row_last.data.get('energy'),
                             'frequencies': row_last.data.get('frequencies'),
                             'zpe': row_last.data.get('zpe'),
-                            'status': row_last.data.get('status')}
+                            'status': row_last.data.get('status'),
+                            'nconf': self.conf}
                     if low_row and hasattr(low_row, 'data') \
+                            and low_row.data.get('nconf') == self.conf \
                             and all((np.all(data.get(k) == v) 
                                      for k, v in low_row.data.items())):
                         pass
@@ -845,7 +848,7 @@ class Conformers:
     def log_ext(self, job):
         """Extension of the output file that marks a finished job of this backend."""
         backend = self.qc.for_job(job)
-        if getattr(backend, 'theory_level', None) and backend.use_sella:
+        if getattr(backend, 'use_sella', False) or backend.qc in ('fc', 'orca'):
             return '_sella.log'
         if backend.qc == 'gauss':
             return '.log'
@@ -873,13 +876,20 @@ class Conformers:
         if not os.path.exists(self.low_log()):
             return 0
         add = 'semi_emp_' if self.semi_emp else ''
-        prefix = self.get_job_name(0, add=add)[:-self.zf]
-        pattern = re.compile(re.escape(prefix) + r'(\d+)$')
-        found = set()
-        for row in self.db.select(include_data=False):
-            match = pattern.match(str(row.get('name', '')))
-            if match:
-                found.add(int(match.group(1)))
+        low_rows = list(self.db.select(name=f'conf/{self.get_name()}_low'))
+        nconf = low_rows[-1].data.get('nconf') if low_rows else None
+        if nconf:
+            found = {i for i in range(int(nconf))
+                     if self.db.count(name=self.get_job_name(i, add=add))}
+        else:
+            # Searches finished before the count was recorded: scan the names.
+            prefix = self.get_job_name(0, add=add)[:-self.zf]
+            pattern = re.compile(re.escape(prefix) + r'(\d+)$')
+            found = set()
+            for row in self.db.select(include_data=False):
+                match = pattern.match(str(row.get('name', '')))
+                if match:
+                    found.add(int(match.group(1)))
         if not found:
             return 0
         count = max(found) + 1

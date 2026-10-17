@@ -56,7 +56,6 @@ Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “
 | `vrc_tst_memory_mb` | `104000` | Branch hook. 104000 MB total requested memory per VRC allocation, covering all rank stacks and overhead. |
 | `simultaneous_kinbot` | `1` | Master key. One PES worker at a time, so ten jobs per worker remains ten per PES rather than multiplying across wells. |
 | `rotdpy_flux_parameters` | nested object/list: detailed below | Branch hook. Monte Carlo minimum/maximum counts and 1 percent relative statistical target. A sample ceiling does not establish convergence. |
-
 | `vrc_tst_surface_model` | `nested inline object` | Inline channels, physical surfaces, per-bond CAS counts and basis-specific orbital indices/checkpoints, states, weights and solver controls. No second configuration file. |
 | `sella_fmax` | `1e-4` | Final L1/L2 maximum force norm 0.0001 eV/angstrom, followed by native Hessian validation. Gaussian Opt keywords do not control Sella. |
 | `anl_geometry_fmax` | `1e-4` | Final automatic L3 geometry maximum force norm 0.0001 eV/angstrom; configurable for every molecule. |
@@ -64,6 +63,10 @@ Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “
 | `anl_cc_convergence` | `1e-8` | Coupled-cluster convergence 1e-8, mapped to each ANL backend. |
 | `vrc_tst_scf_convergence` | `1e-10` | Molpro VRC SCF convergence 1e-10. |
 | `vrc_tst_correlation_convergence` | `1e-8` | Molpro VRC correlation convergence 1e-8. |
+| `minimum_recovery_attempts` | `2` | Branch hook. Bounded Gaussian L1/L2 minimum descent and reoptimization, with fresh native Hessian each time. |
+| `minimum_recovery_displacement` | `0.02` | Branch hook. Full Cartesian displacement in angstrom; second attempt uses 0.04. Both signs must be evaluated. |
+| `imagfreq_threshold` | `50.0` | Existing minimum/TS frequency policy, in cm^-1. No threshold relaxation was used to accept the failed minima. |
+| `anl_minimum_recovery` | `attempts=2, displacement_angstrom=0.02, difference_step_angstrom=0.01, imaginary_threshold_cm_inverse=1.0` | Branch hook. Check unconstrained ANL minima before dependent energies; finite-difference force Hessian with rigid motions projected out, bounded downhill displacement/reoptimization. Adds 6N force evaluations per curvature check. Later native Molpro harmonic acceptance remains mandatory. `attempts=0` disables this extra check/recovery, not native harmonic validation. |
 
 ## Nested controls
 

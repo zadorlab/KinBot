@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "captured_utc": "2026-10-17T03:39:40.957053+00:00",
-  "base_commit": "6a4286caa654c3371df4aca8639c1743b42c7e23",
+  "captured_utc": "2026-10-17T03:50:22.562743+00:00",
+  "base_commit": "15866e0d8d36b28f3790a117d05557090525fe26",
   "status": "local_checks_passed_native_production_pending",
-  "command": "KINBOT_TEST_MESS=/private/tmp/kinbot-mess-native-check/build/mess_driver KINBOT_TEST_MESSPF=/private/tmp/kinbot-mess-native-check/build/partition_function .venv/bin/python -m pytest tests -q --disable-warnings -ra --tb=short --junitxml=/tmp/kinbot-dft-layout-final2.xml",
+  "command": "KINBOT_TEST_MESS=/private/tmp/kinbot-mess-native-check/build/mess_driver KINBOT_TEST_MESSPF=/private/tmp/kinbot-mess-native-check/build/partition_function .venv/bin/python -m pytest tests -q --disable-warnings -ra --tb=short --junitxml=/tmp/kinbot-dft-handoff-final.xml",
   "result": {
-    "tests_passed": 1818,
+    "tests_passed": 1834,
     "subtests_passed": 424,
     "failures": 0,
     "errors": 0,
     "skipped": 0,
     "warnings": 2,
-    "seconds": 78.55
+    "seconds": 80.26
   },
   "native_backend_tests": [
     "test_actual_rotd_microcanonical_integral_has_analytic_normalization",
@@ -28,51 +28,55 @@
     "72 Gaussian L1/L2 input previews and 20 CASPT2 method/root/basis component previews through actual production renderers.",
     "DFT L1 preset propagation through minima, conformers, path/TS, IRC and reference scans; tight L1/L2/L3 controls.",
     "Bounded Hessian-based minimum recovery, failed-spectrum rejection, worker publication and detailed monitoring of both PES trees.",
-    "Scoped stop/archive/fresh restart, duplicate-launch refusal, early preflight failure leaves old calculations intact."
+    "Scoped stop/archive/fresh restart, duplicate-launch refusal, early preflight failure leaves old calculations intact.",
+    "ANL L3 unconstrained minima: projected central-force curvature, bounded two-sign downhill recovery before publishing final geometry; native harmonic validation unchanged.",
+    "Input comparison against previous layout commit: all existing keys and values unchanged; four explicit minimum-recovery controls added to each input; six WFU hashes still match.",
+    "Obsolete untracked example folders are archived after preflight; all candidates checked for tracked files before any move."
   ],
   "limitations": [
     "Gaussian and Molpro are not run by the local template/integration tests.",
     "Native acceptance of the new DFT L1 and bounded L2 minimum recovery requires the fresh Blodgett run.",
     "The 1% RotdPy target does not establish achieved convergence; final flux and MESS results remain to be reviewed.",
-    "Passing tests is bounded evidence, not proof that no unknown bug or backend failure exists."
+    "Passing tests is bounded evidence, not proof that no unknown bug or backend failure exists.",
+    "New ANL curvature recovery is tested with physical model surfaces, not native Molpro locally. It adds 6N force evaluations per check; Molpro conventional CCSD(T) forces use numerical energy derivatives."
   ],
   "artifacts": {
     "validation/pytest.log": "573a3c80f02cb086acf3d0117c0e4f7df32bca2f9f34034810e8a50196494f21",
     "validation/pytest.xml.gz": "47087df288021144b0b5ad41dbf4d6b0e46416ca8cfcc20f75b4c4cfa9341908"
   },
   "source_sha256": {
-    "examples/anl/ch3s_anl1_f12/ch3s.json": "bd35d57a45a33049a8b8d53dad9981d2e5a87e68db7e73e2b7139ebaf8966b36",
-    "examples/anl/ch3ss_anl1_f12/ch3ss.json": "425878deb091aa967e114320a3b678ae27e9be1c133a6f4496eca2147884ce26",
+    "examples/anl/ch3s_anl1_f12/ch3s.json": "9634d68905cb10fe4799fed712718f2bd755a1c4d060560a0d77cbd8a0252457",
+    "examples/anl/ch3ss_anl1_f12/ch3ss.json": "de852c2768a2a796de3d7aed251a3cd55ce771e35fb22d882b4a591e18873e58",
     "examples/anl/ch3ss_anl1_f12/orbital_reviews/joint_history/molpro_confirmation/restart_on_blodgett.sh": "c631f6dbf0602ea76d280d15a007c2e2d40bb40153ea6ca39d77ef8d5833304c",
     "examples/anl/tools/restart_on_blodgett.sh": "fc4e9ba65792e82b210c04bf3cc8357b210cd53799c075ae642c766d290a0a93",
-    "examples/anl/tools/run_examples.py": "cb64d73d51d73bf51b80a88b150446eb36fab24ad1ba9d03177731203941c3f4",
-    "kinbot/anl/automatic.py": "f7dbc3eb968b114442d0a9024f35c2326f8155331c6d83e50adfff6c0260525b",
-    "kinbot/anl/validation.py": "6eea9d9428ccf8d3c716f69b52127495dbb9bbc50a80ed0ca5bc45b1da578bf8",
+    "examples/anl/tools/run_examples.py": "92ac749da8b0ca9d367b31fc781d8c51d41cc9d20581bafdf8e7bff840f9b72b",
+    "kinbot/anl/automatic.py": "faed320f068b5a5f2a3a919ce08ba83acb258e83e8791b3180f10117231ce5cd",
+    "kinbot/anl/validation.py": "18de25f21d48a249e91a0620ffb65f7da8656aff5b01bbd544d53cbbc1bd22f1",
     "kinbot/ase_modules/calculators/molpro.py": "22edc52c2ff71c1afefa23a5098dae7b39a87d6a22ebefaf0011eec7e3d521c2",
     "kinbot/frequencies.py": "5d4542d45165af3e2a54e5e12bf2436feaf789187b12cf7e1bcb452f14269ad5",
     "kinbot/irc.py": "974a6472e0742cf9306fbc41b52d762bbf2fd3fdde57ddc1132f678215518d6d",
     "kinbot/kb.py": "13978b57e4b2c9e6cfc1ba4a35c5e22b4482272083bc632280b7fe0b2477b17e",
     "kinbot/mess.py": "de94ff07fcefb46a8c24ec9ceb8190079b352bf95a0bd2aaf798811bd018d02b",
-    "kinbot/minimum_recovery.py": "73ebe0c2a3553ebc2dc70f912e6be312a9c2b04da9c493811379808d90f57592",
+    "kinbot/minimum_recovery.py": "d08760a8136dbd149f524a4775d90996c7c913a05ccf898e49b78e99b4c8eed3",
     "kinbot/molpro.py": "bfb3cb583cc05c5f06ab50fcc6d7b172380be8c008fa217c4fa2375cd90f6d27",
     "kinbot/molpro_reconnaissance.py": "5eb2ca765b1f8fd54b5be33cfe609eff0800dfe9897b27136480dc64e5795e56",
     "kinbot/orbital_review.py": "28c6786153f8bea8561af0a3eeaa8b535f9b6eab7065fea4c6712f75344fd1fd",
-    "kinbot/parameters.py": "d86262a6b8bbf338497262238cab23cf0532b746dce86ddf24c07d2dbc833f70",
+    "kinbot/parameters.py": "ab58acbb99b9b520debea1bd9be875ae4ae859ce5f2f4348cc5437e4864747fd",
     "kinbot/profiled_qc.py": "16f0e27f125abcdc29cabe9812122462bdd9e331e5705a8fc40afc4a38456a5a",
     "kinbot/qc.py": "9a0e868208b4dd80b580e7bf09254e3f24d1c14fa6c8c2405d38a535a0999ba9",
     "kinbot/reac_family.py": "a07426cb9e262136cbbedbbfe9ddbc54528a2239e26d7d1dadf230395821bf0a",
     "kinbot/rotdpy_mess.py": "30c68fc647bc2dd208f36d999829713e667ef4c59fee6c0a64c164ceeac3cb15",
-    "kinbot/run_monitor.py": "088623074e4d3b2836f99a7b30086e1258ccee3e8b29721baf59a4767a8cb4b9",
+    "kinbot/run_monitor.py": "86433fcc0dcb011faac39b59d6513c543edf4b0d1f2d48d05a2f596a846a0e26",
     "kinbot/theory.py": "81fe3d4d17cd7f2dbd000380a68592c93e96dcf6a4573c920db4dc643660885e",
     "kinbot/tpl/ase_sella_opt_well.tpl.py": "066d031c3cb15a5291ed5881dd064b7b7842f9e88556f48c3e4a7ccd2889836f",
     "kinbot/tpl/ase_sella_ts_end.tpl.py": "3b543825d732652e085286c7c59aaa2f1c199ac5a3f80489f8589c7d3cb3d283",
     "kinbot/vrc_correction.py": "540ba691ec91b311aa05a955eb40eebba3ddcadbdaabdcf0be5f756e09bd6ea4",
     "kinbot/vrc_multistate.py": "ee7cf1413046a88e674da002e634aa4b7623af6b0339ae7b0f9c62d46a9c5a7c",
     "kinbot/vrc_tst_scan.py": "9fa518a2425aefaaafb277c56d77b2246fdadf71b76fbb9596efe24d97b84015",
-    "tests/test_anl_automatic.py": "58959b56db7c123d8a651c289c8e9ebb90cd8fe545fd1f5eccf4e72305c30908",
+    "tests/test_anl_automatic.py": "c1ec2adf43f804fd924f92ca0e84893d95e4d3768cee19755736563275a04b52",
     "tests/test_anl_automatic_input.py": "55be1d99d44651363e0bbd4df36924d54b0cef43f963794a16df9664e358accb",
     "tests/test_anl_sulfur_examples.py": "b3f996a2155e79846d90c14af42d67f96edabd260aeadebd9f64abae980f11d9",
-    "tests/test_caspt2_handoff.py": "1124790d2659adfd4e577c53bfe907cc5d8a5843e4ed40a24064a88582fcaa11",
+    "tests/test_caspt2_handoff.py": "90346b5fe58447c84faa3408e4a691e49bb477337cb090aa270c79acc910502f",
     "tests/test_caspt2_production.py": "efa939ed5582973251afa7e5d7c7190255506218f4645de9b229489ab3a80a32",
     "tests/test_inline_orbital_selection.py": "4a28c9fc15616e7b94319165638e0d64eea24eeb98676d308f8c43a9b94b611d",
     "tests/test_minimum_recovery.py": "a97ae580c882422c966ab5396460358df6702ca52b6232e4b9bb31fb6585293c",
@@ -82,10 +86,16 @@
     "tests/test_orbital_review.py": "74a71c187398d5c7478b8fbcea84d37615952a24af506f70fed9df49648138d8",
     "tests/test_reaction_coordinate_path.py": "facd14911fe28336e812557769d95e71bb68b0535712a7302e694958cfba6695",
     "tests/test_recon_slurm_startup.py": "2fe797a93a20b41ad8269b1d5dd946ad3d63088ba62e21dca71ca824a517d79a",
-    "tests/test_run_monitor.py": "0c139d2665520bddbb44abf886b4873280d668949d20f9779d11bbe02addc306",
+    "tests/test_run_monitor.py": "44ec15350a7eb14b0632223d7ea5fe3a1c781b3027b223e07732a760e147b235",
     "tests/test_selected_hessian.py": "064470c31ce754251731600f0a02320482d53360fac42e32f9c95d8c23c4fd85",
     "tests/test_sella_worker_results.py": "549c7e359c391cee4b97e5ee37ad479ac234f068536615840a09f2817ba15490",
     "tests/test_theory_profiles.py": "1b465eea1bd374ea55dd7627e7d64acdcd1601f363adfa0f82af864a2fe22733",
-    "tests/test_vrc_multistate.py": "a5234fc695885eefb78eb8324b570cea627e9381c8a4914824cac03757419cec"
+    "tests/test_vrc_multistate.py": "a5234fc695885eefb78eb8324b570cea627e9381c8a4914824cac03757419cec",
+    "kinbot/anl/dispatch.py": "2e50a3c04a37e37523c5cb349f66011f2291f07a5dbbb10d624e08fe826357f0",
+    "tests/test_anl_minimum_recovery.py": "744490bbc800487b48767161a60aac11fb8eeff4fa7e33ff2c7183f37c4d2af2"
+  },
+  "retained_test_logs": {
+    "examples/anl/tools/validation/pytest.log": "1952767991e37f0dc961d2451bfdaf387483fa89afc723e4c1b69162abf160ac",
+    "examples/anl/tools/validation/pytest.xml.gz": "a3d063b2d9411ab41915d78f00e1ef26b3f3d3bf7e781406b178576c857d7a80"
   }
 }

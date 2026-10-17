@@ -91,6 +91,36 @@ def verify(root):
     return record
 
 
+def archive_legacy_example_layout(root):
+    """Preserve obsolete untracked files that git pull cannot relocate.
+
+    These are example/review artifacts, not jobs or production configuration.
+    Check every directory against the current index before moving any of them.
+    """
+    names = ('caspt2_production', 'orbital_reviews', 'acetaldehyde_cbh_anl0_f12')
+    candidates = [REPO/'examples/anl'/name for name in names
+                  if (REPO/'examples/anl'/name).exists()]
+    if not candidates:
+        return []
+    for path in candidates:
+        if path.is_symlink() or not path.is_dir():
+            raise ValueError(f'Unexpected obsolete example path: {path}')
+        tracked = subprocess.check_output(
+            ['git', 'ls-files', '-z', '--', str(path.relative_to(REPO))], cwd=REPO)
+        if tracked:
+            raise ValueError(f'Cannot archive tracked example files: {path}; update the repository first.')
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    archive = root.parent/('anl_example_layout.stopped.'+stamp)
+    archive.mkdir()
+    report = []
+    for path in candidates:
+        destination = archive/path.name
+        path.rename(destination)
+        report.append({'source': str(path), 'archive': str(destination)})
+        atomic_json(root/'repository_layout_archive.json', report)
+    return report
+
+
 def preflight(root):
     from kinbot.anl.automatic import validate_automatic_environment
     from kinbot.anl.site import render_site_setup
@@ -359,6 +389,7 @@ if __name__ == '__main__':
             result['preflight'] = preflight(root)
         if args.action == 'launch':
             assert_not_started(root)
+            result['archived_repository_layout'] = archive_legacy_example_layout(root)
             if args.retire_parent:
                 result['retired'] = retire(root, args.retire_parent)
             if args.replace_production:

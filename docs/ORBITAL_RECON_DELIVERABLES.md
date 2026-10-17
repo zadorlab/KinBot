@@ -35,7 +35,7 @@ provenance, not production prerequisites. The user has ended MRCI retries.
 | 8. Integration/general defaults | Profile routing and minimum recovery audited | Current coverage and exact full-suite results are in the [DFT restart validation](../examples/anl/tools/dft_restart_validation.json). Native production remains pending. |
 | 9. Evidence/documentation | Complete for handoff | Parameter-by-parameter provenance, native evidence, limitations and commands linked below. |
 | 10. Cleanup inventory | Example/configuration cleanup complete; native purge deferred | Removed obsolete external model JSONs, caspt2_production and acetaldehyde example. Each PES has one root input with its own checkpoints/evidence/docs below orbital_reviews. Original mixed evidence is retained once; do not purge before production finishes. |
-| 11. Consolidated production handoff | Revised for DFT L1 and general recovery | New preset, 1% RotdPy target, tight L1/L2/L3 criteria, both-level preflight, detailed two-PES monitor, bounded retries, and `_r2` to `_r3_dft` restart supplied. Native Gaussian recovery still requires execution. |
+| 11. Consolidated production handoff | Revised for DFT L1 and general recovery | New preset, 1% RotdPy target, tight L1/L2/L3 criteria, both-level preflight, detailed two-PES monitor, bounded L1/L2 and ANL L3 minimum recovery, and `_r2` to `_r3_dft` restart supplied. Native recovery still requires execution. |
 | 12. Previous-run retirement | Nine orbital campaigns and original production retired; `_r2` retirement prepared | Helper stops both marked `_r2` PES trees before archiving their common parent. No unrelated work or shared scratch is removed. |
 
 The [production handoff](../examples/anl/tools/README.md) and its linked full
@@ -352,6 +352,13 @@ historical submission cancelled/deleted nothing. The new production helper
 retires only the explicit superseded campaign list after its preflight succeeds.
 
 ## Maintenance record
+
+- Final restart audit: self-contained inputs retain all existing settings and six
+  checkpoint hashes. Added explicit bounded ANL L3 minimum recovery before
+  dependent energies; tests cover recovery and bounded failure. Current full
+  regression: 1,834 tests plus 424 subtests, zero failures/skips. Native recovery
+  and the end-to-end acceptance remain pending. Obsolete untracked example
+  folders are archived, not deleted, by the restart helper.
 
 - 2026-10-16, production L2 follow-up: the corrected Gaussian input reaches a
   small-force CH3S stationary point, but its fresh Hessian has a −587.334 cm⁻¹

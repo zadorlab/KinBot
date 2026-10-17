@@ -20,6 +20,10 @@ initial L2 job but later rejected the CH3S UMA product at L1. The new
 B2PLYP-D3(BJ)/cc-pVTZ at L2. Both Gaussian levels have bounded minimum
 recovery with fresh Hessian validation. The [current evidence and retry plan](../../../docs/MINIMUM_RECOVERY_2026-10-16.md)
 records what is fixed and what still requires native execution.
+Unconstrained automatic ANL L3 minima now also have bounded curvature/descent
+recovery before dependent energies. This adds 6N force evaluations per check;
+the independent native harmonic check remains required. All recovery controls
+are explicit in the two inputs, with no changes to spin or electronic levels.
 
 The current inputs are **one JSON per PES**: all channel, state, solver and
 orbital-index choices are inline. The obsolete separate surface/state JSON
@@ -29,6 +33,11 @@ statistical target is **1%**. Final L1/L2 and automatic L3 force thresholds
 are **0.0001 eV/angstrom**, with SCF Conver10 / Molpro 1e-10 and CC 1e-8.
 Preflight renders both Gaussian profiles and every declared CASPT2
 channel/root/basis before stopping the old run.
+
+Current full regression: **1,834 tests and 424 subtests passed**, zero failures
+or skips, including native backend checks. The [validation record](dft_restart_validation.json)
+retains the command, source hashes and compressed test report. This is local
+verification; native Gaussian/Molpro recovery and production remain to be run.
 
 ## Accepted inputs and scope
 
@@ -120,6 +129,11 @@ runtime check. Preparation saves complete resolved JSON and input hashes.
 The helper refuses duplicate launch. A preflight/stop failure prevents the
 replacement launch; unrelated jobs and shared scratch remain untouched.
 The complete archived path is recorded in `production_retirement.*.json`.
+Old untracked copies left by `git pull` in the three obsolete example folders
+(`caspt2_production`, `orbital_reviews`, `acetaldehyde_cbh_anl0_f12`) are moved
+to an `anl_example_layout.stopped.*` sibling of the new run. This step refuses
+to move any folder containing tracked files. The destination is recorded in
+`repository_layout_archive.json`; original exports/checkpoints are retained.
 
 ```bash
 watch -n 10 '/home/hram/KinBot/.venv/bin/python /home/hram/KinBot/examples/anl/tools/run_examples.py monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261016_r3_dft --all'

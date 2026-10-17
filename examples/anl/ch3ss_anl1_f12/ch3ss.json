@@ -703,5 +703,14 @@
   "anl_scf_convergence": 1e-10,
   "anl_cc_convergence": 1e-08,
   "vrc_tst_scf_convergence": 1e-10,
-  "vrc_tst_correlation_convergence": 1e-08
+  "vrc_tst_correlation_convergence": 1e-08,
+  "minimum_recovery_attempts": 2,
+  "minimum_recovery_displacement": 0.02,
+  "imagfreq_threshold": 50.0,
+  "anl_minimum_recovery": {
+    "attempts": 2,
+    "displacement_angstrom": 0.02,
+    "difference_step_angstrom": 0.01,
+    "imaginary_threshold_cm_inverse": 1.0
+  }
 }

@@ -354,6 +354,16 @@ def test_automatic_f12_augmentation_updates_native_tasks_and_intent():
     assert tasks['l3_geometry']['optimizer']['fmax'] == 1e-4
     tight = automatic_composite_spec(mol, highest_tier='ANL1-F12', geometry_fmax=5e-5)
     assert all(t['optimizer']['fmax'] == 5e-5 for t in tight['tasks'] if t['kind'] == 'ase_optimize')
+    assert all(t['optimizer']['minimum_recovery']['attempts'] == 2
+               for t in tight['tasks'] if t['kind'] == 'ase_optimize')
+    disabled = automatic_composite_spec(mol, highest_tier='ANL1-F12',
+                                       minimum_recovery={'attempts': 0})
+    assert all(t['optimizer']['minimum_recovery']['attempts'] == 0
+               for t in disabled['tasks'] if t['kind'] == 'ase_optimize')
+    saddle = automatic_composite_spec(mol, highest_tier='ANL1-F12',
+                                     stationary_point='transition_state')
+    assert all('minimum_recovery' not in t['optimizer']
+               for t in saddle['tasks'] if t['kind'] == 'ase_optimize')
 
 
 def test_automatic_environment_checks_final_solvers_before_qc(

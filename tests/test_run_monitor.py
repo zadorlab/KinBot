@@ -54,6 +54,18 @@ def test_unknown_scheduler_not_reported_as_empty(production, monkeypatch):
     assert 'INACTIVE:' not in text
 
 
+def test_anl_curvature_recovery_report_is_visible(production):
+    root, case = production
+    put(case/'anl/tasks/l3_geometry/minimum_recovery.json', {
+        'status': 'minimum_curvature_accepted', 'controls': {'attempts': 2},
+        'attempts': [{'lowest_frequency_cm_inverse': -587.,
+                     'selected_energy_eV': -10.1},
+                    {'lowest_frequency_cm_inverse': 125.}]})
+    text = monitor.render(monitor.snapshot(root), include_all=True)
+    assert 'minimum_curvature_accepted' in text
+    assert 'curvature_checks' in text and '-587.0' in text
+
+
 def test_active_jobs_scoped_and_resources_visible(production, monkeypatch):
     root, case = production
     raw = ('42|RUNNING|node20|00:30|31-00:00:00|8|10G|node16|well_high|node20|'

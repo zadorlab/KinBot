@@ -176,3 +176,43 @@ def test_inline_vrc_preflight_renders_all_reviewed_channels_and_roots(handoff, t
         assert entry['active_indices'] == (list(range(11,15)) if 'ch3s/' in entry['path'] else list(range(18,23)))
     assert not list((root/'assets').glob('*state_model.json'))
     assert not list(root.rglob('surfaces.json'))
+
+
+def test_obsolete_layout_archive_preserves_untracked_data_and_ignores_other_directories(handoff, tmp_path, monkeypatch):
+    repo = tmp_path/'repo'
+    old = repo/'examples/anl/caspt2_production/orbitals'
+    old.mkdir(parents=True)
+    (old/'old.wfu').write_bytes(b'retained native data')
+    unrelated = repo/'examples/anl/unrelated'
+    unrelated.mkdir()
+    (unrelated/'input.json').write_text('{}')
+    root = tmp_path/'new_run'; root.mkdir()
+    monkeypatch.setattr(handoff, 'REPO', repo)
+    calls = []
+    def untracked(command, **kwargs):
+        calls.append(command)
+        assert kwargs['cwd'] == repo
+        assert command[:4] == ['git', 'ls-files', '-z', '--']
+        return b''
+    monkeypatch.setattr(handoff.subprocess, 'check_output', untracked)
+    result = handoff.archive_legacy_example_layout(root)
+    assert len(result) == len(calls) == 1
+    assert (Path(result[0]['archive'])/'orbitals/old.wfu').read_bytes() == b'retained native data'
+    assert not old.parent.exists()
+    assert (unrelated/'input.json').is_file()
+    assert json.loads((root/'repository_layout_archive.json').read_text()) == result
+    assert handoff.archive_legacy_example_layout(root) == []
+
+
+def test_layout_archive_refuses_all_moves_if_any_candidate_is_tracked(handoff, tmp_path, monkeypatch):
+    repo = tmp_path/'repo'
+    first = repo/'examples/anl/caspt2_production'; first.mkdir(parents=True)
+    second = repo/'examples/anl/orbital_reviews'; second.mkdir()
+    root = tmp_path/'new_run'; root.mkdir()
+    monkeypatch.setattr(handoff, 'REPO', repo)
+    monkeypatch.setattr(handoff.subprocess, 'check_output',
+        lambda command, **kwargs: b'source.py\0' if command[-1].endswith('orbital_reviews') else b'')
+    with pytest.raises(ValueError, match='tracked example files'):
+        handoff.archive_legacy_example_layout(root)
+    assert first.is_dir() and second.is_dir()
+    assert not (root/'repository_layout_archive.json').exists()

@@ -633,6 +633,7 @@ def build_network_request(root, parameters):
             'cc_convergence': float(parameters.get(
                 'anl_cc_convergence', 1.e-8)),
             'geometry_fmax': float(parameters.get('anl_geometry_fmax', 1.e-4)),
+            'minimum_recovery': parameters.get('anl_minimum_recovery', {}),
             'f12_augmented': bool(parameters.get(
                 'anl_f12_augmented', 0)),
         },
@@ -1295,6 +1296,7 @@ def _prepare_graphs(plan, sources, root):
                 scf_convergence=plan['resources']['scf_convergence'],
                 cc_convergence=plan['resources']['cc_convergence'],
                 geometry_fmax=plan['resources'].get('geometry_fmax', 1.e-4),
+                minimum_recovery=plan['resources'].get('minimum_recovery', {}),
                 f12_augmented=plan['resources'].get(
                     'f12_augmented', False))
             prepare(specification, graph)
@@ -1319,6 +1321,7 @@ def _prepare_graphs(plan, sources, root):
                 scf_convergence=plan['resources']['scf_convergence'],
                 cc_convergence=plan['resources']['cc_convergence'],
                 geometry_fmax=plan['resources'].get('geometry_fmax', 1.e-4),
+                minimum_recovery=plan['resources'].get('minimum_recovery', {}),
                 f12_augmented=plan['resources'].get(
                     'f12_augmented', False))
             prepare(specification, graph)

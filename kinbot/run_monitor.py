@@ -32,7 +32,8 @@ PROGRESS = re.compile(r'PROGRAM\s*\*|SCF Done:|Step number|Optimization complete
 LOG_NAMES = {'driver.log', 'pes.log', 'kinbot.log', 'kinbot.err', 'kinbot.out'}
 STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'mess_execution.json', '.kinbot_post_reaction_branches.json',
-               'kinbot_status.json', 'pes_status.json', 'recovery.json'}
+               'kinbot_status.json', 'pes_status.json', 'recovery.json',
+               'minimum_recovery.json'}
 REACTION_STAGES = {-999: 'failed/rejected', -1: 'accepted', 0: 'TS search',
                    1: 'barrier/IRC', 2: 'product characterization',
                    3: 'start product/TS optimization', 4: 'product/TS optimization',
@@ -209,6 +210,9 @@ def artifacts(paths, root, warnings):
             item['recovery'] = {key: data.get(key) for key in
                 ('attempt', 'frequency_cm-1', 'displacement_angstrom',
                  'selected', 'energy_change_eV')}
+        elif path.name == 'minimum_recovery.json':
+            item['recovery'] = {'controls': data.get('controls'),
+                                'curvature_checks': data.get('attempts', [])}
         elif path.name.endswith('.result.json'):
             item['recovery'] = {'completed_attempts': data.get('minimum_recovery_attempts', 0)}
         elif path.name == 'execution.json' and data.get('status') not in ('failed', 'unavailable'):

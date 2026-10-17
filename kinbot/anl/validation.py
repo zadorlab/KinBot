@@ -809,6 +809,7 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                              scf_convergence=1.e-10,
                              cc_convergence=1.e-8,
                              geometry_fmax=1.e-4,
+                             minimum_recovery=None,
                              f12_augmented=False):
     """Build the automatic post-L2 graph for one stable point or tight TS.
 
@@ -817,6 +818,9 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
     contains only work that can contribute to the requested highest tier or
     one of its declared fallbacks.
     """
+    from kinbot.minimum_recovery import validate_anl_recovery
+    recovery = validate_anl_recovery(
+        {} if minimum_recovery is None else minimum_recovery)
     ladders = {
         'ANL1-F12': ('ANL1-F12', 'ANL1', 'L3', 'L3-SP@L2', 'L2'),
         'ANL1': ('ANL1', 'L3', 'L3-SP@L2', 'L2'),
@@ -983,6 +987,9 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         profile = task.get('profile')
         if task.get('kind') == 'ase_optimize':
             task['optimizer']['fmax'] = geometry_fmax
+            if (not task['optimizer'].get('order', 0)
+                    and not task['optimizer'].get('constraints')):
+                task['optimizer']['minimum_recovery'] = dict(recovery)
         if isinstance(profile, dict):
             calculator = str(profile.get('calculator', '')).casefold()
             kwargs = dict(profile.get('calculator_kwargs', {}))

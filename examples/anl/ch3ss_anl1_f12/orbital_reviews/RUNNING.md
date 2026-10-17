@@ -65,7 +65,7 @@ sampling. The relaxed target scan continues to differentiate its
 explicit doublet root. This fixes a root-number assumption; it does not
 guarantee universal orbital/state tracking or CC reference quality.
 
-## L1/L2 minimum recovery
+## L1/L2/L3 minimum recovery
 
 The ordinary Gaussian/Sella/native-Hessian worker now supports bounded
 imaginary-mode descent for rejected minima. Defaults are two attempts and
@@ -74,7 +74,13 @@ and a new optimization and Hessian must pass before acceptance. No manual
 geometry change or U-to-RO method switch is part of a clean restart.
 See [native curvature evidence, controls and the isolated check command](../../../../docs/MINIMUM_RECOVERY_2026-10-16.md).
 The production restart uses this general feature at both Gaussian levels.
-Native acceptance of the new recovery remains pending; the isolated check is optional.
+Automatic ANL unconstrained minima also perform a projected force-difference
+curvature check before dependent energies, with the explicit
+`anl_minimum_recovery` controls. This costs 6N force evaluations per check;
+the later native harmonic calculation remains mandatory. Failed recovery
+uses the declared ANL fallback policy. No descent is applied to transition
+states or constrained VRC scans. Native acceptance of the new recovery
+remains pending; the isolated Gaussian check is optional.
 
 ## What these runs do
 
@@ -247,7 +253,7 @@ examples complete, as requested.
 
 ## Final local validation for this restart
 
-The final reorganized tree passed **1,818 tests and 424 subtests**, with
+The final reorganized tree passed **1,834 tests and 424 subtests**, with
 zero failures or skips and two warnings, including five native RotdPy/MESS/
 MESSPF checks. [Commands, hashes, logs and coverage limits](../../tools/dft_restart_validation.json)
 are retained. Each input was also tested after copying only that JSON and

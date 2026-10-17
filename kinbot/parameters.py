@@ -11,7 +11,8 @@ import logging
 import numpy as np
 from ase import units
 from kinbot import pp_tables
-from kinbot.minimum_recovery import RECOVERY_DEFAULTS
+from kinbot.minimum_recovery import (RECOVERY_DEFAULTS, ANL_RECOVERY_DEFAULTS,
+                                     validate_anl_recovery)
 from kinbot.theory import (automatic_cbh_anl_requested, profiled_requested,
                            convergence_exponent, resolve_profiles,
                            validate_anl_size_policy)
@@ -235,6 +236,7 @@ class Parameters:
             'anl_scf_convergence': 1.e-10,
             'anl_cc_convergence': 1.e-8,
             'anl_geometry_fmax': 1.e-4,
+            'anl_minimum_recovery': dict(ANL_RECOVERY_DEFAULTS),
             # Optional full augmentation of the F12 reference branch.
             # Conventional ANL reference bases are always fully augmented,
             # including hydrogen.
@@ -787,6 +789,8 @@ class Parameters:
             value = self.par[key]
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value) or value <= 0:
                 raise ValueError(f'{key} must be a positive finite force threshold in eV/angstrom.')
+        self.par['anl_minimum_recovery'] = validate_anl_recovery(
+            self.par['anl_minimum_recovery'])
         if (isinstance(self.par['anl_f12_augmented'], bool)
                 or self.par['anl_f12_augmented'] not in (0, 1)):
             raise ValueError('anl_f12_augmented must be 0 or 1.')

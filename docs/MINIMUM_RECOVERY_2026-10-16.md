@@ -89,7 +89,9 @@ The feature is in `kinbot/minimum_recovery.py` and the ordinary generated
 Sella minimum worker. It contains no element, molecule, bond or species-ID
 dispatch. It currently supports **Gaussian + external Sella/BFGS optimization
 + native Gaussian Hessians**, for wells and minimum conformers. It does not
-apply minimum descent to transition states or constrained VRC scans.
+apply minimum descent to transition states or constrained VRC scans. Automatic
+ANL minimum geometry tasks have the additional backend-independent curvature
+and recovery path described below.
 
 1. Optimize normally and evaluate a fresh fixed-geometry Hessian.
 2. If a minimum fails the ordinary frequency criterion and has a mode below
@@ -140,6 +142,58 @@ travel through a private entry removed from Sella options before optimizer
 construction. An already running controller can render the updated template
 with the default controls; it does not need new formatting arguments. A
 previously generated worker script is not rewritten by pulling this change.
+
+## ANL L3 minimum recovery before dependent calculations
+
+The automatic ANL graph now supplies `optimizer.minimum_recovery` to its
+unconstrained minimum geometry tasks, including the TZ and QZ L3 steps. This
+does not apply to TS or constrained VRC scans. Atomic geometry steps remain
+identities. A geometry is not released to dependent energy jobs until its
+additional curvature check passes. This fixes a gap in the earlier recovery,
+which only retried Gaussian L1/L2 minima and could fall back after an L3 failure.
+
+The public `anl_minimum_recovery` object is explicit in both example inputs:
+
+```json
+{
+  "attempts": 2,
+  "displacement_angstrom": 0.02,
+  "difference_step_angstrom": 0.01,
+  "imaginary_threshold_cm_inverse": 1.0
+}
+```
+
+A central finite difference of forces produces the Cartesian Hessian. The
+mass-weighted rigid translations and rotations are projected out, with five
+rigid directions for an exactly linear molecule and six for a nonlinear one.
+The signed vibrational eigenvalues identify the lowest imaginary mode. Force
+differences are the standard numerical-Hessian construction described in the
+[ASE vibration implementation](https://docs.ase-lib.org/_modules/ase/vibrations/vibrations.html).
+This uses calculated forces, not Sella's approximate optimization Hessian.
+
+Both displacement signs are evaluated at the same electronic level. Only a
+decrease larger than 1e-6 eV permits a fresh optimization; another curvature
+check follows it. The second displacement is 0.04 angstrom. Nonconvergence,
+failed/nonfinite evaluations, no descent or exhaustion of the two attempts
+fails the geometry task and leaves the declared ANL fallback policy in force.
+It does not silently accept the geometry or change spin, method, basis or SCF
+settings. Setting `attempts=0` disables this extra check/recovery.
+
+**Cost and limits:** each curvature check adds 6N force evaluations. Molpro
+conventional CCSD(T) forces themselves use numerical energy derivatives, so
+this check has a material cost. The separate native harmonic calculation is
+still required for thermochemistry and remains authoritative; this preliminary
+check neither supplies its ZPE nor loosens its rejection threshold. Finite
+difference noise or a remaining native frequency rejection can still cause an
+explicit task failure. A bounded local search cannot guarantee a global minimum.
+
+Every force probe's geometry, energy and forces, the Hessian, signed modes,
+both descent trials and optimizer snapshots are retained. Native Molpro step
+inputs/outputs remain intact. `minimum_recovery.json` and associated files
+are included in the execution artifact hashes and visible in the two-PES
+monitor. Model-surface tests cover force-converged saddles, recovery to a true
+minimum, fresh curvature validation and bounded failure. Native L3 execution
+of this new path remains a Blodgett acceptance check.
 
 ## Restart and retry policy
 

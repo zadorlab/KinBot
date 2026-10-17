@@ -241,7 +241,7 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
         options = task.get('optimizer', {})
         if (not isinstance(options, dict) or
                 set(options) - {'fmax', 'steps', 'sella_kwargs', 'order',
-                                'constraints'}):
+                                'constraints', 'minimum_recovery'}):
             raise ValueError(f'{ident}: invalid optimizer options.')
         if ('sella_kwargs' in options and not isinstance(options['sella_kwargs'], dict)):
             raise ValueError(f'{ident}: sella_kwargs must be an object.')
@@ -257,6 +257,11 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
             raise ValueError(f'{ident}: optimizer order must be 0 or 1.')
         if options.get('order', 0) and profile.optimizer != 'sella':
             raise ValueError(f'{ident}: a saddle optimization requires Sella.')
+        if 'minimum_recovery' in options:
+            from kinbot.minimum_recovery import validate_anl_recovery
+            validate_anl_recovery(options['minimum_recovery'])
+            if options.get('order', 0) or options.get('constraints'):
+                raise ValueError(f'{ident}: minimum recovery requires an unconstrained minimum.')
         constraints = options.get('constraints', {})
         if not isinstance(constraints, dict) or set(constraints) - {
                 'fixed_bonds', 'minimum_bonds'}:
@@ -1186,29 +1191,37 @@ def _run_ase_optimize(directory, record):
     options = task.get('optimizer', {})
     common = {'trajectory': str(directory / 'optimization.traj'),
               'logfile': str(directory / 'optimization.log')}
-    if len(atoms) > 2 and profile.optimizer == 'sella':
-        specification = options.get('constraints', {})
-        constraints = None
-        if specification:
-            constraints = Constraints(atoms)
-            for pair in specification.get('fixed_bonds', ()):
-                if max(pair) >= len(atoms):
-                    raise ValueError('Fixed-bond atom index is out of range.')
-                constraints.fix_bond(tuple(pair))
-            for first, second, distance in specification.get(
-                    'minimum_bonds', ()):
-                if max(first, second) >= len(atoms):
-                    raise ValueError('Minimum-bond atom index is out of range.')
-                constraints.fix_bond(
-                    (first, second), target=float(distance), comparator='gt')
-        optimizer = Sella(
-            atoms, order=options.get('order', 0), constraints=constraints,
-            **common, **options.get('sella_kwargs', {}))
-    else:
-        optimizer = BFGS(atoms, **common)
-    converged = optimizer.run(fmax=options.get('fmax', 0.03),
-                              steps=options.get('steps', 100))
-    if not converged:
+
+    def optimize():
+        if len(atoms) > 2 and profile.optimizer == 'sella':
+            specification = options.get('constraints', {})
+            constraints = None
+            if specification:
+                constraints = Constraints(atoms)
+                for pair in specification.get('fixed_bonds', ()):
+                    if max(pair) >= len(atoms):
+                        raise ValueError('Fixed-bond atom index is out of range.')
+                    constraints.fix_bond(tuple(pair))
+                for first, second, distance in specification.get(
+                        'minimum_bonds', ()):
+                    if max(first, second) >= len(atoms):
+                        raise ValueError('Minimum-bond atom index is out of range.')
+                    constraints.fix_bond(
+                        (first, second), target=float(distance), comparator='gt')
+            optimizer = Sella(
+                atoms, order=options.get('order', 0), constraints=constraints,
+                **common, **options.get('sella_kwargs', {}))
+        else:
+            optimizer = BFGS(atoms, **common)
+        return optimizer.run(fmax=options.get('fmax', 0.03),
+                             steps=options.get('steps', 100))
+
+    recovery_files = []
+    if 'minimum_recovery' in options:
+        from kinbot.minimum_recovery import optimize_anl_minimum
+        recovery_files = optimize_anl_minimum(
+            atoms, optimize, directory, options['minimum_recovery'])
+    elif not optimize():
         raise RuntimeError('ASE geometry optimization did not converge.')
     energy_ev = float(atoms.get_potential_energy())
     write(directory / 'final.xyz', atoms)
@@ -1216,7 +1229,8 @@ def _run_ase_optimize(directory, record):
         'energy_ev': energy_ev, 'energy_hartree': energy_ev / Hartree,
         'optimizer': profile.optimizer if len(atoms) > 2 else 'bfgs_or_atom',
         'order': options.get('order', 0),
-        'generated_files': getattr(atoms.calc, 'generated_files', []),
+        'generated_files': [*getattr(atoms.calc, 'generated_files', []),
+                            *recovery_files],
     }
     checkpoint = getattr(atoms.calc, 'orbital_checkpoint_model', None)
     if checkpoint is not None:

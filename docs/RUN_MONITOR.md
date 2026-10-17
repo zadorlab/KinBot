@@ -30,6 +30,9 @@ The snapshot shows:
   rejected Hessians are skipped so they do not masquerade as new failures.
   Failed QC exit markers prioritize that job's native/Sella logs ahead of
   newer routine output; old worker frequency-rejection messages are recognized.
+  ANL `minimum_recovery.json` reports show curvature checks, retry controls,
+  selected descent energies and explicit failure reasons before dependent
+  geometry tasks are released.
 - Reaction-stage counts, pending optimizations and failures, ANL/VRC dispatch
   task counts and dependency blockers, post-reaction/MESS execution gates.
 - RotdPy execution records and surface-output file counts. File counts do not

@@ -236,6 +236,22 @@
     "vrc_tst_correlation_convergence": {
       "present_in_master": false,
       "meaning": "Molpro VRC correlation convergence 1e-8."
+    },
+    "minimum_recovery_attempts": {
+      "present_in_master": false,
+      "meaning": "At most two native-Hessian imaginary-mode descent/reoptimization attempts for Gaussian L1/L2 minima; never transition states."
+    },
+    "minimum_recovery_displacement": {
+      "present_in_master": false,
+      "meaning": "Full Cartesian norm 0.02 angstrom on first L1/L2 recovery, 0.04 on second; both signs evaluated independently."
+    },
+    "imagfreq_threshold": {
+      "present_in_master": true,
+      "meaning": "Existing L1/L2 frequency rejection threshold 50 cm^-1. This is not loosened to accept a failed minimum."
+    },
+    "anl_minimum_recovery": {
+      "present_in_master": false,
+      "meaning": "ANL unconstrained minimum curvature validation before downstream energies: two retries, 0.02 angstrom descent, central force differences at 0.01 angstrom, projected vibrational threshold 1 cm^-1. Native harmonic validation remains independent; extra computational cost is explicit."
     }
   }
 }

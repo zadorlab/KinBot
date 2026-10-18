@@ -2150,7 +2150,8 @@ def test_vpt2_linearity_handling_preserves_nonlinear_none_workaround():
     assert 'Symmetry=None' in text and 'NoSymm' not in text
 
 
-def test_vpt2_empty_framework_gets_one_native_group_retry(tmp_path):
+@pytest.mark.parametrize('group', ['CS', 'C1'])
+def test_vpt2_empty_framework_gets_one_native_group_retry(tmp_path, group):
     spec = dispatch_spec()
     task = next(t for t in spec['tasks'] if t['id'] == 'gaussian_vpt2')
     task['input_template'] = task['input_template'].replace('NoSymm', 'Symmetry=None')
@@ -2162,7 +2163,7 @@ def test_vpt2_empty_framework_gets_one_native_group_retry(tmp_path):
     directory = graph/'tasks/gaussian_vpt2'
     original = (directory/'geometry.xyz').read_bytes()
     native = ('ERROR: Inconsistency found in framework group definition:\n'
-              'New: CS - Old:\nError termination via Lnk1e in l717.exe\n')
+              f'New: {group} - Old:\nError termination via Lnk1e in l717.exe\n')
     (directory/'vpt2.log').write_text(native)
     state = json.loads((graph/'state.json').read_text())
     state['tasks']['gaussian_vpt2']['status'] = 'failed'
@@ -2170,7 +2171,7 @@ def test_vpt2_empty_framework_gets_one_native_group_retry(tmp_path):
     archive = recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
     assert (archive/'vpt2.log').read_text() == native
     assert (directory/'geometry.xyz').read_bytes() == original
-    assert 'Symmetry=(PG=CS)' in (directory/'vpt2.com').read_text()
+    assert f'Symmetry=(PG={group})' in (directory/'vpt2.com').read_text()
     (directory/'vpt2.log').write_text(native)
     state = json.loads((graph/'state.json').read_text())
     state['tasks']['gaussian_vpt2']['status'] = 'failed'

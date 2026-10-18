@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import asdict
 from copy import deepcopy
 from collections import Counter
+from contextlib import ExitStack
+import fcntl
 import hashlib
 from itertools import combinations
 import json
@@ -1449,8 +1451,39 @@ def _retry_l3_execution_failures(graph, spec, state):
     return state
 
 
+def _retry_vpt2_framework_failures(graph, state):
+    """Apply the bounded native-diagnostic recovery before component assembly."""
+    if not any(e.get('status') in ('failed', 'unavailable')
+               for e in state['tasks'].values()):
+        return state
+    from kinbot.anl.dispatch import (can_recover_gaussian_vpt2_symmetry,
+                                     recover_gaussian_vpt2_symmetry)
+    spec = _load(graph)[1]
+    for task in spec.get('tasks', []):
+        if can_recover_gaussian_vpt2_symmetry(
+                graph, task, state['tasks'].get(task['id'], {})):
+            archive = recover_gaussian_vpt2_symmetry(graph, task['id'])
+            print(f'ANL VPT2 framework retry {task["id"]}: '
+                  f'archived failed attempt at {archive}',
+                  file=sys.stderr, flush=True)
+            state = _load(graph)[2]
+    return state
+
+
 def _drive_graphs(graphs, max_jobs, interval=20.):
     """Advance many dispatcher DAGs under one global live-job cap."""
+    with ExitStack() as locks:
+        for graph in sorted(set(Path(g).resolve() for g in graphs.values())):
+            handle = locks.enter_context((graph / 'drive.lock').open('a'))
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise RuntimeError(f'Another driver is managing {graph}.') from error
+        return _drive_graphs_locked(graphs, max_jobs, interval)
+
+
+def _drive_graphs_locked(graphs, max_jobs, interval):
+    """All composite graph locks are held by this controller."""
     names = sorted(graphs)
     specifications = {name: _load(graphs[name])[1] for name in names}
     required = {name: _required_geometries(specifications[name]) for name in names}
@@ -1462,6 +1495,7 @@ def _drive_graphs(graphs, max_jobs, interval=20.):
                 name: advance(graphs[name], submit=False) for name in names}
             for name in names:
                 states[name] = _retry_l3_execution_failures(graphs[name], specifications[name], states[name])
+                states[name] = _retry_vpt2_framework_failures(graphs[name], states[name])
             hard = []
             active = 0
             complete = True

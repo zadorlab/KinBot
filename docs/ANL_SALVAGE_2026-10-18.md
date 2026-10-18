@@ -170,6 +170,63 @@ controller or native job needs to be restarted for this maintenance update.
 
 ## Other repairs and their validation limits
 
+### Automatic VPT2 recovery and controller-only refresh
+
+The CH3SS `C=S` VPT2 output on October 18 terminated in Link 717 with
+`New: C1 - Old:` under `Symmetry=None`. The existing diagnostic-specific
+recovery function handled this case, but was not called by the automatic
+multi-graph driver. The driver now invokes it before treating a VPT2
+component as unavailable. This was an integration gap, not a new reason to
+change the method, geometry, grid or SCF tolerance.
+
+An empty old group under `Symmetry=None` permits one retry with the new
+group reported by Gaussian (`Symmetry=(PG=C1)` for this case). Named-group
+mismatches retain the established `Symmetry=None` recovery. An already
+attempted native-group recovery, native success, unrelated failure or
+missing diagnostic does not trigger this retry. Failed inputs/outputs are
+retained under `attempts/gaussian_vpt2/`; the replacement is submitted by
+the normal driver under the existing job cap. Native success of the new
+`C=S` attempt still needs confirmation on Blodgett.
+
+Running pinned Python processes cannot acquire the new retry loop by a
+repository pull. For a salvage run whose only local processes are its
+recorded PES/KB controllers, replace those controllers with:
+
+```bash
+cd /home/hram/KinBot
+git pull --ff-only origin composite
+.venv/bin/python -u -m kinbot.run_refresh \
+  /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261018_r6_salvage --apply
+```
+
+This command checks the launch environment first, pauses only verified
+local controller PIDs, verifies that every queued/running job belongs to
+an ANL or VRC dispatcher ledger, then replaces those control processes.
+Linux PID handles prevent signals reaching a recycled PID. A local child
+calculation, a submission in progress, an unavailable scheduler or an
+unowned job causes refusal; paused controllers are resumed if validation
+fails. Repeat later if a short-lived child or submission was in progress.
+There is no job cancellation, scientific input change, task reset, or
+calculation-directory move. Both cases retain their databases, completed
+results, pending/running job IDs, old pinned code and pathname aliases.
+The new source snapshot also contains the preflight probe reuse improvement.
+
+Controller logs/launch records are archived in a dated sibling
+`.controllers.*` directory, and `controller_refresh.json` records the
+handoff. If interrupted, repeat the same command with the same source
+revision; the journal resumes preparation/launch rather than duplicating
+controllers. Repeating a completed refresh with the same code is a no-op.
+The normal monitor continues to use the same run root for both cases.
+Composite graph drivers now hold dispatcher locks, matching the existing
+single-graph VRC driver, to prevent outside repair commands racing their
+state writes.
+
+Regression tests exercise the actual automatic retry/submit loop with an
+adopted live job, preservation of ANL and VRC task hashes/job IDs during
+controller replacement, submission-race refusal, PID-reuse protection and
+interrupted archival. These tests simulate Slurm/native executables and
+do not establish native Gaussian success or site-specific handoff success.
+
 - The geometry audit found a real CC threshold translation bug. Generated
   `THRESH,COEFF=1e-10` printed **THRVAR=1e-20** in Molpro 2024.1; older
   defaulted jobs also printed 1e-18. Neither is the intended 1e-10 variance.

@@ -987,7 +987,7 @@ def test_reduced_profiles_precede_lower_tiers_and_are_common_subset_complete():
             'core_valence') in omissions
 
 
-def test_multi_graph_driver_waits_for_scheduler_recovery(monkeypatch):
+def test_multi_graph_driver_waits_for_scheduler_recovery(monkeypatch, tmp_path):
     responses = iter([
         SchedulerUnavailableError('slurmctld unavailable'),
         {'tasks': {'energy': {'status': 'complete'}}},
@@ -1004,7 +1004,7 @@ def test_multi_graph_driver_waits_for_scheduler_recovery(monkeypatch):
     monkeypatch.setattr(
         'kinbot.anl.automatic.time.sleep', lambda value: sleeps.append(value))
     monkeypatch.setattr('kinbot.anl.automatic._load', lambda path: (path, {}, {}))
-    result = _drive_graphs({'state': Path('/graph')}, 1, interval=7.)
+    result = _drive_graphs({'state': tmp_path}, 1, interval=7.)
     assert result == {'state': {'tasks': {
         'energy': {'status': 'complete'}}}}
     assert sleeps == [7.]
@@ -1024,9 +1024,11 @@ def test_molpro_pivot_preflight_does_not_require_gaussian_cube_tools(monkeypatch
     assert 'formchk' not in checked and 'cubegen' not in checked
 
 
-def test_failed_graph_does_not_abandon_independent_live_work(monkeypatch):
+def test_failed_graph_does_not_abandon_independent_live_work(monkeypatch, tmp_path):
     from kinbot.anl import automatic
     monkeypatch.setattr(automatic, '_load', lambda path: (path, {}, {}))
+    monkeypatch.chdir(tmp_path)
+    Path('bad').mkdir(); Path('good').mkdir()
     observations = []
     def advance(path, **kw):
         observations.append(str(path))
@@ -1037,6 +1039,65 @@ def test_failed_graph_does_not_abandon_independent_live_work(monkeypatch):
     with pytest.raises(RuntimeError, match='bad/energy=failed'):
         automatic._drive_graphs({'bad': Path('bad'), 'good': Path('good')}, 2)
     assert observations.count('good') == 2
+
+
+def test_automatic_vpt2_retry_is_submitted_once_alongside_adopted_job(tmp_path, monkeypatch):
+    from copy import deepcopy
+    from kinbot.anl import automatic, dispatch
+    from kinbot.execution import atomic_json, file_sha256
+    from tests.anl_fixture import dispatch_spec, molpro_task
+    from tests.test_anl_dispatch import _mock_execution
+    spec = dispatch_spec()
+    task = deepcopy(next(t for t in spec['tasks'] if t['id'] == 'gaussian_vpt2'))
+    task.pop('depends_on')
+    task['input_template'] = task['input_template'].replace('NoSymm', 'Symmetry=None')
+    task['failure_policy'] = 'skip_component'
+    task['component_families'] = ['anharmonic_zpe']
+    spec['tasks'] = [spec['tasks'][0], task,
+                     molpro_task('live_energy', 'rhf\n', geometry_from='initial')]
+    graph = dispatch.prepare(spec, tmp_path / 'graph')
+    _mock_execution(graph, 'l2_geometry', geometry='final.xyz')
+    state = dispatch.advance(graph)
+    state['tasks']['live_energy'].update(status='submitted', job_id='111')
+    state['tasks']['gaussian_vpt2']['status'] = 'unavailable'
+    atomic_json(graph / 'state.json', state)
+    directory = graph / 'tasks/gaussian_vpt2'
+    (directory / 'vpt2.log').write_text(
+        'ERROR: Inconsistency found in framework group definition:\n'
+        'New: C1 - Old:\nError termination via Lnk1e in l717.exe\n')
+    geometry = (directory / 'geometry.xyz').read_bytes()
+    live_hashes = {p.name: file_sha256(p) for p in (graph / 'tasks/live_energy').iterdir() if p.is_file()}
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: True)
+    submissions = []
+    def submit(command, **kwargs):
+        assert command == ['sbatch', '--parsable', 'job.slurm']
+        submissions.append(kwargs['cwd'].name)
+        return SimpleNamespace(returncode=0, stdout='222\n', stderr='')
+    monkeypatch.setattr(dispatch.subprocess, 'run', submit)
+    def stop_loop(value):
+        raise RuntimeError('test loop finished')
+    monkeypatch.setattr(automatic.time, 'sleep', stop_loop)
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match='test loop finished'):
+            automatic._drive_graphs({'test': graph}, 2)
+    assert submissions == ['gaussian_vpt2']
+    state = dispatch._load(graph)[2]
+    assert state['tasks']['live_energy']['job_id'] == '111'
+    assert state['tasks']['gaussian_vpt2']['job_id'] == '222'
+    assert state['tasks']['gaussian_vpt2']['attempt'] == 2
+    assert (graph / 'attempts/gaussian_vpt2/1/vpt2.log').is_file()
+    assert 'Symmetry=(PG=C1)' in (directory / 'vpt2.com').read_text()
+    assert (directory / 'geometry.xyz').read_bytes() == geometry
+    assert live_hashes == {p.name: file_sha256(p) for p in (graph / 'tasks/live_energy').iterdir() if p.is_file()}
+
+
+def test_automatic_graph_driver_holds_exclusive_lock(tmp_path, monkeypatch):
+    import fcntl
+    from kinbot.anl import automatic
+    with (tmp_path / 'drive.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(RuntimeError, match='Another driver'):
+            automatic._drive_graphs({'test': tmp_path}, 1)
 
 
 @pytest.mark.parametrize('failure', [False, True])

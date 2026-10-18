@@ -1562,14 +1562,17 @@ def test_in_process_driver_waits_for_scheduler_recovery():
 
 def test_automatic_preflight_waits_only_for_scheduler_recovery():
     expected = {'slurm_scripts_tested': 1}
+    progress = []
     with patch('kinbot.anl.dispatch.preflight', side_effect=[
             SchedulerUnavailableError('controller unavailable'), expected
     ]) as check, patch('kinbot.anl.dispatch.time.sleep') as sleep:
         result = preflight_until_scheduler_ready(
-            '/graph', skip_optional=True, interval=7.)
+            '/graph', skip_optional=True, interval=7., progress=progress.append)
     assert result == expected
     assert check.call_count == 2
     sleep.assert_called_once_with(7.)
+    assert progress == [{'phase': 'waiting_for_scheduler',
+                         'detail': 'controller unavailable'}]
 
 
 def test_preflight_classifies_slurm_test_timeout_as_unavailable():
@@ -1702,6 +1705,92 @@ def test_preflight_sources_site_setup_and_validates_slurm_without_submitting():
         assert result['slurm_scripts_tested'] == 1
         assert result['exclusive_jobs_checked'] == 1
         assert result['programs'] == ['g16', 'molpro', 'xcfour']
+
+
+def test_preflight_reuses_environment_but_checks_every_script_and_geometry(tmp_path):
+    from copy import deepcopy
+    spec = dispatch_spec()
+    first = spec['tasks'][0]
+    second = deepcopy(first)
+    second['id'] = 'second_geometry'
+    spec['tasks'] = [first, second]
+    run_dir = prepare(spec, tmp_path / 'run')
+    result = subprocess.CompletedProcess([], 0, '', '')
+    with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/true'), \
+            patch('kinbot.anl.dispatch.subprocess.run', return_value=result) as run:
+        for _ in range(2):
+            run.reset_mock()
+            report = preflight(run_dir)
+            assert report['environment_checks'] == 1
+            assert report['environment_checks_reused'] == 1
+            assert [call.args[0][0] for call in run.call_args_list] == [
+                'bash', 'sbatch', 'sbatch']
+        # Environment reuse cannot hide a different task's damaged geometry.
+        geometry = run_dir / 'tasks/second_geometry/geometry.xyz'
+        atoms = read(geometry)
+        atoms.positions[0, 0] += .1
+        write(geometry, atoms)
+        with pytest.raises(RuntimeError, match='second_geometry: staged geometry'):
+            preflight(run_dir)
+
+
+@pytest.mark.parametrize('change', ['task_setup', 'executable', 'threads', 'site', 'environment'])
+def test_preflight_does_not_reuse_changed_environment(tmp_path, monkeypatch, change):
+    from copy import deepcopy
+    spec = dispatch_spec()
+    first = spec['tasks'][0]
+    second = deepcopy(first)
+    second['id'] = 'second_geometry'
+    if change == 'task_setup':
+        second['setup'] = ['export SOME_CHECK=different']
+    elif change == 'executable':
+        second['profile']['command'] = '/other/g16'
+    elif change == 'threads':
+        second['resources']['cores'] = 8
+    spec['tasks'] = [first, second]
+    run_dir = prepare(spec, tmp_path / 'run')
+    shells = []
+
+    def execute(command, **kwargs):
+        if command[0] == 'bash':
+            shells.append(command)
+            if len(shells) == 1:
+                if change == 'site':
+                    with (run_dir / 'site_setup.sh').open('a') as stream:
+                        stream.write('\nexport SOME_CHECK=different\n')
+                elif change == 'environment':
+                    monkeypatch.setenv('KINBOT_PREFLIGHT_TEST', 'different')
+            else:
+                return subprocess.CompletedProcess(command, 1, '', 'changed environment failed')
+        return subprocess.CompletedProcess(command, 0, '', '')
+
+    with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/true'), \
+            patch('kinbot.anl.dispatch.subprocess.run', side_effect=execute):
+        with pytest.raises(RuntimeError, match='second_geometry: preflight failed'):
+            preflight(run_dir)
+    assert len(shells) == 2
+
+
+def test_preflight_does_not_cache_optional_failures(tmp_path):
+    from copy import deepcopy
+    spec = dispatch_spec()
+    first = spec['tasks'][5]  # Molpro single point: same environment twice.
+    first['geometry_from'] = 'initial'
+    first.pop('depends_on', None)
+    first['failure_policy'] = 'skip_component'
+    first['component_families'] = ['diagnostic']
+    second = deepcopy(first)
+    second['id'] = 'required_energy'
+    second.pop('failure_policy')
+    second.pop('component_families')
+    spec['tasks'] = [first, second]
+    run_dir = prepare(spec, tmp_path / 'run')
+    with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/true'), \
+            patch('kinbot.anl.dispatch.subprocess.run', return_value=
+                  subprocess.CompletedProcess([], 1, '', 'broken setup')) as run:
+        with pytest.raises(RuntimeError, match='required_energy: preflight failed'):
+            preflight(run_dir, skip_optional=True)
+    assert run.call_count == 2
 
 
 def test_prepare_discovers_vendor_setup_and_cfour_genbas():

@@ -134,6 +134,40 @@ Use `--details` for full metadata or `--follow` instead of `watch` to follow
 new native/controller log lines. The monitor resolves aliases when matching
 Slurm directories. An empty queue is never a success verdict.
 
+## Composite startup time and progress
+
+Composite preflight checks all graphs before new composite submissions begin.
+Previously it sourced the same site environment and launched a fresh Python
+import of ASE/Sella/dispatch for every task, including waiting tasks with the
+same backend requirements. The live October 18 process reports confirmed
+both controllers were in these checks while the adopted QZ job and VRC scans
+continued independently.
+
+Preflight now reuses an identical successful environment probe within one
+graph and one invocation. Its key includes the complete probe command,
+site-script content, inherited environment, interpreter, thread settings,
+task setup, executable names and required file variables. Failures are not
+cached. Another graph, a later invocation or a scheduler retry gets fresh
+checks. Every task still verifies its prepared input/geometry hashes and
+resource layout, and every staged Slurm script still receives its own
+`sbatch --test-only` check; neither chemistry nor submission limits change.
+
+A command-stubbed replay of the exported CH3S graph specifications reduces
+environment subprocess calls from **234 to 42 across 13 graphs**. This is an
+operation-count comparison, not a measured Blodgett wall-time speedup.
+Regression tests cover distinct/changed environments, unsuccessful optional
+checks, repeat invocations, damaged geometry and individual Slurm checks.
+
+New controllers publish `anl_automatic/composite_preflight.json` with graph
+counts, the current task/check, scheduler waits, timestamps and any failure.
+The monitor displays this separately from QC status and identifies records
+whose controller is absent. For older pinned controllers, it recognizes the
+live Python preflight import process and displays the graph directory even
+without the new progress file. A repository pull updates that read-only
+monitor immediately. Existing `.salvage_code*` controllers keep their pinned
+code, so the startup speed improvement applies to future launches; no running
+controller or native job needs to be restarted for this maintenance update.
+
 ## Other repairs and their validation limits
 
 - The geometry audit found a real CC threshold translation bug. Generated

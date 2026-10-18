@@ -1037,3 +1037,40 @@ def test_failed_graph_does_not_abandon_independent_live_work(monkeypatch):
     with pytest.raises(RuntimeError, match='bad/energy=failed'):
         automatic._drive_graphs({'bad': Path('bad'), 'good': Path('good')}, 2)
     assert observations.count('good') == 2
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_graph_preflight_publishes_progress_without_submitting(tmp_path, monkeypatch, failure):
+    from kinbot.anl import automatic
+    root = tmp_path / 'states'
+    stable = root / automatic._safe_state_directory('C', 0, 1) / 'composite'
+    ts = root / ('ts_' + hashlib.sha256(b'reaction').hexdigest()[:16]) / 'composite'
+    for graph in (stable, ts):
+        graph.mkdir(parents=True)
+        (graph / 'workflow.json').write_text('{}')
+    key = automatic._state_key('C', 0, 1)
+    plan = {'cbh': {'calculated_states': [dict(smiles='C', charge=0, multiplicity=1)]},
+            'network': {'transition_states': {'reaction': {'molecule': {}}}}}
+    observations = []
+    def check(graph, **kwargs):
+        progress = kwargs['progress']
+        progress({'phase': 'checking_environment', 'task': 'energy'})
+        observations.append(json.loads((tmp_path / 'composite_preflight.json').read_text()))
+        if failure and graph == ts:
+            raise RuntimeError('missing executable')
+        return {'environment_checks': 1, 'environment_checks_reused': 8}
+    monkeypatch.setattr(automatic, 'preflight_until_scheduler_ready', check)
+    monkeypatch.setattr(automatic, 'advance', lambda *a, **kw: pytest.fail('preflight submitted'))
+    if failure:
+        with pytest.raises(RuntimeError, match='missing executable'):
+            automatic._prepare_graphs(plan, {key: {}}, root)
+    else:
+        result = automatic._prepare_graphs(plan, {key: {}}, root)
+        assert set(result.values()) == {stable, ts}
+    assert [p['graphs_complete'] for p in observations] == [0, 1]
+    assert all(p['graphs_total'] == 2 and p['task'] == 'energy' for p in observations)
+    final = json.loads((tmp_path / 'composite_preflight.json').read_text())
+    assert final['status'] == ('failed' if failure else 'complete')
+    assert final['graphs_complete'] == (1 if failure else 2)
+    if failure:
+        assert final['error'] == 'missing executable'

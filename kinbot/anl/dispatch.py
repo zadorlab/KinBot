@@ -71,7 +71,7 @@ class SchedulerUnavailableError(RuntimeError):
 
 
 def preflight_until_scheduler_ready(run_dir, *, skip_optional=False,
-                                    interval=20.):
+                                    interval=20., progress=None):
     """Retry only scheduler availability failures during preflight.
 
     Executable, input, resource, and scientific validation failures remain
@@ -81,9 +81,12 @@ def preflight_until_scheduler_ready(run_dir, *, skip_optional=False,
     previous = None
     while True:
         try:
-            return preflight(run_dir, skip_optional=skip_optional)
+            return preflight(run_dir, skip_optional=skip_optional,
+                             progress=progress)
         except SchedulerUnavailableError as error:
             message = str(error)
+            if progress is not None:
+                progress({'phase': 'waiting_for_scheduler', 'detail': message})
             if message != previous:
                 print(
                     'Scheduler preflight is unavailable; retaining staged '
@@ -1550,8 +1553,14 @@ def _mark_preflight_unavailable(spec, state, ident, reason):
             changed = True
 
 
-def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
-    """Check login-node tools and the same site setup sourced by batch jobs."""
+def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
+              progress=None):
+    """Check each task, reusing identical successful environment probes.
+
+    Reuse lasts only for this call and this graph's working directory. Input
+    hashes, geometry, resource layout and Slurm tests are always task-specific.
+    No success is reused across graphs, scheduler retries or later launches.
+    """
     run_dir, spec, state = _load(run_dir)
     refresh_attempts = (set() if _site_refresh_attempts is None
                         else _site_refresh_attempts)
@@ -1560,6 +1569,9 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
             raise RuntimeError(f'Preflight: {name} is unavailable on PATH.')
     programs = set()
     env_files = set()
+    environments = set()
+    environment_checks = 0
+    environment_reuses = 0
     for task in spec['tasks']:
         entry = state['tasks'].get(task['id'])
         if entry and entry.get('status') in ('unavailable', 'skipped'):
@@ -1616,9 +1628,23 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
         python = shlex.quote(state['python'])
         lines.append(f'{python} -c '
                      + shlex.quote('import ase, sella; import kinbot.anl.dispatch'))
-        result = subprocess.run(['bash', '-c', '\n'.join(lines)],
-                                cwd=run_dir, capture_output=True, text=True,
-                                check=False)
+        shell = '\n'.join(lines)
+        # The shell captures backend, executable/file requirements, task setup,
+        # interpreter and thread counts. Include the site file and inherited
+        # environment as well; a changed setup must never inherit an old pass.
+        key = (shell, _file_hash(run_dir / 'site_setup.sh'),
+               tuple(sorted(os.environ.items())))
+        if key in environments:
+            environment_reuses += 1
+            continue
+        environment_checks += 1
+        if progress is not None:
+            progress({'phase': 'checking_environment', 'task': task['id'],
+                      'backend': _backend(task),
+                      'environment_checks': environment_checks,
+                      'environment_checks_reused': environment_reuses})
+        result = subprocess.run(['bash', '-c', shell], cwd=run_dir,
+                                capture_output=True, text=True, check=False)
         if result.returncode:
             detail = (result.stderr.strip() or result.stdout.strip()
                       or f'exit status {result.returncode} without diagnostics')
@@ -1630,7 +1656,7 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
                         run_dir, refresh_key[0], refresh_key[1]):
                     refreshed = preflight(
                         run_dir, _site_refresh_attempts=refresh_attempts,
-                        skip_optional=skip_optional)
+                        skip_optional=skip_optional, progress=progress)
                     refreshed['site_setup_refreshed'] = True
                     return refreshed
             if (skip_optional
@@ -1641,11 +1667,17 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
                 continue
             raise RuntimeError(f"{task['id']}: preflight failed after site setup: "
                                + detail)
+        environments.add(key)
     checked = 0
     for task in spec['tasks']:
         entry = state['tasks'].get(task['id'])
         if not entry or entry['status'] != 'staged':
             continue
+        if progress is not None:
+            progress({'phase': 'checking_slurm_script', 'task': task['id'],
+                      'slurm_scripts_tested': checked,
+                      'environment_checks': environment_checks,
+                      'environment_checks_reused': environment_reuses})
         try:
             result = subprocess.run(
                 ['sbatch', '--test-only', 'job.slurm'],
@@ -1679,6 +1711,8 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
         checked += 1
     return {'programs': sorted(programs), 'file_variables': sorted(env_files),
             'exclusive_jobs_checked': len(state['tasks']),
+            'environment_checks': environment_checks,
+            'environment_checks_reused': environment_reuses,
             'slurm_scripts_tested': checked}
 
 

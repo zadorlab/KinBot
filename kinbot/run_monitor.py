@@ -44,7 +44,7 @@ LOG_NAMES = {'driver.log', 'pes.log', 'kinbot.log', 'kinbot.err', 'kinbot.out'}
 STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'mess_execution.json', '.kinbot_post_reaction_branches.json',
                'kinbot_status.json', 'pes_status.json', 'recovery.json',
-               'minimum_recovery.json'}
+               'minimum_recovery.json', 'composite_preflight.json'}
 REACTION_STAGES = {-999: 'failed/rejected', -1: 'accepted', 0: 'TS search',
                    1: 'barrier/IRC', 2: 'product characterization',
                    3: 'start product/TS optimization', 4: 'product/TS optimization',
@@ -224,6 +224,11 @@ def artifacts(paths, root, warnings):
         elif path.name == '.kinbot_post_reaction_branches.json':
             item.update(branches=data.get('branches'), mess_gate=data.get('mess_gate'),
                         final_solver=data.get('final_solver'))
+        elif path.name == 'composite_preflight.json':
+            item['preflight'] = {key: data.get(key) for key in (
+                'controller_pid', 'phase', 'graph', 'task', 'graphs_complete',
+                'graphs_total', 'environment_checks', 'environment_checks_reused',
+                'slurm_scripts_tested', 'elapsed_seconds', 'updated_at', 'detail')}
         elif path.name == 'recovery.json':
             item['recovery'] = {key: data.get(key) for key in
                 ('attempt', 'frequency_cm-1', 'displacement_angstrom',
@@ -336,6 +341,7 @@ def snapshot(root, *, include_all=False, log_lines=4):
         processes, process_error = [], str(error)
     now = time.time()
     return {'time': datetime.fromtimestamp(now).astimezone().isoformat(timespec='seconds'),
+            'timestamp': now,
             'directory': str(root), 'scheduler_error': queue_error, 'process_error': process_error,
             'warnings': warnings, 'cases': [case_snapshot(d, jobs, processes, now,
                 log_limit=200 if include_all else 40, log_lines=log_lines) for d in directories]}
@@ -465,6 +471,32 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             else:
                 out.append('Local: '+'; '.join(f'{process_label(p["command"])} PID {p["pid"]} [{p["state"]}]'
                                               for p in case['processes']))
+        preflights = [item for item in case['artifacts'] if item.get('preflight')]
+        for item in preflights:
+            p = item['preflight']
+            alive = any(proc['pid'] == p['controller_pid'] for proc in case['processes'])
+            status = item['status']
+            if status == 'running' and not alive:
+                status = 'controller not observed; recorded state only'
+            out.append(f'Composite preflight: {status}; graphs checked '
+                       f'{p["graphs_complete"]}/{p["graphs_total"]}; {p["phase"]}')
+            if item['status'] != 'complete':
+                updated = (age(max(0, report.get('timestamp', time.time())-p['updated_at']))
+                           if isinstance(p.get('updated_at'), (int, float)) else 'unknown')
+                out.append(f'  {p["graph"]}; task={p["task"] or "—"}; '
+                           f'updated {updated} ago')
+                if p.get('detail'):
+                    out.append('  '+p['detail'])
+            if item.get('error'):
+                out.append('  '+item['error'])
+        # Older pinned controllers have no progress JSON. Recognize their
+        # exact probe command without executing any dispatcher code.
+        if not preflights:
+            for process in case['processes']:
+                _, separator, body = process['command'].partition(' -c ')
+                if separator and body == 'import ase, sella; import kinbot.anl.dispatch':
+                    out.append('Composite preflight: checking Python environment in '
+                               +relative_path(process['cwd'], case['directory']))
         if case['pes']['counts']:
             out.append('PES workers: '+'  '.join(f'{k.lower()}={v}' for k, v in case['pes']['counts'].items()))
         failures = [r for r in case['exit_records'] if r['returncode']
@@ -494,7 +526,8 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                 out.append(f'  Optimizing {row["reaction"]}: pending={row.get("pending")} failures={row.get("failures")}')
                 if include_all:
                     out.append('    '+json.dumps(row.get('optimizers', [])))
-        items = case['artifacts']
+        items = [item for item in case['artifacts']
+                 if details or not item.get('preflight')]
         if not details:
             healthy = [item for item in items if not item.get('error')
                        and not item.get('branches') and not item.get('tasks')

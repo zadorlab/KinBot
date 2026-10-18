@@ -1337,6 +1337,33 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
 def _prepare_graphs(plan, sources, root):
     root.mkdir(parents=True, exist_ok=True)
     graphs = {}
+    started = time.monotonic()
+    total = (len(plan['cbh']['calculated_states'])
+             + len(plan['network']['transition_states']))
+    progress_path = root.parent / 'composite_preflight.json'
+
+    def check_graph(graph, name):
+        record = {'schema': 1, 'status': 'running', 'controller_pid': os.getpid(),
+                  'graph': name, 'directory': str(graph),
+                  'graphs_complete': len(graphs), 'graphs_total': total}
+
+        def publish(update):
+            if update.get('phase') != 'waiting_for_scheduler':
+                record.pop('detail', None)
+            record.update(update, updated_at=time.time(),
+                          elapsed_seconds=round(time.monotonic() - started, 1))
+            atomic_json(progress_path, record)
+
+        publish({'phase': 'checking_graph'})
+        try:
+            result = preflight_until_scheduler_ready(
+                graph, skip_optional=True, interval=20., progress=publish)
+        except Exception as error:
+            publish({'status': 'failed', 'error': str(error)})
+            raise
+        publish({'phase': 'graph_checked', 'graphs_complete': len(graphs) + 1,
+                 **result})
+
     for entry in plan['cbh']['calculated_states']:
         key = _state_key(entry['smiles'], entry['charge'],
                          entry['multiplicity'])
@@ -1362,8 +1389,7 @@ def _prepare_graphs(plan, sources, root):
                 require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
                 l3_max_retries=plan['resources'].get('l3_max_retries', 1))
             prepare(specification, graph)
-        preflight_until_scheduler_ready(
-            graph, skip_optional=True, interval=20.)
+        check_graph(graph, 'stable:' + key)
         graphs['stable:' + key] = graph
     for name, entry in plan['network']['transition_states'].items():
         molecule = entry['molecule']
@@ -1389,9 +1415,14 @@ def _prepare_graphs(plan, sources, root):
                 require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
                 l3_max_retries=plan['resources'].get('l3_max_retries', 1))
             prepare(specification, graph)
-        preflight_until_scheduler_ready(
-            graph, skip_optional=True, interval=20.)
+        check_graph(graph, 'ts:' + name)
         graphs['ts:' + name] = graph
+    atomic_json(progress_path, {
+        'schema': 1, 'status': 'complete', 'phase': 'ready_for_dispatch',
+        'controller_pid': os.getpid(), 'graphs_complete': total,
+        'graphs_total': total, 'updated_at': time.time(),
+        'elapsed_seconds': round(time.monotonic() - started, 1),
+    })
     return graphs
 
 

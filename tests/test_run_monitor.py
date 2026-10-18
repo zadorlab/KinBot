@@ -69,6 +69,35 @@ def test_archived_failure_is_cached_outcome_but_new_attempt_is_visible(productio
     assert 'FAILED QC EXIT' in text
 
 
+def test_legacy_live_preflight_import_is_identified(production, monkeypatch):
+    from kinbot import run_cleanup
+    root, case = production
+    graph = case / 'well/anl_automatic/states/state_x/composite'
+    monkeypatch.setattr(run_cleanup, '_processes', lambda *a: [{
+        'pid': 42, 'state': 'R', 'cwd': str(graph),
+        'command': '/venv/bin/python -c import ase, sella; import kinbot.anl.dispatch'}])
+    text = monitor.render(monitor.snapshot(root))
+    assert 'Composite preflight: checking Python environment' in text
+    assert 'states/state_x/composite' in text
+
+
+@pytest.mark.parametrize('alive', [False, True])
+def test_preflight_progress_is_visible_and_stale_record_is_labelled(production, monkeypatch, alive):
+    from kinbot import run_cleanup
+    root, case = production
+    put(case / 'well/anl_automatic/composite_preflight.json', {
+        'status': 'running', 'controller_pid': 42, 'phase': 'checking_slurm_script',
+        'graphs_complete': 3, 'graphs_total': 13, 'graph': 'stable:C|0|1',
+        'task': 'l3_geometry', 'updated_at': monitor.time.time()})
+    monkeypatch.setattr(run_cleanup, '_processes', lambda *a: [{
+        'pid': 42, 'state': 'S', 'cwd': str(case),
+        'command': '/venv/bin/python -m kinbot.kb input.json'}] if alive else [])
+    text = monitor.render(monitor.snapshot(root))
+    assert 'graphs checked 3/13' in text and 'checking_slurm_script' in text
+    assert 'task=l3_geometry' in text
+    assert ('recorded state only' in text) == (not alive)
+
+
 def test_anl_curvature_recovery_report_is_visible(production):
     root, case = production
     put(case/'anl/tasks/l3_geometry/minimum_recovery.json', {

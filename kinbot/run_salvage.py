@@ -180,12 +180,21 @@ def _save(path, root, archive, *, move=False):
         shutil.copy2(path, target)
 
 
-def _pin_code(root):
+def _pin_code(root, *, refresh=False):
     import kinbot
     source = Path(kinbot.__file__).parent
-    pin = root / '.salvage_code'
+    record = json.loads((root / 'salvage.json').read_text())
+    pin = Path(record.get('code', root / '.salvage_code'))
+    if refresh:
+        hashes = {str(p.relative_to(source)): file_sha256(p)
+                  for p in source.rglob('*') if p.is_file()
+                  and '__pycache__' not in p.parts and p.suffix != '.pyc'}
+        digest = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+        pin = root / ('.salvage_code.' + digest[:16])
+    if pin.parent != root or not pin.name.startswith('.salvage_code') or pin.is_symlink():
+        raise ValueError('Pinned source must be a local salvage code directory.')
     if not pin.exists():
-        temporary = root / '.salvage_code.preparing'
+        temporary = pin.with_name(pin.name + '.preparing')
         if temporary.exists():
             shutil.rmtree(temporary)
         temporary.mkdir()
@@ -199,6 +208,108 @@ def _pin_code(root):
         if file_sha256(pin / name) != digest:
             raise ValueError('Pinned KinBot source changed; refusing a mixed-version restart.')
     return pin
+
+
+def _worker_route_plans(root):
+    """Check prospective worker profiles before changing any route ledger."""
+    from kinbot.parameters import Parameters
+    from kinbot.profiled_qc import relaxed_scf_routes
+    _, paths = _cases(root, json.loads((root / 'salvage.json').read_text()).get('input_updates'))
+    plans = []
+    for path in paths:
+        parameters = Parameters(str(path)).par
+        for worker in sorted(path.parent.glob('[0-9]*')):
+            if not worker.is_dir():
+                continue
+            ledger = worker / parameters['profiled_route_file']
+            if ledger.is_symlink() or not ledger.resolve().is_relative_to(worker.resolve()):
+                raise ValueError(f'{ledger}: theory ledger must remain inside its worker.')
+            if ledger.exists():
+                payload = json.loads(ledger.read_text())
+                revised = relaxed_scf_routes(payload, parameters)
+                plans.append((ledger, payload, revised))
+    return plans
+
+
+def _migrate_worker_routes(root, archive):
+    # _inventory rejects every live allocation except dispatcher-owned ANL
+    # tasks. Those use their own task/spec ledgers and are not edited here.
+    _inventory(root)
+    plans = _worker_route_plans(root)
+    for ledger, previous, revised in plans:
+        if previous == revised:
+            continue
+        _save(ledger, root, archive)
+        atomic_json(ledger, revised)
+
+
+def _preflight_worker_routes(root):
+    """Exercise the real QC router used at worker startup, without submitting."""
+    from kinbot.parameters import Parameters
+    from kinbot.qc import QuantumChemistry
+    _, paths = _cases(root, json.loads((root / 'salvage.json').read_text()).get('input_updates'))
+    previous = Path.cwd()
+    try:
+        for path in paths:
+            parameters = Parameters(str(path)).par
+            for worker in sorted(path.parent.glob('[0-9]*')):
+                if not worker.is_dir():
+                    continue
+                os.chdir(worker)
+                QuantumChemistry(parameters)
+    finally:
+        os.chdir(previous)
+
+
+def resume_failed_controllers(root):
+    """Repair the observed startup profile mismatch, leaving QC jobs intact."""
+    root = Path(root).resolve(strict=True)
+    marker = root / 'salvage.json'
+    history = json.loads(marker.read_text())
+    _inventory(root)
+    restart = history.get('controller_restart')
+    if restart and restart['status'] == 'prepared':
+        return history
+    if restart and restart['status'] == 'launched':
+        raise RuntimeError('The reviewed controller restart was already launched; inspect its new status before retrying.')
+    if not restart:
+        if history['status'] != 'launched':
+            raise ValueError('Failed-controller recovery requires a previously launched salvage.')
+        _, paths = _cases(root)
+        for path in paths:
+            status = path.parent / 'pes_status.json'
+            record = json.loads(status.read_text()) if status.exists() else {}
+            if (record.get('status') != 'failed' or
+                    'Theory profiles changed since jobs were submitted' not in record.get('error', '')):
+                raise RuntimeError(f'{status}: expected the reviewed theory-profile startup failure.')
+        # Verify the scientific changes before archiving any controller state.
+        _worker_route_plans(root)
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        archive = Path(history['archive']) / ('controllers.' + stamp)
+        archive.mkdir()
+        restart = {'status': 'preparing', 'archive': str(archive),
+                   'previous_code': history['code']}
+        history['controller_restart'] = restart
+        atomic_json(marker, history)
+    archive = Path(restart['archive'])
+    _migrate_worker_routes(root, archive)
+    _preflight_worker_routes(root)
+    _, paths = _cases(root)
+    for path in paths:
+        for directory in [path.parent, *sorted(path.parent.glob('[0-9]*'))]:
+            if not directory.is_dir():
+                continue
+            for name in ('driver.log', 'pes.log', 'pes_summary.txt', 'launch.json',
+                         'pes_status.json', 'kinbot.log', 'kinbot.err', 'kinbot.out',
+                         'kinbot_status.json'):
+                _save(directory / name, root, archive, move=True)
+    # Keep the previous snapshot in place; a new snapshot serves only the
+    # replacement controllers and their subsequently created QC jobs.
+    pin = _pin_code(root, refresh=True)
+    restart['status'] = 'prepared'
+    history.update(status='prepared', code=str(pin))
+    atomic_json(marker, history)
+    return history
 
 
 def prepare(old, new, *, pivot_backend='molpro', pivot_method='UKS/B3LYP3',
@@ -307,6 +418,8 @@ def prepare(old, new, *, pivot_backend='molpro', pivot_method='UKS/B3LYP3',
     record['inputs'] = [str(p) for p in paths]
     record['sha256'] = {name: file_sha256(root / name) for name in record['sha256']}
     atomic_json(root / 'prepared.json', record)
+    _migrate_worker_routes(root, archive)
+    _preflight_worker_routes(root)
     pin = _pin_code(root)
     history.update(status='prepared', code=str(pin), inputs=record['inputs'])
     atomic_json(marker, history)
@@ -324,6 +437,7 @@ def launch(root):
     if record['status'] != 'prepared':
         raise ValueError('Salvage has not finished preparing.')
     _pin_code(root)
+    _preflight_worker_routes(root)
     from kinbot.parameters import Parameters
     from kinbot.anl.automatic import validate_automatic_environment
     for filename in record['inputs']:
@@ -352,6 +466,8 @@ def launch(root):
         atomic_json(launch_file, {'pid': process.pid, 'host': socket.gethostname(),
                     'input': str(path), 'code': record['code']})
     record['status'] = 'launched'
+    if record.get('controller_restart'):
+        record['controller_restart']['status'] = 'launched'
     atomic_json(marker, record)
     return record
 
@@ -361,6 +477,8 @@ def main(argv=None):
     parser.add_argument('source', type=Path)
     parser.add_argument('destination', type=Path)
     parser.add_argument('--launch', action='store_true')
+    parser.add_argument('--resume-failed', action='store_true',
+                        help='Resume controllers stopped by the reviewed theory-profile startup mismatch.')
     parser.add_argument('--pivot-backend', choices=('molpro', 'gaussian'), default='molpro')
     parser.add_argument('--pivot-method', default='UKS/B3LYP3')
     parser.add_argument('--pivot-basis', default='cc-pVDZ')
@@ -375,9 +493,12 @@ def main(argv=None):
         for path in source.glob('*/[0-9]*/.kinbot_run.json'):
             handle = locks.enter_context(path.open())
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        result = prepare(args.source, args.destination, pivot_backend=args.pivot_backend,
-                         pivot_method=args.pivot_method, pivot_basis=args.pivot_basis,
-                         scf=args.scf, cc=args.cc, l3_max_retries=args.l3_max_retries)
+        if args.resume_failed:
+            result = resume_failed_controllers(args.destination)
+        else:
+            result = prepare(args.source, args.destination, pivot_backend=args.pivot_backend,
+                             pivot_method=args.pivot_method, pivot_basis=args.pivot_basis,
+                             scf=args.scf, cc=args.cc, l3_max_retries=args.l3_max_retries)
         # Child drivers acquire their own worker locks after this process
         # returns; release migration locks before starting them.
         locks.close()

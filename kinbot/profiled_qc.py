@@ -12,6 +12,7 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import re
 
 from kinbot.execution import atomic_json
 from kinbot.theory import resolve_profiles
@@ -54,6 +55,68 @@ def _fingerprint(profiles):
                for level, profile in sorted(profiles.items())}
     return hashlib.sha256(json.dumps(payload, sort_keys=True,
                                      separators=(',', ':')).encode()).hexdigest()
+
+
+def relaxed_scf_routes(payload, par):
+    """Plan an explicit, idle-run migration; ordinary restarts remain strict.
+
+    Previously accepted results may satisfy a looser SCF density threshold.
+    No other profile change authorizes reuse. The caller must verify there
+    are no live routed jobs and archive the original ledger before writing.
+    """
+    old = payload.get('profiles')
+    digest = hashlib.sha256(json.dumps(old, sort_keys=True,
+                                      separators=(',', ':')).encode()).hexdigest()
+    if (payload.get('schema') != 1 or digest != payload.get('profile_sha256')
+            or not isinstance(old, dict) or not isinstance(payload.get('jobs'), dict)):
+        raise ValueError('Cannot migrate an invalid theory route ledger.')
+    new_profiles = resolve_profiles(par)
+    new = {key: _profile_payload(profile) for key, profile in new_profiles.items()}
+    if old.keys() != new.keys():
+        raise ValueError('Theory profile levels changed; retained results cannot be reused.')
+    changes = {}
+    for level in old:
+        if old[level] == new[level]:
+            continue
+        before, after = deepcopy(old[level]), deepcopy(new[level])
+        if before.get('calculator') != 'gaussian' or after.get('calculator') != 'gaussian':
+            raise ValueError(f'{level}: only Gaussian SCF threshold relaxation can be migrated.')
+        def split_scf(profile):
+            from kinbot.gaussian_input import route_options
+            kwargs = profile.get('calculator_kwargs', {})
+            keys = [k for k in kwargs if k.casefold() == 'scf']
+            if len(keys) != 1:
+                raise ValueError(f'{level}: an explicit SCF convergence threshold is required.')
+            options = route_options(kwargs.pop(keys[0]))
+            convergence = [re.fullmatch(r'conver(?:gence)?\s*=\s*(\d+)', s, re.I)
+                           for s in options]
+            values = [int(m.group(1)) for m in convergence if m]
+            if len(values) != 1:
+                raise ValueError(f'{level}: one explicit SCF convergence threshold is required.')
+            return values[0], sorted(s.casefold() for s, m in zip(options, convergence) if not m)
+        previous, old_options = split_scf(before)
+        requested, new_options = split_scf(after)
+        if before != after or old_options != new_options or requested > previous:
+            raise ValueError(f'{level}: theory changed beyond an SCF threshold relaxation.')
+        changes[level] = {'previous_exponent': previous, 'requested_exponent': requested}
+    result = deepcopy(payload)
+    fingerprint = _fingerprint(new_profiles)
+    for job, record in result['jobs'].items():
+        if (not isinstance(job, str) or not isinstance(record, dict)
+                or record.get('level') not in new
+                or record.get('job_id') is not None and not isinstance(record['job_id'], str)
+                or record.get('generation_tagged', False) not in (False, True)):
+            raise ValueError(f'Invalid profiled job route for {job!r}.')
+        # The archived ledger retains historical scheduler IDs. Only active
+        # dispatcher jobs may remain in an explicitly migrated idle run.
+        record.setdefault('source_profile_sha256', payload['profile_sha256'])
+        record.update(job_id=None, generation_tagged=False)
+    result.update(profile_sha256=fingerprint, profiles=new)
+    if changes:
+        result.setdefault('profile_migrations', []).append({
+            'source_profile_sha256': payload['profile_sha256'],
+            'target_profile_sha256': fingerprint, 'scf_changes': changes})
+    return result
 
 
 def _backend_parameters(par, profile):
@@ -199,6 +262,7 @@ class ProfiledQuantumChemistry:
         self._set_queue_setting('queue_job_root_recursive', value)
 
     def _load_routes(self):
+        self._profile_migrations = []
         if not self.route_file.exists():
             return {}
         try:
@@ -211,6 +275,7 @@ class ProfiledQuantumChemistry:
             raise ValueError('Theory profiles changed since jobs were submitted; '
                              f'archive or remove {self.route_file} before a new run.')
         routes = payload['jobs']
+        self._profile_migrations = payload.get('profile_migrations', [])
         for job, record in routes.items():
             if (not isinstance(job, str) or not isinstance(record, dict)
                     or record.get('level') not in self.backends
@@ -226,6 +291,8 @@ class ProfiledQuantumChemistry:
                    'profiles': {key: _profile_payload(value)
                                 for key, value in self.profiles.items()},
                    'jobs': self._routes}
+        if self._profile_migrations:
+            payload['profile_migrations'] = self._profile_migrations
         self.route_file.parent.mkdir(parents=True, exist_ok=True)
         atomic_json(self.route_file, payload)
 
@@ -240,6 +307,9 @@ class ProfiledQuantumChemistry:
                 if job_id is not None
                 else previous.get('generation_tagged', False)),
         }
+        if 'source_profile_sha256' in previous:
+            record['source_profile_sha256'] = (self._fingerprint if job_id is not None
+                                               else previous['source_profile_sha256'])
         if job_id is not None:
             self.job_ids[job] = str(job_id)
         if previous != record:

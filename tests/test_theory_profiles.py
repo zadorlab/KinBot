@@ -464,6 +464,51 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertTrue(
             Path('.kinbot_theory_jobs.continuation.json').is_file())
 
+    def test_explicit_scf_migration_preserves_source_profiles_and_strict_restart(self):
+        from kinbot.profiled_qc import relaxed_scf_routes
+        from kinbot.execution import atomic_json
+        old = self.parameters(theory_preset='b3lyp-b2plyp-anl', anl_scf_convergence=1e-10)
+        qc = QuantumChemistry(old.par)
+        qc._record('well', 'l1', '123')
+        payload = json.loads(Path('.kinbot_theory_jobs.json').read_text())
+        new = self.parameters(theory_preset='b3lyp-b2plyp-anl', anl_scf_convergence=1e-8)
+        with self.assertRaisesRegex(ValueError, 'Theory profiles changed'):
+            QuantumChemistry(new.par)
+        revised = relaxed_scf_routes(payload, new.par)
+        self.assertEqual(payload['jobs']['well']['job_id'], '123')
+        self.assertIsNone(revised['jobs']['well']['job_id'])
+        atomic_json(Path('.kinbot_theory_jobs.json'), revised)
+        resumed = QuantumChemistry(new.par)
+        self.assertEqual(resumed._level_for('well'), 'l1')
+        self.assertEqual(resumed.job_ids, {})
+        resumed._record('well', 'l1')  # reusing an accepted result
+        self.assertEqual(resumed._routes['well']['source_profile_sha256'], qc._fingerprint)
+        resumed._record('well', 'l1', '456')  # a new attempt uses current settings
+        self.assertEqual(resumed._routes['well']['source_profile_sha256'], resumed._fingerprint)
+        saved = json.loads(Path('.kinbot_theory_jobs.json').read_text())
+        self.assertEqual(saved['profile_migrations'], revised['profile_migrations'])
+
+    def test_scf_migration_rejects_other_theory_changes_and_corrupt_ledgers(self):
+        from copy import deepcopy
+        from kinbot.profiled_qc import relaxed_scf_routes
+        old = self.parameters(theory_preset='b3lyp-b2plyp-anl', anl_scf_convergence=1e-10)
+        QuantumChemistry(old.par)._record('well', 'l1', '123')
+        payload = json.loads(Path('.kinbot_theory_jobs.json').read_text())
+        for options in (
+                {'anl_scf_convergence': 1e-11},
+                {'l2_profile': {'basis': 'cc-pVQZ'}},
+                {'l1_profile': {'method': 'wB97XD'}},
+                {'l2_profile': {'frequency_mode': 'finite_difference'}},
+                {'l1_profile': {'calculator_kwargs': {'integral': 'SuperFineGrid'}}}):
+            with self.subTest(options=options):
+                par = deepcopy(old.par)
+                par.update(options)
+                with self.assertRaises(ValueError):
+                    relaxed_scf_routes(payload, par)
+        payload['profiles']['l1']['basis'] = 'cc-pVTZ'
+        with self.assertRaisesRegex(ValueError, 'invalid theory route ledger'):
+            relaxed_scf_routes(payload, old.par)
+
     def test_profiled_l1_reuse_only_refuses_a_missing_job(self):
         parameters = self.parameters(
             theory_preset='uma-b2plyp-anl', fc_model_path='uma-s-1p2',

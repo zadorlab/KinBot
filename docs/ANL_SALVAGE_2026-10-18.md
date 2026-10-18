@@ -81,6 +81,29 @@ general cleanup. Regression coverage exercises this interrupted sequence,
 preservation of the valid live task's hashes, and launching both controllers
 once after preparation completes.
 
+The subsequent launch exposed a second migration omission: the saved L1/L2
+route ledgers still fingerprinted SCF `Conver=10`, while the resumed inputs
+requested `Conver=8`. Ordinary restart checks correctly rejected that
+mismatch. Salvage now explicitly migrates the ledgers only when every other
+profile field and SCF option matches and the previous threshold is at least
+as strict as the new one. It archives the original ledger, retains all job
+routes with their original profile fingerprints, and clears obsolete L1/L2
+scheduler IDs only after verifying that no routed QC jobs remain live.
+Accepted database rows and native QC files are unchanged. Ordinary restarts
+still reject arbitrary profile changes. Preparation and launch now construct
+the real QC router for each existing worker before starting drivers.
+
+For the observed immediate startup failure, use the same command with
+`--resume-failed --launch` after pulling the fix. This scoped recovery
+requires stopped controllers with the recorded theory-profile mismatch;
+other failures or live controllers stop it. It archives the failed launch
+logs/status, verifies the migrated router, and creates a new versioned source
+snapshot while keeping the previous `.salvage_code` directory. It does not
+cancel, modify, or resubmit composite tasks. Existing graph recovery records
+and the r5/r6 alias remain in place. Regression tests check both initial
+migration and this failed-launch recovery with a live composite allocation,
+unchanged database/file hashes, and one launch per PES.
+
 The old input's scientific settings and node exclusions are retained,
 except for the explicitly requested SCF/CC controls, mandatory L3 policy,
 and Molpro pivot backend. Accepted earlier results with tighter thresholds

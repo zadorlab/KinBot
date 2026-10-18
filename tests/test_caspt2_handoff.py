@@ -312,6 +312,8 @@ def test_two_pes_salvage_resumes_interrupted_preparation_without_losing_inputs(h
     from kinbot.anl import salvage, dispatch
     from tests.test_anl_salvage import small_spec
     from kinbot.execution import atomic_json, file_sha256
+    from kinbot.parameters import Parameters
+    from kinbot.qc import QuantumChemistry
     old = handoff.prepare(tmp_path/'old')
     new = tmp_path/'new'
     for case in handoff.CASES:
@@ -319,6 +321,12 @@ def test_two_pes_salvage_resumes_interrupted_preparation_without_losing_inputs(h
         graph = worker/'anl_automatic/states/example/composite'
         graph.parent.mkdir(parents=True)
         dispatch.prepare(small_spec(), graph)
+        # Existing L1/L2 routes were generated at the original tighter SCF.
+        par = Parameters(str(old/case/'input.json')).par
+        par['anl_scf_convergence'] = 1e-10
+        with monkeypatch.context() as context:
+            context.chdir(worker)
+            QuantumChemistry(par)._record('accepted_high', 'l2', '201')
         atomic_json(worker/'anl_automatic/network_request.json', {'resources': {}})
         (worker/'kinbot.log').write_text('old failure evidence')
         ref = worker/'anl_automatic/reference_l2/failed_reference'
@@ -351,6 +359,11 @@ def test_two_pes_salvage_resumes_interrupted_preparation_without_losing_inputs(h
         assert values['queue_job_limit'] == 10
     assert len(list(Path(report['archive']).glob('*/123/kinbot.log'))) == 2
     assert len(list(Path(report['archive']).glob('*/123/anl_automatic/reference_l2/failed_reference/driver.stderr'))) == 2
+    for case in handoff.CASES:
+        payload = json.loads((old/case/'123/.kinbot_theory_jobs.json').read_text())
+        assert payload['profiles']['l2']['calculator_kwargs']['scf'] == 'xqc,conver=8'
+        assert payload['jobs']['accepted_high']['job_id'] is None
+        assert (Path(report['archive'])/case/'123/.kinbot_theory_jobs.json').exists()
 
 
 def test_salvage_resumes_after_cancel_and_rehome_with_live_qz(handoff, tmp_path, monkeypatch):
@@ -451,3 +464,110 @@ def test_salvage_resumes_after_cancel_and_rehome_with_live_qz(handoff, tmp_path,
     assert {kwargs['cwd'].name for _, kwargs in launches} == {'ch3s', 'ch3ss'}
     assert all(kwargs['start_new_session'] for _, kwargs in launches)
     assert len(list(new.glob('*/launch.json'))) == 2
+
+
+def test_resume_failed_theory_startup_preserves_qc_and_preflights_real_router(handoff, tmp_path, monkeypatch):
+    from copy import deepcopy
+    from types import SimpleNamespace
+    from ase import Atoms
+    from kinbot import run_cleanup, run_salvage
+    from kinbot.anl import dispatch
+    from kinbot.parameters import Parameters
+    from kinbot.qc import QuantumChemistry
+    from kinbot.execution import atomic_json, file_sha256
+    from tests.test_anl_salvage import small_spec
+    from tests.test_anl_dispatch import _mock_execution
+    root = handoff.prepare(tmp_path/'run')
+    archive = tmp_path/'archive'; archive.mkdir()
+    record = json.loads((root/'prepared.json').read_text())
+    old_ledgers, databases = {}, {}
+    error = 'ValueError: Theory profiles changed since jobs were submitted; archive or remove .kinbot_theory_jobs.json before a new run.'
+    for filename in record['inputs']:
+        path = Path(filename)
+        worker = path.parent/'123'; worker.mkdir()
+        par = Parameters(filename).par
+        before = deepcopy(par)
+        before['anl_scf_convergence'] = 1e-10
+        with monkeypatch.context() as context:
+            context.chdir(worker)
+            qc = QuantumChemistry(before)
+            qc._record('accepted_well', 'l1', '201')
+            qc.l1.db.write(Atoms('H'), name='accepted_well',
+                           data={'status': 'normal', 'energy': -10., 'zpe': 0., 'frequencies': []})
+        ledger = worker/'.kinbot_theory_jobs.json'
+        old_ledgers[ledger] = ledger.read_bytes()
+        databases[worker/'kinbot.db'] = file_sha256(worker/'kinbot.db')
+        (worker/'kinbot.log').write_text(error)
+        atomic_json(worker/'kinbot_status.json', {'status': 'failed', 'error': error})
+        atomic_json(path.parent/'pes_status.json', {'status': 'failed', 'error': error})
+        atomic_json(path.parent/'launch.json', {'pid': 1234})
+    graph = root/'ch3s/123/anl_automatic/states/valid/composite'
+    graph.parent.mkdir(parents=True)
+    dispatch.prepare(small_spec(), graph)
+    _mock_execution(graph, 'accepted_geometry', geometry='final.xyz')
+    state = dispatch.advance(graph)
+    state['tasks']['l3_geometry'].update(status='submitted', job_id='101')
+    atomic_json(graph/'state.json', state)
+    graph_hashes = {str(p.relative_to(graph)): file_sha256(p)
+                    for p in graph.rglob('*') if p.is_file()}
+    atomic_json(root/'salvage.json', {'status': 'launched', 'archive': str(archive),
+                                    'inputs': record['inputs'], 'code': str(root/'.salvage_code')})
+    pin = root/'.salvage_code'; pin.mkdir()
+    (pin/'old_code.py').write_text('# original pinned source\n')
+    atomic_json(pin/'manifest.json', {'old_code.py': file_sha256(pin/'old_code.py')})
+    monkeypatch.setattr(run_cleanup, '_jobs', lambda root: [
+        {'job_id': '101', 'directory': str(graph/'tasks/l3_geometry')}])
+    monkeypatch.setattr(run_cleanup, '_processes', lambda root: [])
+    with pytest.raises(ValueError, match='Theory profiles changed'):
+        run_salvage._preflight_worker_routes(root)
+    pin_code = run_salvage._pin_code
+    def interrupted_pin(root, **kwargs):
+        raise RuntimeError('interrupted before new code snapshot')
+    monkeypatch.setattr(run_salvage, '_pin_code', interrupted_pin)
+    with pytest.raises(RuntimeError, match='interrupted before new code snapshot'):
+        run_salvage.resume_failed_controllers(root)
+    monkeypatch.setattr(run_salvage, '_pin_code', pin_code)
+    result = run_salvage.resume_failed_controllers(root)
+    assert result['status'] == 'prepared'
+    assert result['code'] != str(pin) and (pin/'old_code.py').exists()
+    assert Path(result['code']).is_dir()
+    assert run_salvage.resume_failed_controllers(root) == result
+    assert not list(root.glob('*/launch.json'))
+    saved = Path(result['controller_restart']['archive'])
+    for ledger, content in old_ledgers.items():
+        assert (saved/ledger.relative_to(root)).read_bytes() == content
+        revised = json.loads(ledger.read_text())
+        assert revised['profiles']['l1']['calculator_kwargs']['scf'] == 'xqc,conver=8'
+        assert revised['jobs']['accepted_well']['job_id'] is None
+        assert revised['jobs']['accepted_well']['source_profile_sha256'] == json.loads(content)['profile_sha256']
+    assert databases == {p: file_sha256(p) for p in databases}
+    assert graph_hashes == {str(p.relative_to(graph)): file_sha256(p)
+                            for p in graph.rglob('*') if p.is_file()}
+    run_salvage._preflight_worker_routes(root)
+    monkeypatch.setattr('kinbot.anl.automatic.validate_automatic_environment', lambda par: None)
+    launches = []
+    def start(command, **kwargs):
+        launches.append((command, kwargs))
+        return SimpleNamespace(pid=800+len(launches))
+    monkeypatch.setattr(run_salvage.subprocess, 'Popen', start)
+    assert run_salvage.launch(root)['status'] == 'launched'
+    assert run_salvage.launch(root)['status'] == 'launched'
+    assert len(launches) == 2
+    assert all(kwargs['env']['PYTHONPATH'].startswith(result['code']) for _, kwargs in launches)
+    with pytest.raises(RuntimeError, match='already launched'):
+        run_salvage.resume_failed_controllers(root)
+
+
+def test_failed_controller_recovery_refuses_live_controller_or_other_failure(handoff, tmp_path, monkeypatch):
+    from kinbot import run_cleanup, run_salvage
+    from kinbot.execution import atomic_json
+    root = handoff.prepare(tmp_path/'run')
+    atomic_json(root/'salvage.json', {'status': 'launched'})
+    monkeypatch.setattr(run_cleanup, '_jobs', lambda root: [])
+    monkeypatch.setattr(run_cleanup, '_processes', lambda root: [{'pid': 123}])
+    with pytest.raises(RuntimeError, match='still alive'):
+        run_salvage.resume_failed_controllers(root)
+    monkeypatch.setattr(run_cleanup, '_processes', lambda root: [])
+    atomic_json(root/'ch3s/pes_status.json', {'status': 'failed', 'error': 'different failure'})
+    with pytest.raises(RuntimeError, match='expected the reviewed'):
+        run_salvage.resume_failed_controllers(root)

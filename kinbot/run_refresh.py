@@ -6,18 +6,70 @@ No scancel, task reset, geometry migration or calculation deletion is used.
 """
 import argparse
 from contextlib import ExitStack, contextmanager
+import ctypes
 from datetime import datetime, timezone
 import fcntl
 import json
 import os
 from pathlib import Path
+import platform
 import shlex
 import signal
 import socket
+import sys
 import time
 
 from kinbot.execution import atomic_json
 from kinbot import run_cleanup, run_salvage
+
+
+def _pidfd_syscall(number, *args):
+    """Use the Linux ABI when Python was built without pidfd wrappers.
+
+    Linux arch/x86/entry/syscalls/syscall_64.tbl and asm-generic/unistd.h
+    assign 434 to pidfd_open and 424 to pidfd_send_signal on these ABIs.
+    Never issue these syscall numbers on macOS or a different word size/ABI.
+    """
+    if (sys.platform != 'linux' or platform.machine().lower() not in ('x86_64', 'aarch64')
+            or ctypes.sizeof(ctypes.c_void_p) != 8 or ctypes.sizeof(ctypes.c_long) != 8):
+        raise RuntimeError('PID-handle compatibility requires 64-bit x86_64/aarch64 Linux.')
+    library = ctypes.CDLL(None, use_errno=True)
+    call = library.syscall
+    call.restype = ctypes.c_long
+    call.argtypes = [ctypes.c_long]  # syscall's remaining arguments are variadic.
+    result = call(ctypes.c_long(number), *args)
+    if result == -1:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+    return result
+
+
+def _pidfd_open(pid):
+    function = getattr(os, 'pidfd_open', None)
+    if callable(function):
+        return function(pid)
+    return _pidfd_syscall(434, ctypes.c_int(pid), ctypes.c_uint(0))
+
+
+def _pidfd_send_signal(fd, sig):
+    function = getattr(signal, 'pidfd_send_signal', None)
+    if callable(function):
+        return function(fd, sig)
+    return _pidfd_syscall(424, ctypes.c_int(fd), ctypes.c_int(sig),
+                          ctypes.c_void_p(), ctypes.c_uint(0))
+
+
+def _probe_process_handles():
+    """Check kernel support and both bindings without signalling a controller."""
+    try:
+        fd = _pidfd_open(os.getpid())
+        try:
+            _pidfd_send_signal(fd, 0)  # Permission/existence check, no signal.
+        finally:
+            os.close(fd)
+    except (OSError, RuntimeError, AttributeError) as error:
+        raise RuntimeError('PID-safe process control is unavailable on this host: '
+                           f'{error}. No controllers were paused or replaced.') from error
 
 
 def _controllers(root):
@@ -110,14 +162,18 @@ def _stopped(pid):
 def _freeze(root, records):
     """Use Linux pidfds so neither STOP, KILL nor CONT can target a reused PID."""
     handles = []
+    stopped = []
     try:
         for record in records:
-            fd = os.pidfd_open(record['pid'])
-            if _starttime(record['pid']) != record['starttime']:
-                os.close(fd)
-                raise RuntimeError('Controller identity changed; retry inventory.')
+            fd = _pidfd_open(record['pid'])
             handles.append((record, fd))
-            signal.pidfd_send_signal(fd, signal.SIGSTOP)
+            if _starttime(record['pid']) != record['starttime']:
+                raise RuntimeError('Controller identity changed; retry inventory.')
+            _pidfd_send_signal(fd, 0)
+        # Open/check every handle before pausing even the first controller.
+        for _, fd in handles:
+            _pidfd_send_signal(fd, signal.SIGSTOP)
+            stopped.append(fd)
         deadline = time.monotonic() + 5
         while not all(_stopped(record['pid']) for record, _ in handles):
             if time.monotonic() >= deadline:
@@ -132,7 +188,8 @@ def _freeze(root, records):
     finally:
         for _, fd in handles:
             try:
-                signal.pidfd_send_signal(fd, signal.SIGCONT)
+                if fd in stopped:
+                    _pidfd_send_signal(fd, signal.SIGCONT)
             except ProcessLookupError:
                 pass  # Already replaced. pidfd prevents signalling another PID.
             finally:
@@ -172,8 +229,27 @@ def refresh(root, *, apply=False):
     pin = run_salvage._pin_code(root, refresh=True)
     if journal and journal['phase'] == 'launched' and journal['code'] == str(pin):
         return journal
+    _probe_process_handles()  # Includes resumed transactions, before any STOP.
+    print('Process-handle preflight passed.', flush=True)
     if journal and journal['phase'] != 'launched' and journal['code'] != str(pin):
-        raise RuntimeError('An interrupted refresh uses different code; finish it before updating again.')
+        archive = Path(journal['archive'])
+        # The observed missing-Python-API failure left only a preparing
+        # journal. No controller/log migration has been committed in it.
+        # Permit replacement code only at that boundary, after fresh checks.
+        if (journal['phase'] != 'preparing' or history['status'] != 'launched'
+                or history['code'] != journal['previous_code']
+                or any(p.name != 'previous_refresh.json' for p in archive.iterdir())):
+            raise RuntimeError('An interrupted refresh already changed controllers/files; '
+                               'finish it with its original code before updating again.')
+        _controllers(root)
+        _owned_jobs(root)
+        _preflight(root)
+        if apply:
+            journal.setdefault('superseded_preparation_codes', []).append(journal['code'])
+            journal['code'] = str(pin)
+            atomic_json(journal_path, journal)
+        else:
+            return {**journal, 'phase': 'reviewed', 'replacement_code': str(pin)}
     if not journal or journal['phase'] == 'launched':
         if history['status'] != 'launched':
             raise RuntimeError('Controller refresh requires a launched salvage run.')
@@ -202,7 +278,7 @@ def refresh(root, *, apply=False):
             atomic_json(journal_path, journal)
             for _, fd in handles:
                 try:
-                    signal.pidfd_send_signal(fd, signal.SIGKILL)
+                    _pidfd_send_signal(fd, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
             deadline = time.monotonic() + 5

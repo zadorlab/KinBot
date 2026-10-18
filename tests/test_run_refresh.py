@@ -1,9 +1,14 @@
 """Controller handoff preserves owned native work and rejects unsafe pauses."""
 from copy import deepcopy
+import ctypes
+import errno
 import json
+import os
 from pathlib import Path
 import signal
 import socket
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -61,9 +66,13 @@ def live_tree(tmp_path, monkeypatch):
                         if Path(p['cwd']).is_relative_to(folder)])
     signals = []
     def send(fd, sig):
+        if fd == os.getpid() and sig == 0:
+            return
         record = next((p for p in processes if p['pid'] == fd), None)
         if record is None:
             raise ProcessLookupError
+        if sig == 0:
+            return
         signals.append((fd, sig))
         if sig == signal.SIGKILL:
             processes.remove(record)
@@ -80,7 +89,7 @@ def live_tree(tmp_path, monkeypatch):
         return SimpleNamespace(pid=900 + len(launches))
     monkeypatch.setattr(run_salvage.subprocess, 'Popen', launch)
     return SimpleNamespace(root=root, processes=processes, jobs=jobs, graphs=graphs,
-                           signals=signals, launches=launches)
+                           signals=signals, launches=launches, send=send)
 
 
 def scientific_files(root):
@@ -175,3 +184,119 @@ def test_interrupted_archive_resumes_without_touching_qc(live_tree, monkeypatch)
     assert run_refresh.refresh(t.root, apply=True)['phase'] == 'launched'
     assert scientific_files(t.root) == before
     assert len(t.launches) == 2
+
+
+@pytest.mark.parametrize('missing', [('open',), ('send',), ('open', 'send')])
+def test_missing_python_pidfd_apis_use_linux_syscalls_for_full_handoff(live_tree, monkeypatch, missing):
+    t = live_tree
+    before = scientific_files(t.root)
+    if 'open' in missing:
+        monkeypatch.delattr(run_refresh.os, 'pidfd_open')
+    if 'send' in missing:
+        monkeypatch.delattr(run_refresh.signal, 'pidfd_send_signal')
+    monkeypatch.setattr(run_refresh.sys, 'platform', 'linux')
+    monkeypatch.setattr(run_refresh.platform, 'machine', lambda: 'x86_64')
+    calls = []
+    def syscall(number, *args):
+        values = [arg.value for arg in args]
+        calls.append((number.value, values))
+        if number.value == 434:
+            assert values[1] == 0
+            return values[0]
+        assert number.value == 424 and values[2:] == [None, 0]
+        try:
+            t.send(values[0], values[1])
+        except ProcessLookupError:
+            ctypes.set_errno(errno.ESRCH)
+            return -1
+        return 0
+    monkeypatch.setattr(run_refresh.ctypes, 'CDLL', lambda *a, **kw: SimpleNamespace(syscall=syscall))
+    assert run_refresh.refresh(t.root, apply=True)['phase'] == 'launched'
+    assert calls and len(t.launches) == 2
+    assert scientific_files(t.root) == before
+
+
+def test_kernel_probe_failure_happens_before_journal_or_stop(live_tree, monkeypatch):
+    t = live_tree
+    def unavailable(pid):
+        raise OSError(errno.ENOSYS, 'kernel lacks pidfd_open')
+    monkeypatch.setattr(run_refresh, '_pidfd_open', unavailable)
+    with pytest.raises(RuntimeError, match='No controllers were paused'):
+        run_refresh.refresh(t.root, apply=True)
+    assert not t.signals and not t.launches
+    assert not (t.root / 'controller_refresh.json').exists()
+
+
+def test_all_handles_checked_before_first_stop(live_tree, monkeypatch):
+    t = live_tree
+    def unavailable(pid):
+        if pid == 102:
+            raise PermissionError('second case is inaccessible')
+        return pid
+    monkeypatch.setattr(run_refresh, '_pidfd_open', unavailable)
+    with pytest.raises(PermissionError, match='inaccessible'):
+        run_refresh.refresh(t.root, apply=True)
+    assert not t.signals and not t.launches
+
+
+def test_failed_old_preparation_accepts_fixed_code_without_manual_cleanup(live_tree):
+    t = live_tree
+    before = scientific_files(t.root)
+    archive = t.root.parent / 'failed_refresh'; archive.mkdir()
+    atomic_json(t.root / 'controller_refresh.json', {
+        'phase': 'preparing', 'code': str(t.root / '.salvage_code.bad'),
+        'previous_code': str(t.root / '.salvage_code.old'), 'archive': str(archive),
+    })
+    result = run_refresh.refresh(t.root, apply=True)
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    assert result['superseded_preparation_codes'] == [str(t.root / '.salvage_code.bad')]
+    assert scientific_files(t.root) == before
+
+
+@pytest.mark.parametrize('phase', ['stopping', 'stopped', 'prepared'])
+def test_code_replacement_rejects_an_already_committed_handoff(live_tree, phase):
+    t = live_tree
+    archive = t.root.parent / 'failed_refresh'; archive.mkdir()
+    atomic_json(t.root / 'controller_refresh.json', {
+        'phase': phase, 'code': str(t.root / '.salvage_code.bad'),
+        'previous_code': str(t.root / '.salvage_code.old'), 'archive': str(archive),
+    })
+    with pytest.raises(RuntimeError, match='already changed'):
+        run_refresh.refresh(t.root, apply=True)
+    assert not t.signals and not t.launches
+
+
+@pytest.mark.parametrize('host,arch', [('darwin', 'arm64'), ('linux', 'unknown')])
+def test_syscall_fallback_refuses_other_platforms_before_loading_libc(monkeypatch, host, arch):
+    monkeypatch.setattr(run_refresh.sys, 'platform', host)
+    monkeypatch.setattr(run_refresh.platform, 'machine', lambda: arch)
+    def forbidden(*args, **kwargs):
+        pytest.fail('must not issue a Linux syscall on an unrecognized ABI')
+    monkeypatch.setattr(run_refresh.ctypes, 'CDLL', forbidden)
+    with pytest.raises(RuntimeError, match='compatibility requires'):
+        run_refresh._pidfd_syscall(434, ctypes.c_int(1), ctypes.c_uint(0))
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='requires the real Linux pidfd ABI')
+def test_real_linux_process_handles_without_python_wrappers(monkeypatch):
+    """Linux CI exercises the native ABI; no controller or scientific job is used."""
+    monkeypatch.delattr(os, 'pidfd_open', raising=False)
+    monkeypatch.delattr(signal, 'pidfd_send_signal', raising=False)
+    run_refresh._probe_process_handles()
+    child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+    fd = None
+    try:
+        fd = run_refresh._pidfd_open(child.pid)
+        run_refresh._pidfd_send_signal(fd, signal.SIGSTOP)
+        _, status = os.waitpid(child.pid, os.WUNTRACED)
+        assert os.WIFSTOPPED(status)
+        run_refresh._pidfd_send_signal(fd, signal.SIGCONT)
+        run_refresh._pidfd_send_signal(fd, signal.SIGKILL)
+        assert child.wait(timeout=5) == -signal.SIGKILL
+        with pytest.raises(ProcessLookupError):
+            run_refresh._pidfd_send_signal(fd, 0)
+    finally:
+        if child.poll() is None:
+            child.kill(); child.wait(timeout=5)
+        if fd is not None:
+            os.close(fd)

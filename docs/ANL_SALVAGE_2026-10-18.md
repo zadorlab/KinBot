@@ -221,11 +221,32 @@ Composite graph drivers now hold dispatcher locks, matching the existing
 single-graph VRC driver, to prevent outside repair commands racing their
 state writes.
 
+The first Blodgett refresh exposed a Python build without `os.pidfd_open`.
+That attempt failed before the first controller signal, leaving a
+`preparing` journal and the original controllers/jobs intact. Process-handle
+operations now use Python's wrappers when available, or the documented
+Linux syscall ABI on 64-bit x86_64/aarch64 when either wrapper is absent.
+A signal-zero self-probe checks both operations before any controller pause;
+all controller handles and identities are checked before the first STOP.
+Unsupported kernel/ABI or denied access stops the handoff without cancelling
+jobs. See [pidfd_open](https://man7.org/linux/man-pages/man2/pidfd_open.2.html)
+and the [Linux syscall table](https://github.com/torvalds/linux/blob/v6.12/arch/x86/entry/syscalls/syscall_64.tbl).
+
+After this specific pre-mutation failure, the same pull/refresh command can
+adopt the fixed source snapshot automatically: it rechecks ownership and
+the environment, retains the existing empty controller archive, and records
+the superseded preparation code. Code replacement is still rejected after
+the journal enters `stopping`, `stopped` or `prepared`, or if controller
+files have already been moved. Do not delete the journal manually.
+
 Regression tests exercise the actual automatic retry/submit loop with an
 adopted live job, preservation of ANL and VRC task hashes/job IDs during
 controller replacement, submission-race refusal, PID-reuse protection and
 interrupted archival. These tests simulate Slurm/native executables and
 do not establish native Gaussian success or site-specific handoff success.
+Compatibility tests remove either/both Python APIs and exercise the complete
+handoff through simulated libc calls. A separate native Linux test pauses,
+resumes and terminates only its own disposable child; it is skipped on macOS.
 
 - The geometry audit found a real CC threshold translation bug. Generated
   `THRESH,COEFF=1e-10` printed **THRVAR=1e-20** in Molpro 2024.1; older

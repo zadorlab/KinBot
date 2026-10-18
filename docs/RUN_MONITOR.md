@@ -22,18 +22,28 @@ sets the follower poll interval (1–60 seconds; default 3).
 The dashboard separates **KINBOT LOGS** (including each `kinbot.log` and
 `pes.log` tail) from **QC OUTPUT** (native solver and Sella progress/errors).
 Input-parameter dictionaries are excluded from the progress view. Coordinate
-tables are not treated as solver iterations. Shared exclusions appear once;
+tables and Molpro dataset record numbers are not treated as solver iterations.
+Shared exclusions appear once;
 Slurm exclusions are grouped by their actual scheduler value. Paths within a
-PES are relative to that PES and process rows show module names/PIDs. Long
+PES are shortened to ANL state/task or VRC channel/task labels; adopted jobs
+with an old run alias are resolved for display. Process rows show module names/PIDs. Long
 diagnostics wrap to the terminal width without truncation.
 
 Both PES overviews appear before either expanded section. Routine successful
-result records and completed reference workers are counted together; dependent
-waiting tasks are summarized by their blockers. A waiting task is not a failed
-QC calculation. The normal display shows at most eight detailed records and
-four controller/four QC tails per PES. `--all` shows every reaction row and up
+result records are omitted from the default view. Dispatch task counts are
+aggregated across graphs; current failures, pending retries and dependencies
+blocked by failure are expanded. Completed reaction rejections are counted
+as search outcomes, with individual rows under `--all` or `--details`.
+A waiting task is not a failed QC calculation. Completed reference-worker
+log tails are available under `--details`, keeping the main `kinbot.log` and
+`pes.log` visible by default.
+
+The normal display shows four controller/four QC tails per PES. It reads one
+tail per dispatch task before older force steps, and shows one representative
+healthy log per task; current error logs retain priority. `--all` shows every reaction row and up
 to six controller/six QC tails. `--details` expands every task/record and full process commands,
-work directories, duplicate status records and recovery metadata. `--raw-logs`
+work directories, duplicate status records and recovery metadata. These views
+cover current records, not archived attempts. `--raw-logs`
 shows the unfiltered last `--lines` lines of each log instead of selected
 progress. Use it to inspect output not recognized by the progress filter.
 `--json` retains original paths, commands, status records and bounded raw tails.
@@ -63,7 +73,14 @@ The snapshot shows:
 - After the explicit saved-results migration, hash-matched rejected QC exit
   markers are shown as cached outcomes, with their original native attempts
   in the external archive. A marker written by a new failed attempt is shown
-  as a current failure. This does not turn a rejected reaction into a success.
+  as a current failure. The exact matching `exited with worker status` message
+  is also collapsed in the default controller tail, but remains in `--details`,
+  raw tails and JSON. Other errors are not hidden based on age or job name alone.
+  This does not turn a rejected reaction into a success.
+- Dispatcher `attempts/` folders beside `workflow.json` are historical and are
+  excluded from the dashboard, JSON and log follower. Their paths are listed in
+  the JSON snapshot; all archived files stay untouched on disk. A retry's current
+  status and any new failure under `tasks/` remain visible.
 - Reaction-stage counts, pending optimizations and failures, ANL/VRC dispatch
   task counts and dependency blockers, post-reaction/MESS execution gates.
 - RotdPy execution records and surface-output file counts. File counts do not
@@ -76,7 +93,9 @@ record `kinbot_status.json` and `pes_status.json`; a completed controller is
 still distinct from scientific acceptance of its outputs.
 
 The view reads bounded tails (64 KiB/file, normally up to 40 logs, up to 200
-with `--all`). It prioritizes controller logs and errors. Use `--all --details` for all
+with `--all` or `--details`). It prioritizes main controller logs, failed tasks
+and live allocations. Log coverage is reported in JSON and `--details`; a
+bounded read is not a read warning. Use `--all --details` for all
 reaction/task rows, including accepted/completed entries. Save this view to a
 file instead of trying to capture a long `watch` screen:
 

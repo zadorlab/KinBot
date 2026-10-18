@@ -397,3 +397,112 @@ def test_rehomed_run_monitors_both_cases_and_old_slurm_path(tmp_path, monkeypatc
     assert len(report['cases']) == 2
     text = monitor.render(report)
     assert '42' in text and 'first' in text and 'second' in text
+
+
+def test_archived_dispatch_failure_excluded_but_current_retry_failure_visible(production):
+    root, case = production
+    graph = case/'well/anl_automatic/states/state_x/composite'
+    put(graph/'workflow.json', {'tasks': [{'id': 'gaussian_vpt2',
+        'recovery': {'assigned_native_framework': 'C1'}}]})
+    put(graph/'state.json', {'tasks': {'gaussian_vpt2': {'status': 'staged'}}})
+    archive = graph/'attempts/gaussian_vpt2/1'
+    put(archive/'execution.json', {'status': 'failed', 'error': 'OLD segmentation violation'})
+    put(archive/'vpt2.log', 'Error termination OLD native failure\n')
+    put(archive/'task.exitcode', '12 1\n')
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    for details in (False, True):
+        text = monitor.render(report, details=details)
+        assert 'OLD' not in text and 'FAILED QC EXIT' not in text
+    assert 'RETRY ANL/state_x/gaussian_vpt2: staged' in monitor.render(report)
+    assert 'OLD' not in json.dumps(report)
+    assert len(report['cases'][0]['archived_attempt_directories']) == 1
+    assert not any('attempts/' in path for path, _ in monitor.LogFollower().poll(root)[0])
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+    put(graph/'state.json', {'tasks': {'gaussian_vpt2': {
+        'status': 'unavailable', 'unavailable_reason': 'NEW native failure'}}})
+    put(graph/'tasks/gaussian_vpt2/execution.json', {'status': 'failed', 'error': 'NEW native failure'})
+    put(graph/'tasks/gaussian_vpt2/vpt2.log', 'QPErr NEW syntax error\n')
+    text = monitor.render(monitor.snapshot(root))
+    assert 'unavailable=1' in text and 'NEW native failure' in text and 'QPErr' in text
+    assert 'OLD' not in text
+
+
+def test_only_hash_matched_cached_worker_error_is_collapsed(production):
+    from kinbot.execution import file_sha256
+    root, case = production
+    marker = case/'well/rejected.exitcode'
+    message = '18-Oct-26 14:46:41-ERROR: rejected exited with worker status 1.'
+    put(marker, '42 1\n')
+    put(case/'resume_provenance.json', {
+        'archived_failure_exits': {'well/rejected.exitcode': file_sha256(marker)}})
+    put(case/'well/kinbot.log', message+'\n18-Oct-26 14:47:00-INFO: VRC started\n'
+        '18-Oct-26 14:47:01-ERROR: DIFFERENT failure remains visible\n')
+    # An identically named job in another worker is not the archived failure.
+    put(case/'other/kinbot.log', message+'\n')
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert text.count('rejected exited with worker status 1') == 1
+    assert 'DIFFERENT failure remains visible' in text and 'VRC started' in text
+    assert 'Cached rejected QC outcomes: 1' in text
+    assert monitor.render(report, details=True).count('rejected exited with worker status 1') == 2
+    assert message in json.dumps(report)
+    put(marker, '43 1\n')
+    text = monitor.render(monitor.snapshot(root))
+    assert text.count('rejected exited with worker status 1') == 2
+    assert 'FAILED QC EXIT' in text
+
+
+def test_completed_reference_and_rejections_have_details_without_crowding_live_logs(production):
+    root, case = production
+    put(case/'well/kinbot.log', '18-Oct-26 14:47:00-INFO: Live main worker\n')
+    put(case/'well/kinbot_monitor.out', '-999 23 rejected_rxn\n-1 5 accepted_rxn\n4 6 live_rxn\n')
+    ref = case/'well/anl_automatic/reference_l2/state_x'
+    put(ref/'kinbot_status.json', {'status': 'complete'})
+    put(ref/'kinbot.log', '18-Oct-26 12:36:05-WARNING: Stale reference advice\n')
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert "'failed/rejected': 1" in text and 'Reference/subtask workers: 1 complete' in text
+    assert 'Live main worker' in text and 'live_rxn' in text
+    assert 'Stale reference advice' not in text and 'rejected_rxn' not in text
+    details = monitor.render(report, details=True)
+    assert 'Stale reference advice' in details and 'rejected_rxn' in details
+    put(case/'well/kinbot_status.json', {'status': 'complete'})
+    assert 'Live main worker' in monitor.render(monitor.snapshot(root))
+
+
+def test_each_task_gets_log_budget_before_repeated_force_steps(production, monkeypatch):
+    import os
+    root, case = production
+    busy = case/'well/anl_automatic/states/state_busy/composite/tasks/l3_geometry'
+    slow = case/'well/anl_automatic/states/state_slow/composite/tasks/gaussian_vpt2'
+    for i in range(60):
+        path = busy/f'step_{i:04d}.out'
+        put(path, f' !RHF-UCCSD(T) energy {-400-i}.123\n')
+        os.utime(path, (100+i, 100+i))
+    put(slow/'vpt2.log', ' SCF Done: E(UB2PLYP) = -398.123 A.U.\n')
+    os.utime(slow/'vpt2.log', (1, 1))
+    job = {'job_id': '42', 'state': 'RUNNING', 'nodes': 'node20', 'elapsed': '1:00',
+           'limit': '24:00:00', 'cpus': '8', 'memory': '10G', 'excluded_nodes': 'node16',
+           'name': 'vpt2', 'reason': 'node20', 'directory': str(slow)}
+    monkeypatch.setattr(monitor, 'queue', lambda: ([job], None))
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert '-398.123' in text and '-459.123' in text
+    assert '-458.123' not in text  # prior step of the same task is details-only
+    assert 'READ WARNING' not in text
+    assert report['cases'][0]['log_coverage'] == {'read': 40, 'available': 61}
+
+
+def test_molpro_dataset_numbers_are_not_solver_iterations(tmp_path):
+    path = tmp_path/'molpro.out'
+    put(path, ' ITER. SQ.NORM CORR.ENERGY TOTAL ENERGY ENERGY CHANGE\n'
+        ' 13 1.18076383 -0.41430535 -437.48412474 0.00000079 -0.00000000 0.95D-10\n'
+        ' 1100 1400 1410 1200 1210 1080 1600 1650 1700 1380\n'
+        ' 3 16 0 1.054795 3.058235 -0.304045\n')
+    record = monitor.log_record(path, tmp_path, path.stat().st_mtime)
+    text = '\n'.join(monitor.log_content(record))
+    assert '-437.48412474' in text and 'ITER.' in text
+    assert '1100 1400' not in text and '1.054795' not in text
+    assert '1100 1400' in '\n'.join(monitor.log_content(record, raw=True))

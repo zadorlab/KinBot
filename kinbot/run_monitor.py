@@ -31,13 +31,14 @@ PROGRESS = re.compile(r'PROGRAM\s*\*|SCF Done:|Step number|Optimization complete
                       r'RMS Displacement|^\s*(?:Sella|BFGS|LBFGS|FIRE)(?::|\s+\d+\s)|'
                       r'Frequencies\s+--|Zero-point correction|Minimum recovery \d|'
                       r'^\s*\?\s*\S|convergence|\b(?:KBGAP|RECONC)\w*\s*=|'
-                      r'E\((?:U?B2PLYP|R?MP2)\)\s*=|!.*(?:STATE|Energy)|'
+                      r'E\((?:U?B2PLYP|R?MP2)\)\s*=|!.*Energy|'
                       r'SCF failed|Convergence failure', re.I)
-# Molpro iterations have three integer columns followed by at least four
-# numeric fields. A Gaussian orientation row has only three coordinates.
+# Require a decimal/exponent after the integer iteration/state columns.
+# Molpro's all-integer dataset record lists are not solver iterations.
 NUMBER = r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[DdEe][-+]?\d+)?'
-ITERATION = re.compile(r'^\s*\d+\s+\d+\s+\d+\s+' +
-                       rf'(?:{NUMBER}\s+){{3}}{NUMBER}(?:\s|$)')
+REAL = r'[-+]?(?:\d+\.\d*|\.\d+|\d+[DdEe][-+]?\d+)(?:[DdEe][-+]?\d+)?'
+ITERATION = re.compile(r'^\s*\d+\s+(?:\d+\s+\d+\s+)?' +
+                       rf'{REAL}\s+(?:{NUMBER}\s+){{2}}{NUMBER}(?:\s|$)')
 TABLE_HEADER = re.compile(r'^\s*(?:Step\s+Time\s+Energy|ITER\.?\s+.*(?:ENERGY|STATE)|'
                           r'ITERATION\s+.*ENERGY)', re.I)
 LOG_NAMES = {'driver.log', 'pes.log', 'kinbot.log', 'kinbot.err', 'kinbot.out'}
@@ -102,12 +103,18 @@ def queue():
         return [], str(error)
 
 
-def inventory(root, warnings):
+def inventory(root, warnings, archives=None):
     """Bound metadata traversal; exclude archives, scratch and sampling payloads."""
     paths, visited = [], 0
     def walk_error(error):
         warnings.append(str(error))
     for directory, dirs, files in os.walk(root, followlinks=False, onerror=walk_error):
+        if 'attempts' in dirs and 'workflow.json' in files:
+            # Dispatcher retries move obsolete inputs/results/logs here. Never
+            # interpret them as current execution records, even in --details.
+            dirs.remove('attempts')
+            if archives is not None:
+                archives.append(str((Path(directory)/'attempts').relative_to(root)))
         if Path(directory).name.endswith('_minimum_recovery'):
             # Retained rejected Hessians and trial logs are historical evidence,
             # not new failures of the current optimization. Show their reports.
@@ -219,7 +226,8 @@ def artifacts(paths, root, warnings):
                             for dep in deps if data['tasks'].get(dep, {}).get('status') != 'complete'}
                 rows.append({'name': name, 'status': entry.get('status', 'waiting'),
                              'job_id': entry.get('job_id'), 'blocked_by': blockers,
-                             'error': entry.get('error') or entry.get('skip_reason')})
+                             'error': entry.get('error') or entry.get('unavailable_reason') or entry.get('skip_reason'),
+                             'recovery': task.get('recovery')})
             item.update(counts=dict(Counter(row['status'] for row in rows)), tasks=rows)
         elif path.name == '.kinbot_post_reaction_branches.json':
             item.update(branches=data.get('branches'), mess_gate=data.get('mess_gate'),
@@ -243,14 +251,25 @@ def artifacts(paths, root, warnings):
         elif path.name == 'execution.json' and data.get('status') not in ('failed', 'unavailable'):
             continue  # Per-task successful execution is covered by state.json.
         if data.get('error'):
-            item['error'] = str(data['error'])[-1200:]
+            item['error'] = str(data['error'])
         results.append(item)
     return results
 
 
 def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
     warnings = []
-    files = inventory(root, warnings)
+    archives = []
+    files = inventory(root, warnings, archives)
+    task_records = artifacts(files, root, warnings)
+    case_jobs = [job for job in jobs if inside(job['directory'], root)]
+    live_dirs = {Path(job['directory']).resolve() for job in case_jobs}
+    failed_dirs = {root/Path(item['path']).parent/'tasks'/task['name']
+                   for item in task_records for task in item.get('tasks', [])
+                   if task['status'] in ('failed', 'unavailable', 'blocked')}
+    completed_workers = {Path(item['path']).parent for item in task_records
+                         if Path(item['path']).name == 'kinbot_status.json'
+                         and item['status'] == 'complete'
+                         and len(Path(item['path']).parts) > 2}
     exit_records = []
     failed_log_names = set()
     archived_exits = read_json(root/'resume_provenance.json', warnings).get(
@@ -287,16 +306,37 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
             warnings.append(str(error))
     # Failed jobs' native/worker diagnostics must not be crowded out by many
     # newer successful calculations. Controller logs retain first priority.
-    chosen = sorted(mtimes, key=lambda p: (p.name in LOG_NAMES,
-                    p.name in failed_log_names, mtimes[p]), reverse=True)
+    chosen = sorted(mtimes, key=lambda p: (
+        p.name in LOG_NAMES and p.parent.relative_to(root) not in completed_workers,
+        p.name in failed_log_names or p.parent in failed_dirs,
+        p.parent in live_dirs, mtimes[p]), reverse=True)
+    # Read one tail per task before filling the remaining budget with older
+    # force steps. A busy geometry must not crowd out a slower live calculation.
+    first, rest, seen = [], [], set()
+    for path in chosen:
+        group = log_group(str(path.relative_to(root)))
+        (rest if group in seen else first).append(path)
+        seen.add(group)
+    chosen = first + rest
     records = []
     for path in chosen[:log_limit]:
         try:
-            records.append(log_record(path, root, now, tail_lines=log_lines))
+            record = log_record(path, root, now, tail_lines=log_lines)
+            record['completed_worker'] = (path.name in LOG_NAMES and
+                                          path.parent.relative_to(root) in completed_workers)
+            record['live_task'] = path.parent in live_dirs
+            record['historical_events'] = []
+            if path.name in LOG_NAMES:
+                for line in set(record['errors'] + record['events']):
+                    match = re.search(r'-ERROR: (\S+) exited with worker status (\d+)\.$', line)
+                    if match:
+                        marker = str((path.parent/(match[1]+'.exitcode')).relative_to(root))
+                        if any(e['path'] == marker and e['archived_failure'] and
+                               e['returncode'] == int(match[2]) for e in exit_records):
+                            record['historical_events'].append(line)
+            records.append(record)
         except OSError as error:
             warnings.append(f'{path}: {error}')
-    if len(chosen) > log_limit:
-        warnings.append(f'Reading {log_limit}/{len(chosen)} log tails; use --all for up to 200.')
     record_by_path = {r['path']: r for r in records}
     workers = []
     worker_dirs = {p.parent for p in files if p.name in
@@ -318,10 +358,12 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
                 'surface_output_files': len(list(path.glob('output/surface_*.dat')))})
     return {'directory': str(root), 'name': root.name, 'sampling': sampling,
             'allocation_cap': par.get('queue_job_limit'), 'configured_exclusions': par.get('slurm_exclude_nodes', []),
-            'jobs': [job for job in jobs if inside(job['directory'], root)],
+            'jobs': case_jobs,
             'processes': [p for p in processes if inside(p['cwd'], root)],
             'pes': summary, 'workers': workers, 'logs': records,
-            'exit_records': exit_records, 'artifacts': artifacts(files, root, warnings),
+            'exit_records': exit_records, 'artifacts': task_records,
+            'archived_attempt_directories': archives,
+            'log_coverage': {'read': len(records), 'available': len(chosen)},
             'warnings': warnings}
 
 
@@ -360,7 +402,35 @@ def relative_path(value, root):
     try:
         return str(Path(value).relative_to(root))
     except ValueError:
-        return str(value)
+        try:
+            # Adopted allocations can still report the old run's symlink.
+            return str(Path(value).resolve().relative_to(Path(root).resolve()))
+        except ValueError:
+            return str(value)
+
+
+def display_path(value, root):
+    """Compact task paths; keep state/channel identity and the original in JSON."""
+    path = relative_path(value, root)
+    for marker, label in (('/anl_automatic/states/', 'ANL/'),
+                          ('/vrctst/molpro_scan/', 'VRC/')):
+        if marker in path:
+            path = label + path.split(marker, 1)[1]
+            path = path.replace('/composite/', '/').replace('/tasks/', '/')
+            if label == 'VRC/':
+                path = re.sub(r'^VRC/\d+_', 'VRC/', path)
+            break
+    return path
+
+
+def log_group(path):
+    """Native force steps of one dispatch task share a display slot."""
+    parts = Path(path).parts
+    if 'tasks' in parts:
+        index = parts.index('tasks')
+        if len(parts) > index + 2:
+            return str(Path(*parts[:index+2]))
+    return path
 
 
 def process_label(command):
@@ -373,10 +443,13 @@ def process_label(command):
     return Path(words[0]).name if words else 'process'
 
 
-def log_content(log, *, lines=4, raw=False):
+def log_content(log, *, lines=4, raw=False, details=False):
     if raw:
         return log.get('raw_tail', [])[-lines:]
-    content = log['events'][-lines:] + log['progress'][-lines:] + log['errors']
+    historical = set() if details else set(log.get('historical_events', []))
+    events = [s for s in log['events'] if s not in historical]
+    errors = [s for s in log['errors'] if s not in historical]
+    content = events[-lines:] + log['progress'][-lines:] + errors
     if log.get('table_header') and any(
             ITERATION.match(line) or re.match(r'^(?:Sella|BFGS|LBFGS|FIRE)(?::|\s)', line)
             for line in content):
@@ -389,13 +462,20 @@ def render_logs(case, *, include_all=False, lines=4, raw=False, details=False):
     out = []
     for controller, title in ((True, 'KINBOT LOGS'), (False, 'QC OUTPUT')):
         logs = [log for log in case['logs'] if (Path(log['path']).name in LOG_NAMES) == controller]
+        if not details:
+            logs = [log for log in logs if not log.get('completed_worker')]
         if controller:
-            logs.sort(key=lambda r: (Path(r['path']).name != 'pes.log', r['path']))
+            logs.sort(key=lambda r: (Path(r['path']).name != 'pes.log',
+                                    len(Path(r['path']).parts), r['path']))
         else:
-            logs.sort(key=lambda r: (bool(r['errors']), r['mtime']), reverse=True)
+            logs.sort(key=lambda r: (bool(r['errors']), r.get('live_task', False), r['mtime']), reverse=True)
         shown = 0
+        groups = set()
         for log in logs:
-            content = log_content(log, lines=lines, raw=raw)
+            group = log_group(log['path'])
+            if not details and group in groups and not log['errors']:
+                continue
+            content = log_content(log, lines=lines, raw=raw, details=details)
             if not content:
                 continue
             if not shown:
@@ -404,13 +484,58 @@ def render_logs(case, *, include_all=False, lines=4, raw=False, details=False):
                 out.append('    More log tails available with --all --details (or --json).')
                 break
             shown += 1
-            out.append(f'    {log["path"]} | {age(log["age_seconds"])} ago | {log["bytes"]:,} B')
+            groups.add(group)
+            path = log['path'] if details else display_path(log['path'], case['directory'])
+            out.append(f'    {path} | {age(log["age_seconds"])} ago' +
+                       (f' | {log["bytes"]:,} B' if details else ''))
             for line in content:
                 # Show the event's clock and severity; date/root are already
                 # in the dashboard header. Raw tails and JSON stay untouched.
                 if not raw and EVENT.match(line):
                     line = line.split(' ', 1)[1].replace(case['directory']+'/', '')
                 out.append('      '+line)
+    return out
+
+
+def render_status_summary(case):
+    """Current task totals and actionable failures, without healthy record dumps."""
+    out, counts = [], Counter()
+    graphs = [item for item in case['artifacts'] if 'tasks' in item]
+    for graph in graphs:
+        counts.update(graph['counts'])
+    if graphs:
+        out.append(f'Dispatch tasks ({len(graphs)} graphs): ' +
+                   '  '.join(f'{k}={v}' for k, v in sorted(counts.items())))
+    for item in case['artifacts']:
+        label = display_path(item['path'], case['directory'])
+        if item.get('branches'):
+            for name, branch in item['branches'].items():
+                if branch.get('error'):
+                    out.append(f'  {name} [{branch.get("status", "unknown")}]: {branch["error"]}')
+            if item.get('mess_gate') is not None:
+                out.append(f'MESS gate: {item["mess_gate"]}; solver: {item.get("final_solver")}')
+        for task in item.get('tasks', []):
+            task_label = label.removesuffix('/state.json') + '/' + task['name']
+            if task['status'] in ('failed', 'unavailable', 'blocked'):
+                error = str(task['error'] or 'No diagnostic recorded').splitlines()[0]
+                out.append(f'  TASK {task_label}: {task["status"]}; {error}')
+            if task.get('recovery') and task['status'] not in ('complete', 'skipped'):
+                out.append(f'  RETRY {task_label}: {task["status"]}' +
+                           (f'; job={task["job_id"]}' if task['job_id'] else ''))
+        blocked = [t for t in item.get('tasks', []) if
+                   any(v in ('failed', 'unavailable', 'blocked') for v in t['blocked_by'].values())]
+        if blocked:
+            blockers = {k: v for t in blocked for k, v in t['blocked_by'].items()
+                        if v in ('failed', 'unavailable', 'blocked')}
+            out.append(f'  {label}: {len(blocked)} dependent tasks waiting for={blockers}')
+        if not item.get('branches') and not item.get('preflight') and (
+                item.get('error') or item['status'] in ('failed', 'unavailable', 'blocked')):
+            error = str(item.get('error') or 'No diagnostic recorded').splitlines()[0]
+            out.append(f'  RECORD {label}: {item["status"]}; {error}')
+        elif item.get('recovery') and item['status'] in ('retrying', 'running'):
+            out.append(f'  RECOVERY {label}: {item["status"]}')
+        elif item.get('recovery', {}).get('selected'):
+            out.append(f'  RECOVERY {label}: {item["status"]}; selected={item["recovery"]["selected"]}')
     return out
 
 
@@ -456,14 +581,15 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
         for job in case['jobs']:
             out.append(f'{job["job_id"]:<9} {job["state"]:<11} {job["nodes"]:<11} '
                        f'{job["elapsed"]} / {job["limit"]}  {job["cpus"]}  {job["memory"]}  {job["name"]}')
-            out.append('  WorkDir: '+(job['directory'] if details else relative_path(job['directory'], case['directory'])))
+            out.append('  WorkDir: '+(job['directory'] if details else display_path(job['directory'], case['directory'])))
             if job['state'] != 'RUNNING':
                 out.append('  Reason: '+job['reason'])
         # squeue uses a compressed host list; display that exact value once
         # per group instead of repeating it for every allocation.
         for exclusion in dict.fromkeys(j['excluded_nodes'] for j in case['jobs']):
             ids = ','.join(j['job_id'] for j in case['jobs'] if j['excluded_nodes'] == exclusion)
-            out.append(f'  Slurm exclusions: {exclusion or "(none)"} [jobs {ids}]')
+            out.append(f'  Slurm exclusions: {exclusion or "(none)"}' +
+                       (f' [jobs {ids}]' if details else ''))
         if case['processes']:
             if details:
                 for process in case['processes']:
@@ -505,6 +631,8 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                       and r.get('archived_failure')]
         if historical:
             out.append(f'Cached rejected QC outcomes: {len(historical)}; native attempts archived before restart.')
+        if case.get('archived_attempt_directories'):
+            out.append(f'Archived task attempts excluded: {len(case["archived_attempt_directories"])} graph(s).')
         for failure in failures:
             out.append(f'FAILED QC EXIT: {failure["path"]} job={failure["job_id"] or "unknown"} exit={failure["returncode"]}')
         workers = case['workers']
@@ -518,16 +646,20 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             status = worker['status'].get('status', 'no completion record')
             out.append(f'WORKER {worker["directory"]}: {status}; PES says {worker["reported_pes_state"] or "unlisted"}')
             if worker['reactions']:
-                out.append('  Reactions: '+str(worker['reactions']['counts']))
+                out.append('  Reaction search outcomes: '+str(worker['reactions']['counts']))
                 rows = worker['reactions']['rows']
-                for row in rows if include_all else [r for r in rows if r['code'] != -1][:12]:
+                for row in rows if include_all or details else [r for r in rows if r['code'] >= 0][:12]:
                     out.append(f'    {row["name"]}: {row["stage"]}; step={row["step"]}')
             for row in worker['optimizations']:
                 out.append(f'  Optimizing {row["reaction"]}: pending={row.get("pending")} failures={row.get("failures")}')
                 if include_all:
                     out.append('    '+json.dumps(row.get('optimizers', [])))
+        if not details and not include_all:
+            out.extend(render_status_summary(case))
         items = [item for item in case['artifacts']
                  if details or not item.get('preflight')]
+        if not details and not include_all:
+            items = []
         if not details:
             healthy = [item for item in items if not item.get('error')
                        and not item.get('branches') and not item.get('tasks')
@@ -571,11 +703,15 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                        f'{sampling["surface_directories"]} surface output files; '
                        'file counts only, final flux validation is separate.')
         out.extend(render_logs(case, include_all=include_all, lines=lines, raw=raw_logs, details=details))
+        coverage = case.get('log_coverage', {})
+        if details and coverage:
+            out.append(f'Log coverage: {coverage["read"]}/{coverage["available"]} bounded tails read.')
         out.extend('READ WARNING: '+warning for warning in case['warnings'])
         if not case['jobs'] and not case['processes'] and not report['scheduler_error'] and not report['process_error']:
             out.append('INACTIVE: no live jobs/controllers observed. This is not a completion verdict.')
     out.extend('READ WARNING: '+warning for warning in report['warnings'])
-    out += ['', 'Read-only | --details: full metadata | --raw-logs: unfiltered tails | --json: structured snapshot',
+    out += ['', 'Read-only | --all: reaction history / more logs | --details: full current records | --raw-logs: unfiltered tails | --json: snapshot',
+            'Archived task attempts are excluded; retained files are unchanged. Log reads are bounded (40; --all: 200).',
             'Tails may include earlier errors; quiet output is not proof of a stall. Statuses are not a scientific audit.']
     if any(c['pes']['counts'] for c in report['cases']):
         out.append('Legacy PES Finished means exited, not successful.')
@@ -636,7 +772,7 @@ def run(root, args):
     root = Path(root).expanduser().resolve(strict=True)
     if args.lines < 1 or not 1 <= args.interval <= 60:
         raise ValueError('--lines must be positive; --interval must be between 1 and 60 seconds.')
-    report = snapshot(root, include_all=args.all, log_lines=args.lines)
+    report = snapshot(root, include_all=args.all or args.details, log_lines=args.lines)
     print(json.dumps(report, indent=2) if args.json else render(report, include_all=args.all,
           lines=args.lines, details=args.details, raw_logs=args.raw_logs), flush=True)
     if args.follow:

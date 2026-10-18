@@ -224,8 +224,13 @@ def validate_automatic_environment(parameters, *, include_mess=True,
 
     if include_vrc and parameters.get('rotdpy_run') and str(
             parameters.get('pp_orient', 'homo')).casefold() == 'homo':
-        require_program('formchk', 'formchk', 'gaussian')
-        require_program('cubegen', 'cubegen', 'gaussian')
+        from kinbot.vrc_orbitals import pivot_backend, molpro_pivot_settings
+        if pivot_backend(parameters) == 'molpro':
+            molpro_pivot_settings(parameters)
+            require_program('pivot_molpro', 'molpro', 'molpro')
+        else:
+            require_program('formchk', 'formchk', 'gaussian')
+            require_program('cubegen', 'cubegen', 'gaussian')
     try:
         import atct.api  # noqa: F401
     except ImportError as error:
@@ -635,6 +640,8 @@ def build_network_request(root, parameters):
                 'anl_cc_convergence', 1.e-7)),
             'geometry_fmax': float(parameters.get('anl_geometry_fmax', 5.e-4)),
             'minimum_recovery': parameters.get('anl_minimum_recovery', {}),
+            'l3_max_retries': parameters.get('anl_l3_max_retries', 1),
+            'require_l3_geometry': bool(parameters.get('anl_require_l3_geometry', 1)),
             'f12_augmented': bool(parameters.get(
                 'anl_f12_augmented', 0)),
         },
@@ -801,6 +808,12 @@ def _component_family_omissions(availability):
     return tuple(result)
 
 
+def _required_geometries(spec):
+    if not spec.get('intent', {}).get('require_l3_geometry'):
+        return set()
+    return {t['id'] for t in spec['tasks'] if t['kind'] == 'ase_optimize'}
+
+
 def assemble_available_profiles(run_dir, source_record, destination, *,
                                 state_id, stationary_point='minimum',
                                 parameters=None):
@@ -810,6 +823,10 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
         raise ValueError('Automatic profile assembly needs an automatic graph.')
     if stationary_point not in ('minimum', 'transition_state'):
         raise ValueError('Invalid stationary point.')
+    missing_geometry = [ident for ident in _required_geometries(spec)
+                        if state['tasks'].get(ident, {}).get('status') != 'complete']
+    if missing_geometry:
+        raise ValueError('Required L3 geometry is not complete: ' + ', '.join(missing_geometry))
     molecule = spec['molecule']
     # SO is a post-QC additive component. Resolve current input data also for
     # cached L2 reference models, without changing their native QC provenance.
@@ -1242,9 +1259,12 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
                 stdout = (directory / 'driver.stdout').open('a')
                 stderr = (directory / 'driver.stderr').open('a')
                 environment = dict(os.environ)
+                # Orphaned composite jobs may still occupy branch slots while
+                # a replacement controller builds missing L2 references.
+                # Count the whole automatic branch, including those jobs.
                 environment['KINBOT_QUEUE_LOCK'] = str(
-                    (root / '.submission.lock').resolve())
-                environment['KINBOT_QUEUE_ROOT'] = str(root.resolve())
+                    (root.parent / '.submission.lock').resolve())
+                environment['KINBOT_QUEUE_ROOT'] = str(root.parent.resolve())
                 environment['KINBOT_QUEUE_ROOT_RECURSIVE'] = '1'
                 process = subprocess.Popen(
                     [sys.executable, '-m', 'kinbot.kb', str(input_path)],
@@ -1338,7 +1358,9 @@ def _prepare_graphs(plan, sources, root):
                 geometry_fmax=plan['resources'].get('geometry_fmax', 1.e-4),
                 minimum_recovery=plan['resources'].get('minimum_recovery', {}),
                 f12_augmented=plan['resources'].get(
-                    'f12_augmented', False))
+                    'f12_augmented', False),
+                require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
+                l3_max_retries=plan['resources'].get('l3_max_retries', 1))
             prepare(specification, graph)
         preflight_until_scheduler_ready(
             graph, skip_optional=True, interval=20.)
@@ -1363,7 +1385,9 @@ def _prepare_graphs(plan, sources, root):
                 geometry_fmax=plan['resources'].get('geometry_fmax', 1.e-4),
                 minimum_recovery=plan['resources'].get('minimum_recovery', {}),
                 f12_augmented=plan['resources'].get(
-                    'f12_augmented', False))
+                    'f12_augmented', False),
+                require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
+                l3_max_retries=plan['resources'].get('l3_max_retries', 1))
             prepare(specification, graph)
         preflight_until_scheduler_ready(
             graph, skip_optional=True, interval=20.)
@@ -1371,15 +1395,42 @@ def _prepare_graphs(plan, sources, root):
     return graphs
 
 
+def _retry_l3_execution_failures(graph, spec, state):
+    """One configurable clean retry; never relax convergence or accept bad data."""
+    from kinbot.anl.dispatch import retry_failed
+    limit = spec.get('intent', {}).get('l3_max_retries', 0)
+    if not limit:
+        return state
+    for ident in sorted(_required_geometries(spec)):
+        entry = state['tasks'].get(ident, {})
+        if (entry.get('status') not in ('failed', 'unavailable')
+                or entry.get('attempt', 1) > limit):
+            continue
+        outcome = Path(graph) / 'tasks' / ident / 'execution.json'
+        execution = json.loads(outcome.read_text()) if outcome.exists() else {}
+        phase = entry.get('failure_phase') or execution.get('failure_phase')
+        if phase not in ('execution', 'scheduler'):
+            continue  # Invalid provenance/parser results require explicit review.
+        archive = retry_failed(graph, ident)
+        print(f'ANL L3 retry {ident}: archived failed attempt at {archive}',
+              file=sys.stderr, flush=True)
+        state = _load(graph)[2]
+    return state
+
+
 def _drive_graphs(graphs, max_jobs, interval=20.):
     """Advance many dispatcher DAGs under one global live-job cap."""
     names = sorted(graphs)
+    specifications = {name: _load(graphs[name])[1] for name in names}
+    required = {name: _required_geometries(specifications[name]) for name in names}
     cursor = 0
     scheduler_error = None
     while True:
         try:
             states = {
                 name: advance(graphs[name], submit=False) for name in names}
+            for name in names:
+                states[name] = _retry_l3_execution_failures(graphs[name], specifications[name], states[name])
             hard = []
             active = 0
             complete = True
@@ -1389,9 +1440,12 @@ def _drive_graphs(graphs, max_jobs, interval=20.):
                     active += status == 'submitted'
                     complete &= status in (
                         'complete', 'unavailable', 'skipped')
-                    if status in ('failed', 'blocked', 'submitting'):
+                    if (status in ('failed', 'blocked', 'submitting')
+                            or (task in required[name] and status in ('unavailable', 'skipped'))):
                         hard.append(f'{name}/{task}={status}')
-            if hard:
+            runnable = any(e['status'] == 'staged'
+                           for state in states.values() for e in state['tasks'].values())
+            if hard and not active and not runnable:
                 raise RuntimeError('Automatic composite graph failed: ' +
                                    ', '.join(hard))
             if complete:
@@ -1794,6 +1848,8 @@ def _network_qc_contract(plan):
     all TS records remain part of the exact comparison.
     """
     result = deepcopy(plan)
+    result['resources'].setdefault('require_l3_geometry', False)
+    result['resources'].setdefault('l3_max_retries', 0)
     records = list(result['network']['stable_species'])
     records.extend(entry['network_record']
                    for entry in result['cbh']['calculated_states']

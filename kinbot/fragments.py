@@ -7,12 +7,11 @@ from kinbot.stationary_pt import StationaryPoint
 from ase.atoms import Atoms
 import numpy as np
 from numpy.typing import NDArray
-from numpy import float32, float64, int64, int16, pi, floating
+from numpy import float32, float64, int64, pi, floating
 from kinbot import geometry
 import logging
 import copy
 import math
-from kinbot.constants import BOHRtoANGSTROM
 from kinbot.utils import reorder_coord
 
 logger = logging.getLogger('KinBot')
@@ -304,249 +303,27 @@ class Fragment(StationaryPoint):
 
         return np.array([pp_orient], dtype=float32)
 
-    def pp_from_homo(self,
-                     index: int
-                     ) -> NDArray[float32]:
+    def pp_from_homo(self, index: int) -> NDArray[float32]:
+        from kinbot.orbital_cube import read_orbital_cube, lobe_directions
+
         cube_job = f'vrctst/{routing_name(self)}_vts'
-        if os.path.isfile(f'{self.parent}/{cube_job}.cube'):
-            with open(f'{self.parent}/{cube_job}.cube', 'r') as f:
-                cubefile: list[str] = f.readlines()
-        else:
-            raise TypeError('HOMO mode selected for pivot point orientation, but cubefile is not available.')
-        step: NDArray[float32] = np.zeros(3, dtype=float32)
-        dim: NDArray[int16] = np.zeros(3, dtype=int16)
-        elements: list[str] = []
-        num2str: dict[str, str] = {
-            '1': 'H',
-            '6': 'C',
-            '7': 'N',
-            '8': 'O',
-            '16': 'S'}
-        # Saves info from the header: step size, origin and dimension
-        for ln, line in enumerate(cubefile):
-            if ln == 2:
-                natom, x, y, z = line.split()[:-1]
-                origin: NDArray[float32] = np.array([x, y, z],
-                                                    dtype=float32)
-                natm = abs(int(natom))
-                cube_geom: NDArray[float32] = np.empty((natm,3), dtype=float32)
-                continue
-            elif ln == 3:
-                dim[0] = int16(line.split()[0])
-                step[0] = float32(line.split()[1])
-                continue
-            elif ln == 4:
-                dim[1] = int16(line.split()[0])
-                step[1] = float32(line.split()[2])
-                continue
-            elif ln == 5:
-                dim[2] = int16(line.split()[0])
-                step[2] = float32(line.split()[3])
-                continue
-            # Save the cube geometry
-            elif ln > 5 and ln <= 5 + natm:
-                num, _, x, y, z = line.split()
-                cube_geom[ln-6] = np.array([x, y, z], dtype=float32)
-                elements.append(num2str[num])
-            elif ln > 5 and len(line.split()) == 2:
-                start: int = ln + 1
-                break
-
-        cube_geom *= BOHRtoANGSTROM
-        origin *= BOHRtoANGSTROM
-        step *= BOHRtoANGSTROM
-
-        # Create the box
-
-        # Size of a z-axis block in number of lines
-        ysize = int(math.ceil(dim[2]/6))
-        xsize = int(ysize*dim[1])
-
-        # Change the geom for the one in the cube to ensure same orientation
-        tmp_atm = Atoms(elements, positions=cube_geom)
-        tmp_stp = StationaryPoint.from_ase_atoms(tmp_atm)
-        tmp_stp.characterize()
-        reorder_coord(self, tmp_stp)
-        self.geom = tmp_stp.geom
+        path = f'{self.parent}/{cube_job}.cube'
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                f'HOMO-oriented pivot points require orbital cube {path}.')
+        cube = read_orbital_cube(path)
+        atoms = cube['atoms']
+        tmp = StationaryPoint(name='orbital cube', charge=self.charge,
+                              mult=self.mult, atom=atoms.get_chemical_symbols(),
+                              geom=atoms.positions.copy())
+        tmp.characterize()
+        reorder_coord(self, tmp)
+        # Use the reordered atom's position in the original cube frame, before
+        # recentering the fragment for RotdPy.  No grid rotation is assumed.
+        directions = lobe_directions(cube, tmp.geom[index])
+        self.geom = tmp.geom.copy()
         self.recentre()
-
-        # for eq in self.equiv:
-        #     if index in eq:
-        #         to_integrate: list[int] = eq
-        #         break
-
-        # max_integral = -1
-        # max_var: float = np.inf
-        # all_orient = []
-        
-
-        # define a searchbox for max/min value around atom of interest
-        searchbox: NDArray[Any] = np.array(
-            [cube_geom[index]-1, cube_geom[index]+1])
-        search_origin: NDArray[int16] = np.array(np.trunc(
-            np.absolute(origin - searchbox[0]) / step), dtype=int16)
-        search_end: NDArray[int16] = np.array(np.trunc(
-            np.absolute(origin - searchbox[1]) / step)+1, dtype=int16)
-
-        box_dim = (
-                search_end[0] - search_origin[0],
-                search_end[1] - search_origin[1],
-                search_end[2] - search_origin[2]
-                )
-
-        start_line: int = \
-            start + \
-            search_origin[0] * xsize + \
-            search_origin[1] * ysize
-        stop_line: int = \
-            start + \
-            search_end[0] * xsize + \
-            search_end[1] * ysize + 1
-
-        box_origin = search_origin * step + origin
-
-        # Defines a sphere in the box
-        radius = 0.8
-        sphere = np.empty(box_dim, dtype=bool)
-        for x in range(box_dim[0]):
-            for y in range(box_dim[1]):
-                for z in range(box_dim[2]):
-                    coord = np.array([x, y, z]) * step + box_origin
-                    if np.linalg.norm(coord-cube_geom[index]) < radius:
-                        sphere[x, y, z] = True
-                    else:
-                        sphere[x, y, z] = False
-
-        # Saves the part of interest of the orbital in numpy array
-        orb_box: NDArray[float32] = np.empty(
-            shape=box_dim,
-            dtype=float32
-        )
-
-        # Read data for the box only
-        save_pos = np.arange(0, box_dim[2])
-        for ln, line in enumerate(cubefile[start_line:stop_line]):
-            nx = int(np.trunc((ln+start_line-start) / xsize))
-            if np.isin(nx, np.arange(search_origin[0], search_end[0])):
-                rest_y = (ln+start_line-start) % xsize
-                ny = int(np.trunc(rest_y / ysize))
-                if np.isin(ny, np.arange(search_origin[1], search_end[1])):
-                    # rest_z goes from 0 to ysize-1
-                    rest_z = rest_y % ysize
-                    indexes_in_line: NDArray[Any] = np.arange(rest_z*6, rest_z*6+6)
-                    is_in_box: NDArray[np.bool_] = np.isin(
-                        indexes_in_line,
-                        np.arange(search_origin[2], search_end[2]))
-                    zidx_in_box = (
-                        indexes_in_line[is_in_box] - search_origin[2]
-                        ).tolist()
-                    # Boolean mask
-                    where2save = np.isin(save_pos, zidx_in_box)
-                    which2save = np.where(is_in_box)[0]
-                    if not any(where2save):
-                        continue
-                    orb_box[nx-search_origin[0],
-                            ny-search_origin[1],
-                            where2save] = np.take(line.split(),
-                                                    indices=which2save)
-
-        # find indexes of max value in sphere
-        orb_max: float32 = np.max(orb_box[sphere])
-
-        # Search indexes of the value in the box
-        tmp_max_idx: NDArray[Any] = np.transpose(np.where(orb_box == orb_max))
-        # Take closest value in case several values are minimum
-        if len(tmp_max_idx) > 1:
-            dist: list[floating[Any]] = [
-                np.linalg.norm(i*step+origin-cube_geom[index])
-                for i in tmp_max_idx]
-            max_idx: NDArray[Any] = tmp_max_idx[np.where(dist == np.min(dist))][0]
-        else:
-            max_idx: NDArray[Any] = tmp_max_idx[0]
-
-        max_coord = step * max_idx + box_origin
-
-        max_orient: NDArray[float32] = np.array(
-            geometry.unit_vector(max_coord - cube_geom[index]),
-            dtype=float32)
-
-        # # Define a sphere around highest density in the box
-        # max_radius = np.linalg.norm(max_coord - cube_geom[index])
-        # min_radius = 0.8 * max_radius
-        # max_sphere = np.empty(box_dim, dtype=bool)
-        # for x in range(box_dim[0]):
-        #     for y in range(box_dim[1]):
-        #         for z in range(box_dim[2]):
-        #             coord = np.array([x, y, z]) * step + box_origin
-        #             if np.linalg.norm(coord-max_coord) < max_radius and\
-        #             np.linalg.norm(coord-max_coord) > min_radius:
-        #                 max_sphere[x, y, z] = True
-        #             else:
-        #                 max_sphere[x, y, z] = False
-
-        # # Variance in the valence of the sphere, centered on the electron             
-        # tot_var = np.var(orb_box[max_sphere])
-
-        # Check if minimum should be a pivot point
-        orb_min: float32 = np.min(orb_box[sphere])
-        if abs(orb_min) > 0.8*orb_max:
-            # Search indexes of the value in the box
-            tmp_min_idx = np.transpose(np.where(orb_box == orb_min))
-            # Take closest value in case several values are minimum
-            if len(tmp_min_idx) > 1:
-                dist = [np.linalg.norm(i*step+origin-cube_geom[index]) for i in tmp_min_idx]
-                min_idx = tmp_min_idx[np.where(dist == np.min(dist))][0]
-            else:
-                min_idx = tmp_min_idx[0]
-
-            min_coord = step * min_idx + box_origin
-
-            min_orient: NDArray[float32] = np.array(
-                geometry.unit_vector(min_coord - cube_geom[index]),
-                dtype=float32)
-
-            # all_orient.append([max_orient, min_orient])
-
-            # # Define a sphere around lowest density in the box
-            # max_radius = np.linalg.norm(min_coord - cube_geom[index])
-            # min_radius = 0.8 * max_radius
-            # min_sphere = np.empty(box_dim, dtype=bool)
-            # for x in range(box_dim[0]):
-            #     for y in range(box_dim[1]):
-            #         for z in range(box_dim[2]):
-            #             coord = np.array([x, y, z]) * step + box_origin
-            #             if np.linalg.norm(coord-min_coord) < max_radius and\
-            #                 np.linalg.norm(coord-min_coord) > min_radius:
-            #                 min_sphere[x, y, z] = True
-            #             else:
-            #                 min_sphere[x, y, z] = False
-            # # Variance in the valence of the sphere, centered on the electron
-            # tot_var += np.var(orb_box[min_sphere])
-        # else:
-        #     all_orient.append([max_orient])
-        # logger.info(f"Total orbital variance of {tot_var} around atom {index} in fragment {self.chemid}")
-        # A lowest variance means more spherical symmetry
-        # if tot_var < max_var:
-        #     max_var = tot_var
-        #     best_atm = to_integrate[0]
-
-        # Check if min and max of the orbital are aligned
-        # The cutoff angle is defined as arccos(1-x),
-        # where x is the float at the end of this line.
-        # 0.2 corresponds to approx. 37 degree
-        # logger.info(f"Model atom selected from variance for fragment {self.chemid}: {best_atm}")
-        # max_orient = all_orient[to_integrate.index(best_atm)][0]
-        # min_orient = all_orient[to_integrate.index(best_atm)][1]
-            if np.linalg.norm(
-                np.subtract(min_orient, max_orient)) > 0.2:
-                orient = np.array([max_orient, min_orient], dtype=float32)
-            else:
-                orient = np.array([max_orient], dtype=float32)
-        else:
-            orient = np.array([max_orient], dtype=float32)
-        
-        return orient
-
+        return directions
 
     def pp_triangle(self,
                     index: int,

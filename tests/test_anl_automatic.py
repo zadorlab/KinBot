@@ -1003,7 +1003,37 @@ def test_multi_graph_driver_waits_for_scheduler_recovery(monkeypatch):
     sleeps = []
     monkeypatch.setattr(
         'kinbot.anl.automatic.time.sleep', lambda value: sleeps.append(value))
+    monkeypatch.setattr('kinbot.anl.automatic._load', lambda path: (path, {}, {}))
     result = _drive_graphs({'state': Path('/graph')}, 1, interval=7.)
     assert result == {'state': {'tasks': {
         'energy': {'status': 'complete'}}}}
     assert sleeps == [7.]
+
+
+def test_molpro_pivot_preflight_does_not_require_gaussian_cube_tools(monkeypatch, tmp_path):
+    found = {}
+    _mock_scientific_runtime(monkeypatch, tmp_path, found)
+    found.pop('formchk'); found.pop('cubegen')
+    monkeypatch.setattr('kinbot.anl.automatic.shutil.which', lambda value: found.get(value))
+    checked = validate_automatic_environment({
+        'composite_method': 'ANL0-F12', 'rotdpy_run': 1, 'pp_orient': 'homo',
+        'vrc_tst_pivot_backend': 'molpro',
+        'vrc_tst_pivot_method': 'UKS/B3LYP3', 'vrc_tst_pivot_basis': 'cc-pVDZ',
+    }, include_mess=False)
+    assert 'pivot_molpro' in checked
+    assert 'formchk' not in checked and 'cubegen' not in checked
+
+
+def test_failed_graph_does_not_abandon_independent_live_work(monkeypatch):
+    from kinbot.anl import automatic
+    monkeypatch.setattr(automatic, '_load', lambda path: (path, {}, {}))
+    observations = []
+    def advance(path, **kw):
+        observations.append(str(path))
+        status = 'failed' if str(path) == 'bad' else ('submitted' if observations.count('good') == 1 else 'complete')
+        return {'tasks': {'energy': {'status': status}}}
+    monkeypatch.setattr(automatic, 'advance', advance)
+    monkeypatch.setattr(automatic.time, 'sleep', lambda value: None)
+    with pytest.raises(RuntimeError, match='bad/energy=failed'):
+        automatic._drive_graphs({'bad': Path('bad'), 'good': Path('good')}, 2)
+    assert observations.count('good') == 2

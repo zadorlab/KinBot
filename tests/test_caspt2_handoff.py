@@ -173,14 +173,14 @@ def test_current_inputs_propagate_thresholds_into_reference_and_all_l3_backends(
                 deck = render_input(atoms, basis='cc-pVTZ', geometry_name='step.xyz',
                     scf_convergence=kw['scf_convergence'], correlation_convergence=kw['correlation_convergence'])
                 assert 'gthresh,energy=1.d-8,' in deck
-                assert 'thresh,energy=1.d-7,coeff=1.d-10}' in deck
+                assert 'thrden=1.d-7,thrvar=1.d-10' in deck
             template = task.get('input_template', '')
             if task.get('backend') == 'gaussian':
                 assert 'SCF=(XQC,Conver=8)' in template
             elif task.get('backend') == 'molpro':
                 assert 'gthresh,energy=1.d-8,' in template
-                if ';thresh,energy=' in template:
-                    assert 'thresh,energy=1.d-7,coeff=1.d-10}' in template
+                if ',thrden=' in template:
+                    assert 'thrden=1.d-7,thrvar=1.d-10' in template
             elif task.get('backend') == 'mrcc':
                 assert 'sctol=8\n' in template and 'cctol=7\n' in template
             elif task.get('backend') == 'cfour':
@@ -304,3 +304,50 @@ def test_layout_archive_refuses_all_moves_if_any_candidate_is_tracked(handoff, t
         handoff.archive_legacy_example_layout(root)
     assert first.is_dir() and second.is_dir()
     assert not (root/'repository_layout_archive.json').exists()
+
+
+def test_two_pes_salvage_resumes_interrupted_preparation_without_losing_inputs(handoff, tmp_path, monkeypatch):
+    import errno
+    from kinbot import run_salvage
+    from kinbot.anl import salvage, dispatch
+    from tests.test_anl_salvage import small_spec
+    from kinbot.execution import atomic_json, file_sha256
+    old = handoff.prepare(tmp_path/'old')
+    new = tmp_path/'new'
+    for case in handoff.CASES:
+        worker = old/case/'123'
+        graph = worker/'anl_automatic/states/example/composite'
+        graph.parent.mkdir(parents=True)
+        dispatch.prepare(small_spec(), graph)
+        atomic_json(worker/'anl_automatic/network_request.json', {'resources': {}})
+        (worker/'kinbot.log').write_text('old failure evidence')
+        ref = worker/'anl_automatic/reference_l2/failed_reference'
+        ref.mkdir(parents=True)
+        (ref/'driver.stderr').write_text('failed SCF')
+    monkeypatch.setattr(run_salvage, '_inventory', lambda root: {'jobs': [], 'processes': []})
+    monkeypatch.setattr(run_salvage, '_exchange', lambda *a: (_ for _ in ()).throw(OSError(errno.EOPNOTSUPP, 'test shared filesystem')))
+    monkeypatch.setattr(run_salvage, '_pin_code', lambda root: root/'.salvage_code')
+    repair = salvage.repair_graph
+    calls = []
+    def interrupted(graph, archive, **options):
+        calls.append(graph)
+        if len(calls) == 2:
+            raise RuntimeError('interrupted preparation')
+        return repair(graph, archive, **options)
+    monkeypatch.setattr(salvage, 'repair_graph', interrupted)
+    with pytest.raises(RuntimeError, match='interrupted preparation'):
+        run_salvage.prepare(old, new)
+    monkeypatch.setattr(salvage, 'repair_graph', repair)
+    report = run_salvage.prepare(old, new)
+    assert report['status'] == 'prepared'
+    assert run_salvage.prepare(old, new) == report
+    manifest = handoff.verify(old)
+    assert len(manifest['inputs']) == 2
+    for filename in manifest['inputs']:
+        values = json.loads(Path(filename).read_text())
+        assert values['vrc_tst_pivot_backend'] == 'molpro'
+        assert values['anl_require_l3_geometry'] == 1
+        assert values['vrc_tst_surface_model']['channels']
+        assert values['queue_job_limit'] == 10
+    assert len(list(Path(report['archive']).glob('*/123/kinbot.log'))) == 2
+    assert len(list(Path(report['archive']).glob('*/123/anl_automatic/reference_l2/failed_reference/driver.stderr'))) == 2

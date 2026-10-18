@@ -17,7 +17,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.units import Bohr, Hartree
 import numpy as np
 
-from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
+from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment, preserve_qc_failure
 from kinbot.anl.results import validate_molpro_triples
 from kinbot.molpro import (
     _vrc_multireference_method, stage_vrc_state_model,
@@ -213,9 +213,9 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
         body += f'put,xyz,{geometry_name}\n'
         return initialize_molpro_restart(header + body)
     if cc_command:
-        cc_energy, cc_coefficient = molpro_cc_thresholds(correlation_convergence)
-        cc_command = (f'{{{cc_command};thresh,energy={cc_energy},'
-                      f'coeff={cc_coefficient}}}')
+        cc_energy, cc_variance = molpro_cc_thresholds(correlation_convergence)
+        cc_command = (f'{{{cc_command},thrden={cc_energy},'
+                      f'thrvar={cc_variance}}}')
     return initialize_molpro_restart(header + f'rhf\n{cc_command}\n'
             f'kb_geom_energy=energy\n'
             f'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
@@ -501,12 +501,16 @@ class Molpro(Calculator):
         child_env, runtime = qc_runtime_environment(
             command[0], 'molpro', work_directory=self.work_directory,
             scratch_min_mb=self.scratch_min_mb)
+        result = None
         try:
             with (self.work_directory / stdout_name).open('w') as stdout, \
                     (self.work_directory / stderr_name).open('w') as stderr:
                 result = subprocess.run(command, cwd=self.work_directory, stdout=stdout,
                                         stderr=stderr, check=False, env=child_env)
         finally:
+            if result is None or result.returncode:
+                preserve_qc_failure(runtime, self.work_directory, stem,
+                                    None if result is None else result.returncode)
             cleanup_qc_runtime(runtime)
         self.generated_files.extend([stdout_name, stderr_name])
         from kinbot.molpro_diagnostics import write_native_report
@@ -516,7 +520,7 @@ class Molpro(Calculator):
             self.generated_files.append(report.name)
         if result.returncode:
             raise RuntimeError(f'Molpro force evaluation {stem} exited with '
-                               f'status {result.returncode}.')
+                               f'status {result.returncode}; diagnostics: {stem}.failure.json.')
         log_name = f'{stem}.log'
         required = [output_name, log_name, geometry_name]
         if vrc_multireference_energy_contract(self.method) is not None:

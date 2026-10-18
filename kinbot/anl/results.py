@@ -796,7 +796,31 @@ def parse_molpro_harmonic(output, *, basis, reference=None,
         modes.append(value)
     if not modes or any(value == 0 for value in modes):
         raise ValueError('Molpro has no positive vibrational modes.')
-    imaginary = [value for value in (*low_modes, *modes) if value < -1.0]
+    # Molpro 2024 prints unstable modes in a separate, unsigned table.
+    # They are absent from both the positive and low-frequency tables.
+    separate_imaginary = []
+    imaginary_heading = re.search(
+        r'^\s*Imaginary Vibration\s+Wavenumber\s*$', section,
+        re.IGNORECASE | re.MULTILINE)
+    if imaginary_heading is not None:
+        for line in section[imaginary_heading.end():].splitlines():
+            match = re.match(r'^\s*(\d+)\s+(\S+)\s*$', line)
+            if match is None:
+                if separate_imaginary:
+                    break
+                if line.strip() and not re.fullmatch(r'\s*Nr\s+\[1/cm\]\s*', line):
+                    raise ValueError('Malformed Molpro imaginary wavenumber table.')
+                continue
+            if int(match.group(1)) != len(separate_imaginary) + 1:
+                raise ValueError('Molpro imaginary mode numbers are not consecutive.')
+            value = -abs(_number(match.group(2).rstrip('iI')))
+            if not math.isfinite(value) or value == 0:
+                raise ValueError('Invalid Molpro imaginary wavenumber.')
+            separate_imaginary.append(value)
+        if not separate_imaginary:
+            raise ValueError('Empty Molpro imaginary wavenumber table.')
+    imaginary = [value for value in (*low_modes, *modes, *separate_imaginary)
+                 if value < -1.0]
     if stationary_point == 'minimum' and imaginary:
         raise ValueError('Molpro reports an imaginary mode for a minimum.')
     if stationary_point == 'transition_state' and len(imaginary) != 1:

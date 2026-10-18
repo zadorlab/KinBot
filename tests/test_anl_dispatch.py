@@ -2047,3 +2047,56 @@ def test_automatic_graph_caps_jobs_to_an_explicit_short_partition():
             script = run_dir / 'tasks' / task['id'] / 'job.slurm'
             if script.is_file():
                 assert '#SBATCH --time=00:30:00\n' in script.read_text()
+
+
+def test_vpt2_linearity_handling_preserves_nonlinear_none_workaround():
+    from kinbot.anl.dispatch import _render_input
+    template = '#p B2PLYP/cc-pVTZ Freq=Anharmonic Symmetry=None\n{{CARTESIAN}}\n'
+    resources = {'cores': 2, 'memory_mb': 1000}
+    molecule = {'charge': 0, 'multiplicity': 1}
+    h2 = Atoms('H2', positions=[[0, 0, 0], [0, 0, .74]])
+    nonlinear = Atoms('OH2', positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
+    assert 'NoSymm' in _render_input(template, h2, molecule, resources, 'gaussian')
+    text = _render_input(template, nonlinear, molecule, resources, 'gaussian')
+    assert 'Symmetry=None' in text and 'NoSymm' not in text
+
+
+def test_vpt2_empty_framework_gets_one_native_group_retry(tmp_path):
+    spec = dispatch_spec()
+    task = next(t for t in spec['tasks'] if t['id'] == 'gaussian_vpt2')
+    task['input_template'] = task['input_template'].replace('NoSymm', 'Symmetry=None')
+    task.pop('depends_on')
+    spec['tasks'] = [spec['tasks'][0], task]
+    graph = prepare(spec, tmp_path/'graph')
+    _mock_execution(graph, 'l2_geometry', geometry='final.xyz')
+    advance(graph)
+    directory = graph/'tasks/gaussian_vpt2'
+    original = (directory/'geometry.xyz').read_bytes()
+    native = ('ERROR: Inconsistency found in framework group definition:\n'
+              'New: CS - Old:\nError termination via Lnk1e in l717.exe\n')
+    (directory/'vpt2.log').write_text(native)
+    state = json.loads((graph/'state.json').read_text())
+    state['tasks']['gaussian_vpt2']['status'] = 'failed'
+    (graph/'state.json').write_text(json.dumps(state))
+    archive = recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+    assert (archive/'vpt2.log').read_text() == native
+    assert (directory/'geometry.xyz').read_bytes() == original
+    assert 'Symmetry=(PG=CS)' in (directory/'vpt2.com').read_text()
+    (directory/'vpt2.log').write_text(native)
+    state = json.loads((graph/'state.json').read_text())
+    state['tasks']['gaussian_vpt2']['status'] = 'failed'
+    (graph/'state.json').write_text(json.dumps(state))
+    with pytest.raises(RuntimeError, match='already attempted'):
+        recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+
+
+def test_native_output_alias_keeps_original_and_rejects_ambiguity(tmp_path):
+    from kinbot.anl.dispatch import _normalize_output_aliases
+    task = {'output_aliases': {'one.cube': ['one_orbital_5.1.cube']}}
+    native = tmp_path/'one_orbital_5.1.cube'
+    native.write_bytes(b'native orbital data')
+    result = _normalize_output_aliases(tmp_path, task)
+    assert result == {'one.cube': native.name}
+    assert (tmp_path/'one.cube').read_bytes() == native.read_bytes()
+    with pytest.raises(RuntimeError, match='Ambiguous native output'):
+        _normalize_output_aliases(tmp_path, task)

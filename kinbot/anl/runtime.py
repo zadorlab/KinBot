@@ -178,6 +178,66 @@ def cleanup_qc_runtime(provenance):
         shutil.rmtree(scratch, ignore_errors=True)
 
 
+def preserve_qc_failure(provenance, directory, label, returncode):
+    """Keep bounded native/rank diagnostics before removing private scratch.
+
+    Large integrals/checkpoints are not copied. MPI abort alone is never
+    labelled as an out-of-memory, disk, or electronic-convergence failure.
+    Failure of this best-effort capture must not hide the native exit status.
+    """
+    try:
+        return _preserve_qc_failure(provenance, directory, label, returncode)
+    except OSError:
+        return None
+
+
+def _preserve_qc_failure(provenance, directory, label, returncode):
+    directory = Path(directory)
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+', label):
+        raise ValueError('Failure report label must be a basename.')
+    report = {'returncode': returncode, 'runtime': dict(provenance),
+              'host': socket.gethostname(), 'files': {}, 'capture_errors': []}
+    root = Path(provenance['scratch_directory']) if provenance.get('scratch_directory') else None
+    candidates = [(f'work/{p.name}', p) for p in directory.glob(label + '.*')
+                  if p.suffix in ('.out', '.log', '.stderr', '.stdout')]
+    if root and root.is_dir():
+        try:
+            report['scratch_free_bytes_at_exit'] = shutil.disk_usage(root).free
+            for parent, folders, files in os.walk(root, followlinks=False):
+                folders[:] = [n for n in folders if not Path(parent, n).is_symlink()]
+                for name in files:
+                    if re.search(r'\.(?:out|log|err|stderr|stdout)(?:\.\d+)?$', name, re.I):
+                        p = Path(parent, name)
+                        candidates.append(('scratch/' + str(p.relative_to(root)), p))
+                        if len(candidates) >= 64:
+                            break
+                if len(candidates) >= 64:
+                    report['file_limit_reached'] = True
+                    break
+        except OSError as error:
+            report['capture_errors'].append(str(error))
+    for name, path in candidates[:64]:
+        if path.is_symlink():
+            continue
+        try:
+            with path.open('rb') as stream:
+                stream.seek(0, 2)
+                size = stream.tell()
+                stream.seek(max(0, size - 65536))
+                tail = stream.read(65536).decode(errors='replace')
+            report['files'][name] = {'size_bytes': size, 'tail': tail}
+        except OSError as error:
+            report['capture_errors'].append(f'{name}: {error}')
+    report['explicit_io_failure'] = any(
+        molpro_io_failure(e['tail']) for e in report['files'].values())
+    destination = directory / f'{label}.failure.json'
+    try:
+        atomic_json(destination, report)
+    except OSError:
+        return None
+    return destination
+
+
 def _missing_libraries(executable, env):
     """Read ELF dependencies under the same environment as the QC child."""
     with Path(executable).open('rb') as stream:

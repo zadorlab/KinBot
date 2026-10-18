@@ -31,9 +31,11 @@ The added path provides:
   the fallback only for jobs without a profile.
 - Geometry, energy, frequencies, Hessian, and ZPE from an accepted result stay
   coherent. Data from unrelated calculations are never silently combined.
-- If the optional L3 optimization is unavailable, only its L3 harmonic
-  calculation is unavailable. Independent L3 and ANL single points run on the
-  accepted L2 geometry and record that fallback in their recipe provenance.
+- Automatic ANL requires its declared L3 geometry by default.
+  `anl_l3_max_retries` (default 1) permits a clean, archived retry after an
+  execution failure; exhausted required geometries block their single points.
+  Only an explicit `anl_require_l3_geometry: 0` restores the older recorded
+  L2-geometry fallback. VPT2 intentionally retains the matching L2 geometry.
 - If VPT2 is unavailable, thermochemistry uses the accepted harmonic ZPE and
   labels the selected ladder entry as harmonic rather than anharmonic.
 - Site paths and executable locations are discovered from the environment,

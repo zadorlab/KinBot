@@ -321,6 +321,19 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
                 not isinstance(item, str) or not _SAFE_NAME.fullmatch(item)
                 for item in outputs):
             raise ValueError(f'{ident}: required_outputs must be basenames.')
+        aliases = task.get('output_aliases', {})
+        if not isinstance(aliases, dict):
+            raise ValueError(f'{ident}: output_aliases must be an object.')
+        for target, candidates in aliases.items():
+            if (target not in outputs or not isinstance(candidates, list) or not candidates
+                    or any(not isinstance(c, str) for c in candidates)
+                    or len(set(candidates)) != len(candidates)):
+                raise ValueError(f'{ident}: output aliases require one declared target and unique candidates.')
+            for candidate in candidates:
+                _basename(candidate, 'output alias')
+                if candidate in {*outputs, *_RESERVED_FILES, task['input_name'],
+                                  task.get('stdout', 'stdout.txt'), task.get('stderr', 'stderr.txt')}:
+                    raise ValueError(f'{ident}: output alias collides with a task file.')
         stdout_name = task.get('stdout', 'stdout.txt')
         stderr_name = task.get('stderr', 'stderr.txt')
         if ({task['input_name'], stdout_name, stderr_name, *outputs} & _RESERVED_FILES):
@@ -586,6 +599,18 @@ def _render_input(template, atoms, molecule, resources, backend=None):
             raise ValueError(f'Unknown input token {match.group(0)}.') from exc
 
     rendered = _TOKEN.sub(replace, template)
+    if (backend and backend.lower() in ('gaussian', 'gauss')
+            and re.search(r'(?i)\bFreq\s*=\s*Anharmonic\b', rendered)
+            and len(atoms) > 1):
+        # Symmetry=None fixes nonlinear framework-group mismatches, but also
+        # suppresses the linear classification needed by Gaussian Link 716.
+        # Keep the established nonlinear workaround; only linear geometries
+        # retain point-group detection through NoSymm.
+        singular = np.linalg.svd(atoms.positions - atoms.positions.mean(axis=0),
+                                 compute_uv=False)
+        if singular[1] < 1.e-7:
+            rendered = re.sub(r'(?i)\bSymm(?:etry)?\s*=\s*None\b',
+                              'NoSymm', rendered)
     if backend and backend.lower() == 'molpro':
         from kinbot.molpro_diagnostics import ensure_native_printing
         rendered = ensure_native_printing(rendered)
@@ -871,6 +896,7 @@ def _run_external(directory, record):
         scratch_min_mb=scratch_min_mb)
     child_env['OMP_NUM_THREADS'] = str(_omp_threads(task))
     stdin = (directory / task['input_name']).open('rb') if task.get('stdin') else None
+    result = None
     try:
         with (directory / task.get('stdout', 'stdout.txt')).open('wb') as stdout, \
                 (directory / task.get('stderr', 'stderr.txt')).open('wb') as stderr:
@@ -884,6 +910,10 @@ def _run_external(directory, record):
     finally:
         if stdin:
             stdin.close()
+        if result is None or result.returncode:
+            from kinbot.anl.runtime import preserve_qc_failure
+            preserve_qc_failure(runtime, directory, Path(task['input_name']).stem,
+                                None if result is None else result.returncode)
         cleanup_qc_runtime(runtime)
     orbital_report = None
     if task['backend'].lower() == 'molpro':
@@ -897,11 +927,15 @@ def _run_external(directory, record):
         suffix = f' Last stderr: {detail}' if detail else ''
         raise CalculationUnavailableError(
             f'Program exited with status {result.returncode}.{suffix}')
+    aliases = _normalize_output_aliases(directory, task)
     _validate_external_outputs(directory, task)
     details = {'command': command, 'returncode': result.returncode, **runtime}
     if orbital_report is not None:
         details['orbital_audit'] = orbital_report.name
         details['generated_files'] = [orbital_report.name]
+    if aliases:
+        details['output_aliases'] = aliases
+        details.setdefault('generated_files', []).extend(aliases.values())
     if task.get('result_parser'):
         from kinbot.anl.results import parse_result
         requested = task['result_parser']
@@ -918,6 +952,20 @@ def _external_command(task, molpro_stack_mw=None):
             .replace('{input}', task['input_name'])
             .replace('{molpro_stack_mw}', str(molpro_stack_mw))
             for arg in task['command']]
+
+
+def _normalize_output_aliases(directory, task):
+    """Retain a native version's filename and hash-bound canonical copy."""
+    selected = {}
+    for target, alternatives in task.get('output_aliases', {}).items():
+        present = [name for name in (target, *alternatives)
+                   if (directory / name).is_file() and (directory / name).stat().st_size]
+        if len(present) > 1:
+            raise RuntimeError(f'Ambiguous native output files for {target}: {present}')
+        if present and present[0] != target:
+            shutil.copy2(directory / present[0], directory / target)
+            selected[target] = present[0]
+    return selected
 
 
 def _validate_external_outputs(directory, task):
@@ -1686,15 +1734,13 @@ def retry_failed(run_dir, ident):
 
 
 def recover_gaussian_vpt2_symmetry(run_dir, ident):
-    """Retry a native framework-group VPT2 failure without symmetry handling.
+    """Retry a proven framework-group failure, retaining earlier workarounds.
 
-    Gaussian 16 can classify the input and Eckart-oriented structures with
-    different framework groups. Link 717 then aborts with an explicit
-    framework-group inconsistency. This migration is intentionally narrow: it
-    accepts only that native error with named, different old and new groups,
-    replaces ``NoSymm`` or ``Symmetry=(PG=...)`` with the documented
-    ``Symmetry=None``, keeps the same accepted L2 geometry and method,
-    and archives the entire failed attempt before staging the retry.
+    Named old/new mismatches use the established Symmetry=None bypass.
+    If that bypass itself leaves an empty old group and Link 717 rejects it,
+    one retry selects the group reported by Gaussian after Eckart rotation.
+    The accepted geometry and method remain unchanged. Neither path repeats
+    a native success or overrides an unrelated failure.
     """
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
@@ -1728,7 +1774,7 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
         'Error termination via Lnk1e',
     )
     framework_change = re.search(
-        r'New:\s*([A-Za-z0-9]+)\s*-\s*Old:\s*([A-Za-z0-9]+)\b',
+        r'New:[ \t]*([A-Za-z0-9*]+)[ \t]*-[ \t]*Old:[ \t]*([A-Za-z0-9*]*)',
         output, re.IGNORECASE)
     if (not all(marker in output for marker in required)
             or framework_change is None
@@ -1739,18 +1785,25 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
             f'{ident}: native output is not the framework-group VPT2 failure.')
     replacement = deepcopy(task)
     original_template = replacement['input_template']
-    if re.search(r'(?i)Symm(?:etry)?\s*=\s*\(?\s*None\b',
-                 original_template):
-        raise RuntimeError(
-            f'{ident}: input already disables Gaussian symmetry handling.')
+    prior_none = re.search(r'(?i)Symm(?:etry)?\s*=\s*\(?\s*None\b',
+                           original_template)
+    # Do not undo the general None workaround. Only an explicit *new native
+    # failure* with an unassigned old group permits its complementary retry.
+    if prior_none and framework_change.group(2):
+        raise RuntimeError(f'{ident}: None retry requires an unassigned old framework group.')
+    if task.get('recovery', {}).get('assigned_native_framework'):
+        raise RuntimeError(f'{ident}: native framework retry was already attempted.')
+    keyword = (f'Symmetry=(PG={framework_change.group(1)})'
+               if prior_none else 'Symmetry=None')
     symmetry_keyword = (r'(?i)(?<!\S)(?:NoSymm(?:etry)?|'
+                        r'Symm(?:etry)?\s*=\s*None|'
                         r'Symm(?:etry)?\s*=\s*\(\s*PG\s*=\s*[A-Za-z0-9*]+\s*\))(?!\S)')
     occurrences = len(re.findall(symmetry_keyword, original_template))
     if occurrences > 1:
         raise RuntimeError(f'{ident}: input has multiple symmetry keywords.')
     if occurrences == 1:
         template = re.sub(
-            symmetry_keyword, 'Symmetry=None',
+            symmetry_keyword, keyword,
             original_template, count=1)
     else:
         template, count = re.subn(
@@ -1762,7 +1815,8 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     replacement['input_template'] = template
     replacement['recovery'] = {
         'kind': 'gaussian_vpt2_framework_group',
-        'change': 'bypassed Gaussian symmetry processing with Symmetry=None',
+        'change': keyword,
+        'assigned_native_framework': bool(prior_none),
         'observed_framework_change': framework_change.group(0),
         'geometry_changed': False,
     }
@@ -1795,7 +1849,7 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     state['tasks'][ident]['attempt'] = attempt + 1
     state['tasks'][ident]['previous_attempt'] = str(archive)
     state['tasks'][ident]['migration'] = \
-        'Gaussian VPT2 framework-group recovery with Symmetry=None'
+        'Gaussian VPT2 framework-group recovery with ' + keyword
     _clear_blocked_tasks(state)
     _atomic_json(run_dir / 'state.json', state)
     return archive

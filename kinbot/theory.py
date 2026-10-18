@@ -54,11 +54,11 @@ def fortran_threshold(value, label='convergence threshold'):
 
 
 def molpro_cc_thresholds(value):
-    """CC energy tolerance and a squared-amplitude tolerance no looser than default.
+    """Return explicit THRDEN and THRVAR (squared-amplitude) tolerances.
 
-    Molpro THRESH,COEFF tests the square sum of amplitude changes, unlike
-    CFOUR CC_CONV. Do not loosen Molpro's 1e-10 amplitude default when the
-    user requests an energy threshold such as 1e-7.
+    Use these on the CC command itself, never as THRESH,COEFF: Molpro
+    2024.1 squares that COEFF value (confirmed by native THRVAR output).
+    Keep the 1e-10 variance default when energy tolerance is 1e-7.
     """
     return (fortran_threshold(value, 'CC convergence'),
             fortran_threshold(min(value, 1.e-10), 'CC squared-amplitude convergence'))

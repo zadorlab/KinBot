@@ -107,11 +107,11 @@ def test_legacy_interface_audit_is_readable_but_recipe_incompatible(monkeypatch)
             task['input_template'] = (task['input_template']
                                       .replace('rhf\n', 'hf\n')
                                       .replace(
-                                          '{uccsd(t);thresh,energy=1.d-8,'
-                                          'coeff=1.d-10}', 'ccsd(t)')
+                                          '{uccsd(t),thrden=1.d-8,'
+                                          'thrvar=1.d-10}', 'ccsd(t)')
                                       .replace(
-                                          '{uccsd(t)-f12b,scale_trip=1;'
-                                          'thresh,energy=1.d-8,coeff=1.d-10}',
+                                          '{uccsd(t)-f12b,scale_trip=1,'
+                                          'thrden=1.d-8,thrvar=1.d-10}',
                                           'ccsd(t)-f12,scale_trip=1'))
     state = {'tasks': {task['id']: {'status': 'complete'}
                        for task in spec['tasks']}}
@@ -166,7 +166,7 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     radical['multiplicity'] = 2
     opened = higher_order_validation_spec(radical)
     open_tasks = {task['id']: task for task in opened['tasks']}
-    assert '\n{uccsd(t);thresh,energy=1.d-8,coeff=1.d-10}\n' in \
+    assert '\n{uccsd(t),thrden=1.d-8,thrvar=1.d-10}\n' in \
         open_tasks['ccsdt_tz']['input_template'].lower()
     assert 'uhf_uccsd' not in open_tasks['ccsdt_tz']['input_template'].lower()
     for ident in ('ccsdtq_tz', 'ccsdtq_dz', 'ccsdtqp_dz'):
@@ -205,7 +205,7 @@ def test_common_corrections_graph_pins_core_and_relativistic_differences():
                           'rel_dkh', 'rel_nonrel'}
     for ident in ('cv_ae_tz', 'cv_ae_qz', 'rel_dkh', 'rel_nonrel'):
         assert tasks[ident]['result_parser']['core'] == 'all-electron'
-        assert ';core;thresh,energy=1.d-8,coeff=1.d-10}' in \
+        assert ',thrden=1.d-8,thrvar=1.d-10;core}' in \
             tasks[ident]['input_template'].lower()
     for ident in ('cv_fc_tz', 'cv_fc_qz'):
         assert tasks[ident]['result_parser']['core'] == 'frozen'
@@ -297,7 +297,7 @@ def test_automatic_post_l2_graph_never_repeats_l2_and_prunes_by_tier():
     }
     full = automatic_composite_spec(
         molecule, highest_tier='ANL0-F12', max_nodes=8,
-        partition='day-long-cpu')
+        partition='day-long-cpu', require_l3_geometry=False)
     identifiers = {task['id'] for task in full['tasks']}
     assert 'l2_geometry' not in identifiers
     assert {'l3_geometry', 'l3_sp_l2', 'gaussian_vpt2'} <= identifiers
@@ -1213,3 +1213,20 @@ def test_kinbot_gate_requires_accepted_reaction_hir_and_rotdpy():
         assert result['products'] == ['ch3', 'ch3']
         assert result['normal_hir_points'] == 4
         assert result['rotdpy_surfaces'] == 1
+
+
+def test_migrate_cc_thresholds_without_squaring_variance_or_changing_method():
+    from kinbot.anl.validation import configure_task_convergence
+    task = {'backend': 'molpro', 'input_template': (
+        'gthresh,energy=1.d-10,coeff=1.d-8,civec=1.d-8\n'
+        '{uccsd(t)-f12b,scale_trip=1;thresh,energy=1.d-8,coeff=1.d-8}\n'
+        '{uccsd(t);core;thresh,energy=1.d-8,coeff=1.d-10}\n'
+        '{rs2-f12,shift=0.1,ipea=0.25,thrden=1.d-7,thrvar=1.d-8}\n')}
+    configure_task_convergence(task, scf_convergence=1e-8, cc_convergence=1e-7)
+    template = task['input_template']
+    assert '{uccsd(t)-f12b,scale_trip=1,thrden=1.d-7,thrvar=1.d-10}' in template
+    assert '{uccsd(t),thrden=1.d-7,thrvar=1.d-10;core}' in template
+    assert '{rs2-f12,shift=0.1,ipea=0.25,thrden=1.d-7,thrvar=1.d-8}' in template
+    assert ';thresh' not in template
+    configure_task_convergence(task, scf_convergence=1e-8, cc_convergence=1e-7)
+    assert task['input_template'] == template

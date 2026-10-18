@@ -1144,10 +1144,10 @@ class Molpro:
                                    f"{nelectron},{symm},{spin}" + "}\n")
                         if re.match(r'^[ru]?ccsd', str(l3_method), re.I):
                             from kinbot.theory import molpro_cc_thresholds
-                            cc_energy, cc_coefficient = molpro_cc_thresholds(
+                            cc_energy, cc_variance = molpro_cc_thresholds(
                                 self.par.get('vrc_tst_correlation_convergence', 1.e-7))
-                            method += (f'{{{l3_method};thresh,energy={cc_energy},'
-                                       f'coeff={cc_coefficient}}}\n')
+                            method += (f'{{{l3_method},thrden={cc_energy},'
+                                       f'thrvar={cc_variance}}}\n')
                         else:
                             method += "{}\n".format(l3_method)
                         energy_expression = 'energy'

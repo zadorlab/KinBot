@@ -196,3 +196,33 @@ def test_empty_scratch_fallback_path_is_rejected(tmp_path):
     with pytest.raises(ValueError, match='empty path'):
         _molpro_scratch({'KINBOT_MOLPRO_SCRATCH': str(tmp_path),
                         'KINBOT_MOLPRO_SCRATCH_FALLBACKS': ':/another'}, tmp_path, 1000)
+
+
+def test_failure_capture_retains_rank_evidence_before_scratch_cleanup(tmp_path):
+    import json
+    from kinbot.anl.runtime import preserve_qc_failure
+    scratch = tmp_path/'scratch'
+    work = tmp_path/'work'
+    scratch.mkdir(); work.mkdir()
+    (scratch/'rank.log.2').write_text('x'*70000 + '\nError writing 1024 words\n')
+    (scratch/'huge.wfu').write_bytes(b'not a diagnostic')
+    (scratch/'outside.log').symlink_to(work/'secret')
+    (work/'secret').write_text('unrelated')
+    (work/'step.stderr').write_text('MPI_Abort\n')
+    provenance = {'scratch_directory': str(scratch)}
+    path = preserve_qc_failure(provenance, work, 'step', 255)
+    cleanup_qc_runtime(provenance)
+    data = json.loads(path.read_text())
+    assert not scratch.exists()
+    assert data['explicit_io_failure'] is True
+    assert set(data['files']) == {'scratch/rank.log.2', 'work/step.stderr'}
+    assert len(data['files']['scratch/rank.log.2']['tail']) == 65536
+    assert data['returncode'] == 255
+
+
+def test_failure_capture_does_not_call_mpi_abort_an_io_error(tmp_path):
+    import json
+    from kinbot.anl.runtime import preserve_qc_failure
+    (tmp_path/'step.stderr').write_text('application called MPI_Abort; KILLED BY SIGNAL: 9')
+    path = preserve_qc_failure({}, tmp_path, 'step', 255)
+    assert json.loads(path.read_text())['explicit_io_failure'] is False

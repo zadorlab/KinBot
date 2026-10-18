@@ -21,7 +21,7 @@ set,spin={{SPIN}}
 
 def _molpro_correlation_command(command, cc_convergence=1.e-8):
     """Attach explicit energy and squared-amplitude thresholds to a CC command."""
-    threshold, coefficient = molpro_cc_thresholds(cc_convergence)
+    threshold, variance = molpro_cc_thresholds(cc_convergence)
     source = str(command).strip()
     if not source:
         return source
@@ -29,8 +29,11 @@ def _molpro_correlation_command(command, cc_convergence=1.e-8):
         source = source[1:-1].rstrip()
     if re.search(r'(?:^|;)\s*thresh\s*,', source, re.IGNORECASE):
         raise ValueError('Molpro command already contains a THRESH card.')
-    return (f'{{{source};thresh,energy={threshold},'
-            f'coeff={coefficient}}}')
+    command, separator, cards = source.partition(';')
+    if re.search(r'\b(?:thrden|thrvar)\s*=', command, re.IGNORECASE):
+        raise ValueError('Molpro command already contains convergence options.')
+    return (f'{{{command},thrden={threshold},thrvar={variance}'
+            f'{separator}{cards}}}')
 
 
 def molpro_ccsdt_command(multiplicity, *, all_electron=False,
@@ -78,7 +81,8 @@ def molpro_task(ident, body, *, geometry_from='l3_geometry',
     for line in body.splitlines():
         stripped = line.strip()
         if (re.match(r'^\{?\s*u?cc(?:sd|sdt)', stripped, re.IGNORECASE)
-                and 'thresh,' not in stripped.casefold()):
+                and not re.search(r'thresh\s*,|\b(?:thrden|thrvar)\s*=',
+                                  stripped, re.IGNORECASE)):
             line = _molpro_correlation_command(stripped, cc_convergence)
         tightened.append(line)
     body = '\n'.join(tightened) + ('\n' if body.endswith('\n') else '')

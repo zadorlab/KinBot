@@ -241,6 +241,9 @@ class Parameters:
             # Conventional ANL reference bases are always fully augmented,
             # including hydrogen.
             'anl_f12_augmented': 0,
+            # Require the intended L3 geometry before recipe single points.
+            'anl_require_l3_geometry': 1,
+            'anl_l3_max_retries': 1,
             # Automatic CBH planning chooses the highest structurally valid
             # rung (up to CBH-3), then falls down by rung and common ANL tier
             # as required.  An integer remains accepted for reproducible
@@ -476,10 +479,17 @@ class Parameters:
             'vrc_tst_correlation_convergence': 1.e-7,
             # Maximum constrained force (eV/angstrom) for Molpro relaxed scans.
             'vrc_tst_scan_fmax': 5.e-4,
-            # Gaussian orbitals are used only to construct HOMO-directed
+            # Auxiliary fragment orbitals are used only for HOMO-directed
             # pivot points.  They never supply a VRC scan geometry or energy.
+            'vrc_tst_pivot_backend': 'gaussian',
             'vrc_tst_pivot_method': 'ub3lyp',
             'vrc_tst_pivot_basis': '6-31+G(d)',
+            # Molpro pivot backend: native OPTG and CUBE controls. fmax is
+            # eV/angstrom, grid step is Bohr; method uses UKS/ or RKS/ prefix.
+            'vrc_tst_pivot_fmax': 5.e-4,
+            'vrc_tst_pivot_grid_step': 0.2,
+            'vrc_tst_pivot_maxit': 100,
+            'vrc_tst_pivot_scf_maxit': 200,
             # Calculator keywords scoped only to VRC Gaussian calculations
             'vrc_tst_calc_kwargs': None,
             # Energy calculations
@@ -796,6 +806,11 @@ class Parameters:
         if (isinstance(self.par['anl_f12_augmented'], bool)
                 or self.par['anl_f12_augmented'] not in (0, 1)):
             raise ValueError('anl_f12_augmented must be 0 or 1.')
+        if (isinstance(self.par['anl_require_l3_geometry'], bool)
+                or self.par['anl_require_l3_geometry'] not in (0, 1)):
+            raise ValueError('anl_require_l3_geometry must be 0 or 1.')
+        if type(self.par['anl_l3_max_retries']) is not int or self.par['anl_l3_max_retries'] < 0:
+            raise ValueError('anl_l3_max_retries must be a nonnegative integer.')
         if (not isinstance(self.par['atct_version'], str)
                 or not self.par['atct_version'].strip()):
             raise ValueError('atct_version must be a nonempty string.')
@@ -911,6 +926,9 @@ class Parameters:
         convergence_exponent(
             self.par['vrc_tst_scf_convergence'],
             'vrc_tst_scf_convergence')
+        from kinbot.vrc_orbitals import pivot_backend, molpro_pivot_settings
+        if pivot_backend(self.par) == 'molpro':
+            molpro_pivot_settings(self.par)
         convergence_exponent(
             self.par['vrc_tst_correlation_convergence'],
             'vrc_tst_correlation_convergence')

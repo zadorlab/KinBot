@@ -183,7 +183,12 @@ class VTS:
         for directory in ('vrctst/molpro', 'perm/vrctst/molpro'):
             Path(directory).mkdir(parents=True, exist_ok=True)
         self.gaussian_tools = {}
-        if str(self.par.get('pp_orient', 'homo')).casefold() == 'homo':
+        from kinbot.vrc_orbitals import pivot_backend, molpro_pivot_settings
+        backend = pivot_backend(self.par)
+        if backend == 'molpro':
+            molpro_pivot_settings(self.par)
+        if (backend == 'gaussian'
+                and str(self.par.get('pp_orient', 'homo')).casefold() == 'homo'):
             # HOMO-oriented pivot points require both native Gaussian
             # conversion utilities. Resolve them before submitting fragment
             # work so a missing artifact cannot surface later in ROTD_py.
@@ -285,7 +290,9 @@ class VTS:
                                 continue
                             else:  # submit at vrc_tst level
                                 prod_chemid.append(routing_key(prod))
-                                self.qc.qc_vts_frag(prod)
+                                from kinbot.vrc_orbitals import pivot_backend
+                                if pivot_backend(self.par) == 'gaussian':
+                                    self.qc.qc_vts_frag(prod)
             if not hit:
                 logger.warning(f'Reaction {reac} requested \
                                to scan is not found in reaction list.')
@@ -298,10 +305,20 @@ class VTS:
         Not everything is checked since no big changes are expected.
         """
 
+        from kinbot.vrc_orbitals import pivot_backend, prepare_molpro_fragment
+        molpro_fragments = {}
         for reac in reactions:
             for prod in self.scan_reac[reac].products:
                 # read geom
                 job = f'vrctst/{routing_name(prod)}_vts'
+                if pivot_backend(self.par) == 'molpro':
+                    if job not in molpro_fragments:
+                        molpro_fragments[job] = prepare_molpro_fragment(
+                            prod, self.par, job)
+                    result = molpro_fragments[job]
+                    prod.geom = result.positions.copy()
+                    prod.atom = result.get_chemical_symbols()
+                    continue
                 status, geom, atoms = self.qc.get_qc_geom(
                     job,
                     prod.natom,

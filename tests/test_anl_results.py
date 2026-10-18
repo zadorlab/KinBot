@@ -919,3 +919,23 @@ def test_parser_declaration_must_match_method_and_input():
         validate_result_parser(request, backend='molpro',
                                template=template.replace('-f12b', '-f12'),
                                outputs=['sp.out'])
+
+
+def test_molpro_separate_unsigned_imaginary_table_is_not_dropped():
+    # Molpro 2024 prints an unsigned imaginary table before its real modes.
+    saddle = _MOLPRO_HARMONIC.replace(
+        '0.04479801 [H]     9832.03 [1/CM]      117.62 [KJ/MOL]',
+        '0.0417377851 [H]     9160.385 [1/CM]      109.58 [KJ/MOL]')
+    import re
+    saddle = re.sub(r'^\s*1\s+1343.29.*$', '', saddle, flags=re.M)
+    # Renumber the remaining eight real modes as the native program does.
+    for n in range(2, 10):
+        saddle = re.sub(rf'^(\s*){n}(\s+)', rf'\g<1>{n-1}\2', saddle, flags=re.M)
+    heading = 'Imaginary Vibration Wavenumber\n Nr     [1/cm]\n  1     500.00\n\n'
+    saddle = saddle.replace('     Vibration        Wavenumber', heading+'     Vibration        Wavenumber')
+    parsed = parse_molpro_harmonic(saddle, basis='cc-pVTZ', reference='RHF',
+                                 stationary_point='transition_state')
+    assert parsed['imaginary_wavenumbers_cm_inverse'] == [-500.0]
+    assert len(parsed['wavenumbers_cm_inverse']) == 8
+    with pytest.raises(ValueError, match='imaginary mode for a minimum'):
+        parse_molpro_harmonic(saddle, basis='cc-pVTZ', reference='RHF')

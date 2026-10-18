@@ -351,3 +351,20 @@ def test_many_composite_records_do_not_bury_second_pes(tmp_path, monkeypatch):
     assert len(compact.splitlines()) < 150
     assert len(expanded.splitlines()) > 1500
     assert len(report['cases'][0]['artifacts']) == 81  # no data deleted to simplify display
+
+
+def test_rehomed_run_monitors_both_cases_and_old_slurm_path(tmp_path, monkeypatch):
+    root, old = tmp_path/'new', tmp_path/'old'
+    first, second = root/'first', root/'second'
+    put(root/'prepared.json', {'inputs': [str(first/'input.json'), str(second/'input.json')]})
+    for case in (first, second):
+        put(case/'input.json', {'queue_job_limit': 10})
+    old.symlink_to(root, target_is_directory=True)
+    raw = f'42|RUNNING|node20|00:30|31-00:00:00|8|10G||l3|node20|{old}/first/123\n'
+    monkeypatch.setattr(monitor.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=0, stdout=raw, stderr=''))
+    monkeypatch.setattr(monitor, 'queue', ORIGINAL_QUEUE)
+    monkeypatch.setattr('kinbot.run_cleanup._processes', lambda *a: [])
+    report = monitor.snapshot(root)
+    assert len(report['cases']) == 2
+    text = monitor.render(report)
+    assert '42' in text and 'first' in text and 'second' in text

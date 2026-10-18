@@ -188,6 +188,11 @@ connectivity metrics:
    12 heavy atoms, and 12 heavy bonds; or
 4. the accepted L2 energy, geometry, and modes otherwise.
 
+Required L3 optimizations now retry once by default and block recipe single
+points if still unsuccessful (`anl_require_l3_geometry: 1`,
+`anl_l3_max_retries: 1`). The electronic/component fallback ladder below does
+not authorize substitution of an L2 geometry for a required L3 geometry.
+
 Every assigned state retains the ordered fallback chain
 `ANL0-F12 -> ANL0 -> L3 -> L3-SP@L2 -> L2`, beginning at its allowed tier.
 All structurally valid CBH reactions from CBH-3 down through CBH-0 and all

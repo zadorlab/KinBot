@@ -799,6 +799,78 @@ def composite_validation_spec(molecule, *, max_nodes=3, partition=None,
     }
 
 
+def configure_task_convergence(task, *, scf_convergence, cc_convergence):
+    """Update numerical convergence only; keep method, geometry and resources."""
+    scf_exponent = convergence_exponent(scf_convergence, 'SCF convergence')
+    cc_exponent = convergence_exponent(cc_convergence, 'CC convergence')
+    scf_threshold = fortran_threshold(scf_convergence, 'SCF convergence')
+    cc_threshold, cc_variance = molpro_cc_thresholds(cc_convergence)
+    profile = task.get('profile')
+    if isinstance(profile, dict):
+        calculator = str(profile.get('calculator', '')).casefold()
+        kwargs = dict(profile.get('calculator_kwargs', {}))
+        if calculator == 'gaussian':
+            kwargs['scf'] = f'xqc,conver={scf_exponent}'
+        elif calculator == 'molpro':
+            kwargs.update(
+                scf_convergence=scf_convergence,
+                correlation_convergence=cc_convergence)
+        profile['calculator_kwargs'] = kwargs
+    template = task.get('input_template')
+    if not isinstance(template, str):
+        return
+    if task.get('backend') == 'gaussian':
+        template = re.sub(
+            r'\bSCF\s*=\s*(?:XQC|\([^\n)]*XQC[^\n)]*\))',
+            f'SCF=(XQC,Conver={scf_exponent})', template,
+            flags=re.IGNORECASE)
+    elif task.get('backend') == 'molpro':
+        template = re.sub(
+            r'^\s*gthresh\s*,[^\n]*$',
+            (f'gthresh,energy={scf_threshold},coeff={cc_threshold},'
+             f'civec={cc_threshold}'), template,
+            flags=re.IGNORECASE | re.MULTILINE)
+        def cc_controls(match):
+            body = match.group(1)
+            # Migrate old generated cards too; preserve CORE, scale_trip and
+            # all method options. Never apply CC semantics to RS2/MRCI.
+            body = re.sub(r';\s*thresh\s*,\s*energy\s*=\s*1\.d-\d+\s*,\s*'
+                          r'coeff\s*=\s*1\.d-\d+', '', body, flags=re.I)
+            command, separator, cards = body.partition(';')
+            command = re.sub(r',\s*(?:thrden|thrvar)\s*=\s*1\.d-\d+',
+                             '', command, flags=re.I)
+            return (f'{{{command},thrden={cc_threshold},thrvar={cc_variance}'
+                    f'{separator}{cards}}}')
+        template = re.sub(r'\{\s*([ru]?ccsd[^{}]*)\}', cc_controls,
+                          template, flags=re.IGNORECASE)
+    elif task.get('backend') == 'mrcc':
+        template = re.sub(r'^sctol=\d+$', f'sctol={scf_exponent}',
+                          template, flags=re.MULTILINE)
+        template = re.sub(r'^cctol=\d+$', f'cctol={cc_exponent}',
+                          template, flags=re.MULTILINE)
+    elif task.get('backend') == 'cfour':
+        template = re.sub(r'^SCF_CONV=\d+$',
+                          f'SCF_CONV={scf_exponent}', template,
+                          flags=re.MULTILINE)
+        template = re.sub(r'^(?:CC_CONV|LINEQ_CONV)=\d+$',
+                          lambda match: (match.group(0).split('=', 1)[0]
+                                         + f'={cc_exponent}'), template,
+                          flags=re.MULTILINE)
+    task['input_template'] = template
+
+
+def require_primary_geometries(spec, *, preserve_tasks=()):
+    """Require requested L3 geometries; never silently stage an L2 fallback."""
+    spec.setdefault('intent', {})['require_l3_geometry'] = True
+    for task in spec['tasks']:
+        if task['id'] in preserve_tasks:
+            continue
+        task.pop('geometry_fallback', None)
+        if task['kind'] == 'ase_optimize':
+            for key in ('failure_policy', 'failure_skips', 'component_families'):
+                task.pop(key, None)
+
+
 def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                              max_nodes=3, partition=None,
                              mrcc_command='dmrcc',
@@ -810,7 +882,8 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                              cc_convergence=1.e-7,
                              geometry_fmax=5.e-4,
                              minimum_recovery=None,
-                             f12_augmented=False):
+                             f12_augmented=False, require_l3_geometry=True,
+                             l3_max_retries=1):
     """Build the automatic post-L2 graph for one stable point or tight TS.
 
     The caller supplies the already accepted L2 geometry and its provenance
@@ -835,6 +908,10 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         raise ValueError(f'highest_tier must be one of {allowed}.')
     if not isinstance(f12_augmented, bool):
         raise ValueError('f12_augmented must be boolean.')
+    if not isinstance(require_l3_geometry, bool):
+        raise ValueError('require_l3_geometry must be boolean.')
+    if type(l3_max_retries) is not int or l3_max_retries < 0:
+        raise ValueError('l3_max_retries must be a nonnegative integer.')
     scf_exponent = convergence_exponent(
         scf_convergence, 'SCF convergence')
     cc_exponent = convergence_exponent(
@@ -984,56 +1061,15 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             if (task.get('geometry_from') == 'l3_geometry'
                 and 'geometry_fallback' not in task)]
     for task in tasks:
-        profile = task.get('profile')
         if task.get('kind') == 'ase_optimize':
             task['optimizer']['fmax'] = geometry_fmax
             if (not task['optimizer'].get('order', 0)
                     and not task['optimizer'].get('constraints')):
                 task['optimizer']['minimum_recovery'] = dict(recovery)
-        if isinstance(profile, dict):
-            calculator = str(profile.get('calculator', '')).casefold()
-            kwargs = dict(profile.get('calculator_kwargs', {}))
-            if calculator == 'gaussian':
-                kwargs['scf'] = f'xqc,conver={scf_exponent}'
-            elif calculator == 'molpro':
-                kwargs.update(
-                    scf_convergence=scf_convergence,
-                    correlation_convergence=cc_convergence)
-            profile['calculator_kwargs'] = kwargs
-        template = task.get('input_template')
-        if not isinstance(template, str):
-            continue
-        if task.get('backend') == 'gaussian':
-            template = re.sub(
-                r'\bSCF\s*=\s*(?:XQC|\([^\n)]*XQC[^\n)]*\))',
-                f'SCF=(XQC,Conver={scf_exponent})', template,
-                flags=re.IGNORECASE)
-        elif task.get('backend') == 'molpro':
-            template = re.sub(
-                r'^\s*gthresh\s*,[^\n]*$',
-                (f'gthresh,energy={scf_threshold},coeff={cc_threshold},'
-                 f'civec={cc_threshold}'), template,
-                flags=re.IGNORECASE | re.MULTILINE)
-            template = re.sub(
-                r'(?<![A-Za-z])thresh\s*,\s*energy\s*=\s*1\.d-\d+\s*,\s*'
-                r'coeff\s*=\s*1\.d-\d+',
-                f'thresh,energy={cc_threshold},coeff={cc_coefficient}',
-                template, flags=re.IGNORECASE)
-        elif task.get('backend') == 'mrcc':
-            template = re.sub(r'^sctol=\d+$', f'sctol={scf_exponent}',
-                              template, flags=re.MULTILINE)
-            template = re.sub(r'^cctol=\d+$', f'cctol={cc_exponent}',
-                              template, flags=re.MULTILINE)
-        elif task.get('backend') == 'cfour':
-            template = re.sub(r'^SCF_CONV=\d+$',
-                              f'SCF_CONV={scf_exponent}', template,
-                              flags=re.MULTILINE)
-            template = re.sub(r'^(?:CC_CONV|LINEQ_CONV)=\d+$',
-                              lambda match: (match.group(0).split('=', 1)[0]
-                                             + f'={cc_exponent}'), template,
-                              flags=re.MULTILINE)
-        task['input_template'] = template
-    return {
+        configure_task_convergence(
+            task, scf_convergence=scf_convergence,
+            cc_convergence=cc_convergence)
+    spec = {
         'schema': 1, 'name': 'anl-automatic-post-l2',
         'molecule': molecule, 'limits': {'max_nodes': max_nodes},
         'tasks': tasks,
@@ -1044,6 +1080,7 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                 'geometry_fmax_ev_angstrom': geometry_fmax,
             },
             'f12_augmented': f12_augmented,
+            'l3_max_retries': l3_max_retries,
             'claim': 'automatic-cbh-anl-production',
             # A user may deliberately choose a short partition. Native jobs
             # then request that partition's limit, so scheduler timeouts are
@@ -1057,6 +1094,10 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             'anl0_only': not anl1_requested,
         },
     }
+
+    if require_l3_geometry:
+        require_primary_geometries(spec)
+    return spec
 
 
 def audit_higher_order_run(run_dir):

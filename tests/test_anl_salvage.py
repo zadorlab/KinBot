@@ -103,6 +103,60 @@ def test_incompatible_live_task_is_never_moved_by_graph_repair(tmp_path):
     assert not (tmp_path/'archive').exists()
 
 
+def test_cancelled_fallback_without_execution_is_archived_during_grace(tmp_path, monkeypatch):
+    graph = dispatch.prepare(small_spec(), tmp_path/'graph')
+    _mock_execution(graph, 'accepted_geometry', geometry='final.xyz')
+    state = dispatch.advance(graph)
+    state['tasks']['l3_geometry']['status'] = 'unavailable'
+    atomic_json(graph/'state.json', state)
+    state = dispatch.advance(graph)
+    state['tasks']['energy'].update(status='submitted', job_id='102')
+    # A valid job that just left Slurm must keep its publication grace/slot.
+    state['tasks']['l2_property'].update(status='submitted', job_id='103')
+    atomic_json(graph/'state.json', state)
+    original = (graph/'tasks/energy/task.json').read_bytes()
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: False)
+    report = salvage.repair_graph(graph, tmp_path/'archive')
+    state = dispatch._load(graph)[2]
+    assert report['retired_jobs'] == {'energy': '102'}
+    assert report['adopted_jobs'] == {'l2_property': '103'}
+    saved = Path(report['archive'])
+    assert (saved/'energy/task.json').read_bytes() == original
+    assert not (saved/'energy/execution.json').exists()
+    archived_state = json.loads((saved/'state.json').read_text())
+    assert archived_state['tasks']['energy']['status'] == 'submitted'
+    assert 'missing_since' in archived_state['tasks']['energy']
+    assert not (graph/'tasks/energy').exists()
+    assert state['tasks']['l3_geometry']['status'] == 'staged'
+    assert 'missing_since' in state['tasks']['l2_property']
+
+
+@pytest.mark.parametrize('active', [True, 'unavailable'])
+def test_invalid_task_requires_fresh_scheduler_check_before_archive(tmp_path, monkeypatch, active):
+    graph = dispatch.prepare(small_spec(), tmp_path/'graph')
+    _mock_execution(graph, 'accepted_geometry', geometry='final.xyz')
+    state = dispatch.advance(graph)
+    state['tasks']['l3_geometry']['status'] = 'unavailable'
+    atomic_json(graph/'state.json', state)
+    state = dispatch.advance(graph)
+    state['tasks']['energy'].update(status='submitted', job_id='102')
+    atomic_json(graph/'state.json', state)
+    checks = []
+    def query(job):
+        checks.append(job)
+        if len(checks) == 1:
+            return False  # advance observed a missing result, within grace
+        if active == 'unavailable':
+            raise dispatch.SchedulerUnavailableError('scheduler unavailable')
+        return active
+    monkeypatch.setattr(dispatch, '_job_active', query)
+    with pytest.raises(RuntimeError, match='incompatible live job|scheduler unavailable'):
+        salvage.repair_graph(graph, tmp_path/'archive')
+    assert checks == ['102', '102']
+    assert (graph/'tasks/energy/task.json').exists()
+    assert not (tmp_path/'archive').exists()
+
+
 def test_repair_transaction_rolls_back_on_staging_failure(tmp_path, monkeypatch):
     graph = dispatch.prepare(small_spec(), tmp_path/'graph')
     before = {name: (graph/name).read_bytes() for name in ('state.json', 'workflow.json')}

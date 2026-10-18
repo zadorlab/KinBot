@@ -66,6 +66,21 @@ restartable after a scheduler outage or interrupted preparation. An unknown
 live controller or ambiguous submission stops it rather than launching a
 duplicate. Both PES controllers run as detached login-node processes.
 
+The first October 18 recovery stopped after cancellation and directory
+exchange, before launching either replacement controller. Its graph repair
+mistook a retained `submitted` record for a live allocation: the dispatcher
+normally retains that record for 60 seconds after queue exit while waiting
+for `execution.json`, which a cancelled job may never write. Recovery now
+checks Slurm again before archiving an invalid-geometry task in that state.
+Only confirmed-absent allocations can be retired; a live allocation or
+failed scheduler query still blocks archival. Valid jobs keep the normal
+publication wait. The archived state retains the original job ID, and the
+graph's `salvage.json` records `retired_jobs`. Rerun the same command below
+to resume the partial r5/r6 layout; do not remove either pathname or run a
+general cleanup. Regression coverage exercises this interrupted sequence,
+preservation of the valid live task's hashes, and launching both controllers
+once after preparation completes.
+
 The old input's scientific settings and node exclusions are retained,
 except for the explicitly requested SCF/CC controls, mandatory L3 policy,
 and Molpro pivot backend. Accepted earlier results with tighter thresholds

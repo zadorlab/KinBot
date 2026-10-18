@@ -86,12 +86,22 @@ def repair_graph(graph, archive, *, scf=1.e-8, cc=1.e-7, l3_max_retries=1):
     graph, spec, state = dispatch._load(graph)
     by_id = {t['id']: t for t in spec['tasks']}
     invalid = geometry_invalidations(spec, state)
-    # Cancellation is done by the outer controller with fresh Slurm ownership
-    # checks. Never move a task directory while its native process may write.
-    for ident in invalid:
+    # A cancelled allocation may never publish execution.json. advance keeps
+    # its submitted state during the normal result-publication grace period;
+    # that state alone does not mean the allocation is still alive. Invalid
+    # geometry results will be archived regardless of outcome, so they need
+    # no publication wait, but they DO need a fresh successful scheduler query.
+    # Valid jobs retain the ordinary grace period and their ownership.
+    retired_jobs = {}
+    for ident in sorted(invalid):
         entry = state['tasks'].get(ident, {})
-        if entry.get('status') in ('submitted', 'submitting'):
+        if entry.get('status') == 'submitting':
+            raise RuntimeError(f'{graph}/{ident}: ambiguous submission must be reconciled before archive.')
+        if entry.get('status') != 'submitted':
+            continue
+        if dispatch._job_active(entry['job_id']):
             raise RuntimeError(f'{graph}/{ident}: incompatible live job must leave the queue before archive.')
+        retired_jobs[ident] = entry['job_id']
     reset = set(invalid)
     retries = set()
     for ident, entry in state['tasks'].items():
@@ -181,6 +191,7 @@ def repair_graph(graph, archive, *, scf=1.e-8, cc=1.e-7, l3_max_retries=1):
         raise
     result = {'schema': 1, 'scf': scf, 'cc': cc, 'l3_max_retries': l3_max_retries, 'archive': str(archive),
               'retries': sorted(retries), 'geometry_invalidations': sorted(invalid),
+              'retired_jobs': retired_jobs,
               'adopted_jobs': {n: e['job_id'] for n, e in state['tasks'].items()
                                if e['status'] == 'submitted'},
               'complete': [n for n, e in state['tasks'].items() if e['status'] == 'complete']}

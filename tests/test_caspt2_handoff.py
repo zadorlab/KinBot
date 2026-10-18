@@ -351,3 +351,103 @@ def test_two_pes_salvage_resumes_interrupted_preparation_without_losing_inputs(h
         assert values['queue_job_limit'] == 10
     assert len(list(Path(report['archive']).glob('*/123/kinbot.log'))) == 2
     assert len(list(Path(report['archive']).glob('*/123/anl_automatic/reference_l2/failed_reference/driver.stderr'))) == 2
+
+
+def test_salvage_resumes_after_cancel_and_rehome_with_live_qz(handoff, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot import run_cleanup, run_salvage
+    from kinbot.anl import salvage, dispatch
+    from kinbot.execution import atomic_json, file_sha256
+    from tests.test_anl_salvage import small_spec
+    from tests.test_anl_dispatch import _mock_execution
+
+    old = handoff.prepare(tmp_path/'old')
+    new = tmp_path/'new'
+    for case in handoff.CASES:
+        base = old/case/'123/anl_automatic/states'
+        for name in ('a_accepted', 'b_fallback') if case == 'ch3s' else ('a_accepted',):
+            graph = base/name/'composite'
+            graph.parent.mkdir(parents=True)
+            dispatch.prepare(small_spec(), graph)
+            _mock_execution(graph, 'accepted_geometry', geometry='final.xyz')
+            _mock_execution(graph, 'l2_property')
+            dispatch.advance(graph)
+    invalid = old/'ch3s/123/anl_automatic/states/b_fallback/composite'
+    state = dispatch._load(invalid)[2]
+    state['tasks']['l3_geometry']['status'] = 'unavailable'
+    atomic_json(invalid/'state.json', state)
+    state = dispatch.advance(invalid)
+    state['tasks']['energy'].update(status='submitted', job_id='102')
+    atomic_json(invalid/'state.json', state)
+    live = old/'ch3s/123/anl_automatic/states/a_accepted/composite'
+    state = dispatch._load(live)[2]
+    state['tasks']['l3_geometry'].update(status='submitted', job_id='101')
+    atomic_json(live/'state.json', state)
+    live_hashes = {str(p.relative_to(live)): file_sha256(p)
+                   for p in (live/'tasks/l3_geometry').iterdir() if p.is_file()}
+    jobs = [{'job_id': '101', 'directory': str(live/'tasks/l3_geometry')},
+            {'job_id': '102', 'directory': str(invalid/'tasks/energy')}]
+    cancelled = []
+    def cancel(root, selected):
+        cancelled.extend(j['job_id'] for j in selected)
+        jobs[:] = [j for j in jobs if j not in selected]
+        # scancel need not leave an execution.json result behind.
+    monkeypatch.setattr(run_cleanup, '_cancel', cancel)
+    monkeypatch.setattr(run_cleanup, '_jobs', lambda root: list(jobs))
+    monkeypatch.setattr(run_cleanup, '_processes', lambda root: [])
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: any(j['job_id'] == job for j in jobs))
+    def exchange(a, b):
+        temporary = tmp_path/'exchange'
+        a.rename(temporary)
+        b.rename(a)
+        temporary.rename(b)
+    monkeypatch.setattr(run_salvage, '_exchange', exchange)
+    monkeypatch.setattr(run_salvage, '_pin_code', lambda root: root/'.salvage_code')
+    repair = salvage.repair_graph
+    def old_failure(graph, archive, **kwargs):
+        if graph.parent.name == 'b_fallback':
+            state = dispatch.advance(graph, submit=False)
+            assert state['tasks']['energy']['status'] == 'submitted'
+            assert 'missing_since' in state['tasks']['energy']
+            raise RuntimeError('old stale submitted guard')
+        return repair(graph, archive, **kwargs)
+    monkeypatch.setattr(salvage, 'repair_graph', old_failure)
+    with pytest.raises(RuntimeError, match='old stale submitted guard'):
+        run_salvage.prepare(old, new)
+    assert cancelled == ['102']
+    assert old.is_symlink() and old.resolve() == new
+    assert not list(new.glob('*/launch.json'))
+    first_migration = (live/'salvage.json').read_bytes()
+
+    # Resume the exact partial layout left on Blodgett, during publication
+    # grace, with the original old-path live job still in the queue.
+    monkeypatch.setattr(salvage, 'repair_graph', repair)
+    report = run_salvage.prepare(old, new)
+    assert report['status'] == 'prepared'
+    assert cancelled == ['102']  # no second cancellation / no valid job stopped
+    assert (live/'salvage.json').read_bytes() == first_migration
+    assert live_hashes == {str(p.relative_to(live)): file_sha256(p)
+                           for p in (live/'tasks/l3_geometry').iterdir() if p.is_file()}
+    records = {Path(r['graph']).parent.name: r for r in report['graphs']
+               if '/ch3s/' in r['graph']}
+    assert records['a_accepted']['adopted_jobs'] == {'l3_geometry': '101'}
+    assert records['b_fallback']['retired_jobs'] == {'energy': '102'}
+    assert (Path(records['b_fallback']['archive'])/'energy/task.json').exists()
+    assert not (invalid/'tasks/energy').exists()
+    assert dispatch._load(invalid)[2]['tasks']['l3_geometry']['status'] == 'staged'
+    assert len(handoff.verify(new)['inputs']) == 2
+
+    # Both detached drivers start exactly once after successful preparation.
+    monkeypatch.setattr('kinbot.anl.automatic.validate_automatic_environment', lambda par: None)
+    launches = []
+    def start(command, **kwargs):
+        launches.append((command, kwargs))
+        return SimpleNamespace(pid=700+len(launches))
+    monkeypatch.setattr(run_salvage.subprocess, 'Popen', start)
+    launched = run_salvage.launch(new)
+    assert launched['status'] == 'launched'
+    assert run_salvage.launch(new) == launched
+    assert len(launches) == 2
+    assert {kwargs['cwd'].name for _, kwargs in launches} == {'ch3s', 'ch3ss'}
+    assert all(kwargs['start_new_session'] for _, kwargs in launches)
+    assert len(list(new.glob('*/launch.json'))) == 2

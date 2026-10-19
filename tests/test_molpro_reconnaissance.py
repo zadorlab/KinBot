@@ -244,6 +244,7 @@ def test_prepare_renders_c1_rohf_jobs_and_displaced_anchor(tmp_path):
     assert 'KINBOT_BACKEND' in setup
     batch = (tmp_path / 'recon' / 'avtz__equilibrium' / 'avtz__equilibrium.sbatch').read_text()
     assert '#SBATCH --mem=104000M' in batch  # 8 ranks, 1000 MW + overhead, below 126000M.
+    assert '#SBATCH --exclusive' in batch
 
 
 def test_submission_records_effective_resource_override(tmp_path, monkeypatch):
@@ -613,8 +614,8 @@ def test_execute_selects_its_own_wavefunction_repository(tmp_path, monkeypatch):
     monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *args, **kwargs: ({}, {'scratch_directory': str(tmp_path)}))
     monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *args: None)
     def execute(command, **kwargs):
-        assert command[command.index('-W') + 1] == job['directory']
-        assert kwargs['cwd'] == Path(job['directory'])
+        assert Path(command[command.index('-W') + 1]) == kwargs['cwd'] == tmp_path / 'work'
+        assert (kwargs['cwd'] / command[-1]).exists()
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(recon.subprocess, 'run', execute)
     recon.execute(path, job['name'])
@@ -1271,13 +1272,14 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
     monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *args, **kwargs: ({}, {'scratch_directory': str(tmp_path)}))
     monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *args: None)
     def native(command, **kwargs):
-        deck = (directory / command[-1]).read_text()
+        local = kwargs['cwd']
+        deck = (local / command[-1]).read_text()
         assert 'put,molden' not in deck.lower()
         assert 'put,xml,' in deck.lower()
         assert len(deck.splitlines()[0].split(',', 1)[1]) <= 32
         assert 'ch3ss_orbital_reconnaissance_pilot orbital reconnaissance:' in original.decode()
         assert command[command.index('-o') + 1] == name + '.out'
-        (directory / (name + '.out')).write_text(
+        (local / (name + '.out')).write_text(
             'NATURAL ORBITALS (STATE AVERAGED)\n===\n'
             + ''.join(f'{index}.1 2.00000 -1.0\n' for index in range(1, 12))
             + '12.1 1.00000 -0.1\nNatural orbital dump\n'
@@ -1287,10 +1289,10 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
             + 'SETTING RECONDONE = 1\nMolpro calculation terminated\n')
         checkpoint = deck.split('file,2,', 1)[1].splitlines()[0]
         assert len(checkpoint) <= 31 and '/' not in checkpoint
-        assert command[command.index('-W') + 1] == str(directory)
-        (directory / checkpoint).write_bytes(b'h functions retained in native WFU')
+        assert command[command.index('-W') + 1] == str(local)
+        (local / checkpoint).write_bytes(b'h functions retained in native WFU')
         for suffix in ('.orbitals.xml', '.natural.orbitals.xml'):
-            (directory / (name + suffix)).write_text('<molpro><orbital occupation="1"/></molpro>')
+            (local / (name + suffix)).write_text('<molpro><orbital occupation="1"/></molpro>')
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(recon.subprocess, 'run', native)
     recon.execute(path, name)

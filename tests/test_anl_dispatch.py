@@ -1858,7 +1858,9 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
                 if backend == 'gaussian':
                     assert result.stdout.startswith(f'{gaussian / "g16"}\n')
                     assert f'|yes|{root / "gaussian"}|' in result.stdout
-                    assert result.stdout.endswith(f'|{node_scratch}|{node_scratch}')
+                    # Site setup loads vendor variables only; native execution later
+                    # selects verified scratch on its actual compute node.
+                    assert result.stdout.endswith(f'|/profile-default|{blocked_scratch}')
                     gaussian_command = command
                 elif backend == 'cfour':
                     assert result.stdout.startswith(f'{cfour / "xcfour"}\n')
@@ -1878,13 +1880,13 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
             result = subprocess.run(['bash', '-c', gaussian_command],
                                     cwd=run_dir, env=child_env, capture_output=True,
                                     text=True, check=True)
-            assert result.stdout.endswith(f'|{site_scratch}|{site_scratch}')
+            assert result.stdout.endswith(f'|/profile-default|{blocked_scratch}')
             explicit_scratch = root / 'explicit-scratch'
             child_env['GAUSS_SCRDIR'] = str(explicit_scratch)
             result = subprocess.run(['bash', '-c', gaussian_command],
                                     cwd=run_dir, env=child_env, capture_output=True,
                                     text=True, check=True)
-            assert result.stdout.endswith(f'|{explicit_scratch}|{explicit_scratch}')
+            assert result.stdout.endswith(f'|/profile-default|{explicit_scratch}')
             (gaussian / 'bsd' / 'g16.profile').write_text('false\n')
             result = subprocess.run(['bash', '-c', gaussian_command],
                                     cwd=run_dir, env=child_env, capture_output=True,

@@ -98,7 +98,8 @@ for system in json.loads((root / 'campaign.json').read_text())['systems']:
 PY
 
 export KINBOT_SLURM_IO_RETRIES=2
-export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+# Updated 2026-10-19: automatic verified node-local storage; no HOME override.
+unset KINBOT_MOLPRO_SCRATCH KINBOT_MOLPRO_SCRATCH_FALLBACKS
 export KINBOT_MOLPRO_SCRATCH_FALLBACKS=/scratch2/hram/kinbot-molpro
 export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
 "$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"
@@ -178,7 +179,8 @@ PY
 "$KB_PY" -m kinbot.orbital_campaign retry-failed "$CAMPAIGN" --include-interrupted
 
 export KINBOT_SLURM_IO_RETRIES=2
-export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
+# Updated 2026-10-19: automatic verified node-local storage; no HOME override.
+unset KINBOT_MOLPRO_SCRATCH KINBOT_MOLPRO_SCRATCH_FALLBACKS
 export KINBOT_MOLPRO_SCRATCH_FALLBACKS=/scratch2/hram/kinbot-molpro
 export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
 "$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"

@@ -400,9 +400,9 @@ class Parameters:
             # lets a deliberately short validation partition exercise the
             # same recorded timeout/retry behavior as the ANL dispatcher.
             'rotdpy_walltime': 'partition_max',
-            # Optional for sites that require a whole node for VRC samples.
-            # ANL L3 jobs remain exclusive independently of this setting.
-            'rotdpy_exclusive': 0,
+            # Whole nodes avoid contention for native QC and local scratch.
+            # Independent of ranks/threads and the concurrent-node limit.
+            'rotdpy_exclusive': 1,
             # [start, initial interval, interval multiplier, point count]
             'rotdpy_temperature_grid': [10., 10., 1.05, 70],
             'rotdpy_energy_grid': [0., 10., 1.05, 190],
@@ -546,6 +546,9 @@ class Parameters:
             'q_temp_l3': None,
             # Name of the queue
             'queue_name': 'medium',
+            # Whole-node Slurm allocations for ordinary L0/L1/L2/reference
+            # jobs, including custom headers. ANL jobs are always exclusive.
+            'queue_exclusive': 1,
             # Wall time for ordinary QC jobs. ``partition_max`` discovers the
             # selected Slurm partition's maximum, avoiding an often much
             # shorter site default without adding a required user setting.
@@ -566,6 +569,10 @@ class Parameters:
             'delete_intermediate_files': 0,
             # Scratch directory
             'scratch': '',
+            # Extra verified-local alternatives after /scratch/<actual user>
+            # and site/scheduler candidates; never allow shared HOME storage.
+            'qc_scratch_fallbacks': [],
+            'qc_scratch_min_mb': 4096,
             # User name
             'username': '',
             # Max. number of job from user in queue, if negative, ignored

@@ -503,10 +503,14 @@ class Molpro(Calculator):
             scratch_min_mb=self.scratch_min_mb)
         result = None
         try:
-            with (self.work_directory / stdout_name).open('w') as stdout, \
-                    (self.work_directory / stderr_name).open('w') as stderr:
-                result = subprocess.run(command, cwd=self.work_directory, stdout=stdout,
-                                        stderr=stderr, check=False, env=child_env)
+            from kinbot.qc_scratch import workspace, molpro_command
+            with workspace(self.work_directory, runtime, backend='molpro',
+                           inputs=[input_name], label=stem) as local:
+                command = molpro_command(command, runtime, local)
+                with (local / stdout_name).open('w') as stdout, \
+                        (local / stderr_name).open('w') as stderr:
+                    result = subprocess.run(command, cwd=local, stdout=stdout,
+                                            stderr=stderr, check=False, env=child_env)
         finally:
             if result is None or result.returncode:
                 preserve_qc_failure(runtime, self.work_directory, stem,

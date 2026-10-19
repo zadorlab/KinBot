@@ -1,4 +1,5 @@
 import re
+import subprocess
 
 import ase.io.orca as io
 from ase.calculators.genericfileio import (
@@ -37,8 +38,17 @@ class OrcaTemplate(CalculatorTemplate):
         self.errorname = f'{self._label}.err'
 
     def execute(self, directory, profile) -> None:
-        profile.run(directory, self.inputname, self.outputname,
-                    errorfile=self.errorname)
+        from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
+        from kinbot.qc_scratch import workspace
+        env, runtime = qc_runtime_environment('orca', 'orca', work_directory=directory)
+        try:
+            with workspace(directory, runtime, backend='orca', inputs=[self.inputname],
+                           outputs=['orca.engrad', 'orca.gbw'], label=self._label) as local:
+                with (local / self.outputname).open('wb') as out, (local / self.errorname).open('wb') as err:
+                    subprocess.run(profile.get_command(self.inputname), cwd=local,
+                                   env=env, stdout=out, stderr=err, check=True)
+        finally:
+            cleanup_qc_runtime(runtime)
 
     def write_input(self, profile, directory, atoms, parameters, properties):
         parameters = dict(parameters)

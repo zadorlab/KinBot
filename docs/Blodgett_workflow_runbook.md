@@ -453,8 +453,9 @@ env -u LD_LIBRARY_PATH -u LD_PRELOAD \
 KB_PY=/home/hram/KinBot/.venv/bin/python
 "$KB_PY" -c 'from kinbot.anl.runtime import _check_scratch_io'
 CAMPAIGN=$(cat /home/hram/kinbot-runs/last_sulfur_orbital_campaign.txt)
-export KINBOT_MOLPRO_SCRATCH="/scratch2/$USER/kinbot-molpro"
-export KINBOT_MOLPRO_SCRATCH_FALLBACKS="$HOME/.cache/kinbot/molpro"
+# Native workers select /scratch/<actual account> first on their own node.
+# Shared HOME fallbacks are forbidden.
+unset KINBOT_MOLPRO_SCRATCH KINBOT_MOLPRO_SCRATCH_FALLBACKS
 export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
 "$KB_PY" -m kinbot.orbital_campaign retry-failed "$CAMPAIGN"
 "$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"
@@ -541,8 +542,9 @@ KB_PY=/home/hram/KinBot/.venv/bin/python
 "$KB_PY" -c 'from kinbot.slurm_retry import retry_limit; assert retry_limit({}) == 2'
 CAMPAIGN=$(cat /home/hram/kinbot-runs/last_sulfur_orbital_campaign.txt)
 export KINBOT_SLURM_IO_RETRIES=2
-export KINBOT_MOLPRO_SCRATCH="/scratch2/$USER/kinbot-molpro"
-export KINBOT_MOLPRO_SCRATCH_FALLBACKS="$HOME/.cache/kinbot/molpro"
+# Native workers select /scratch/<actual account> first on their own node.
+# Shared HOME fallbacks are forbidden.
+unset KINBOT_MOLPRO_SCRATCH KINBOT_MOLPRO_SCRATCH_FALLBACKS
 export KINBOT_MOLPRO_SCRATCH_MIN_MB=65536
 "$KB_PY" -m kinbot.orbital_campaign retry-failed "$CAMPAIGN"
 "$KB_PY" -m kinbot.orbital_campaign preflight "$CAMPAIGN"

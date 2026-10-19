@@ -82,7 +82,8 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
             assert "'basis': 'vdz'" in generated
             assert "'processors': 2" in generated
             assert "'max_jobs': 3" in generated
-            assert "os.environ.get('SCRATCH')" in generated
+            assert "'scratch': ''" in generated
+            assert 'from kinbot.rotdpy_molpro import KinBotMultiSample' in generated
             assert 'corrections = None' in generated
             assert "'KinBot 1D scan'" not in generated
             assert 'temperature = generate_grid(*[100.0, 50.0, 1.0, 2])' in generated

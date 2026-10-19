@@ -898,21 +898,30 @@ def _run_external(directory, record):
         command[0], task['backend'], work_directory=directory,
         scratch_min_mb=scratch_min_mb)
     child_env['OMP_NUM_THREADS'] = str(_omp_threads(task))
-    stdin = (directory / task['input_name']).open('rb') if task.get('stdin') else None
+    from kinbot.qc_scratch import workspace, molpro_command
     result = None
     try:
-        with (directory / task.get('stdout', 'stdout.txt')).open('wb') as stdout, \
-                (directory / task.get('stderr', 'stderr.txt')).open('wb') as stderr:
+        inputs = [task['input_name'], 'geometry.xyz', *task.get('files_from_env', {})]
+        outputs = [*task['required_outputs'], task.get('stdout', 'stdout.txt'),
+                   task.get('stderr', 'stderr.txt')]
+        outputs.extend(name for alternatives in task.get('output_aliases', {}).values()
+                       for name in alternatives)
+        with workspace(directory, runtime, backend=task['backend'], inputs=inputs,
+                       outputs=outputs, label=task['id']) as local:
+            if task['backend'].lower() == 'molpro':
+                command = molpro_command(command, runtime, local)
+            stdin = (local / task['input_name']).open('rb') if task.get('stdin') else None
             try:
-                result = subprocess.run(
-                    command, cwd=directory, stdin=stdin, stdout=stdout,
-                    stderr=stderr, check=False, env=child_env)
+                with (local / task.get('stdout', 'stdout.txt')).open('wb') as stdout, \
+                        (local / task.get('stderr', 'stderr.txt')).open('wb') as stderr:
+                    result = subprocess.run(command, cwd=local, stdin=stdin, stdout=stdout,
+                                            stderr=stderr, check=False, env=child_env)
             except OSError as exc:
-                raise CalculationUnavailableError(
-                    f'Could not start native program: {exc}') from exc
+                raise CalculationUnavailableError(f'Could not start native program: {exc}') from exc
+            finally:
+                if stdin:
+                    stdin.close()
     finally:
-        if stdin:
-            stdin.close()
         if result is None or result.returncode:
             from kinbot.anl.runtime import preserve_qc_failure
             preserve_qc_failure(runtime, directory, Path(task['input_name']).stem,

@@ -71,7 +71,7 @@ def test_molpro_preserves_explicit_fabric_and_multinode_environment():
     assert provenance == {}
 
 
-def test_molpro_uses_large_home_scratch_when_tmp_is_too_small():
+def test_molpro_never_falls_back_to_home_when_tmp_is_too_small():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         home = root / 'home'
@@ -93,8 +93,9 @@ def test_molpro_uses_large_home_scratch_when_tmp_is_too_small():
                 scratch_min_mb=1000)
         scratch = Path(child['TMPDIR'])
         assert scratch.is_dir()
-        assert scratch.parent == (home / '.cache' / 'kinbot' / 'molpro').resolve()
-        assert provenance['scratch_source'] == 'HOME'
+        assert not scratch.is_relative_to(home.resolve())
+        assert not (home / '.cache').exists()
+        assert provenance['scratch_source'] == 'system_tmp'
         assert provenance['scratch_minimum_mb'] == 1000
         cleanup_qc_runtime(provenance)
         assert not scratch.exists()

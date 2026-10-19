@@ -337,6 +337,8 @@ def _main():
     logger = config_log('KinBot')
     # initialize the parameters for this run
     masterpar = Parameters(input_file, show_warnings=True)
+    from kinbot.qc_scratch import configure as configure_qc_scratch
+    configure_qc_scratch(masterpar.par)
     par = masterpar.par
     input_file = masterpar.input_file
     if (par.get('vrc_tst_surface_model') or par.get('vrc_tst_surface_model_file')):

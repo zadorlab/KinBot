@@ -314,7 +314,8 @@ def test_shared_controller_retries_prestart_failure_adopts_live_jobs_and_honors_
         if command[0] == 'squeue':
             return SimpleNamespace(stdout='\n'.join(live), returncode=0)
         assert command[0] == 'sbatch'
-        assert '--exclude=faulty-host' in command
+        exclusions = next(arg.split('=', 1)[1] for arg in command if arg.startswith('--exclude='))
+        assert 'faulty-host' in exclusions.split(',')
         identifier = str(100 + len(submitted))
         submitted.append(kwargs['cwd'])
         live.add(identifier)

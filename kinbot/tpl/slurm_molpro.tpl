@@ -1,3 +1,2 @@
 module load molpro
-{command} {name}.inp
-
+{python_executable} -m kinbot.qc_scratch --backend molpro --input {name}.inp -- {command}

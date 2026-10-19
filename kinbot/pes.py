@@ -139,7 +139,7 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
                 .replace('@EXCLUDE_DIRECTIVE@', exclude_directive)
                 .replace('@EXCLUSIVE_DIRECTIVE@',
                          '#SBATCH --exclusive'
-                         if par.get('rotdpy_exclusive') else ''))
+                         if par.get('rotdpy_exclusive', 1) else ''))
     path = folder / 'qu.tpl'
     from kinbot.slurm_retry import wrap_script
     rendered = wrap_script(rendered, identity='surf{surf_id}_face{face_id}_samp{samp_id}',
@@ -368,6 +368,8 @@ def _main():
 
     # initialize the parameters
     par = Parameters(input_file, show_warnings=True).par
+    from kinbot.qc_scratch import configure as configure_qc_scratch
+    configure_qc_scratch(par)
 
     # set up the logging environment
     if par['verbose']:
@@ -1775,10 +1777,9 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
             dynamical_correction=repr(par['rotdpy_dynamical_correction']),
             validation_metadata=repr(validation_metadata),
             result_file=f'{reac_name}.rotdpy.json')
-        if sampling_calculator is not None:
-            new_input = new_input.replace(
-                'from rotd_py.sample.multi_sample import MultiSample',
-                'from kinbot.rotdpy_molpro import KinBotMultiSample as MultiSample')
+        new_input = new_input.replace(
+            'from rotd_py.sample.multi_sample import MultiSample',
+            'from kinbot.rotdpy_molpro import KinBotMultiSample as MultiSample')
 
         input_file = f"{folder}/{reac_name}.py"
         with open(input_file, 'w') as f:

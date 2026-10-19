@@ -920,7 +920,7 @@ def _prepare(source, output):
             sbatch = directory / f'{stem}.sbatch'
             sbatch.write_text(
                 '#!/bin/bash\n'
-                f'#SBATCH -N 1\n#SBATCH -n {ppn}\n#SBATCH -c 1\n'
+                f'#SBATCH -N 1\n#SBATCH --exclusive\n#SBATCH -n {ppn}\n#SBATCH -c 1\n'
                 + (f'#SBATCH -p {partition}\n' if partition else '')
                 + f'#SBATCH --mem={memory_mb}M\n#SBATCH --time={walltime}\n'
                 f'#SBATCH -J kb-orb-{stem[:40]}\n'
@@ -1174,9 +1174,15 @@ def _execute(job):
         execution.update(command=command, runtime=runtime,
                          launcher_stdout=str(launcher_stdout), launcher_stderr=str(launcher_stderr))
         atomic_json(record, execution)
-        with launcher_stdout.open('w') as stdout, launcher_stderr.open('w') as stderr:
-            result = subprocess.run(command, cwd=directory, env=env, check=False,
-                                    stdout=stdout, stderr=stderr)
+        from kinbot.qc_scratch import workspace, molpro_command
+        with workspace(directory, runtime, backend='molpro', inputs=[native.name], label=name) as local:
+            command = molpro_command(command, runtime, local)
+            execution.update(command=command, runtime=runtime)
+            atomic_json(record, execution)
+            with (local / launcher_stdout.name).open('w') as stdout, \
+                    (local / launcher_stderr.name).open('w') as stderr:
+                result = subprocess.run(command, cwd=local, env=env, check=False,
+                                        stdout=stdout, stderr=stderr)
         execution['returncode'] = result.returncode
         from kinbot.molpro_diagnostics import write_native_report
         report = write_native_report(directory / (name + '.out'), native)

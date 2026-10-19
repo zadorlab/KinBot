@@ -1,6 +1,7 @@
 """Recovery provenance and rendering tests; fixtures are NOT native evidence."""
 from copy import deepcopy
 import json
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -90,7 +91,7 @@ def test_all_recovery_native_transformations_keep_method_choices(tmp_path, monke
     adapter, source, target, plan, review = fixture(tmp_path, monkeypatch)
     plan = PACKAGE/plan_name
     record = adapter.prepare(source, target, plan, review)
-    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *a, **k: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *a, **k: ({}, {'scratch_directory': tempfile.mkdtemp(dir=tmp_path)}))
     monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *a: None)
     checked = []
     def inspect_launch(command, **kwargs):
@@ -103,9 +104,9 @@ def test_all_recovery_native_transformations_keep_method_choices(tmp_path, monke
                 assert 'option,cluster=0' in block
                 nref = int(re.search(r'refstate,(\d+)', block)[1])
                 assert f'option,nstati={nref};' in block
-                if 'maxdav20' in directory.parent.name:
+                if 'maxdav20' in Path(j['directory']).parent.name:
                     assert 'maxdav=20' in block and 'cabs_singles=1' in block
-                elif 'cabs3_gate' in directory.parent.name:
+                elif 'cabs3_gate' in Path(j['directory']).parent.name:
                     assert 'cabs_singles=3' in block and 'maxdav=' not in block
                 else:
                     assert 'cabs_singles=2' in block

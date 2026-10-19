@@ -25,7 +25,14 @@ from kinbot.vrc_correction import sampling_settings, _basis_cardinal
 from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
 
 
-class MolproSample(LegacyMolpro):
+class LocalMolpro(LegacyMolpro):
+    """Keep even legacy RotdPy sampling on the common local-scratch path."""
+
+    def run(self):
+        MolproSample._run_basis_job(self, self)
+
+
+class MolproSample(LocalMolpro):
     """Evaluate each requested basis independently, then combine in hartree."""
 
     def create_input(self):
@@ -91,9 +98,14 @@ class MolproSample(LegacyMolpro):
         command = ['molpro', '-d', runtime['scratch_directory'], '-W', str(Path.cwd()), '-t', '1',
                    '-n', str(child.procs), f'{child.name}.inp']
         try:
-            with Path(f'{child.name}.stdout').open('w') as stdout, \
-                    Path(f'{child.name}.stderr').open('w') as stderr:
-                result = subprocess.run(command, env=env, stdout=stdout, stderr=stderr, check=False)
+            from kinbot.qc_scratch import workspace, molpro_command
+            with workspace(Path.cwd(), runtime, backend='molpro',
+                           inputs=[f'{child.name}.inp'], label=child.name) as local:
+                command = molpro_command(command, runtime, local)
+                with (local / f'{child.name}.stdout').open('w') as stdout, \
+                        (local / f'{child.name}.stderr').open('w') as stderr:
+                    result = subprocess.run(command, cwd=local, env=env, stdout=stdout,
+                                            stderr=stderr, check=False)
             from kinbot.molpro_diagnostics import write_native_report
             write_native_report(Path(f'{child.name}.out'))
             if result.returncode:
@@ -120,15 +132,13 @@ class KinBotMultiSample(MultiSample):
 
     Each serialized ROTD worker evaluates samples synchronously in its own
     process. Swap only its Molpro adapter for this call and restore it even
-    when a native calculation fails; legacy inputs keep their original path.
+    when a native calculation fails; legacy inputs also use local QC storage.
     """
 
     def get_energies(self, calculator, face_id=0, flux_id=0):
-        if 'kinbot_vrc' not in calculator:
-            return super().get_energies(calculator, face_id, flux_id)
         adapter = legacy_sample.Molpro
         try:
-            legacy_sample.Molpro = MolproSample
+            legacy_sample.Molpro = MolproSample if 'kinbot_vrc' in calculator else LocalMolpro
             return super().get_energies(calculator, face_id, flux_id)
         finally:
             legacy_sample.Molpro = adapter

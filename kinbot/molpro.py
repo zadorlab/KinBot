@@ -1,5 +1,6 @@
 from kinbot.species_routing import routing_name
 import os
+import sys
 import logging
 import numpy as np
 from ase.data import atomic_numbers
@@ -1275,6 +1276,7 @@ class Molpro:
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
                         errdir='molpro',
+                        python_executable=shlex.quote(sys.executable),
                         command=command))
             elif self.par['queuing'] == 'slurm':
                 f.write((tpl_head + tpl).format(
@@ -1282,14 +1284,17 @@ class Molpro:
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
                         errdir='.',
+                        python_executable=shlex.quote(sys.executable),
                         command=command,
                         slurm_feature=self.par['slurm_feature'],
                         slurm_exclude_directive=slurm_exclude_directive,
                         walltime_directive=walltime_directive))
         if self.par['queuing'] == 'slurm':
             from kinbot.slurm_retry import wrap_script
+            from kinbot.qc import exclusive_slurm_script
             path = Path(file_string)
-            path.write_text(wrap_script(path.read_text(), identity=fname, prefixes=[fname]))
+            path.write_text(wrap_script(exclusive_slurm_script(path.read_text()),
+                                        identity=fname, prefixes=[fname]))
         return 0
 
     def molpro_symm(self):

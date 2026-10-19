@@ -66,50 +66,15 @@ def fixed_frequency_parameters(parameters):
 
 @contextmanager
 def gaussian_scratch_environment():
-    """Give one Gaussian invocation a writable, collision-free scratch.
-
-    Site Gaussian profiles sometimes export a node path that is absent on a
-    different partition.  Treat environment variables as candidate roots,
-    validate them on the compute node, and fall back through scheduler/site
-    scratch and finally the user's cache or working directory.  Restore the
-    caller's environment after Gaussian exits.
-    """
+    """Compatibility context using the common verified-local scratch policy."""
+    from kinbot.anl.runtime import _check_scratch_io
+    from kinbot.qc_scratch import allocate
     original = os.environ.get('GAUSS_SCRDIR')
-    candidates = [
-        ('GAUSS_SCRDIR', original),
-        ('SLURM_TMPDIR', os.environ.get('SLURM_TMPDIR')),
-        ('SCRATCH', os.environ.get('SCRATCH')),
-        ('TMPDIR', os.environ.get('TMPDIR')),
-        ('HOME', str(Path.home() / '.cache' / 'kinbot' / 'gaussian')),
-        ('PWD', os.getcwd()),
-    ]
-    attempted = []
-    scratch = None
-    source = None
-    for name, value in candidates:
-        if not value:
-            continue
-        root = Path(value).expanduser()
-        if root in attempted:
-            continue
-        attempted.append(root)
-        try:
-            root.mkdir(parents=True, exist_ok=True)
-            if not root.is_dir() or not os.access(root, os.W_OK | os.X_OK):
-                continue
-            scratch = Path(tempfile.mkdtemp(
-                prefix='kinbot-gaussian-', dir=root))
-        except OSError:
-            continue
-        source = name
-        break
-    if scratch is None:
-        paths = ', '.join(str(path) for path in attempted)
-        raise RuntimeError('No writable Gaussian scratch root was found. '
-                           f'Tried: {paths}')
+    scratch, provenance = allocate(dict(os.environ), 'gaussian', 4096,
+                                   probe=_check_scratch_io)
     os.environ['GAUSS_SCRDIR'] = str(scratch)
     try:
-        yield scratch, source
+        yield scratch, provenance['scratch_source']
     finally:
         if original is None:
             os.environ.pop('GAUSS_SCRDIR', None)
@@ -223,12 +188,17 @@ class Gaussian(FileIOCalculator):
     def execute(self):
         command = self.command.replace('PREFIX', self.prefix)
         directory = getattr(self, 'directory', '.')
-        with gaussian_scratch_environment() as (scratch, source):
-            self.last_scratch = {
-                'directory': str(scratch), 'source': source,
-            }
-            proc = subprocess.Popen(command, shell=True, cwd=directory)
-            errorcode = proc.wait()
+        from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
+        from kinbot.qc_scratch import workspace
+        env, runtime = qc_runtime_environment('g16', 'gaussian', work_directory=directory)
+        self.last_scratch = runtime
+        try:
+            with workspace(directory, runtime, backend='gaussian',
+                           inputs=[self.prefix + '.com'], label=self.prefix) as local:
+                proc = subprocess.Popen(command, shell=True, cwd=local, env=env)
+                errorcode = proc.wait()
+        finally:
+            cleanup_qc_runtime(runtime)
         if errorcode:
             raise RuntimeError(
                 f'Gaussian exited with error code {errorcode} '

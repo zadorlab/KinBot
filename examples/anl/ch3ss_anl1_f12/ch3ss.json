@@ -296,6 +296,9 @@
     "node33"
   ],
   "rotdpy_exclusive": 1,
+  "queue_exclusive": 1,
+  "qc_scratch_fallbacks": [],
+  "qc_scratch_min_mb": 4096,
   "vrc_tst_memory_mb": 104000,
   "simultaneous_kinbot": 1,
   "rotdpy_flux_parameters": {

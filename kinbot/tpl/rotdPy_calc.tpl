@@ -1,11 +1,9 @@
-scratch = Path(os.environ.get('SCRATCH') or
-               os.environ.get('SLURM_TMPDIR') or
-               (Path.home() / '.kinbot_scratch'))
-scratch.mkdir(parents=True, exist_ok=True)
+# The adapter resolves verified node-local scratch inside each QC worker.
+# This controller may execute on a login node; it must not select worker paths.
 
 calc = {{
 'code': '{code}',
-'scratch': str(scratch),
+'scratch': '',
 'method': '{method}',
 'basis': {basis},
 'mem': {mem},

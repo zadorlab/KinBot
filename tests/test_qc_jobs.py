@@ -90,6 +90,7 @@ class TestSchedulerJobs(unittest.TestCase):
                 patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
             QuantumChemistry.submit_qc(qc, 'test_job', 8)
         script = Path('test_job.sbatch').read_text()
+        self.assertIn('#SBATCH --exclusive', script)
         self.assertIn('#SBATCH --partition=day-long-cpu', script)
         self.assertNotIn('#SBATCH -q ', script)
         self.assertIn('#SBATCH --time=04:00:00', script)

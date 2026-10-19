@@ -67,9 +67,9 @@ def _check_scratch_io(directory):
 def _molpro_scratch(child, work_directory, minimum_mb, *, avoid_roots=()):
     """Create and probe an isolated repository on a sufficiently large filesystem.
 
-    An explicit root remains strict unless the user supplies an ordered,
-    path-separated KINBOT_MOLPRO_SCRATCH_FALLBACKS list. No filesystem probe
-    can guarantee that later native I/O will succeed.
+    Prefer the executing account's /scratch directory. Every alternative
+    must also be verified local storage; home/work-directory fallbacks are
+    forbidden. No filesystem probe guarantees subsequent native I/O.
     """
     minimum_mb = _positive_scratch_mb(
         _DEFAULT_MOLPRO_SCRATCH_MB if minimum_mb is None else minimum_mb)
@@ -80,101 +80,19 @@ def _molpro_scratch(child, work_directory, minimum_mb, *, avoid_roots=()):
         # The environment may raise a task's capacity requirement, never
         # weaken an explicit resource request recorded with that task.
         minimum_mb = max(minimum_mb, int(configured_minimum))
-    override = child.get('KINBOT_MOLPRO_SCRATCH')
-    if override:
-        candidates = [('KINBOT_MOLPRO_SCRATCH', Path(override).expanduser())]
-    else:
-        candidates = []
-        for name in ('SLURM_TMPDIR', 'SCRATCH', 'TMPDIR'):
-            value = child.get(name)
-            if value:
-                candidates.append((name, Path(value).expanduser()))
-        home = child.get('HOME')
-        if home:
-            candidates.append(('HOME', Path(home).expanduser()
-                               / '.cache' / 'kinbot' / 'molpro'))
-        if work_directory is not None:
-            candidates.append(('work_directory', Path(work_directory).resolve()
-                               / '.molpro_scratch'))
-        candidates.append(('/tmp', Path('/tmp')))
-
-    fallbacks = child.get('KINBOT_MOLPRO_SCRATCH_FALLBACKS')
-    if fallbacks:
-        for value in fallbacks.split(os.pathsep):
-            if not value.strip():
-                raise ValueError('KINBOT_MOLPRO_SCRATCH_FALLBACKS contains an empty path.')
-            candidates.append(('KINBOT_MOLPRO_SCRATCH_FALLBACKS', Path(value).expanduser()))
-
-    def normalized(path):
-        path = Path(path).expanduser()
-        try:
-            return path.resolve()
-        except OSError:
-            return path.absolute()
-
-    inherited_avoid = json.loads(child.get('KINBOT_MOLPRO_AVOID_SCRATCH_ROOTS', '[]'))
-    if not isinstance(inherited_avoid, list) or any(not isinstance(path, str) or not path for path in inherited_avoid):
-        raise ValueError('KINBOT_MOLPRO_AVOID_SCRATCH_ROOTS must contain a JSON list of paths.')
-    avoided = {normalized(path) for path in [*avoid_roots, *inherited_avoid]}
-    # An automatic retry prefers another explicitly permitted filesystem.
-    # If none works, the old root may still be retried with a fresh repository.
-    candidates.sort(key=lambda candidate: normalized(candidate[1]) in avoided)
-    usable = []
-    seen = set()
-    errors = []
-    retryable_io = False
-    for source, root in candidates:
-        root = normalized(root)
-        if root in seen:
-            continue
-        seen.add(root)
-        scratch = None
-        try:
-            root.mkdir(parents=True, exist_ok=True)
-            if not root.is_dir() or not os.access(root, os.W_OK | os.X_OK):
-                raise OSError('directory is not writable')
-            free_mb = shutil.disk_usage(root).free // (1024 * 1024)
-            usable.append((source, root, free_mb))
-            if free_mb < minimum_mb:
-                errors.append(f'{source}={root} (requires {minimum_mb} MB; {free_mb} MB free)')
-                continue
-            scratch = Path(tempfile.mkdtemp(prefix='kinbot-molpro-', dir=root))
-            _check_scratch_io(scratch)
-        except OSError as exc:
-            retryable_io |= exc.errno in (errno.EIO, errno.ESTALE, errno.ETIMEDOUT)
-            if scratch is not None:
-                shutil.rmtree(scratch, ignore_errors=True)
-            errors.append(f'{source}={root} ({exc})')
-            continue
-        return scratch, {
-            'scratch_directory': str(scratch),
-            'scratch_root': str(root),
-            'scratch_source': source,
-            'scratch_available_mb': free_mb,
-            'scratch_minimum_mb': minimum_mb,
-            'scratch_host': socket.gethostname(),
-            'scratch_io_checked': True,
-            'scratch_rejected_candidates': errors,
-            'scratch_previously_failed': root in avoided,
-        }
-
-    capacities = ', '.join(
-        f'{source}={root} ({free_mb} MB free)'
-        for source, root, free_mb in usable)
-    detail = '; '.join(filter(None, (capacities, ', '.join(errors))))
-    if override:
-        raise MolproScratchError('KINBOT_MOLPRO_SCRATCH cannot provide the required '
-                                 f'{minimum_mb} MB: {detail or override}', retryable_io=retryable_io)
-    raise MolproScratchError(f'No Molpro scratch filesystem has the required '
-                             f'{minimum_mb} MB free: {detail or "no usable candidates"}. '
-                             'Set KINBOT_MOLPRO_SCRATCH to a suitable directory.',
-                             retryable_io=retryable_io)
+    from kinbot.qc_scratch import allocate
+    try:
+        return allocate(child, 'molpro', minimum_mb, probe=_check_scratch_io,
+                        work_directory=work_directory, avoid_roots=avoid_roots)
+    except OSError as error:
+        raise MolproScratchError(str(error), retryable_io=error.errno in
+                                 (errno.EIO, errno.ESTALE, errno.ETIMEDOUT)) from error
 
 
 def cleanup_qc_runtime(provenance):
     """Remove scratch created by :func:`qc_runtime_environment`."""
     scratch = provenance.get('scratch_directory')
-    if scratch:
+    if scratch and not provenance.get('retain_scratch'):
         shutil.rmtree(scratch, ignore_errors=True)
 
 
@@ -294,6 +212,16 @@ def qc_runtime_environment(program, backend, env=None, *, work_directory=None,
     """
     child = dict(os.environ if env is None else env)
     backend = backend.lower()
+    # Resolve libraries before allocating a workspace so a failed loader
+    # preflight cannot leak a scratch directory.
+    if backend == 'cfour' and work_directory is not None:
+        child, libraries = qc_runtime_environment(program, backend, child)
+        from kinbot.qc_scratch import allocate
+        scratch, provenance = allocate(child, backend, scratch_min_mb or 4096,
+                                       probe=_check_scratch_io,
+                                       work_directory=work_directory)
+        child['TMPDIR'] = str(scratch)
+        return child, {**libraries, **provenance}
     if backend == 'molpro':
         nodes = child.get('SLURM_NNODES', child.get('SLURM_JOB_NUM_NODES'))
         if nodes == '1' and not child.get('I_MPI_FABRICS'):
@@ -309,14 +237,23 @@ def qc_runtime_environment(program, backend, env=None, *, work_directory=None,
             if attempt:
                 atomic_json(Path(attempt) / f'scratch-{scratch.name}.json', scratch_provenance)
         return child, provenance
+    provenance = {}
+    if work_directory is not None:
+        from kinbot.qc_scratch import allocate
+        scratch, provenance = allocate(child, backend, scratch_min_mb or 4096,
+                                       probe=_check_scratch_io,
+                                       work_directory=work_directory)
+        child['TMPDIR'] = str(scratch)
+        if backend in ('gaussian', 'gauss'):
+            child['GAUSS_SCRDIR'] = str(scratch)
     if backend != 'cfour':
-        return child, {}
+        return child, provenance
     executable = shutil.which(program, path=child.get('PATH'))
     if not executable:
         raise RuntimeError(f'CFOUR executable unavailable: {program}.')
     missing = _missing_libraries(executable, child)
     if not missing:
-        return child, {}
+        return child, provenance
     if len(missing) != 1 or not _FORTRAN.fullmatch(missing[0]):
         raise RuntimeError('CFOUR executable has unresolved shared libraries: '
                            + ', '.join(missing))
@@ -328,7 +265,7 @@ def qc_runtime_environment(program, backend, env=None, *, work_directory=None,
         trial['LD_PRELOAD'] = ' '.join(filter(None, (
             str(candidate), child.get('LD_PRELOAD', ''))))
         if not _missing_libraries(executable, trial):
-            return trial, {'runtime_library': str(candidate.resolve())}
+            return trial, {**provenance, 'runtime_library': str(candidate.resolve())}
     raise RuntimeError(f'CFOUR needs {soname}, but no usable copy was found. '
                        'Load its compiler runtime module or set '
                        f'CFOUR_LIBGFORTRAN to an absolute {soname} path.')

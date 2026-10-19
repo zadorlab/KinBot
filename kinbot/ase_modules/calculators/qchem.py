@@ -46,8 +46,17 @@ class QChem(FileIOCalculator):
     def execute(self):
         command = self.command.replace('PREFIX', self.prefix)
         directory = getattr(self, 'directory', '.')
-        proc = subprocess.Popen(command, shell=True, cwd=directory)
-        errorcode = proc.wait()
+        from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
+        from kinbot.qc_scratch import workspace
+        env, runtime = qc_runtime_environment('qchem', 'qchem', work_directory=directory)
+        env['QCSCRATCH'] = env['QCLOCALSCR'] = runtime['scratch_directory']
+        try:
+            with workspace(directory, runtime, backend='qchem',
+                           inputs=[self.prefix + '.inp'], label=self.prefix) as local:
+                proc = subprocess.Popen(command, shell=True, cwd=local, env=env)
+                errorcode = proc.wait()
+        finally:
+            cleanup_qc_runtime(runtime)
         if errorcode:
             raise RuntimeError(
                 f'QChem exited with error code {errorcode} '

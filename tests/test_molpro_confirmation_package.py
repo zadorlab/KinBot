@@ -4,6 +4,7 @@ Synthetic WFU bytes exercise provenance only; no native result is fabricated.
 """
 import importlib.util
 import json
+import tempfile
 import os
 import re
 from pathlib import Path
@@ -71,7 +72,7 @@ def test_all_confirmation_native_decks_obey_restart_and_root_contracts(tmp_path,
     from kinbot import molpro_reconnaissance as recon
     path = build_fixture(tmp_path)
     monkeypatch.setattr(recon, 'qc_runtime_environment',
-                        lambda *a, **k: ({}, {'scratch_directory': str(tmp_path)}))
+                        lambda *a, **k: ({}, {'scratch_directory': tempfile.mkdtemp(dir=tmp_path)}))
     monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *a: None)
     checked = []
     def inspect_launch(command, **kwargs):
@@ -83,8 +84,9 @@ def test_all_confirmation_native_decks_obey_restart_and_root_contracts(tmp_path,
         closed = int(re.search(r';closed,(\d+)', rhf)[1])
         assert occupied + closed == n and occupied - closed == spin
         assert f'set,spin={spin}\n' + rhf in native
-        projected = 'basis=avdz-f12' in native and directory.name.endswith('__far')
-        checkpoint = recon.molpro_wfu_name(directory.name)
+        job_name = Path(command[-1]).name.removesuffix('.native.inp')
+        projected = 'basis=avdz-f12' in native and job_name.endswith('__far')
+        checkpoint = recon.molpro_wfu_name(job_name)
         if projected:
             assert f'file,2,{checkpoint},new\n' in native
             source = re.search(r'^file,3,(.*)$', native, re.M)[1]

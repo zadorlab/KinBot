@@ -49,6 +49,30 @@ _QC_SITE_BACKENDS = {
     'orca': ('orca', 'orca'),
     'qchem': ('qchem', 'qchem'),
 }
+
+def exclusive_slurm_script(script, enabled=True):
+    """Enforce whole-node scheduling, including user-supplied headers.
+
+    Reject conflicting sharing requests rather than silently weakening them.
+    Insert before shell commands, where Slurm actually reads directives.
+    """
+    if enabled not in (True, False, 0, 1):
+        raise ValueError('queue_exclusive must be 0 or 1')
+    if not enabled:
+        return script
+    for line in script.splitlines():
+        if re.match(r'\s*#SBATCH\s+', line):
+            options = shlex.split(line.strip()[len('#SBATCH'):])
+            if any(value in ('-s', '--share', '--oversubscribe') or
+                   value.startswith('--exclusive=') for value in options):
+                raise ValueError('Exclusive QC scheduling conflicts with template sharing options')
+    lines = script.splitlines(keepends=True)
+    # A first directive also works with headers having no scheduler options.
+    lines.insert(1 if lines and lines[0].startswith('#!') else 0,
+                 '#SBATCH --exclusive\n')
+    return ''.join(lines)
+
+
 def _worker_exit_status(path, expected_job_id=None):
     """Read one atomic worker-completion marker.
 
@@ -1658,6 +1682,8 @@ class QuantumChemistry:
         qu_file = '{}{}'.format(job, constants.qext[self.queuing])
         if self.queuing == 'slurm':
             from kinbot.slurm_retry import wrap_script
+            job_template = exclusive_slurm_script(
+                job_template, self.par.get('queue_exclusive', 1))
             job_template = wrap_script(job_template, identity=job,
                 prefixes=[job, os.path.join('perm', job)],
                 exit_marker=f'{job}.exitcode', qc_job=job)

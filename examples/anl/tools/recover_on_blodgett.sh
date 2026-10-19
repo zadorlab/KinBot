@@ -9,8 +9,10 @@ KB_RUNS=/home/hram/kinbot-runs
 KB_R7=$KB_RUNS/ch3s_ch3ss_caspt2_production_20261017_r7_dft_scf8
 export PATH=/home/hram/KinBot/.venv/bin:$PATH
 export PYTHONPATH=/home/hram/KinBot${PYTHONPATH:+:$PYTHONPATH}
-export KINBOT_MOLPRO_SCRATCH=/home/hram/.cache/kinbot/molpro
-mkdir -p "$KB_RUNS" "$KINBOT_MOLPRO_SCRATCH"
+# Each worker discovers /scratch/<its OS account> on its compute node.
+# Do not select/probe compute scratch from this login-node script.
+unset KINBOT_MOLPRO_SCRATCH KINBOT_MOLPRO_SCRATCH_FALLBACKS
+mkdir -p "$KB_RUNS"
 KB_LOG=$(mktemp "$KB_RUNS/r7-restart.XXXXXX.log")
 nohup "$KB_PY" -u "$KB_TOOL" "$KB_R7" \
     --retire "$KB_RUNS/ch3s_ch3ss_caspt2_production_20261016_r5_dft" \

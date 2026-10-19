@@ -94,6 +94,46 @@ recap changes no run files, does no cross-run result reuse, and preserves
 expensive active allocations. Unknown errors must be diagnosed before restart;
 no command in this section silently treats them as repaired.
 
+### Exporting the native evidence after the first recap
+
+The October 19 recap found no local controllers, one live allocation, 48 task
+execution records reporting success, and unresolved submission/geometry/native
+failures. The first compact display grouped failed geometry calculations with
+their affected descendants; its 40 CH3S `invalid_geometry` entries therefore
+did not mean 40 independent native failures. The recap now shows the primary
+failures first, summarizes the geometry cascade separately, and identifies the
+remaining live job. A recorded `running` branch with no local controller is
+labelled explicitly. This does not establish the absence of processes on other
+login hosts, so run the recap on the original controller host.
+
+Use `--evidence` to include the recent native failure JSON records (including
+saved rank-local diagnostics), input files, submission scripts, task/execution
+records, geometry provenance, and bounded native output beginnings/tails in
+the JSON. It excludes large wavefunctions and integral files. The terminal
+output remains compact. Tasks with ambiguous submission outcomes remain
+unresolved even if an execution record exists; the recap never resets or
+resubmits them.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+git pull --ff-only origin composite
+KB_ROOT=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261018_r6_salvage
+KB_REPORT=$(mktemp /tmp/kinbot-r6-evidence.XXXXXX)
+.venv/bin/python -m kinbot.run_recap "$KB_ROOT" \
+  --evidence --json "$KB_REPORT" --limit 8
+KB_EXPORT="$HOME/$(basename "$KB_REPORT").json.gz"
+gzip -c "$KB_REPORT" > "$KB_EXPORT"
+printf '\nEvidence export: %s\n' "$KB_EXPORT"
+BASH
+```
+
+Transfer that small compressed JSON for diagnosis before preparing a mutation
+or restart plan. This export does not hash large checkpoint files (`--verify`
+is separate), alter run files, cancel the surviving allocation, or launch jobs.
+The report is a point-in-time observation; jobs can finish while it is collected.
+
 A compute-node storage-only probe, when the cluster is healthy, can use the
 same resolver without starting Gaussian or Molpro:
 

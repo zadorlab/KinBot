@@ -379,13 +379,35 @@ BASH
 ```
 
 The refresh archives the controller logs, replaces only PES/KB controllers,
-and retains running allocation IDs. For pending jobs, it sends the scoped IDs
-and PENDING filter to Slurm using `scancel --ctld --state=PENDING`; a job that
-has started no longer matches. It requires a matching CANCELLED job record
+and retains running allocation IDs. It checks client capabilities before
+stopping controllers, reading help from both stdout and stderr. It uses
+`scontrol hold JOBID`, confirms the same job/work directory
+is still PENDING with priority zero, then cancels that held job. A job that
+starts before the hold is retained; any hold introduced by the refresh is
+released without suspending or cancelling its allocation. Existing holds are
+not released. There is no `scancel --ctld` dependency: some older clients lack
+it and others advertise it but still apply state filters client-side.
+That client-side `scancel --state` filter alone is not sufficient to prevent
+a start/cancel race, so hold/check/cancel is used consistently on all versions.
+
+The refresh requires a matching CANCELLED job record
 before archiving an unstarted attempt. Missing/ambiguous cancellation evidence
 stops the handoff instead of risking duplicate work. Repeating the same command
-resumes its journal. The filter semantics are documented by
-[SchedMD](https://slurm.schedmd.com/scancel.html).
+resumes its journal, including a partially completed hold/cancel/release sequence.
+Confirmed cancellation records are saved before moving to another candidate;
+scheduler timeouts are reconciled against the job record, not assumed to mean
+the operation failed. A pending job held during an interrupted handoff remains
+held until the same command finishes its cancellation/replacement.
+
+See SchedMD's [scancel](https://slurm.schedmd.com/scancel.html) and
+[scontrol](https://slurm.schedmd.com/scontrol.html) documentation. Hold/release
+handling was also checked against the
+[Slurm 20.11 controller source](https://github.com/SchedMD/slurm/blob/slurm-20-11-9-1/src/slurmctld/job_mgr.c).
+Regression simulations cover older clients, start/hold races, lost mutation
+responses, failed hold/release, missing or mismatched scheduler evidence, and
+interrupted archival. These tests do not execute against Blodgett's scheduler.
+The focused refresh, account recovery, dispatch, runtime, audit and monitor
+suite passed 314 tests; one Linux-only pidfd test was skipped on macOS.
 
 Pending attempt archives are under the printed controller archive's
 `pending_allocations/`. Account-lookup failure archives are in each affected

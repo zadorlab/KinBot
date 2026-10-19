@@ -116,25 +116,8 @@ def test_refresh_keeps_live_anl_and_vrc_and_restarts_once(live_tree):
 
 
 @pytest.fixture
-def pending_tree(live_tree, monkeypatch):
-    t = live_tree
-    t.jobs[0]['state'] = 'PENDING'
-    cancelled, commands = {}, []
-    def command(args, **kwargs):
-        commands.append(args)
-        if args == ['scancel', '--help']:
-            return SimpleNamespace(returncode=0, stdout='--ctld --state', stderr='')
-        assert args[:4] == ['scancel', '--ctld', '--state=PENDING', '--quiet']
-        for job in list(t.jobs):
-            if job['job_id'] in args[4:] and job['state'] == 'PENDING':
-                cancelled[job['job_id']] = dict(JobId=job['job_id'], JobState='CANCELLED',
-                                                WorkDir=job['directory'])
-                t.jobs.remove(job)
-        return SimpleNamespace(returncode=0, stdout='', stderr='')
-    monkeypatch.setattr(run_refresh.subprocess, 'run', command)
-    monkeypatch.setattr('kinbot.execution.slurm_job_record', lambda job: cancelled.get(job, {}))
-    t.commands, t.cancelled, t.command = commands, cancelled, command
-    return t
+def pending_tree(legacy_pending_tree):
+    return legacy_pending_tree
 
 
 def test_refresh_replaces_only_confirmed_pending_and_is_idempotent(pending_tree):
@@ -150,33 +133,20 @@ def test_refresh_replaces_only_confirmed_pending_and_is_idempotent(pending_tree)
     assert live_before == {p: file_sha256(p) for p in live_before}
     assert run_refresh.refresh(t.root, apply=True, replace_pending=True) == result
     assert len(t.launches) == 2
-    assert len([a for a in t.commands if '--state=PENDING' in a]) == 1
-
-
-def test_pending_to_running_race_retains_allocation(pending_tree, monkeypatch):
-    t = pending_tree
-    before = scientific_files(t.root)
-    def race(args, **kwargs):
-        if '--state=PENDING' in args:
-            t.jobs[0]['state'] = 'RUNNING'
-        return t.command(args, **kwargs)
-    monkeypatch.setattr(run_refresh.subprocess, 'run', race)
-    result = run_refresh.refresh(t.root, apply=True, replace_pending=True)
-    assert not result['pending_cancellation_evidence']
-    assert len(result['jobs']) == 4 and not t.cancelled
-    assert scientific_files(t.root) == before
+    assert t.commands.count(['scancel', '500']) == 1
 
 
 def test_pending_disappearance_requires_cancellation_evidence(pending_tree, monkeypatch):
     t = pending_tree
-    monkeypatch.setattr('kinbot.execution.slurm_job_record', lambda job: {})
-    with pytest.raises(RuntimeError, match='cancellation outcome is not confirmed'):
+    monkeypatch.setattr('kinbot.execution.slurm_job_record',
+                        lambda job: {} if job in t.cancelled else t.record(job))
+    with pytest.raises(RuntimeError, match='scheduler identity/state unavailable'):
         run_refresh.refresh(t.root, apply=True, replace_pending=True)
     assert not t.launches
     assert (t.graphs[0]/'tasks/energy').exists()
-    monkeypatch.setattr('kinbot.execution.slurm_job_record', lambda job: t.cancelled.get(job, {}))
+    monkeypatch.setattr('kinbot.execution.slurm_job_record', t.record)
     assert run_refresh.refresh(t.root, apply=True, replace_pending=True)['phase'] == 'launched'
-    assert len([a for a in t.commands if '--state=PENDING' in a]) == 1
+    assert t.commands.count(['scancel', '500']) == 1
 
 
 def test_pending_archive_interruption_resumes_without_reading_partial_ledger(pending_tree, monkeypatch):
@@ -197,16 +167,204 @@ def test_pending_archive_interruption_resumes_without_reading_partial_ledger(pen
     monkeypatch.setattr(run_recover, 'atomic_json', original)
     assert run_refresh.refresh(t.root, apply=True, replace_pending=True)['phase'] == 'launched'
     assert len(t.launches) == 2
-    assert len([a for a in t.commands if '--state=PENDING' in a]) == 1
+    assert t.commands.count(['scancel', '500']) == 1
 
 
-def test_unsupported_pending_filter_does_not_stop_controllers(live_tree, monkeypatch):
+def test_no_pending_cancellation_mechanism_does_not_stop_controllers(live_tree, monkeypatch):
     t = live_tree
     monkeypatch.setattr(run_refresh.subprocess, 'run', lambda *a, **kw:
                         SimpleNamespace(returncode=0, stdout='old client', stderr=''))
-    with pytest.raises(RuntimeError, match='scancel --ctld --state support'):
+    with pytest.raises(RuntimeError, match='scontrol hold/release'):
         run_refresh.refresh(t.root, apply=True, replace_pending=True)
     assert not t.signals and not t.launches
+
+
+@pytest.fixture
+def legacy_pending_tree(live_tree, monkeypatch):
+    """Older client with no --ctld; hold changes running requeue priority too."""
+    t = live_tree
+    t.jobs[0]['state'] = 'PENDING'
+    priorities = {j['job_id']: '123' for j in t.jobs}
+    t.commands, t.cancelled, t.events = [], {}, {}
+    t.priorities = priorities
+
+    def record(ident):
+        job = next((j for j in t.jobs if j['job_id'] == ident), None)
+        if job:
+            return dict(JobId=ident, JobState=job['state'], WorkDir=job['directory'],
+                        Priority=priorities[ident])
+        return deepcopy(t.cancelled.get(ident, {}))
+
+    def command(args, **kwargs):
+        t.commands.append(args)
+        if args == ['scancel', '--help']:
+            return SimpleNamespace(returncode=0, stdout='-t, --state=STATE', stderr='')
+        if args == ['scontrol', '--help']:
+            return SimpleNamespace(returncode=0, stdout='', stderr='hold job_list\nrelease job_list')
+        assert '--ctld' not in args
+        if args[:2] in (['scontrol', 'hold'], ['scontrol', 'release']):
+            action, ident = args[1:]
+            if action in t.events:
+                t.events[action](ident)
+            priorities[ident] = '0' if action == 'hold' else '123'
+        else:
+            assert args[0] == 'scancel' and len(args) == 2
+            ident = args[1]
+            job = next(j for j in t.jobs if j['job_id'] == ident)
+            # Deliberately NO client-side state protection in this simulator:
+            # an unsafe bare scancel would kill RUNNING as well as PENDING.
+            assert job['state'] == 'PENDING' and priorities[ident] == '0'
+            t.cancelled[ident] = {**record(ident), 'JobState': 'CANCELLED'}
+            t.jobs.remove(job)
+            action = 'cancel'
+        if action + '_after' in t.events:
+            t.events[action + '_after'](ident)
+        return SimpleNamespace(returncode=0, stdout='', stderr='')
+
+    monkeypatch.setattr(run_refresh.subprocess, 'run', command)
+    monkeypatch.setattr('kinbot.execution.slurm_job_record', record)
+    t.command, t.record = command, record
+    return t
+
+
+def test_older_slurm_refresh_replaces_pending_preserves_running_and_repeats(legacy_pending_tree):
+    t = legacy_pending_tree
+    before = {p: file_sha256(p) for graph in t.graphs[1:] for p in graph.rglob('*') if p.is_file()}
+    result = run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    assert result['pending_cancel_method'] == 'hold_then_cancel'
+    assert result['pending_cancellation_evidence'].keys() == {'500'}
+    assert {j['job_id'] for j in result['jobs']} == {'501', '502', '503'}
+    state = dispatch._load(t.graphs[0])[2]
+    assert 'energy' not in state['tasks'] and state['pending_retries']['energy']['attempt'] == 2
+    assert Path(state['pending_retries']['energy']['previous_attempt']).is_dir()
+    assert before == {p: file_sha256(p) for p in before}
+    assert run_refresh.refresh(t.root, apply=True, replace_pending=True) == result
+    assert t.commands.count(['scontrol', 'hold', '500']) == 1
+    assert t.commands.count(['scancel', '500']) == 1
+    assert len(t.launches) == 2
+
+
+def test_older_slurm_start_during_hold_is_released_and_retained(legacy_pending_tree):
+    t = legacy_pending_tree
+    before = scientific_files(t.root)
+    t.events['hold'] = lambda ident: t.jobs[0].update(state='RUNNING')
+    result = run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert result['phase'] == 'launched' and len(result['jobs']) == 4
+    assert not t.cancelled and not result['pending_cancellation_evidence']
+    assert t.priorities['500'] == '123'
+    assert ['scontrol', 'release', '500'] in t.commands
+    assert scientific_files(t.root) == before
+
+
+@pytest.mark.parametrize('operation', ['hold', 'cancel'])
+def test_older_slurm_timed_out_ack_is_reconciled_from_scheduler(legacy_pending_tree, operation):
+    t = legacy_pending_tree
+    def lost_ack(ident):
+        raise subprocess.TimeoutExpired(operation, 30)
+    t.events[operation + '_after'] = lost_ack
+    result = run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    assert result['pending_cancellation_evidence'].keys() == {'500'}
+    assert t.commands.count(['scancel', '500']) == 1
+
+
+def test_older_slurm_failed_hold_never_cancels_and_can_resume(legacy_pending_tree):
+    t = legacy_pending_tree
+    def rejected(ident):
+        raise OSError('controller unavailable')
+    t.events['hold'] = rejected
+    with pytest.raises(RuntimeError, match='hold not confirmed'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert not t.cancelled and not t.launches
+    assert (t.graphs[0]/'tasks/energy').exists()
+    t.events.clear()
+    assert run_refresh.refresh(t.root, apply=True, replace_pending=True)['phase'] == 'launched'
+    assert t.commands.count(['scancel', '500']) == 1
+
+
+def test_older_slurm_missing_record_after_hold_never_cancels(legacy_pending_tree, monkeypatch):
+    t = legacy_pending_tree
+    available = [True]
+    monkeypatch.setattr('kinbot.execution.slurm_job_record',
+                        lambda ident: t.record(ident) if available[0] else {})
+    t.events['hold_after'] = lambda ident: available.__setitem__(0, False)
+    with pytest.raises(RuntimeError, match='scheduler identity/state unavailable'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert not t.cancelled and not t.launches and t.priorities['500'] == '0'
+    available[0] = True
+    assert run_refresh.refresh(t.root, apply=True, replace_pending=True)['phase'] == 'launched'
+    assert t.commands.count(['scontrol', 'hold', '500']) == 1
+    assert t.commands.count(['scancel', '500']) == 1
+
+
+def test_older_slurm_changed_job_identity_is_not_held(legacy_pending_tree, monkeypatch):
+    t = legacy_pending_tree
+    monkeypatch.setattr('kinbot.execution.slurm_job_record',
+                        lambda ident: {**t.record(ident), 'WorkDir': '/another/run'})
+    with pytest.raises(RuntimeError, match='scheduler identity/state unavailable'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert not any(a[:2] == ['scontrol', 'hold'] for a in t.commands)
+    assert not t.cancelled and not t.launches
+
+
+def test_older_slurm_archive_interruption_resumes(legacy_pending_tree, monkeypatch):
+    from kinbot import run_recover
+    t = legacy_pending_tree
+    original = run_recover.atomic_json
+    def interrupted(path, data):
+        if Path(path) == t.graphs[0]/'state.json':
+            raise OSError('interrupted pending archive')
+        return original(path, data)
+    monkeypatch.setattr(run_recover, 'atomic_json', interrupted)
+    with pytest.raises(OSError, match='interrupted pending archive'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    monkeypatch.setattr(run_recover, 'atomic_json', original)
+    assert run_refresh.refresh(t.root, apply=True, replace_pending=True)['phase'] == 'launched'
+    assert len(t.launches) == 2
+    assert t.commands.count(['scancel', '500']) == 1
+
+
+def test_older_slurm_release_failure_is_resumable_without_cancelling_running(legacy_pending_tree):
+    t = legacy_pending_tree
+    t.events['hold'] = lambda ident: t.jobs[0].update(state='RUNNING')
+    t.events['release'] = lambda ident: (_ for _ in ()).throw(OSError('controller unavailable'))
+    with pytest.raises(RuntimeError, match='releasing refresh hold not confirmed'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert not t.cancelled and not t.launches
+    t.events.clear()
+    result = run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert result['phase'] == 'launched' and len(result['jobs']) == 4
+    assert not t.cancelled and t.priorities['500'] == '123'
+
+
+def test_older_slurm_partial_batch_keeps_cancel_evidence_and_running_work(legacy_pending_tree):
+    t = legacy_pending_tree
+    t.jobs[1]['state'] = 'PENDING'
+    def second_hold_fails(ident):
+        if ident == '501':
+            raise OSError('controller unavailable')
+    t.events['hold'] = second_hold_fails
+    with pytest.raises(RuntimeError, match='hold not confirmed'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert t.cancelled.keys() == {'500'} and not t.launches
+    t.cancelled.clear()  # Slurm purged its terminal record before retry.
+    t.events.clear()
+    result = run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert result['pending_cancellation_evidence'].keys() == {'500', '501'}
+    assert {j['job_id'] for j in result['jobs']} == {'502', '503'}
+    assert len(t.launches) == 2 and t.commands.count(['scancel', '500']) == 1
+
+
+@pytest.mark.parametrize('advertises_ctld', [True, False])
+def test_pending_preflight_does_not_assume_ctld_implies_server_filter(monkeypatch, advertises_ctld):
+    def command(args, **kw):
+        text = ('--ctld --state=STATE' if advertises_ctld else '--state=STATE')
+        if args[0] == 'scontrol':
+            text = 'hold job_list\nrelease job_list'
+        return SimpleNamespace(returncode=0, stdout='', stderr=text)
+    monkeypatch.setattr(run_refresh.subprocess, 'run', command)
+    assert run_refresh._pending_preflight() == 'hold_then_cancel'
 
 
 @pytest.mark.parametrize('problem', ['child', 'unowned_job', 'submitting', 'changed_input',

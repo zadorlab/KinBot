@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shlex
 import signal
 import socket
@@ -225,13 +226,100 @@ def _archive_controllers(root, archive):
 
 def _pending_preflight():
     result = subprocess.run(['scancel', '--help'], capture_output=True, text=True, timeout=10)
-    if result.returncode or '--ctld' not in result.stdout or '--state' not in result.stdout:
-        raise RuntimeError('Pending replacement requires scancel --ctld --state support; '
+    if result.returncode:
+        raise RuntimeError('Cannot inspect scancel support; no controllers or allocations were changed.')
+    # Even some clients that advertise --ctld filter states client-side.
+    # Use hold/check/cancel on all versions, not a help-based atomicity guess.
+    result = subprocess.run(['scontrol', '--help'], capture_output=True, text=True, timeout=10)
+    help_text = result.stdout + result.stderr
+    if result.returncode or not all(re.search(r'\b' + word + r'\b', help_text, re.I)
+                                   for word in ('hold', 'release')):
+        raise RuntimeError('Pending replacement requires scontrol hold/release on this Slurm client; '
                            'no controllers or allocations were changed.')
+    return 'hold_then_cancel'
+
+
+def _pending_request(args):
+    """Return a diagnostic; the scheduler record determines mutation outcome."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith('SCANCEL_')}
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=30, env=env)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return str(error)
+    return (result.stderr or result.stdout).strip() if result.returncode else ''
+
+
+def _cancel_held_pending(candidates, journal, marker):
+    """Older Slurm: hold, verify PENDING/priority zero, then cancel by ID.
+
+    A hold does not stop a running job. If scheduling won that race, release
+    only the hold we introduced and retain the allocation. Persist intent
+    before each mutation so a timeout/interruption can be reconciled by the
+    same command. No task files are changed here.
+    """
+    from kinbot.execution import slurm_job_record
+
+    def record_for(job):
+        record = slurm_job_record(job['job_id'])
+        if (record.get('JobId') != job['job_id'] or not record.get('JobState')
+                or Path(record.get('WorkDir', '/')).resolve() != Path(job['directory']).resolve()):
+            raise RuntimeError(f'Job {job["job_id"]}: scheduler identity/state unavailable; '
+                               'no task was reset. Repeat the same refresh command.')
+        return record
+
+    records = journal.setdefault('pending_holds', {})
+    for job in candidates:
+        ident = job['job_id']
+        saved = records.get(ident)
+        if saved and saved.get('phase') in ('retained', 'cancelled'):
+            continue
+        current = record_for(job)
+        if saved is None:
+            saved = records[ident] = {'before': current, 'phase': 'inspected'}
+            atomic_json(marker, journal)
+        if current['JobState'] == 'PENDING' and saved['phase'] != 'releasing':
+            if not str(current.get('Priority', '')).isdecimal():
+                raise RuntimeError(f'Job {ident}: pending priority unavailable; no cancellation attempted.')
+            if current['Priority'] != '0':
+                saved['phase'] = 'holding'
+                atomic_json(marker, journal)
+                detail = _pending_request(['scontrol', 'hold', ident])
+                current = record_for(job)
+                if current['JobState'] == 'PENDING' and current.get('Priority') != '0':
+                    raise RuntimeError(f'Job {ident}: hold not confirmed ({detail}); '
+                                       'no task was reset. Repeat the same refresh command.')
+            if current['JobState'] == 'PENDING' and current.get('Priority') == '0':
+                saved.update(phase='cancelling', held_record=current)
+                atomic_json(marker, journal)
+                detail = _pending_request(['scancel', ident])
+                current = record_for(job)
+                if current['JobState'] == 'PENDING':
+                    raise RuntimeError(f'Job {ident}: cancellation not confirmed ({detail}); '
+                                       'job remains held. Repeat the same refresh command.')
+        if current['JobState'] == 'CANCELLED' and saved['phase'] == 'cancelling':
+            saved.update(phase='cancelled', cancellation_record=current)
+        else:
+            # The job started before hold reached slurmctld. Holding RUNNING
+            # changes its requeue priority, not its execution; undo that hold.
+            # Never release a hold that existed before this refresh.
+            if (saved['phase'] in ('holding', 'cancelling', 'releasing')
+                    and saved['before'].get('Priority') != '0'
+                    and current.get('Priority') == '0'
+                    and current['JobState'] in ('PENDING', 'RUNNING', 'CONFIGURING', 'COMPLETING', 'SUSPENDED')):
+                saved['phase'] = 'releasing'
+                atomic_json(marker, journal)
+                detail = _pending_request(['scontrol', 'release', ident])
+                current = record_for(job)
+                if current.get('Priority') == '0' and current['JobState'] in (
+                        'PENDING', 'RUNNING', 'CONFIGURING', 'COMPLETING', 'SUSPENDED'):
+                    raise RuntimeError(f'Job {ident}: releasing refresh hold not confirmed ({detail}); '
+                                       'repeat the same refresh command. Allocation was not cancelled.')
+            saved['phase'] = 'retained'
+        atomic_json(marker, journal)
 
 
 def _replace_pending(root, journal, marker):
-    """Cancel through controller-side PENDING filtering, then journal restaging.
+    """Cancel pending jobs without a start/cancel race, then journal restaging.
 
     Never infer cancellation solely from queue absence. Require the retained
     Slurm job record to confirm CANCELLED, or preserve a completed execution.
@@ -248,14 +336,7 @@ def _replace_pending(root, journal, marker):
         if any(not ident.isdecimal() for ident in ids):
             raise RuntimeError('Pending replacement requires individual numeric Slurm job IDs.')
         if ids and not journal.get('pending_cancel_acknowledged'):
-            # --ctld sends the ID/state filters to slurmctld in one request.
-            # A job that has become RUNNING no longer matches PENDING.
-            env = {k: v for k, v in os.environ.items() if not k.startswith('SCANCEL_')}
-            result = subprocess.run(['scancel', '--ctld', '--state=PENDING', '--quiet', *ids],
-                                    capture_output=True, text=True, timeout=30, env=env)
-            if result.returncode:
-                raise RuntimeError('Pending cancellation not confirmed: ' + result.stderr.strip()
-                                   + '. Repeat the same refresh command; no task was reset.')
+            _cancel_held_pending(candidates, journal, marker)
             journal['pending_cancel_acknowledged'] = True
             atomic_json(marker, journal)
         live = {j['job_id']: j for j in _owned_jobs(root)}
@@ -264,7 +345,8 @@ def _replace_pending(root, journal, marker):
         for job in candidates:
             ident = job['job_id']
             if ident in live:
-                if live[ident]['state'] == 'PENDING':
+                if (live[ident]['state'] == 'PENDING' and journal.get(
+                        'pending_holds', {}).get(ident, {}).get('phase') != 'retained'):
                     raise RuntimeError('Pending cancellation is not yet visible; repeat the same refresh command.')
                 continue  # Includes RUNNING/CONFIGURING/COMPLETING: retain ownership.
             directory = Path(job['directory']).resolve()
@@ -273,7 +355,8 @@ def _replace_pending(root, journal, marker):
                 # It started/finished before cancellation filtering. Let the
                 # ordinary dispatcher validate it, not this cancellation path.
                 continue
-            record = slurm_job_record(ident)
+            record = journal.get('pending_holds', {}).get(ident, {}).get(
+                'cancellation_record') or slurm_job_record(ident)
             if (record.get('JobState') != 'CANCELLED'
                     or record.get('JobId') != ident
                     or Path(record.get('WorkDir', '/')).resolve() != directory):
@@ -310,8 +393,10 @@ def refresh(root, *, apply=False, replace_pending=False):
     if (journal and journal['phase'] == 'launched' and journal['code'] == str(pin)
             and (not replace_pending or journal.get('replace_pending'))):
         return journal
+    pending_method = None
     if replace_pending or (journal and journal.get('replace_pending') and journal['phase'] != 'launched'):
-        _pending_preflight()
+        pending_method = _pending_preflight()
+        print('Pending replacement: hold, verify, cancel; running allocations retained.', flush=True)
     _probe_process_handles()  # Includes resumed transactions, before any STOP.
     print('Process-handle preflight passed.', flush=True)
     if journal and journal['phase'] != 'launched' and journal['code'] != str(pin):
@@ -348,7 +433,8 @@ def refresh(root, *, apply=False, replace_pending=False):
         if journal:
             atomic_json(archive / 'previous_refresh.json', journal)
         journal = {'phase': 'preparing', 'code': str(pin), 'previous_code': history['code'],
-                   'archive': str(archive), 'created_utc': stamp, 'replace_pending': replace_pending}
+                   'archive': str(archive), 'created_utc': stamp, 'replace_pending': replace_pending,
+                   'pending_cancel_method': pending_method}
         atomic_json(journal_path, journal)
     elif not apply:
         return journal

@@ -160,3 +160,125 @@ cluster filesystem are not available to the local test suite.
 Final targeted suite: 630 passed, 10 subtests passed, one Linux-only pidfd test
 skipped on macOS. Python 3.11 syntax, shell syntax, and a comparison confirming
 unchanged scientific parameters in both example JSONs also passed.
+
+
+## Reviewed r6 evidence and in-place recovery
+
+The local export `kinbot-r6-evidence.L3YrXs.json.gz` was collected at
+2026-10-19 19:15:16 UTC. It contains no read errors and reports no surviving
+local controllers. It is a snapshot, not a current scheduler query.
+
+* CH3SS Gaussian VPT2 allocation **52909915**, on node27, was still writing
+  second-derivative output. Its task is `state_6a45048aedc75231/gaussian_vpt2`
+  for `[S]S=C`. Preserve this allocation and its attempt-2 `Symmetry=(PG=C1)`
+  input if it remains live. Its existing process does not acquire new runtime
+  policy merely because the repository is updated.
+* CH3S `state_074fcc5ef5188035/l3_geometry_tz` completed the electronic and
+  numerical-gradient output, then failed during wavefunction/file handling.
+  The native launcher reported a missing source WFU in shared task-directory
+  scratch. This is not evidence that the CC iterations failed to converge.
+* CH3SS `relaxed_scan` failed before MULTI with a Fortran I/O error:
+  `File already opened in another unit` in `iow.F90`. The recorded native
+  working/scratch paths were long shared task-directory paths. The corrected
+  private, short local workspace removes that configuration; the export does
+  **not** prove which internal Molpro condition produced this error. Native
+  retry is still required to establish that it is resolved.
+* The other failed CH3S L3/VRC attempts show MPI aborts. Several central
+  electronic evaluations converged before the abort. Their excerpts do not
+  establish the underlying cause of every abort; do not relabel them as SCF
+  convergence failures or claim the storage outage caused every failure.
+* Seven geometry allocations disappeared without final execution records.
+  Treat them as interrupted, not complete. Retain accepted TZ geometries as
+  QZ seeds; archive incomplete optimization attempts and restart them from
+  their accepted upstream geometry. Partial Sella iterations are not promoted
+  to accepted geometries.
+* H2 `state_3551007628dd3b3d/anl1_5z` is recorded as `submitting`, but has an
+  `executed` record and artifact hashes. Verify those files before deciding
+  to rerun it. The snapshot has 47 other recorded successes across both cases;
+  these counts alone are not salvage approval.
+
+The high invalid-geometry count includes descendants of failed geometry tasks,
+not just independently failed optimizations. A single point made on an obsolete
+or fallback geometry cannot be reused for the requested L3-based composite.
+
+### Recovery command and guarantees
+
+`python -m kinbot.run_recover RUN` is read-only: it queries the queue, verifies
+staged-input and result hashes, parses completed external results, and computes
+geometry dependency invalidations. `--apply` archives and prepares the restart;
+`--apply --launch` additionally starts the two login-host controllers. There are
+no species, job IDs, usernames, or cluster paths in the recovery implementation.
+It operates on prepared salvage runs and discovers ANL graphs plus VRC scan,
+Molpro pivot, and correction graphs.
+
+Before mutation it requires healthy scheduler queries, no live local
+controllers, consistent input provenance, and one unambiguous owner for every
+live allocation. It refuses unrecognized live work or live calculations on
+incompatible geometries. It never calls `scancel` or signals a process.
+
+A successful result with a lost submission response can be accepted after full
+artifact/native validation. Missing results are never synthesized from a queue
+exit or a native energy line. Submitted jobs still in the queue keep their task
+directories and job IDs; completed results remain in place. Failed, interrupted,
+wrong-geometry, and old unsubmitted attempts move to a timestamped sibling
+`.outage_archive.*` directory. Controller logs are archived there too. Deferred
+single-point retries retain their attempt/archive history and are staged only
+when their required geometry has completed. VRC also handles an archived scan
+whose replacement has not yet been staged.
+
+Recovery is journaled in `outage_recovery.json`. Repeating the same command can
+finish an interrupted archive/input migration or partial two-controller launch.
+It will not repeatedly relaunch replacements that have already failed. An
+unknown new allocation, changed ownership, or a live controller during migration
+stops recovery for review. The full journal records every retained and reset
+task; the terminal summary is compact.
+
+Input migration enables exclusive QC allocations and supplies missing local
+scratch configuration defaults. It preserves the scientific input settings,
+node exclusions, and existing per-example concurrency limits. Replacement
+controllers use a fresh immutable code snapshot; already running native jobs
+continue with their existing snapshot.
+
+On Blodgett, after storage reads work normally:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+git pull --ff-only origin composite
+KB_ROOT=/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261018_r6_salvage
+KB_PY=/home/hram/KinBot/.venv/bin/python
+
+# Storage-only compute-node check; no electronic-structure calculation.
+# Every actual job independently repeats locality, capacity, and I/O checks.
+srun --partition=short-cpu --nodes=1 --ntasks=1 --exclusive --time=00:02:00 \
+  --exclude=node1,node9,node10,node13,node14,node16,node21,node23,node24,node30,node33 \
+  "$KB_PY" -m kinbot.qc_scratch --backend molpro --probe --min-mb 63000
+
+"$KB_PY" -u -m kinbot.run_recover "$KB_ROOT" --apply --launch
+BASH
+```
+
+Keep the old r5 compatibility alias, run directories, checkpoint repositories,
+and saved code snapshots until the recovery verifies their dependencies. No
+blanket HOME cleanup is part of this command. The archive move is on the same
+filesystem; it does not copy native scratch or delete unreviewed files.
+
+Use the same monitor root afterward:
+
+```bash
+watch -n 10 /home/hram/KinBot/.venv/bin/python -m kinbot.run_monitor \
+  /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261018_r6_salvage --lines 3
+```
+
+The storage and archive tests cannot run licensed Gaussian/Molpro or verify the
+restored cluster filesystem locally. Retrying the affected native calculations
+is the remaining check for the unresolved MPI and Fortran I/O failures.
+
+Recovery validation: 258 tests passed; one Linux-only process-handle test was
+skipped on macOS. Coverage includes lost submission responses, live-job
+ownership, invalid geometry descendants, artifact/native rejection, deferred
+attempt history, VPT2 input preservation, VRC restaging, interrupted archives
+and input migration, and partial two-controller launches. Python 3.11 syntax
+and every documented Bash block also passed. The test environment emitted a
+non-fatal Sella/JAX cache-permission warning; it did not affect these checks.

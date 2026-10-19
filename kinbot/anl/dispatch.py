@@ -761,6 +761,13 @@ def _stage_task(run_dir, spec, state, task):
     if task['kind'] == 'external':
         state['tasks'][ident]['input_sha256'] = _file_hash(
             directory / task['input_name'])
+    # Explicit outage recovery may defer a retry until its L3 source exists.
+    # Keep the attempt/archive lineage when that dependency later completes.
+    pending = state.get('pending_retries', {})
+    if ident in pending:
+        lineage = pending.pop(ident)
+        state['tasks'][ident].update({key: lineage[key] for key in
+            ('attempt', 'previous_attempt', 'outage_recovery_reason') if key in lineage})
 
 
 def _programs_by_backend(spec):

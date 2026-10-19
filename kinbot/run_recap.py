@@ -239,7 +239,9 @@ def recap(root, *, verify=False, scheduler=None, evidence=False):
             except (OSError, ValueError) as error:
                 result['errors'].append(f'{path}: {error}')
         patterns = ('[0-9]*/anl_automatic/states/*/composite/workflow.json',
-                    '[0-9]*/vrctst/molpro_scan/*/workflow.json')
+                    '[0-9]*/vrctst/molpro_scan/*/workflow.json',
+                    '[0-9]*/vrctst/molpro_pivots/*/workflow.json',
+                    '[0-9]*/vrctst/molpro/dispatch*/workflow.json')
         for pattern in patterns:
             for path in scan(case, pattern, result['errors']):
                 try:

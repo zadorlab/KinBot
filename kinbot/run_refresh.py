@@ -105,7 +105,9 @@ def _controllers(root):
 
 def _graphs(root):
     for pattern in ('*/[0-9]*/anl_automatic/states/*/composite',
-                    '*/[0-9]*/vrctst/molpro_scan/*'):
+                    '*/[0-9]*/vrctst/molpro_scan/*',
+                    '*/[0-9]*/vrctst/molpro_pivots/*',
+                    '*/[0-9]*/vrctst/molpro/dispatch*'):
         for graph in sorted(root.glob(pattern)):
             if not graph.is_dir():
                 continue

@@ -739,7 +739,9 @@ class VTS:
                     f'VRC scan provenance collision at {run_dir}.')
         preflight_until_scheduler_ready(run_dir, interval=20.)
         _, _, state = _load(run_dir)
-        if state['tasks']['relaxed_scan']['status'] != 'complete':
+        # Explicit outage recovery can archive an interrupted attempt before
+        # its replacement is staged. The dispatcher owns staging that task.
+        if state['tasks'].get('relaxed_scan', {}).get('status') != 'complete':
             returncode, _ = _drive_vrc_dispatch(
                 run_dir, ('relaxed_scan',), interval=20.)
             if returncode:

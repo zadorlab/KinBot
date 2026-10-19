@@ -282,3 +282,58 @@ attempt history, VPT2 input preservation, VRC restaging, interrupted archives
 and input migration, and partial two-controller launches. Python 3.11 syntax
 and every documented Bash block also passed. The test environment emitted a
 non-fatal Sella/JAX cache-permission warning; it did not affect these checks.
+
+## Read-only salvage and scheduling audit while drivers run
+
+`kinbot.run_audit` lists every materialized ANL/VRC task, its molecular identity,
+recovery provenance, current recorded status, current Slurm allocation, required
+geometry, dependencies, conditional fallback triggers and resources. The complete
+list of jobs salvaged at recovery comes from `outage_recovery.json`; these are
+results verified at recovery, not a new hash/chemistry validation. It separately
+identifies subsequent recorded completions and retained pre-update allocations.
+It does not read large wavefunctions or native output files.
+
+The policy report distinguishes:
+
+* User/worker input values, branch slot reservations, and policy source files in
+  the recorded pinned controller snapshot compared with the audit's code.
+* On-disk `job.slurm` directives and their committed hashes.
+* Current `scontrol` evidence for full-node exclusivity and exclusions, including
+  Slurm's compressed hostlists. A missing record is unknown, not a pass.
+* Native `*.runtime.json` evidence: the compute host, selected scratch directory,
+  filesystem, successful I/O probe, available capacity and local working path.
+  No scratch record means unobserved. Legacy incomplete records are unknown;
+  an alternate verified local root is explicitly distinguished from the preferred
+  `/scratch/<account>`. No login-node filesystem probe substitutes for compute-node
+  evidence. Retained pre-update jobs keep their original runtime.
+
+There is no fixed global submission order. ANL rotates among graph keys and
+selects staged tasks; its in-memory cursor is not persisted. VRC is concurrent,
+and its later scan points/corrections, ROTD sampling and MESS work may not yet
+have task graphs. The report lists dependency levels and eligibility, not an
+invented future queue or completion time. Slurm controls actual start order.
+
+The auditor calls only read operations and scheduler queries. It never calls
+dispatcher `advance` (even `advance(submit=False)` can mutate files), preflight,
+submission, cancellation or native QC. It tolerates a moving live snapshot by
+reporting read/provenance errors instead of interpreting missing data as success.
+Optional report files must be outside the run and cannot overwrite existing
+report files. No controller refresh is required to use a newly pulled auditor.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+git pull --ff-only origin composite
+KB_AUDIT=$(mktemp -d /tmp/kinbot-r6-audit.XXXXXX)
+/home/hram/KinBot/.venv/bin/python -B -m kinbot.run_audit \
+  /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261018_r6_salvage \
+  --output "$KB_AUDIT" --limit 2
+printf '\nRead every task with: less %s/audit.txt\n' "$KB_AUDIT"
+BASH
+```
+
+The terminal summary is bounded per live/ready group; `audit.txt` and
+`audit.json` contain all task identities, dependencies and policy evidence.
+Other live allocations outside materialized dispatch graphs are explicitly
+reported, rather than silently omitted.

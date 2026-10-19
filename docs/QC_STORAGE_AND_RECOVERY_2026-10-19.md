@@ -25,7 +25,7 @@ effect. Command-line choices outrank inherited Molpro options. See the
 
 | Requirement | Behavior |
 |---|---|
-| General, automatic account selection | Resolve the executing UID through the operating system; try `/scratch/<account>` first on the compute node. No username is embedded in the implementation. |
+| General, automatic account selection | Prefer the operating-system account lookup; if compute-node NSS lacks the entry, use the UID-bound identity exported by KinBot/Slurm or the exported `USER`/`LOGNAME`. Try `/scratch/<account-name>` first on the compute node. No username or numeric account directory is embedded in the implementation. |
 | No inherited HOME override | HOME and paths resolving into HOME are rejected. Old Molpro overrides cannot outrank the preferred account scratch. |
 | Verified alternatives | Check the containing filesystem/mount, free capacity, private-directory creation, write/fsync/rename/read-back. Reject network, unknown, and memory-backed filesystem types. If no candidate works, stop before native QC. |
 | All native work in the active example workflow | Gaussian, Molpro force jobs, ANL Molpro/Gaussian/CFOUR/MRCC tasks, orbital reconnaissance, legacy Molpro and ROTD sampling use a private local working directory. ORCA and Q-Chem adapters also use it. |
@@ -337,3 +337,68 @@ The terminal summary is bounded per live/ready group; `audit.txt` and
 `audit.json` contain all task identities, dependencies and policy evidence.
 Other live allocations outside materialized dispatch graphs are explicitly
 reported, rather than silently omitted.
+
+## Compute-node account lookup repair
+
+The October 19 13:52 PDT monitor exposed a new startup regression from
+`2903f02a`: the preferred-scratch selector required `pwd.getpwuid()` to
+succeed. Some compute nodes could not resolve UID 155382, although the
+exported account name was `hram`. The intended directory remains
+`/scratch/hram`, never `/scratch/155382`. This exception occurred in KinBot's
+scratch setup, before the affected native launch; it is not evidence of
+electronic-structure nonconvergence.
+
+Account lookup now accepts the exported account name if passwd/NSS is
+unavailable. Login-host controllers also export their UID-bound account
+identity to nested workers. Name resolution does not relax the filesystem,
+capacity, private-directory or I/O checks, and never enables HOME scratch.
+Native runtime JSON records the account source used.
+
+The dispatcher recognizes this exact legacy exception plus its
+`qc_scratch.py` traceback. It verifies input/execution provenance, archives
+the failed task, and stages one replacement with identical chemistry and
+geometry. A journal makes interrupted archival resumable; a persisted marker
+prevents repeated retries for the same task. Unrelated errors are not treated
+as account-lookup failures. A failure appearing later from a retained old
+worker is handled by the same bounded repair. Valid completed tasks and live
+allocations are not reset; existing downstream work with incompatible
+provenance requires review.
+
+Use a controller refresh, rather than rerunning the already-launched outage
+recovery journal. The requested pending-job replacement is explicit:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd /home/hram/KinBot
+git pull --ff-only origin composite
+/home/hram/KinBot/.venv/bin/python -u -m kinbot.run_refresh \
+  /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261018_r6_salvage \
+  --apply --replace-pending
+BASH
+```
+
+The refresh archives the controller logs, replaces only PES/KB controllers,
+and retains running allocation IDs. For pending jobs, it sends the scoped IDs
+and PENDING filter to Slurm using `scancel --ctld --state=PENDING`; a job that
+has started no longer matches. It requires a matching CANCELLED job record
+before archiving an unstarted attempt. Missing/ambiguous cancellation evidence
+stops the handoff instead of risking duplicate work. Repeating the same command
+resumes its journal. The filter semantics are documented by
+[SchedMD](https://slurm.schedmd.com/scancel.html).
+
+Pending attempt archives are under the printed controller archive's
+`pending_allocations/`. Account-lookup failure archives are in each affected
+graph's `attempts/account_lookup_*/`; `account_lookup_recovery.json` records
+the migration. Replacements use the new pinned code, with the existing
+exclusions, exclusivity, allocation limits, and scientific settings.
+
+```bash
+watch -n 10 '/home/hram/KinBot/.venv/bin/python -m kinbot.run_monitor /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261018_r6_salvage --lines 3'
+```
+
+The default monitor groups identical failures, counts dependency blocks
+separately, and suppresses duplicate execution/minimum-recovery records for
+the same failed task. A live retry's intermediate failure is labelled pending,
+not terminal. Both runs' controller tails and native QC progress remain visible.
+Use `--details` or `--json` for the complete records.

@@ -16,15 +16,86 @@ from kinbot.anl.runtime import _check_scratch_io, cleanup_qc_runtime, qc_runtime
 
 def test_actual_account_not_environment_username(monkeypatch):
     monkeypatch.setenv('USER', 'wrong-user')
-    monkeypatch.setattr(scratch.pwd, 'getpwuid', lambda uid: SimpleNamespace(pw_name='alice'))
+    monkeypatch.setattr(scratch.pwd, 'getpwuid', lambda uid: SimpleNamespace(pw_name='alice', pw_dir='/home/alice'))
     assert scratch.account_scratch() == Path('/scratch/alice')
+
+
+@pytest.fixture
+def missing_passwd(monkeypatch):
+    monkeypatch.setattr(scratch.os, 'getuid', lambda: 155382)
+    def unavailable(uid):
+        raise KeyError(f'getpwuid(): uid not found: {uid}')
+    monkeypatch.setattr(scratch.pwd, 'getpwuid', unavailable)
+    return unavailable
+
+
+@pytest.mark.parametrize('identity,source', [
+    ({'USER': 'alice'}, 'USER'),
+    ({'LOGNAME': 'alice'}, 'LOGNAME'),
+    ({'USER': 'different', 'SLURM_JOB_UID': '155382', 'SLURM_JOB_USER': 'alice'}, 'slurm_uid'),
+    ({'KINBOT_QC_ACCOUNT': json.dumps({'uid': 155382, 'name': 'alice', 'home': '/home/alice'})}, 'inherited_uid'),
+])
+def test_missing_passwd_uses_exported_account_name(missing_passwd, identity, source):
+    assert scratch.account_scratch(identity) == Path('/scratch/alice')
+    assert scratch.account_identity(identity)['source'] == source
+
+
+@pytest.mark.parametrize('identity', [
+    {}, {'USER': '../alice'}, {'USER': '/home/alice'}, {'USER': ''},
+    {'SLURM_JOB_UID': '999', 'SLURM_JOB_USER': 'alice'},
+    {'KINBOT_QC_ACCOUNT': '{broken'},
+    {'KINBOT_QC_ACCOUNT': json.dumps({'uid': 999, 'name': 'alice'})},
+])
+def test_missing_passwd_without_usable_name_fails_clearly(missing_passwd, identity):
+    with pytest.raises(RuntimeError, match='Cannot resolve QC account'):
+        scratch.account_scratch(identity)
+
+
+def test_controller_carries_name_when_compute_node_has_no_nss(monkeypatch):
+    monkeypatch.setattr(scratch.pwd, 'getpwuid', lambda uid:
+                        SimpleNamespace(pw_name='alice', pw_dir='/home/alice'))
+    monkeypatch.setenv('KINBOT_QC_ACCOUNT', 'old')
+    scratch.configure({})
+    record = os.environ['KINBOT_QC_ACCOUNT']
+    def unavailable(uid):
+        raise KeyError(uid)
+    monkeypatch.setattr(scratch.pwd, 'getpwuid', unavailable)
+    assert scratch.account_scratch({'KINBOT_QC_ACCOUNT': record, 'USER': 'wrong'}) == Path('/scratch/alice')
+
+
+@pytest.mark.parametrize('backend', ['molpro', 'gaussian', 'cfour', 'mrcc', 'qchem', 'orca'])
+def test_all_backends_allocate_with_user_and_missing_passwd(tmp_path, monkeypatch, missing_passwd, backend):
+    preferred = tmp_path/'scratch/alice'
+    preferred.parent.mkdir()
+    original = scratch.account_scratch
+    monkeypatch.setattr(scratch, 'account_scratch', lambda env=None:
+                        tmp_path/'scratch'/original(env).name)
+    monkeypatch.setattr(Path, 'home', lambda: pytest.fail('must not require a passwd-based HOME lookup'))
+    home = tmp_path/'home'
+    path, info = scratch.allocate({'USER': 'alice', 'HOME': str(home),
+        'KINBOT_QC_SCRATCH': str(home/'old-cache')}, backend, 1, probe=_check_scratch_io)
+    try:
+        assert path.parent == preferred
+        assert info['scratch_source'] == 'account_scratch'
+        assert info['scratch_account']['name'] == 'alice'
+        assert not home.exists()
+    finally:
+        cleanup_qc_runtime(info)
+
+
+def test_missing_passwd_does_not_allow_home_fallback(tmp_path, monkeypatch, missing_passwd):
+    home = tmp_path/'home'
+    monkeypatch.setattr(scratch, 'candidates', lambda *a: iter([('override', home/'cache')]))
+    with pytest.raises(OSError, match='Home directories cannot'):
+        scratch.allocate({'USER': 'alice', 'HOME': str(home)}, 'molpro', 1, probe=_check_scratch_io)
+    assert not home.exists()
 
 
 @pytest.mark.parametrize('backend', ['molpro', 'gaussian', 'cfour', 'mrcc', 'qchem', 'orca'])
 def test_account_scratch_precedes_even_explicit_legacy_override(tmp_path, monkeypatch, backend):
     preferred = tmp_path / 'scratch' / 'alice'
     preferred.parent.mkdir()
-    monkeypatch.setattr(scratch, 'account_scratch', lambda: preferred)
+    monkeypatch.setattr(scratch, 'account_scratch', lambda env=None: preferred)
     home = tmp_path / 'home'
     env = {'HOME': str(home), 'KINBOT_MOLPRO_SCRATCH': str(home/'cache'),
            'KINBOT_QC_SCRATCH': str(tmp_path/'other'), 'SLURM_NNODES': '1'}

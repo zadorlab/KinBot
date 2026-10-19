@@ -1577,6 +1577,8 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     hashes, geometry, resource layout and Slurm tests are always task-specific.
     No success is reused across graphs, scheduler retries or later launches.
     """
+    from kinbot.anl import account_recovery
+    account_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     refresh_attempts = (set() if _site_refresh_attempts is None
                         else _site_refresh_attempts)
@@ -2162,6 +2164,8 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
 
 def advance(run_dir, submit=False, submit_only=None):
     """Complete finished tasks, stage ready tasks, and optionally submit jobs."""
+    from kinbot.anl import account_recovery
+    account_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
     if submit_only is not None:
@@ -2270,6 +2274,10 @@ def advance(run_dir, submit=False, submit_only=None):
             entry['status'] = 'failed'
             entry['error'] = 'Slurm job disappeared without execution.json.'
             entry['failure_phase'] = 'scheduler'
+
+    # Old pinned workers may fail after replacement controllers start. Repair
+    # only this recognized startup bug, once, before deriving component skips.
+    state = account_recovery.recover(run_dir, spec, state)
 
     # An optional component that cannot execute is unavailable at this
     # requested level. Keep the failed native record for provenance, stop

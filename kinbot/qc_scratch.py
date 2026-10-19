@@ -25,6 +25,9 @@ LOCAL_FILESYSTEMS = {'ext2', 'ext3', 'ext4', 'xfs', 'btrfs', 'zfs', 'ufs',
 
 def configure(parameters):
     """Carry single-input site preferences to all nested workers via Slurm."""
+    # Compute-node NSS need not expose every submitting account. Carry the
+    # login-host identity, bound to its numeric UID, through sbatch --export.
+    os.environ['KINBOT_QC_ACCOUNT'] = json.dumps(account_identity())
     if 'qc_scratch_fallbacks' in parameters:
         paths = parameters['qc_scratch_fallbacks']
         if (not isinstance(paths, list) or
@@ -39,9 +42,48 @@ def configure(parameters):
         os.environ['KINBOT_QC_SCRATCH_MIN_MB'] = str(value)
 
 
-def account_scratch():
-    """Use the actual account, not an inherited USER/HOME from another job."""
-    return Path('/scratch') / pwd.getpwuid(os.getuid()).pw_name
+def account_identity(env=None):
+    """Resolve an account even when a compute node has no passwd/NSS entry.
+
+    Prefer UID-bound identity when available; otherwise accept the conventional
+    exported USER/LOGNAME account name. Never infer an account from HOME or use
+    a numeric UID as a directory name. Storage checks still run on the node.
+    """
+    env = os.environ if env is None else env
+    uid = os.getuid()
+    try:
+        account = pwd.getpwuid(uid)
+    except (KeyError, OSError):
+        account = None
+    if account is not None:
+        return {'uid': uid, 'name': account.pw_name, 'home': account.pw_dir,
+                'source': 'passwd'}
+    candidates = []
+    if env.get('KINBOT_QC_ACCOUNT'):
+        try:
+            saved = json.loads(env['KINBOT_QC_ACCOUNT'])
+            if isinstance(saved, dict):
+                candidates.append((saved.get('uid'), saved.get('name'),
+                                   saved.get('home'), 'inherited_uid'))
+        except (ValueError, TypeError):
+            pass
+    candidates.append((env.get('SLURM_JOB_UID'), env.get('SLURM_JOB_USER'),
+                       env.get('HOME'), 'slurm_uid'))
+    candidates.extend((uid, env.get(key), env.get('HOME'), key)
+                      for key in ('USER', 'LOGNAME'))
+    for owner, name, home, source in candidates:
+        if (str(owner) != str(uid) or not isinstance(name, str)
+                or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*\$?', name)):
+            continue
+        return {'uid': uid, 'name': name,
+                'home': home if isinstance(home, str) and Path(home).is_absolute() else None,
+                'source': source}
+    raise RuntimeError(f'Cannot resolve QC account for UID {uid}: no passwd entry '
+                       'or usable KinBot/Slurm/USER/LOGNAME account name.')
+
+
+def account_scratch(env=None):
+    return Path('/scratch') / account_identity(env)['name']
 
 
 def filesystem(path):
@@ -85,7 +127,7 @@ def filesystem(path):
 
 
 def candidates(env, backend):
-    preferred = account_scratch()
+    preferred = account_scratch(env)
     # Never create /scratch on the root disk when the site has no such mount.
     if preferred.parent.is_dir():
         yield 'account_scratch', preferred
@@ -126,7 +168,9 @@ def allocate(env, backend, minimum_mb, *, probe, work_directory=None, avoid_root
                 raise ValueError(f'{key} must be a positive integer')
             minimum_mb = max(minimum_mb, int(env[key]))
     roots = list(candidates(env, backend))  # Validate all configured alternatives first.
-    homes = {Path(pwd.getpwuid(os.getuid()).pw_dir), Path(env.get('HOME', Path.home()))}
+    account = account_identity(env)
+    homes = {Path(home) for home in (account.get('home'), env.get('HOME'))
+             if home and Path(home).is_absolute()}
     for home in list(homes):
         try:
             homes.add(home.resolve())
@@ -162,6 +206,7 @@ def allocate(env, backend, minimum_mb, *, probe, work_directory=None, avoid_root
                 'scratch_available_mb': free, 'scratch_minimum_mb': minimum_mb,
                 'scratch_io_checked': True, 'scratch_mount': mount,
                 'scratch_rejected_candidates': rejected,
+                'scratch_account': account,
             }
         except OSError as error:
             if scratch is not None:

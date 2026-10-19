@@ -2,7 +2,8 @@
 
 Only idle PES/KB control processes are replaceable. Native calculations,
 reference subprocesses and ambiguous submissions cause a refusal, not a kill.
-No scancel, task reset, geometry migration or calculation deletion is used.
+With --replace-pending, only jobs still PENDING are cancelled and restaged;
+running allocations and completed calculations are retained.
 """
 import argparse
 from contextlib import ExitStack, contextmanager
@@ -16,6 +17,7 @@ import platform
 import shlex
 import signal
 import socket
+import subprocess
 import sys
 import time
 
@@ -221,7 +223,83 @@ def _archive_controllers(root, archive):
             run_salvage._save(directory / '.kinbot_post_reaction_branches.json', root, archive)
 
 
-def refresh(root, *, apply=False):
+def _pending_preflight():
+    result = subprocess.run(['scancel', '--help'], capture_output=True, text=True, timeout=10)
+    if result.returncode or '--ctld' not in result.stdout or '--state' not in result.stdout:
+        raise RuntimeError('Pending replacement requires scancel --ctld --state support; '
+                           'no controllers or allocations were changed.')
+
+
+def _replace_pending(root, journal, marker):
+    """Cancel through controller-side PENDING filtering, then journal restaging.
+
+    Never infer cancellation solely from queue absence. Require the retained
+    Slurm job record to confirm CANCELLED, or preserve a completed execution.
+    """
+    from kinbot.execution import slurm_job_record
+    from kinbot.run_recover import _apply_graph
+    from kinbot.anl import dispatch
+    if 'pending_plans' not in journal:
+        if 'pending_candidates' not in journal:
+            journal['pending_candidates'] = [j for j in _owned_jobs(root) if j['state'] == 'PENDING']
+            atomic_json(marker, journal)
+        candidates = journal['pending_candidates']
+        ids = [j['job_id'] for j in candidates]
+        if any(not ident.isdecimal() for ident in ids):
+            raise RuntimeError('Pending replacement requires individual numeric Slurm job IDs.')
+        if ids and not journal.get('pending_cancel_acknowledged'):
+            # --ctld sends the ID/state filters to slurmctld in one request.
+            # A job that has become RUNNING no longer matches PENDING.
+            env = {k: v for k, v in os.environ.items() if not k.startswith('SCANCEL_')}
+            result = subprocess.run(['scancel', '--ctld', '--state=PENDING', '--quiet', *ids],
+                                    capture_output=True, text=True, timeout=30, env=env)
+            if result.returncode:
+                raise RuntimeError('Pending cancellation not confirmed: ' + result.stderr.strip()
+                                   + '. Repeat the same refresh command; no task was reset.')
+            journal['pending_cancel_acknowledged'] = True
+            atomic_json(marker, journal)
+        live = {j['job_id']: j for j in _owned_jobs(root)}
+        reset = {}
+        evidence = {}
+        for job in candidates:
+            ident = job['job_id']
+            if ident in live:
+                if live[ident]['state'] == 'PENDING':
+                    raise RuntimeError('Pending cancellation is not yet visible; repeat the same refresh command.')
+                continue  # Includes RUNNING/CONFIGURING/COMPLETING: retain ownership.
+            directory = Path(job['directory']).resolve()
+            outcome = directory/'execution.json'
+            if outcome.exists():
+                # It started/finished before cancellation filtering. Let the
+                # ordinary dispatcher validate it, not this cancellation path.
+                continue
+            record = slurm_job_record(ident)
+            if (record.get('JobState') != 'CANCELLED'
+                    or record.get('JobId') != ident
+                    or Path(record.get('WorkDir', '/')).resolve() != directory):
+                raise RuntimeError(f'Job {ident}: cancellation outcome is not confirmed; '
+                                   'no duplicate will be submitted. Repeat the same refresh command.')
+            evidence[ident] = record
+            reset.setdefault(directory.parent.parent, []).append(directory.name)
+        plans = []
+        for graph, selected in sorted(reset.items()):
+            _, spec, state = dispatch._load(graph)
+            plans.append({'graph': str(graph), 'spec': spec, 'state': state,
+                'before': {name: run_salvage.file_sha256(graph/name) for name in ('state.json', 'workflow.json')},
+                'reset': selected, 'reasons': {n: 'Pending allocation cancelled for current-code restart.' for n in selected},
+                'complete': [n for n, e in state['tasks'].items() if e['status'] == 'complete'],
+                'active': {n: e['job_id'] for n, e in state['tasks'].items()
+                           if e['status'] == 'submitted' and n not in selected}})
+        journal.update(pending_plans=plans, pending_cancellation_evidence=evidence)
+        atomic_json(marker, journal)
+    # Resume a partially committed archive before reading the changed ledgers.
+    for plan in journal['pending_plans']:
+        _apply_graph(plan, root, Path(journal['archive'])/'pending_allocations')
+    journal['jobs'] = _owned_jobs(root)
+    atomic_json(marker, journal)
+
+
+def refresh(root, *, apply=False, replace_pending=False):
     """Journal a controller-only handoff; repeated same-code calls are no-ops."""
     root = Path(root).resolve(strict=True)
     marker = root / 'salvage.json'
@@ -229,8 +307,11 @@ def refresh(root, *, apply=False):
     journal_path = root / 'controller_refresh.json'
     journal = json.loads(journal_path.read_text()) if journal_path.exists() else None
     pin = run_salvage._pin_code(root, refresh=True)
-    if journal and journal['phase'] == 'launched' and journal['code'] == str(pin):
+    if (journal and journal['phase'] == 'launched' and journal['code'] == str(pin)
+            and (not replace_pending or journal.get('replace_pending'))):
         return journal
+    if replace_pending or (journal and journal.get('replace_pending') and journal['phase'] != 'launched'):
+        _pending_preflight()
     _probe_process_handles()  # Includes resumed transactions, before any STOP.
     print('Process-handle preflight passed.', flush=True)
     if journal and journal['phase'] != 'launched' and journal['code'] != str(pin):
@@ -259,14 +340,15 @@ def refresh(root, *, apply=False):
         jobs = _owned_jobs(root)
         _preflight(root)  # Do this while the original controllers keep working.
         if not apply:
-            return {'phase': 'reviewed', 'controllers': records, 'jobs': jobs, 'code': str(pin)}
+            return {'phase': 'reviewed', 'controllers': records, 'jobs': jobs, 'code': str(pin),
+                    'replace_pending': replace_pending}
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         archive = root.with_name(root.name + '.controllers.' + stamp)
         archive.mkdir()
         if journal:
             atomic_json(archive / 'previous_refresh.json', journal)
         journal = {'phase': 'preparing', 'code': str(pin), 'previous_code': history['code'],
-                   'archive': str(archive), 'created_utc': stamp}
+                   'archive': str(archive), 'created_utc': stamp, 'replace_pending': replace_pending}
         atomic_json(journal_path, journal)
     elif not apply:
         return journal
@@ -293,12 +375,15 @@ def refresh(root, *, apply=False):
     if journal['phase'] == 'stopped':
         if run_cleanup._processes(root):
             raise RuntimeError('Unexpected local processes after controller stop; refusing edits.')
-        _owned_jobs(root)
         # Hold the original inode locks; do not remove or replace run markers.
         with ExitStack() as locks:
             for path in root.glob('*/[0-9]*/.kinbot_run.json'):
                 handle = locks.enter_context(path.open())
                 fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if journal.get('replace_pending'):
+                _replace_pending(root, journal, journal_path)
+            else:
+                _owned_jobs(root)
             _archive_controllers(root, archive)
             history.update(status='prepared', code=str(pin))
             atomic_json(marker, history)
@@ -317,14 +402,19 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('root', type=Path)
     parser.add_argument('--apply', action='store_true', help='Replace controllers and launch with current code.')
+    parser.add_argument('--replace-pending', action='store_true',
+                        help='Archive and replace pending allocations; preserve running allocations.')
     args = parser.parse_args(argv)
     root = args.root.absolute()
     # The same lock as run_salvage prevents simultaneous migration/launch.
     with root.with_suffix('.salvage.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        result = refresh(root, apply=args.apply)
+        result = refresh(root, apply=args.apply, replace_pending=args.replace_pending)
     print(json.dumps({k: result[k] for k in ('phase', 'code', 'archive') if k in result}, indent=2))
     print('Retained Slurm IDs: ' + ', '.join(j['job_id'] for j in result.get('jobs', [])))
+    if result.get('pending_cancellation_evidence'):
+        print('Cancelled pending IDs (archived for replacement): ' +
+              ', '.join(result['pending_cancellation_evidence']))
 
 
 if __name__ == '__main__':

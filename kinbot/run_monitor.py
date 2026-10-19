@@ -221,12 +221,17 @@ def artifacts(paths, root, warnings):
             rows = []
             for name, task in tasks.items():
                 entry = data['tasks'].get(name, {})
+                error = entry.get('error') or entry.get('unavailable_reason') or entry.get('skip_reason')
+                if not error and entry.get('status') in ('failed', 'unavailable'):
+                    outcome = path.parent/'tasks'/name/'execution.json'
+                    if outcome.is_file():
+                        error = read_json(outcome, warnings).get('error')
                 deps = entry.get('blocked_by', task.get('depends_on', []))
                 blockers = {dep: data['tasks'].get(dep, {}).get('status', 'waiting')
                             for dep in deps if data['tasks'].get(dep, {}).get('status') != 'complete'}
                 rows.append({'name': name, 'status': entry.get('status', 'waiting'),
                              'job_id': entry.get('job_id'), 'blocked_by': blockers,
-                             'error': entry.get('error') or entry.get('unavailable_reason') or entry.get('skip_reason'),
+                             'error': error,
                              'recovery': task.get('recovery')})
             item.update(counts=dict(Counter(row['status'] for row in rows)), tasks=rows)
         elif path.name == '.kinbot_post_reaction_branches.json':
@@ -498,11 +503,29 @@ def render_logs(case, *, include_all=False, lines=4, raw=False, details=False):
 
 
 def render_status_summary(case):
-    """Current task totals and actionable failures, without healthy record dumps."""
+    """Bound repeated failures and dependency cascades; full records stay in JSON."""
     out, counts = [], Counter()
     graphs = [item for item in case['artifacts'] if 'tasks' in item]
+    owners, failures, retries, intermediate = {}, {}, [], set()
+    live = {str(j['job_id']) for j in case['jobs']}
+    blocked = 0
+    def failure(label, error):
+        error = ' '.join(str(error or 'No diagnostic recorded').split())
+        failures.setdefault(error, set()).add(label)
     for graph in graphs:
         counts.update(graph['counts'])
+        parent = Path(graph['path']).parent
+        for task in graph['tasks']:
+            owners[parent/'tasks'/task['name']] = task
+            label = display_path(str(parent/'tasks'/task['name']), case['directory'])
+            if task['status'] in ('failed', 'unavailable'):
+                failure(label, task.get('error'))
+            if task['status'] == 'blocked' or any(
+                    s in ('failed', 'unavailable', 'blocked') for s in task['blocked_by'].values()):
+                blocked += 1
+            if task.get('recovery') and task['status'] not in ('complete', 'skipped', 'blocked'):
+                retries.append(f'  RETRY {label}: {task["status"]}' +
+                               (f'; job={task["job_id"]}' if task['job_id'] else ''))
     if graphs:
         out.append(f'Dispatch tasks ({len(graphs)} graphs): ' +
                    '  '.join(f'{k}={v}' for k, v in sorted(counts.items())))
@@ -514,28 +537,37 @@ def render_status_summary(case):
                     out.append(f'  {name} [{branch.get("status", "unknown")}]: {branch["error"]}')
             if item.get('mess_gate') is not None:
                 out.append(f'MESS gate: {item["mess_gate"]}; solver: {item.get("final_solver")}')
-        for task in item.get('tasks', []):
-            task_label = label.removesuffix('/state.json') + '/' + task['name']
-            if task['status'] in ('failed', 'unavailable', 'blocked'):
-                error = str(task['error'] or 'No diagnostic recorded').splitlines()[0]
-                out.append(f'  TASK {task_label}: {task["status"]}; {error}')
-            if task.get('recovery') and task['status'] not in ('complete', 'skipped'):
-                out.append(f'  RETRY {task_label}: {task["status"]}' +
-                           (f'; job={task["job_id"]}' if task['job_id'] else ''))
-        blocked = [t for t in item.get('tasks', []) if
-                   any(v in ('failed', 'unavailable', 'blocked') for v in t['blocked_by'].values())]
-        if blocked:
-            blockers = {k: v for t in blocked for k, v in t['blocked_by'].items()
-                        if v in ('failed', 'unavailable', 'blocked')}
-            out.append(f'  {label}: {len(blocked)} dependent tasks waiting for={blockers}')
-        if not item.get('branches') and not item.get('preflight') and (
+        owner = owners.get(Path(item['path']).parent)
+        if owner and (item.get('error') or item['status'] in ('failed', 'unavailable')):
+            if owner['status'] in ('failed', 'unavailable'):
+                continue  # Native and minimum-recovery records describe this same task.
+            if owner['status'] == 'submitted' and str(owner['job_id']) in live:
+                intermediate.add(str(Path(item['path']).parent))
+                continue  # A live retry can still have its earlier failed execution record.
+        if not item.get('branches') and not item.get('preflight') and not item.get('tasks') and (
                 item.get('error') or item['status'] in ('failed', 'unavailable', 'blocked')):
-            error = str(item.get('error') or 'No diagnostic recorded').splitlines()[0]
-            out.append(f'  RECORD {label}: {item["status"]}; {error}')
+            failure(label, item.get('error'))
         elif item.get('recovery') and item['status'] in ('retrying', 'running'):
-            out.append(f'  RECOVERY {label}: {item["status"]}')
+            retries.append(f'  RECOVERY {label}: {item["status"]}')
         elif item.get('recovery', {}).get('selected'):
-            out.append(f'  RECOVERY {label}: {item["status"]}; selected={item["recovery"]["selected"]}')
+            retries.append(f'  RECOVERY {label}: {item["status"]}; selected={item["recovery"]["selected"]}')
+    if failures:
+        out.append(f'Failures: {sum(len(v) for v in failures.values())} tasks/records; '
+                   f'{len(failures)} distinct diagnostics')
+        for error, labels in sorted(failures.items(), key=lambda pair: (-len(pair[1]), pair[0]))[:5]:
+            excerpt = error if len(error) <= 240 else error[:237] + '...'
+            out.append(f'  {len(labels)} affected: {excerpt}')
+            out.append('    '+', '.join(sorted(labels)[:2]) +
+                       (f'; +{len(labels)-2} more' if len(labels) > 2 else ''))
+        if len(failures) > 5:
+            out.append(f'  {len(failures)-5} additional diagnostics in --details / --json.')
+    if blocked:
+        out.append(f'Dependency blocks: {blocked} tasks waiting on failed prerequisites (not independent failures).')
+    if intermediate:
+        out.append(f'Live tasks with earlier/intermediate failure records: {len(intermediate)}; final outcomes pending.')
+    out.extend(retries[:3])
+    if len(retries) > 3:
+        out.append(f'  {len(retries)-3} additional retry/recovery records in --details / --json.')
     return out
 
 

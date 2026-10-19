@@ -115,6 +115,100 @@ def test_refresh_keeps_live_anl_and_vrc_and_restarts_once(live_tree):
     assert len(t.launches) == 2
 
 
+@pytest.fixture
+def pending_tree(live_tree, monkeypatch):
+    t = live_tree
+    t.jobs[0]['state'] = 'PENDING'
+    cancelled, commands = {}, []
+    def command(args, **kwargs):
+        commands.append(args)
+        if args == ['scancel', '--help']:
+            return SimpleNamespace(returncode=0, stdout='--ctld --state', stderr='')
+        assert args[:4] == ['scancel', '--ctld', '--state=PENDING', '--quiet']
+        for job in list(t.jobs):
+            if job['job_id'] in args[4:] and job['state'] == 'PENDING':
+                cancelled[job['job_id']] = dict(JobId=job['job_id'], JobState='CANCELLED',
+                                                WorkDir=job['directory'])
+                t.jobs.remove(job)
+        return SimpleNamespace(returncode=0, stdout='', stderr='')
+    monkeypatch.setattr(run_refresh.subprocess, 'run', command)
+    monkeypatch.setattr('kinbot.execution.slurm_job_record', lambda job: cancelled.get(job, {}))
+    t.commands, t.cancelled, t.command = commands, cancelled, command
+    return t
+
+
+def test_refresh_replaces_only_confirmed_pending_and_is_idempotent(pending_tree):
+    t = pending_tree
+    live_before = {p: file_sha256(p) for graph in t.graphs[1:] for p in graph.rglob('*') if p.is_file()}
+    result = run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    assert result['pending_cancellation_evidence'].keys() == {'500'}
+    assert {j['job_id'] for j in result['jobs']} == {'501', '502', '503'}
+    state = dispatch._load(t.graphs[0])[2]
+    assert 'energy' not in state['tasks'] and state['pending_retries']['energy']['attempt'] == 2
+    assert Path(state['pending_retries']['energy']['previous_attempt']).is_dir()
+    assert live_before == {p: file_sha256(p) for p in live_before}
+    assert run_refresh.refresh(t.root, apply=True, replace_pending=True) == result
+    assert len(t.launches) == 2
+    assert len([a for a in t.commands if '--state=PENDING' in a]) == 1
+
+
+def test_pending_to_running_race_retains_allocation(pending_tree, monkeypatch):
+    t = pending_tree
+    before = scientific_files(t.root)
+    def race(args, **kwargs):
+        if '--state=PENDING' in args:
+            t.jobs[0]['state'] = 'RUNNING'
+        return t.command(args, **kwargs)
+    monkeypatch.setattr(run_refresh.subprocess, 'run', race)
+    result = run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert not result['pending_cancellation_evidence']
+    assert len(result['jobs']) == 4 and not t.cancelled
+    assert scientific_files(t.root) == before
+
+
+def test_pending_disappearance_requires_cancellation_evidence(pending_tree, monkeypatch):
+    t = pending_tree
+    monkeypatch.setattr('kinbot.execution.slurm_job_record', lambda job: {})
+    with pytest.raises(RuntimeError, match='cancellation outcome is not confirmed'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert not t.launches
+    assert (t.graphs[0]/'tasks/energy').exists()
+    monkeypatch.setattr('kinbot.execution.slurm_job_record', lambda job: t.cancelled.get(job, {}))
+    assert run_refresh.refresh(t.root, apply=True, replace_pending=True)['phase'] == 'launched'
+    assert len([a for a in t.commands if '--state=PENDING' in a]) == 1
+
+
+def test_pending_archive_interruption_resumes_without_reading_partial_ledger(pending_tree, monkeypatch):
+    from kinbot import run_recover
+    t = pending_tree
+    original = run_recover.atomic_json
+    stopped = False
+    def interrupted(path, data):
+        nonlocal stopped
+        if Path(path) == t.graphs[0]/'state.json' and not stopped:
+            stopped = True
+            raise OSError('interrupted pending archive')
+        return original(path, data)
+    monkeypatch.setattr(run_recover, 'atomic_json', interrupted)
+    with pytest.raises(OSError, match='interrupted pending archive'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert not t.launches
+    monkeypatch.setattr(run_recover, 'atomic_json', original)
+    assert run_refresh.refresh(t.root, apply=True, replace_pending=True)['phase'] == 'launched'
+    assert len(t.launches) == 2
+    assert len([a for a in t.commands if '--state=PENDING' in a]) == 1
+
+
+def test_unsupported_pending_filter_does_not_stop_controllers(live_tree, monkeypatch):
+    t = live_tree
+    monkeypatch.setattr(run_refresh.subprocess, 'run', lambda *a, **kw:
+                        SimpleNamespace(returncode=0, stdout='old client', stderr=''))
+    with pytest.raises(RuntimeError, match='scancel --ctld --state support'):
+        run_refresh.refresh(t.root, apply=True, replace_pending=True)
+    assert not t.signals and not t.launches
+
+
 @pytest.mark.parametrize('problem', ['child', 'unowned_job', 'submitting', 'changed_input',
                                      'scheduler', 'staging', 'partial_graph'])
 def test_refresh_refuses_uncertain_ownership_without_stopping(live_tree, monkeypatch, problem):

@@ -9,8 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import json
 from pathlib import Path, PurePosixPath
-import pwd
-import os
 import re
 import shlex
 
@@ -132,7 +130,7 @@ def scratch_policy(directory, *, home, account, nodes=()):
     scratch = PurePosixPath(data.get('scratch_directory', '/'))
     preferred = PurePosixPath('/scratch') / account
     problems, unknown = [], []
-    if root == PurePosixPath(home) or PurePosixPath(home) in root.parents:
+    if home and (root == PurePosixPath(home) or PurePosixPath(home) in root.parents):
         problems.append('scratch is in HOME')
     if root == PurePosixPath(directory) or PurePosixPath(directory) in root.parents:
         problems.append('scratch is in shared results')
@@ -273,7 +271,8 @@ def audit(root, *, scheduler=None, details=None):
     except (OSError, RuntimeError) as exc:
         processes = []
         report['errors'].append(str(exc))
-    account = pwd.getpwuid(os.getuid())
+    from kinbot.qc_scratch import account_identity
+    account = account_identity()
     for filename in prepared['inputs']:
         path = Path(filename).resolve(); case = path.parent
         if not path.is_relative_to(root):
@@ -318,7 +317,7 @@ def audit(root, *, scheduler=None, details=None):
                         if not graph.resolve().is_relative_to(root):
                             raise ValueError('Graph resolves outside the run')
                         rows = task_rows(graph, historical.get(str(graph.resolve()), {}),
-                            jobs, error, worker_expected, details, account.pw_name, account.pw_dir)
+                            jobs, error, worker_expected, details, account['name'], account['home'])
                         result['tasks'].extend(rows)
                     except (OSError, ValueError, RuntimeError, KeyError) as exc:
                         result['errors'].append(f'{graph}: {exc}')

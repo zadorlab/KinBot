@@ -429,6 +429,50 @@ def test_archived_dispatch_failure_excluded_but_current_retry_failure_visible(pr
     assert 'OLD' not in text
 
 
+def test_failure_cascade_is_bounded_without_losing_logs_or_json(production):
+    root, case = production
+    error = "'getpwuid(): uid not found: 155382'"
+    for index in range(20):
+        graph = case/f'123/anl_automatic/states/state_{index}/composite'
+        tasks = [{'id': 'geometry'}] + [
+            {'id': f'sp_{n}', 'depends_on': ['geometry']} for n in range(15)]
+        put(graph/'workflow.json', {'tasks': tasks})
+        put(graph/'state.json', {'tasks': {'geometry': {'status': 'failed'}, **{
+            f'sp_{n}': {'status': 'blocked', 'blocked_by': ['geometry']} for n in range(15)}}})
+        put(graph/'tasks/geometry/execution.json', {'status': 'failed', 'error': error})
+        put(graph/'tasks/geometry/minimum_recovery.json', {'status': 'failed', 'error': 'KeyError: '+error})
+    put(case/'123/kinbot.log', '19-Oct-26 13:52:00-INFO: Continuing ANL tasks\n')
+    put(case/'123/current.out', 'PROGRAM * CCSD\n')
+    report = monitor.snapshot(root)
+    text = monitor.render(report, width=150)
+    assert 'failed=20' in text and 'blocked=300' in text
+    assert '20 affected' in text and 'Dependency blocks: 300' in text
+    assert text.count('getpwuid') == 1
+    assert 'Continuing ANL tasks' in text and 'PROGRAM * CCSD' in text
+    assert len(text.splitlines()) < 55
+    assert len([a for a in report['cases'][0]['artifacts'] if 'tasks' in a]) == 20
+    assert 'sp_14' in monitor.render(report, details=True)
+
+
+def test_intermediate_execution_record_does_not_duplicate_live_retry_failure(production, monkeypatch):
+    root, case = production
+    graph = case/'123/anl_automatic/states/state_x/composite'
+    put(graph/'workflow.json', {'tasks': [{'id': 'geometry'}]})
+    put(graph/'state.json', {'tasks': {'geometry': {'status': 'submitted', 'job_id': '42'}}})
+    put(graph/'tasks/geometry/execution.json', {'status': 'failed', 'error': 'old attempt'})
+    job = {'job_id': '42', 'state': 'RUNNING', 'nodes': 'node20', 'elapsed': '1:00',
+           'limit': '24:00:00', 'cpus': '8', 'memory': '10G', 'excluded_nodes': 'node16',
+           'name': 'geometry', 'reason': 'node20', 'directory': str(graph/'tasks/geometry')}
+    monkeypatch.setattr(monitor, 'queue', lambda: ([job], None))
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert 'Live tasks with earlier/intermediate failure records: 1' in text
+    assert 'Failures:' not in text
+    assert 'old attempt' in monitor.render(report, details=True)
+    monkeypatch.setattr(monitor, 'queue', lambda: ([], None))
+    assert 'old attempt' in monitor.render(monitor.snapshot(root))
+
+
 def test_only_hash_matched_cached_worker_error_is_collapsed(production):
     from kinbot.execution import file_sha256
     root, case = production

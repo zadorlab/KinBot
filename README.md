@@ -206,8 +206,8 @@ remains restricted to wells.
 Explicit profile fields override the corresponding legacy settings for the
 selected optimization level. Adding `l1: "gauss"` alone does not change the
 reaction search: Gaussian constrained TS steps still use AM1; Q-Chem steps
-still use B3LYP/STO-3G. The final TS optimization uses L1. Scans and barrierless
-saddles retain `scan_method`/`scan_basis` and `barrierless_saddle_*` settings.
+still use B3LYP/STO-3G. The final TS optimization uses L1. Scans retain the
+`scan_method`/`scan_basis` settings.
 These options also apply with profiles. Explicit `calculator_kwargs` override
 generated calculator keywords. A FairChem L1 profile uses its UMA model
 throughout the search. L0 does not control the constrained TS steps.
@@ -218,7 +218,7 @@ Gaussian command used by preliminary searches. Flat `l0_qc`,
 `l0_method` is a fallback beneath `l0_profile.method`.
 
 `optimizer: "native"` selects the Gaussian or Q-Chem optimizer. Gaussian also
-supports `sella`; ORCA, FairChem and NNPES require `sella` or `bfgs`. `bfgs`
+supports `sella`; ORCA and FairChem require `sella` or `bfgs`. `bfgs`
 selects BFGS for wells, while saddles and constrained searches continue to use
 Sella. FairChem uses its existing Sella/BFGS workers. `frequency_mode: "auto"`
 retains the backend's usual frequency calculation, and `ase_forces` uses finite
@@ -262,8 +262,8 @@ original profiles and route-file setting; keep those settings for that restart.
 PES checks the same theory records before replacing species inputs or reading
 results, including with `no-kinbot`. These checks compare profile settings;
 they do not add method tracking to older calculations made without profiles.
-The comparison also includes ORCA's `orcasimpleinput` and `orcablocks`, the
-NNPES `nn_model`, Gaussian integration-grid and electronic-guess settings,
+The comparison also includes ORCA's `orcasimpleinput` and `orcablocks`,
+Gaussian integration-grid and electronic-guess settings,
 and the existing scan-method settings used by the selected calculator.
 Scan and barrierless-saddle method changes require a fresh directory even
 when no corresponding job has been recorded.

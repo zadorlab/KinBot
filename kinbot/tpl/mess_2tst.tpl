@@ -1,2 +1,0 @@
-        2TSMethod   statistical
-{outerts}

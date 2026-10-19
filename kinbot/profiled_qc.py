@@ -9,6 +9,7 @@ after restarting KinBot.
 from __future__ import annotations
 
 from copy import deepcopy
+import copy
 import hashlib
 import json
 import os
@@ -29,7 +30,6 @@ _QC_NAMES = {
     'qchem': 'qchem',
     'nwchem': 'nwchem',
     'orca': 'orca',
-    'nn_pes': 'nn_pes',
 }
 _DEFAULT_COMMANDS = {
     'gaussian': 'g16',
@@ -84,7 +84,8 @@ def validate_theory_restart(par, directory='.', *, profiles=None):
     except (OSError, ValueError) as exc:
         raise ValueError(f'Cannot read {route_file}.') from exc
     if (not isinstance(payload, dict) or payload.get('schema') != 2
-            or payload.get('profile_sha256') != _fingerprint(profiles, par)
+            or (payload.get('profile_sha256') != _fingerprint(profiles, par)
+                and _recorded_fingerprint(payload) != _fingerprint(profiles, par))
             or not isinstance(payload.get('jobs'), dict)):
         raise ValueError('Theory profiles or calculator settings changed, or the '
                          'saved theory record lacks required settings; '
@@ -126,19 +127,38 @@ def _profile_payload(profile, par):
     keys = []
     if profile.calculator == 'orca':
         keys += ['orcasimpleinput', 'orcablocks']
-    if profile.calculator == 'nn_pes':
-        keys += ['nn_model']
-    if profile.calculator in ('gaussian', 'nn_pes'):
+    if profile.calculator == 'gaussian':
         keys += ['integral', 'guessmix']
     if profile.calculator == 'gaussian' and profile.name == 'l2':
         keys += ['vrc_tst_scan_method', 'vrc_tst_scan_basis']
-    if profile.calculator in ('gaussian', 'qchem', 'nn_pes'):
-        keys += ['scan_method', 'scan_basis',
-                 'barrierless_saddle_method', 'barrierless_saddle_basis',
-                 'barrierless_saddle_method_high', 'barrierless_saddle_basis_high']
+    if profile.calculator in ('gaussian', 'qchem'):
+        keys += ['scan_method', 'scan_basis']
     if keys:
         payload['calculation_settings'] = {key: par[key] for key in keys}
     return payload
+
+
+# Input options removed from KinBot. Their values in an older theory record
+# do not identify a method, so a record that differs only in them matches.
+_RETIRED_SETTINGS = ('barrierless_saddle_method', 'barrierless_saddle_basis',
+                     'barrierless_saddle_method_high', 'barrierless_saddle_basis_high')
+
+
+def _recorded_fingerprint(payload):
+    """Fingerprint of a saved record with the retired settings left out."""
+    profiles = payload.get('profiles') if isinstance(payload, dict) else None
+    if not isinstance(profiles, dict):
+        return None
+    profiles = copy.deepcopy(profiles)
+    for record in profiles.values():
+        settings = record.get('calculation_settings') if isinstance(record, dict) else None
+        if isinstance(settings, dict):
+            for key in _RETIRED_SETTINGS:
+                settings.pop(key, None)
+            if not settings:
+                del record['calculation_settings']
+    return hashlib.sha256(json.dumps(profiles, sort_keys=True,
+                                     separators=(',', ':')).encode()).hexdigest()
 
 
 def _fingerprint(profiles, par):

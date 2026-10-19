@@ -21,22 +21,14 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False, VTS=False, sample=False):
+    def create_molpro_input(self, name='', do_vdW=False, VTS=False, sample=False):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
         by the user.
-        : bls is whether it is a bls rection
         : name is an alternative name for the file
-        : shift_vec is for bls to define the direction of shift in prod scan
-        : natom1 is the number of atoms in the second fragment
         """
-        if bls == 1:
-            if shift_vec is None:
-                tpl_file = self.par['barrierless_saddle_single_point_template']
-            elif shift_vec is not None:
-                tpl_file = self.par['barrierless_saddle_prod_single_point_template']
-        elif VTS:
+        if VTS:
             if self.par['vrc_tst_scan_molpro_tpl'] == '':
                 tpl_file = f'{kb_path}/tpl/molpro_vts.tpl'
             else:
@@ -66,7 +58,7 @@ class Molpro:
         symm = self.molpro_symm()
         spin = self.species.mult - 1
 
-        if not bls and not VTS:
+        if not VTS:
             with open('molpro/' + fname + '.inp', 'w') as outf:
                 outf.write(tpl.format(name=fname,
                                       natom=self.species.natom,
@@ -77,63 +69,6 @@ class Molpro:
                                       charge=self.species.charge
                                       ))
 
-        elif bls:
-            closed = (nelectron - self.par['barrierless_saddle_nelectron']) / 2
-            if closed.is_integer() is not True:
-                logger.warning("The number of closed orbitals is not an integer,\n\
-                             the CASPT2-like calculation will crash, but\n\
-                             KinBot carries on for now. Revise your input,\n\
-                             barrierless_saddle_nelectron is incorrect.")
-            else:
-                closed = int(closed)
-
-            occ = closed + self.par['barrierless_saddle_norbital']
-
-            if shift_vec is None:
-                with open('molpro/' + fname + '.inp', 'w') as outf:
-                    outf.write(tpl.format(name=fname,
-                                          natom=self.species.natom,
-                                          geom=geom,
-                                          nelectron=nelectron,
-                                          symm=symm,
-                                          spin=spin,
-                                          charge=self.species.charge,
-                                          state=self.par['barrierless_saddle_nstate'],
-                                          closed=closed,
-                                          occ=occ
-                                          ))
-            else:
-                shift_vec = shift_vec / np.linalg.norm(shift_vec) * 0.5  # step of 0.5 A
-                geom0 = ''
-                scancoo = ''
-                scanstart = ''
-                shift = ''
-                for i, at in enumerate(self.species.atom):
-                    x, y, z = self.species.geom[i]
-                    if i < self.species.natom - natom1:
-                        geom0 += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
-                    else:
-                        scancoo += '{} s{} s{} s{}\n'.format(at, 3 * i, 3 * i + 1, 3 * i + 2)
-                        scanstart += 's{} = {:.8f}\ns{}= {:.8f}\ns{}= {:.8f}\n'.\
-                                     format(3 * i, x, 3 * i + 1, y, 3 * i + 2, z)
-                        shift += 's{0} = s{0} + {1:.8f}\n'.format(3 * i, shift_vec[0])
-                        shift += 's{0} = s{0} + {1:.8f}\n'.format(3 * i + 1, shift_vec[1])
-                        shift += 's{0} = s{0} + {1:.8f}\n'.format(3 * i + 2, shift_vec[2])
-                with open('molpro/' + fname + '.inp', 'w') as f:
-                    f.write(tpl.format(name=fname,
-                                       natom=self.species.natom,
-                                       geom=geom0,
-                                       scanstart=scanstart,
-                                       scancoo=scancoo,
-                                       shift=shift,
-                                       nelectron=nelectron,
-                                       symm=symm,
-                                       spin=spin,
-                                       charge=self.species.charge,
-                                       state=self.par['barrierless_saddle_nstate'],
-                                       closed=closed,
-                                       occ=occ
-                                       ))
         elif VTS:
             options = 'memory,3200,M\n' \
                       'GPRINT,ORBITALS,ORBEN,CIVECTOR\n' \

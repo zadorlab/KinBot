@@ -364,7 +364,7 @@ def test_cli_preserves_search_outputs_and_reports_failure(
             raise StereoRoutingError('contradictory charge; saved in unsupported_observations/result.json')
         if failure == 'unexpected':
             raise ValueError('unrelated error')
-    qc = SimpleNamespace(qc='nn_pes', qc_opt=optimize,
+    qc = SimpleNamespace(qc='fc', qc_opt=optimize,
         get_qc_geom=lambda *a, **k: (0, atoms.positions.copy()),
         get_qc_freq=lambda *a, **k: (0, [1000., 2000., 3000.]),
         get_qc_energy=lambda *a: (0, -76.), get_qc_zpe=lambda *a: (0, .01))

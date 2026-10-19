@@ -159,7 +159,7 @@ def _main():
 
         # do an MP2 optimization of the reactant,
         # to compare some scan barrier heigths to
-        if qc.qc != 'nn_pes' and (par['families'] == ['all'] or \
+        if (par['families'] == ['all'] or \
                 'birad_recombination_R' in par['families'] or \
                 'r12_cycloaddition' in par['families'] or \
                 'r14_birad_scission' in par['families'] or \
@@ -174,13 +174,6 @@ def _main():
             qc.qc_opt(well0, well0.geom, mp2=1)
             err, geom = qc.get_qc_geom(routing_name(well0) + '_well_mp2', well0.natom, 1)
 
-        # comparison for barrierless scan
-        if par['barrierless_saddle']:
-            logger.debug('Optimization of initial well for barrierless at {}/{}'.
-                    format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
-            qc.qc_opt(well0, well0.geom, bls=1)
-            err, geom = qc.get_qc_geom(routing_name(well0) + '_well_bls', well0.natom, 1)
-        
         # characterize again and look for differences
         well0.characterize()
         if par['cluster']:

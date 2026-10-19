@@ -104,11 +104,10 @@ class TestPESOptimizationSelection(unittest.TestCase):
 
     def test_reference_and_other_level_calculations_keep_their_energy(self):
         job = self.well + '_test_ts'
-        for suffix, energy in (('', -100.), ('_mp2', -101.), ('_bls', -102.), ('_high', -103.)):
+        for suffix, energy in (('', -100.), ('_mp2', -101.), ('_high', -103.)):
             self.record(job + suffix, energy)
         self.selection(job, ts=1)
         self.assertEnergy(get_energy([], job, 1, 0, mp2=1), (-101., .1))
-        self.assertEnergy(get_energy([], job, 1, 0, bls=1), (-102., .1))
         self.assertEnergy(get_energy([], job, 1, 1), (-103., .1))
         self.assertEnergy(get_energy([], job, 1, 0), (-100.02, .1002))
 

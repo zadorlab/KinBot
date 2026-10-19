@@ -158,9 +158,6 @@ class IRC:
             elif self.qc.qc == 'orca':
                 code = 'orca'
                 Code = 'ORCA'
-            elif self.qc.qc == 'nn_pes':
-                code = 'nn_pes'
-                Code = 'Nn_surr'
             elif self.qc.qc == 'fc':
                 code = 'fairchem'
                 Code = 'Fairchem'

@@ -12,6 +12,11 @@ sweep on every restart. The lookup, the copy and the removal that forces
 a new search after a lower rotor point now use each code's own output
 name (`.log`, `.out`, `_sella.log`).
 
+## Remove NWChem support
+
+NWChem is not used by anyone. `qc: nwchem` and the `methodclass` option are
+no longer accepted; the supported codes are Gaussian, Q-Chem, ORCA and FairChem.
+
 ## Remove the NNPES surrogate calculator
 
 The `nn_pes` calculator depended on a private package that is not available
@@ -62,10 +67,9 @@ results remain usable if this option changes on restart.
   runs receive this flag when restarted with their original settings.
 - Apply the same theory checks to PES before species-input replacement and
   result reading, including `pes ... no-kinbot`, without creating calculators.
-- Reject NWChem profiles during input validation. Refuse Q-Chem ring preparation
-  before writing or submitting that job; use Gaussian or FairChem at L0 for
-  ring preparation. Q-Chem remains available for ordinary conformer optimization
-  and for L1/L2 calculations.
+- Refuse Q-Chem ring preparation before writing or submitting that job; use
+  Gaussian or FairChem at L0 for ring preparation. Q-Chem remains available for
+  ordinary conformer optimization and for L1/L2 calculations.
 - Q-Chem profiles require `optimizer: "native"`. Switching a profile to Q-Chem
   selects that optimizer; Sella/BFGS is rejected before a worker can request an
   internal Q-Chem optimization in place of a force evaluation.

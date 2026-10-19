@@ -713,16 +713,6 @@ def test_profile_record_precedes_first_job_and_allows_startup_directories(worksp
     assert Path('.kinbot_theory_jobs.json').read_bytes() == recorded
 
 
-@pytest.mark.parametrize('level', ['l0', 'l1', 'l2'])
-@pytest.mark.parametrize('optimizer', ['sella', 'native'])
-def test_nwchem_profiles_fail_before_generating_jobs(workspace, level, optimizer):
-    with pytest.raises(ValueError, match='NWChem.*Gaussian.*FairChem'):
-        profile_parameters(**{f'{level}_profile': dict(
-            calculator='nwchem', method='HF', basis='sto-3g', optimizer=optimizer)})
-    assert not Path('.kinbot_theory_jobs.json').exists()
-    assert not list(Path('.').glob('*.py'))
-
-
 def test_qchem_l0_keeps_ordinary_conformers_but_refuses_ring_jobs(workspace):
     from rdkit import Chem
     from rdkit.Chem import AllChem

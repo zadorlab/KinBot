@@ -69,3 +69,12 @@ def test_removed_nn_pes_calculator_is_rejected(tmp_path, monkeypatch):
     Path('input.json').write_text(json.dumps({'title': 'x', 'qc': 'nn_pes', 'smiles': 'C', 'charge': 0, 'mult': 1, 'barrier_threshold': 50.}))
     with pytest.raises(ValueError, match='nn_pes calculator was removed'):
         Parameters('input.json')
+
+
+def test_removed_nwchem_code_is_rejected(tmp_path, monkeypatch):
+    import pytest
+    from kinbot.parameters import Parameters
+    monkeypatch.chdir(tmp_path)
+    Path('input.json').write_text(json.dumps({'title': 'x', 'qc': 'nwchem', 'smiles': 'C', 'charge': 0, 'mult': 1, 'barrier_threshold': 50.}))
+    with pytest.raises(ValueError, match='qc must be one of gauss, qchem, orca or fc'):
+        Parameters('input.json')

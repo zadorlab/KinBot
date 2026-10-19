@@ -194,7 +194,7 @@ class Parameters:
 
             # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
-            'qc': 'gauss',  # or nwchem
+            'qc': 'gauss',  # or qchem, orca or fc
             # Rishi's opt-in theory profiles, extended to preliminary L0 jobs.
             'l0_qc': '',
             'l0_basis': '',
@@ -212,8 +212,6 @@ class Parameters:
             'l1_profile': {},
             'l2_profile': {},
             'profiled_route_file': '.kinbot_theory_jobs.json',
-            # nwchem-specific parameter
-            'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
             'qc_command': 'g16',
             # Quantum chemistry method to use as L1
@@ -523,6 +521,9 @@ class Parameters:
 
         if self.par['qc'] == 'nn_pes':
             raise ValueError('The nn_pes calculator was removed; use qc "fc" (FairChem/UMA) instead.')
+        if self.par['qc'].lower() not in ('gauss', 'qchem', 'orca', 'fc'):
+            raise ValueError(f'qc must be one of gauss, qchem, orca or fc; '
+                             f'{self.par["qc"]!r} is not supported (nwchem and nn_pes were removed).')
 
         if self.par['bimol'] and len(self.par['structure']) != 2:
             err = 'For bimolecular reactions two fragments need to be defined.'

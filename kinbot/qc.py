@@ -254,46 +254,6 @@ class QuantumChemistry:
 
             return kwargs
 
-        elif self.qc == 'nwchem':
-            # arguments for NWChem
-            odft = mult > 1
-            kwargs = {
-                'xc': self.method,
-                'basis': self.basis,
-                'scratch_dir': 'scratch',
-                'permanent_dir': './perm',
-                'label': job,
-                'mult': mult,
-                'charge': charge,
-                'odft': odft,
-                'task': 'optimize',
-                'driver': 'tight',
-                'maxiter': 100,
-                'clear': 1,
-                'inhess': 1
-            }
-            if ts:
-                # arguments for transition state searches
-                if step == max_step:
-                    kwargs['task'] = 'saddle'
-                else:
-                    kwargs['driver'] = 'default'
-            if irc is not None:
-                # arguments for the irc calculations
-                irc_kwargs = {
-                    'task': 'mepgs',
-                    'mepgs': 1,
-                    'maxmep': 30,
-                    'maxiter': 20,
-                    'inhess': 2,
-                    'xyz': 1,
-                    'evib': 0.0005,
-                    'stride': 0.1,
-                    'direction': irc
-                }
-                kwargs.update(irc_kwargs)
-            return kwargs
-
         elif self.qc == 'qchem':
             # arguments for QChem
             kwargs = {
@@ -419,9 +379,6 @@ class QuantumChemistry:
                 kwargs['addsec'] = '\n$opt\nCONSTRAINT\ntors ' \
                                    f'{" ".join(str(f) for f in fix[0])} ' \
                                    f'{dihedral}\nENDCONSTRAINT\n$end'
-        elif self.qc == 'nwchem':
-            code = 'nwchem'
-            Code = 'NWChem'
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
@@ -524,7 +481,7 @@ class QuantumChemistry:
         conformational search of cyclic structures and runs it.
         Makes use of Sella.
 
-        qc: 'gauss' or 'nwchem' or 'qchem'
+        qc: 'gauss', 'qchem', 'orca' or 'fc'
         wellorts: 0 for wells and 1 for saddle points
         conf_idx: index of ring conformer in the conformer search
         dih_idx: index of the dih for this conformer
@@ -556,9 +513,6 @@ class QuantumChemistry:
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
-        elif self.qc == 'nwchem':
-            code = 'nwchem'
-            Code = 'NWChem'
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
@@ -605,7 +559,7 @@ class QuantumChemistry:
     def qc_conf(self, species, geom, index, semi_emp=0):
         '''
         Creates a geometry optimization input for the conformational search and runs it.
-        qc: 'gauss' or 'nwchem' or 'qchem'
+        qc: 'gauss', 'qchem', 'orca' or 'fc'
         wellorts: 0 for wells and 1 for saddle points
         index: >=0 for sampling, each job will get numbered with index
         '''
@@ -642,9 +596,6 @@ class QuantumChemistry:
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
-        elif self.qc == 'nwchem':
-            code = 'nwchem'
-            Code = 'NWChem'
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
@@ -747,7 +698,7 @@ class QuantumChemistry:
         '''
         Sets up AIE calculations. Currently results are not digested by KinBot.
         Only for well, not for saddles!
-        qc: 'gauss' or 'nwchem' or 'qchem'
+        qc: 'gauss', 'qchem', 'orca' or 'fc'
         index: the index of the conformer as in conf search
         '''
         self._prepare_stereochemistry(species)
@@ -831,9 +782,6 @@ class QuantumChemistry:
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
-        elif self.qc == 'nwchem':
-            code = 'nwchem'
-            Code = 'NWChem'   
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
@@ -915,9 +863,6 @@ class QuantumChemistry:
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
-        elif self.qc == 'nwchem':
-            code = 'nwchem'
-            Code = 'NWChem'
         elif self.qc == 'orca':
             code = 'orca'
             Code = 'ORCA'
@@ -1378,7 +1323,6 @@ class QuantumChemistry:
         '''
         Read the last energy from the db for job.
         For Gaussian currently works for DFT and HF only.
-        For NWChem it works for optimization jobs, using the @ handle.
         If wait is set to 1, it will wait for the job to finish, otherwise
         just reads the last energy in the file.
         Returns the error code and the energy
@@ -1686,8 +1630,6 @@ class QuantumChemistry:
             for i in range(1):
                 if self.qc == 'gauss':
                     log_file = job + '.log'
-                elif self.qc == 'nwchem':
-                    log_file = job + '.out'
                 elif self.qc == 'qchem':
                     log_file = job + '.out'
                 elif self.qc == 'orca':

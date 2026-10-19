@@ -17,6 +17,7 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -752,6 +753,9 @@ def _stage_task(run_dir, spec, state, task):
     })
     (directory / 'job.slurm').write_text(
         _slurm_script(task, directory, state['python']))
+    from kinbot.anl.scratch_recovery import apply_exclusions
+    script = directory / 'job.slurm'
+    script.write_text(apply_exclusions(script.read_text(), state))
     state['tasks'][ident] = {
         'status': 'staged', 'geometry_from': source,
         'geometry_sha256': _geometry_hash(atoms),
@@ -1327,6 +1331,8 @@ def run_task(task_file):
     if outcome.exists():
         raise RuntimeError('Task already has execution.json; review before rerunning.')
     result = {'schema': 1, 'task_id': task['id'],
+              'slurm_job_id': os.environ.get('SLURM_JOB_ID'),
+              'execution_node': os.environ.get('SLURMD_NODENAME', socket.gethostname()),
               'geometry_sha256': record['geometry_sha256']}
     try:
         run_dir, spec, state = _load(directory.parents[1])
@@ -1372,6 +1378,14 @@ def run_task(task_file):
         result['failure_phase'] = (
             'execution' if isinstance(exc, CalculationUnavailableError)
             else 'validation')
+        from kinbot.qc_scratch import ScratchUnavailableError
+        cause = exc
+        while cause is not None:
+            if isinstance(cause, ScratchUnavailableError):
+                result.update(failure_phase='scratch_setup',
+                              retryable_scratch_node=cause.retryable_node)
+                break
+            cause = cause.__cause__
     _atomic_json(outcome, result)
     if result['status'] != 'executed':
         raise RuntimeError(f"{task['id']}: {result['error']}")
@@ -1577,8 +1591,9 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     hashes, geometry, resource layout and Slurm tests are always task-specific.
     No success is reused across graphs, scheduler retries or later launches.
     """
-    from kinbot.anl import account_recovery
+    from kinbot.anl import account_recovery, scratch_recovery
     account_recovery.resume(run_dir)
+    scratch_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     refresh_attempts = (set() if _site_refresh_attempts is None
                         else _site_refresh_attempts)
@@ -2164,8 +2179,9 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
 
 def advance(run_dir, submit=False, submit_only=None):
     """Complete finished tasks, stage ready tasks, and optionally submit jobs."""
-    from kinbot.anl import account_recovery
+    from kinbot.anl import account_recovery, scratch_recovery
     account_recovery.resume(run_dir)
+    scratch_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
     if submit_only is not None:
@@ -2278,6 +2294,7 @@ def advance(run_dir, submit=False, submit_only=None):
     # Old pinned workers may fail after replacement controllers start. Repair
     # only this recognized startup bug, once, before deriving component skips.
     state = account_recovery.recover(run_dir, spec, state)
+    state = scratch_recovery.recover(run_dir, spec, state)
 
     # An optional component that cannot execute is unavailable at this
     # requested level. Keep the failed native record for provenance, stop
@@ -2420,6 +2437,7 @@ def advance(run_dir, submit=False, submit_only=None):
             original_script = script_path.read_text()
             guarded = wrap_script(original_script, identity=ident,
                                   directories=[str(directory)], python=state['python'])
+            guarded = scratch_recovery.apply_exclusions(guarded, state)
             if guarded != original_script:
                 script_path.write_text(guarded)
                 entry['job_sha256'] = _file_hash(script_path)

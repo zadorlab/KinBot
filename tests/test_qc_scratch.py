@@ -161,6 +161,43 @@ def test_multinode_is_rejected_before_local_allocation():
         scratch.allocate({'SLURM_NNODES': '2'}, 'molpro', 1, probe=_check_scratch_io)
 
 
+@pytest.mark.parametrize('failure', ['permission', 'capacity', 'policy'])
+def test_allocation_retry_classification_keeps_storage_policy(tmp_path, monkeypatch, failure):
+    local = tmp_path/'local'
+    monkeypatch.setattr(scratch, 'candidates', lambda *a: iter([('site', local)]))
+    if failure == 'permission':
+        def denied(path):
+            raise PermissionError(errno.EACCES, 'Permission denied', str(path))
+        monkeypatch.setattr(scratch, 'filesystem', denied)
+    elif failure == 'capacity':
+        monkeypatch.setattr(scratch.shutil, 'disk_usage', lambda path: SimpleNamespace(free=0))
+    else:
+        def network(path):
+            raise OSError('network filesystem nfs4')
+        monkeypatch.setattr(scratch, 'filesystem', network)
+    with pytest.raises(scratch.ScratchUnavailableError) as caught:
+        scratch.allocate({}, 'molpro', 4096, probe=_check_scratch_io)
+    assert caught.value.retryable_node is (failure != 'policy')
+    if failure == 'capacity':
+        assert 'requires 4096 MB; 0 MB free' in str(caught.value)
+
+
+@pytest.mark.parametrize('value', [None, True, -1, 11, 1.5, '2'])
+def test_invalid_json_scratch_retry_limit_rejected(monkeypatch, value):
+    monkeypatch.setenv('KINBOT_QC_ACCOUNT', '')
+    with pytest.raises(ValueError, match='qc_scratch_retries'):
+        scratch.configure({'qc_scratch_retries': value})
+
+
+def test_json_scratch_retry_limit_reaches_dispatch_environment(monkeypatch):
+    monkeypatch.setenv('KINBOT_QC_ACCOUNT', '')
+    monkeypatch.setenv('KINBOT_QC_SCRATCH_RETRIES', '9')
+    scratch.configure({'qc_scratch_retries': 1})
+    assert scratch.scratch_retry_limit() == 1
+    scratch.configure({'qc_scratch_retries': 0})
+    assert scratch.scratch_retry_limit() == 0
+
+
 @pytest.mark.parametrize('backend,deck,checkpoint', [
     ('molpro', 'file,2,seed.wfu\nput,xml,job.xml\n', 'seed.wfu'),
     ('gaussian', '%chk=seed\n#p hf/sto-3g\n', 'seed.chk')])

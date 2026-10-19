@@ -424,3 +424,51 @@ separately, and suppresses duplicate execution/minimum-recovery records for
 the same failed task. A live retry's intermediate failure is labelled pending,
 not terminal. Both runs' controller tails and native QC progress remain visible.
 Use `--details` or `--json` for the complete records.
+
+## Automatic replacement allocations for inaccessible local scratch
+
+The October 19 CH3SS report contains four dispatcher failures where the
+account scratch directory was inaccessible and `/tmp` failed the capacity
+check. The earlier same-allocation I/O guard did not cover that combination.
+The ANL/VRC dispatcher now handles verified local-scratch setup failures with
+a separate allocation retry budget. The single KinBot input accepts
+`"qc_scratch_retries": 2` (default; integer 0–10; zero disables replacements).
+This is two replacement allocations per failed task, not an unlimited loop.
+
+The dispatcher waits for the original allocation to leave Slurm, validates
+the staged input and geometry, and obtains its execution node from worker
+provenance or a matching guard/scheduler record. It archives the failed task
+and stages the same calculation, excluding the failed node in addition to
+all existing exclusions. Unsubmitted tasks in that controller inherit the
+learned exclusions; submitted jobs remain untouched. The graph records
+`scratch_excluded_nodes` and `scratch_node_retries` for later restarts.
+If node identity cannot be established, the failure remains for review.
+
+New workers write explicit scratch-failure metadata. Retained older workers
+are recognized only by the scratch selector's specific diagnostic and
+traceback. An unrelated permission error is not eligible. Locality and space
+checks, `/scratch/<account>` preference, exclusive allocation, node caps,
+chemistry and convergence settings remain unchanged. No permission changes
+or shared/home scratch fallback are introduced. Exhausted scratch retries
+remain hard failures; they cannot consume the independent L3 retry budget
+or silently drop a composite component.
+
+Each affected graph archives attempts under `attempts/scratch_node_*/` and
+journals the archive in `scratch_recovery.json`. Interrupted archival is
+resumable. Completed calculations and live allocations are preserved.
+This feature applies to tasks managed by the ANL/VRC dispatcher, including
+its external native tasks and ASE geometry workers.
+
+To load it into this existing two-case run, pull and use `kinbot.run_refresh`
+with `--apply` on the same run root. This replaces the PES/KB controllers
+and retains both running and pending allocations. Existing jobs retain
+their original runtime until they finish; the replacement controllers
+recognize eligible failures from that runtime too. Adding `--replace-pending`
+is optional and uses the hold/verify/cancel procedure documented above.
+The monitor command and run directory remain the same.
+
+Validation: 360 tests passed, including archive interruption, legacy worker
+failures, active-job protection, retry exhaustion, staged-script exclusion
+updates, controller refresh, recovery, audit and monitor tests. One Linux-only
+pidfd test was skipped on macOS. Scheduler behavior was simulated locally;
+this does not claim that replacement jobs have already run on Blodgett.

@@ -23,11 +23,32 @@ LOCAL_FILESYSTEMS = {'ext2', 'ext3', 'ext4', 'xfs', 'btrfs', 'zfs', 'ufs',
                      'apfs', 'hfs', 'hfsplus', 'overlay'}
 
 
+class ScratchUnavailableError(OSError):
+    """No permitted local workspace passed the node's access/capacity checks."""
+
+    def __init__(self, code, message, *, retryable_node):
+        super().__init__(code, message)
+        self.retryable_node = retryable_node
+
+
+def scratch_retry_limit(value=None):
+    if value is None:
+        value = os.environ.get('KINBOT_QC_SCRATCH_RETRIES', '2')
+    if isinstance(value, bool) or not re.fullmatch(r'[0-9]+', str(value)) or not 0 <= int(value) <= 10:
+        raise ValueError('qc_scratch_retries must be an integer from 0 to 10.')
+    return int(value)
+
+
 def configure(parameters):
     """Carry single-input site preferences to all nested workers via Slurm."""
     # Compute-node NSS need not expose every submitting account. Carry the
     # login-host identity, bound to its numeric UID, through sbatch --export.
     os.environ['KINBOT_QC_ACCOUNT'] = json.dumps(account_identity())
+    if 'qc_scratch_retries' in parameters:
+        value = parameters['qc_scratch_retries']
+        if type(value) is not int:
+            raise ValueError('qc_scratch_retries must be an integer from 0 to 10.')
+        os.environ['KINBOT_QC_SCRATCH_RETRIES'] = str(scratch_retry_limit(value))
     if 'qc_scratch_fallbacks' in parameters:
         paths = parameters['qc_scratch_fallbacks']
         if (not isinstance(paths, list) or
@@ -197,7 +218,7 @@ def allocate(env, backend, minimum_mb, *, probe, work_directory=None, avoid_root
             root.mkdir(parents=True, exist_ok=True)
             free = shutil.disk_usage(root).free // 1024**2
             if free < minimum_mb:
-                raise OSError(f'requires {minimum_mb} MB; {free} MB free')
+                raise OSError(errno.ENOSPC, f'requires {minimum_mb} MB; {free} MB free')
             scratch = Path(tempfile.mkdtemp(prefix=f'kinbot-{backend}-', dir=root))
             probe(scratch)
             return scratch, {
@@ -214,7 +235,10 @@ def allocate(env, backend, minimum_mb, *, probe, work_directory=None, avoid_root
             rejected.append(f'{source}={candidate}: {error}')
             errors.append(error.errno)
     code = next((e for e in errors if e in (errno.EIO, errno.ESTALE, errno.ETIMEDOUT)), errno.ENOSPC)
-    raise OSError(code, 'No verified local QC scratch is usable: ' + '; '.join(rejected))
+    retryable = any(e in (errno.EACCES, errno.EPERM, errno.ENOSPC, errno.EDQUOT,
+                         errno.EIO, errno.ESTALE, errno.ETIMEDOUT, errno.EROFS) for e in errors)
+    raise ScratchUnavailableError(code, 'No verified local QC scratch is usable: ' + '; '.join(rejected),
+                                  retryable_node=retryable)
 
 
 def _basename(name):

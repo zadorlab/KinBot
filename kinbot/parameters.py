@@ -573,6 +573,9 @@ class Parameters:
             # and site/scheduler candidates; never allow shared HOME storage.
             'qc_scratch_fallbacks': [],
             'qc_scratch_min_mb': 4096,
+            # Dispatcher allocation retries after local scratch access/capacity
+            # failure; each retry excludes the execution node (0 disables).
+            'qc_scratch_retries': 2,
             # User name
             'username': '',
             # Max. number of job from user in queue, if negative, ignored
@@ -818,6 +821,8 @@ class Parameters:
             raise ValueError('anl_require_l3_geometry must be 0 or 1.')
         if type(self.par['anl_l3_max_retries']) is not int or self.par['anl_l3_max_retries'] < 0:
             raise ValueError('anl_l3_max_retries must be a nonnegative integer.')
+        if type(self.par['qc_scratch_retries']) is not int or not 0 <= self.par['qc_scratch_retries'] <= 10:
+            raise ValueError('qc_scratch_retries must be an integer from 0 to 10.')
         if (not isinstance(self.par['atct_version'], str)
                 or not self.par['atct_version'].strip()):
             raise ValueError('atct_version must be a nonempty string.')

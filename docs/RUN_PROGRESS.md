@@ -19,6 +19,13 @@ scan settings stay unknown; current library defaults must not be substituted
 silently for an older run. Scan graph counts are records, not necessarily
 unique accepted points: alternate input fingerprints can coexist. Correction
 task counts use `current_dispatch.json`, rather than summing obsolete graphs.
+The VRC restart journal identifies retired scan graphs. Those remain in the
+JSON as comparison evidence but are excluded from current scan counts and
+native-log reads. MR fragment-asymptote optimizations and fixed-geometry
+orbital tasks are counted separately from finite-distance scan points.
+Each configured bond, electronic root and scan basis is printed explicitly.
+An optimizer step number is an iteration within one point, not a scan-point
+index. Task counts remain observations, not an exact remaining-work total.
 
 ## Interpreting timing
 
@@ -32,9 +39,13 @@ In the current full-PES workflow, each multireference VRC leaf performs its
 relaxed scan sequentially, carrying geometry/orbitals from one point to the
 next. It then dispatches the independent correction single points and assembles
 that leaf's correction. State leaves/channels are processed sequentially by
-the worker. The 30-A asymptote (when configured) is an explicit separated
-structure, not an additional constrained optimization. ROTD dividing-surface
-distances and relaxed scan distances are separate grids.
+the worker. With `vrc_tst_fragment_geometry=asymptotic_scan`, each leaf first
+optimizes the separated supermolecule at the configured asymptotic distance
+using the MR scan level, then extracts fragment geometries and prepares
+fixed-geometry auxiliary orbitals when HOMO pivots are requested. It reuses
+that optimized structure for the scan's asymptote. The legacy fragment mode
+instead constructs an explicit separated structure at that endpoint.
+ROTD dividing-surface distances and relaxed scan distances are separate grids.
 
 CBH/ANL proceeds concurrently with VRC. For `pes` runs, workers prepare ROTD
 inputs with sampling deferred. Actual sampling is launched by PES

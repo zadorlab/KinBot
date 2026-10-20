@@ -209,13 +209,25 @@ def test_external_dispatch_writes_report_before_classifying_exit(tmp_path, monke
     from types import SimpleNamespace
     text, inp = real_case()
     (tmp_path / 'job.inp').write_text(inp)
-    task = {'kind': 'external', 'backend': 'molpro', 'resources': {'cores': 1, 'memory_mb': 8000},
-            'input_name': 'job.inp', 'command': ['molpro', '{input}']}
-    def run(*a, **k):
-        (tmp_path / 'job.out').write_text(text)
+    (tmp_path / 'geometry.xyz').write_text('1\nStaging fixture\nH 0 0 0\n')
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+    task = {'id': 'job', 'kind': 'external', 'backend': 'molpro',
+            'resources': {'cores': 1, 'memory_mb': 8000},
+            'input_name': 'job.inp', 'command': ['molpro', '{input}'],
+            'required_outputs': ['job.out']}
+    def run(command, **kwargs):
+        local = scratch / 'work'
+        assert kwargs['cwd'] == local
+        assert (local / 'job.inp').read_text() == inp
+        for flag, expected in [('-d', scratch), ('-I', scratch), ('-W', local)]:
+            assert command[command.index(flag) + 1] == str(expected)
+        (local / 'job.out').write_text(text)
+        assert not (tmp_path / 'job.out').exists()
         return SimpleNamespace(returncode=code)
     monkeypatch.setattr(dispatch.subprocess, 'run', run)
-    monkeypatch.setattr(dispatch, 'qc_runtime_environment', lambda *a, **k: ({}, {}))
+    monkeypatch.setattr(dispatch, 'qc_runtime_environment',
+                        lambda *a, **k: ({}, {'scratch_directory': str(scratch)}))
     monkeypatch.setattr(dispatch, 'cleanup_qc_runtime', lambda *a: None)
     monkeypatch.setattr(dispatch, '_validate_external_outputs', lambda *a: None)
     if code:

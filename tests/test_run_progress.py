@@ -111,3 +111,41 @@ def test_read_errors_are_visible(campaign):
     report = run_progress.collect(root, scheduler=([], None))
     assert report['read_errors']
     assert 'read errors=1' in run_progress.render(report)
+
+
+def test_mr_restart_reports_asymptote_and_pivots_separately(campaign):
+    root, worker, _ = campaign
+    (worker/'kinbot.log').write_text('    vrc_tst_scan_points: [2.5, 2.7, 2.9]\n')
+    put(worker/'123.json', {'vrc_tst_scan_basis': 'avdz-f12',
+                            'vrc_tst_fragment_geometry': 'asymptotic_scan'})
+    old = worker/'vrctst/molpro_scan/old_tz'
+    asym = worker/'vrctst/molpro_scan/new_asym'
+    point = worker/'vrctst/molpro_scan/new_pt00'
+    for path, name, basis, status in [
+            (old, 'vrc-caspt2-r_vts_pt00', 'avtz-f12', 'submitted'),
+            (asym, 'vrc-caspt2-r_vts_fragments_asymptote', 'avdz-f12', 'complete'),
+            (point, 'vrc-caspt2-r_vts_pt00', 'avdz-f12', 'submitted')]:
+        put(path/'workflow.json', {'name': name, 'tasks': [dict(
+            id='relaxed_scan', kind='ase_optimize', profile={'basis': basis})]})
+        put(path/'state.json', {'tasks': {'relaxed_scan': {'status': status}}})
+    put(old/'tasks/relaxed_scan/old.out', 'Retained comparison evidence\n')
+    put(root/'vrc_restart.json', {'retired_scans': [{'graph': str(old)}]})
+    pivot = worker/'vrctst/molpro_pivots/fragment_0_fixed_test'
+    put(pivot/'workflow.json', {'intent': {'fixed_geometry': True, 'orbital_only': True},
+                               'tasks': [{'id': 'pivot'}]})
+    put(pivot/'state.json', {'tasks': {'pivot': {'status': 'complete'}}})
+    before = snapshot(root)
+    report = run_progress.collect(root, scheduler=([], None))
+    assert snapshot(root) == before
+    w = report['cases'][0]['workers'][0]
+    retired = next(g for g in w['vrc_scans'] if g['retired'])
+    assert 'native' not in retired['tasks'][0]
+    assert w['surface_plan'][0]['fragment_geometry'] == 'asymptotic_scan'
+    text = run_progress.render(report)
+    assert 'current scan records={\'submitted\': 1}' in text
+    assert "MR fragment-asymptote records: {'complete': 1}; retired scan graphs=1" in text
+    assert "Fixed-geometry pivot task records: {'complete': 1}" in text
+    assert 'bond=[1, 2] single m=2 root=2: 3 points; basis=avdz-f12' in text
+    assert 'old_tz: optimizer step=' not in text
+    assert 'new_pt00: optimizer step=' in text
+    assert 'No reliable completion time' in text

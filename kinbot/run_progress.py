@@ -20,6 +20,8 @@ import time
 LIMIT = 256 * 1024
 KEYS = ('vrc_tst_scan_points', 'vrc_tst_asymptote_distance',
         'vrc_tst_scan_gradient', 'vrc_tst_scan_fmax',
+        'vrc_tst_scan_method', 'vrc_tst_scan_basis',
+        'vrc_tst_fragment_geometry', 'vrc_tst_pivot_level',
         'rotdpy_flux_parameters', 'pes', 'simultaneous_kinbot')
 
 
@@ -109,6 +111,8 @@ def surface_plan(params):
                     relaxed_points=len(grid) if numeric else None,
                     scan_grid=grid, asymptote=controls.get('vrc_tst_asymptote_distance'),
                     gradient=controls.get('vrc_tst_scan_gradient'),
+                    basis=controls.get('vrc_tst_scan_basis'),
+                    fragment_geometry=controls.get('vrc_tst_fragment_geometry'),
                     sampling_surfaces=len(stage.get('distances_angstrom', []))))
     return plans
 
@@ -125,7 +129,7 @@ def family(ident):
     return 'other components'
 
 
-def graph(reader, path, jobs):
+def graph(reader, path, jobs, *, retired=False):
     spec, state = reader.json(path/'workflow.json'), reader.json(path/'state.json')
     records = []
     for task in spec.get('tasks', []):
@@ -138,8 +142,10 @@ def graph(reader, path, jobs):
                    job_id=entry.get('job_id'), error=entry.get('error'),
                    resources=task.get('resources'),
                    optimizer=task.get('optimizer'),
+                   method=(task.get('profile') or {}).get('method'),
+                   basis=(task.get('profile') or {}).get('basis'),
                    live=jobs.get(str(work.resolve())))
-        if task.get('kind') == 'ase_optimize':
+        if task.get('kind') == 'ase_optimize' and not retired:
             lines = reader.text(work/'optimization.log').splitlines()
             steps = [s for s in lines if re.match(r'\s*(Sella|BFGS)\s+\d+\s', s)]
             row['optimizer_rows'] = steps[-6:]
@@ -152,8 +158,9 @@ def graph(reader, path, jobs):
                     pass
         # Read one current native output for wall-time text, never every force
         # evaluation or anything in retry/archive directories.
-        candidates = [p for p in work.glob('*') if p.suffix in ('.out', '.log')
-                      and p.name != 'optimization.log']
+        candidates = ([] if retired else
+                      [p for p in work.glob('*') if p.suffix in ('.out', '.log')
+                       and p.name != 'optimization.log'])
         if candidates:
             try:
                 native = max(candidates, key=lambda p: p.stat().st_mtime)
@@ -165,13 +172,20 @@ def graph(reader, path, jobs):
             except OSError as error:
                 reader.errors.append(f'{work}: {error}')
         records.append(row)
+    name = spec.get('name', path.name)
+    scan_kind = ('fragment_asymptote' if '_vts_fragments_asymptote' in name
+                 else 'relaxed_point')
     return dict(directory=str(path), molecule=spec.get('molecule'),
+                name=name, retired=retired, scan_kind=scan_kind,
                 intent=spec.get('intent'), tasks=records)
 
 
 def collect(root, *, scheduler=None):
     root = Path(root).expanduser().resolve(strict=True)
     reader = Reader()
+    migration = reader.json(root/'vrc_restart.json')
+    retired_scans = {str(Path(item['graph']).resolve())
+                     for item in migration.get('retired_scans', []) if item.get('graph')}
     live, scheduler_error = queue(root) if scheduler is None else scheduler
     jobs = {j['directory']: j for j in live}
     cases = []
@@ -187,8 +201,10 @@ def collect(root, *, scheduler=None):
             groups = {}
             for name, pattern in (
                     ('anl', 'anl_automatic/states/*/composite/workflow.json'),
-                    ('vrc_scans', 'vrctst/molpro_scan/*/workflow.json')):
-                groups[name] = [graph(reader, p.parent, jobs)
+                    ('vrc_scans', 'vrctst/molpro_scan/*/workflow.json'),
+                    ('vrc_pivots', 'vrctst/molpro_pivots/*/workflow.json')):
+                groups[name] = [graph(reader, p.parent, jobs,
+                                     retired=str(p.parent.resolve()) in retired_scans)
                                 for p in sorted(directory.glob(pattern))]
             # Use the current correction dispatcher pointer, avoiding obsolete
             # dispatch directories from older input fingerprints.
@@ -237,17 +253,34 @@ def render(report):
             plan = worker['surface_plan']
             planned = (sum(s['relaxed_points'] for s in plan)
                        if plan and all(s['relaxed_points'] is not None for s in plan) else 'unknown')
-            scans = [t for g in worker['vrc_scans'] for t in g['tasks']]
+            current = [g for g in worker['vrc_scans'] if not g['retired']]
+            scans = [t for g in current if g['scan_kind'] == 'relaxed_point' for t in g['tasks']]
+            asymptotes = [t for g in current if g['scan_kind'] == 'fragment_asymptote' for t in g['tasks']]
             counts = dict(Counter(t['status'] for t in scans))
             out.append(f'  {worker["worker"]} VRC: {len(plan)} configured leaves; '
                        f'planned relaxed points={planned}; current scan records={counts}')
-            for g in worker['vrc_scans']:
+            for leaf in plan:
+                out.append(f'    bond={leaf["bond"]} {leaf["stage"]} '
+                           f'm={leaf["multiplicity"]} root={leaf["root"]}: '
+                           f'{leaf["relaxed_points"]} points; basis={leaf["basis"]}')
+            out.append('  MR fragment-asymptote records: ' + str(dict(Counter(
+                t['status'] for t in asymptotes))) + '; retired scan graphs=' +
+                str(len(worker['vrc_scans']) - len(current)))
+            pivots = [t for g in worker['vrc_pivots']
+                      if (g.get('intent') or {}).get('orbital_only') for t in g['tasks']]
+            out.append('  Fixed-geometry pivot task records: ' + str(dict(Counter(
+                t['status'] for t in pivots))))
+            active = []
+            for g in current:
                 for t in g['tasks']:
                     if t['status'] in ('submitted', 'submitting', 'failed'):
                         opt = t.get('optimizer') or {}
-                        out.append(f'    {Path(g["directory"]).name}: step={t.get("last_step")}, '
-                                   f'fmax={t.get("last_fmax")}, target={opt.get("fmax")}; '
-                                   f'job={(t.get("live") or {}).get("elapsed", "not in queue")}')
+                        active.append(f'    {Path(g["directory"]).name}: optimizer step={t.get("last_step")}, '
+                                      f'fmax={t.get("last_fmax")}, target={opt.get("fmax")}; '
+                                      f'job={(t.get("live") or {}).get("elapsed", "not in queue")}')
+            out.extend(active[:4])
+            if len(active) > 4:
+                out.append(f'    {len(active)-4} additional scan records in JSON')
             correction = worker['correction_graph']
             out.append('  Correction task records: ' + str(dict(Counter(
                 t['status'] for t in correction['tasks'])) if correction else 'not materialized')
@@ -256,6 +289,10 @@ def render(report):
         out.append(f'  PES ROTD inputs={len(case["rotd_inputs"])}; results={len(case["rotd_results"])}')
     out.append('\nFull JSON includes individual graphs, dependencies and optimizer tails. '
                'Counts do not represent percent of wall time.')
+    out.append('VRC per leaf: MR asymptotic geometry (if configured) -> fixed-geometry pivots -> '
+               'relaxed points -> correction single points/assembly. ANL runs concurrently.\n'
+               'PES sampling waits for worker completion; MESS needs thermochemistry and ROTD results. '
+               'No reliable completion time until representative timings are available.')
     return '\n'.join(out)
 
 

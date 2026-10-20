@@ -250,6 +250,7 @@ def calculate_channel(vts, name, selection):
     """Compute separate MR paths/corrections for all reviewed state leaves."""
     from kinbot.vrc_tst_scan import VTS
     from kinbot.molpro import vrc_multireference_energy_contract
+    from kinbot.vrc_orbitals import copy_fragment_geometries
     channel, provenance = selection
     reaction = vts.scan_reac[name]
     stages = []
@@ -262,7 +263,7 @@ def calculate_channel(vts, name, selection):
                 raise ValueError('State-resolved VRC requires an explicit Molpro MR scan method.')
             leaf_name = f'{name}__{stage["name"]}_m{state["multiplicity"]}_r{state["root"]}'
             clone = copy(reaction)
-            clone.products = deepcopy(reaction.products)
+            clone.products = copy_fragment_geometries(reaction.products)
             clone.species = copy(reaction.species)
             clone.species.mult = state['multiplicity']
             clone.instance_name = leaf_name

@@ -169,3 +169,33 @@ constraints should be compared. Partial optimizer steps are useful diagnostic
 starting geometries, not converged reference geometries. Changing the fragment
 limit as well as the scan basis means an old/new difference cannot automatically
 be attributed to basis size alone.
+
+### Product-copy failure after the controller handoff
+
+The 2026-10-19 handoff cancelled the superseded scans and retained the ANL
+allocations, but both VRC branches then reported `maximum recursion depth
+exceeded`. Deep-copying a product followed its conformer-search reference into
+the live profiled QC router. Attribute lookup on the partially reconstructed
+router recursed; native molecule handles can also make that deep copy fail.
+The regression is reproducible without submitting a QC calculation.
+
+VRC now copies each product shell and its geometry array only. Atom ordering
+is already established at this stage; connectivity and thermochemistry are
+read-only, and attached conformer/QC services retain their identity. Separate
+roots and asymptotic fragment extraction therefore own separate coordinates
+without cloning running controllers. Tests exercise real StationaryPoint,
+Conformers and profiled QuantumChemistry objects, including in-place geometry
+changes across four leaves and extraction into the frozen-point records.
+The QC router also raises AttributeError rather than recursing when inspected
+before initialization. Branch journals now retain exception types and full
+tracebacks as soon as a branch fails, while the other branch continues.
+
+After pulling the fix, use a plain `kinbot.run_refresh RUN --apply`. The prior
+VRC input migration is complete; do not repeat the scan-cancellation flags.
+This refresh archives controller diagnostics, retains running and pending
+allocations and their task ledgers, and restarts the failed VRC branches with
+the saved aDZ/MR-fragment/L2-pivot and DZ/TZ correction settings. If a local
+environment-check or reference child is still active, refresh refuses before
+stopping controllers; let that child finish and repeat the same command.
+The same monitor command covers both replacement drivers. Native VRC progress
+must still be confirmed from the next cluster snapshot.

@@ -79,6 +79,15 @@ class TestTheoryProfiles(unittest.TestCase):
             self.assertEqual(backend.queue_job_root, str(Path.cwd()))
             self.assertFalse(backend.queue_job_root_recursive)
 
+    def test_profiled_introspection_before_initialization_does_not_recurse(self):
+        from kinbot.profiled_qc import ProfiledQuantumChemistry
+        router = ProfiledQuantumChemistry.__new__(ProfiledQuantumChemistry)
+        for name in ('l1', '__setstate__', 'unknown'):
+            self.assertFalse(hasattr(router, name))
+        router.l1 = SimpleNamespace(qc='gauss')
+        self.assertEqual(router.qc, 'gauss')
+        self.assertFalse(hasattr(router, 'unknown'))
+
     def test_every_anl_tier_defaults_to_b2plyp_d3bj_l2(self):
         for method in ('ANL0', 'ANL0-F12', 'ANL1', 'ANL1-F12'):
             parameters = self.parameters(

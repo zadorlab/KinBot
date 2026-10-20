@@ -196,6 +196,11 @@ def test_composite_outcome_is_visible_while_vrc_still_runs(monkeypatch, tmp_path
         assert state['branches']['cbh_anl']['status'] == ('failed' if fails else 'complete')
         assert state['branches']['vrc_tst']['status'] == 'running'
         assert state['mess_gate'] == ('blocked' if fails else 'waiting')
+        if fails:
+            branch = state['branches']['cbh_anl']
+            assert branch['error_type'] == 'RuntimeError'
+            assert 'in auto' in branch['traceback']
+            assert 'RuntimeError: reference L2 failed' in branch['traceback']
         return {'status': 'complete'}
 
     monkeypatch.setattr(kb, '_execute_automatic_branch', auto)
@@ -207,6 +212,38 @@ def test_composite_outcome_is_visible_while_vrc_still_runs(monkeypatch, tmp_path
     else:
         assert _post_reaction_branches(object(), _branch_parameters(tmp_path),
                                       object(), 'input.json', True)['status'] == 'complete'
+
+
+def test_vrc_traceback_is_published_before_composite_finishes(monkeypatch, tmp_path):
+    import time
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(automatic, 'prepare_automatic_cbh_anl',
+                        lambda *args, **kwargs: {'status': 'planned'})
+
+    def auto(*args):
+        deadline = time.monotonic() + 2.
+        while time.monotonic() < deadline:
+            state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+            branch = state['branches']['vrc_tst']
+            if branch['status'] == 'failed':
+                assert state['branches']['cbh_anl']['status'] == 'running'
+                assert branch['error_type'] == 'RecursionError'
+                assert 'in fail_vrc' in branch['traceback']
+                assert 'RecursionError: fixture VRC failure' in branch['traceback']
+                return {'status': 'complete'}
+            time.sleep(.01)
+        pytest.fail('VRC traceback was hidden until composite completion')
+
+    def fail_vrc(*args):
+        raise RecursionError('fixture VRC failure')
+
+    monkeypatch.setattr(kb, '_execute_automatic_branch', auto)
+    monkeypatch.setattr(kb, '_execute_vrc_branch', fail_vrc)
+    with pytest.raises(RuntimeError, match='MESS was not started'):
+        _post_reaction_branches(object(), _branch_parameters(tmp_path),
+                                object(), 'input.json', True)
+    state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+    assert state['branches']['cbh_anl']['status'] == 'complete'
 
 
 def test_mess_gate_stays_blocked_until_both_independent_branches_succeed(

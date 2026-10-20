@@ -926,7 +926,8 @@ class VTS:
                 reaction.irc_prod.geom if reaction.do_vdW
                 else reaction.species.geom, dtype=float)
             separation = asymptote_distance(self.par)
-            from kinbot.vrc_orbitals import asymptotic_fragments, prepare_fixed_pivot
+            from kinbot.vrc_orbitals import (
+                asymptotic_fragments, copy_fragment_geometries, prepare_fixed_pivot)
             separated = asymptotic_fragments(self.par)
             asymptotic_result = None
             if separated:
@@ -937,7 +938,7 @@ class VTS:
                 asymptotic_atoms, asymptotic_energy, asymptotic_dir, execution, state_model = asymptotic_result
                 # Copy the products: two electronic roots/channels must not
                 # overwrite each other's accepted fragment geometry.
-                reaction.products = copy.deepcopy(reaction.products)
+                reaction.products = copy_fragment_geometries(reaction.products)
                 evidence = {'mode': 'asymptotic_scan', 'basis': self.par['vrc_tst_scan_basis'],
                     'method': self.par['vrc_tst_scan_method'], 'distance_angstrom': separation,
                     'dispatch': str(asymptotic_dir),

@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from queue import Queue
 import threading
+import traceback
 
 from kinbot import license_message
 from kinbot import postprocess
@@ -230,10 +231,16 @@ def _post_reaction_branches(well, parameters, qc, input_file,
         state['slot_cap'] = 'live shared pool'
         for branch in state['branches'].values():
             branch['slots'] = 'shared'
+
+    def failure_details(error):
+        return {'error': str(error), 'error_type': type(error).__name__,
+                'traceback': ''.join(traceback.format_exception(
+                    type(error), error, error.__traceback__))}
+
     if preparation_error:
-        state['branches']['cbh_anl']['error'] = str(preparation_error)
+        state['branches']['cbh_anl'].update(failure_details(preparation_error))
     if join_error:
-        state['final_solver']['error'] = str(join_error)
+        state['final_solver'].update(failure_details(join_error))
     _atomic_json(state_path, state)
 
     results = {}
@@ -257,7 +264,7 @@ def _post_reaction_branches(well, parameters, qc, input_file,
             results[name] = function(*args)
         except Exception as error:
             errors.append((name, error))
-            publish_branch(name, status='failed', error=str(error))
+            publish_branch(name, status='failed', **failure_details(error))
         else:
             publish_branch(name, status='complete')
 
@@ -276,7 +283,7 @@ def _post_reaction_branches(well, parameters, qc, input_file,
                 value = _execute_automatic_branch(
                     well, automatic_parameters, input_file, directory, plan)
             except BaseException as error:
-                publish_branch('cbh_anl', status='failed', error=str(error))
+                publish_branch('cbh_anl', status='failed', **failure_details(error))
                 channel.put(('error', error))
             else:
                 publish_branch('cbh_anl', status='complete')

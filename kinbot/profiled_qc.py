@@ -225,7 +225,9 @@ class ProfiledQuantumChemistry:
 
     def __getattr__(self, name):
         # Unclassified operations (reaction scans, IRC, VTS, conformers) are L1.
-        return getattr(self.l1, name)
+        # Introspection can run before __init__ has installed l1. Re-entering
+        # this method to look up l1 would recurse indefinitely.
+        return getattr(object.__getattribute__(self, 'l1'), name)
 
     def _get_queue_setting(self, name):
         return getattr(self.l1, name)

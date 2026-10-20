@@ -84,16 +84,43 @@ def test_scalar_parameters_preserve_parent_and_select_each_native_root(tmp_path)
 
 def test_correction_orchestrator_uses_independent_paths_and_original_species(tmp_path, monkeypatch):
     from kinbot.vrc_tst_scan import VTS
+    from kinbot.stationary_pt import StationaryPoint
+    from kinbot.conformers import Conformers
+    from kinbot.parameters import Parameters
+    from kinbot.qc import QuantumChemistry
     from test_rotdpy_profiles import sulfur_correction
-    par, _, _ = sulfur_correction(tmp_path)
     monkeypatch.chdir(tmp_path)
+    Path('profiles.json').write_text(json.dumps({
+        'theory_preset': 'b3lyp-b2plyp-anl', 'barrier_threshold': 50.}))
+    profiles = Parameters('profiles.json', show_warnings=False).par
+    qc = QuantumChemistry(profiles)
+    par, _, _ = sulfur_correction(tmp_path)
+    products = [StationaryPoint('h', 0, 2, natom=1, atom=['H'], geom=np.zeros((1, 3))),
+                StationaryPoint('s', 0, 3, natom=1, atom=['S'], geom=np.ones((1, 3)))]
+    for product in products:
+        product.confs = Conformers(product, profiles, qc)
+    # Live conformer/QC objects must remain shared, even when copy support on
+    # the router changes. The regression uses the actual production objects.
+    def reject_service_copy(*args):
+        pytest.fail('VRC copied a live conformer/QC controller')
+    monkeypatch.setattr(Conformers, '__deepcopy__', reject_service_copy, raising=False)
+    original_geometries = [p.geom.copy() for p in products]
     parent = SimpleNamespace(mult=2)
-    reaction = SimpleNamespace(species=parent, products=[SimpleNamespace(mult=2), SimpleNamespace(mult=3)])
-    vts = VTS(SimpleNamespace(), par, None)
+    reaction = SimpleNamespace(species=parent, products=products)
+    vts = VTS(SimpleNamespace(), par, qc)
     vts.scan_reac['reaction'] = reaction
-    calls = []
+    calls, leaves = [], []
     def scan(child, names):
-        calls.append((names[0], child.scan_reac[names[0]].species.mult,
+        leaf = child.scan_reac[names[0]]
+        leaves.append(leaf)
+        for index, product in enumerate(leaf.products):
+            assert product is not products[index]
+            assert product.confs is products[index].confs
+            assert product.confs.qc is qc
+            assert np.array_equal(product.geom, original_geometries[index])
+            # Include in-place changes, not just assignment of new arrays.
+            product.geom[:] += len(leaves)
+        calls.append((names[0], leaf.species.mult,
                       child.par['vrc_tst_selected_roots']))
     def energies(child, names):
         Path(f'vrctst/corr_{names[0]}.json').write_text('{}')
@@ -105,6 +132,11 @@ def test_correction_orchestrator_uses_independent_paths_and_original_species(tmp
     assert len(calls) == 4 and len(set(name for name, _, _ in calls)) == 4
     assert calls[-1][1] == 4 and calls[1][2]['2'] == 2
     assert parent.mult == 2
+    for index, product in enumerate(products):
+        assert np.array_equal(product.geom, original_geometries[index])
+        for offset, leaf in enumerate(leaves, 1):
+            assert np.array_equal(leaf.products[index].geom,
+                                  original_geometries[index] + offset)
     assert payload['kind'] == 'multistate'
     assert all(file_sha256(state['correction']) == state['correction_sha256']
                for stage in payload['bottlenecks'] for state in stage['states'])

@@ -4,6 +4,7 @@ These auxiliary orbitals do not supply the VRC interaction energies.  Their
 own dispatcher graph retains the native input, output, geometry and cube.
 """
 
+from copy import copy
 import hashlib
 import json
 from pathlib import Path
@@ -19,6 +20,22 @@ from kinbot.anl.tasks import MOLPRO_HEADER
 from kinbot.molpro import validate_molpro_convergence
 from kinbot.orbital_cube import read_orbital_cube
 from kinbot.theory import fortran_threshold
+
+
+def copy_fragment_geometries(products):
+    """Give a VRC path independent coordinates, retaining read-only metadata.
+
+    Products can own conformer searches, QC routers and native molecule
+    handles. Those live services must not be deep-copied. The MR scan changes
+    only ``geom`` after atom ordering has been established; connectivity and
+    the accepted thermochemistry remain shared and are never modified here.
+    """
+    copies = []
+    for product in products:
+        fragment = copy(product)
+        fragment.geom = np.array(product.geom, dtype=float, copy=True)
+        copies.append(fragment)
+    return copies
 
 
 def validate_fragment_controls(parameters):

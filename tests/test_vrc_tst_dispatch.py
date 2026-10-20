@@ -521,12 +521,26 @@ def test_vrc_dispatch_retries_each_task_at_most_once(tmp_path):
 
 
 def test_asymptotic_mr_geometry_feeds_fixed_pivots_and_every_frozen_point(tmp_path, monkeypatch):
+    from kinbot.stationary_pt import StationaryPoint
+    from kinbot.conformers import Conformers
+    from kinbot.parameters import Parameters
+    from kinbot.qc import QuantumChemistry
     monkeypatch.chdir(tmp_path)
+    Path('profiles.json').write_text(json.dumps({
+        'theory_preset': 'b3lyp-b2plyp-anl', 'barrier_threshold': 50.}))
+    profiles = Parameters('profiles.json', show_warnings=False).par
+    qc = QuantumChemistry(profiles)
     geometry = np.array([[0., 0., 0.], [0., 0., .74],
                          [0., 0., 3.24], [0., 0., 3.98]])
-    products = [SimpleNamespace(atom=['H', 'H'], natom=2, charge=0, mult=1,
-                geom=geometry[part].copy(), bond01=np.array([[0, 1], [1, 0]]))
+    products = [StationaryPoint('h2', 0, 1, atom=['H', 'H'], natom=2,
+                geom=geometry[part].copy())
                 for part in (slice(0, 2), slice(2, 4))]
+    for product in products:
+        product.bond01 = np.array([[0, 1], [1, 0]])
+        product.confs = Conformers(product, profiles, qc)
+    def reject_service_copy(*args):
+        pytest.fail('Asymptotic extraction copied a live conformer/QC controller')
+    monkeypatch.setattr(Conformers, '__deepcopy__', reject_service_copy, raising=False)
     reaction = SimpleNamespace(scan_coo=[1, 2], maps=[[0, 1], [2, 3]],
         equiv=[[1], [2]], products=products, do_vdW=False,
         species=SimpleNamespace(atom=['H']*4, geom=geometry.copy(), charge=0, mult=1),
@@ -553,6 +567,10 @@ def test_asymptotic_mr_geometry_feeds_fixed_pivots_and_every_frozen_point(tmp_pa
     assert optimized == [(30., 'r_vts_fragments_asymptote'), (2.5, 'r_vts_pt00'), (2.7, 'r_vts_pt01')]
     assert [item[0] for item in pivots] == pytest.approx([.80, .82])
     assert products[0].geom == pytest.approx(geometry[:2])  # source objects preserved
+    assert products[1].geom == pytest.approx(geometry[2:])
+    for original, fragment in zip(products, reaction.products):
+        assert fragment.confs is original.confs
+        assert fragment.confs.qc is qc
     assert reaction.fragment_orbital_cubes == ['vrctst/pivot_cubes/r/fragment_0.cube',
                                                'vrctst/pivot_cubes/r/fragment_1.cube']
     db = connect('kinbot.db')

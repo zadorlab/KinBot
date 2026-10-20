@@ -13,6 +13,7 @@ from kinbot.vrc_tst_scan import VTS
 
 
 def test_gaussian_fixed_cube_conversion_runs_in_local_workspace(tmp_path, monkeypatch):
+    import json
     import os
     import sys
     from kinbot.anl import dispatch
@@ -26,10 +27,11 @@ def test_gaussian_fixed_cube_conversion_runs_in_local_workspace(tmp_path, monkey
     frag = SimpleNamespace(atom=atoms.get_chemical_symbols(), geom=atoms.positions, mult=1, charge=0)
     spec = fixed_pivot_spec(frag, par)
     task = spec['tasks'][0]
-    task['resources'] = {'cores': 1, 'memory_mb': 512, 'walltime': '00:10:00'}
+    task['resources'] = {'cores': 8, 'memory_mb': 512, 'walltime': '00:10:00'}
     dispatch.validate_spec(spec)
     task['command'] = [sys.executable, '-c',
-        "from pathlib import Path; Path('pivot.chk').write_text('native checkpoint'); "
+        "import os; from pathlib import Path; assert os.environ['OMP_NUM_THREADS'] == '8'; "
+        "Path('pivot.chk').write_text('native checkpoint'); "
         "print('Normal termination')"]
     cube = write_cube(tmp_path/'source.cube', atoms=[(6, atoms.positions[0]), (8, atoms.positions[1])])
     binaries = tmp_path/'bin'; binaries.mkdir()
@@ -42,18 +44,144 @@ def test_gaussian_fixed_cube_conversion_runs_in_local_workspace(tmp_path, monkey
         ('formchk', "Path('pivot.fchk').write_text(str(Path.cwd()))"),
         ('cubegen', f"Path('homo.cube').write_text({cube.read_text()!r})")):
         executable = binaries/name
-        executable.write_text(f'#!{sys.executable}\nfrom pathlib import Path\n{action}\n')
+        executable.write_text(f'#!{sys.executable}\nfrom pathlib import Path\n'
+                              f'import os\nassert os.environ["OMP_NUM_THREADS"] == "1"\n{action}\n')
         executable.chmod(0o755)
     env = dict(os.environ, PATH=str(binaries)+os.pathsep+os.environ['PATH'])
     monkeypatch.setattr(dispatch, 'qc_runtime_environment', lambda *a, **kw: (env, runtime))
     monkeypatch.setattr(dispatch, 'cleanup_qc_runtime', lambda runtime: None)
-    dispatch._run_external(work, {'task': task})
+    details = dispatch._run_external(work, {'task': task})
     assert Path((work/'pivot.fchk').read_text()) == scratch/'work'
     assert (work/'homo.cube').read_text() == cube.read_text()
     assert runtime['native_work_directory'] == str(scratch/'work')
+    evidence = json.loads((work/'gaussian_orbital_export.json').read_text())
+    assert env['OMP_NUM_THREADS'] == '8'
+    assert evidence['environment']['OMP_NUM_THREADS'] == '1'
+    assert [c['returncode'] for c in evidence['commands']] == [0, 0]
+    assert 'gaussian_orbital_export.json' in details['generated_files']
+    assert all((work/c[key]).is_file() for c in evidence['commands']
+               for key in ('stdout', 'stderr'))
     (work/'pivot.log').write_text('Convergence criterion not met.\nNormal termination\n')
     with pytest.raises(RuntimeError, match='did not converge'):
         dispatch._validate_external_outputs(work, task)
+
+
+@pytest.mark.parametrize('failed_utility', ['formchk', 'cubegen'])
+def test_failed_cube_utility_preserves_stdout_stderr_and_command(tmp_path, monkeypatch, failed_utility):
+    import json
+    import os
+    import sys
+    from kinbot.anl import dispatch
+    work = tmp_path/'results'; work.mkdir()
+    scratch = tmp_path/'local'; scratch.mkdir()
+    binaries = tmp_path/'bin'; binaries.mkdir()
+    (work/'pivot.com').write_text('fixed geometry fixture\n')
+    write(work/'geometry.xyz', Atoms('H2', positions=[[0,0,0], [0,0,.74]]))
+    task = {'id': 'pivot', 'kind': 'external', 'backend': 'gaussian',
+            'input_name': 'pivot.com', 'resources': {'cores': 1, 'memory_mb': 512},
+            'command': [sys.executable, '-c',
+                "from pathlib import Path; Path('pivot.chk').write_text('checkpoint'); print('Normal termination')"],
+            'stdout': 'pivot.log', 'stderr': 'launcher.stderr',
+            'required_outputs': ['pivot.log', 'pivot.chk', 'pivot.fchk', 'homo.cube'],
+            'gaussian_orbital_export': {'checkpoint': 'pivot.chk', 'formatted': 'pivot.fchk',
+                'cube': 'homo.cube', 'log': 'pivot.log', 'orbital': 'AMO=HOMO'}}
+    for name in ('formchk', 'cubegen'):
+        executable = binaries/name
+        action = ("print('Actual native diagnostic on stdout'); "
+                  "print('First stderr diagnostic\\n' + 'x'*6000, file=sys.stderr); sys.exit(13)"
+                  if name == failed_utility else "Path('pivot.fchk').write_text('formatted')")
+        executable.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\n{action}\n')
+        executable.chmod(0o755)
+    env = dict(os.environ, PATH=str(binaries)+os.pathsep+os.environ['PATH'])
+    runtime = {'scratch_directory': str(scratch)}
+    monkeypatch.setattr(dispatch, 'qc_runtime_environment', lambda *a, **kw: (env, runtime))
+    monkeypatch.setattr(dispatch, 'cleanup_qc_runtime', lambda runtime: None)
+    with pytest.raises(dispatch.CalculationUnavailableError, match=f'{failed_utility} failed') as raised:
+        dispatch._run_external(work, {'task': task})
+    assert 'Actual native diagnostic on stdout' in str(raised.value)
+    assert 'First stderr diagnostic' in str(raised.value)
+    assert (work/(failed_utility+'.stdout')).read_text().startswith('Actual native diagnostic')
+    assert len((work/(failed_utility+'.stderr')).read_text()) > 6000
+    evidence = json.loads((work/'gaussian_orbital_export.json').read_text())
+    assert evidence['directory'] == str(scratch/'work')
+    assert evidence['commands'][-1]['command'][0] == str(binaries/failed_utility)
+    assert evidence['commands'][-1]['returncode'] == 13
+    assert (work/'pivot.chk').is_file()
+    assert (work/'pivot.failure.json').is_file()
+    if failed_utility == 'cubegen':
+        assert (work/'pivot.fchk').read_text() == 'formatted'
+    assert not (work/'execution.json').exists()
+
+
+@pytest.mark.parametrize('failed_utility', ['formchk', 'cubegen'])
+@pytest.mark.parametrize('blocked', [None, 'changed_input', 'live_job'])
+def test_refresh_retries_old_export_failure_with_real_archive(tmp_path, monkeypatch, failed_utility, blocked):
+    """A replacement driver can recover the old validation-labelled exit."""
+    import json
+    from kinbot.anl import dispatch
+    from kinbot.parameters import Parameters
+    from kinbot.vrc_orbitals import fixed_pivot_spec
+    from kinbot.vrc_tst_scan import _drive_vrc_dispatch
+
+    inp = tmp_path/'input.json'
+    inp.write_text('{"barrier_threshold": 100, "theory_preset": "b3lyp-b2plyp-anl"}')
+    spec = fixed_pivot_spec(product(), Parameters(str(inp)).par)
+    task = spec['tasks'][0]
+    task['resources'] = {'cores': 8, 'memory_mb': 4096, 'walltime': '01:00:00'}
+    monkeypatch.setattr(dispatch, 'render_site_setup', lambda *a: '')
+    graph = dispatch.prepare(spec, tmp_path/'graph')
+    _, _, state = dispatch._load(graph)
+    entry = state['tasks']['pivot']
+    entry.update(status='failed', job_id='123')
+    original_geometry = entry['geometry_sha256']
+    dispatch._atomic_json(graph/'state.json', state)
+    directory = graph/'tasks/pivot'
+    original_input = (directory/'pivot.com').read_bytes()
+    (directory/'pivot.chk').write_bytes(b'saved native checkpoint')
+    execution = {'schema': 1, 'task_id': 'pivot',
+                 'geometry_sha256': original_geometry,
+                 'status': 'failed', 'failure_phase': 'validation',
+                 'error': f'{failed_utility} failed: native stack trace'}
+    dispatch._atomic_json(directory/'execution.json', execution)
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: blocked == 'live_job')
+    monkeypatch.setattr(dispatch, 'preflight_until_scheduler_ready', lambda *a, **kw: None)
+    observed = []
+    def drive(run_dir, **kwargs):
+        current = dispatch._load(run_dir)[2]['tasks']['pivot']
+        observed.append(current['status'])
+        if current['status'] == 'failed':
+            return 1, {'pivot': 'failed'}
+        assert current['status'] == 'staged'
+        assert current['attempt'] == 2
+        assert current['geometry_sha256'] == original_geometry
+        assert 'job_id' not in current
+        return 0, {'pivot': 'complete'}
+    monkeypatch.setattr(dispatch, 'drive_run', drive)
+    if blocked:
+        if blocked == 'changed_input':
+            (directory/'pivot.com').write_text('edited input\n')
+        with pytest.raises(RuntimeError, match=(
+                'changed' if blocked == 'changed_input' else 'still active')):
+            _drive_vrc_dispatch(graph, ['pivot'])
+        assert (directory/'pivot.chk').is_file()
+        assert not (graph/'attempts/pivot/1').exists()
+        return
+    assert _drive_vrc_dispatch(graph, ['pivot']) == (0, {'pivot': 'complete'})
+    assert observed == ['failed', 'staged']
+    archive = graph/'attempts/pivot/1'
+    assert (archive/'pivot.chk').read_bytes() == b'saved native checkpoint'
+    assert json.loads((archive/'execution.json').read_text()) == execution
+    assert (directory/'pivot.com').read_bytes() == original_input
+    assert not (directory/'execution.json').exists()
+
+    # Restarting again after an unsuccessful replacement cannot reset the
+    # attempt budget or silently accept the incomplete cube.
+    _, _, state = dispatch._load(graph)
+    state['tasks']['pivot']['status'] = 'failed'
+    dispatch._atomic_json(graph/'state.json', state)
+    dispatch._atomic_json(directory/'execution.json', execution)
+    assert _drive_vrc_dispatch(graph, ['pivot']) == (1, {'pivot': 'failed'})
+    assert not (graph/'attempts/pivot/2').exists()
 
 
 def test_restart_controls_validate_reviewed_examples_and_only_change_geometry(tmp_path, monkeypatch):

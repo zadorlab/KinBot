@@ -22,6 +22,10 @@ from kinbot.orbital_cube import read_orbital_cube
 from kinbot.theory import fortran_threshold
 
 
+GAUSSIAN_EXPORT_FILES = ('formchk.stdout', 'formchk.stderr', 'cubegen.stdout',
+                         'cubegen.stderr', 'gaussian_orbital_export.json')
+
+
 def copy_fragment_geometries(products):
     """Give a VRC path independent coordinates, retaining read-only metadata.
 
@@ -124,14 +128,33 @@ def fixed_pivot_spec(product, parameters):
 def export_gaussian_cube(directory, settings, environment):
     """Run conversion on the compute node, inside the native local workspace."""
     import subprocess
+    from kinbot.anl.dispatch import CalculationUnavailableError
+    from kinbot.execution import atomic_json
     directory = Path(directory)
     log = directory/settings['log']
     text = log.read_text(errors='replace')
     if ('Normal termination' not in text or re.search(
             r'Convergence criterion not met|Convergence failure|Error termination', text, re.I)):
         raise ValueError('Gaussian orbital calculation did not converge normally.')
+    # cubegen's nprocs argument requests one processor. Do not inherit the
+    # preceding Gaussian SCF's OpenMP allocation or mutate its environment.
+    environment = dict(environment, OMP_NUM_THREADS='1')
     commands = [['formchk', settings['checkpoint'], settings['formatted']],
                 ['cubegen', '1', settings['orbital'], settings['formatted'], settings['cube'], '-4']]
+    evidence = {'schema': 1, 'directory': str(directory), 'settings': dict(settings),
+                'environment': {key: environment.get(key) for key in (
+                    'GAUSS_MEMDEF', 'GAUSS_PDEF', 'GAUSS_CDEF', 'OMP_NUM_THREADS',
+                    'GAUSS_SCRDIR', 'TMPDIR')}, 'commands': []}
+    evidence_path = directory / 'gaussian_orbital_export.json'
+    def excerpt(path):
+        with path.open('rb') as stream:
+            head = stream.read(2048)
+            stream.seek(0, 2)
+            size = stream.tell()
+            if size > len(head):
+                stream.seek(max(len(head), size - 1024))
+                head += b'\n...\n' + stream.read(1024)
+        return head.decode(errors='replace').strip()
     for command in commands:
         from kinbot.anl.site import _executable
         executable = (environment.get(f'KINBOT_{command[0].upper()}_EXECUTABLE')
@@ -139,10 +162,27 @@ def export_gaussian_cube(directory, settings, environment):
                       or _executable(command[0], 'gaussian'))
         if executable is None:
             raise FileNotFoundError(f'Missing Gaussian cube utility {command[0]}.')
-        result = subprocess.run([executable, *command[1:]], cwd=directory, env=environment,
-                                capture_output=True, text=True, check=False)
+        stdout, stderr = (directory / (command[0] + suffix)
+                          for suffix in ('.stdout', '.stderr'))
+        record = {'command': [str(executable), *command[1:]],
+                  'stdout': stdout.name, 'stderr': stderr.name}
+        evidence['commands'].append(record)
+        atomic_json(evidence_path, evidence)
+        try:
+            with stdout.open('wb') as out, stderr.open('wb') as err:
+                result = subprocess.run(record['command'], cwd=directory, env=environment,
+                                        stdout=out, stderr=err, check=False)
+            record['returncode'] = result.returncode
+        except OSError as error:
+            record['error'] = str(error)
+            raise CalculationUnavailableError(
+                f'Could not start {command[0]}: {error}') from error
+        finally:
+            atomic_json(evidence_path, evidence)
         if result.returncode:
-            raise RuntimeError(f'{command[0]} failed: {result.stderr[-1000:]}')
+            raise CalculationUnavailableError(
+                f'{command[0]} failed (exit {result.returncode}); '
+                f'stdout: {excerpt(stdout)}; stderr: {excerpt(stderr)}')
     validate_cube_geometry(read_orbital_cube(directory/settings['cube']), read(directory/'geometry.xyz'))
 
 

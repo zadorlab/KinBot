@@ -84,7 +84,7 @@ def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
     constraint, and result-validation failures are never retried here.
     """
     from kinbot.anl.dispatch import (
-        SchedulerUnavailableError, _load, drive_run,
+        SchedulerUnavailableError, _load, _verify_stage_files, drive_run,
         preflight_until_scheduler_ready, retry_failed)
 
     task_ids = tuple(task_ids)
@@ -92,7 +92,8 @@ def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
         returncode, summary = drive_run(run_dir, interval=interval)
         if not returncode:
             return returncode, summary
-        _, _, state = _load(run_dir)
+        _, spec, state = _load(run_dir)
+        tasks = {task['id']: task for task in spec.get('tasks', [])}
         retry = []
         for task_id in task_ids:
             entry = state['tasks'].get(task_id, {})
@@ -106,6 +107,20 @@ def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
             phase = entry.get('failure_phase') or execution.get(
                 'failure_phase')
             attempt = int(entry.get('attempt', 1))
+            task = tasks.get(task_id, {})
+            # Older workers misclassified utility process exits as validation
+            # failures. Recognize only their exact export error, never a cube
+            # parser, geometry, SCF, or provenance rejection. The existing
+            # persisted attempt budget still bounds retries after refreshes.
+            if (phase == 'validation' and attempt < max_attempts
+                    and task.get('kind') == 'external'
+                    and task.get('backend', '').lower() == 'gaussian'
+                    and task.get('gaussian_orbital_export')
+                    and execution.get('status') == 'failed'
+                    and re.match(r'^(?:formchk|cubegen) failed:',
+                                 execution.get('error', ''))):
+                _verify_stage_files(Path(run_dir), task, entry)
+                phase = 'execution'
             if phase in ('execution', 'scheduler') and attempt < max_attempts:
                 retry.append((task_id, phase, attempt))
         if not retry:

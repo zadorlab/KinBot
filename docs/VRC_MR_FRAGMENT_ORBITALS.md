@@ -90,6 +90,24 @@ UKS/RKS orbital-only jobs export native cubes at the same fixed coordinates.
 The Gaussian L2 path rejects composite methods that implicitly optimize and
 extra route instructions that would change geometry or request derivatives.
 
+Cube conversion retains `formchk.stdout`, `formchk.stderr`, `cubegen.stdout`,
+`cubegen.stderr` and `gaussian_orbital_export.json` beside the pivot job.
+The JSON records utility commands, exit codes, local working directory and
+selected resource/scratch environment settings. Failed conversions publish
+this evidence and the checkpoint before scratch cleanup, even when the
+preceding Gaussian calculation terminated normally. An export failure does
+not accept a partial cube or invalidate the separate MR fragment geometry.
+
+The conversion utilities use one OpenMP thread, matching the one-processor
+`cubegen` invocation, independently of the Gaussian orbital single point's
+core count. Utility process exits now use the existing bounded VRC execution
+retry (two task attempts total). Replacement drivers also recognize the exact
+`formchk failed:` / `cubegen failed:` errors that older workers mislabelled as
+validation failures. Before restaging, inputs and geometry are checked and the
+failed task is archived. The retry repeats the fixed-geometry orbital task;
+the completed MR geometry is reused. Cube/parser/geometry validation failures
+remain hard failures.
+
 A cube and `.orbitals.json` belong to a channel/root/fragment, not just a
 species name. The handoff checks the cube hash, atom order and geometry. A
 rigid coordinate-frame rotation is allowed; a stale cube cannot replace the

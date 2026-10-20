@@ -922,12 +922,18 @@ def _run_external(directory, record):
     child_env['OMP_NUM_THREADS'] = str(_omp_threads(task))
     from kinbot.qc_scratch import workspace, molpro_command
     result = None
+    native_completed = False
+    export_files = ()
     try:
         inputs = [task['input_name'], 'geometry.xyz', *task.get('files_from_env', {})]
         outputs = [*task['required_outputs'], task.get('stdout', 'stdout.txt'),
                    task.get('stderr', 'stderr.txt')]
         outputs.extend(name for alternatives in task.get('output_aliases', {}).values()
                        for name in alternatives)
+        if task.get('gaussian_orbital_export'):
+            from kinbot.vrc_orbitals import GAUSSIAN_EXPORT_FILES
+            export_files = GAUSSIAN_EXPORT_FILES
+            outputs.extend(export_files)
         with workspace(directory, runtime, backend=task['backend'], inputs=inputs,
                        outputs=outputs, label=task['id']) as local:
             if task['backend'].lower() == 'molpro':
@@ -946,8 +952,9 @@ def _run_external(directory, record):
             if not result.returncode and task.get('gaussian_orbital_export'):
                 from kinbot.vrc_orbitals import export_gaussian_cube
                 export_gaussian_cube(local, task['gaussian_orbital_export'], child_env)
+        native_completed = not result.returncode
     finally:
-        if result is None or result.returncode:
+        if not native_completed:
             from kinbot.anl.runtime import preserve_qc_failure
             preserve_qc_failure(runtime, directory, Path(task['input_name']).stem,
                                 None if result is None else result.returncode)
@@ -967,6 +974,9 @@ def _run_external(directory, record):
     aliases = _normalize_output_aliases(directory, task)
     _validate_external_outputs(directory, task)
     details = {'command': command, 'returncode': result.returncode, **runtime}
+    if export_files:
+        details['generated_files'] = [name for name in export_files
+                                      if (directory / name).is_file()]
     if orbital_report is not None:
         details['orbital_audit'] = orbital_report.name
         details['generated_files'] = [orbital_report.name]

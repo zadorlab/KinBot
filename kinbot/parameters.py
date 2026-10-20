@@ -580,6 +580,9 @@ class Parameters:
             'username': '',
             # Max. number of job from user in queue, if negative, ignored
             'queue_job_limit': -1,
+            # Opt-in shared Slurm pool. An ancestor runtime policy overrides
+            # subsystem job caps; future edits use python -m kinbot.run_policy.
+            'queue_live_policy': {},
             # Whether to raise an error when 'queuing' is set to 'local' and the 
             # files and db entries are missing, otherwise just show a warning.
             'error_missing_local': True,
@@ -714,6 +717,10 @@ class Parameters:
         # the composite DAG.  Existing nonautomatic inputs and explicit
         # subsystem overrides retain their historical behavior.
         queue_limit = self.par['queue_job_limit']
+        from kinbot.run_policy import validate_options as validate_resource_policy
+        validate_resource_policy(self.par['queue_live_policy'])
+        if self.par['queue_live_policy'] and self.par['queuing'] != 'slurm':
+            raise ValueError('queue_live_policy requires queuing=slurm.')
         if (automatic_cbh_anl_requested(self.par)
                 and not isinstance(queue_limit, bool)
                 and isinstance(queue_limit, int) and queue_limit > 0):

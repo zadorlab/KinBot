@@ -115,6 +115,19 @@ def test_refresh_keeps_live_anl_and_vrc_and_restarts_once(live_tree):
     assert len(t.launches) == 2
 
 
+def test_refresh_preserves_shared_policy_and_all_running_allocations(live_tree):
+    from kinbot import run_policy
+    t = live_tree
+    run_policy.update(t.root, max_jobs=23, exclude=['reserved'])
+    policy_bytes = (t.root/run_policy.NAME).read_bytes()
+    before = scientific_files(t.root)
+    jobs = deepcopy(t.jobs)
+    result = run_refresh.refresh(t.root, apply=True)
+    assert result['phase'] == 'launched' and t.jobs == jobs
+    assert (t.root/run_policy.NAME).read_bytes() == policy_bytes
+    assert scientific_files(t.root) == before
+
+
 @pytest.fixture
 def pending_tree(legacy_pending_tree):
     return legacy_pending_tree

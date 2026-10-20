@@ -150,6 +150,8 @@ def _post_reaction_branches(well, parameters, qc, input_file,
     if not automatic_requested and not vrc_requested:
         return None
 
+    from kinbot import run_policy
+    shared_pool = run_policy.find()
     total_slots = parameters.get('queue_job_limit', -1)
     if isinstance(total_slots, bool) or not isinstance(total_slots, int):
         raise ValueError('queue_job_limit must be an integer.')
@@ -158,9 +160,9 @@ def _post_reaction_branches(well, parameters, qc, input_file,
     automatic_parameters = copy.deepcopy(parameters)
     vrc_parameters = copy.deepcopy(parameters)
     if concurrent:
-        # A static reservation is intentional: neither branch can race the
-        # other between an squeue observation and sbatch.  The cap applies to
-        # each branch's nested dispatcher and remains valid across restarts.
+        # Preserve the frozen plan/resource contract on restart. A live
+        # shared policy overrides these legacy caps at admission time; its
+        # cross-process lock replaces the static reservation in that mode.
         vrc_slots = max(1, total_slots // 2)
         automatic_slots = total_slots - vrc_slots
         automatic_parameters['queue_job_limit'] = automatic_slots
@@ -169,14 +171,18 @@ def _post_reaction_branches(well, parameters, qc, input_file,
         vrc_parameters['rotdpy_max_jobs'] = min(
             int(vrc_parameters['rotdpy_max_jobs']), vrc_slots)
         vrc_parameters['vrc_tst_branch_slots'] = vrc_slots
-        logger.info(
-            'Running VRC-TST and CBH/ANL concurrently under the %d-slot cap: '
-            '%d VRC slot(s), %d composite slot(s).',
-            total_slots, vrc_slots, automatic_slots)
+        if not shared_pool:
+            logger.info(
+                'Running VRC-TST and CBH/ANL concurrently under the %d-slot cap: '
+                '%d VRC slot(s), %d composite slot(s).',
+                total_slots, vrc_slots, automatic_slots)
     else:
         vrc_slots = total_slots if vrc_requested else 0
         automatic_slots = total_slots if automatic_requested else 0
 
+    if shared_pool:
+        logger.info('Shared scheduling pool %s: live limit %d; no branch reservations.',
+                    shared_pool.parent, run_policy.limit(total_slots))
     directory = parameters.get('anl_automatic_directory', 'anl_automatic')
     plan = None
     preparation_error = None
@@ -219,6 +225,11 @@ def _post_reaction_branches(well, parameters, qc, input_file,
             'status': 'failed' if join_error else 'ready',
         },
     }
+    if shared_pool:
+        state['resource_policy'] = str(shared_pool)
+        state['slot_cap'] = 'live shared pool'
+        for branch in state['branches'].values():
+            branch['slots'] = 'shared'
     if preparation_error:
         state['branches']['cbh_anl']['error'] = str(preparation_error)
     if join_error:
@@ -341,6 +352,8 @@ def _main():
     configure_qc_scratch(masterpar.par)
     par = masterpar.par
     input_file = masterpar.input_file
+    from kinbot.run_policy import initialize as initialize_resource_policy
+    initialize_resource_policy(Path(input_file).resolve().parent, par['queue_live_policy'])
     if (par.get('vrc_tst_surface_model') or par.get('vrc_tst_surface_model_file')):
         # Validate reviewed chemistry inputs before expensive discovery/QC.
         from kinbot.vrc_multistate import load_surface_model
@@ -360,9 +373,15 @@ def _main():
     # time stamp of the KinBot start
     logger.info('Starting KinBot')
     if automatic_queue_root is not None:
-        logger.info(
-            'Automatic scheduler admission: at most %s live jobs under %s.',
-            par['queue_job_limit'], automatic_queue_root)
+        from kinbot import run_policy
+        resource_policy = run_policy.find()
+        if resource_policy:
+            logger.info('Shared scheduler admission: live limit %s under %s.',
+                        run_policy.limit(par['queue_job_limit']), resource_policy.parent)
+        else:
+            logger.info(
+                'Automatic scheduler admission: at most %s live jobs under %s.',
+                par['queue_job_limit'], automatic_queue_root)
 
     make_dirs(par)
 

@@ -59,7 +59,7 @@ def hostnames(value):
     return result
 
 
-def script_policy(path, expected, entry):
+def script_policy(path, expected, entry, *, shared=None):
     if not path.is_file():
         return {'status': 'not_staged', 'detail': 'No submission script yet'}
     options = []
@@ -77,6 +77,12 @@ def script_policy(path, expected, entry):
     exclusive = '--exclusive' in options and not any(
         x in ('--share', '--oversubscribe', '-s') or x.startswith('--exclusive=')
         for x in options)
+    if shared:
+        # Admission supplies these command-line options; the frozen script
+        # remains unchanged and its provenance hash still has to match.
+        exclusive = True
+        excluded = set(shared['excluded_nodes'])
+        expected = excluded
     problems = []
     if not exclusive:
         problems.append('missing/conflicting full-node exclusivity')
@@ -85,7 +91,8 @@ def script_policy(path, expected, entry):
     if entry.get('job_sha256') and file_sha256(path) != entry['job_sha256']:
         problems.append('script differs from committed hash')
     return {'status': 'fail' if problems else 'pass', 'exclusive': exclusive,
-            'excluded_nodes': sorted(excluded), 'problems': problems}
+            'excluded_nodes': sorted(excluded), 'problems': problems,
+            'source': 'shared admission command line' if shared else 'script'}
 
 
 def scheduler_policy(job, detail, expected):
@@ -174,6 +181,9 @@ def pinned_policy(root, case):
     manifest = read_json(pin/'manifest.json')
     files = ['qc_scratch.py', 'qc.py', 'anl/runtime.py', 'anl/dispatch.py',
              'ase_modules/calculators/molpro.py', 'ase_modules/calculators/gaussian.py']
+    from kinbot.run_policy import find
+    if find(root):
+        files += ['run_policy.py', 'rotdpy_policy.py', 'rotdpy.py', 'anl/automatic.py']
     checked = {}
     for name in files:
         digest = file_sha256(pin/'kinbot'/name)
@@ -187,6 +197,9 @@ def pinned_policy(root, case):
 def task_rows(graph, historical, live, queue_error, expected, details, account, home):
     from kinbot.anl import dispatch
     graph, spec, state = dispatch._load(graph)
+    from kinbot import run_policy
+    policy_path = run_policy.find(graph)
+    shared = run_policy.read(graph)
     entries = state['tasks']
     by_id = {t['id']: t for t in spec['tasks']}
     depths, visiting = {}, set()
@@ -239,12 +252,23 @@ def task_rows(graph, historical, live, queue_error, expected, details, account, 
                'geometry_source': dispatch._geometry_source(task, state),
                'recorded_geometry_source': entry.get('geometry_from'),
                'resources': task.get('resources'), 'jobs': owners,
-               'script_policy': script_policy(directory/'job.slurm', expected, entry)}
+               'script_policy': script_policy(directory/'job.slurm', expected, entry,
+                                              shared=shared if not owners else None)}
         if owners or phase in ('ready', 'ready_to_stage'):
             row['scratch_policy'] = scratch_policy(directory, home=home, account=account,
                 nodes=hostnames(owners[0].get('nodes', '')) if len(owners) == 1 else ())
         if len(owners) == 1:
-            row['scheduler_policy'] = scheduler_policy(owners[0], details.get(owners[0]['job_id'], {}), expected)
+            admission = (policy_path.parent/'.kinbot_policy_submissions'/
+                         f'{owners[0]["job_id"]}.json') if policy_path else None
+            submitted = read_json(admission) if admission and admission.exists() else None
+            if submitted and Path(submitted['directory']).resolve() != directory.resolve():
+                raise ValueError('Shared admission record has a different task directory')
+            row['scheduler_policy'] = scheduler_policy(owners[0], details.get(owners[0]['job_id'], {}),
+                submitted['excluded_nodes'] if submitted else expected)
+            if submitted:
+                row['script_policy'] = script_policy(directory/'job.slurm', expected, entry, shared=submitted)
+            row['scheduler_policy']['policy_revision'] = (submitted['policy_revision'] if submitted
+                                                          else 'retained / no shared admission record')
         rows.append(row)
     return rows
 
@@ -253,6 +277,8 @@ def audit(root, *, scheduler=None, details=None):
     from kinbot.run_monitor import queue
     from kinbot.run_cleanup import _processes
     root = Path(root).expanduser().resolve(strict=True)
+    from kinbot import run_policy
+    shared = run_policy.read(root)
     prepared = read_json(root/'prepared.json')
     journal = read_json(root/'outage_recovery.json') if (root/'outage_recovery.json').exists() else {}
     historical = {str(Path(g['graph']).resolve()): g for g in journal.get('graphs', [])}
@@ -265,7 +291,8 @@ def audit(root, *, scheduler=None, details=None):
     report = {'time': datetime.now(timezone.utc).isoformat(), 'root': str(root),
               'recovery_phase': journal.get('phase'), 'recovery_time': journal.get('time'),
               'archive': journal.get('archive'), 'code': journal.get('code'),
-              'scheduler_error': error, 'order_note': ORDER_NOTE, 'cases': [], 'errors': []}
+              'scheduler_error': error, 'order_note': ORDER_NOTE, 'cases': [], 'errors': [],
+              'shared_policy': shared}
     try:
         processes = _processes(root)
     except (OSError, RuntimeError) as exc:
@@ -322,6 +349,10 @@ def audit(root, *, scheduler=None, details=None):
                     except (OSError, ValueError, RuntimeError, KeyError) as exc:
                         result['errors'].append(f'{graph}: {exc}')
         result['expected_exclusions'] = sorted(expected)
+        if shared:
+            result['configured_policy'].update(queue_job_limit='shared '+str(shared['max_jobs']),
+                                                queue_exclusive=1, rotdpy_exclusive=1)
+            result['expected_exclusions'] = shared['excluded_nodes']
         known = {j['job_id'] for r in result['tasks'] for j in r['jobs']}
         result['other_allocations'] = [dict(j, scheduler_policy=scheduler_policy(j, details.get(j['job_id'], {}), expected))
             for j in jobs if Path(j['directory']).resolve().is_relative_to(case) and j['job_id'] not in known]
@@ -348,6 +379,10 @@ def brief_label(row):
 def render(report, *, full=False, limit=4):
     lines = [f"{report['time']} scheduler={'UNKNOWN' if report['scheduler_error'] else 'responding'}",
              f"Recovery={report['recovery_phase']} | {report['root']}"]
+    if report.get('shared_policy'):
+        policy = report['shared_policy']
+        lines.append(f"Live pool cap={policy['max_jobs']} across all cases/branches; revision={policy['revision']}. "
+                     'Existing allocations are checked against their submission policy.')
     for case in report['cases']:
         rows = case['tasks']; policy = case['configured_policy']
         counts = Counter(r['status'] for r in rows)

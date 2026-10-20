@@ -387,8 +387,13 @@ def snapshot(root, *, include_all=False, log_lines=4):
     except (OSError, RuntimeError) as error:
         processes, process_error = [], str(error)
     now = time.time()
+    from kinbot import run_policy
+    policy = run_policy.read(root)
+    policy_root = run_policy.find(root)
     return {'time': datetime.fromtimestamp(now).astimezone().isoformat(timespec='seconds'),
             'timestamp': now,
+            'shared_policy': policy,
+            'shared_policy_root': str(policy_root.parent) if policy_root else None,
             'directory': str(root), 'scheduler_error': queue_error, 'process_error': process_error,
             'warnings': warnings, 'cases': [case_snapshot(d, jobs, processes, now,
                 log_limit=200 if include_all else 40, log_lines=log_lines) for d in directories]}
@@ -589,7 +594,12 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             out.append(f'{key.upper()}: UNKNOWN — {report[key]}')
     common_exclusions = report['cases'][0]['configured_exclusions'] if report['cases'] else []
     same_exclusions = all(c['configured_exclusions'] == common_exclusions for c in report['cases'])
-    if same_exclusions:
+    shared = report.get('shared_policy')
+    if shared:
+        out.append(f'Shared pool: cap {shared["max_jobs"]} across all runs/branches under '
+                   f'{report["shared_policy_root"]} (revision {shared["revision"]})')
+        out.append('New-submission exclusions: '+(','.join(shared['excluded_nodes']) or '(none)'))
+    elif same_exclusions:
         out.append('Configured exclusions: '+(','.join(common_exclusions) or '(none)'))
     # Show every PES before expanding either one; a long failed QC log must
     # never make the other run invisible on a terminal/watch display.
@@ -604,9 +614,9 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
     for case in report['cases']:
         out += ['', f'=== {case["name"]} ===']
         out.append(f'Slurm: {"UNKNOWN" if report["scheduler_error"] else len(case["jobs"])} allocations'
-                   f' / cap {case["allocation_cap"] or "unspecified"}; '
-                   f'local processes: {"UNKNOWN" if report["process_error"] else len(case["processes"])}')
-        if not same_exclusions:
+                   + (' / shared pool; ' if shared else f' / cap {case["allocation_cap"] or "unspecified"}; ')
+                   + f'local processes: {"UNKNOWN" if report["process_error"] else len(case["processes"])}')
+        if not same_exclusions and not shared:
             out.append('Configured exclusions: '+(','.join(case['configured_exclusions']) or '(none)'))
         if case['jobs']:
             out.append('JOB       STATE       NODES       ELAPSED / LIMIT   CPU  MEMORY  NAME')

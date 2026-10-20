@@ -368,6 +368,8 @@ def _main():
 
     # initialize the parameters
     par = Parameters(input_file, show_warnings=True).par
+    from kinbot.run_policy import initialize as initialize_resource_policy
+    initialize_resource_policy(Path(input_file).resolve().parent, par['queue_live_policy'])
     from kinbot.qc_scratch import configure as configure_qc_scratch
     configure_qc_scratch(par)
 

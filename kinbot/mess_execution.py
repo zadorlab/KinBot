@@ -51,8 +51,14 @@ def _run(command, *, timeout=None):
 
 def _submit(queue, script):
     try:
-        result = _run([constants.qsubmit[queue], str(script)],
-                      timeout=_QUERY_TIMEOUT_SECONDS)
+        from kinbot import run_policy
+        if queue == 'slurm' and run_policy.find():
+            result = run_policy.submit([constants.qsubmit[queue], str(script)],
+                wait=True, capture_output=True, text=True, check=False,
+                timeout=_QUERY_TIMEOUT_SECONDS)
+        else:
+            result = _run([constants.qsubmit[queue], str(script)],
+                          timeout=_QUERY_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired as error:
         raise _SubmissionUncertain(
             'MESS scheduler submission timed out; inspect the queue before '

@@ -695,6 +695,9 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
             f'{input_file.stem}.rotdpy.stderr')
         _guard_slurm_template(input_file.with_name('qu.tpl'))
         command = [str(python or sys.executable), input_file.name]
+        from kinbot.run_policy import find as find_resource_policy
+        if find_resource_policy(input_file.parent):
+            command = [str(python or sys.executable), '-m', 'kinbot.rotdpy_policy', input_file.name]
         completed = _run_controller(command, input_file.parent)
         stdout_file.write_text(completed.stdout)
         stderr_file.write_text(completed.stderr)

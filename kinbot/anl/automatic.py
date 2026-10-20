@@ -1484,6 +1484,7 @@ def _drive_graphs(graphs, max_jobs, interval=20.):
 
 def _drive_graphs_locked(graphs, max_jobs, interval):
     """All composite graph locks are held by this controller."""
+    from kinbot import run_policy
     names = sorted(graphs)
     specifications = {name: _load(graphs[name])[1] for name in names}
     required = {name: _required_geometries(specifications[name]) for name in names}
@@ -1515,7 +1516,7 @@ def _drive_graphs_locked(graphs, max_jobs, interval):
                                    ', '.join(hard))
             if complete:
                 return states
-            slots = max_jobs - active
+            slots = run_policy.limit(max_jobs, graphs[names[0]]) - active if names else 0
             for offset in range(len(names)):
                 if slots <= 0:
                     break
@@ -1528,6 +1529,9 @@ def _drive_graphs_locked(graphs, max_jobs, interval):
                     continue
                 states[name] = advance(
                     graphs[name], submit=True, submit_only=[staged])
+                if (run_policy.find(graphs[name]) and
+                        states[name]['tasks'][staged]['status'] == 'staged'):
+                    break  # Shared pool is full; avoid querying it for every graph.
                 slots -= 1
         except SchedulerUnavailableError as error:
             message = str(error)

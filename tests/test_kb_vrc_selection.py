@@ -124,6 +124,25 @@ def test_vrc_and_composite_branches_run_concurrently_with_disjoint_slots(
     assert state['branches']['cbh_anl']['status'] == 'complete'
 
 
+def test_shared_pool_preserves_frozen_plan_but_reports_no_branch_reservations(monkeypatch, tmp_path):
+    from kinbot import run_policy
+    monkeypatch.chdir(tmp_path)
+    run_policy.update(tmp_path, max_jobs=23)
+    observed = []
+    def prepare(well, parameters, directory):
+        observed.append(parameters['queue_job_limit'])
+        return {'schema': 1, 'status': 'planned'}
+    monkeypatch.setattr(automatic, 'prepare_automatic_cbh_anl', prepare)
+    monkeypatch.setattr(kb, '_execute_vrc_branch', lambda *args: {'status': 'complete'})
+    monkeypatch.setattr(kb, '_execute_automatic_branch', lambda *args: {
+        'status': 'complete', 'handoff_manifest': 'handoff.json', 'thermochemistry_models': 'models.json'})
+    _post_reaction_branches(object(), _branch_parameters(tmp_path), object(), 'input.json', True)
+    assert observed == [4]  # Resource contract in persisted chemistry plans stays compatible.
+    state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+    assert state['slot_cap'] == 'live shared pool'
+    assert all(b['slots'] == 'shared' for b in state['branches'].values())
+
+
 def test_branch_restart_replaces_stale_failure_and_rejoins_completed_work(
         monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)

@@ -54,6 +54,18 @@ def test_unknown_scheduler_not_reported_as_empty(production, monkeypatch):
     assert 'INACTIVE:' not in text
 
 
+def test_live_pool_is_shown_instead_of_stale_per_case_limit(production):
+    from kinbot import run_policy
+    root, case = production
+    run_policy.update(root, max_jobs=23, exclude=['reserve'])
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    text = monitor.render(monitor.snapshot(root))
+    assert 'Shared pool: cap 23' in text and '/ shared pool;' in text
+    assert '/ cap 10' not in text
+    assert 'New-submission exclusions: node16,reserve' in text
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+
 def test_archived_failure_is_cached_outcome_but_new_attempt_is_visible(production):
     from kinbot.execution import file_sha256
     root, case = production

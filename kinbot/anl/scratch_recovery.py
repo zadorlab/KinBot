@@ -125,6 +125,9 @@ def recover(run_dir, spec, state):
         reasons[ident] = f'Local scratch unavailable on {node}; retry on another node ({len(history)+1}/{limit}).'
     if not selected:
         return state
+    from kinbot.run_policy import exclude_failed_node
+    for evidence in failures.values():
+        exclude_failed_node(run_dir, evidence['node'])
     updated = deepcopy(state)
     history = updated.setdefault('scratch_node_retries', {})
     for ident, evidence in failures.items():

@@ -356,8 +356,16 @@ class MESMER:
             path = Path(submitscript)
             path.write_text(wrap_script(path.read_text(), identity='mesmer', prefixes=['me/mesmer']))
         command = [constants.qsubmit[self.par['queuing']], submitscript]
-        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = process.communicate()
+        from kinbot import run_policy
+        if self.par['queuing'] == 'slurm' and run_policy.find():
+            result = run_policy.submit(command, wait=True, capture_output=True,
+                                       check=False, timeout=30)
+            if result.returncode:
+                raise RuntimeError(f'MESMER submission failed: {result.stderr!r}')
+            out, err = result.stdout, result.stderr
+        else:
+            process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = process.communicate()
         out = out.decode()
         if self.par['queuing'] == 'pbs':
             pid = out.split('\n')[0].split('.')[0]

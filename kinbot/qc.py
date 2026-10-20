@@ -190,6 +190,8 @@ def _save_slurm_node_failure(owner, node, job, job_id, record):
         return
     names = set(getattr(owner, '_slurm_excluded_nodes', set()))
     names.add(node)
+    from kinbot.run_policy import exclude_failed_node
+    exclude_failed_node(Path.cwd(), node)
     owner._slurm_excluded_nodes = names
     _export_slurm_excluded_nodes(names)
     payload = {
@@ -1587,7 +1589,9 @@ class QuantumChemistry:
             if check == 'running':
                 return 0
 
-        if self.queue_job_limit > 0:
+        from kinbot import run_policy
+        shared_pool = self.queuing == 'slurm' and run_policy.find() is not None
+        if self.queue_job_limit > 0 and not shared_pool:
             self.limit_jobs()
 
         # A status file belongs to one scheduler submission.  Never let a
@@ -1719,9 +1723,29 @@ class QuantumChemistry:
         warned = False
         while True:
             try:
-                process = subprocess.Popen(
-                    command, shell=False, stdout=subprocess.PIPE,
-                    stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+                if shared_pool:
+                    response = run_policy.submit(
+                        command, wait=True, capture_output=True, check=False,
+                        timeout=_SCHEDULER_SUBMIT_TIMEOUT)
+                    raw_out, raw_err = response.stdout, response.stderr
+                    returncode = response.returncode
+                else:
+                    process = subprocess.Popen(
+                        command, shell=False, stdout=subprocess.PIPE,
+                        stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+                    try:
+                        raw_out, raw_err = process.communicate(
+                            timeout=_SCHEDULER_SUBMIT_TIMEOUT)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.communicate()
+                        raise
+                    returncode = getattr(process, 'returncode', 0)
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError(
+                    f'Scheduler submission timed out for {job}; check '
+                    'the queue before retrying because the submission '
+                    'outcome is unknown.') from error
             except FileNotFoundError as error:
                 raise RuntimeError(
                     f'Scheduler submission executable {command[0]!r} is '
@@ -1731,19 +1755,8 @@ class QuantumChemistry:
                 returncode = 'launch_error'
                 failed = True
             else:
-                try:
-                    raw_out, raw_err = process.communicate(
-                        timeout=_SCHEDULER_SUBMIT_TIMEOUT)
-                except subprocess.TimeoutExpired as error:
-                    process.kill()
-                    process.communicate()
-                    raise RuntimeError(
-                        f'Scheduler submission timed out for {job}; check '
-                        'the queue before retrying because the submission '
-                        'outcome is unknown.') from error
                 out = raw_out.decode(errors='replace')
                 err = raw_err.decode(errors='replace')
-                returncode = getattr(process, 'returncode', 0)
                 failed = isinstance(returncode, int) and returncode != 0
             detail = str(err).strip() or str(out).strip()
             if not failed:

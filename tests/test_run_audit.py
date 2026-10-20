@@ -60,6 +60,25 @@ def test_full_audit_is_read_only_and_explains_dependencies(run):
     assert not report['cases'][0]['errors']
 
 
+def test_shared_submission_policy_is_checked_at_its_revision(run):
+    from kinbot import run_policy
+    run_policy.update(run.root, max_jobs=23, exclude=['new'])
+    directory = run.graph/'tasks/seed'
+    job = dict(job_id='77', directory=str(directory), state='RUNNING', nodes='node2')
+    detail = dict(JobId='77', OverSubscribe='NO', ExcNodeList='new,node[1,9-10]', NodeList='node2')
+    atomic_json(run.root/'.kinbot_policy_submissions/77.json', {
+        'directory': str(directory), 'policy_revision': 1,
+        'excluded_nodes': ['new', 'node1', 'node9', 'node10']})
+    run_policy.update(run.root, exclude=['later'])
+    before = snapshot(run.root)
+    report = run_audit.audit(run.root, scheduler=([job], None), details={'77': detail})
+    row = report['cases'][0]['tasks'][0]
+    assert row['script_policy']['status'] == row['scheduler_policy']['status'] == 'pass'
+    assert row['scheduler_policy']['policy_revision'] == 1
+    assert report['shared_policy']['max_jobs'] == 23
+    assert snapshot(run.root) == before
+
+
 def test_scheduler_ownership_and_policies_are_observed_separately(run):
     directory = run.graph/'tasks/seed'
     job = dict(job_id='77', directory=str(directory), state='RUNNING', nodes='node2')

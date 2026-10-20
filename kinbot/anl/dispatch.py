@@ -2419,11 +2419,12 @@ def advance(run_dir, submit=False, submit_only=None):
             _stage_task(run_dir, spec, state, task)
     _atomic_json(run_dir / 'state.json', state)
     if submit:
+        from kinbot import run_policy
         active = sum(entry['status'] == 'submitted' for entry in state['tasks'].values())
         for task in spec['tasks']:
             ident = task['id']
             entry = state['tasks'].get(ident)
-            if active >= spec['limits']['max_nodes']:
+            if active >= run_policy.limit(spec['limits']['max_nodes'], run_dir):
                 break
             if submit_only is not None and ident not in submit_only:
                 continue
@@ -2445,10 +2446,16 @@ def advance(run_dir, submit=False, submit_only=None):
             _atomic_json(run_dir / 'state.json', state)
             directory = run_dir / 'tasks' / ident
             try:
-                response = subprocess.run(
+                response = run_policy.submit(
                     ['sbatch', '--parsable', 'job.slurm'], cwd=directory,
                     capture_output=True, text=True, check=False,
                     timeout=_SCHEDULER_TIMEOUT)
+            except SchedulerUnavailableError:
+                # The shared pool could not count occupancy; no sbatch was
+                # attempted. Preserve a runnable task for the next poll.
+                entry['status'] = 'staged'
+                _atomic_json(run_dir / 'state.json', state)
+                raise
             except subprocess.TimeoutExpired as error:
                 raise RuntimeError(
                     f'{ident}: sbatch timed out; submission outcome is '
@@ -2463,6 +2470,10 @@ def advance(run_dir, submit=False, submit_only=None):
                 _atomic_json(run_dir / 'state.json', state)
                 raise SchedulerUnavailableError(
                     f'{ident}: sbatch could not start: {error}') from error
+            if response is None:
+                entry['status'] = 'staged'
+                _atomic_json(run_dir / 'state.json', state)
+                break
             if response.returncode:
                 entry['status'] = 'staged'
                 _atomic_json(run_dir / 'state.json', state)

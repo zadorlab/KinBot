@@ -109,9 +109,14 @@ The retained sparse radial/angular/return evidence supports these minimum
 spaces; it does not prove that no uncomputed geometry can change state character.
 
 Production uses ordinary **single-bottleneck VRC**, CASPT2-F12 sampling at
-aDZ-F12, a constrained relaxed CASPT2-F12/aTZ-F12 target-root scan, and
+aDZ-F12, a constrained relaxed CASPT2-F12/aDZ-F12 target-root scan, and
 aDZ/aTZ spin gaps extrapolated with **exponent 3.7** and anchored to ground
-high-spin ROHF-UCCSD(T)-F12b/aTZ-F12. **IPEA=0.25, real SHIFT=0.1 Eh** apply
+high-spin ROHF-UCCSD(T)-F12b also extrapolated aDZ/aTZ with exponent 3.7.
+The CC reference and gap method/basis/exponent settings are independent input
+controls. MR asymptotic supermolecule geometries supply the rigid fragments;
+fixed-geometry auxiliary L2 orbitals supply HOMO pivot directions. See
+[the targeted handoff](../../../docs/VRC_MR_FRAGMENT_ORBITALS.md).
+**IPEA=0.25, real SHIFT=0.1 Eh** apply
 to all new CASPT2 stages. MRCI is excluded. The L2 search cutoff is 400 kcal/mol (L1: 410); MESS/RotdPy cover 300–5000 K.
 MESS ModelEnergyLimit is 800 kcal/mol, separate from the search cutoff.
 ANL1-F12/CBH thermochemistry is a separate, higher-level workflow.

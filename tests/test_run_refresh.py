@@ -168,7 +168,9 @@ def test_targeted_vrc_restart_keeps_all_native_files_and_unrelated_jobs(vrc_migr
     t = vrc_migration_tree
     before = scientific_files(t.root)
     updates = {'vrc_tst_scan_basis': 'avdz-f12',
-               'vrc_tst_fragment_geometry': 'asymptotic_scan', 'vrc_tst_pivot_level': 'L2'}
+               'vrc_tst_fragment_geometry': 'asymptotic_scan', 'vrc_tst_pivot_level': 'L2',
+               'vrc_tst_spin_splitting': {'reference': {
+                   'basis': ['avdz-f12', 'avtz-f12'], 'extrapolation_power': 3.7}}}
     options = dict(vrc_updates=updates, cancel_superseded_vrc_scans=True)
     review = run_refresh.refresh(t.root, **options)
     assert review['phase'] == 'reviewed' and not t.commands and not t.signals
@@ -227,6 +229,15 @@ def test_vrc_restart_does_not_touch_other_pending_allocations(vrc_migration_tree
     run_refresh.refresh(t.root, apply=True, vrc_updates={'vrc_tst_scan_basis': 'avdz-f12'},
                         cancel_superseded_vrc_scans=True)
     assert t.jobs[0]['job_id'] == '500' and t.jobs[0]['state'] == 'PENDING'
+
+
+def test_reference_only_update_retains_running_geometry_jobs(vrc_migration_tree):
+    from kinbot import vrc_restart
+    t = vrc_migration_tree
+    jobs = deepcopy(t.jobs)
+    run_refresh.refresh(t.root, apply=True, vrc_updates=vrc_restart.settings(
+        reference_bases=['avdz-f12', 'avtz-f12'], reference_power=3.7))
+    assert t.jobs == jobs and not t.commands
 
 
 @pytest.fixture

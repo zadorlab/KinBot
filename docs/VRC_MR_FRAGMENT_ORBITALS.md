@@ -35,9 +35,45 @@ and 2, CH3SS C-S doublet root 1, and CH3SS S-S doublet root 1. The reviewed
 basis-specific indices, state weights and spin manifolds remain in the input.
 
 Sampling and correction controls are independent of the geometry basis.
-The examples retain MR sampling and aDZ/aTZ-F12 spin-splitting extrapolation
-with exponent 3.7, IPEA 0.25 and shift 0.1. This change does not alter the
+Both the CC reference and CASPT2 spin gap in the examples now use aDZ/aTZ-F12
+extrapolation with exponent 3.7. MR sampling, IPEA 0.25 and shift 0.1 are retained.
+This change does not alter the
 88-point scan grid, RotdPy flux target, CBH-ANL recipe, or electronic levels.
+
+The main JSON controls each level independently:
+
+| Quantity | Method | Basis and extrapolation controls |
+| --- | --- | --- |
+| Relaxed/asymptotic geometry | `vrc_tst_scan_method` | `vrc_tst_scan_basis` (one basis) |
+| Monte Carlo sampling | `vrc_tst_sample_method` | `vrc_tst_sample_basis`, `vrc_tst_sample_extrapolation_power` |
+| Direct correction (`vrc_tst_correction_model: direct`) | `vrc_tst_high_method` | `vrc_tst_high_basis`, `vrc_tst_high_extrapolation_power` |
+| Spin-splitting CC reference | `vrc_tst_spin_splitting.reference.method` | `reference.basis`, `reference.extrapolation_power` in that same object |
+| Each MR gap | `vrc_tst_spin_splitting.gap_levels[].method` | Each level's `basis`, `extrapolation_power`, `shift`, `ipea` |
+
+A basis string requests a single-basis energy; a two-item list requests CBS.
+Pairs must have adjacent cardinal numbers in increasing order. Each exponent
+is independently configurable; 3.7 is the production default, not a forced
+value. The `anl1-f12` preset supplies the CC and CASPT2 aDZ/aTZ pairs, while
+explicit input values take precedence. Direct-correction `high_*` controls
+do not replace the reference or gap controls in spin-splitting mode.
+
+For example, the following is a CC reference object within
+`vrc_tst_spin_splitting` (the separately specified reviewed CAS/state model
+and gap settings remain necessary):
+
+```json
+"reference": {
+  "method": "uccsd(t)-f12b",
+  "basis": ["avdz-f12", "avtz-f12"],
+  "extrapolation_power": 3.7
+}
+```
+
+For a single-basis reference, use `"basis": "avtz-f12"` and omit the exponent.
+Each gap level supports the same independent choice. The assembled energy is
+`CC_reference_CBS + (MR_target_CBS - MR_reference_CBS)` for one gap method;
+configured weights combine gaps when more than one method is supplied.
+The correction metadata records both basis energies and exponents.
 
 ## Auxiliary orbitals
 
@@ -93,6 +129,7 @@ Review without changing controllers or scheduler allocations:
 python -u -m kinbot.run_refresh RUN \
   --vrc-scan-basis avdz-f12 \
   --vrc-fragment-geometry asymptotic_scan \
+  --vrc-reference-basis avdz-f12 avtz-f12 --vrc-reference-power 3.7 \
   --vrc-pivot-level L2 --cancel-superseded-vrc-scans
 ```
 

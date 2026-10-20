@@ -44,7 +44,9 @@ Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “
 | `vrc_tst_scan_ipea` | `0.25` | Branch hook. CASPT2 IPEA shift in hartree for relaxed scans: 0.25. |
 | `vrc_tst_spin_splitting` | nested object/list: detailed below | Branch hook. Ground high-spin CC anchor plus target-minus-reference CASPT2 gaps, extrapolated aDZ/aTZ with exponent 3.7. See nested controls. |
 | `vrc_tst_scan_method` | `"caspt2-f12(5,4)" / "caspt2-f12(7,5)"` | Master key. Explicit selected method for constrained relaxed geometries. |
-| `vrc_tst_scan_basis` | `"avtz-f12"` | Master key. aTZ-F12 basis for constrained relaxed scans. |
+| `vrc_tst_scan_basis` | `"avdz-f12"` | Master key. aDZ-F12 basis for constrained relaxed scans and the separated-supermolecule optimization. |
+| `vrc_tst_fragment_geometry` | `"asymptotic_scan"` | Branch hook. Extract rigid fragment geometries from the MR supermolecule at the configured asymptote, using its reviewed dimer CAS. |
+| `vrc_tst_pivot_level` | `"L2"` | Branch hook. Fixed-geometry auxiliary L2 orbitals supply HOMO pivot directions; their energies do not enter the MR potential. |
 | `vrc_tst_scan_gradient` | `"numerical"` | Branch hook. Numerical derivatives of the declared target CASPT2-F12 root. The composite spin-gap-corrected energy is not differentiated. |
 | `vrc_tst_sample_method` | `"caspt2-f12(5,4)" / "caspt2-f12(7,5)"` | Master key. Orientation-sampling method with the explicit selected CAS. |
 | `vrc_tst_high_method` | `"caspt2-f12(5,4)" / "caspt2-f12(7,5)"` | Master key. Trusted MR method; the spin_splitting model uses its explicit gap levels and CC anchor. |
@@ -79,7 +81,7 @@ Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “
 
 **Active space.** `mode=selected` uses the explicit `active_electrons` and `active_orbitals`; `source` is provenance. The separate channel overrides select (5,4), (7,5), (7,5). A reviewed Molpro record supplies the ordered subspace; the integers alone do not identify orbitals.
 
-**Spin-splitting.** `reference.method=uccsd(t)-f12b` and `reference.basis=avtz-f12` specify the restricted-reference high-spin CC anchor. Each `gap_levels` entry supplies a stable `label`, a CASPT2-F12 method with explicit CAS counts, the two `basis` values, `extrapolation_power=3.7`, `shift=0.1`, and `ipea=0.25`. `weighting.model=arithmetic_mean` combines alternative method estimates; with one CASPT2 estimate it is the identity. It does not average doublet and quartet energies or pretend that zero method spread means zero uncertainty.
+**Spin-splitting.** `reference.method=uccsd(t)-f12b`, `reference.basis=["avdz-f12","avtz-f12"]` and `reference.extrapolation_power=3.7` specify the extrapolated restricted-reference high-spin CC anchor. Each `gap_levels` entry supplies a stable `label`, a CASPT2-F12 method with explicit CAS counts, the two `basis` values, `extrapolation_power=3.7`, `shift=0.1`, and `ipea=0.25`. Both reference and gaps independently accept a single basis string instead of a pair, or a different supported pair and exponent. `weighting.model=arithmetic_mean` combines alternative method estimates; with one CASPT2 estimate it is the identity. It does not average doublet and quartet energies or pretend that zero method spread means zero uncertainty.
 
 **Monte Carlo.** `pot_smp_min=100`, `pot_smp_max=1000`, `tot_smp_min=100`, `tot_smp_max=15000`, `flux_rel_err=1` (percent), `smp_len=1` are forwarded to RotdPy. Inspect whether convergence was reached before the cap. Numerical convergence and total kinetic uncertainty are different quantities.
 

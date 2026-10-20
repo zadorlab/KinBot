@@ -27,7 +27,9 @@ _SPIN_SPLITTING_DEFAULTS = {
     'target_multiplicity': 1,
     'reference_multiplicity': 3,
     'fragment_multiplicities': None,
-    'reference': {'method': 'uccsd(t)-f12b', 'basis': 'avtz-f12'},
+    'reference': {'method': 'uccsd(t)-f12b',
+                  'basis': ['avdz-f12', 'avtz-f12'],
+                  'extrapolation_power': ORIGINAL_ANL_POWER},
     'gap_levels': [{
         'label': 'caspt2_f12', 'method': 'caspt2-f12(2,2)',
         'basis': ['avdz-f12', 'avtz-f12'],

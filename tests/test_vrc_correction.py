@@ -41,16 +41,17 @@ def _parameters(**updates):
     return values
 
 
-def test_default_spin_splitting_uses_dz_tz_caspt2_gap_on_tz_cc_anchor():
+def test_default_spin_splitting_extrapolates_both_cc_reference_and_caspt2_gap():
     settings = spin_splitting_settings(_parameters())
-    assert settings['reference']['basis'] == 'avtz-f12'
+    assert settings['reference']['basis'] == ['avdz-f12', 'avtz-f12']
+    assert settings['reference']['extrapolation_power'] == 3.7
     assert len(settings['gap_levels']) == 1
     level = settings['gap_levels'][0]
     assert level['basis'] == ['avdz-f12', 'avtz-f12']
     assert level['extrapolation_power'] == 3.7
     assert level['method'] == 'caspt2-f12(2,2)'
     assert (level['ipea'], level['shift']) == (.25, .1)
-    assert len(correction_components(_parameters())) == 6
+    assert len(correction_components(_parameters())) == 7
 
 
 def legacy_cbs_comparison():
@@ -60,6 +61,34 @@ def legacy_cbs_comparison():
                 'basis': ['avtz-f12', 'avqz-f12'], 'extrapolation_power': 3.7}
                 for label, method in [('caspt2_f12', 'caspt2-f12(2,2)'),
                                       ('mrci_f12_q', 'mrci-f12+q(2,2)')]]}
+
+
+@pytest.mark.parametrize('cc_basis,cc_power', [('avtz-f12', None), (['avdz-f12', 'avtz-f12'], 4.)])
+def test_cc_reference_and_gap_extrapolation_are_independent(cc_basis, cc_power):
+    reference = {'method': 'uccsd(t)-f12b', 'basis': cc_basis}
+    if cc_power is not None:
+        reference['extrapolation_power'] = cc_power
+    settings = spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
+        'reference': reference,
+        'gap_levels': [{'label': 'cas', 'method': 'caspt2-f12(2,2)',
+                        'basis': ['avtz-f12', 'avqz-f12'], 'extrapolation_power': 3.2}]}))
+    energies = {'gap:cas:target:0': [-5.3], 'gap:cas:target:1': [-5.35],
+                'gap:cas:reference:0': [-5.], 'gap:cas:reference:1': [-5.02]}
+    if cc_power is None:
+        energies['reference'] = [-10.1]
+        cc = -10.1
+    else:
+        energies.update({'reference:0': [-10.], 'reference:1': [-10.1]})
+        cc = two_point_cbs(-10., -10.1, upper_cardinal=3, power=cc_power)
+    curve, metadata = assemble_spin_splitting_reference([3.], energies, settings)
+    gap = two_point_cbs(-5.3, -5.35, upper_cardinal=4, power=3.2) - two_point_cbs(
+        -5., -5.02, upper_cardinal=4, power=3.2)
+    assert curve == pytest.approx([cc + gap])
+    assert metadata['gap_cbs']['cas']['target']['power'] == 3.2
+    if cc_power is None:
+        assert 'reference_cbs' not in metadata
+    else:
+        assert metadata['reference_cbs']['power'] == cc_power
 
 
 def test_general_triplet_pair_uses_highest_available_reference_spin():
@@ -475,7 +504,7 @@ def test_anl1_f12_vrc_preset_is_augmented_and_preserves_overrides():
     assert parameters['vrc_tst_scan_basis'] == 'aug-cc-pVQZ'
     assert parameters['vrc_tst_scan_gradient'] == 'numerical'
     assert parameters['vrc_tst_sample_basis'] == 'avdz-f12'
-    assert parameters['vrc_tst_spin_splitting']['reference']['basis'] == 'avtz-f12'
+    assert parameters['vrc_tst_spin_splitting']['reference']['basis'] == ['avdz-f12', 'avtz-f12']
     assert parameters['vrc_tst_high_basis'] == ['avdz-f12', 'avtz-f12']
     assert all(level['basis'] == ['avdz-f12', 'avtz-f12']
                for level in parameters['vrc_tst_spin_splitting']['gap_levels'])

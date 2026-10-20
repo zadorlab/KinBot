@@ -277,9 +277,13 @@ Procedure: [ORBITAL_REVIEW_WORKFLOW.md](ORBITAL_REVIEW_WORKFLOW.md).
   `IPEA=0.25`, real `SHIFT=0.1` Eh for sampling/correction. The requested
   matched check now passes. MRCI is no longer used in production.
 - [x] Install their native-confirmed, basis-specific orbital and surface models.
-- [x] Provide the requested CASPT2-F12/aDZ-F12 sampling and aTZ-F12 relaxed scan,
+- [x] Provide the requested CASPT2-F12/aDZ-F12 sampling and aDZ-F12 relaxed scan,
   CASPT2-F12 aDZ/aTZ power-3.7 spin-gap estimate referenced to
-  RHF-UCCSD(T)-F12b/aTZ-F12, including geometry-relaxation correction.
+  RHF-UCCSD(T)-F12b also extrapolated aDZ/aTZ with power 3.7, including
+  geometry-relaxation correction. The basis/exponent controls are independent.
+  MR separated-supermolecule optimization supplies fragment geometries;
+  fixed-geometry L2 orbitals supply HOMO pivot directions. See
+  [the current VRC handoff](VRC_MR_FRAGMENT_ORBITALS.md).
   Retain the TZ-only gap and extrapolation difference for review.
 - [ ] Complete CBH-ANL at the requested ANL1-F12 levels, RotdPy to the requested
   Monte Carlo uncertainty, and MESS with checked formation enthalpies,

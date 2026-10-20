@@ -117,12 +117,18 @@ remains pending; the isolated Gaussian check is optional.
    from the cheaper VRC aDZ/aTZ electronic model. ANL1 is substantial work;
    completing the fixed-geometry confirmation did not complete these tasks.
 3. For each reactive doublet component, run a constrained relaxed
-   CASPT2-F12/aTZ-F12 cut, using numerical gradients. Evaluate matching
+   CASPT2-F12/aDZ-F12 cut, using numerical gradients. First optimize the
+   separated supermolecule at the configured asymptote with the same MR model
+   and extract its fragment geometries. Auxiliary fixed-geometry L2 orbitals
+   supply HOMO pivot directions. Evaluate matching
    frozen-fragment aDZ sampling energies and the trusted relaxed energies:
 
-   `E_trusted(D_i) = E_ROHF-UCCSD(T)-F12b/aTZ(Q_ground) + Δ_CBS(D_i-Q_ground)`
+   `E_trusted(D_i) = E_ROHF-UCCSD(T)-F12b/CBS(Q_ground) + Δ_CBS(D_i-Q_ground)`
 
    `Δ_CBS = (3^3.7 Δ_aTZ - 2^3.7 Δ_aDZ)/(3^3.7 - 2^3.7)`.
+
+   The CC reference uses the same aDZ/aTZ pair and 3.7 exponent, independently
+   configurable from the gap in the main JSON.
 
    Retain the aTZ-only gap and CBS-minus-aTZ difference as diagnostics.
    The relaxed/frozen difference includes geometry relaxation at the stated

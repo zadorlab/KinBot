@@ -11,7 +11,7 @@ import re
 from kinbot.execution import atomic_json, file_sha256
 
 
-def settings(basis=None, fragments=None, pivots=None):
+def settings(basis=None, fragments=None, pivots=None, reference_bases=None, reference_power=None):
     values = {}
     if basis is not None:
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_+*().,-]*', basis):
@@ -25,20 +25,45 @@ def settings(basis=None, fragments=None, pivots=None):
         if pivots not in ('L2', 'custom'):
             raise ValueError('Invalid VRC pivot level.')
         values['vrc_tst_pivot_level'] = pivots
+    if reference_bases is not None:
+        if len(reference_bases) not in (1, 2):
+            raise ValueError('Reference needs one basis or an adjacent pair.')
+        reference = {'basis': (reference_bases[0] if len(reference_bases) == 1
+                               else list(reference_bases))}
+        if reference_power is not None:
+            if len(reference_bases) != 2:
+                raise ValueError('Extrapolation power requires two reference bases.')
+            reference['extrapolation_power'] = reference_power
+        values['vrc_tst_spin_splitting'] = {'reference': reference}
+    elif reference_power is not None:
+        raise ValueError('Specify reference bases with their extrapolation power.')
     return values
 
 
 def revised_input(payload, updates):
     revised = deepcopy(payload)
-    revised.update(updates)
+    def apply(target, selected):
+        for key, value in selected.items():
+            if key == 'vrc_tst_spin_splitting':
+                spin = deepcopy(target.get(key) or {})
+                if 'triplet_reference' in spin and 'reference' not in spin:
+                    spin['reference'] = spin.pop('triplet_reference')
+                reference = spin.setdefault('reference', {})
+                reference.update(deepcopy(value['reference']))
+                if isinstance(reference.get('basis'), str):
+                    reference.pop('extrapolation_power', None)
+                spin['reference'] = reference
+                target[key] = spin
+            else:
+                target[key] = deepcopy(value)
+    apply(revised, updates)
     if revised.get('vrc_tst_surface_model_file'):
         raise ValueError('VRC migration requires an inline surface model; external files are not edited.')
     for channel in (revised.get('vrc_tst_surface_model') or {}).get('channels', []):
         for stage in channel['bottlenecks']:
             # Explicit stage overrides otherwise defeat top-level controls.
-            for key, value in updates.items():
-                if key in stage['parameters']:
-                    stage['parameters'][key] = value
+            apply(stage['parameters'], {key: value for key, value in updates.items()
+                                       if key in stage['parameters']})
     return revised
 
 
@@ -46,7 +71,9 @@ def validate_input(path, updates):
     """Resolve actual reviewed orbital records before stopping controllers."""
     from kinbot.parameters import Parameters
     from kinbot.vrc_multistate import load_surface_model
-    from kinbot.vrc_correction import resolved_state_model, validate_vrc_levels
+    from kinbot.vrc_correction import (correction_model, resolved_state_model,
+                                       sampling_settings, spin_splitting_settings,
+                                       trusted_settings, validate_vrc_levels)
     from kinbot.vrc_orbitals import fixed_pivot_profile, asymptotic_fragments
     from kinbot.molpro import vrc_multireference_energy_contract
     from kinbot.anl.site import _executable
@@ -71,6 +98,21 @@ def validate_input(path, updates):
         molecule = envelope.get('molecule', {})
         resolved_state_model(leaf, molecule.get('symbols'), molecule.get('charge', par['charge']),
                              None, basis=leaf['vrc_tst_scan_basis'])
+        # Resolve every correction basis now too: a valid scan model alone
+        # does not establish that the requested CBS pair has reviewed orbitals.
+        levels = [sampling_settings(leaf)]
+        if correction_model(leaf) == 'spin_splitting':
+            spin = spin_splitting_settings(leaf)
+            levels.extend([spin['reference'], *spin['gap_levels']])
+        else:
+            levels.append(trusted_settings(leaf))
+        bases = {basis for level in levels for basis in
+                 (level['basis'] if isinstance(level['basis'], list) else [level['basis']])}
+        for basis in sorted(bases):
+            # Accepted product spins are established by the live reaction
+            # workflow. Do not impose default singlet/triplet coupling here.
+            resolved_state_model(leaf, molecule.get('symbols'),
+                                 molecule.get('charge', par['charge']), None, basis=basis)
         if asymptotic_fragments(leaf) and leaf.get('pp_orient', 'homo') == 'homo':
             profile = fixed_pivot_profile(leaf)
             if profile['calculator'] == 'gaussian':
@@ -81,11 +123,18 @@ def validate_input(path, updates):
 
 def plan(root, updates):
     from kinbot import run_salvage
-    allowed = {'vrc_tst_scan_basis', 'vrc_tst_fragment_geometry', 'vrc_tst_pivot_level'}
+    allowed = {'vrc_tst_scan_basis', 'vrc_tst_fragment_geometry', 'vrc_tst_pivot_level',
+               'vrc_tst_spin_splitting'}
     if not updates or set(updates) - allowed:
-        raise ValueError('Only scan basis, fragment geometry and pivot level may change in this handoff.')
+        raise ValueError('Only VRC geometry/pivot settings and reference CBS controls may change in this handoff.')
     settings(updates.get('vrc_tst_scan_basis'), updates.get('vrc_tst_fragment_geometry'),
              updates.get('vrc_tst_pivot_level'))
+    if 'vrc_tst_spin_splitting' in updates:
+        spin = updates['vrc_tst_spin_splitting']
+        if (not isinstance(spin, dict) or set(spin) != {'reference'}
+                or not isinstance(spin['reference'], dict)
+                or set(spin['reference']) - {'basis', 'extrapolation_power'}):
+            raise ValueError('Reference migration can change only basis and extrapolation power.')
     record, inputs = run_salvage._cases(root)
     paths = []
     for path in inputs:

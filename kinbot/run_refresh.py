@@ -532,6 +532,10 @@ def main(argv=None):
     parser.add_argument('--vrc-scan-basis', help='Change only the VRC relaxed/asymptotic geometry basis.')
     parser.add_argument('--vrc-fragment-geometry', choices=['legacy', 'asymptotic_scan'])
     parser.add_argument('--vrc-pivot-level', choices=['L2', 'custom'])
+    parser.add_argument('--vrc-reference-basis', nargs='+',
+                        help='One CC reference basis, or two adjacent bases for CBS extrapolation.')
+    parser.add_argument('--vrc-reference-power', type=float,
+                        help='CBS exponent for the CC reference (requires two --vrc-reference-basis values).')
     parser.add_argument('--cancel-superseded-vrc-scans', action='store_true',
                         help='Cancel only old relaxed-scan jobs; preserve their native files and all other jobs.')
     args = parser.parse_args(argv)
@@ -541,7 +545,8 @@ def main(argv=None):
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         from kinbot.vrc_restart import settings
         result = refresh(root, apply=args.apply, replace_pending=args.replace_pending,
-            vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level),
+            vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,
+                                 args.vrc_reference_basis, args.vrc_reference_power),
             cancel_superseded_vrc_scans=args.cancel_superseded_vrc_scans)
     print(json.dumps({k: result[k] for k in ('phase', 'code', 'archive') if k in result}, indent=2))
     print('Retained Slurm IDs: ' + ', '.join(j['job_id'] for j in result.get('jobs', [])))

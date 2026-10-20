@@ -245,7 +245,8 @@
   "vrc_tst_spin_splitting": {
     "reference": {
       "method": "uccsd(t)-f12b",
-      "basis": "avtz-f12"
+      "basis": ["avdz-f12", "avtz-f12"],
+      "extrapolation_power": 3.7
     },
     "gap_levels": [
       {

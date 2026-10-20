@@ -70,6 +70,11 @@ def test_restart_controls_validate_reviewed_examples_and_only_change_geometry(tm
         assert par['vrc_tst_scan_basis'] == 'avdz-f12'
         assert par['vrc_tst_high_basis'] == ['avdz-f12', 'avtz-f12']
         assert par['vrc_tst_high_extrapolation_power'] == 3.7
+        spin = par['vrc_tst_spin_splitting']
+        assert spin['reference']['basis'] == ['avdz-f12', 'avtz-f12']
+        assert spin['reference']['extrapolation_power'] == 3.7
+        assert all(level['basis'] == ['avdz-f12', 'avtz-f12']
+                   and level['extrapolation_power'] == 3.7 for level in spin['gap_levels'])
         assert par['vrc_tst_scan_ipea'] == .25 and par['vrc_tst_scan_shift'] == .1
         assert par['vrc_tst_fragment_geometry'] == 'asymptotic_scan'
         assert par['vrc_tst_pivot_level'] == 'L2'
@@ -80,6 +85,34 @@ def test_restart_controls_validate_reviewed_examples_and_only_change_geometry(tm
         result = vrc_restart.revised_input(previous, updates)
         assert result['vrc_tst_surface_model']['channels'][0]['bottlenecks'][0]['parameters']['vrc_tst_scan_basis'] == 'avdz-f12'
         assert previous['vrc_tst_scan_basis'] == 'avtz-f12'
+        with pytest.raises(ValueError, match='no orbital record'):
+            vrc_restart.validate_input(path, vrc_restart.settings(
+                reference_bases=['avtz-f12', 'avqz-f12'], reference_power=3.7))
+
+
+def test_reference_cbs_migration_preserves_reviewed_spaces_and_gap_controls():
+    import json
+    from copy import deepcopy
+    from kinbot import vrc_restart
+    repo = Path(__file__).resolve().parents[1]
+    original = json.loads((repo/'examples/anl/ch3ss_anl1_f12/ch3ss.json').read_text())
+    stage = original['vrc_tst_surface_model']['channels'][0]['bottlenecks'][0]['parameters']
+    stage['vrc_tst_spin_splitting'] = deepcopy(original['vrc_tst_spin_splitting'])
+    before = deepcopy(original)
+    updates = vrc_restart.settings(reference_bases=['avtz-f12', 'avqz-f12'], reference_power=4.0)
+    result = vrc_restart.revised_input(original, updates)
+    assert original == before
+    targets = [result, result['vrc_tst_surface_model']['channels'][0]['bottlenecks'][0]['parameters']]
+    for target in targets:
+        ref = target['vrc_tst_spin_splitting']['reference']
+        assert ref == {'method': 'uccsd(t)-f12b', 'basis': ['avtz-f12', 'avqz-f12'],
+                       'extrapolation_power': 4.0}
+        # Restore only this requested change; everything else must be identical.
+        target['vrc_tst_spin_splitting']['reference'] = deepcopy(before['vrc_tst_spin_splitting']['reference'])
+    assert result == before
+    single = vrc_restart.revised_input(original, vrc_restart.settings(reference_bases=['avtz-f12']))
+    assert single['vrc_tst_spin_splitting']['reference'] == {
+        'method': 'uccsd(t)-f12b', 'basis': 'avtz-f12'}
 
 
 def parameters(**changes):

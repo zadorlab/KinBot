@@ -2,6 +2,7 @@
 from copy import deepcopy
 import ctypes
 import errno
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -128,6 +129,23 @@ def test_refresh_preserves_shared_policy_and_all_running_allocations(live_tree):
     assert scientific_files(t.root) == before
 
 
+def test_refresh_waits_for_real_worker_lock_release(live_tree, monkeypatch, capsys):
+    t = live_tree
+    path = t.root/'ch3s/123/.kinbot_run.json'
+    before = (path.stat().st_ino, path.read_bytes(), deepcopy(t.jobs))
+    with path.open('r+') as holder:
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        waited = []
+        def release(seconds):
+            waited.append(seconds)
+            fcntl.flock(holder, fcntl.LOCK_UN)
+        monkeypatch.setattr(run_refresh.time, 'sleep', release)
+        assert run_refresh.refresh(t.root, apply=True)['phase'] == 'launched'
+    assert waited and len(t.launches) == 2
+    assert 'Waiting for worker lock release: ch3s/123/.kinbot_run.json' in capsys.readouterr().out
+    assert before == (path.stat().st_ino, path.read_bytes(), t.jobs)
+
+
 @pytest.fixture
 def vrc_migration_tree(live_tree, monkeypatch):
     from kinbot import vrc_restart
@@ -238,6 +256,49 @@ def test_reference_only_update_retains_running_geometry_jobs(vrc_migration_tree)
     run_refresh.refresh(t.root, apply=True, vrc_updates=vrc_restart.settings(
         reference_bases=['avdz-f12', 'avtz-f12'], reference_power=3.7))
     assert t.jobs == jobs and not t.commands
+
+
+@pytest.mark.parametrize('unsafe_change', [None, 'input', 'cancellation', 'archive'])
+def test_stopped_lock_failure_can_resume_with_fixed_code_only_before_edits(
+        vrc_migration_tree, monkeypatch, unsafe_change):
+    from kinbot import vrc_restart
+    t = vrc_migration_tree
+    options = dict(vrc_updates=vrc_restart.settings('avdz-f12', 'asymptotic_scan', 'L2',
+                    ['avdz-f12', 'avtz-f12'], 3.7), cancel_superseded_vrc_scans=True)
+    worker_locks = run_refresh._worker_locks
+    monkeypatch.setattr(run_refresh, '_worker_locks', lambda root: worker_locks(root, timeout=0))
+    before = scientific_files(t.root)
+    with (t.root/'ch3s/123/.kinbot_run.json').open('r+') as holder:
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(RuntimeError, match='Worker lock still held:'):
+            run_refresh.refresh(t.root, apply=True, **options)
+    assert not t.processes and not t.launches and not t.commands
+    marker = t.root/'controller_refresh.json'
+    journal = json.loads(marker.read_text())
+    assert journal['phase'] == 'stopped' and not journal['vrc_migration'].get('cancellations')
+    assert scientific_files(t.root) == before
+    pin = t.root/'.salvage_code.fixed'; pin.mkdir()
+    monkeypatch.setattr(run_salvage, '_pin_code', lambda *a, **kw: pin)
+    monkeypatch.setattr(run_refresh, '_worker_locks', worker_locks)
+    if unsafe_change == 'input':
+        (t.root/'ch3s/input.json').write_text('{"changed":true}')
+    elif unsafe_change == 'cancellation':
+        journal['vrc_migration']['cancellations'] = {'501': {'phase': 'requested'}}
+        atomic_json(marker, journal)
+    elif unsafe_change == 'archive':
+        (Path(journal['archive'])/'partial_archive').write_text('changed')
+    if unsafe_change:
+        with pytest.raises(RuntimeError, match='already changed'):
+            run_refresh.refresh(t.root, apply=True, **options)
+        assert not t.launches and not t.commands
+        return
+    result = run_refresh.refresh(t.root, apply=True, **options)
+    assert result['phase'] == 'launched' and result['code'] == str(pin)
+    assert len(t.launches) == 2
+    assert t.commands == [['scancel', '501'], ['scancel', '503']]
+    assert scientific_files(t.root) == before
+    assert run_refresh.refresh(t.root, apply=True, **options) == result
+    assert len(t.launches) == 2
 
 
 @pytest.fixture

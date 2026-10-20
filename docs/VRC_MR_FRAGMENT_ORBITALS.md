@@ -147,6 +147,15 @@ transaction without duplicate drivers or allocations. If Slurm has not yet
 confirmed a cancellation, repeat the same command after that job terminates;
 an empty queue alone is insufficient evidence.
 
+Controller exit and filesystem lock release need not become visible at the
+same time. Refresh waits up to 30 seconds for worker locks on the existing
+marker inodes; it never deletes or replaces a marker to bypass a held lock.
+If the wait expires, the journal stays at `stopped` before scan cancellation
+or input edits, and names the blocked path. Repeating resumes that boundary.
+Updated code can resume this unchanged stopped boundary after checking that
+no controllers remain, input hashes match, and no cancellations or archive
+edits have begun. Partly applied migrations still require their original code.
+
 Old scan directories stay in place, including trajectories, checkpoints and
 native diagnostics. `vrc_restart.json` lists the retired graphs and scheduler
 outcomes. They are comparison evidence, not production aDZ results. The new

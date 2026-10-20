@@ -9,6 +9,7 @@ import argparse
 from contextlib import ExitStack, contextmanager
 import ctypes
 from datetime import datetime, timezone
+import errno
 import fcntl
 import json
 import os
@@ -224,6 +225,55 @@ def _archive_controllers(root, archive):
             run_salvage._save(directory / '.kinbot_post_reaction_branches.json', root, archive)
 
 
+@contextmanager
+def _worker_locks(root, *, timeout=30.):
+    """Wait for controller-lock release without replacing the locked inode."""
+    deadline = time.monotonic() + timeout
+    with ExitStack() as locks:
+        for path in sorted(root.glob('*/[0-9]*/.kinbot_run.json')):
+            handle = locks.enter_context(path.open('r+'))
+            noticed = False
+            while True:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except OSError as error:
+                    if error.errno not in (errno.EAGAIN, errno.EACCES):
+                        raise
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise RuntimeError(
+                            f'Worker lock still held: {path}. Controllers are stopped; '
+                            'no allocations or inputs were changed at this step. '
+                            'Repeat the same refresh command after the lock is released; '
+                            'do not delete the run marker.') from error
+                    if not noticed:
+                        print(f'Waiting for worker lock release: {path.relative_to(root)}', flush=True)
+                        noticed = True
+                    time.sleep(min(.25, remaining))
+        yield
+
+
+def _unchanged_stopped_handoff(root, journal):
+    """Allow fixed code at the lock boundary, before any scheduler/input edits."""
+    if journal.get('phase') != 'stopped' or run_cleanup._processes(root):
+        return False
+    if any(journal.get(key) for key in (
+            'pending_holds', 'pending_cancel_acknowledged', 'pending_plans',
+            'pending_cancellation_evidence')):
+        return False
+    migration = journal.get('vrc_migration') or {}
+    if migration.get('cancellations'):
+        return False
+    if migration:
+        if run_salvage.file_sha256(root/'prepared.json') != migration['prepared_sha256']:
+            return False
+        for edit in migration['inputs']:
+            if run_salvage.file_sha256(root/edit['path']) != edit['before']:
+                return False
+    return True
+
+
 def _pending_preflight():
     result = subprocess.run(['scancel', '--help'], capture_output=True, text=True, timeout=10)
     if result.returncode:
@@ -411,10 +461,11 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
     print('Process-handle preflight passed.', flush=True)
     if journal and journal['phase'] != 'launched' and journal['code'] != str(pin):
         archive = Path(journal['archive'])
-        # The observed missing-Python-API failure left only a preparing
-        # journal. No controller/log migration has been committed in it.
-        # Permit replacement code only at that boundary, after fresh checks.
-        if (journal['phase'] != 'preparing' or history['status'] != 'launched'
+        # Preparation failures and a stopped-controller lock failure can
+        # accept fixed code only before any scheduler/input/log migration.
+        unchanged = (journal['phase'] == 'preparing'
+                     or _unchanged_stopped_handoff(root, journal))
+        if (not unchanged or history['status'] != 'launched'
                 or history['code'] != journal['previous_code']
                 or any(p.name != 'previous_refresh.json' for p in archive.iterdir())):
             raise RuntimeError('An interrupted refresh already changed controllers/files; '
@@ -494,11 +545,9 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
     if journal['phase'] == 'stopped':
         if run_cleanup._processes(root):
             raise RuntimeError('Unexpected local processes after controller stop; refusing edits.')
-        # Hold the original inode locks; do not remove or replace run markers.
-        with ExitStack() as locks:
-            for path in root.glob('*/[0-9]*/.kinbot_run.json'):
-                handle = locks.enter_context(path.open())
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Disappearing from /proc need not coincide with filesystem lock
+        # availability. Hold all original inodes before changing anything.
+        with _worker_locks(root):
             if journal.get('replace_pending'):
                 _replace_pending(root, journal, journal_path)
             else:

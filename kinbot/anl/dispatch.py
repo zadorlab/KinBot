@@ -365,6 +365,17 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
                 not task['input_name'].endswith('.com')
                 or task.get('stdin') != task['input_name']):
             raise ValueError(f'{ident}: Gaussian needs a .com file on stdin.')
+        export = task.get('gaussian_orbital_export')
+        if export is not None:
+            if (backend != 'gaussian' or not isinstance(export, dict)
+                    or set(export) != {'checkpoint', 'formatted', 'cube', 'log', 'orbital'}
+                    or export.get('orbital') not in ('MO=HOMO', 'AMO=HOMO')):
+                raise ValueError(f'{ident}: invalid Gaussian orbital export.')
+            names = [export[key] for key in ('checkpoint', 'formatted', 'cube', 'log')]
+            if len(set(names)) != 4 or any(name not in outputs for name in names):
+                raise ValueError(f'{ident}: orbital export needs distinct declared output files.')
+            if not {'formchk', 'cubegen'} <= set(required_executables):
+                raise ValueError(f'{ident}: orbital export needs formchk/cubegen preflight.')
         staged_files = task.get('files_from_env', {})
         if (not isinstance(staged_files, dict) or any(
                 not isinstance(env, str) or not re.fullmatch(r'[A-Z_][A-Z_0-9]*', env)
@@ -932,6 +943,9 @@ def _run_external(directory, record):
             finally:
                 if stdin:
                     stdin.close()
+            if not result.returncode and task.get('gaussian_orbital_export'):
+                from kinbot.vrc_orbitals import export_gaussian_cube
+                export_gaussian_cube(local, task['gaussian_orbital_export'], child_env)
     finally:
         if result is None or result.returncode:
             from kinbot.anl.runtime import preserve_qc_failure
@@ -997,6 +1011,14 @@ def _validate_external_outputs(directory, task):
                or not (directory / name).stat().st_size]
     if missing:
         raise RuntimeError(f'Missing or empty required output: {missing}')
+    if task.get('gaussian_orbital_export'):
+        from kinbot.vrc_orbitals import validate_cube_geometry
+        from kinbot.orbital_cube import read_orbital_cube
+        settings = task['gaussian_orbital_export']
+        text = (directory/settings['log']).read_text(errors='replace')
+        if re.search(r'Convergence criterion not met|Convergence failure|Error termination', text, re.I):
+            raise RuntimeError('Gaussian orbital calculation did not converge normally.')
+        validate_cube_geometry(read_orbital_cube(directory/settings['cube']), read(directory/'geometry.xyz'))
     if task['backend'].lower() == 'molpro':
         from kinbot.ase_modules.calculators.molpro import check_process_count
         check_process_count(directory / Path(task['input_name']).with_suffix('.out').name,

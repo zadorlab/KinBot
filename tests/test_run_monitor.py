@@ -25,6 +25,28 @@ def production(tmp_path, monkeypatch):
     return root, case
 
 
+def test_retired_vrc_graph_hidden_only_when_unchanged_and_not_live(production, monkeypatch):
+    from kinbot.execution import file_sha256
+    root, case = production
+    graph = case/'123/vrctst/molpro_scan/old_tz'
+    put(graph/'workflow.json', {'tasks': [{'id': 'relaxed_scan'}]})
+    put(graph/'state.json', {'tasks': {'relaxed_scan': {'status': 'failed', 'error': 'RETIRED FAILURE'}}})
+    put(graph/'tasks/relaxed_scan/old.out', 'Error termination RETIRED FAILURE\n')
+    put(root/'vrc_restart.json', {'retired_scans': [{'graph': str(graph),
+         'workflow_sha256': file_sha256(graph/'workflow.json')}]})
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    assert 'RETIRED FAILURE' not in json.dumps(report)
+    assert 'retained for comparison: 1' in monitor.render(report)
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    monkeypatch.setattr(monitor, 'queue', lambda: ([{'job_id': '100', 'state': 'RUNNING',
+        'directory': str(graph/'tasks/relaxed_scan')}], None))
+    assert 'RETIRED FAILURE' in json.dumps(monitor.snapshot(root))
+    monkeypatch.setattr(monitor, 'queue', lambda: ([], None))
+    put(graph/'workflow.json', {'tasks': [{'id': 'relaxed_scan', 'changed': True}]})
+    assert 'RETIRED FAILURE' in json.dumps(monitor.snapshot(root))
+
+
 def test_initial_failure_visible_even_without_accounting_or_driver_output(production):
     root, case = production
     put(case/'driver.log', 'Copyright ...\n')

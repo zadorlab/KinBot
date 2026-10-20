@@ -265,9 +265,28 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
     warnings = []
     archives = []
     files = inventory(root, warnings, archives)
-    task_records = artifacts(files, root, warnings)
     case_jobs = [job for job in jobs if inside(job['directory'], root)]
     live_dirs = {Path(job['directory']).resolve() for job in case_jobs}
+    # A targeted basis migration retains old scans in place for comparison.
+    # Exclude only the journaled, unchanged, non-live graphs from the current
+    # dashboard; their native files remain available for direct inspection.
+    retired = []
+    from kinbot.execution import file_sha256
+    for marker in (root/'vrc_restart.json', root.parent/'vrc_restart.json'):
+        for entry in read_json(marker, warnings).get('retired_scans', []):
+            graph = Path(entry.get('graph', '/')).resolve()
+            if (not graph.is_relative_to(root.resolve())
+                    or 'vrctst/molpro_scan' not in graph.as_posix()
+                    or any(d.is_relative_to(graph) for d in live_dirs)):
+                continue
+            try:
+                if file_sha256(graph/'workflow.json') == entry.get('workflow_sha256'):
+                    retired.append(graph)
+            except OSError as error:
+                warnings.append(str(error))
+    if retired:
+        files = [p for p in files if not any(p.is_relative_to(g) for g in retired)]
+    task_records = artifacts(files, root, warnings)
     failed_dirs = {root/Path(item['path']).parent/'tasks'/task['name']
                    for item in task_records for task in item.get('tasks', [])
                    if task['status'] in ('failed', 'unavailable', 'blocked')}
@@ -368,6 +387,7 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
             'pes': summary, 'workers': workers, 'logs': records,
             'exit_records': exit_records, 'artifacts': task_records,
             'archived_attempt_directories': archives,
+            'retired_scan_directories': [str(p) for p in retired],
             'log_coverage': {'read': len(records), 'available': len(chosen)},
             'warnings': warnings}
 
@@ -675,6 +695,8 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             out.append(f'Cached rejected QC outcomes: {len(historical)}; native attempts archived before restart.')
         if case.get('archived_attempt_directories'):
             out.append(f'Archived task attempts excluded: {len(case["archived_attempt_directories"])} graph(s).')
+        if case.get('retired_scan_directories'):
+            out.append(f'Old VRC scan graphs retained for comparison: {len(case["retired_scan_directories"])} (excluded from current progress).')
         for failure in failures:
             out.append(f'FAILED QC EXIT: {failure["path"]} job={failure["job_id"] or "unknown"} exit={failure["returncode"]}')
         workers = case['workers']

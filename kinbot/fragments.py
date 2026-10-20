@@ -35,7 +35,8 @@ class Fragment(StationaryPoint):
                  equiv: list[list[int]],
                  charge: int | None = None,
                  mult: int | None = None,
-                 atoms: Atoms | None = None
+                 atoms: Atoms | None = None,
+                 orbital_cube: str | None = None
                  ) -> None:
         """
         Class generator.
@@ -55,6 +56,7 @@ class Fragment(StationaryPoint):
         self.equiv = equiv
         self.orient: dict[str, NDArray[float32]] = {}
         self.parent: str = parent
+        self.orbital_cube = orbital_cube
         if charge is None:
             self.charge: int = sum(self.atoms.get_initial_charges())
         else:
@@ -307,11 +309,22 @@ class Fragment(StationaryPoint):
         from kinbot.orbital_cube import read_orbital_cube, lobe_directions
 
         cube_job = f'vrctst/{routing_name(self)}_vts'
-        path = f'{self.parent}/{cube_job}.cube'
+        path = self.orbital_cube or f'{self.parent}/{cube_job}.cube'
         if not os.path.isfile(path):
             raise FileNotFoundError(
                 f'HOMO-oriented pivot points require orbital cube {path}.')
         cube = read_orbital_cube(path)
+        from pathlib import Path
+        import json
+        from kinbot.execution import file_sha256
+        metadata = Path(path).with_suffix('.orbitals.json')
+        if self.orbital_cube and not metadata.exists():
+            raise ValueError('Selected fragment cube lacks its native provenance.')
+        if metadata.exists():
+            evidence = json.loads(metadata.read_text())
+            expected = evidence.get('cube_sha256')
+            if not expected or expected != file_sha256(path):
+                raise ValueError('VRC pivot cube changed after its native calculation.')
         atoms = cube['atoms']
         tmp = StationaryPoint(name='orbital cube', charge=self.charge,
                               mult=self.mult, atom=atoms.get_chemical_symbols(),
@@ -321,9 +334,22 @@ class Fragment(StationaryPoint):
         # Use the reordered atom's position in the original cube frame, before
         # recentering the fragment for RotdPy.  No grid rotation is assumed.
         directions = lobe_directions(cube, tmp.geom[index])
-        self.geom = tmp.geom.copy()
-        self.recentre()
-        return directions
+        # An orbital file must not silently replace the accepted fragment
+        # geometry (e.g. a stale DFT cube after an MR geometry change).
+        source = tmp.geom - tmp.geom.mean(axis=0)
+        target = self.geom - self.geom.mean(axis=0)
+        # The native noorient path normally differs only by translation and
+        # printed-coordinate rounding. Do not introduce an arbitrary rotation
+        # around a linear molecule's underdetermined axis in that case.
+        if np.allclose(source, target, atol=2.e-5, rtol=0):
+            return directions
+        u, _, vh = np.linalg.svd(source.T @ target)
+        correction = np.eye(3)
+        correction[-1, -1] = np.linalg.det(u @ vh)
+        rotation = u @ correction @ vh
+        if not np.allclose(source @ rotation, target, atol=2.e-5, rtol=0):
+            raise ValueError('VRC orbital cube differs from the accepted fragment geometry.')
+        return np.asarray(directions @ rotation, dtype=float32)
 
     def pp_triangle(self,
                     index: int,

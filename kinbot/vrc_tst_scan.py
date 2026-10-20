@@ -183,10 +183,16 @@ class VTS:
         for directory in ('vrctst/molpro', 'perm/vrctst/molpro'):
             Path(directory).mkdir(parents=True, exist_ok=True)
         self.gaussian_tools = {}
-        from kinbot.vrc_orbitals import pivot_backend, molpro_pivot_settings
-        backend = pivot_backend(self.par)
+        from kinbot.vrc_orbitals import (pivot_backend, molpro_pivot_settings,
+                                        asymptotic_fragments, fixed_pivot_profile)
+        separated = asymptotic_fragments(self.par)
+        backend = (fixed_pivot_profile(self.par)['calculator'] if separated
+                   else pivot_backend(self.par))
+        if separated and vrc_multireference_energy_contract(self.par['vrc_tst_scan_method']) is None:
+            raise ValueError('asymptotic_scan fragment geometries require a Molpro MR scan method.')
         if backend == 'molpro':
-            molpro_pivot_settings(self.par)
+            if not separated:
+                molpro_pivot_settings(self.par)
         if (backend == 'gaussian'
                 and str(self.par.get('pp_orient', 'homo')).casefold() == 'homo'):
             # HOMO-oriented pivot points require both native Gaussian
@@ -290,8 +296,8 @@ class VTS:
                                 continue
                             else:  # submit at vrc_tst level
                                 prod_chemid.append(routing_key(prod))
-                                from kinbot.vrc_orbitals import pivot_backend
-                                if pivot_backend(self.par) == 'gaussian':
+                                from kinbot.vrc_orbitals import pivot_backend, asymptotic_fragments
+                                if not asymptotic_fragments(self.par) and pivot_backend(self.par) == 'gaussian':
                                     self.qc.qc_vts_frag(prod)
             if not hit:
                 logger.warning(f'Reaction {reac} requested \
@@ -305,7 +311,11 @@ class VTS:
         Not everything is checked since no big changes are expected.
         """
 
-        from kinbot.vrc_orbitals import pivot_backend, prepare_molpro_fragment
+        from kinbot.vrc_orbitals import pivot_backend, prepare_molpro_fragment, asymptotic_fragments
+        if asymptotic_fragments(self.par):
+            # Channel/root-specific MR geometries are extracted only after
+            # atom maps and the reviewed scalar state model are resolved.
+            return
         molpro_fragments = {}
         for reac in reactions:
             for prod in self.scan_reac[reac].products:
@@ -916,6 +926,38 @@ class VTS:
                 reaction.irc_prod.geom if reaction.do_vdW
                 else reaction.species.geom, dtype=float)
             separation = asymptote_distance(self.par)
+            from kinbot.vrc_orbitals import asymptotic_fragments, prepare_fixed_pivot
+            separated = asymptotic_fragments(self.par)
+            asymptotic_result = None
+            if separated:
+                asymptotic_result = self._molpro_multireference_scan_task(
+                    reaction, self._shift_scan_geometry(reaction, geom, separation),
+                    separation, f'{reac}_vts_fragments_asymptote',
+                    state_model_override=state_model)
+                asymptotic_atoms, asymptotic_energy, asymptotic_dir, execution, state_model = asymptotic_result
+                # Copy the products: two electronic roots/channels must not
+                # overwrite each other's accepted fragment geometry.
+                reaction.products = copy.deepcopy(reaction.products)
+                evidence = {'mode': 'asymptotic_scan', 'basis': self.par['vrc_tst_scan_basis'],
+                    'method': self.par['vrc_tst_scan_method'], 'distance_angstrom': separation,
+                    'dispatch': str(asymptotic_dir),
+                    'final_geometry_sha256': execution['details'].get('final_geometry_sha256'),
+                    'atom_maps': [list(map(int, mapping)) for mapping in reaction.maps]}
+                reaction.fragment_geometry_source = evidence
+                reaction.fragment_orbital_cubes = []
+                for index, (product, mapping) in enumerate(zip(reaction.products, reaction.maps)):
+                    product.geom = asymptotic_atoms.positions[list(map(int, mapping))].copy()
+                    if list(product.atom) != [reaction.species.atom[int(i)] for i in mapping]:
+                        raise ValueError('Asymptotic fragment extraction changed atom order.')
+                    cube = None
+                    if product.natom > 1 and self.par.get('pp_orient', 'homo') == 'homo':
+                        safe = re.sub(r'[^A-Za-z0-9_.-]', '_', reac)
+                        cube = prepare_fixed_pivot(product, self.par,
+                            Path('vrctst/pivot_cubes')/safe/f'fragment_{index}', evidence)
+                    reaction.fragment_orbital_cubes.append(cube)
+                # Preserve the approach orientation and selected distance;
+                # initialize its internal fragment coordinates from the MR limit.
+                geom = self._frozen_scan_geometry(reaction, geom)
             distances = ([separation] if noscan else
                          [*map(float, self.par['vrc_tst_scan_points']), separation])
             for step, distance in enumerate(distances):
@@ -927,9 +969,12 @@ class VTS:
                     # At the asymptote there is no intermolecular geometry to
                     # relax.  The correction energies are evaluated later at
                     # this explicitly separated structure.
-                    relaxed = Atoms(reaction.species.atom, positions=geom)
-                    energy_ev = 0.
-                    run_dir = Path('vrctst/molpro_scan/asymptote_identity')
+                    if asymptotic_result is not None:
+                        relaxed, energy_ev, run_dir = asymptotic_result[:3]
+                    else:
+                        relaxed = Atoms(reaction.species.atom, positions=geom)
+                        energy_ev = 0.
+                        run_dir = Path('vrctst/molpro_scan/asymptote_identity')
                 else:
                     kwargs = ({} if state_model is None else
                               {'state_model_override': state_model})
@@ -1190,6 +1235,9 @@ class VTS:
                 }
             if spin_splitting is not None:
                 corr['spin_splitting'] = spin_splitting
+            if getattr(reaction, 'fragment_geometry_source', None):
+                corr['fragment_geometry_source'] = reaction.fragment_geometry_source
+                corr['frags_orbital_cubes'] = reaction.fragment_orbital_cubes
             if sampling_cbs is not None:
                 corr['sampling_cbs'] = sampling_cbs
             if model == 'direct' and trusted_cbs is not None:

@@ -518,3 +518,45 @@ def test_vrc_dispatch_retries_each_task_at_most_once(tmp_path):
             tmp_path, ('relaxed_scan',), interval=0.)
     assert result == (1, {'relaxed_scan': 'failed'})
     retry.assert_not_called()
+
+
+def test_asymptotic_mr_geometry_feeds_fixed_pivots_and_every_frozen_point(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    geometry = np.array([[0., 0., 0.], [0., 0., .74],
+                         [0., 0., 3.24], [0., 0., 3.98]])
+    products = [SimpleNamespace(atom=['H', 'H'], natom=2, charge=0, mult=1,
+                geom=geometry[part].copy(), bond01=np.array([[0, 1], [1, 0]]))
+                for part in (slice(0, 2), slice(2, 4))]
+    reaction = SimpleNamespace(scan_coo=[1, 2], maps=[[0, 1], [2, 3]],
+        equiv=[[1], [2]], products=products, do_vdW=False,
+        species=SimpleNamespace(atom=['H']*4, geom=geometry.copy(), charge=0, mult=1),
+        irc_prod=SimpleNamespace(geom=geometry.copy(), bondlist=[[0, 1], [2, 3]]))
+    vts = VTS(SimpleNamespace(), dict(vrc_tst_fragment_geometry='asymptotic_scan',
+        vrc_tst_scan_method='caspt2(2,2)', vrc_tst_scan_basis='avdz-f12',
+        vrc_tst_scan_points=[2.5, 2.7], vrc_tst_asymptote_distance=30.), None)
+    vts.scan_reac['r'] = reaction
+    optimized, pivots = [], []
+    def optimize(reaction, geom, distance, logical_name, **kwargs):
+        optimized.append((distance, logical_name))
+        a = Atoms('H4', positions=geom)
+        # At the asymptote, change only internal fragment bond lengths.
+        if distance == 30.:
+            a.positions[0] = a.positions[1] - [0, 0, .80]
+            a.positions[3] = a.positions[2] + [0, 0, .82]
+        return a, -2., tmp_path/logical_name, {'details': {'final_geometry_sha256': 'accepted'}}, {}
+    def pivot(product, par, destination, evidence):
+        pivots.append((np.linalg.norm(product.geom[1]-product.geom[0]), evidence))
+        return str(destination.with_suffix('.cube'))
+    monkeypatch.setattr(vts, '_molpro_multireference_scan_task', optimize)
+    monkeypatch.setattr('kinbot.vrc_orbitals.prepare_fixed_pivot', pivot)
+    vts.do_scan(['r'])
+    assert optimized == [(30., 'r_vts_fragments_asymptote'), (2.5, 'r_vts_pt00'), (2.7, 'r_vts_pt01')]
+    assert [item[0] for item in pivots] == pytest.approx([.80, .82])
+    assert products[0].geom == pytest.approx(geometry[:2])  # source objects preserved
+    assert reaction.fragment_orbital_cubes == ['vrctst/pivot_cubes/r/fragment_0.cube',
+                                               'vrctst/pivot_cubes/r/fragment_1.cube']
+    db = connect('kinbot.db')
+    for point in ('pt00', 'pt01', 'pt_asymptote'):
+        a = list(db.select(name=f'vrctst/r_vts_{point}_fr'))[0].toatoms()
+        assert a.get_distance(0, 1) == pytest.approx(.80)
+        assert a.get_distance(2, 3) == pytest.approx(.82)

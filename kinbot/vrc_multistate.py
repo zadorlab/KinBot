@@ -27,6 +27,8 @@ _OVERRIDES = {
     'vrc_tst_state_average_roots',
     'vrc_tst_selected_roots',
     'vrc_tst_asymptote_distance',
+    'vrc_tst_fragment_geometry', 'vrc_tst_pivot_level',
+    'vrc_tst_pivot_backend', 'vrc_tst_pivot_method', 'vrc_tst_pivot_basis',
 }
 
 
@@ -260,6 +262,7 @@ def calculate_channel(vts, name, selection):
                 raise ValueError('State-resolved VRC requires an explicit Molpro MR scan method.')
             leaf_name = f'{name}__{stage["name"]}_m{state["multiplicity"]}_r{state["root"]}'
             clone = copy(reaction)
+            clone.products = deepcopy(reaction.products)
             clone.species = copy(reaction.species)
             clone.species.mult = state['multiplicity']
             clone.instance_name = leaf_name

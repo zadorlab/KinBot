@@ -382,17 +382,27 @@ def _replace_pending(root, journal, marker):
     atomic_json(marker, journal)
 
 
-def refresh(root, *, apply=False, replace_pending=False):
+def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
+            cancel_superseded_vrc_scans=False):
     """Journal a controller-only handoff; repeated same-code calls are no-ops."""
     root = Path(root).resolve(strict=True)
     marker = root / 'salvage.json'
     history = json.loads(marker.read_text())
     journal_path = root / 'controller_refresh.json'
     journal = json.loads(journal_path.read_text()) if journal_path.exists() else None
+    vrc_updates = vrc_updates or {}
+    if vrc_updates and replace_pending:
+        raise ValueError('Targeted VRC migration cannot replace unrelated pending allocations.')
+    if cancel_superseded_vrc_scans and not vrc_updates:
+        raise ValueError('Cancelling superseded scans requires explicit VRC settings.')
     pin = run_salvage._pin_code(root, refresh=True)
     if (journal and journal['phase'] == 'launched' and journal['code'] == str(pin)
-            and (not replace_pending or journal.get('replace_pending'))):
+            and (not replace_pending or journal.get('replace_pending'))
+            and (not vrc_updates or journal.get('vrc_migration', {}).get('settings') == vrc_updates)):
         return journal
+    if (journal and journal['phase'] != 'launched'
+            and vrc_updates != journal.get('vrc_migration', {}).get('settings', {})):
+        raise RuntimeError('Repeat the interrupted refresh with the same VRC settings.')
     pending_method = None
     if replace_pending or (journal and journal.get('replace_pending') and journal['phase'] != 'launched'):
         pending_method = _pending_preflight()
@@ -424,9 +434,19 @@ def refresh(root, *, apply=False, replace_pending=False):
         records = _controllers(root)
         jobs = _owned_jobs(root)
         _preflight(root)  # Do this while the original controllers keep working.
+        migration = None
+        if vrc_updates:
+            from kinbot import vrc_restart
+            migration = vrc_restart.plan(root, vrc_updates)
+            scans, selected = (vrc_restart.scan_inventory(root, jobs)
+                               if migration['replace_geometry'] else ([], []))
+            if selected and not cancel_superseded_vrc_scans:
+                raise ValueError('Live old scans exist; use --cancel-superseded-vrc-scans '
+                                 'to retain their files and free their allocations.')
+            migration.update(scans=scans, selected_jobs=selected)
         if not apply:
             return {'phase': 'reviewed', 'controllers': records, 'jobs': jobs, 'code': str(pin),
-                    'replace_pending': replace_pending}
+                    'replace_pending': replace_pending, 'vrc_migration': migration}
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         archive = root.with_name(root.name + '.controllers.' + stamp)
         archive.mkdir()
@@ -435,6 +455,9 @@ def refresh(root, *, apply=False, replace_pending=False):
         journal = {'phase': 'preparing', 'code': str(pin), 'previous_code': history['code'],
                    'archive': str(archive), 'created_utc': stamp, 'replace_pending': replace_pending,
                    'pending_cancel_method': pending_method}
+        if migration is not None:
+            journal['vrc_migration'] = migration
+            journal['cancel_superseded_vrc_scans'] = cancel_superseded_vrc_scans
         atomic_json(journal_path, journal)
     elif not apply:
         return journal
@@ -444,6 +467,16 @@ def refresh(root, *, apply=False, replace_pending=False):
         print('Quiescing only PES/KB controllers; Slurm jobs remain running.', flush=True)
         with _freeze(root, records) as handles:
             jobs = _owned_jobs(root)  # No thread can submit/write while checked.
+            if journal.get('vrc_migration'):
+                from kinbot import vrc_restart
+                # Re-inventory after quiescing: a point may have finished and
+                # the next one started during the read-only preflight.
+                migration = vrc_restart.plan(root, journal['vrc_migration']['settings'])
+                scans, selected = (vrc_restart.scan_inventory(root, jobs)
+                                   if migration['replace_geometry'] else ([], []))
+                if selected and not journal.get('cancel_superseded_vrc_scans'):
+                    raise ValueError('New live scan detected; explicit targeted cancellation is required.')
+                journal['vrc_migration'] = dict(migration, scans=scans, selected_jobs=selected)
             journal.update(phase='stopping', controllers=records, jobs=jobs)
             atomic_json(journal_path, journal)
             for _, fd in handles:
@@ -470,6 +503,12 @@ def refresh(root, *, apply=False, replace_pending=False):
                 _replace_pending(root, journal, journal_path)
             else:
                 _owned_jobs(root)
+            if journal.get('vrc_migration'):
+                from kinbot import vrc_restart
+                vrc_restart.cancel_scans(journal['vrc_migration'], journal, journal_path)
+                vrc_restart.apply_inputs(root, journal['vrc_migration'], archive/'vrc_inputs')
+                journal['jobs'] = _owned_jobs(root)
+                atomic_json(journal_path, journal)
             _archive_controllers(root, archive)
             history.update(status='prepared', code=str(pin))
             atomic_json(marker, history)
@@ -490,17 +529,30 @@ def main(argv=None):
     parser.add_argument('--apply', action='store_true', help='Replace controllers and launch with current code.')
     parser.add_argument('--replace-pending', action='store_true',
                         help='Archive and replace pending allocations; preserve running allocations.')
+    parser.add_argument('--vrc-scan-basis', help='Change only the VRC relaxed/asymptotic geometry basis.')
+    parser.add_argument('--vrc-fragment-geometry', choices=['legacy', 'asymptotic_scan'])
+    parser.add_argument('--vrc-pivot-level', choices=['L2', 'custom'])
+    parser.add_argument('--cancel-superseded-vrc-scans', action='store_true',
+                        help='Cancel only old relaxed-scan jobs; preserve their native files and all other jobs.')
     args = parser.parse_args(argv)
     root = args.root.absolute()
     # The same lock as run_salvage prevents simultaneous migration/launch.
     with root.with_suffix('.salvage.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        result = refresh(root, apply=args.apply, replace_pending=args.replace_pending)
+        from kinbot.vrc_restart import settings
+        result = refresh(root, apply=args.apply, replace_pending=args.replace_pending,
+            vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level),
+            cancel_superseded_vrc_scans=args.cancel_superseded_vrc_scans)
     print(json.dumps({k: result[k] for k in ('phase', 'code', 'archive') if k in result}, indent=2))
     print('Retained Slurm IDs: ' + ', '.join(j['job_id'] for j in result.get('jobs', [])))
     if result.get('pending_cancellation_evidence'):
         print('Cancelled pending IDs (archived for replacement): ' +
               ', '.join(result['pending_cancellation_evidence']))
+    if result.get('vrc_migration'):
+        migration = result['vrc_migration']
+        print('VRC changes: ' + json.dumps(migration['settings'], sort_keys=True))
+        print('Superseded scan IDs (native files retained): ' +
+              ', '.join(j['job_id'] for j in migration['selected_jobs']))
 
 
 if __name__ == '__main__':

@@ -1661,6 +1661,19 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
             } for index in range(2)]
         for frag_num in range(2):
             state = states[frag_num]
+            orbital_cube = None
+            if 'frags_orbital_cubes' in pp_info:
+                cubes = pp_info['frags_orbital_cubes']
+                if not isinstance(cubes, list) or len(cubes) != 2:
+                    raise ValueError(f'{json_file}: invalid fragment orbital paths')
+                if cubes[frag_num] is not None:
+                    orbital_cube = Path(cubes[frag_num])
+                    if not orbital_cube.is_absolute():
+                        orbital_cube = Path(json_file).resolve().parent.parent / orbital_cube
+                    orbital_cube = str(orbital_cube)
+                elif (len(pp_info['frags_atom'][frag_num]) > 1
+                      and par.get('pp_orient', 'homo') == 'homo'):
+                    raise ValueError(f'{json_file}: missing fixed-fragment orbital cube')
             fragments.append(Fragment(frag_num=frag_num,
                                       max_frag=2,
                                       symbols=pp_info['frags_atom'][frag_num],
@@ -1670,7 +1683,8 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
                                       par=par,
                                       parent=str(reactant),
                                       charge=state['charge'],
-                                      mult=pp_info['frags_mult'][frag_num]))
+                                      mult=pp_info['frags_mult'][frag_num],
+                                      orbital_cube=orbital_cube))
             fragment = fragments[-1]
             apply_input_reference(fragment, state)
             if (not legacy_states

@@ -83,3 +83,78 @@ def test_fragment_atom_reordering_uses_cube_atom_center(tmp_path, monkeypatch):
     write_cube(directory/f'{routing_name(fragment)}_vts.cube',
                atoms=[(8, np.array([1.13, 0., 0.])), (6, np.zeros(3))])
     assert np.allclose(fragment.pp_from_homo(0), [[-1, 0, 0], [1, 0, 0]])
+
+
+def test_truncated_orbital_labels_fail_at_eof(tmp_path):
+    path = write_cube(tmp_path/'short.cube', gaussian=True)
+    path.write_text('\n'.join(path.read_text().splitlines()[:7]) + '\n1\n')
+    with pytest.raises(ValueError, match='orbital labels'):
+        read_orbital_cube(path)
+
+
+def test_fortran_d_values_and_cyclic_loop_order(tmp_path):
+    path = tmp_path/'ordered.cube'
+    data = np.arange(24.).reshape(2, 3, 4)
+    path.write_text('orbitals\nOUTER LOOP: Y, MIDDLE LOOP: Z, INNER LOOP: X\n'
+                    '1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n1 1 0 0 0\n'
+                    + ' '.join(f'{v:.6E}'.replace('E', 'D') for v in data.transpose(1, 2, 0).flat))
+    assert np.array_equal(read_orbital_cube(path)['data'], data)
+
+
+def test_stale_cube_cannot_replace_accepted_fragment_geometry(tmp_path):
+    from kinbot.fragments import Fragment
+    from kinbot.species_routing import routing_name
+    fragment = Fragment(0, 1, ['C', 'O'], [[0., 0., 0.], [1.2, 0., 0.]],
+                        [0], {'pp_orient': 'homo'}, str(tmp_path), [[0]], charge=0, mult=1)
+    directory = tmp_path/'vrctst'; directory.mkdir()
+    write_cube(directory/f'{routing_name(fragment)}_vts.cube',
+               atoms=[(6, np.zeros(3)), (8, np.array([1.13, 0., 0.]))])
+    before = fragment.geom.copy()
+    with pytest.raises(ValueError, match='accepted fragment geometry'):
+        fragment.pp_from_homo(0)
+    assert np.array_equal(fragment.geom, before)
+
+
+def test_cube_directions_rotate_without_mutating_fragment(tmp_path):
+    from kinbot.fragments import Fragment
+    from kinbot.species_routing import routing_name
+    fragment = Fragment(0, 1, ['C', 'O'], [[0., 0., 0.], [0., 1.13, 0.]],
+                        [0], {'pp_orient': 'homo'}, str(tmp_path), [[0]], charge=0, mult=1)
+    directory = tmp_path/'vrctst'; directory.mkdir()
+    write_cube(directory/f'{routing_name(fragment)}_vts.cube',
+               atoms=[(6, np.zeros(3)), (8, np.array([1.13, 0., 0.]))])
+    before = fragment.geom.copy()
+    directions = fragment.pp_from_homo(0)
+    assert np.allclose(np.sort(directions[:, 1]), [-1, 1])
+    assert np.array_equal(fragment.geom, before)
+
+
+def test_molpro_fixed_width_adjacent_values_and_exponents(tmp_path):
+    path = tmp_path/'fixed.cube'
+    # Filled E13.5 fields without separating spaces must still be separated.
+    field = '-0.10000E+001'
+    assert len(field) == 13
+    path.write_text('orbital\nMolpro\n1 0 0 0\n2 1 0 0\n2 0 1 0\n2 0 0 1\n1 1 0 0 0\n'
+                    + field*6 + '\n' + field*2 + '\n')
+    assert np.all(read_orbital_cube(path)['data'] == -1)
+
+
+def test_explicit_channel_pivots_require_native_provenance(tmp_path):
+    from kinbot.fragments import Fragment
+    from kinbot.species_routing import routing_name
+    fragment = Fragment(0, 1, ['C', 'O'], [[0., 0., 0.], [1.13, 0., 0.]],
+                        [0], {'pp_orient': 'homo'},
+                        str(tmp_path), [[0]], charge=0, mult=1)
+    directory = tmp_path/'vrctst'; directory.mkdir()
+    path = directory/f'{routing_name(fragment)}_vts.cube'
+    fragment.orbital_cube = str(path)
+    write_cube(path, atoms=[(6, np.zeros(3)), (8, np.array([1.13, 0., 0.]))])
+    with pytest.raises(ValueError, match='provenance'):
+        fragment.pp_from_homo(0)
+    import json
+    from kinbot.execution import file_sha256
+    path.with_suffix('.orbitals.json').write_text(json.dumps({'cube_sha256': file_sha256(path)}))
+    assert np.isfinite(fragment.pp_from_homo(0)).all()
+    path.write_text(path.read_text() + '\n')
+    with pytest.raises(ValueError, match='changed'):
+        fragment.pp_from_homo(0)

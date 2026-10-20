@@ -479,9 +479,13 @@ class Parameters:
             'vrc_tst_correlation_convergence': 1.e-7,
             # Maximum constrained force (eV/angstrom) for Molpro relaxed scans.
             'vrc_tst_scan_fmax': 5.e-4,
-            # Auxiliary fragment orbitals are used only for HOMO-directed
-            # pivot points.  They never supply a VRC scan geometry or energy.
+            # Legacy mode uses this backend for geometry and orbitals. In
+            # asymptotic_scan mode the MR scan supplies geometry; L2 (or an
+            # explicit custom profile) supplies only fixed-geometry orbitals.
             'vrc_tst_pivot_backend': 'gaussian',
+            # Asymptotic MR geometry is opt-in; legacy fragment workflows remain valid.
+            'vrc_tst_fragment_geometry': 'legacy',
+            'vrc_tst_pivot_level': 'L2',
             'vrc_tst_pivot_method': 'ub3lyp',
             'vrc_tst_pivot_basis': '6-31+G(d)',
             # Molpro pivot backend: native OPTG and CUBE controls. fmax is
@@ -686,6 +690,8 @@ class Parameters:
         # Serialize absolute checkpoint paths before PES workers change cwd.
         from pathlib import Path
         from kinbot.vrc_multistate import normalize_inline_model_paths
+        from kinbot.vrc_orbitals import validate_fragment_controls
+        validate_fragment_controls(self.par)
         base_input = self.par.get('input_file') or self.input_file
         normalize_inline_model_paths(self.par, Path(base_input).resolve().parent if base_input else Path.cwd())
         if self.par['theory_preset'] == 'b3lyp-b2plyp-anl' and 'sella_fmax' not in self.user_keys:

@@ -129,6 +129,107 @@ def test_refresh_preserves_shared_policy_and_all_running_allocations(live_tree):
 
 
 @pytest.fixture
+def vrc_migration_tree(live_tree, monkeypatch):
+    from kinbot import vrc_restart
+    import shutil
+    t = live_tree
+    monkeypatch.setattr(vrc_restart, 'validate_input', lambda *a: None)
+    t.commands = []
+    t.terminal = {}
+    for index, graph in enumerate(t.graphs):
+        if 'molpro_scan' not in graph.parts:
+            continue
+        shutil.rmtree(graph)
+        spec = dispatch_spec()
+        spec['tasks'] = [molpro_task('relaxed_scan', 'rhf\n', geometry_from='initial')]
+        dispatch.prepare(spec, graph)
+        state = dispatch._load(graph)[2]
+        state['tasks']['relaxed_scan'].update(status='submitted', job_id=t.jobs[index]['job_id'])
+        atomic_json(graph/'state.json', state)
+        t.jobs[index]['directory'] = str(graph/'tasks/relaxed_scan')
+        (graph/'tasks/relaxed_scan/optimization.traj').write_bytes(b'saved optimizer progress')
+    def record(ident):
+        job = next((j for j in t.jobs if j['job_id'] == ident), t.terminal.get(ident))
+        return {} if job is None else dict(JobId=ident, JobState=job['state'], WorkDir=job['directory'])
+    def cancel(args):
+        t.commands.append(args)
+        assert len(args) == 2 and args[0] == 'scancel'
+        job = next(j for j in t.jobs if j['job_id'] == args[1])
+        t.jobs.remove(job)
+        t.terminal[job['job_id']] = dict(job, state='CANCELLED')
+        return ''
+    t.record = record
+    monkeypatch.setattr('kinbot.execution.slurm_job_record', record)
+    monkeypatch.setattr(run_refresh, '_pending_request', cancel)
+    return t
+
+
+def test_targeted_vrc_restart_keeps_all_native_files_and_unrelated_jobs(vrc_migration_tree):
+    t = vrc_migration_tree
+    before = scientific_files(t.root)
+    updates = {'vrc_tst_scan_basis': 'avdz-f12',
+               'vrc_tst_fragment_geometry': 'asymptotic_scan', 'vrc_tst_pivot_level': 'L2'}
+    options = dict(vrc_updates=updates, cancel_superseded_vrc_scans=True)
+    review = run_refresh.refresh(t.root, **options)
+    assert review['phase'] == 'reviewed' and not t.commands and not t.signals
+    result = run_refresh.refresh(t.root, apply=True, **options)
+    assert result['phase'] == 'launched'
+    assert t.commands == [['scancel', '501'], ['scancel', '503']]
+    assert {j['job_id'] for j in t.jobs} == {'500', '502'}
+    assert before == scientific_files(t.root)
+    assert len(t.launches) == 2
+    _, inputs = run_salvage._cases(t.root)
+    for path in inputs:
+        assert json.loads(path.read_text()) == updates
+    saved = json.loads((t.root/'vrc_restart.json').read_text())
+    assert len(saved['retired_scans']) == 2
+    assert run_refresh.refresh(t.root, apply=True, **options) == result
+    assert len(t.commands) == 2 and len(t.launches) == 2
+
+
+def test_vrc_cancel_unknown_outcome_never_launches_duplicates(vrc_migration_tree, monkeypatch):
+    t = vrc_migration_tree
+    options = dict(vrc_updates={'vrc_tst_scan_basis': 'avdz-f12'}, cancel_superseded_vrc_scans=True)
+    monkeypatch.setattr('kinbot.execution.slurm_job_record',
+                        lambda ident: {} if ident in t.terminal else t.record(ident))
+    with pytest.raises(RuntimeError, match='not yet confirmed'):
+        run_refresh.refresh(t.root, apply=True, **options)
+    assert not t.launches
+    assert json.loads((t.root/'ch3s/input.json').read_text()) == {}
+    monkeypatch.setattr('kinbot.execution.slurm_job_record', t.record)
+    assert run_refresh.refresh(t.root, apply=True, **options)['phase'] == 'launched'
+    assert t.commands == [['scancel', '501'], ['scancel', '503']]
+
+
+def test_vrc_input_migration_interruption_resumes(vrc_migration_tree, monkeypatch):
+    from kinbot import vrc_restart
+    t = vrc_migration_tree
+    options = dict(vrc_updates={'vrc_tst_scan_basis': 'avdz-f12'}, cancel_superseded_vrc_scans=True)
+    original = vrc_restart.atomic_json
+    once = True
+    def interrupt(path, payload):
+        nonlocal once
+        if Path(path) == t.root/'prepared.json' and once:
+            once = False
+            raise OSError('simulated manifest interruption')
+        return original(path, payload)
+    monkeypatch.setattr(vrc_restart, 'atomic_json', interrupt)
+    with pytest.raises(OSError, match='simulated manifest'):
+        run_refresh.refresh(t.root, apply=True, **options)
+    assert not t.launches
+    assert run_refresh.refresh(t.root, apply=True, **options)['phase'] == 'launched'
+    assert len(t.commands) == 2 and len(t.launches) == 2
+
+
+def test_vrc_restart_does_not_touch_other_pending_allocations(vrc_migration_tree):
+    t = vrc_migration_tree
+    t.jobs[0]['state'] = 'PENDING'
+    run_refresh.refresh(t.root, apply=True, vrc_updates={'vrc_tst_scan_basis': 'avdz-f12'},
+                        cancel_superseded_vrc_scans=True)
+    assert t.jobs[0]['job_id'] == '500' and t.jobs[0]['state'] == 'PENDING'
+
+
+@pytest.fixture
 def pending_tree(legacy_pending_tree):
     return legacy_pending_tree
 

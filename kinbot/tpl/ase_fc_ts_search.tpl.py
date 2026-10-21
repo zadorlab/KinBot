@@ -64,6 +64,8 @@ if not mol.positions.any() or too_far(mol.positions):  # If all coordinates are 
     mol.positions = {geom}   # Reset to the original geometry
 data = {{'energy': e, 'status': 'normal'}}
 
+if {bimol}:
+    data.update(backend='fc', method='{fc_model_path}', basis=None)
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,
             'calc': 'fairchemcalculator',

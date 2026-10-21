@@ -25,6 +25,7 @@ from kinbot.stereo_identity import canonical_identity
 class TestConformerWeights(unittest.TestCase):
     def setUp(self):
         self.conformers = Conformers.__new__(Conformers)
+        self.conformers.bimol = False
         atoms = molecule('H2O')
         self.conformers.species = StationaryPoint('water', 0, 1,
             atom=atoms.get_chemical_symbols(), geom=atoms.positions)

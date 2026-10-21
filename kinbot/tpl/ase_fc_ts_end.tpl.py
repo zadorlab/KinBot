@@ -87,6 +87,13 @@ if os.path.isdir('{label}_vib'):
                  os.path.join(os.getcwd(), '{label}_vib.xyz'))
     shutil.rmtree('{label}_vib')
 
+if {bimol}:
+    data.update(backend='fc', method='{fc_model_path}', basis=None)
+    # A rejected spectrum must remain available to explain the failed saddle.
+    data.update(converged=bool(converged), frequencies=freqs)
+    if data['status'] == 'error':
+        data['error'] = ('TS frequency check failed.' if converged
+                         else 'TS optimization did not converge.')
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,
             'calc': 'fairchemcalculator',

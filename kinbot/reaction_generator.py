@@ -46,6 +46,303 @@ class ReactionGenerator:
         self.inp = input_file
         self.qc = qc
 
+
+    def _record_bimol_status(self, reaction, **updates):
+        """Persist lifecycle data only for promoted bimolecular candidates."""
+        if self.par['bimol'] and hasattr(reaction, 'search_parent'):
+            from kinbot.bimol import update_bimol_status
+            update_bimol_status(reaction, **updates)
+
+    def _log_bimol_ts_failure(self, reaction):
+        """Report the worker's reason, including on a completed-run restart."""
+        rows = list(self.qc.db.select(name=reaction.instance_name))
+        data = rows[-1].data if rows else {}
+        logger.info('\tReaction search failed for %s: %s', reaction.instance_name,
+                    data.get('error') or 'TS calculation failed; no reason was saved. Check the worker output.')
+        frequencies = data.get('frequencies')
+        if frequencies is not None and len(frequencies):
+            logger.info('\tChecked frequencies for %s (cm-1): %s',
+                        reaction.instance_name,
+                        ', '.join(f'{float(value):.3f}' for value in frequencies))
+
+    def _advance_irc(self, index, reaction, barrier):
+        """Advance an IRC and assign its endpoints when both jobs finish."""
+        if (self.par['bimol']
+                and getattr(reaction, 'final_irc_processed', False)):
+            self._finish_bimol_hir(index, reaction)
+            return
+        reaction.irc = IRC(reaction, self.par)
+        irc_status = reaction.irc.check_irc()
+        if 0 in irc_status:
+            level = reaction.irc.qc.theory_level.upper() if self.par['bimol'] else 'L1'
+            logger.info('\tRxn barrier is (%.2f kcal/mol) at %s for %s',
+                        barrier, level, reaction.instance_name)
+            logger.info('\tStarting IRC calculations for %s',
+                        reaction.instance_name)
+            reaction.irc.do_irc_calculations()
+            return
+        if 'running' in irc_status:
+            return
+        logger.info('\tRxn barrier is %.2f kcal/mol for %s',
+                    barrier, reaction.instance_name)
+        # A stale endpoint optimization must not rescue a failed IRC.
+        result = (0 if self.par['bimol'] and 'error' in irc_status
+                  else reaction.irc.irc2stationary_pt())
+        if result == 0:
+            logger.info('\tNo expected product found for %s',
+                        reaction.instance_name)
+            self.species.reac_ts_done[index] = -999
+            if self.par['bimol']:
+                from kinbot.bimol import update_bimol_status
+                update_bimol_status(
+                    reaction, final_irc_valid=False,
+                    final_status='final_irc_failed')
+            return
+        if self.par['bimol']:
+            if (getattr(reaction, 'sequential_pose_search', False)
+                    and not result.product_matches_expected):
+                self.species.reac_ts_done[index] = -999
+                self._record_bimol_status(reaction, final_irc_valid=False,
+                    product_matches_expected=False, final_status='final_irc_wrong_product',
+                    observed_product_geometry=np.asarray(result.product.geom).tolist())
+                return
+            reaction.irc_reactant = result.reactant
+            reaction.irc_reactant_direction = result.reactant_direction
+            reaction.irc_prod = result.product
+            reaction.irc_prod_direction = result.product_direction
+            reaction.product_matches_expected = (
+                result.product_matches_expected)
+            from kinbot.bimol import (update_bimol_status,
+                                      update_ts_topology_from_irc)
+            update_ts_topology_from_irc(reaction)
+            if (self.par['rotor_scan'] and not self.par['multi_conf_tst']
+                    and hasattr(reaction, 'prepare_hir_rotors')):
+                reaction.prepare_hir_rotors()
+            from kinbot import symmetry
+            from kinbot.stereochemistry import (assign_optical_metadata,
+                                                 conformer_symmetry)
+            symmetry.calculate_symmetry(reaction.ts)
+            symmetry_data = assign_optical_metadata(reaction.ts)
+            reaction.ts.conformer_symmetry = conformer_symmetry(reaction.ts)
+            update_bimol_status(
+                reaction, final_irc_valid=True,
+                product_matches_expected=result.product_matches_expected,
+                actual_bond_changes=reaction.actual_bond_changes,
+                symmetry=symmetry_data,
+                conformer_symmetry=reaction.ts.conformer_symmetry,
+                final_status='final_irc_valid')
+            reaction.final_irc_processed = True
+            reaction.final_irc_geometry = np.asarray(reaction.ts.geom).copy()
+            self._finish_bimol_hir(index, reaction)
+            return
+        else:
+            reaction.irc_prod = result
+        self.species.reac_ts_done[index] = 2
+
+    def _advance_bimol_ts_selection(self, index, reaction):
+        """Select a final TS and load all properties from its one source job."""
+        from kinbot.bimol import (build_bimolecular_ts, check_l1_ts_refinement,
+                                  load_selected_species_properties,
+                                  update_bimol_status)
+
+        if reaction.ts_opt is None:
+            try:
+                build_bimolecular_ts(reaction, self.qc)
+            except ValueError as exc:
+                logger.warning('%s', exc)
+                self.species.reac_ts_done[index] = -999
+                update_bimol_status(
+                    reaction, l1_valid=False,
+                    final_status='ts_property_error', error=str(exc))
+                return
+            if hasattr(reaction, 'search_candidate'):
+                try:
+                    check_l1_ts_refinement(reaction, self.par)
+                except ValueError as exc:
+                    logger.warning('%s', exc)
+                    self.species.reac_ts_done[index] = -999
+                    update_bimol_status(
+                        reaction, l1_valid=False,
+                        final_status='l1_refinement_rejected', error=str(exc))
+                    return
+            reaction.ts_opt = Optimize(
+                reaction.ts, self.par, self.qc, defer_hir=True)
+            reaction.ts_opt.defer_cleanup = True
+        reaction.ts_opt.do_optimization()
+        if reaction.ts_opt.shigh == -999:
+            logger.warning('Final TS optimization failed for %s',
+                           reaction.instance_name)
+            self.species.reac_ts_done[index] = -999
+            update_bimol_status(
+                reaction, l1_valid=False,
+                final_status='ts_conformer_failed')
+            return
+        if reaction.ts_opt.shir != 1:
+            return
+        try:
+            source = load_selected_species_properties(
+                reaction.ts_opt, self.qc)
+        except ValueError as exc:
+            logger.warning('%s', exc)
+            self.species.reac_ts_done[index] = -999
+            update_bimol_status(
+                reaction, l1_valid=False,
+                final_status='ts_property_error', error=str(exc))
+            return
+        reaction.ts_source_job = source
+        self.species.reac_ts_done[index] = 6
+        update_bimol_status(
+            reaction, l1_valid=True, selected_ts_job=source,
+            final_status='selected_ts_ready')
+
+    def _advance_bimol_hir(self, reaction):
+        """Resume ordinary optimization/HIR after IRC establishes TS bonds."""
+        if (not self.par['rotor_scan'] or self.par['multi_conf_tst']):
+            return True
+        from kinbot.calculation import selected_calculation_job
+        optimization = reaction.ts_opt
+        if optimization.defer_hir:
+            optimization.defer_hir = False
+            optimization.shir = -1
+        optimization.do_optimization()
+        if optimization.shigh == -999:
+            return True  # The caller rejects this TS and can try another pose.
+        if optimization.shir != 1:
+            self._record_bimol_status(reaction, final_status='final_hir_running')
+            return False
+        reaction.ts_source_job = selected_calculation_job(optimization)
+        harmonic = bool(getattr(optimization, '_projection_failure', None)
+                        or getattr(getattr(reaction.ts, 'hir', None),
+                                   'projection_failure', None))
+        self._record_bimol_status(
+            reaction, final_hir_rotor=getattr(reaction, 'hir_rotor', None),
+            selected_ts_job=reaction.ts_source_job,
+            final_status=('final_hir_harmonic' if harmonic else 'final_hir_valid'))
+        return True
+
+    def _finish_bimol_hir(self, index, reaction):
+        """Export only after IRC has checked the geometry accepted by HIR."""
+        if not self._advance_bimol_hir(reaction):
+            return
+        if reaction.ts_opt.shigh == -999:
+            self.species.reac_ts_done[index] = -999
+            reaction.final_irc_processed = False
+            self._record_bimol_status(reaction, final_irc_valid=False,
+                                     final_status='ts_hir_refinement_failed')
+            return
+        if not np.allclose(reaction.ts.geom, reaction.final_irc_geometry,
+                           rtol=0., atol=1.e-6):
+            from kinbot.bimol import final_irc_job_name
+            reaction.final_irc_name = final_irc_job_name(reaction)
+            reaction.final_irc_processed = False
+            reaction.final_irc_attempted = True
+            logger.info('Checking IRC again for %s after HIR refinement.',
+                        reaction.instance_name)
+            self._record_bimol_status(reaction, final_irc_valid=False,
+                selected_ts_job=reaction.ts_source_job,
+                final_status='awaiting_refined_ts_irc')
+            return
+        self.species.reac_ts_done[index] = 2
+
+    def _classify_bimol_complexes(self, reaction):
+        """Prepare RC/PC records at the same level as final fragments."""
+        if getattr(reaction, 'vdw_classified', False):
+            return
+        from kinbot.bimol import has_complete_irc_endpoint
+
+        def endpoint_optimization(endpoint):
+            parameters = self.par
+            level = 'l2' if self.par['high_level'] else 'l1'
+            if has_complete_irc_endpoint(self.qc, endpoint.name, level):
+                # The final IRC already optimized this endpoint at the final level.
+                # Use the ordinary completed-result path instead of doing
+                # the same optimization and frequencies a second time.
+                parameters = dict(self.par, high_level=0)
+            elif not self.par['high_level']:
+                logger.warning(
+                    '%s: omitting the complex because the L1 endpoint lacks '
+                    'a converged optimization with energy, ZPE and frequencies.',
+                    endpoint.name)
+                return None
+            optimization = Optimize(endpoint, parameters, self.qc, just_high=True)
+            optimization.do_optimization()
+            return optimization
+
+        reaction.do_vdW = (len(reaction.prod_opt) == 2
+                           and 'hom_sci' not in reaction.instance_name)
+        reaction.do_reac_vdW = True
+        if reaction.do_vdW:
+            reaction.irc_prod_opt = endpoint_optimization(reaction.irc_prod)
+            reaction.do_vdW = reaction.irc_prod_opt is not None
+        reaction.irc_reactant_opt = endpoint_optimization(reaction.irc_reactant)
+        reaction.do_reac_vdW = reaction.irc_reactant_opt is not None
+        reaction.vdw_classified = True
+
+    def _advance_product_spins(self, index, reaction):
+        """Resolve ambiguous fragment spins before assigning product jobs."""
+        from kinbot.bimol_products import ProductSpinSelection
+        try:
+            if not hasattr(reaction, 'product_spin_search'):
+                reaction.product_spin_search = ProductSpinSelection(reaction.irc_prod)
+            selection = reaction.product_spin_search
+            if not selection.needed:
+                return False
+            others = []
+            for other in self.species.reac_obj:
+                others.extend(getattr(other, 'prod_opt', []))
+                search = getattr(other, 'product_spin_search', None)
+                if search is not None:
+                    others.extend(getattr(search, 'optimizations', {}).values())
+            if not selection.advance(self.qc, self.par, others):
+                return True
+            reaction.irc_product_reference = endpoint_snapshot(reaction.irc_prod)
+            reaction.prod_opt = selection.selected_optimizations()
+            reaction.products = [opt.species for opt in reaction.prod_opt]
+            reaction.irc_fragments = [copy.copy(point) for point in reaction.products]
+            reaction.product_spin_selection = selection.evidence
+            reaction.prod_done = 1
+            self._record_bimol_status(reaction, product_spin_selection=selection.evidence)
+            # The selected Optimize objects already contain the final properties;
+            # stage 4 can finish complex classification without repeating them.
+            self.species.reac_ts_done[index] = 4
+        except (ValueError, StereoRoutingError) as error:
+            logger.warning('%s: product spin assignment unresolved: %s',
+                           reaction.instance_name, error)
+            self.species.reac_ts_done[index] = -999
+            self._record_bimol_status(reaction, final_status='product_spin_unresolved',
+                                     error=str(error))
+        return True
+
+    def _finalize_bimol_complexes(self, reaction):
+        """Classify complexes using finalized, same-level property records."""
+        if getattr(reaction, 'vdw_finalized', False):
+            return
+        if reaction.do_vdW:
+            product_energy = sum(
+                optimization.species.energy + optimization.species.zpe
+                for optimization in reaction.prod_opt)
+            complex_species = reaction.irc_prod_opt.species
+            reaction.vdW_depth = (
+                product_energy - complex_species.energy
+                - complex_species.zpe) * constants.AUtoKCAL
+            reaction.do_vdW = (
+                reaction.vdW_depth > self.par['vdW_detection'])
+            logger.info('\tProduct complex depth for %s: %.2f kcal/mol.',
+                        reaction.instance_name, reaction.vdW_depth)
+        if reaction.do_reac_vdW:
+            reactant_energy = sum(
+                fragment.energy + fragment.zpe
+                for fragment in (self.species.fragA, self.species.fragB))
+            complex_species = reaction.irc_reactant_opt.species
+            reaction.reac_vdW_depth = (
+                reactant_energy - complex_species.energy
+                - complex_species.zpe) * constants.AUtoKCAL
+            reaction.do_reac_vdW = (
+                reaction.reac_vdW_depth > self.par['vdW_detection'])
+            logger.info('\tReactant complex depth for %s: %.2f kcal/mol.',
+                        reaction.instance_name, reaction.reac_vdW_depth)
+        reaction.vdw_finalized = True
+
     def generate(self):
         '''
         Creates the input for each reaction, runs them, and tests for success.
@@ -58,16 +355,22 @@ class ReactionGenerator:
 
         The switching between the various stages are done via the reac_ts_done variable.
         0: initiate the TS search
-        1: check barrier height and errors in TS, and initiates normal mode displacement test, start the irc calculations
+        1: check barrier height and errors in TS
         2: submit product optimization
         3: submit the frequency calculation
         4: do the optimization of the ts and the products
         5: follow up on the optimizations
-        6: finalize calculations, check for wrong number of negative frequencies
+        6: bimolecular final TS selected and waiting for global clustering
+        7: bimolecular final IRC
+        8: geometrically unique fallback retained until final IRC succeeds
 
         If at any times the calculation fails, reac_ts_done is set to -999.
         If all steps are successful, reac_ts_done is set to -1.
         '''
+        if self.par['bimol']:
+            from kinbot.bimol import prepare_bimolecular_reactions
+            prepare_bimolecular_reactions(self.species, self.par, self.qc)
+
         deleted = []
         if len(self.species.reac_inst) > 0:
             alldone = 1
@@ -93,8 +396,11 @@ class ReactionGenerator:
                         # verify after restart if search has failed in previous kinbot run
                         status = self.qc.check_qc(obj.instance_name)
                         if status == 'error':
-                            logger.info('\tRxn search failed for {} - had error status on previous round.'
-                                         .format(obj.instance_name))
+                            if self.par['bimol']:
+                                self._log_bimol_ts_failure(obj)
+                            else:
+                                logger.info('\tRxn search failed for {} - had error status on previous round.'
+                                             .format(obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                     if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
                         # somewhat messy manipulation to force the new bond matrix for hom_sci
@@ -128,8 +434,11 @@ class ReactionGenerator:
                                                                 bimol=self.par['bimol'])
                                 if self.species.reac_step[index] == -1:
                                     self.species.reac_ts_done[index] = -999
-                                    logger.info(f'\tReaction search failed for {obj.instance_name}: '
-                                                'Invalid geometry.')
+                                    if self.par['bimol']:
+                                        self._log_bimol_ts_failure(obj)
+                                    else:
+                                        logger.info(f'\tReaction search failed for {obj.instance_name}: '
+                                                    'Invalid geometry.')
 
                         elif obj.scan == 1:  # do a bond scan
 
@@ -193,7 +502,7 @@ class ReactionGenerator:
                                                         logger.info(f'\tRelative energies (kcal/mol): {self.species.reac_scan_energy[index]}')
                                                         logger.debug(f'Derivatives: {ediff}')
                                                         self.species.reac_step[index] = self.par['scan_step']  # ending the scan
-                                     
+
                                             # scan continues, and if reached scan_step, then goes for full optimization
                                             self.species.reac_step[index] = reac_family.carry_out_reaction(
                                                                             obj, self.species.reac_step[index], command,
@@ -230,6 +539,9 @@ class ReactionGenerator:
                                          .format(obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
+                            if self.par['bimol']:
+                                self._advance_bimol_ts_selection(index, obj)
+                                continue
                             # check the barrier height:
                             ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
                             ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
@@ -240,15 +552,8 @@ class ReactionGenerator:
                             else:
                                 ending = 'well'
                                 thresh = self.par['barrier_threshold']
-                            if self.par['bimol']:
-                                fragments = (self.species.fragA, self.species.fragB)
-                                sp_energy = sum(self.qc.get_qc_energy(
-                                    f'{routing_name(frag)}_well')[1] for frag in fragments)
-                                sp_zpe = sum(self.qc.get_qc_zpe(
-                                    f'{routing_name(frag)}_well')[1] for frag in fragments)
-                            else:
-                                sp_energy = self.qc.get_qc_energy('{}_{}'.format(routing_name(self.species), ending))[1]
-                                sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(routing_name(self.species), ending))[1]
+                            sp_energy = self.qc.get_qc_energy('{}_{}'.format(routing_name(self.species), ending))[1]
+                            sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(routing_name(self.species), ending))[1]
                             try:
                                 barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
                             except TypeError:
@@ -258,32 +563,25 @@ class ReactionGenerator:
                                 logger.info('\tRxn barrier too high ({0:.2f} kcal/mol) at L1 for {1}'
                                              .format(barrier, obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
+                                self._record_bimol_status(
+                                    obj, l1_valid=False, l1_barrier=barrier,
+                                    final_status='l1_barrier_rejected')
                             else:
-                                obj.irc = IRC(obj, self.par)
-                                irc_status = obj.irc.check_irc()
-                                if 0 in irc_status:
-                                    logger.info('\tRxn barrier is ({0:.2f} kcal/mol) at L1 for {1}'
-                                                 .format(barrier, obj.instance_name))
-                                    # No IRC started yet, start the IRC now
-                                    logger.info('\tStarting IRC calculations for {}'
-                                                 .format(obj.instance_name))
-                                    obj.irc.do_irc_calculations()
-                                elif irc_status[0] == 'running' or irc_status[1] == 'running':
-                                    continue
-                                else:
-                                    # IRC's have successfully finished, have an error, in any case
-                                    # read the geometries and try to make products out of them
-                                    # verify which of the ircs leads back to the reactant, if any
-                                    logger.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'
-                                                 .format(barrier, obj.instance_name))
-                                    obj.irc_prod = obj.irc.irc2stationary_pt()
-                                    if obj.irc_prod == 0:
-                                        logger.info('\tNo product found for {}'.format(obj.instance_name))
-                                        self.species.reac_ts_done[index] = -999
-                                    else:
-                                        self.species.reac_ts_done[index] = 2
+                                obj.l1_barrier = barrier
+                                self._advance_irc(index, obj, barrier)
+
+                    elif self.species.reac_ts_done[index] == 7:
+                        selected_barrier = (
+                            obj.ts.energy + obj.ts.zpe
+                            - sum(fragment.energy + fragment.zpe for fragment in (
+                                self.species.fragA, self.species.fragB))) \
+                            * constants.AUtoKCAL
+                        obj.l1_barrier = selected_barrier
+                        self._advance_irc(index, obj, selected_barrier)
 
                     elif self.species.reac_ts_done[index] == 2:
+                        if self.par['bimol'] and self._advance_product_spins(index, obj):
+                            continue
                         # obj.valid_prod: list marking fragments for deletion (if breaks apart or changes)
                         # frag_unique: list of unique fragments across all reactions for this well
                         # obj.products: list of products for given reaction, which includes changes and further dissociation
@@ -461,22 +759,28 @@ class ReactionGenerator:
                             if len(obj.products) == 2 and 'hom_sci' not in obj.instance_name:
                                 logger.info('\tChecking vdW well for {}.'.format(obj.instance_name))
                                 obj.irc_prod.characterize()
-                                e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}')  # e is the error code: should be 0 (success) at this point.
-                                e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
-                                e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
-                                e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom)
+                                if not self.par['bimol']:
+                                    e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}')  # e is the error code: should be 0 (success) at this point.
+                                    e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
+                                    e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
+                                    e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom)
                                 self._debug_fragment_freqs(f"{obj.instance_name}:irc_prod_after_get_qc_freq", obj.irc_prod)
                                 for this_frag in obj.irc_fragments:
                                     self._debug_fragment_freqs(f"{obj.instance_name}:frag_after_get_qc_freq", this_frag)
                                     e, this_frag.freq = self.qc.get_qc_freq(f'{this_frag.name}_well', this_frag.natom)
                                     logger.debug(f'{this_frag.freq}')
-                                fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
-                                obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe)) * constants.AUtoKCAL
-                                if obj.vdW_depth > self.par['vdW_detection']:
-                                    logger.info(f'\tvdW well detected for {obj.irc_prod.name}. Depth: {np.round(obj.vdW_depth, 2)} kcal/mol.')
-                                    obj.do_vdW = True
-                                else:
-                                    logger.info(f'\t{obj.irc_prod.name} was not succesfully identified as a vdW well. Well depth is {np.round(obj.vdW_depth, 2)} kcal/mol.')
+                                if not self.par['bimol']:
+                                    fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
+                                    obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe)) * constants.AUtoKCAL
+                                    if obj.vdW_depth > self.par['vdW_detection']:
+                                        logger.info(f'\tvdW well detected for {obj.irc_prod.name}. Depth: {np.round(obj.vdW_depth, 2)} kcal/mol.')
+                                        obj.do_vdW = True
+                                    else:
+                                        logger.info(f'\t{obj.irc_prod.name} was not succesfully identified as a vdW well. Well depth is {np.round(obj.vdW_depth, 2)} kcal/mol.')
+
+                            if self.par['bimol']:
+                                reactant = obj.irc_reactant
+                                reactant.characterize()
 
                             if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                                 hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
@@ -503,15 +807,10 @@ class ReactionGenerator:
                             self._debug_fragment_freqs(f"{obj.instance_name}:state3_after_reset_order", frag)
                             # e, frag.geom = self.qc.get_qc_geom(routing_name(frag) + '_well', frag.natom)
 
-                        # Do the TS and product optimization
-                        # make a stationary point object of the ts
-                        endpoint = obj.irc_product_reference
-                        bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
-                        for i in range(self.species.natom):
-                            for j in range(self.species.natom):
-                                bond_mx[i][j] = max(self.species.bond[i][j], endpoint.bonds[0][i][j])
-
-                        if self.species.reac_type[index] != 'hom_sci':
+                        # Preserve the selected final bimolecular saddle through product handling.
+                        if not self.par['bimol'] and self.species.reac_type[index] != 'hom_sci':
+                            endpoint = obj.irc_product_reference
+                            bond_mx = np.maximum(self.species.bond, endpoint.bonds[0])
                             err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
                             ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
                                                  atom=self.species.atom, geom=geom, wellorts=1)
@@ -531,12 +830,12 @@ class ReactionGenerator:
                             # do the ts optimization
                             obj.ts_opt = Optimize(obj.ts, self.par, self.qc)
                             obj.ts_opt.do_optimization()
-                        else:
+                        elif self.species.reac_type[index] == 'hom_sci':
                             obj.ts = copy.copy(obj.species)  # the TS will be for now the species itself
                             obj.ts.wellorts = 1
 
                         # do the vdW optimizations
-                        if obj.do_vdW:
+                        if obj.do_vdW and not self.par['bimol']:
                             # do the high level optimization if requested
                             obj.irc_prod_opt = Optimize(obj.irc_prod, self.par, self.qc, just_high=True)
                             obj.irc_prod_opt.do_optimization()
@@ -574,6 +873,8 @@ class ReactionGenerator:
                                     logger.info('\tRxn search failed for {}, prod_opt shigh fail for {}.'
                                                  .format(obj.instance_name, prod_opt.species.chemid))
                                     self.species.reac_ts_done[index] = -999
+                                    self._record_bimol_status(
+                                        obj, final_status='product_refinement_failed')
                                     #break  # breaks so that other species is not looked at
                             temp_prod_opt.append(prod_opt)
                             # Reuse the complete selected calculation, including
@@ -607,7 +908,7 @@ class ReactionGenerator:
                             if obj.ts_opt.shigh == -999:
                                 logger.warning('Reaction {} ts_opt_shigh failure'.format(obj.instance_name))
                                 fails = 1
-                            if obj.do_vdW:
+                            if obj.do_vdW and not self.par['bimol']:
                                 if obj.irc_prod_opt.shigh == -999:
                                     logger.warning('High level vdW well optimization of {} failed'.format(obj.irc_prod.name))
                                     obj.do_vdW = False
@@ -623,16 +924,89 @@ class ReactionGenerator:
                                 fails = 1
                             continue
 
+                        if self.par['bimol'] and not fails and opts_done:
+                            from kinbot.bimol import load_selected_species_properties
+                            from kinbot.bimol_products import check_product_spins
+                            try:
+                                for pr_opt in obj.prod_opt:
+                                    if not hasattr(pr_opt, 'selected_job'):
+                                        load_selected_species_properties(
+                                            pr_opt, self.qc)
+                                check_product_spins(
+                                    [opt.species for opt in obj.prod_opt], obj.irc_prod)
+                            except ValueError as exc:
+                                logger.warning('%s', exc)
+                                fails = 1
+                            if not fails:
+                                self._classify_bimol_complexes(obj)
+                                for flag, attribute in (
+                                        ('do_vdW', 'irc_prod_opt'),
+                                        ('do_reac_vdW', 'irc_reactant_opt')):
+                                    if not getattr(obj, flag):
+                                        continue
+                                    optimization = getattr(obj, attribute)
+                                    if optimization.shigh == -999:
+                                        logger.warning(
+                                            'Complex optimization failed for %s.',
+                                            optimization.species.name)
+                                        setattr(obj, flag, False)
+                                    elif optimization.shigh != 1:
+                                        optimization.do_optimization()
+                                        opts_done = 0
+                                    elif not hasattr(optimization,
+                                                     'selected_job'):
+                                        try:
+                                            load_selected_species_properties(
+                                                optimization, self.qc)
+                                        except ValueError as exc:
+                                            logger.warning('%s', exc)
+                                            setattr(obj, flag, False)
+                                if opts_done:
+                                    self._finalize_bimol_complexes(obj)
+
                         if fails:
                             self.species.reac_ts_done[index] = -999
+                            self._record_bimol_status(
+                                obj, final_status='property_refinement_failed')
                         elif opts_done:
                             self.species.reac_ts_done[index] = 5
 
                     elif self.species.reac_ts_done[index] == 5:
                         # Finilize the calculations
                         st_pt = obj.prod_opt[0].species
+                        if self.par['bimol']:
+                            barrier = (
+                                obj.ts.energy + obj.ts.zpe
+                                - sum(fragment.energy + fragment.zpe
+                                      for fragment in (
+                                          self.species.fragA,
+                                          self.species.fragB))) \
+                                * constants.AUtoKCAL
+                            if self.par['high_level']:
+                                level = 'L2'
+                                threshold = (self.par['barrier_threshold_L2']
+                                             or self.par['barrier_threshold'])
+                            else:
+                                threshold = self.par['barrier_threshold']
+                                level = 'L1'
+                            obj.final_barrier = barrier
+                            self._record_bimol_status(
+                                obj, final_barrier=barrier,
+                                final_barrier_level=level)
+                            if barrier > threshold:
+                                logger.info(
+                                    '\tFinal selected TS barrier is too high '
+                                    '(%.2f kcal/mol at %s) for %s.',
+                                    barrier, level, obj.instance_name)
+                                self.species.reac_ts_done[index] = -999
+                                self._record_bimol_status(
+                                    obj, final_status='final_barrier_rejected')
+                                continue
                         # kill reaction if higher than L2 threshold
-                        if self.par['barrier_threshold_L2'] and self.par['high_level'] and 'hom_sci' not in obj.instance_name:
+                        if (not self.par['bimol']
+                                and self.par['barrier_threshold_L2']
+                                and self.par['high_level']
+                                and 'hom_sci' not in obj.instance_name):
                             # check the barrier height again at L2 if requested
                             ts_energy = self.qc.get_qc_energy(f'{obj.instance_name}_high')[1]
                             ts_zpe = self.qc.get_qc_zpe(f'{obj.instance_name}_high')[1]
@@ -640,6 +1014,9 @@ class ReactionGenerator:
                             if  valid > 0. :
                                 logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {np.round(valid, 2)} kcal/mol, reaction is deleted.')
                                 self.species.reac_ts_done[index] = -999
+                                self._record_bimol_status(
+                                    obj, final_status='l2_barrier_rejected',
+                                    l2_barrier_excess=float(valid))
                                 continue
                         # continue to PES search in case a new well was found
                         if self.par['pes']:
@@ -684,6 +1061,8 @@ class ReactionGenerator:
                                 elif st_pt.reduced_freqs[0] < -1 * self.par['imagfreq_threshold']:
                                     logger.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}.')
                                     self.species.reac_ts_done[index] = -999
+                                    self._record_bimol_status(
+                                        obj, final_status='product_frequency_failed')
                                     neg_freq = 1
                         ts_freq = np.asarray(obj.ts.reduced_freqs)
                         # hom_sci uses the parent well as a bookkeeping placeholder,
@@ -696,13 +1075,15 @@ class ReactionGenerator:
                                 logger.warning('Wrong number of imaginary frequencies for ' + obj.instance_name)
                                 logger.warning(obj.ts.reduced_freqs)
                                 self.species.reac_ts_done[index] = -999
+                                self._record_bimol_status(
+                                    obj, final_status='ts_frequency_failed')
                                 neg_freq = 1
                             elif nneg == 2:
                                 idx = int(np.argsort(ts_freq)[1])
                                 logger.warning(f'Flipping small secondary imaginary frequency '
                                                f'{obj.ts.reduced_freqs[idx]} cm-1 for {obj.instance_name}.')
                                 obj.ts.reduced_freqs[idx] *= -1.
-                        
+
                         if not neg_freq:
                             from kinbot.product_complex import reassess_product_complex
                             reassess_product_complex(obj, self.par)
@@ -715,7 +1096,9 @@ class ReactionGenerator:
                                 os.remove('{}_xval.txt'.format(self.species.chemid))
                             if os.path.exists('{}_im_extent.txt'.format(self.species.chemid)):
                                 os.remove('{}_im_extent.txt'.format(self.species.chemid))
-                            postprocess.createPESViewerInput(self.species, self.qc, self.par)
+                            if not self.par['bimol']:
+                                postprocess.createPESViewerInput(
+                                    self.species, self.qc, self.par)
 
                     elif self.species.reac_ts_done[index] == -999:
                         if (self.par['delete_intermediate_files'] == 1
@@ -735,6 +1118,11 @@ class ReactionGenerator:
                     obj.stereochemical_rejection = str(error)
                     self.species.reac_ts_done[index] = -999
 
+            if self.par['bimol']:
+                from kinbot.bimol import release_final_ts_clusters, advance_pose_searches
+                release_final_ts_clusters(self.species, self.par)
+                pending_pose_search = advance_pose_searches(self.species, self.par, self.qc)
+
             alldone = 1
             for index, instance in enumerate(self.species.reac_inst):
                 if any(self.species.reac_ts_done[index] >= 0
@@ -745,21 +1133,58 @@ class ReactionGenerator:
                     alldone = 0
 
             # write a small summary while running
+            if self.par['bimol'] and pending_pose_search:
+                alldone = 1
             with open('kinbot_monitor.out', 'w') as f_out:
                 for index, instance in enumerate(self.species.reac_inst):
                     if self.species.reac_ts_done[index] == -1:
                         prodstring = []
                         for pp in self.species.reac_obj[index].products:
                             prodstring.append(routing_name(pp))
-                        f_out.write('{}\t{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
-                                                              self.species.reac_step[index], 
+                        f_out.write('{}\t{}\t{}\t{}\n'.format(self.species.reac_ts_done[index],
+                                                              self.species.reac_step[index],
                                                               self.species.reac_obj[index].instance_name,
                                                               ' '.join(prodstring)))
                     else:
-                        f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
-                                                          self.species.reac_step[index], 
+                        f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index],
+                                                          self.species.reac_step[index],
                                                           self.species.reac_obj[index].instance_name))
             time.sleep(1)
+
+        if self.par['bimol']:
+            from kinbot.bimol import update_bimol_status
+            for index, reaction in enumerate(self.species.reac_obj):
+                status = self.species.reac_ts_done[index]
+                if status == -1:
+                    update_bimol_status(
+                        reaction, l1_valid=True, final_irc_valid=True,
+                        final_status='ready_for_export')
+                elif status == -999:
+                    updates = {
+                        'l1_valid': hasattr(reaction, 'ts_source_job')}
+                    if not hasattr(reaction, 'bimol_final_status'):
+                        updates['final_status'] = (
+                            'post_irc_failed'
+                            if hasattr(reaction, 'irc_prod')
+                            else 'l1_ts_failed')
+                    update_bimol_status(reaction, **updates)
+            from kinbot.bimol_network import BimolecularNetwork
+            network = BimolecularNetwork(self.species, self.par)
+            network.write_json()
+            network.write_pesviewer()
+            network.write_unique_ts()
+            for index, reaction in enumerate(self.species.reac_obj):
+                if self.species.reac_ts_done[index] == -1:
+                    update_bimol_status(reaction, final_status='final_exported')
+            if self.par['L3_calc'] and self.par['delete_intermediate_files']:
+                # Deferred TS sources are needed through final IRC/export.
+                # Cleanup now is safe and must not resume optimization or HIR.
+                for index, reaction in enumerate(self.species.reac_obj):
+                    if (self.species.reac_ts_done[index] == -1
+                            and self.species.reac_type[index] != 'hom_sci'):
+                        reaction.ts_opt.defer_hir = False
+                        reaction.ts_opt.defer_cleanup = False
+                        reaction.ts_opt.delete_files()
 
         s = []
         for index, instance in enumerate(self.species.reac_inst):
@@ -870,7 +1295,7 @@ class ReactionGenerator:
                 frag_unique.append(frag)
             elif len(frag_unique) > 0:
                 new = 1
-                for fragu in frag_unique:  
+                for fragu in frag_unique:
                     if same_species(frag, fragu):
                         fragments[fi] = fragu
                         new = 0

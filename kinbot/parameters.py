@@ -66,6 +66,22 @@ class Parameters:
             'family_restrict': 0, 
             # Which reaction families to include in the search bimolecular reactions
             'bimol_families': ['all'],
+            # Legacy L0 overrides. Empty backend/command inherit the ordinary
+            # QC settings; bimolecular exploration defaults to Gaussian AM1.
+            'l0_qc': '',
+            'l0_method': 'am1',
+            'l0_basis': '',
+            'l0_qc_command': '',
+            'l0_calc_kwargs': {},
+            # Overrides for the artificial-force bimolecular TS search.
+            # sequential defaults to True: stop at intended L0 IRC validation
+            # and resume remaining poses on TS refinement/final IRC failure.
+            # Set sequential=False to explore all poses before L1 selection.
+            'bimol_search_kwargs': {},
+            # Structural clustering thresholds for bimolecular networks
+            'bimol_basin_rmsd': 0.15,
+            'bimol_ts_rmsd': 0.10,
+            'bimol_energy_tolerance': 0.25,
             # Which reaction families to skip in the search
             'skip_families': ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
@@ -124,7 +140,7 @@ class Parameters:
             'difference_threshold': 0.1,
             # The angular grid for dihedrals, angle = 360 / grid
             'conf_grid': 3,
-            # For wells, do an L0 search and select the lowest conformers
+            # For wells only, do an L0 search and select the lowest conformers
             # for the L1 conformer search
             'l0_conformer_search': 0,
             # Do a hindered rotor scan
@@ -148,7 +164,7 @@ class Parameters:
             # Dihedral angle to consider a section of a ring flat
             'flat_ring_dih_angle': 5.,
             # Maximum number of diherals for which exhaustive
-            # conformation searches are done at L0
+            # comformation searches are done at L0
             'l0_max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
             # at L0
@@ -196,10 +212,6 @@ class Parameters:
             # Which quantum chemistry code to use
             'qc': 'gauss',  # or qchem, orca or fc
             # Rishi's opt-in theory profiles, extended to preliminary L0 jobs.
-            'l0_qc': '',
-            'l0_basis': '',
-            'l0_qc_command': '',
-            'l0_calc_kwargs': {},
             'profiled_theory': 0,
             'profiled_l1_reuse_only': 0,
             # Previously written inputs include this empty field. Named
@@ -228,13 +240,11 @@ class Parameters:
             'high_level_method': 'M062X',
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
-            # method for L0 conformer search
-            'l0_method': 'am1',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
             # Optimization threshold
             'opt': '',
-            # for Gaussian irc: IRC(MaxPoints=n)
+            # Gaussian IRC(MaxPoints=n); also the bimolecular FairChem IRC step limit.
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)
             'irc_stepsize': 20,
@@ -482,8 +492,10 @@ class Parameters:
                                'designed to be used for exploratory purposes only. '
                                'Running the hindered rotor calculations at this '
                                'level of theory is highly discouraged.')
-            if self.par['method'].lower() != self.par['high_level_method'].lower() \
-                    or self.par['basis'].lower() != self.par['high_level_basis'].lower():
+            if (self.par['method'].lower()
+                    != self.par['high_level_method'].lower()
+                    or self.par['basis'].lower()
+                    != self.par['high_level_basis'].lower()):
                 err = 'When running the hindered rotors at L1, "high_level_method" ' \
                       'must be the same as "method" and "high_level_basis" ' \
                       'must be the same as "basis".'
@@ -541,6 +553,12 @@ class Parameters:
                 or '\n' in value['reason'] or '\r' in value['reason']
                 for name, value in assumptions.items()):
             raise ValueError('optical_factor_assumptions requires exact state names with multiplier 1 or 2 and a one-line reason')
+        if self.par['bimol']:
+            from kinbot.bimol import validate_search_kwargs
+            try:
+                validate_search_kwargs(self.par['bimol_search_kwargs'])
+            except (TypeError, ValueError) as exc:
+                err = str(exc)
 
         if self.par['multi_conf_tst'] and not self.par['conformer_search']:
             err = 'For multi conformer tst calculation conformer search needs to be activated.'

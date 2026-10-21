@@ -290,6 +290,12 @@ def _main():
             if frag_opt.shigh == -999:
                 logger.error(f'Error with high level optimization for {frag.name}.')
                 return
+            from kinbot.bimol import load_selected_species_properties
+            try:
+                load_selected_species_properties(frag_opt, qc)
+            except ValueError as exc:
+                logger.error('%s', exc)
+                return
 
         well0.fragA = fragments['frag_a']  # update
         well0.fragB = fragments['frag_b']  # update

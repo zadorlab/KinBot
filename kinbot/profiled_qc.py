@@ -352,8 +352,9 @@ class ProfiledQuantumChemistry:
             return record['level']
         # New ordinary names identify their level before submission. Rotor
         # names do not, so results require the record saved before launch.
-        if '_semi_emp_' in job or (job.startswith('conf/')
-                and re.search(r'_r\d+_\d+$', job)):
+        if ('_semi_emp_' in job or (job.startswith('conf/')
+                and re.search(r'_r\d+_\d+$', job))
+                or (self.par.get('bimol') and job.startswith('bimol/'))):
             return 'l0'
         if _rotor_job(job):
             raise ValueError(f'{job}: rotor result has no recorded theory level; '
@@ -381,6 +382,12 @@ class ProfiledQuantumChemistry:
     def qc_conf(self, species, geom, index, semi_emp=0):
         backend = self.l0 if semi_emp else self.l1
         return backend.qc_conf(species, geom, index, semi_emp=semi_emp)
+
+    def qc_bimol_search(self, *args, **kwargs):
+        return self.l0.qc_bimol_search(*args, **kwargs)
+
+    def qc_bimol_irc(self, *args, **kwargs):
+        return self.l0.qc_bimol_irc(*args, **kwargs)
 
     def qc_aie(self, *args, **kwargs):
         return self.legacy.qc_aie(*args, **kwargs)

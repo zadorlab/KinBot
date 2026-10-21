@@ -27,6 +27,22 @@ from kinbot import constants
 logger = logging.getLogger('KinBot')
 
 
+def same_ts_geometry(reference, refined, mode=None, refined_mode=None):
+    """Apply the ordinary TS bond-length and, when available, mode checks."""
+    return ((mode is not None and refined_mode is not None
+             and geometry.matrix_corr(mode, refined_mode) > 0.9
+             and geometry.equal_geom(reference, refined, 0.3))
+            or geometry.equal_geom(reference, refined, 0.2))
+
+
+def valid_ts_frequencies(freq, threshold):
+    """Retain the ordinary TS tolerance for one small extra imaginary mode."""
+    values = np.asarray(freq)
+    return not (np.count_nonzero(values < 0) >= 3
+                or np.count_nonzero(values < -threshold) >= 2
+                or np.count_nonzero(values < 0) == 0)
+
+
 class Optimize:
     """
     This class does the following:
@@ -37,12 +53,14 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0, just_high=False):
+    def __init__(self, species, par, qc, wait=0, just_high=False,
+                 defer_hir=False):
         """
         just_high: ony do high_level calculation
         """
         self.species = species
-        self.species.conformer_representation = ('MC-RRHO' if par.get('multi_conf_tst', 0)
+        bimol_endpoint = par.get('bimol') and just_high
+        self.species.conformer_representation = ('MC-RRHO' if par.get('multi_conf_tst', 0) and not bimol_endpoint
                                                 else 'selected conformer')
         self.species.optical_population = par.get('optical_population', 'specified')
 
@@ -56,7 +74,10 @@ class Optimize:
             self.name = str(self.species.name)
         else:
             self.species.characterize()
-            self.name = routing_name(self.species)
+            # Bimolecular IRC complexes retain their endpoint job names.
+            # Their L2 jobs are submitted from species.name as well.
+            self.name = (str(self.species.name) if bimol_endpoint
+                         else routing_name(self.species))
         if not self.species.wellorts:
             optical_scope(self.species, self.species.optical_population)
         from kinbot.optical import bind_assumption
@@ -68,6 +89,7 @@ class Optimize:
 
         self.shigh = -1
         self.just_high = just_high
+        self.defer_hir = defer_hir
 
         if not self.just_high:
             # status of the various parts
@@ -316,6 +338,13 @@ class Optimize:
                         # replace the rotor-projected frequencies with raw ones.
                         load_calculation_record(self.species, self.qc,
                                                 selected_calculation_job(self))
+                        if self.par.get('bimol') and not self.par['high_level']:
+                            self.restart = self.species.confs.hir_restart_count
+                            if self.restart:
+                                # This L1 calculation already finished. Start
+                                # with its scans, not another optimization of
+                                # an older sample under a reused restart name.
+                                self.shigh = 1
 
                 while self.restart <= self.par['rotation_restart']:
                     # do the high level calculations
@@ -410,7 +439,9 @@ class Optimize:
                         self.shigh = 1
                     if self.shigh == 1:
                         # do the HIR calculation
-                        if self.par['rotor_scan'] == 1 and self.par['multi_conf_tst'] != 1:
+                        if (self.par['rotor_scan'] == 1
+                                and self.par['multi_conf_tst'] != 1
+                                and not self.defer_hir):
                             if (not self.just_high
                                     and not self._ensure_selected_hessian()):
                                 break
@@ -497,7 +528,7 @@ class Optimize:
                 # calculate the new frequencies with the internal rotations projected out
                 if (self.par['multi_conf_tst'] == 0
                         and self.par['rotor_scan']
-                        and not self.just_high
+                        and not self.just_high and not self.defer_hir
                         and not getattr(self, '_projection_failure', None)):
                     recovered = recover_hir_model(self.species, self.qc, self.par,
                                                   allow_qc=True, wait=self.wait)
@@ -560,6 +591,11 @@ class Optimize:
 
     def delete_files(self):
         if self.par['delete_intermediate_files'] == 0:
+            return 0
+        if (getattr(self, 'defer_hir', False)
+                or getattr(self, 'defer_cleanup', False)):
+            # Bimolecular callers need these files through final IRC/export,
+            # including after they resume the ordinary HIR refinement loop.
             return 0
 
         extensions = ['chk', 'py', 'sbatch', 'ase', 'pbs', 'com']
@@ -655,7 +691,7 @@ class Optimize:
         if self.species.wellorts and job == getattr(self, '_hir_refinement_job', None):
             # Same-level refinement of a constrained HIR point. Retain the
             # geometry/connectivity and frequency checks without another IRC.
-            same_geom = geometry.equal_geom(self.species, dummy, 0.2)
+            same_geom = same_ts_geometry(self.species, dummy)
         elif self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
             if conf < 0 and getattr(self, 'l1_reference_job', None):
                 l1_file = self.l1_reference_job
@@ -678,9 +714,7 @@ class Optimize:
             imagmode_high = self.qc.read_imag_mode(l2_file, self.species.natom)
             # either geom is roughly same with closely matching imaginary modes, or geometry is very close
             # maybe we need to do IRC at the high level as well...
-            same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-                    (geometry.equal_geom(self.species, dummy, 0.3))) \
-                    or (geometry.equal_geom(self.species, dummy, 0.2))
+            same_geom = same_ts_geometry(self.species, dummy, imagmode, imagmode_high)
             if self.par['multi_conf_tst'] != 1:  # for now skipping this
                 p_coord = copy.deepcopy(self.species.geom)
                 q_coord = copy.deepcopy(dummy.geom)
@@ -724,10 +758,7 @@ class Optimize:
                 logger.warning(f'Negative frequency {freq[0]} cm-1 detected in '
                             f'{self.name}. Flipped to {-freq[0]}.')
                 freq[0] *= -1.
-        elif self.species.wellorts == 1 \
-                and not (np.count_nonzero(np.array(freq) < 0) >= 3  # Three or more imag frequencies
-                        or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
-                        or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies:
+        elif self.species.wellorts == 1 and valid_ts_frequencies(freq, self.par['imagfreq_threshold']):
             freq_ok = 1
         else:
             freq_ok = 0

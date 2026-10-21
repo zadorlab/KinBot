@@ -50,9 +50,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-bimol = [
-    "kinbot[fc]"
-]
+# Bimolecular orchestration supports every installed KinBot QC backend.
+bimol = []
 plot = [
     "matplotlib"
 ]

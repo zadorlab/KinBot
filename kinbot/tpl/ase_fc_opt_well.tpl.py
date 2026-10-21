@@ -42,6 +42,8 @@ if len(mol) == 1:
            'zpe': 0.0,
            'hess': np.zeros([3, 3]), 
            'status': 'normal'}}
+    if {bimol}:
+        data.update(backend='fc', method='{fc_model_path}', basis=None)
     mol_pkl = {{'sym': mol.symbols,
                 'pos': mol.positions,
                 'calc': 'fairchemcalculator',
@@ -121,6 +123,8 @@ elif len(mol.symbols) > 2 and (not converged) and '{optimizer}' != 'bfgs':
                 f.write('Converged but frequency check failed (order={order}); frequencies (cm-1):\n')
                 f.write(str(list(freqs)) + '\n')
 
+if {bimol}:
+    data.update(backend='fc', method='{fc_model_path}', basis=None)
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,
             'calc': 'fairchemcalculator',

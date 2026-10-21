@@ -16,6 +16,7 @@ from kinbot.parameters import Parameters
 from kinbot.profiled_qc import ProfiledQuantumChemistry, MissingL1Result
 from kinbot.qc import QuantumChemistry
 from kinbot.reac_family import carry_out_reaction
+from kinbot.reactions.reac_abstraction import Abstraction
 from kinbot.species_routing import routing_name
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.theory import resolve_profiles
@@ -331,8 +332,61 @@ def test_ordinary_irc_uses_l1_model_for_path_and_endpoint(workspace):
         assert qc.for_job(job + '_prod') is qc.l1
 
 
+@pytest.mark.parametrize('bimol, limit, expected', [(0, 7, 100), (1, 7, 7), (1, 30, 30)])
+def test_fairchem_irc_point_limit_changes_only_bimolecular_workers(workspace, bimol, limit, expected):
+    par = profile_parameters(irc_maxpoints=limit, sella_steps=250)
+    par['bimol'] = bimol
+    qc = QuantumChemistry(par)
+    rxn = reaction(qc, par)
+    qc.l1.get_qc_geom = Mock(return_value=(0, rxn.species.geom))
+    IRC(rxn, par).do_irc_calculations()
+    for direction in ('F', 'R'):
+        tree = ast.parse(script(rxn.instance_name + '_IRC_' + direction))
+        calls = {node.func.value.id: node for node in ast.walk(tree)
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                 and isinstance(node.func.value, ast.Name) and node.func.attr == 'run'}
+        steps = lambda call: next(ast.literal_eval(k.value) for k in call.keywords if k.arg == 'steps')
+        assert steps(calls['irc']) == expected
+        assert steps(calls['opt']) == 250
 
 
+def test_final_bimol_irc_and_endpoints_use_selected_l2_gaussian(workspace):
+    par = profile_parameters(high_level=1, conformer_search=1)
+    par['bimol'] = 1
+    qc = QuantumChemistry(par)
+    rxn = reaction(qc, par)
+    rxn.ts = methanol(wellorts=1, name='selected_ts')
+    rxn.ts.source_job = 'selected_ts_high'
+    rxn.final_irc_name = 'methanol_final_selected'
+    IRC(rxn, par).do_irc_calculations()
+    for direction in ('F', 'R'):
+        job = rxn.final_irc_name + '_IRC_' + direction
+        text = script(job)
+        for name in ('kwargs', 'prod_kwargs'):
+            kwargs = literal(text, name)
+            assert kwargs['method'] == 'M062X'
+            assert kwargs['basis'] == '6-31G(d)'
+            assert kwargs['integral'] == 'UltraFine'
+        assert 'RCFC' not in literal(text, 'kwargs')['irc']
+        assert '/l2/g16' in text and '/global/g09' not in text
+        assert qc.for_job(job) is qc.l2
+        assert qc.for_job(job + '_prod') is qc.l2
+
+
+def test_final_bimol_irc_source_route_overrides_global_high_level(workspace):
+    par = profile_parameters(high_level=0,
+                             l2_profile=fairchem('/models/large.pt', 'cuda:1'))
+    par['bimol'] = 1
+    qc = QuantumChemistry(par)
+    rxn = reaction(qc, par)
+    rxn.ts = methanol(wellorts=1, name='selected_ts')
+    rxn.ts.source_job = 'selected_unusual_name'
+    qc.l2.submit_qc(rxn.ts.source_job, 4)
+    rxn.final_irc_name = 'methanol_final_selected'
+    IRC(rxn, par).do_irc_calculations()
+    job = rxn.final_irc_name + '_IRC_F'
+    assert_model(script(job), '/models/large.pt', 'cuda:1')
+    assert qc.for_job(job + '_prod') is qc.l2
 
 
 def test_restart_restores_backend_and_job_id_for_nonstandard_job_name(workspace):
@@ -881,6 +935,34 @@ def test_l3_arguments_keep_ordinary_global_settings(workspace):
     assert qc.legacy.qc_command == '/global/g09'
 
 
+@pytest.mark.parametrize('enabled', [False, True])
+def test_bimolecular_search_and_validation_workers_keep_l0_model(workspace, enabled):
+    from kinbot.bimol import search_job, validation_job
+
+    par = profile_parameters(fc_compile=enabled)
+    par['bimol'] = 1
+    qc = QuantumChemistry(par)
+    first = StationaryPoint('H', 0, 2, atom=['H'], geom=np.zeros((1, 3)))
+    first.characterize()
+    second = methanol()
+    point = StationaryPoint('bimol', 0, 2, fragA=first, fragB=second,
+        atom=list(first.atom) + list(second.atom),
+        geom=np.vstack((first.geom, second.geom + [6., 0., 0.])))
+    point.characterize()
+    hydrogen = next(i for i, atom in enumerate(second.atom)
+                    if atom == 'H' and second.bond01[0, i])
+    rxn = Abstraction(point, qc, par, [0, hydrogen + 1, 1], 'methanol_abstraction')
+    qc.qc_bimol_search(rxn)
+    candidate = {'validation_directory': 'bimol/candidate/validation',
+                 'candidate': {'geometry': point.geom.tolist()}}
+    qc.qc_bimol_irc(rxn, candidate)
+    jobs = [search_job(rxn.instance_name, sequential=True),
+            validation_job(candidate['validation_directory'])]
+    for job in jobs:
+        assert_model(script(job), '/models/small.pt', 'cpu')
+        assert f'compile_model={enabled}' in script(job)
+        assert '/models/medium.pt' not in script(job)
+        assert qc.for_job(job) is qc.l0
 
 
 def test_sella_gaussian_workers_receive_profile_frequency_policy(workspace):
@@ -932,7 +1014,8 @@ def test_requested_three_level_methanol_settings_are_accepted(workspace, case):
     point = methanol()
     structure = [item for atom, xyz in zip(point.atom, point.geom)
                  for item in (str(atom), *map(float, xyz))]
-    par = parameters(structure=structure, charge=0, mult=1, high_level=1,
+    par = parameters(bimol=1, structure=[['H', 0., 0., 0.], structure],
+                     charge=[0, 0], mult=[2, 1, 2], high_level=1,
                      conformer_search=1, l0_conformer_search=1, pes=0, L3_calc=0,
                      me=0, run_me=0, **profiles)
     assert set(resolve_profiles(par)) == {'l0', 'l1', 'l2'}

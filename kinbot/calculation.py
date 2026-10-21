@@ -22,6 +22,17 @@ def geometry_reference(species, geometry=None):
     }
 
 
+def calculation_details(row):
+    """Read method details saved with this result, not the current input settings."""
+    parameters = getattr(row, 'calculator_parameters', {}) or {}
+    backend = row.data.get('backend') or getattr(row, 'calculator', None)
+    return {
+        'backend': {'gaussian': 'gauss', 'fairchemcalculator': 'fc'}.get(backend, backend),
+        'method': row.data.get('method') or parameters.get('method'),
+        'basis': row.data.get('basis') or parameters.get('basis'),
+    }
+
+
 def load_calculation_record(species, qc, job):
     """Load geometry and molecular properties from one calculation record."""
     rows = list(qc.db.select(name=job))
@@ -66,8 +77,8 @@ def load_calculation_record(species, qc, job):
     species.calculation_provenance = {
         'source_job': row.name, 'source_row_id': row.id,
         'record_status': data.get('status'),
-        'backend': data.get('backend'), 'method': data.get('method'),
-        'basis': data.get('basis'),
+        **(calculation_details(row) if getattr(qc, 'par', {}).get('bimol')
+           else {key: data.get(key) for key in ('backend', 'method', 'basis')}),
         'description': 'selected database row; absent electronic-structure details are unknown',
     }
     if row.name != job:

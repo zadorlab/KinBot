@@ -60,6 +60,8 @@ del mol.calc.results['forces']
 data={{'energy': e, 'status': 'normal'}}
 
 # write even if no converged, this is an intermediate
+if {bimol}:
+    data.update(backend='fc', method='{fc_model_path}', basis=None)
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,
             'calc': 'fairchemcalculator',

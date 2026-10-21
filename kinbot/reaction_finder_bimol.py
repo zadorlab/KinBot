@@ -3,6 +3,9 @@ import sys
 import logging
 
 from kinbot.reactions.reac_abstraction import Abstraction
+from kinbot.species_routing import routing_name
+from kinbot.stereochemistry import (refine_equivalence_group, stereotopic_classes,
+                                     stereotopic_site_signature)
 
 logger = logging.getLogger('KinBot')
 
@@ -36,6 +39,22 @@ class ReactionFinderBimol:
         # this dict is used to keep track of the unique reactions found,
         # and to verify whether a new reaction is indeed unique 
         self.reactions = {}
+        self.site_metadata = {}
+        self._stereotopic_cache = {}
+        self._site_signature_cache = {}
+
+    def _site_classes(self, species, atoms):
+        key = (id(species), tuple(sorted(int(atom) for atom in atoms)))
+        if key not in self._stereotopic_cache:
+            self._stereotopic_cache[key] = stereotopic_classes(
+                species, key[1])
+        return self._stereotopic_cache[key]
+
+    def _site_signature(self, atom):
+        if atom not in self._site_signature_cache:
+            self._site_signature_cache[atom] = stereotopic_site_signature(
+                self.species, atom)
+        return self._site_signature_cache[atom]
 
     def find_reactions(self):
         """
@@ -101,8 +120,7 @@ class ReactionFinderBimol:
             - and no free valence, 
             - e.g., -H or -Cl, but not =O
         a is an abstractor site
-            - radical location
-            - ?
+            - radical location or either atom of neutral O2
 
         shiftA and shiftB map fragment-local indices to the combined order.
         """
@@ -114,16 +132,62 @@ class ReactionFinderBimol:
 
         rxns = [] #reactions found with the current resonance isomer
         instances = []
-        
-        for radA_site in list(set(np.nonzero(radA)[0]) & set(uniqA)):  # unique radical centers
-            for bb in set(uniqB):
-                if atomB[bb] in ['H']:  # TODO expand to other atoms
-                    for ee, bond in enumerate(bondB[bb]):
-                        if bond == 1:
-                            instances.append([int(radA_site + shiftA),
-                                              int(bb + shiftB),
-                                              int(ee + shiftB)])
-                            break
+        radical_sites = [int(atom + shiftA)
+                         for atom in np.nonzero(radA)[0]]
+        fragment = self.species.fragA if shiftA == 0 else self.species.fragB
+        oxygen = (natomA == 2 and all(atom == 'O' for atom in atomA)
+                  and bondA[0][1] > 0 and fragment.charge == 0)
+        if oxygen:
+            # Singlet and triplet O2 have an O=O graph without radical sites.
+            # Either oxygen can accept H; keep the graph and spin unchanged.
+            radical_sites = [shiftA, shiftA + 1]
+        hydrogen_donors = {}
+        for atom in range(natomB):
+            if atomB[atom] != 'H':  # TODO expand to other atoms
+                continue
+            donor = next((index for index, order in enumerate(bondB[atom])
+                          if order == 1), None)
+            if donor is not None:
+                hydrogen_donors[int(atom + shiftB)] = int(donor + shiftB)
+
+        # Classify on the disconnected combined graph so a fixed chiral
+        # reacting partner turns an otherwise enantiotopic pair into two
+        # diastereotopic reaction paths.
+        if oxygen:
+            # O2's atom_eqv groups can leave its equivalent O atoms separate.
+            radical_classes = refine_equivalence_group(self.species, radical_sites)
+        else:
+            radical_classes = self._site_classes(self.species, radical_sites)
+        hydrogen_classes = self._site_classes(
+            self.species, hydrogen_donors)
+        for radical_class in radical_classes:
+            for hydrogen_class in hydrogen_classes:
+                radical = radical_class['representative']
+                hydrogen = hydrogen_class['representative']
+                donor = hydrogen_donors[hydrogen]
+                instance = [int(radical), int(hydrogen), int(donor)]
+                instances.append(instance)
+                stereopath_id = (
+                    'abstraction:'
+                    f'{self._site_signature(radical)}:'
+                    f'{self._site_signature(hydrogen)}')
+                self.site_metadata.setdefault(tuple(instance), {
+                    'stereopath_id': stereopath_id,
+                    'site_degeneracy': (
+                        len(radical_class['members'])
+                        * len(hydrogen_class['members'])),
+                    'site_relations': {
+                        'abstractor': radical_class['relation'],
+                        'transferred_atom': hydrogen_class['relation'],
+                    },
+                    'site_members': {
+                        'abstractor': [int(atom) for atom in
+                                       radical_class['members']],
+                        'transferred_atom': [int(atom) for atom in
+                                             hydrogen_class['members']],
+                    },
+                    'allow_reflection': not np.any(self.species.chiral),
+                })
 
         for instance in instances: 
             rxns.append(instance)
@@ -161,9 +225,14 @@ class ReactionFinderBimol:
         
         for i in range(len(reac_list)):
             if reac_id == 'abstraction':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(Abstraction(self.species, self.qc, self.par, reac_list[i], name))
+                reaction = Abstraction(
+                    self.species, self.qc, self.par, reac_list[i], name)
+                for key, value in self.site_metadata.get(
+                        tuple(reac_list[i]), {}).items():
+                    setattr(reaction, key, value)
+                self.species.reac_obj.append(reaction)
             else:
                 self.species.reac_name.append(0)
         return 0

@@ -90,6 +90,47 @@ class TestL0ConformerResults(unittest.TestCase):
         self.search.conf = 2
         self.assertEqual(self.search.check_conformers()[7], [0, 1])
 
+    def test_cached_ts_summary_preserves_the_selected_hessian_source(self):
+        self.par.update(conformer_search=1, high_level=0, rotor_scan=1,
+                        multi_conf_tst=0, L3_calc=0)
+        self.species.wellorts = 1
+        self.species.name = 'ethanol_ts'
+        self.species.freq = [-1000.] + [100.] * (3 * self.species.natom - 7)
+        optimization = Optimize(self.species, self.par, self.qc, defer_hir=True)
+        search = Conformers(self.species, self.par, self.qc)
+        self.species.confs = search
+        job = search.get_job_name(0)
+        hessian = np.eye(3 * self.species.natom)
+        for name in (self.species.name, job):
+            self.qc.db.write(self.atoms, name=name, data={
+                'energy': -100. / constants.EVtoHARTREE, 'zpe': .1,
+                'frequencies': self.species.freq, 'status': 'normal', 'hess': hessian})
+            Path(name + '.log').write_text('completed calculation')
+        search.conf, search.conf_status = 1, [0]
+        search.check_conformers()  # creates the legacy summary, without Hessian
+        summary = self.qc.db.get(name='conf/ethanol_ts_low')
+        self.assertNotIn('hess', summary.data)
+        # Resume through the real cached-summary branch and terminal repoll.
+        optimization.sconf = 0
+        optimization.scycconf = optimization.ssemi_empconf = 1
+        optimization.skip_conf_check = 1
+        optimization.do_optimization()
+        self.assertEqual(search.selected_job, job)
+        self.assertEqual(selected_calculation_job(optimization), job)
+        np.testing.assert_array_equal(self.species.hess, hessian)
+        optimization.defer_hir = False
+        # Completed scan fixture: exercise actual final projection and source
+        # lookup without scheduling electronic-structure calculations.
+        hir = Mock(hir_energies=[])
+        hir.check_hir.return_value = 1
+        hir.is_valid_rotor.return_value = False
+        hir.invalid_rotor_reason.return_value = 'fixture scan unavailable'
+        self.qc.read_qc_hess = Mock(return_value=hessian)
+        with patch('kinbot.optimize.HIR', return_value=hir):
+            optimization.do_optimization()
+        self.qc.read_qc_hess.assert_called_once_with(job, self.species.natom)
+        self.assertEqual(optimization.shir, 1)
+        self.qc.qc_conf.assert_not_called()
 
     def test_l1_selection_loads_all_properties_without_an_irc_service(self):
         self.qc.qc = 'fc'

@@ -50,7 +50,7 @@ _ALIASES = {'uma': 'fairchem', 'fc': 'fairchem', 'gauss': 'gaussian'}
 
 def profiled_requested(par):
     """Return whether an explicit input opted in to per-level routing."""
-    return bool(par.get('l0') or par.get('l0_profile')
+    return bool(par.get('bimol') or par.get('l0') or par.get('l0_profile')
                 or par.get('l0_qc') or par.get('l0_qc_command')
                 or par.get('l0_basis') or par.get('l0_calc_kwargs')
                 or par.get('profiled_theory')
@@ -81,19 +81,21 @@ def _legacy_profile(par, level):
         'optimizer': 'sella' if par['use_sella'] or calculator in ('fairchem', 'orca') else 'native',
     }
     if level == 'l0':
-        # Preliminary searches keep the user's backend and command.
-        l0_calculator = par.get('l0_qc') or par['qc']
+        # Ordinary preliminary searches keep the user's backend and command.
+        # Bimolecular exploration has historically defaulted to Gaussian AM1.
+        l0_calculator = par.get('l0_qc') or ('gauss' if par.get('bimol') else par['qc'])
         values.update(calculator=_ALIASES.get(l0_calculator.lower(), l0_calculator.lower()),
                       method=par['l0_method'], basis=par.get('l0_basis', ''),
                       calculator_kwargs=deepcopy(par.get('l0_calc_kwargs') or
-                                                 par.get('calc_kwargs', {})))
+                                                 ({} if par.get('bimol') else par.get('calc_kwargs', {}))))
         if values['calculator'] != calculator:
             values['calculator_kwargs'] = deepcopy(par.get('l0_calc_kwargs') or {})
             values['optimizer'] = 'native' if values['calculator'] == 'qchem' else 'sella'
         values['command'] = par.get('l0_qc_command') or (
-            par['qc_command'] if values['calculator'] == calculator else '')
+            'g16' if par.get('bimol') and values['calculator'] == 'gaussian'
+            else par['qc_command'] if values['calculator'] == calculator else '')
         if values['calculator'] == 'fairchem' and values['method'].lower() != 'am1':
-            # Retain the old flat L0 model-name override.
+            # Old bimolecular inputs used l0_method for the model name.
             values['model_path'] = values['method']
     return values
 

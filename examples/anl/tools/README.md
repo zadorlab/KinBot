@@ -1,5 +1,16 @@
 # CASPT2-only KinBot production handoff
 
+**Current handoff, 21 October: fresh r7 with ANL components v2.** Use
+[`fresh_run.py`](fresh_run.py) and the editable [`fresh_run.json`](fresh_run.json).
+The [complete component matrix, audit limits, restart and monitor commands](../../../docs/ANL_COMPONENTS_V2_AND_R7.md)
+supersede the older r5/r6/recovery scripts below. The new helper preflights
+before stopping r6, archives its evidence, uses pinned code, shares one node
+pool, and never repeats a recorded driver launch. This campaign configuration
+also opts into emptying `~/wfu` and removing verified old home scratch after
+the account's jobs stop; see the cleanup scope and safeguards in the handoff.
+
+## Historical handoffs (do not use these commands for the new r7)
+
 **Interrupted cluster handoff, 17 October:** use
 `bash examples/anl/tools/recover_on_blodgett.sh` after pulling `composite`.
 This supersedes the r6 launch command: it preflights fresh r7 inputs, stops and

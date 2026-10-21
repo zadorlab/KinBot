@@ -94,6 +94,7 @@ def pulse(directory, *, force=False):
             return previous
         result = dict(time=time.time(),revision=policy['revision'])
         try:
+            policy = run_policy.effective(path, policy)
             ledger = path.parent/'.kinbot_policy_admissions.json'
             claims = json.loads(ledger.read_text()) if ledger.exists() else {}
             jobs = run_policy._queue(path.parent)

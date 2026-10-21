@@ -23,6 +23,8 @@ def _unique_object(pairs):
 def scientific_spec(spec):
     value = deepcopy(spec)
     value.pop('limits', None)
+    from kinbot.manual_fallback import logical_task
+    value['tasks'] = [logical_task(t) for t in value['tasks']]
     for task in value['tasks']:
         task.pop('resources', None)
     intent = value.get('intent', {})

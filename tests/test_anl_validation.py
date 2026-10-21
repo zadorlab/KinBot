@@ -358,7 +358,9 @@ def test_automatic_anl1_f12_graph_reuses_qz_without_anl0_duplicates():
     assert tasks['f12_5z']['result_parser']['method'] == 'CCSD(T)-F12b'
     assert 'uccsd(t)-f12b,scale_trip=1' in \
         tasks['f12_5z']['input_template'].lower()
-    assert spec['intent']['fallback_ladder'][0:2] == ['ANL1-F12', 'ANL1']
+    # Conventional ANL1 requires a different geometry/correction prescription;
+    # it cannot be claimed by dropping only the F12 reference from this graph.
+    assert spec['intent']['fallback_ladder'] == ['ANL1-F12', 'L3', 'L3-SP@L2', 'L2']
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(

@@ -1,4 +1,5 @@
 """Numerical trial wiring/provenance only; these tests do not run Molpro."""
+import tempfile
 import json
 from pathlib import Path
 import re
@@ -97,7 +98,7 @@ def test_trial_preserves_five_results_and_only_submits_two_points(tmp_path, monk
     assert all(file_sha256(p) == digest for p, digest in before.items())
     assert adapter.prepare(source, target, plan, None) == record
 
-    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *a, **k: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *a, **k: ({}, {'scratch_directory': tempfile.mkdtemp(dir=tmp_path)}))
     monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *a: None)
     commands = []
     def launch(command, **kwargs):

@@ -445,7 +445,7 @@ def test_automatic_anl0_and_f12_graphs_have_distinct_reference_fallbacks():
     assert not {'f12_tz', 'f12_qz'} & conventional_ids
     assert f12_tasks['anl0_qz']['failure_skips'] == ['anl0_5z']
     assert f12_tasks['anl0_5z']['failure_skips'] == ['anl0_qz']
-    assert 'basis=aug-cc-pVQZ' in f12_tasks['anl0_qz']['input_template']
+    assert 'basis=cc-pVQZ' in f12_tasks['anl0_qz']['input_template']
 
 
 def test_automatic_f12_augmentation_updates_native_tasks_and_intent():

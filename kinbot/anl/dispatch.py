@@ -233,6 +233,10 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
             any(not isinstance(line, str) or '\n' in line or '\r' in line
                 for line in setup)):
         raise ValueError(f'{ident}: setup must be a list of single shell lines.')
+    runtime_setup = task.get('runtime_setup', [])
+    if (not isinstance(runtime_setup, list) or any(not isinstance(line,str)
+            or any(c in line for c in '\n\r\x00') for line in runtime_setup)):
+        raise ValueError(f'{ident}: runtime_setup must contain single shell lines.')
     geometry_output = task.get('geometry_output')
     if kind == 'ase_optimize':
         if 'result_parser' in task:
@@ -733,6 +737,7 @@ def _slurm_script(task, directory, python):
         lines.append('export MKL_NUM_THREADS=1')
     elif _backend(task) == 'mrcc':
         lines.append(f'export MKL_NUM_THREADS={_omp_threads(task)}')
+    lines += task.get('runtime_setup', [])
     lines.append(f'{shlex.quote(python)} -m kinbot.anl.dispatch run-task task.json')
     from kinbot.slurm_retry import wrap_script
     return wrap_script('\n'.join(lines) + '\n', identity=task['id'],
@@ -1688,6 +1693,7 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     environments = set()
     environment_checks = 0
     environment_reuses = 0
+    runtime_environment_deferred = []
     for task in spec['tasks']:
         entry = state['tasks'].get(task['id'])
         if entry and entry.get('status') in ('unavailable', 'skipped'):
@@ -1718,6 +1724,11 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
             task_programs.add(parts[0])
         programs.update(task_programs)
         env_files.update(task_files)
+        if task.get('runtime_setup'):
+            # These are explicit operator commands for the allocation only.
+            # Login-host probes cannot validate that changed environment.
+            runtime_environment_deferred.append(task['id'])
+            continue
         lines = [
             'set -euo pipefail',
             f"export OMP_NUM_THREADS={_omp_threads(task)}",
@@ -1829,6 +1840,7 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
             'exclusive_jobs_checked': len(state['tasks']),
             'environment_checks': environment_checks,
             'environment_checks_reused': environment_reuses,
+            'runtime_environment_deferred': runtime_environment_deferred,
             'slurm_scripts_tested': checked}
 
 

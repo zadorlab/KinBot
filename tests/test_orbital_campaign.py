@@ -150,7 +150,7 @@ def test_preflight_and_batch_activate_the_molpro_backend(tmp_path, monkeypatch):
     commands = tmp_path / 'commands'
     commands.mkdir()
     for name, body in {
-        'molpro': 'printf "%s" "$KINBOT_BACKEND" > native-backend\n',
+        'molpro': 'printf "%s" "$KINBOT_BACKEND" > native-backend.out\n',
         'sbatch': 'exit 0\n', 'squeue': 'exit 0\n',
     }.items():
         command = commands / name
@@ -169,7 +169,7 @@ def test_preflight_and_batch_activate_the_molpro_backend(tmp_path, monkeypatch):
     manifest = json.loads(Path(saved['systems'][0]['pilot_manifest']).read_text())
     job = manifest['jobs'][0]
     subprocess.run(['bash', job['name'] + '.sbatch'], cwd=job['directory'], check=True)
-    assert (Path(job['directory']) / 'native-backend').read_text() == 'molpro'
+    assert (Path(job['directory']) / 'native-backend.out').read_text() == 'molpro'
     (commands / 'molpro').unlink()
     with pytest.raises(RuntimeError, match='site setup failed'):
         campaign.preflight(root)

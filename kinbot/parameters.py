@@ -242,10 +242,13 @@ class Parameters:
             'anl_cc_convergence': 1.e-7,
             'anl_geometry_fmax': 5.e-4,
             'anl_minimum_recovery': dict(ANL_RECOVERY_DEFAULTS),
-            # Optional full augmentation of the F12 reference branch.
-            # Conventional ANL reference bases are always fully augmented,
-            # including hydrogen.
+            # Legacy v1 F12-reference augmentation; v2 inherits this only
+            # when the full-component augmentation setting is unspecified.
             'anl_f12_augmented': 0,
+            # Version-2 ANL: augment all eligible orbital basis families.
+            # None inherits the older F12 augmentation input for compatibility.
+            'anl_augmented': None,
+            'anl_cv_f12_auxiliary': {},
             # Require the intended L3 geometry before recipe single points.
             'anl_require_l3_geometry': 1,
             'anl_l3_max_retries': 1,
@@ -849,6 +852,10 @@ class Parameters:
         if (isinstance(self.par['anl_f12_augmented'], bool)
                 or self.par['anl_f12_augmented'] not in (0, 1)):
             raise ValueError('anl_f12_augmented must be 0 or 1.')
+        if self.par['anl_augmented'] is not None and type(self.par['anl_augmented']) is not bool:
+            raise ValueError('anl_augmented must be true, false, or null.')
+        from kinbot.anl.component_profile import cv_auxiliary
+        cv_auxiliary(self.par['anl_cv_f12_auxiliary'])
         if (isinstance(self.par['anl_require_l3_geometry'], bool)
                 or self.par['anl_require_l3_geometry'] not in (0, 1)):
             raise ValueError('anl_require_l3_geometry must be 0 or 1.')

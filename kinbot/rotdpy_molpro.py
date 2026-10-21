@@ -17,7 +17,7 @@ from rotd_py.sample import sample as legacy_sample
 from rotd_py.sample.multi_sample import MultiSample
 
 from kinbot.anl.extrapolation import two_point_cbs
-from kinbot.ase_modules.calculators.molpro import parse_output
+from kinbot.ase_modules.calculators.molpro import energy_assignment, parse_output
 from kinbot.molpro import (_vrc_multireference_method, stage_vrc_state_model,
                            initialize_molpro_restart)
 from kinbot.theory import fortran_threshold
@@ -85,7 +85,7 @@ class MolproSample(LocalMolpro):
                 + f'basis={basis}\n'
                 +
                 f'gthresh,energy={scf},coeff={correlation},civec={correlation}\n'
-                + method + f'kb_geom_energy={selected_energy}\n'
+                + method + energy_assignment(selected_energy) +
                 f'MYENERGY={selected_energy}\n'))
             self.basis_jobs.append(child)
 

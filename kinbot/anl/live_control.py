@@ -146,7 +146,9 @@ def process(graph):
             entry = state['tasks'].get(ident, {})
             if entry.get('status') in ('complete', 'submitting'):
                 raise ValueError('Completed or ambiguous submissions cannot be retried through live controls.')
-            if entry.get('status') not in ('failed', 'unavailable', 'submitted'):
+            unsent = (entry.get('status') == 'staged' and not entry.get('job_id')
+                      and bool(r.get('fallback')))
+            if entry.get('status') not in ('failed', 'unavailable', 'submitted') and not unsent:
                 raise ValueError('Only failed/unavailable or explicitly stopped allocations can be retried.')
             outcome = target/'execution.json'
             if outcome.exists() and json.loads(outcome.read_text()).get('status') == 'executed':
@@ -158,11 +160,15 @@ def process(graph):
             # Validate everything before requesting any scheduler mutation.
             task = next(t for t in spec['tasks'] if t['id'] == ident)
             replacement = resource_spec(graph, spec, state, only={ident})
+            if r.get('fallback'):
+                from kinbot.manual_fallback import task_options
+                replacement['tasks']=[task_options(t,r['fallback']) if t['id']==ident else t
+                                      for t in replacement['tasks']]
             dispatch.validate_spec(replacement)
             if entry.get('job_id'):
                 if not stop_attempt(target, entry['job_id'], path, r):
                     continue
-            else:
+            elif not unsent:
                 from kinbot.anl.timeout_recovery import _job_id
                 job = _job_id(target, ident, entry)
                 if not job:
@@ -175,7 +181,8 @@ def process(graph):
             control.acknowledge(path, r, 'applying')
             reset = {ident} | {n for n in children if state['tasks'].get(n, {}).get('status') in ('blocked', 'skipped')}
             state.setdefault('manual_retries', {}).setdefault(ident, []).append(
-                dict(request=r['id'], reason=r['reason'], previous=deepcopy(entry), requested_at=r['created_at']))
+                dict(request=r['id'], reason=r['reason'], previous=deepcopy(entry),
+                     fallback=r.get('fallback'), requested_at=r['created_at']))
             commit(graph, replacement, state, reset, {n:r['reason'] for n in reset}, path)
         except (ValueError, RuntimeError, OSError) as error:
             # Once a transactional reset began, its journal must be resumed;
@@ -228,6 +235,8 @@ def resource_spec(graph, spec, state, only=None):
             saved[ident] = deepcopy(task['resources'])
             changed_baseline = True
         task['resources'] = {**saved[ident], **options}
+        manual_resources = task.get('manual_fallback', {}).get('options', {}).get('resources', {})
+        task['resources'].update(manual_resources)
         # A live rule must not undo a longer allocation already justified by
         # timeout recovery on the next polling iteration.
         from kinbot.run_walltime import seconds
@@ -237,10 +246,10 @@ def resource_spec(graph, spec, state, only=None):
                     task['resources']['walltime'] = retry['walltime']
                 if retry.get('partition'):
                     task['resources']['partition'] = retry['partition']
-        if options:
-            validate_native_resources(task,options)
+        if options or manual_resources:
+            validate_native_resources(task,{**options, **manual_resources})
             task['resources']['live_override'] = True
-            if 'memory_mb' in options:
+            if 'memory_mb' in options or 'memory_mb' in manual_resources:
                 task['resources']['use_all_node_memory'] = False
     from kinbot.anl.dispatch import validate_spec
     validate_spec(result)

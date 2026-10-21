@@ -309,7 +309,8 @@ class Fragment(StationaryPoint):
         from kinbot.orbital_cube import read_orbital_cube, lobe_directions
 
         cube_job = f'vrctst/{routing_name(self)}_vts'
-        path = self.orbital_cube or f'{self.parent}/{cube_job}.cube'
+        selected_cube = getattr(self, 'orbital_cube', None)
+        path = selected_cube or f'{self.parent}/{cube_job}.cube'
         if not os.path.isfile(path):
             raise FileNotFoundError(
                 f'HOMO-oriented pivot points require orbital cube {path}.')
@@ -318,7 +319,7 @@ class Fragment(StationaryPoint):
         import json
         from kinbot.execution import file_sha256
         metadata = Path(path).with_suffix('.orbitals.json')
-        if self.orbital_cube and not metadata.exists():
+        if selected_cube and not metadata.exists():
             raise ValueError('Selected fragment cube lacks its native provenance.')
         if metadata.exists():
             evidence = json.loads(metadata.read_text())

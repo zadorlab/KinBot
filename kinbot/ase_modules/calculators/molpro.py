@@ -9,6 +9,8 @@ selected CASPT2-F12 or Davidson-corrected MRCI energy.
 
 from pathlib import Path
 from copy import deepcopy
+from decimal import Decimal
+import math
 import re
 import shlex
 import subprocess
@@ -49,6 +51,21 @@ _ENERGY = re.compile(
     r'([-+]?\d+(?:\.\d*)?(?:[EeDd][-+]?\d+)?)\s+(?:AU|HARTREE)\b',
     re.IGNORECASE | re.MULTILINE,
 )
+_PRECISE_ENERGY = re.compile(
+    r'^\s*KB_GEOM_ENERGY\s*=\s*'
+    r'([-+]?\d+(?:\.\d*)?(?:[EeDd][-+]?\d+)?)'
+    r'(?:\s+(?:AU|HARTREE))?\s*$', re.IGNORECASE | re.MULTILINE)
+
+
+def energy_assignment(variable):
+    """Print the selected energy without Molpro SETTING's eight-digit rounding.
+
+    Keep this immediately after the energy evaluation and before FORCE. Its
+    first occurrence belongs to the undisplaced geometry; numerical FORCE
+    may repeat the assignment for displacements later in the same output.
+    """
+    return (f'kb_geom_energy={variable}\n'
+            'show[1,f28.16],kb_geom_energy\n')
 _SAFE_BASIS = re.compile(r'[A-Za-z0-9_+./*()-]+\Z')
 _PROCESS_COUNT = re.compile(r'Distribution of processes:\s*nprocs\(total\)=\s*(\d+)',
                             re.IGNORECASE)
@@ -124,9 +141,12 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
             f'{requested_method} has no supported analytic Molpro gradient.')
     analytic_caspt2 = analytic_available and gradient_mode != 'numerical'
     if contract is None:
-        cc_command = {None: 'uccsd(t)', 'HF': '', 'CCSD': 'uccsd'}.get(
-            effective_method)
-        if requested_method.upper() != 'CCSD(T)' or cc_command is None:
+        f12 = requested_method.upper() == 'CCSD(T)-F12B'
+        cc_command = ({None: 'uccsd(t)-f12b,scale_trip=1', 'HF': '',
+                       'CCSD-F12b': 'uccsd-f12b'} if f12 else
+                      {None: 'uccsd(t)', 'HF': '', 'CCSD': 'uccsd'}).get(
+                          effective_method)
+        if requested_method.upper() not in ('CCSD(T)', 'CCSD(T)-F12B') or cc_command is None:
             raise ValueError('Molpro ASE geometry method is unsupported.')
     else:
         if effective_method is not None:
@@ -198,7 +218,7 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                 requested_method, electron_count, spin=mult - 1,
                 shift=caspt2_shift, ipea=caspt2_ipea,
                 state_model=state_model)
-        body = method_block + f'kb_geom_energy={selected}\n'
+        body = method_block + energy_assignment(selected)
         if analytic_caspt2:
             body += f'forces\nput,xyzgrad,{gradient_name}\n'
         else:
@@ -217,7 +237,7 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
         cc_command = (f'{{{cc_command},thrden={cc_energy},'
                       f'thrvar={cc_variance}}}')
     return initialize_molpro_restart(header + f'rhf\n{cc_command}\n'
-            f'kb_geom_energy=energy\n'
+            + energy_assignment('energy') +
             f'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             f'put,xyz,{geometry_name}\n')
 
@@ -344,7 +364,8 @@ def parse_xyzgrad(path, atoms):
     return np.asarray([rows[index][2] for index in order], dtype=float)
 
 
-def parse_output(path, *, method='CCSD(T)', effective_method=None):
+def parse_output(path, *, method='CCSD(T)', effective_method=None,
+                 require_precise_energy=False):
     """Read the explicitly saved undisplaced energy and normal termination."""
     output = Path(path).read_text(errors='replace')
     if 'Molpro calculation terminated' not in output or 'ERROR EXIT' in output:
@@ -364,7 +385,16 @@ def parse_output(path, *, method='CCSD(T)', effective_method=None):
                 f'Molpro output lacks the requested {contract["method"]} '
                 'calculation.')
     elif effective_method is None:
-        validate_molpro_triples(output, scaled=False)
+        validate_molpro_triples(output, scaled=method.upper() == 'CCSD(T)-F12B')
+    if contract is None and method.upper() == 'CCSD(T)-F12B' and effective_method != 'HF':
+        assignment = _ENERGY.search(output)
+        prefix = output[:assignment.start()] if assignment else output
+        base = re.search(r'^\s*RHF-UCCSD-F12b\s+energy\s+', prefix,
+                         re.MULTILINE | re.IGNORECASE)
+        total = re.search(r'^\s*!RHF-UCCSD\(T\)-F12(?:b)?(?:\s+total)?\s+energy\s+',
+                          prefix, re.MULTILINE | re.IGNORECASE)
+        if not base or (effective_method is None and not total):
+            raise ValueError('Molpro output lacks the requested undisplaced F12b energy.')
     # Molpro 2024.1 prints SETTING for a user assignment, as in the supplied
     # CH4/H2O2 outputs. Use the first such line: numerical FORCE then repeats
     # the energy procedure for displaced geometries in the same invocation.
@@ -374,6 +404,30 @@ def parse_output(path, *, method='CCSD(T)', effective_method=None):
     energy_hartree = float(match.group(1).replace('D', 'E').replace('d', 'e'))
     if not np.isfinite(energy_hartree):
         raise ValueError('Molpro energy is nonfinite.')
+    # Do not accidentally select a displaced energy or a different root. The
+    # high-precision SHOW must follow the *first* assignment, before another
+    # assignment or the start of the numerical-gradient calculation.
+    following = _ENERGY.search(output, match.end())
+    end = following.start() if following else len(output)
+    numerical = re.search(r'Computing numerical gradient|Numerical gradient for',
+                          output[match.end():end], re.IGNORECASE)
+    if numerical:
+        end = match.end() + numerical.start()
+    candidates = _PRECISE_ENERGY.findall(output[match.end():end])
+    if len(candidates) > 1:
+        raise ValueError('Ambiguous undisplaced high-precision Molpro energy.')
+    if candidates:
+        precise = float(candidates[0].replace('D', 'E').replace('d', 'e'))
+        assigned = Decimal(match.group(1).replace('D', 'E').replace('d', 'e'))
+        tolerance = (0.51 * 10. ** assigned.as_tuple().exponent
+                     + 4 * math.ulp(energy_hartree))
+        if not math.isfinite(precise) or abs(precise-energy_hartree) > tolerance:
+            raise ValueError('High-precision Molpro energy disagrees with its assignment.')
+        energy_hartree = precise
+    elif require_precise_energy:
+        raise ValueError('Undisplaced high-precision Molpro energy is missing.')
+    # Older archived outputs remain readable. Fresh force evaluations require
+    # SHOW so that a missing printout cannot silently reintroduce quantization.
     return energy_hartree * Hartree
 
 
@@ -390,13 +444,18 @@ class Molpro(Calculator):
                  gradient_mode='auto', scf_convergence=1.e-10,
                  correlation_convergence=1.e-8):
         super().__init__()
-        if (method.upper() != 'CCSD(T)'
+        if (method.upper() not in ('CCSD(T)', 'CCSD(T)-F12B')
                 and vrc_multireference_energy_contract(method) is None):
             raise ValueError(
                 'Molpro ASE geometry supports CCSD(T), CASPT2 variants, '
                 'MRCI+Q, and MRCI-F12+Q active-space methods.')
-        if effective_method not in (None, 'HF', 'CCSD'):
+        if effective_method not in (None, 'HF', 'CCSD', 'CCSD-F12b'):
             raise ValueError('Molpro effective geometry method is unsupported.')
+        if effective_method is not None:
+            allowed = ({'HF', 'CCSD-F12b'} if method.upper() == 'CCSD(T)-F12B'
+                       else {'HF', 'CCSD'} if method.upper() == 'CCSD(T)' else set())
+            if effective_method not in allowed:
+                raise ValueError('Molpro effective method disagrees with its requested method.')
         if isinstance(charge, bool) or not isinstance(charge, int):
             raise ValueError('Molpro charge must be an integer.')
         if isinstance(mult, bool) or not isinstance(mult, int) or mult < 1:
@@ -561,7 +620,8 @@ class Molpro(Calculator):
         self.results = {'energy': parse_output(
                             self.work_directory / output_name,
                             method=self.method,
-                            effective_method=self.effective_method),
+                            effective_method=self.effective_method,
+                            require_precise_energy=True),
                         'forces': (parse_xyzgrad(
                             self.work_directory / gradient_name, atoms)
                             if self.analytic_caspt2 else parse_numerical_gradient(

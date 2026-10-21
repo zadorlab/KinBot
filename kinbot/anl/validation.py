@@ -28,7 +28,10 @@ from kinbot.anl.model import (ComponentRequirement, ComponentResult,
                               IncompleteRecipeError)
 from kinbot.anl.recipes import (ANL0_NATIVE_REFERENCE_BASES,
                                 ANL1_NATIVE_REFERENCE_BASES,
-                                f12_reference_bases, recipe)
+                                f12_reference_bases, _legacy_recipe as recipe,
+                                recipe as versioned_recipe)
+from kinbot.anl.component_profile import (apply_component_profile,
+                                         component_profile, COMPONENT_VERSION)
 from kinbot.anl.results import legacy_molpro_parser
 from kinbot.anl.tasks import (higher_order_task, molpro_ccsdt_command,
                               molpro_task as native_molpro_task)
@@ -882,7 +885,10 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                              cc_convergence=1.e-7,
                              geometry_fmax=5.e-4,
                              minimum_recovery=None,
-                             f12_augmented=False, require_l3_geometry=True,
+                             f12_augmented=False, augmented=None,
+                             component_version=COMPONENT_VERSION,
+                             cv_f12_auxiliary=None,
+                             require_l3_geometry=True,
                              l3_max_retries=1):
     """Build the automatic post-L2 graph for one stable point or tight TS.
 
@@ -908,6 +914,12 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         raise ValueError(f'highest_tier must be one of {allowed}.')
     if not isinstance(f12_augmented, bool):
         raise ValueError('f12_augmented must be boolean.')
+    if augmented is None:
+        augmented = f12_augmented
+    if not isinstance(augmented, bool):
+        raise ValueError('ANL augmentation must be boolean.')
+    if type(component_version) is not int or component_version not in (1, 2):
+        raise ValueError('Unsupported ANL component version.')
     if not isinstance(require_l3_geometry, bool):
         raise ValueError('require_l3_geometry must be boolean.')
     if type(l3_max_retries) is not int or l3_max_retries < 0:
@@ -1041,6 +1053,10 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         # The accepted KinBot L2 TS record already contains its harmonic ZPE.
         keep = set()
     tasks = [task for task in tasks if task['id'] in keep]
+    if component_version == 2 and highest_tier.startswith('ANL'):
+        tasks = apply_component_profile(tasks, highest_tier, augmented,
+                                        multiplicity=molecule.get('multiplicity', 1),
+                                        cv_f12_auxiliary=cv_f12_auxiliary)
     identifiers = {task['id'] for task in tasks}
     if 'l3_sp_l2' in identifiers and 'l3_geometry' in identifiers:
         by_id = {task['id']: task for task in tasks}
@@ -1080,6 +1096,9 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                 'geometry_fmax_ev_angstrom': geometry_fmax,
             },
             'f12_augmented': f12_augmented,
+            'anl_augmented': augmented,
+            'component_version': component_version,
+            'cv_f12_auxiliary': deepcopy(cv_f12_auxiliary or {}),
             'l3_max_retries': l3_max_retries,
             'claim': 'automatic-cbh-anl-production',
             # A user may deliberately choose a short partition. Native jobs
@@ -1088,7 +1107,9 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
             # can follow the normal recorded fallback ladder.
             'cap_walltime_to_explicit_partition': True,
             'highest_tier': highest_tier,
-            'fallback_ladder': list(ladders[highest_tier]),
+            'fallback_ladder': ([highest_tier, 'L3', 'L3-SP@L2', 'L2']
+                if component_version == 2 and highest_tier.startswith('ANL')
+                else list(ladders[highest_tier])),
             'stationary_point': stationary_point,
             'source_geometry_role': 'accepted-l2',
             'anl0_only': not anl1_requested,
@@ -1723,6 +1744,8 @@ def _assemble_profiled_anl(
                 interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
     recorded_f12_augmented = bool(
         base_spec.get('intent', {}).get('f12_augmented', False))
+    component_version = base_spec.get('intent', {}).get('component_version', 1)
+    augmented = base_spec.get('intent', {}).get('anl_augmented', False)
     if f12_augmented is None:
         f12_augmented = recorded_f12_augmented
     elif (not isinstance(f12_augmented, bool)
@@ -1771,8 +1794,10 @@ def _assemble_profiled_anl(
 
     atomic = len(molecule.get('symbols', ())) == 1
     rank_exact = _rank_exact_higher_order(molecule)
-    equation = recipe(
+    equation = versioned_recipe(
         recipe_name, vpt2_method=vpt2_method,
+        component_version=component_version, augmented=augmented,
+        cv_f12_auxiliary=base_spec.get('intent', {}).get('cv_f12_auxiliary'),
         multiplicity=multiplicity, atomic=atomic,
         f12_augmented=f12_augmented,
         rank_exact_higher_order=rank_exact,
@@ -1793,6 +1818,8 @@ def _assemble_profiled_anl(
     else:
         reference_tasks = ('anl0_qz', 'anl0_5z')
         reference_bases = ANL0_NATIVE_REFERENCE_BASES
+    if component_version == 2 and reference_bases is not None:
+        reference_bases = component_profile(recipe_name, augmented)['reference_bases']
     if recipe_name in ('ANL0-F12', 'ANL1-F12'):
         reference = _dual_f12_reference_component(
             base_run, required['reference_cbs'], state_id=state_id)
@@ -1820,10 +1847,12 @@ def _assemble_profiled_anl(
                 interface_run, 'gaussian_vpt2', key='vpt2_correction',
                 state_id=state_id)
     elif anl1:
+        harmonic_bases = (component_profile(recipe_name, augmented)['geometry_bases']
+                          if component_version == 2 else ('cc-pVTZ', 'cc-pVQZ'))
         components['harmonic_zpe'] = cbs_task_component(
             base_run, 'harmonic_tz', 'harmonic_qz',
             requirement=required['harmonic_zpe'], state_id=state_id,
-            lower_basis='cc-pVTZ', upper_basis='cc-pVQZ')
+            lower_basis=harmonic_bases[0], upper_basis=harmonic_bases[1])
         if not harmonic_only:
             components['vpt2_correction'] = task_component(
                 interface_run, 'gaussian_vpt2', key='vpt2_correction',
@@ -1865,19 +1894,22 @@ def _assemble_profiled_anl(
         components['vpt2_correction'] = _apply_quality_review(
             components['vpt2_correction'], 'gaussian_vpt2', vpt2_review)
     if 'core_valence_cbs' in required:
+        cv_labels = ('qz', '5z') if component_version == 2 and anl1 else ('tz', 'qz')
         components['core_valence_cbs'] = (
             rank_exact_core_valence_component(
                 molecule, required['core_valence_cbs'], state_id=state_id,
                 geometry_sha256=l3_hash)
             if _rank_exact_core_valence(molecule) else
             core_valence_task_component(
-                corrections_run, all_electron_lower='cv_ae_tz',
-                all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
-                frozen_core_upper='cv_fc_qz',
+                corrections_run, all_electron_lower='cv_ae_'+cv_labels[0],
+                all_electron_upper='cv_ae_'+cv_labels[1], frozen_core_lower='cv_fc_'+cv_labels[0],
+                frozen_core_upper='cv_fc_'+cv_labels[1],
                 requirement=required['core_valence_cbs'], state_id=state_id))
     if 'scalar_relativistic' in required:
+        rel_ids = (('rel_dkh_qz', 'rel_dkh_5z'), ('rel_nonrel_qz', 'rel_nonrel_5z')) \
+            if component_version == 2 and anl1 else ('rel_dkh', 'rel_nonrel')
         components['scalar_relativistic'] = scalar_relativistic_task_component(
-            corrections_run, 'rel_dkh', 'rel_nonrel',
+            corrections_run, *rel_ids,
             requirement=required['scalar_relativistic'], state_id=state_id)
     components['spin_orbit'] = state_correction_component(
         requirement=required['spin_orbit'], value_hartree=spin_orbit_hartree,
@@ -1910,8 +1942,9 @@ def _assemble_profiled_anl(
     }
     if omitted_families:
         record['reduced_recipe'] = {
-            'parent_recipe': recipe(
+            'parent_recipe': versioned_recipe(
                 recipe_name, vpt2_method=vpt2_method,
+                component_version=component_version, augmented=augmented,
                 multiplicity=multiplicity, atomic=atomic,
                 f12_augmented=f12_augmented,
                 rank_exact_higher_order=rank_exact,

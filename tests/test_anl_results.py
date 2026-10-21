@@ -244,6 +244,7 @@ def test_external_cfour_task_stores_selected_native_result():
     with TemporaryDirectory() as temporary:
         directory = Path(temporary)
         (directory / 'ZMAT').write_text('*CFOUR(CALC=SCF\nDBOC=ON)\n')
+        (directory / 'geometry.xyz').write_text('1\nfixture\nHe 0 0 0\n')
         task = {
             'id': 'dboc', 'kind': 'external', 'backend': 'cfour',
             'input_name': 'ZMAT',

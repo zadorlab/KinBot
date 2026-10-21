@@ -34,11 +34,17 @@ def reactions(generator):
                 raise ValueError('Unsupported stereochemistry cannot be waived by retrying.')
             if control.generation(target,'reaction') != r['expected'] and r['status'] != 'applying':
                 raise ValueError('Reaction inputs changed after the request.')
+            if r.get('fallback'):
+                from kinbot.manual_fallback import reaction_workers,worker_options,install_reaction
+                for worker in reaction_workers(target):
+                    worker_options(worker.read_text(),r['fallback'])
             # Construct first so an unsupported reaction constructor cannot
             # leave the saved search partially retired.
             new = type(obj)(species, qc, generator.par, obj.instance, obj.instance_name)
             new.prod_done, new.valid_prod = 0, []
             _retire_reaction(qc, target.name, set(objects), path, r)
+            if r.get('fallback'):
+                install_reaction(target,r)
             species.reac_obj[i] = new
             species.reac_ts_done[i], species.reac_step[i] = 0, 0
             control.acknowledge(path,r,'applied', detail='Reaction search restarted from its original species geometry.')

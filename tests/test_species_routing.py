@@ -273,7 +273,7 @@ class TestSpeciesRouting(unittest.TestCase):
              source+'.cube', '-4'],
         ])
         p.parent = '.'
-        with patch('builtins.open', side_effect=RuntimeError('read cube')) as handle, \
+        with patch('kinbot.orbital_cube.read_orbital_cube', side_effect=RuntimeError('read cube')) as handle, \
                 self.assertRaisesRegex(RuntimeError, 'read cube'):
             Fragment.pp_from_homo(p, 0)
         self.assertEqual(handle.call_args.args[0], './'+source+'.cube')

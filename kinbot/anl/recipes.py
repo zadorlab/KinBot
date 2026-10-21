@@ -8,6 +8,8 @@ scheduler, or molecule-specific value.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from kinbot.anl.extrapolation import ORIGINAL_ANL_POWER
 from kinbot.anl.model import ComponentRequirement, CompositeRecipe, ExpressionTerm
 
@@ -67,7 +69,7 @@ def _required(key, quantity, method, basis, role='l3',
                                 tuple(backends), settings)
 
 
-def recipe(name: str, *, vpt2_method: str | None = None,
+def _legacy_recipe(name: str, *, vpt2_method: str | None = None,
            vpt2_cbs: bool = False, multiplicity: int = 1,
            atomic: bool = False,
            f12_augmented: bool = False,
@@ -359,3 +361,73 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     electronic = tuple(
         item for item in electronic if item.component not in omitted_keys)
     return CompositeRecipe(label, 1, requirements, electronic, zero_point)
+
+
+def recipe(name, *, component_version=1, augmented=False, cv_f12_auxiliary=None, **kwargs):
+    """Build an executable versioned recipe; archived v1 stays reproducible."""
+    if type(component_version) is not int or component_version not in (1, 2):
+        raise ValueError('Unsupported ANL component version.')
+    old = _legacy_recipe(name, **kwargs)
+    if component_version == 1:
+        return old
+    from kinbot.anl.component_profile import component_profile
+    p = component_profile(name, augmented, cv_f12_auxiliary=cv_f12_auxiliary)
+    high = name.startswith('ANL1')
+    f12 = name.endswith('-F12')
+    items = []
+    for item in old.requirements:
+        method, basis = item.method, item.basis
+        settings = dict(item.settings)
+        if item.key == 'reference_cbs':
+            if not kwargs.get('fallback_geometry_method'):
+                settings.update(geometry_method=p['method'], geometry_basis=p['geometry_basis'])
+            pair = p['reference_bases']
+            if f12:
+                fp = p['f12_reference_bases']
+                settings.update(conventional_native_basis_pair=pair,
+                                f12_native_basis_pair=fp)
+                basis = f'mean[CBS({fp[0]},{fp[1]}),CBS({pair[0]},{pair[1]})]'
+            else:
+                settings['native_basis_pair'] = pair
+                basis = f'CBS({pair[0]},{pair[1]})//{settings["geometry_basis"]}'
+        elif item.key == 'harmonic_zpe' and not kwargs.get('fallback_harmonic_method'):
+            method = p['method']
+            pair = p['geometry_bases']
+            basis = f'CBS({pair[0]},{pair[1]})' if high else pair[0]
+            if f12:
+                settings['scale_trip'] = 1
+        elif item.key == 'core_valence_cbs':
+            method = ('CCSD(T)-F12b(full)-CCSD(T)-F12b(frozen-core)' if f12
+                      else 'CCSD(T,full)-CCSD(T,frozen-core)')
+            pair = p['core_valence_bases']
+            basis = f'CBS({pair[0]},{pair[1]})'
+            settings.update(component_method=p['method'], native_basis_pair=pair,
+                            upper_cardinal=p['core_valence_cardinals'][1])
+            if f12:
+                settings['scale_trip'] = 1
+                settings['f12_auxiliary_by_basis'] = p['core_valence_auxiliary']
+        elif item.key == 'scalar_relativistic':
+            basis = p['relativistic_basis']
+            if high:
+                settings.update(native_basis_pair=p['relativistic_bases'],
+                                upper_cardinal=5, extrapolation_power=ORIGINAL_ANL_POWER)
+        elif item.key == 'dboc':
+            method, basis = p['dboc_method'], p['dboc_basis']
+            settings['reference'] = ('RHF' if kwargs.get('multiplicity', 1) == 1
+                                     else 'UHF' if f12 else 'ROHF')
+        elif item.key.startswith('hoe_'):
+            basis = p['higher_bases'][item.key.startswith('hoe_tz')]
+        elif item.key == 'higher_order_correction':
+            dz, tz = p['higher_bases']
+            method = (f'CCSDT(Q)-CCSD(T)@{tz} + CCSDTQ(P)-CCSDT(Q)@{dz}'
+                      if high else f'CCSDT(Q)-CCSD(T)@{dz}')
+            basis = f'{tz}/{dz}' if high else dz
+        items.append(replace(item, method=method, basis=basis, settings=settings))
+    old_suffix = old.name.removeprefix('profiled:').removeprefix(name)
+    # Augmentation is global in v2; the legacy F12-only flag must not put
+    # a contradictory augmentation label on the new component prescription.
+    old_suffix = old_suffix.replace(':augmented-F12', '')
+    label = (f'profiled:{name}:components-v2:'
+             + ('augmented-ANL' if augmented else 'unaugmented-ANL') + old_suffix)
+    return replace(old, name=label,
+                   version=2, requirements=tuple(items))

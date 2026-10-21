@@ -1,4 +1,5 @@
 """Root-protection input/selection checks, not claims of native convergence."""
+import tempfile
 import json
 from pathlib import Path
 import re
@@ -50,14 +51,14 @@ def test_all_resolution_decks_group_roots_and_survive_native_transform(tmp_path,
     assert sum(s['jobs'] for s in record['systems']) == 7
     assert record['execution']['max_jobs'] == 3
     assert record['execution']['memory_mb'] == 104000
-    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *a, **k: ({}, {'scratch_directory': str(tmp_path)}))
+    monkeypatch.setattr(recon, 'qc_runtime_environment', lambda *a, **k: ({}, {'scratch_directory': tempfile.mkdtemp(dir=tmp_path)}))
     monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *a: None)
     inspected = []
     def launch(command, **kwargs):
         text = (kwargs['cwd']/command[-1]).read_text()
         blocks = re.findall(r'\{mrci-f12[^{}]*\}', text)
         assert len(blocks) == 2
-        expected = 6 if 'ch3ss_ss' in str(kwargs['cwd']) else 3
+        expected = 6 if 'ch3ss_ss' in str(job['directory']) else 3
         assert len(re.findall(r'^reconc\d+=', text, re.M)) == 2*expected
         for block in blocks:
             assert f'state,{expected},'+','.join(map(str,range(1,expected+1)))+';' in block
@@ -65,7 +66,7 @@ def test_all_resolution_decks_group_roots_and_survive_native_transform(tmp_path,
             assert f'nstati={expected}' in block and 'maxdav=20' in block
             assert 'noswap' in block and 'cluster=0' in block
             assert 'thrvar=1.d-10' in block and 'maxvi=60' in block
-            cabs = 1 if 'simultaneous_control' in str(kwargs['cwd']) else 3
+            cabs = 1 if 'simultaneous_control' in str(job['directory']) else 3
             assert f'cabs_singles={cabs}' in block
         for slot in range(1,expected+1):
             assert text.count(f'KBVRCSEL=energd({slot})') == 2

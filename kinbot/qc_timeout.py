@@ -84,32 +84,24 @@ def _finish(qc, job, marker, record):
             qc.db.write(rows[-1].toatoms(), name=job,
                         data={'status': 0, 'timeout_retry_of': old_job})
         original = (archive/'batch.original').read_text()
-        if record.get('numerical_recovery'):
-            import shlex
-            from kinbot.qc_optimizer_recovery import render
-            worker=Path(record['effective_worker'])
-            replacement_worker=archive/'retry_worker.py'
-            replacement_worker.write_text(render(worker.read_text(),record['numerical_recovery'],job))
-            record['inputs'][str(replacement_worker)]=file_sha256(replacement_worker)
-            token=re.escape(record['worker_command'])
-            original,count=re.subn(r'(?<![\w/.-])(?:"'+token+r'"|\''+token+r'\'|'+token+r')(?=\s|$)',
-                lambda _:shlex.quote(str(replacement_worker)),original)
-            if count!=1:
-                raise RuntimeError('Cannot uniquely identify the optimizer worker for continuation.')
-        if record.get('resource_overrides'):
-            import shlex
+        fallback=record.get('fallback', {})
+        if record.get('numerical_recovery') or record.get('resource_overrides') or fallback:
+            from kinbot.manual_fallback import worker_options, worker_script
             from kinbot.qc_live import worker_resources, script_resources
-            worker = Path(record['effective_worker'])
-            replacement_worker = archive/'retry_worker.py'
-            replacement_worker.write_text(worker_resources(
-                worker.read_text(), record['backend'], record['resource_overrides']))
-            record['inputs'][str(replacement_worker)] = file_sha256(replacement_worker)
-            token = re.escape(record['worker_command'])
-            original, count = re.subn(r'(?<![\w/.-])(?:\"'+token+r'\"|\''+token+r'\'|'+token+r')(?=\s|$)',
-                                     lambda _: shlex.quote(str(replacement_worker)), original)
-            if count != 1:
-                raise RuntimeError('Cannot uniquely identify the Python worker in the original batch script.')
-            original = script_resources(original, record['resource_overrides'])
+            worker=Path(record['effective_worker'])
+            revised=worker.read_text()
+            if record.get('numerical_recovery'):
+                from kinbot.qc_optimizer_recovery import render
+                revised=render(revised,record['numerical_recovery'],job)
+            if record.get('resource_overrides'):
+                revised=worker_resources(revised,record['backend'],record['resource_overrides'])
+                original=script_resources(original,record['resource_overrides'])
+            if fallback:
+                revised=worker_options(revised,fallback)
+            replacement_worker=archive/'retry_worker.py'
+            replacement_worker.write_text(revised)
+            record['inputs'][str(replacement_worker)]=file_sha256(replacement_worker)
+            original=worker_script(original,record['worker_command'],replacement_worker,fallback)
         # Slurm stops reading directives at the first executable line; the
         # new final directive must precede that line and override old -t.
         lines = original.splitlines(keepends=True)
@@ -260,6 +252,8 @@ def recover(qc, job, *, manual=None):
             return None
         from kinbot import live_control
         overrides = live_control.overrides(Path.cwd()/job) if manual else {}
+        if manual and manual.get('fallback'):
+            overrides.update(manual['fallback'].get('resources',{}))
         walltime = (overrides.get('walltime', proof['previous_walltime']) if manual or symmetry_retry
                     else timeout_retry.next_walltime(settings, proof))
         if walltime is None:
@@ -344,7 +338,7 @@ def recover(qc, job, *, manual=None):
         if manual:
             record.update(manual_request=manual['id'], resource_overrides=overrides,
                           manual_request_file=manual['request_file'],
-                          backend=qc.qc, original_worker=str(worker))
+                          backend=qc.qc, original_worker=str(worker), fallback=manual.get('fallback',{}))
         if proof['source'] in ('optimizer_steps','optimizer_ode'):
             record['numerical_recovery']=proof
             record['effective_worker']=str(effective_worker)

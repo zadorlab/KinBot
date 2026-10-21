@@ -109,13 +109,19 @@ def script_resources(text, options):
 
 
 def prepare_resources(qc, job, script, original_worker=None):
+    from kinbot.manual_fallback import for_reaction_job,worker_options,worker_script
+    fallback=for_reaction_job(Path.cwd()/job)
     options = control.overrides(Path.cwd()/job)
-    if not options and original_worker is None:
+    options.update(fallback.get('resources',{}))
+    if not options and original_worker is None and not fallback:
         return script
     worker = Path(job+'.py')
     source = worker.read_text() if original_worker is None else original_worker
     updated = worker_resources(source, qc.qc, options) if options else source
     rewritten = script_resources(script, options)
+    if fallback:
+        updated=worker_options(updated,fallback)
+        rewritten=worker_script(rewritten,job+'.py',job+'.py',fallback)
     # Keep the original worker for audit; this is called only before sbatch.
     token = hashlib.sha256(job.encode()).hexdigest()[:24]
     archive = Path('.kinbot_controls/qc_resources')/token/file_sha256(worker)
@@ -126,8 +132,34 @@ def prepare_resources(qc, job, script, original_worker=None):
     temporary.write_text(updated)
     temporary.replace(worker)
     atomic_json(Path('.kinbot_controls/qc_resources')/(token+'.json'),
-                dict(job=job, resources=options, source=str(archive), updated_at=control.now()))
+                dict(job=job, resources=options, fallback=fallback, source=str(archive), updated_at=control.now()))
     return rewritten
+
+
+def retry_sources(target, job_id, *, directory=None):
+    """Find the exact worker/script used by this attempt, including prior retries."""
+    target=Path(target).resolve()
+    worker=Path(str(target)+'.py')
+    batch=Path(str(target)+'.sbatch')
+    command=target.name+'.py'
+    marker=control.find(target.parent)
+    directories=[Path(directory).resolve()] if directory else [
+        p for p in (target.parent,*target.parent.parents)
+        if marker and p.is_relative_to(marker.parent)]
+    for base in directories:
+        job=str(target.relative_to(base))
+        token=hashlib.sha256(job.encode()).hexdigest()[:24]
+        prior=base/'.kinbot_timeout_retries'/token/'current.json'
+        if not prior.exists(): continue
+        saved=json.loads(prior.read_text())
+        if str(job_id) not in saved.get('replacement_ids',[]): continue
+        batch=Path(saved['script'])
+        replacement=Path(saved['attempts'][-1]['archive'])/'retry_worker.py'
+        if replacement.exists(): return replacement,batch,str(replacement)
+        if saved.get('effective_worker'):
+            return Path(saved['effective_worker']),batch,saved['worker_command']
+    if directory: command=str(target.relative_to(Path(directory).resolve()))+'.py'
+    return worker,batch,command
 
 
 def process(qc, job, status, *, kinds=None, allow_completed=False):
@@ -155,7 +187,16 @@ def process(qc, job, status, *, kinds=None, allow_completed=False):
             if r['expected'].get('job_id') != str(qc.job_ids[job]):
                 raise ValueError('QC allocation generation is unknown or changed; inspect the current target and request again.')
             # Validate native resource rendering before cancellation.
-            worker_resources(Path(job+'.py').read_text(), qc.qc, control.overrides(target))
+            resource_options=control.overrides(target)
+            resource_options.update(r.get('fallback',{}).get('resources',{}))
+            worker,batch,command=retry_sources(target,qc.job_ids[job],directory=Path.cwd())
+            text=worker_resources(worker.read_text(),qc.qc,resource_options)
+            script=script_resources(batch.read_text(),resource_options)
+            from kinbot.manual_fallback import worker_options,worker_script
+            if r.get('fallback'):
+                worker_options(text,r['fallback'])
+            if resource_options or r.get('fallback'):
+                worker_script(script,command,'replacement.py',r.get('fallback',{}))
             from kinbot import run_policy
             if run_policy.find() is None:
                 raise ValueError('Explicit QC retries require shared admission receipts; enable a queue policy first.')

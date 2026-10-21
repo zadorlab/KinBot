@@ -376,6 +376,56 @@ def test_input_defaults_do_not_overwrite_later_live_edits(tmp_path):
     with pytest.raises(ValueError):control.validate_options({'hold_failures':1})
 
 
+def test_orbital_review_drains_campaign_capacity_then_restores_it(root, monkeypatch):
+    from kinbot import execution, run_refresh
+    run_policy.update(root, max_jobs=3, orbital_review_reserve=2)
+    request = root/'case/123/vrctst/orbital_review/channel/request.json'
+    atomic_json(request, {'status': 'needs_review'})
+    # Old review evidence under an archive is not current work.
+    atomic_json(root/'archive/case/123/vrctst/orbital_review/old/request.json',
+                {'status': 'needs_review'})
+    records = {str(i): allocation(root, str(i), 'RUNNING' if i == 1 else 'PENDING',
+               priority='0' if i == 4 else '100') for i in range(1, 5)}
+    monkeypatch.setattr(execution, 'slurm_job_record', lambda j: dict(records[j]))
+    monkeypatch.setattr(owner, 'slurm_job_record', lambda j: dict(records[j]))
+    calls = []
+    def command(args):
+        calls.append(args)
+        records[args[-1]]['Priority'] = '0' if args[1] == 'hold' else '100'
+        return ''
+    monkeypatch.setattr(run_refresh, '_pending_request', command)
+    path = root/run_policy.NAME
+    policy = run_policy.read(root)
+    assert policy['configured_max_jobs'] == 3 and policy['max_jobs'] == 1
+    assert policy['orbital_review_reserved_slots'] == 2
+    pool_drain.reconcile(path, policy, {j: 1 for j in records}, {})
+    assert records['2']['Priority'] == records['3']['Priority'] == '0'
+    atomic_json(request, {'status': 'model_accepted'})
+    policy = run_policy.read(root)
+    assert policy['max_jobs'] == 3 and not policy['orbital_review_requests']
+    pool_drain.reconcile(path, policy, {j: 1 for j in records}, {})
+    assert records['2']['Priority'] == records['3']['Priority'] == '100'
+    assert records['4']['Priority'] == '0'
+    assert not any(c[-1] in ('1', '4') for c in calls)
+    assert json.loads(path.read_text())['max_jobs'] == 3
+
+
+def test_review_reserve_validation_and_malformed_record_block_admission(root, monkeypatch):
+    for value in (-1, True, 1.5):
+        with pytest.raises(ValueError):
+            run_policy.update(root, max_jobs=2, orbital_review_reserve=value)
+    assert not (root/run_policy.NAME).exists()
+    run_policy.update(root, max_jobs=2, orbital_review_reserve=3)
+    request = root/'123/vrctst/orbital_review/channel/request.json'
+    atomic_json(request, {'status': 'needs_review'})
+    assert run_policy.read(root)['max_jobs'] == 0
+    request.write_text('{')
+    with pytest.raises(RuntimeError, match='Cannot determine orbital review'):
+        run_policy.read(root)
+    result = pool_drain.pulse(root, force=True)
+    assert result['status'] == 'blocked' and 'orbital review' in result['error']
+
+
 def test_failed_search_gate_closes_before_handoff_and_races_queue(root):
     target=root/'reaction'
     with pytest.raises(ValueError,match='registered'):

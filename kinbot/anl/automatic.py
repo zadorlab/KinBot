@@ -667,6 +667,9 @@ def build_network_request(root, parameters):
             'require_l3_geometry': bool(parameters.get('anl_require_l3_geometry', 1)),
             'f12_augmented': bool(parameters.get(
                 'anl_f12_augmented', 0)),
+            'augmented': parameters.get('anl_augmented'),
+            'cv_f12_auxiliary': parameters.get('anl_cv_f12_auxiliary', {}),
+            'component_version': 2,
         },
         'size_policy': policy,
         'network': {
@@ -933,6 +936,11 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
             symbol in ('H', 'He') for symbol in molecule['symbols']) else
             ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz')),
     }
+    if spec.get('intent', {}).get('component_version') == 2:
+        common_family_tasks['core_valence'] = tuple(
+            t['id'] for t in spec['tasks'] if t['id'].startswith('cv_'))
+        common_family_tasks['scalar_relativistic'] = tuple(
+            t['id'] for t in spec['tasks'] if t['id'].startswith('rel_'))
     l3_status = statuses.get('l3_geometry')
     if l3_status in ('complete', 'unavailable', 'skipped'):
         common = dict(
@@ -956,6 +964,11 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
             ('ANL0', assemble_profiled_anl0,
              ('anl0_qz', 'anl0_5z'), 'anl0'),
         ))
+        if spec.get('intent', {}).get('component_version', 1) == 2:
+            # F12 geometries, CV and DBOC are different components. Never
+            # relabel them as a completed conventional ANL fallback.
+            recipe_configs = tuple(row for row in recipe_configs
+                                   if row[0] == spec['intent']['highest_tier'])
         for family, assembler, reference_ids, stem in recipe_configs:
             if not (set(reference_ids) <= declared and all(
                     statuses[key] == 'complete' for key in reference_ids)):
@@ -1017,15 +1030,20 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
 
     if statuses.get('l3_geometry') == 'complete' and \
             statuses.get('harmonic') == 'complete':
+        geometry_profile = next(t['profile'] for t in spec['tasks']
+                                if t['id'] == 'l3_geometry')
+        geometry_method = geometry_profile['method']
+        geometry_basis = geometry_profile['basis']
+        geometry_label = f'{geometry_method}/{geometry_basis}'
         electronic = _ase_energy_component(
-            run_dir, 'l3_geometry', key='electronic', method='CCSD(T)',
-            basis='cc-pVTZ', state_id=state_id)
+            run_dir, 'l3_geometry', key='electronic', method=geometry_method,
+            basis=geometry_basis, state_id=state_id)
         harmonic = task_component(
             run_dir, 'harmonic', key='harmonic_zpe', state_id=state_id)
         harmonic_components = {
             'electronic': electronic, 'harmonic_zpe': harmonic}
         harmonic_label = (
-            'L3:CCSD(T)/cc-pVTZ//CCSD(T)/cc-pVTZ:harmonic-ZPE')
+            f'L3:{geometry_label}//{geometry_label}:harmonic-ZPE')
         harmonic_record = _simple_composite(
             harmonic_label, molecule, harmonic_components, ('electronic',),
             ('harmonic_zpe',))
@@ -1035,7 +1053,7 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
         if stationary_point == 'minimum' and vpt2 is not None:
             components['vpt2_correction'] = vpt2[1]
             suffix = l2_method + '-anharmonic-correction'
-        label = f'L3:CCSD(T)/cc-pVTZ//CCSD(T)/cc-pVTZ:{suffix}'
+        label = f'L3:{geometry_label}//{geometry_label}:{suffix}'
         save('thermochemistry', label, _simple_composite(
             label, molecule, components, ('electronic',),
             tuple(key for key in components if key != 'electronic')),
@@ -1046,8 +1064,9 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
             run_dir, 'l3_sp_l2', key='electronic', state_id=state_id)
         harmonic_components = {
             'electronic': electronic, 'harmonic_zpe': source_harmonic}
+        sp_label = f'{electronic.method}/{electronic.basis}'
         harmonic_label = (
-            f'L3:CCSD(T)/cc-pVTZ//{l2_label}:harmonic-ZPE')
+            f'L3:{sp_label}//{l2_label}:harmonic-ZPE')
         save('barrier', harmonic_label, _simple_composite(
             harmonic_label, molecule, harmonic_components, ('electronic',),
             ('harmonic_zpe',)), 'l3_sp_l2_harmonic.json')
@@ -1059,7 +1078,7 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
         else:
             components['harmonic_zpe'] = source_harmonic
             suffix = l2_method + '-harmonic-ZPE'
-        label = f'L3:CCSD(T)/cc-pVTZ//{l2_label}:{suffix}'
+        label = f'L3:{sp_label}//{l2_label}:{suffix}'
         save('thermochemistry', label, _simple_composite(
             label, molecule, components, ('electronic',),
             tuple(key for key in components if key != 'electronic')),
@@ -1397,6 +1416,9 @@ def _prepare_stable_graph(plan, entry, record, graph):
             minimum_recovery=plan['resources'].get('minimum_recovery', {}),
             f12_augmented=plan['resources'].get(
                 'f12_augmented', False),
+            augmented=plan['resources'].get('augmented'),
+            cv_f12_auxiliary=plan['resources'].get('cv_f12_auxiliary'),
+            component_version=plan['resources'].get('component_version', 1),
             require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
             l3_max_retries=plan['resources'].get('l3_max_retries', 1))
         prepare(specification, graph)
@@ -1422,6 +1444,9 @@ def _prepare_ts_graph(plan, entry, graph):
             minimum_recovery=plan['resources'].get('minimum_recovery', {}),
             f12_augmented=plan['resources'].get(
                 'f12_augmented', False),
+            augmented=plan['resources'].get('augmented'),
+            cv_f12_auxiliary=plan['resources'].get('cv_f12_auxiliary'),
+            component_version=plan['resources'].get('component_version', 1),
             require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
             l3_max_retries=plan['resources'].get('l3_max_retries', 1))
         prepare(specification, graph)

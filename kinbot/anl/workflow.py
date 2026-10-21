@@ -6,6 +6,7 @@ import json
 import hashlib
 import math
 import re
+from dataclasses import replace
 
 from ase.data import atomic_numbers
 
@@ -73,6 +74,8 @@ def task_component(run_dir, task_id, *, key, state_id):
         if 'correlation' in parsed:
             settings['correlation'] = parsed['correlation']
         if kind == 'molpro_energy':
+            if 'f12_auxiliary' in parsed:
+                settings['f12_auxiliary'] = parsed['f12_auxiliary']
             if 'core' in parsed:
                 settings['core'] = parsed['core']
             if 'relativistic' in parsed:
@@ -90,6 +93,8 @@ def task_component(run_dir, task_id, *, key, state_id):
         value = parsed['zpe']['hartree']
         method = parsed['method']
         basis = parsed['basis']
+        if method == 'CCSD(T)-F12b':
+            settings['scale_trip'] = 1
         if 'reference' in parsed:
             settings['reference'] = parsed['reference']
         if 'program_variant' in parsed:
@@ -125,6 +130,8 @@ def task_component(run_dir, task_id, *, key, state_id):
         value = parsed['selected']['hartree']
         method = parsed['selected_level']
         basis = request['basis']
+        if 'reference' in parsed:
+            settings['reference'] = parsed['reference']
     else:
         raise ValueError(f'{task_id}: unsupported component parser {kind!r}.')
     return ComponentResult(
@@ -295,7 +302,8 @@ def rank_exact_core_valence_component(
     settings['basis_uncertainty_series'] = {
         requirement.key: {
             'lower_hartree': 0., 'upper_hartree': 0.,
-            'lower_basis': 'cc-pCVTZ', 'upper_basis': 'cc-pCVQZ',
+            'lower_basis': requirement.settings.get('native_basis_pair', ('cc-pCVTZ', 'cc-pCVQZ'))[0],
+            'upper_basis': requirement.settings.get('native_basis_pair', ('cc-pCVTZ', 'cc-pCVQZ'))[1],
         },
     }
     return ComponentResult(
@@ -399,17 +407,31 @@ def core_valence_task_component(
     if len({(part.state_id, part.charge, part.multiplicity)
             for part in parts}) != 1:
         raise ValueError('Core-valence tasks use different electronic states.')
-    if any(part.method != 'CCSD(T)' or part.quantity != 'electronic'
+    method = requirement.settings.get('component_method', 'CCSD(T)')
+    bases = tuple(requirement.settings.get('native_basis_pair', ('cc-pCVTZ', 'cc-pCVQZ')))
+    if any(part.method != method or part.quantity != 'electronic'
            or part.backend != 'molpro' for part in parts):
         raise ValueError('Core-valence inputs must be Molpro CCSD(T) energies.')
     if ((ae_lower.basis, ae_upper.basis, fc_lower.basis, fc_upper.basis)
-            != ('cc-pCVTZ', 'cc-pCVQZ', 'cc-pCVTZ', 'cc-pCVQZ')):
-        raise ValueError('Core-valence inputs need cc-pCVTZ/cc-pCVQZ pairs.')
+            != bases + bases):
+        raise ValueError('Core-valence inputs differ from the recipe basis pair.')
     if [part.settings.get('core') for part in parts] != [
             'all-electron', 'all-electron', 'frozen', 'frozen']:
         raise ValueError('Core-valence inputs have incorrect core treatments.')
+    auxiliary = requirement.settings.get('f12_auxiliary_by_basis')
+    if auxiliary is not None:
+        for part in parts:
+            rank = part.settings.get('rank_exact', {})
+            # One-electron ions use the native-validated HF reduction. No
+            # F12 fitting calculation exists in that deck. Two-electron CCSD
+            # still requires the explicitly selected fitting sets.
+            hf_exact = (rank.get('electron_count') == 1 and rank.get('effective_method') == 'HF'
+                        and part.settings.get('effective_program_variant') == 'RHF')
+            expected = None if hf_exact else auxiliary.get(part.basis)
+            if part.settings.get('f12_auxiliary') != expected:
+                raise ValueError('Core-valence F12 auxiliaries differ from the recipe.')
     comparable = [{key: value for key, value in part.settings.items()
-                   if key != 'core'} for part in parts]
+                   if key not in ('core', 'f12_auxiliary')} for part in parts]
     if any(item != comparable[0] for item in comparable[1:]):
         raise ValueError('Core-valence input settings differ.')
     cardinal = requirement.settings.get('upper_cardinal')
@@ -435,8 +457,8 @@ def core_valence_task_component(
                 ae_lower.value_hartree - fc_lower.value_hartree),
             'upper_hartree': float(
                 ae_upper.value_hartree - fc_upper.value_hartree),
-            'lower_basis': 'cc-pCVTZ',
-            'upper_basis': 'cc-pCVQZ',
+            'lower_basis': bases[0],
+            'upper_basis': bases[1],
         },
     }
     first = parts[0]
@@ -454,6 +476,35 @@ def scalar_relativistic_task_component(
         run_dir, relativistic_task, nonrelativistic_task, *,
         requirement: ComponentRequirement, state_id: str) -> ComponentResult:
     """Build the all-electron DKH2 minus nonrelativistic CCSD(T) correction."""
+    bases = requirement.settings.get('native_basis_pair')
+    if bases is not None:
+        if (len(bases) != 2 or not isinstance(relativistic_task, (tuple, list))
+                or not isinstance(nonrelativistic_task, (tuple, list))
+                or len(relativistic_task) != 2 or len(nonrelativistic_task) != 2
+                or len(set((*relativistic_task, *nonrelativistic_task))) != 4):
+            raise ValueError('Relativistic CBS needs two distinct matched DKH/NR pairs.')
+        settings = {k: v for k, v in requirement.settings.items()
+                    if k not in ('native_basis_pair', 'upper_cardinal', 'extrapolation_power')}
+        parts = [scalar_relativistic_task_component(
+            run_dir, dkh, nr, requirement=replace(requirement, basis=basis,
+                                                 settings=settings), state_id=state_id)
+            for dkh, nr, basis in zip(relativistic_task, nonrelativistic_task, bases)]
+        if len({(p.geometry_sha256, p.state_id, p.charge, p.multiplicity) for p in parts}) != 1:
+            raise ValueError('Relativistic CBS inputs use different geometries or states.')
+        value = two_point_cbs(parts[0].value_hartree, parts[1].value_hartree,
+                             upper_cardinal=requirement.settings['upper_cardinal'],
+                             power=requirement.settings['extrapolation_power'])
+        provenance = dict(formula='CBS[E(DKH2)-E(nonrelativistic)]',
+                          source_sha256=[p.source_sha256 for p in parts],
+                          settings=dict(requirement.settings))
+        digest = hashlib.sha256(json.dumps(provenance, sort_keys=True).encode()).hexdigest()
+        settings = dict(requirement.settings)
+        settings['basis_uncertainty_series'] = {requirement.key: dict(
+            lower_hartree=parts[0].value_hartree, upper_hartree=parts[1].value_hartree,
+            lower_basis=bases[0], upper_basis=bases[1])}
+        return replace(parts[1], value_hartree=value, basis=requirement.basis,
+                       source_sha256=digest, source='CBS('+','.join(p.source for p in parts)+')',
+                       settings=settings)
     relativistic = task_component(
         run_dir, relativistic_task, key=relativistic_task, state_id=state_id)
     nonrelativistic = task_component(

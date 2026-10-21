@@ -43,7 +43,7 @@ def immutable_json(path, value):
         atomic_json(path, value)
 
 
-def prepare(root):
+def prepare(root, *, overrides=None):
     root = Path(root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     inputs = []
@@ -53,6 +53,9 @@ def prepare(root):
         ensure_current_run(directory, create=True)
         source = REPO/'examples/anl'/f'{case}_anl1_f12'
         settings = json.loads((source/f'{case}.json').read_text())
+        if overrides:
+            from copy import deepcopy
+            settings.update(deepcopy(overrides))
         surfaces = settings['vrc_tst_surface_model']
         for channel in surfaces['channels']:
             for stage in channel['bottlenecks']:
@@ -75,9 +78,9 @@ def prepare(root):
         files.update((directory/'input.json', directory/'resolved_parameters.json'))
         from kinbot.vrc_multistate import load_surface_model
         load_surface_model(resolved)
-        if (resolved['queue_job_limit'] != 10 or resolved['simultaneous_kinbot'] != 1
-                or resolved['vrc_tst_max_nodes'] != 10 or resolved['rotdpy_max_jobs'] != 10):
-            raise ValueError('The reviewed per-PES admission budget has changed.')
+        if any(resolved[key] <= 0 for key in ('queue_job_limit', 'simultaneous_kinbot',
+                                             'vrc_tst_max_nodes', 'rotdpy_max_jobs')):
+            raise ValueError('Example admission budgets must be positive.')
         inputs.append(str(directory/'input.json'))
     # Only declared launch inputs belong in this immutable manifest. On a
     # repeated handoff, runtime reference inputs/WFUs must not change it.
@@ -367,7 +370,7 @@ def start(root):
     return start_inputs(record['inputs'])
 
 
-def start_inputs(inputs):
+def start_inputs(inputs, *, code=None):
     """Caller must hold the handoff lock and check these inputs are unstarted."""
     import socket
     launched = []
@@ -375,7 +378,11 @@ def start_inputs(inputs):
         directory = Path(path).parent
         env = dict(os.environ)
         env['PATH'] = str(Path(sys.executable).parent)+os.pathsep+env.get('PATH', '')
-        env['PYTHONPATH'] = str(REPO)+(os.pathsep+env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
+        env['PYTHONPATH'] = str(code or REPO)+(os.pathsep+env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
+        # Controllers perform orchestration on the login node. Native workers
+        # receive their independently configured thread counts in batch jobs.
+        for key in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+            env[key] = '1'
         with (directory/'driver.log').open('ab') as log:
             process = subprocess.Popen([sys.executable, '-u', '-m', 'kinbot.pes', path],
                 cwd=directory, env=env, stdin=subprocess.DEVNULL, stdout=log,
@@ -383,6 +390,8 @@ def start_inputs(inputs):
         item = {'pid': process.pid, 'input': path, 'log': str(directory/'driver.log'),
                 'host': socket.gethostname(),
                 'time_utc': datetime.now(timezone.utc).isoformat()}
+        if code is not None:
+            item['code'] = str(code)
         atomic_json(directory/'launch.json', item)
         launched.append(item)
     return launched

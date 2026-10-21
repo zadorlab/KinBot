@@ -110,7 +110,8 @@ def test_ground_reference_evaluates_the_whole_manifold_with_unchanged_h0(install
 
 def test_cbs_gap_commutes_with_subtraction_and_keeps_tz_difference():
     settings = spin_splitting_settings({})
-    energies = {'reference': [-50., -49.],
+    energies = {'reference:0': [-49.8, -48.8],
+        'reference:1': [-50., -49.],
         'gap:caspt2_f12:target:0': [-30.2, -29.1],
         'gap:caspt2_f12:reference:0': [-30., -29.],
         'gap:caspt2_f12:target:1': [-31.23, -30.12],
@@ -118,7 +119,8 @@ def test_cbs_gap_commutes_with_subtraction_and_keeps_tz_difference():
     curve, proof = assemble_spin_splitting_reference([3., 30.], energies, settings)
     dz, tz = np.array([-.2, -.1]), np.array([-.23, -.12])
     gap = tz + (tz-dz)*2**3.7/(3**3.7-2**3.7)
-    assert curve == pytest.approx(np.array([-50., -49.]) + gap)
+    reference = np.array([-50., -49.]) - .2*2**3.7/(3**3.7-2**3.7)
+    assert curve == pytest.approx(reference + gap)
     assert proof['gap_cbs']['caspt2_f12']['cbs_minus_upper_gap_hartree'] == pytest.approx(gap-tz)
     assert 'no uncertainty' in proof['method_sensitivity']['interpretation']
 
@@ -167,7 +169,7 @@ def test_production_model_routing_and_pes_parameter_round_trip(name, tmp_path, i
                                                 fragment_multiplicities=[2, 3])
             components = correction_components(scalar, symbols=symbols, charge=0,
                                                settings=settings)
-            assert len(components) == 6  # frozen sample, CC, D/Q in each basis
+            assert len(components) == 7  # frozen sample, two CC references, D/Q in each basis
             for component in components:
                 if component['method'].startswith('caspt2'):
                     deck, _ = _vrc_multireference_method(component['method'],

@@ -186,7 +186,8 @@ def test_current_inputs_propagate_thresholds_into_reference_and_all_l3_backends(
             elif task.get('backend') == 'cfour':
                 assert 'SCF_CONV=8\n' in template
                 if task['id'] == 'cfour_dboc':
-                    assert 'CALC=SCF\n' in template
+                    assert 'CALC=CCSD\n' in template
+                    assert 'CC_CONV=7\n' in template and 'LINEQ_CONV=7\n' in template
                 else:
                     assert 'CC_CONV=7\n' in template
 

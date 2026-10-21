@@ -166,14 +166,71 @@ def test_interrupted_batch_publication_resumes_without_duplicate_requests(run,mo
     assert refresh.receipt(root)['status']=='published'
 
 
-def test_stale_owner_and_exploration_are_not_live_submission_targets(run):
+def test_stale_owner_and_exploration_science_edits_are_not_live_submission_targets(run):
     root,inp,original=run
-    change(inp,original)
+    atomic_json(inp,dict(original,vdW_detection=0.))
     m=json.loads((root/phase.NAME).read_text());m['phase']='exploring';atomic_json(root/phase.NAME,m)
     with pytest.raises(ValueError,match='exploration'): refresh.submit(inp,apply=True)
     m['phase']='postprocessing';m['owner_identity']['start']='obsolete';atomic_json(root/phase.NAME,m)
     with pytest.raises(ValueError,match='No live PES'): refresh.submit(inp,apply=True)
     assert not (root/refresh.JOURNAL).exists()
+
+
+def test_orbital_review_during_exploration_inherits_at_safe_boundary(run,monkeypatch):
+    root, inp, original = run
+    m=json.loads((root/phase.NAME).read_text())
+    m['phase']='exploring'
+    m['workers']['123']['status']='vrc'
+    m['workers']['456']['status']='exploring'
+    atomic_json(root/phase.NAME,m)
+    change(inp, original)
+    assert refresh.submit(inp,apply=True)['workers']==1
+    phase.tick(root,['123','456'],max_searches=2)
+    assert [Path(r['target']).name for _,r in control.requests(root)]==['123']
+    w=root/'456'
+    generator=SimpleNamespace(inp=str(w/'456.json'),par=deepcopy(original))
+    refresh.inherit_models(root,generator)
+    assert '456' in generator.par['vrc_tst_surface_models']
+    assert json.loads((w/'456.json').read_text())['vrc_tst_surface_models']==generator.par['vrc_tst_surface_models']
+    # A branch with a pending generation-fenced request must not preempt it.
+    w=root/'123'
+    generator=SimpleNamespace(inp=str(w/'123.json'),par=deepcopy(original))
+    before=file_sha256(w/'123.json')
+    refresh.inherit_models(root,generator)
+    assert file_sha256(w/'123.json')==before
+    # A newly discovered well whose input was written earlier inherits too.
+    w=root/'789';w.mkdir();atomic_json(w/'789.json',original)
+    generator=SimpleNamespace(inp=str(w/'789.json'),par=deepcopy(original))
+    refresh.inherit_models(root,generator)
+    assert '456' in generator.par['vrc_tst_surface_models']
+
+
+def test_review_includes_worker_that_finishes_between_submit_and_consume(run):
+    root, inp, original=run
+    m=json.loads((root/phase.NAME).read_text());m['phase']='exploring'
+    for w in m['workers'].values():w['status']='exploring'
+    atomic_json(root/phase.NAME,m)
+    change(inp,original)
+    assert refresh.submit(inp,apply=True)['workers']==0
+    m['workers']['456']['status']='vrc';atomic_json(root/phase.NAME,m)
+    phase.tick(root,['123','456'],max_searches=2)
+    assert [Path(r['target']).name for _,r in control.requests(root)]==['456']
+    assert refresh.receipt(root)['status']=='published'
+
+
+def test_review_conflict_before_publication_preserves_accepted_snapshot(run):
+    root,inp,original=run
+    m=json.loads((root/phase.NAME).read_text());m['phase']='exploring'
+    for w in m['workers'].values():w['status']='exploring'
+    atomic_json(root/phase.NAME,m)
+    change(inp,original);refresh.submit(inp,apply=True)
+    m['workers']['456']['status']='vrc';atomic_json(root/phase.NAME,m)
+    other=control.request(root.parent,root/'456',kind='network',reason='Concurrent review',
+                          options={'vdW_detection':0.,'rejected':False})
+    phase.tick(root,['123','456'],max_searches=2)
+    assert refresh.receipt(root)['status']=='blocked'
+    assert json.loads((root/refresh.SNAPSHOT).read_text())==original
+    assert [r['id'] for _,r in control.requests(root)]==[other['id']]
 
 
 def test_repeated_pes_command_targets_owner_not_main(run,monkeypatch,capsys):

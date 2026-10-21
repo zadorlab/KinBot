@@ -1,0 +1,24 @@
+{
+  "partition": "month-long-cpu",
+  "reserve_healthy_nodes": 6,
+  "preferred_reserve_nodes": ["node9", "node16", "node21", "node24"],
+  "cleanup": {
+    "empty_home_wfu": true,
+    "remove_verified_home_scratch": true
+  },
+  "policy": {
+    "manage_pending": true,
+    "minimum_walltime": "7-00:00:00",
+    "timeout_retries": 1,
+    "timeout_walltime_factor": 2.0,
+    "optimization_step_retries": 2,
+    "orbital_review_reserve": 3
+  },
+  "input_overrides": {
+    "vdW_detection": 0.0,
+    "anl_augmented": true,
+    "pes_phase_policy": "exploration_first",
+    "simultaneous_kinbot": 5,
+    "queue_live_control": {"hold_failures": false, "hold_task_failures": true}
+  }
+}

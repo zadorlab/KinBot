@@ -199,6 +199,8 @@ def _publish_ready(generator):
             return None
         if record['pid'] != os.getpid():
             raise RuntimeError('PES worker ownership changed.')
+        from kinbot.input_refresh import inherit_models
+        inherit_models(_ROOT, generator)
         publish(generator)
         record.update(status='ready', epoch=m['epoch'])
         atomic_json(_ROOT/NAME, m)

@@ -37,7 +37,9 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
     assert par['vrc_tst_surface_model']['channels']
     assert par['homolytic_bonds'] == {'initial': ([[0, 1]] if name == 'ch3s' else [[0, 1], [1, 2]])}
     assert par['vrc_tst_sample_basis'] == 'avdz-f12'
-    assert par['vrc_tst_scan_basis'] == 'avtz-f12'
+    assert par['vrc_tst_scan_basis'] == 'avdz-f12'
+    assert par['vrc_tst_fragment_geometry'] == 'asymptotic_scan'
+    assert par['vrc_tst_pivot_level'] == 'L2'
     assert par['vrc_tst_scan_shift'] == .1
     assert par['vrc_tst_scan_ipea'] == .25
     species = StationaryPoint(name, 0, 2, smiles=smiles)
@@ -52,7 +54,8 @@ def test_sulfur_examples_are_hands_off_anl1_f12_open_shell_inputs(
         2, 4)
     assert settings['target_multiplicity'] == 2
     assert settings['reference_multiplicity'] == 4
-    assert settings['reference']['basis'] == 'avtz-f12'
+    assert settings['reference']['basis'] == ['avdz-f12', 'avtz-f12']
+    assert settings['reference']['extrapolation_power'] == 3.7
     gap, = settings['gap_levels']
     assert gap['basis'] == ['avdz-f12', 'avtz-f12']
     assert gap['extrapolation_power'] == 3.7

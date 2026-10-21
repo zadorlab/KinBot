@@ -48,6 +48,11 @@ def _read(path):
         raise ValueError(f'{path}: invalid shared scheduling policy.')
     _nodes(value['excluded_nodes'])
     _validate_timeout(value)
+    reserve = value.get('orbital_review_reserve', 0)
+    if type(reserve) is not int or reserve < 0:
+        raise ValueError('orbital_review_reserve must be a nonnegative integer.')
+    if reserve and not value.get('manage_pending'):
+        raise ValueError('orbital_review_reserve requires manage_pending to drain queued jobs.')
     if 'manage_pending' in value and type(value['manage_pending']) is not bool:
         raise ValueError('manage_pending must be boolean.')
     if 'minimum_walltime' in value:
@@ -58,7 +63,38 @@ def _read(path):
 
 def read(directory=None):
     path = find(directory)
-    return _read(path) if path else None
+    return effective(path, _read(path)) if path else None
+
+
+def effective(path, policy):
+    """Reserve campaign capacity while any current VRC channel needs review.
+
+    This is an admission ceiling, not a Slurm reservation. It never stops
+    running jobs and cannot reserve hardware against other cluster users.
+    Only current worker review records are read, never archived directories.
+    """
+    reserve = policy.get('orbital_review_reserve', 0)
+    if not reserve:
+        return policy
+    root = path.parent
+    suffix = 'vrctst/orbital_review/*/request.json'
+    requests = sorted({p for prefix in ('', '[0-9]*/', '*/[0-9]*/')
+                       for p in root.glob(prefix+suffix)})
+    pending = []
+    for p in requests:
+        try:
+            record = json.loads(p.read_text())
+            status = record['status']
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise RuntimeError(f'Cannot determine orbital review capacity from {p}: {error}') from error
+        if status == 'needs_review':
+            pending.append(str(p.relative_to(root)))
+        elif status != 'model_accepted':
+            raise RuntimeError(f'Unknown orbital review status in {p}: {status}')
+    return {**policy, 'configured_max_jobs': policy['max_jobs'],
+            'max_jobs': max(0, policy['max_jobs']-reserve) if pending else policy['max_jobs'],
+            'orbital_review_requests': pending,
+            'orbital_review_reserved_slots': min(reserve, policy['max_jobs']) if pending else 0}
 
 
 def limit(default, directory=None):
@@ -114,7 +150,7 @@ def _validate_timeout(value):
 
 def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
            timeout_retries=None, timeout_walltime_factor=None, manage_pending=None,
-           optimization_step_retries=None):
+           optimization_step_retries=None, orbital_review_reserve=None):
     root = Path(root).resolve(strict=True)
     path = root/NAME
     ancestor = find(root.parent)
@@ -154,6 +190,14 @@ def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
             value['timeout_walltime_factor'] = timeout_walltime_factor
         if optimization_step_retries is not None:
             value['optimization_step_retries'] = optimization_step_retries
+        if orbital_review_reserve is not None:
+            if type(orbital_review_reserve) is not int or orbital_review_reserve < 0:
+                raise ValueError('orbital_review_reserve must be a nonnegative integer.')
+            value['orbital_review_reserve'] = orbital_review_reserve
+        if value.get('orbital_review_reserve'):
+            if manage_pending is False:
+                raise ValueError('Orbital review capacity requires pending-job management.')
+            value['manage_pending'] = True
         _validate_timeout(value)
         value['excluded_nodes'] = sorted((set(value['excluded_nodes']) | set(exclude)) - set(allow))
         value.update(revision=value['revision'] + 1,
@@ -169,12 +213,18 @@ def validate_options(options):
         return
     if not isinstance(options, dict) or set(options) - {
             'max_jobs', 'excluded_nodes', 'minimum_walltime',
-            'timeout_retries', 'timeout_walltime_factor', 'manage_pending', 'optimization_step_retries'}:
+            'timeout_retries', 'timeout_walltime_factor', 'manage_pending', 'optimization_step_retries',
+            'orbital_review_reserve'}:
         raise ValueError('Invalid queue_live_policy option.')
     if type(options.get('max_jobs')) is not int or options['max_jobs'] < 0:
         raise ValueError('queue_live_policy.max_jobs must be a nonnegative integer.')
     _nodes(options.get('excluded_nodes', []))
     _validate_timeout(options)
+    reserve = options.get('orbital_review_reserve', 0)
+    if type(reserve) is not int or reserve < 0:
+        raise ValueError('orbital_review_reserve must be a nonnegative integer.')
+    if reserve and options.get('manage_pending') is False:
+        raise ValueError('Orbital review capacity requires pending-job management.')
     if 'manage_pending' in options and type(options['manage_pending']) is not bool:
         raise ValueError('manage_pending must be boolean.')
     if 'minimum_walltime' in options:
@@ -192,6 +242,7 @@ def initialize(directory, options):
                minimum_walltime=options.get('minimum_walltime'),
                timeout_retries=options.get('timeout_retries'),
                optimization_step_retries=options.get('optimization_step_retries'),
+               orbital_review_reserve=options.get('orbital_review_reserve'),
                manage_pending=options.get('manage_pending'),
                timeout_walltime_factor=options.get('timeout_walltime_factor'))
 
@@ -293,7 +344,7 @@ def submit(command, *, cwd=None, wait=False, before_submit=None, **kwargs):
 
 
 def _admit_locked(command, directory, path, kwargs, before_submit=None):
-    policy = _read(path)
+    policy = effective(path, _read(path))
     ledger = path.parent/'.kinbot_policy_admissions.json'
     claims = json.loads(ledger.read_text()) if ledger.exists() else {}
     jobs = _queue(path.parent)
@@ -370,6 +421,8 @@ def main(argv=None):
     change.add_argument('--timeout-retries', type=int, help='Bounded clean retries after confirmed walltime exhaustion (0 disables).')
     change.add_argument('--timeout-walltime-factor', type=float, help='Multiply the previous time limit for a timeout retry (default 2).')
     change.add_argument('--optimization-step-retries', type=int, help='Extra same-optimizer step chunks (default 2; zero disables).')
+    change.add_argument('--orbital-review-reserve', type=int,
+                        help='Temporarily subtract this many slots while VRC orbital review is pending (default 0).')
     walltime = change.add_mutually_exclusive_group()
     walltime.add_argument('--minimum-walltime', help='Raise future requests up to this time, capped by partition MaxTime.')
     walltime.add_argument('--clear-minimum-walltime', action='store_true')
@@ -380,6 +433,7 @@ def main(argv=None):
         result = update(args.root, max_jobs=args.max_jobs,
                         timeout_retries=args.timeout_retries,
                         optimization_step_retries=args.optimization_step_retries,
+                        orbital_review_reserve=args.orbital_review_reserve,
                         timeout_walltime_factor=args.timeout_walltime_factor,
                         minimum_walltime='' if args.clear_minimum_walltime else args.minimum_walltime,
                         exclude=[n for v in args.exclude for n in v.split(',')],
@@ -395,7 +449,7 @@ def main(argv=None):
             claims = json.loads(ledger.read_text()) if ledger.exists() else {}
             jobs = _queue(path.parent)
             occupied = _reconcile(path.parent, jobs, claims)  # Read-only in this command.
-            print(json.dumps({'root': str(path.parent), 'policy': _read(path),
+            print(json.dumps({'root': str(path.parent), 'policy': effective(path, _read(path)),
                               'live_nodes': sum(jobs.values()), 'reserved_slots': occupied,
                               'unreconciled_admissions': claims}, indent=2))
     else:

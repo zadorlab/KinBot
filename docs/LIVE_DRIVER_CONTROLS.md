@@ -1,7 +1,7 @@
 # Live driver controls
 
 These opt-in Slurm controls change scheduling and request another calculation
-attempt without changing chemistry or editing source code. A controller must
+attempt, including operator-specified numerical fallbacks, without editing source code. A controller must
 already include this implementation. An older running Python process needs one
 controller refresh; subsequent control commands do not require refreshes.
 Running allocations keep their immutable inputs and code snapshot.
@@ -30,6 +30,7 @@ Defaults can also live in the ordinary single KinBot JSON input:
   "queue_live_policy": {"max_jobs": 8, "manage_pending": true},
   "queue_live_control": {
     "hold_failures": false,
+    "hold_task_failures": true,
     "resource_rules": [
       {"name": "long-qc", "selectors": ["*/tasks/*"],
        "resources": {"walltime": "7-00:00:00"}}
@@ -181,10 +182,102 @@ Missing allocation ownership or missing ordinary-worker retry seeds require
 reconciliation, not a guessed resubmission. Custom ordinary backends outside
 Gaussian/ORCA can use walltime rules but do not receive guessed CPU/memory edits.
 
+## A manual fallback for one attempt or an explicit batch
+
+Write a JSON proposal and pass `--fallback FILE.json` to `retry`. Its contents
+are embedded in the request, so editing the proposal afterward cannot change
+an already queued retry. This does not reset automatic retry budgets. Repeat
+`--target` for several jobs of the same kind; all proposals are validated before
+publication, and each owner then rechecks its individual attempt. A batch is
+not an all-or-nothing cancellation transaction: a target whose generation
+changed is retained and reported separately.
+
+For an ASE optimization task (ANL geometry, MR relaxed point or asymptote):
+
+```json
+{
+  "schema": 1,
+  "calculator_kwargs": {"scf_convergence": 1e-8},
+  "optimizer": {"steps": 300, "sella_kwargs": {"internal": false}},
+  "policy": {"optimization_step_retries": 2},
+  "resources": {"cores": 8, "memory_mb": 96000, "walltime": "10-00:00:00"},
+  "environment": {"CUSTOM_RUNTIME_OPTION": "value"}
+}
+```
+
+For an ordinary Gaussian L1/L2 worker (`--kind qc`), a rejected conformer,
+or the newly generated workers of a rejected reaction:
+
+```json
+{
+  "schema": 1,
+  "worker_parameters": {
+    "kwargs": {"scf": "conver=8,CDIIS,NoVarAcc,NoIncFock,MaxCycle=512", "guess": null},
+    "steps": 400
+  },
+  "environment": {"GAUSS_MEMDEF": null, "GAUSS_PDEF": null},
+  "resources": {"cores": 8, "walltime": "7-00:00:00"}
+}
+```
+
+Use only variables present in the actual generated worker. Supported literal
+assignments are `kwargs`, `kwargs1`, etc., `prod_kwargs`, `sella_kwargs`, `steps`
+and `fmax`. Dictionary values merge; `null` removes a keyword. Missing or
+ambiguous assignments are refused before cancellation. A reaction-wide
+fallback applies to its subsequently generated namespace; shared product wells
+are unchanged and need their own explicitly targeted fallback if necessary.
+
+External native tasks accept `input_edits: [{"old": "exact text", "new":
+"replacement text"}]`; each old string must match exactly once. They also
+accept `command` as an argument list, preserving the task's native filenames
+and placeholders. ASE tasks instead accept a command string through
+`calculator_kwargs.command`. For example, an installed replacement executable
+can be selected without changing the KinBot driver. Exact native edits and
+custom executables are operator-reviewed numerical repairs: KinBot cannot
+prove arbitrary native text has identical chemistry. Do not use them to
+change basis, method, states, geometry, or the meaning of a parsed energy.
+Those changes require a scientific migration and dependent-result invalidation.
+
+Both kinds accept `setup`, a list of single shell command lines, and
+`environment`, mapping names to string values or `null` to unset. These commands
+run **inside the replacement allocation only**, after site setup. Manual task
+runtime setup is reported as `runtime_environment_deferred` by preflight;
+its executable availability is established in the allocation. Operator setup
+is executable shell code, not a sandbox. Environment values are quoted as data.
+Scheduler/account identity variables and Python import-path overrides are
+rejected. Backend `KINBOT_*_EXECUTABLE`, `_ROOT` and `_SETUP` overrides are
+supported. Scratch locality and native-result validation still apply.
+
+```bash
+python -m kinbot.run_control retry "$KB_RUN" \
+  --target 'case/well/anl_automatic/states/state_ID/composite/tasks/l3_geometry' \
+  --fallback /absolute/path/to/fallback.json --reason 'Reviewed numerical fallback'
+# Inspect the preview, then repeat with --apply.
+```
+
+Task options are validated before cancellation. An unsubmitted staged task can
+also receive a fallback through this command; no allocation is cancelled.
+Running and pending tasks retain the explicit stop rules described above.
+The archive contains the old attempt; manifests record the original logical
+task, the patched task hashes and the embedded fallback. Unrelated allocations
+and completed files remain untouched. Later VRC model refresh recognizes the
+approved fallback as the existing task rather than submitting a duplicate.
+Further manual retries use the effective previous worker, including prior
+fallbacks, rather than silently reverting to its initial source.
+
+The per-attempt `optimization_step_retries` override governs additional chunks
+inside that replacement worker. Campaign timeout count/factor, minimum
+walltime and orbital-review reserve are live `kinbot.run_policy set` options;
+they are distinct from native SCF/CC iteration limits. A new executable must
+remain output-compatible with the selected parser. Successful completed tasks,
+uncertain submissions, and changed sources with existing dependent work are
+not overwritten through a numerical retry.
+
 ## Keep a retry window open
 
 ```bash
 python -m kinbot.run_control enable "$KB_RUN" --hold-failures
+python -m kinbot.run_control enable "$KB_RUN" --no-hold-failures --hold-task-failures
 python -m kinbot.run_control release "$KB_RUN" --kind task \
   --target 'GRAPH/tasks/TASK_ID' --reason 'Reviewed; continue normal failure handling' --apply
 python -m kinbot.run_control enable "$KB_RUN" --no-hold-failures
@@ -196,6 +289,11 @@ and search rejections also wait for retry or release; this includes expected
 unproductive reaction guesses, so enabling it can intentionally delay normal
 network completion. `release` restores normal handling for that exact failed
 generation; it does not waive required L3 success. The default is off.
+
+`hold_task_failures` keeps only dispatcher ANL/VRC failures open for manual
+retry/release. Ordinary scientifically rejected reaction searches can finish,
+so they do not indefinitely block outer-PES selection. Fresh r7 enables this
+task-only option. Independent ready tasks continue while a failed task waits.
 
 A dead/exited controller cannot consume a live request. Refresh it once using
 the existing recovery tools. For the already-running two-PES salvage layout,
@@ -285,9 +383,14 @@ Only `vrc_tst_surface_models` additions and explicit `vdW_detection` updates are
 accepted by this scientific file interface. Existing reviewed channels must
 remain unchanged. Live CPU/memory/walltime/capacity edits use the resource
 commands above. Unsupported scientific edits are refused with an explanation;
-they never silently invalidate expensive work. Resubmit after exploration has
-completed and while its PES owner remains alive; a finished controller cannot
-consume a request. Editing a file without resubmission has no effect on the
+they never silently invalidate expensive work. Additive VRC reviews can be
+resubmitted while other wells are still exploring: ready branches receive
+generation-fenced requests, and searching/newly discovered wells inherit the
+accepted models at their ready boundary. A worker becoming ready between
+submission and consumption is included; conflicting search revisions block
+publication. `vdW_detection` file revisions still require the global
+postprocessing phase; use an explicit network revisit for exploration changes.
+A finished controller cannot consume a request. Editing a file without resubmission has no effect on the
 running owner or new wells: they read the last accepted snapshot.
 
 Input publication is serialized with the PES closing/reopening barrier and
@@ -295,3 +398,11 @@ shared control requests. Partial batches are invisible until publication
 completes. Receipts are idempotent and preserve exact input/prepared-manifest
 hashes. The review hold, exploration epoch and task results are visible in the
 ordinary monitor. This interface does not start native QC on the login node.
+An `applied` model-only receipt acknowledges the currently targeted branches;
+still-exploring wells inherit that accepted input when they become ready.
+
+These controls cover configuration-driven retries, not arbitrary changes to
+already imported Python code. A future controller-code defect can still require
+a controller replacement; unsafe native checkpoints and contradictory scientific
+provenance still require review. No live interface can guarantee every backend
+will converge or implement an unsupported native method.

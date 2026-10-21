@@ -1,4 +1,5 @@
 """Build comparison must preserve the failed physical problem and evidence."""
+import tempfile
 import json
 from pathlib import Path
 import re
@@ -62,7 +63,7 @@ def test_build_probe_uses_identical_deck_and_pristine_seed(tmp_path, monkeypatch
     assert proof['production_approved'] is False
     assert all(file_sha256(p) == digest for p, digest in before.items())
     monkeypatch.setattr(recon, 'qc_runtime_environment',
-                        lambda *a, **k: ({}, {'scratch_directory': str(tmp_path)}))
+                        lambda *a, **k: ({}, {'scratch_directory': tempfile.mkdtemp(dir=tmp_path)}))
     monkeypatch.setattr(recon, 'cleanup_qc_runtime', lambda *a: None)
     native_decks = []
     def launch(command, **kwargs):

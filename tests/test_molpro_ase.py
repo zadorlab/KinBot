@@ -73,6 +73,7 @@ text = inp.read_text()
 assert 'forces,numerical,variable=kb_geom_energy,startcmd=rhf' in text.lower()
 assert 'put,xyz,' in text.lower() and 'xyzgrad' not in text.lower()
 assert ('kb_geom_energy=energy\n'
+        'show[1,f28.16],kb_geom_energy\n'
         'forces,numerical,variable=kb_geom_energy,startcmd=rhf') in text.lower()
 assert 'optg' not in text.lower()
 assert 'memory,' not in text.lower()
@@ -95,6 +96,7 @@ grad = [[2*k*1.8897261254578281*(value - goal)
 stem = inp.stem
 Path(stem + '.out').write_text(
     f' SETTING KB_GEOM_ENERGY = {energy:.14f} AU\n'
+    f' KB_GEOM_ENERGY = {energy:.16f} AU\n'
     f' SETTING KB_GEOM_ENERGY = {energy + 0.1:.14f} AU\n'
     ' Number of N-1 electron functions: 7\n'
     ' Triples (T) contribution -0.006123456789\n'
@@ -119,6 +121,7 @@ def test_documented_molpro_force_input_and_parser_contract():
     assert ('set,charge=0\nset,spin=0\n'
             'gthresh,energy=1.d-10,coeff=1.d-8,civec=1.d-8\n') in deck
     assert ('rhf\n{uccsd(t),thrden=1.d-8,thrvar=1.d-10}\nkb_geom_energy=energy\n'
+            'show[1,f28.16],kb_geom_energy\n'
             'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             'put,xyz,step.xyz') in deck
     assert 'optg' not in deck.lower()
@@ -311,6 +314,49 @@ def test_conventional_mrci_output_cannot_satisfy_f12_request():
             ' Molpro calculation terminated\n')
         with pytest.raises(ValueError, match='MRCI-F12'):
             parse_output(output, method='MRCI-F12B+Q(2,2)')
+
+
+def test_precise_undisplaced_energy_preserves_sub_print_resolution_steps(tmp_path):
+    # Native Molpro 2024.1 SHOW format confirmed on Blodgett. SETTING rounds
+    # both points to the same energy, making an optimizer's measured dE zero.
+    energies = []
+    for i, value in enumerate((-437.5063696602430241, -437.5063696603430241)):
+        output = tmp_path / f'step{i}.out'
+        output.write_text(
+            ' SETTING KB_GEOM_ENERGY =      -437.50636966 AU\n'
+            f' KB_GEOM_ENERGY   =           {value:.16f}\n'
+            ' Computing numerical gradient using startcommand=RHF\n'
+            ' SETTING KB_GEOM_ENERGY = -437.4 AU\n'
+            ' KB_GEOM_ENERGY = -437.4000000000000000\n'
+            ' Molpro calculation terminated\n')
+        energies.append(parse_output(output, effective_method='HF',
+                                     require_precise_energy=True))
+        assert energies[-1] == pytest.approx(value * Hartree, abs=1.e-12, rel=0)
+    assert energies[1] - energies[0] == pytest.approx(-1.e-10 * Hartree, abs=5.e-12)
+
+
+@pytest.mark.parametrize('body,message', [
+    ('', 'missing'),
+    (' KB_GEOM_ENERGY = -436.0000000000000000\n', 'disagrees'),
+    (' KB_GEOM_ENERGY = -437.5063696602430241\n' * 2, 'Ambiguous'),
+    (' Computing numerical gradient using startcommand=RHF\n'
+     ' KB_GEOM_ENERGY = -437.5063696602430241\n', 'missing'),
+    (' SETTING KB_GEOM_ENERGY = -437.50636966 AU\n'
+     ' KB_GEOM_ENERGY = -437.5063696602430241\n', 'missing'),
+])
+def test_precise_energy_rejects_missing_conflicting_or_displaced_value(tmp_path, body, message):
+    output = tmp_path/'step.out'
+    output.write_text(' SETTING KB_GEOM_ENERGY = -437.50636966 AU\n'
+                      + body + ' Molpro calculation terminated\n')
+    with pytest.raises(ValueError, match=message):
+        parse_output(output, effective_method='HF', require_precise_energy=True)
+
+
+def test_old_energy_output_remains_readable_without_requiring_new_format(tmp_path):
+    output = tmp_path/'old.out'
+    output.write_text(' SETTING KB_GEOM_ENERGY = -437.50636966 AU\n'
+                      ' Molpro calculation terminated\n')
+    assert parse_output(output, effective_method='HF') == -437.50636966 * Hartree
 
 
 def test_molpro_launcher_process_count_must_fit_allocation():

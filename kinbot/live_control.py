@@ -38,7 +38,8 @@ def read(directory=None):
     if path is None:
         return None
     value = json.loads(path.read_text())
-    if value.get('schema') != 1 or type(value.get('hold_failures')) is not bool:
+    if (value.get('schema') != 1 or type(value.get('hold_failures')) is not bool
+            or type(value.get('hold_task_failures', False)) is not bool):
         raise ValueError(f'Invalid live control: {path}')
     return value
 
@@ -50,7 +51,7 @@ def locked(root):
         yield
 
 
-def configure(root, *, hold_failures=None):
+def configure(root, *, hold_failures=None, hold_task_failures=None):
     root = Path(root).resolve(strict=True)
     existing = find(root)
     if existing and existing.parent != root:
@@ -59,10 +60,14 @@ def configure(root, *, hold_failures=None):
         raise ValueError('Child live controls already exist; do not split ownership.')
     if hold_failures is not None and type(hold_failures) is not bool:
         raise ValueError('hold_failures must be boolean.')
+    if hold_task_failures is not None and type(hold_task_failures) is not bool:
+        raise ValueError('hold_task_failures must be boolean.')
     with locked(root):
         value = read(root) or dict(schema=1, revision=0, hold_failures=False, rules=[])
         if hold_failures is not None:
             value['hold_failures'] = hold_failures
+        if hold_task_failures is not None:
+            value['hold_task_failures'] = hold_task_failures
         return _save(root, value)
 
 
@@ -135,7 +140,7 @@ def _request_lock(root, target, kind):
 
 
 def request(root, target, *, kind='task', action='retry', cancel_running=False,
-            pending_only=False, reason='', expected=None, options=None):
+            pending_only=False, reason='', expected=None, options=None, fallback=None):
     """Publish one explicit request, never submit/cancel from this function."""
     root = Path(root).resolve(strict=True)
     if find(root) != root/NAME:
@@ -150,6 +155,11 @@ def request(root, target, *, kind='task', action='retry', cancel_running=False,
         raise ValueError('Pending-only and cancel-running are mutually exclusive.')
     if not reason.strip():
         raise ValueError('Give a reason for the operator request.')
+    if fallback is not None:
+        from kinbot.manual_fallback import validate
+        if action != 'retry' or kind not in ('task','qc','conformer','reaction'):
+            raise ValueError('Per-attempt fallbacks require task, qc, conformer or reaction retry targets.')
+        fallback=validate(fallback,kind)
     if kind == 'network':
         from kinbot.network_revisit import settings
         if not isinstance(options, dict) or set(options)-{'vdW_detection','rejected','vrc_tst_surface_models'} or action!='retry':
@@ -177,6 +187,8 @@ def request(root, target, *, kind='task', action='retry', cancel_running=False,
                       reason=reason, status='queued', created_at=now())
         if options is not None:
             record['options'] = options
+        if fallback is not None:
+            record['fallback'] = fallback
         atomic_json(directory/(ident+'.json'), record)
     return record
 
@@ -292,7 +304,7 @@ def acknowledge(path, record, status, **details):
 def holding(target, *, kind='task'):
     """An opt-in failed-stage hold consumes no allocation and is releasable."""
     config = read(Path(target).parent)
-    if not config or not config['hold_failures']:
+    if not config or not (config['hold_failures'] or (kind=='task' and config.get('hold_task_failures',False))):
         return False
     marker = find(Path(target).parent)
     for p in (marker.parent/'.kinbot_controls/requests').glob('*.json'):
@@ -321,7 +333,8 @@ def summary(root):
     marker = find(root)
     if marker is None:
         return None
-    result = dict(hold_failures=read(root)['hold_failures'], revision=read(root)['revision'])
+    result = dict(hold_failures=read(root)['hold_failures'],
+                  hold_task_failures=read(root).get('hold_task_failures',False), revision=read(root)['revision'])
     rows = [json.loads(p.read_text()) for p in
             sorted((marker.parent/'.kinbot_controls/requests').glob('*.json'))]
     result['requests'] = dict(Counter(r['status'] for r in rows))
@@ -333,9 +346,9 @@ def summary(root):
 
 
 def validate_options(options):
-    if (not isinstance(options,dict) or set(options)-{'hold_failures','resource_rules'}
-            or ('hold_failures' in options and type(options['hold_failures']) is not bool)):
-        raise ValueError('queue_live_control accepts hold_failures and resource_rules.')
+    if (not isinstance(options,dict) or set(options)-{'hold_failures','hold_task_failures','resource_rules'}
+            or any(k in options and type(options[k]) is not bool for k in ('hold_failures','hold_task_failures'))):
+        raise ValueError('queue_live_control accepts hold_failures, hold_task_failures and resource_rules.')
     rules=options.get('resource_rules',[])
     if not isinstance(rules,list):
         raise ValueError('resource_rules must be a list.')
@@ -354,6 +367,7 @@ def validate_options(options):
 def initialize(directory, options):
     validate_options(options)
     if options and find(directory) is None:
-        configure(directory,hold_failures=options.get('hold_failures',False))
+        configure(directory,hold_failures=options.get('hold_failures',False),
+                  hold_task_failures=options.get('hold_task_failures',False))
         for rule in options.get('resource_rules',[]):
             resources(Path(directory).resolve(),rule['name'],rule['selectors'],rule['resources'])

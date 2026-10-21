@@ -137,6 +137,7 @@ def main(argv=None):
     sub = parser.add_subparsers(dest='action', required=True)
     enable = sub.add_parser('enable'); enable.add_argument('root', type=Path)
     enable.add_argument('--hold-failures', action=argparse.BooleanOptionalAction, default=None)
+    enable.add_argument('--hold-task-failures', action=argparse.BooleanOptionalAction, default=None)
     resubmit = sub.add_parser('resubmit', help='Validate an edited PES input; ask its existing owner to apply it.')
     resubmit.add_argument('input', type=Path)
     resubmit.add_argument('--run-directory', type=Path,
@@ -162,6 +163,8 @@ def main(argv=None):
                        help='Exact target path relative to ROOT; repeat for a batch.')
         p.add_argument('--kind', choices=['task','qc','reaction','conformer'], default='task')
         p.add_argument('--reason', required=True)
+        p.add_argument('--fallback', type=Path,
+                       help='JSON next-attempt native/optimizer/environment overrides; embedded in receipt.')
         g = p.add_mutually_exclusive_group()
         g.add_argument('--cancel-running', action='store_true')
         g.add_argument('--pending-only', action='store_true')
@@ -212,7 +215,8 @@ def main(argv=None):
                 allow=[n for v in args.allow for n in v.split(',')],manage_pending=True),
                 drain=pool_drain.pulse(root,force=True))
     elif args.action == 'enable':
-        result = control.configure(args.root, hold_failures=args.hold_failures)
+        result = control.configure(args.root, hold_failures=args.hold_failures,
+                                   hold_task_failures=args.hold_task_failures)
     elif args.action == 'show':
         result = control.status(args.root)
     elif args.action == 'list':
@@ -246,11 +250,33 @@ def main(argv=None):
         if any(not target.is_relative_to(root) for target in targets) or len(targets)!=len(set(targets)):
             raise ValueError('Targets must be distinct and inside ROOT.')
         expected = [control.generation(target, args.kind) for target in targets]
+        fallback=None
+        if args.fallback:
+            from kinbot.manual_fallback import validate, task_options, worker_options
+            fallback=validate(json.loads(args.fallback.read_text()),args.kind)
+            if args.action!='retry' or args.kind not in ('task','qc','conformer','reaction'):
+                raise ValueError('Fallbacks apply to task/qc/conformer/reaction retry targets.')
+            # Validate every member before publishing any request in this batch.
+            for target in targets:
+                if args.kind=='task':
+                    from kinbot.anl.dispatch import _load, validate_spec
+                    _,spec,_=_load(target.parent.parent)
+                    spec['tasks']=[task_options(t,fallback) if t['id']==target.name else t for t in spec['tasks']]
+                    validate_spec(spec)
+                elif args.kind=='reaction':
+                    from kinbot.manual_fallback import reaction_workers
+                    for worker in reaction_workers(target): worker_options(worker.read_text(),fallback)
+                else:
+                    from kinbot.qc_live import retry_sources
+                    worker,_,_=retry_sources(target,expected[targets.index(target)].get('job_id'))
+                    worker_options(worker.read_text(),fallback)
         result = [dict(target=str(t), kind=args.kind, action=args.action, expected=e) for t,e in zip(targets,expected)]
+        if fallback is not None:
+            for row in result: row['fallback']=fallback
         if args.apply:
             result = [control.request(root,t,kind=args.kind,action=args.action,
                                       expected=e,reason=args.reason,cancel_running=args.cancel_running,
-                                      pending_only=args.pending_only) for t,e in zip(targets,expected)]
+                                      pending_only=args.pending_only,fallback=fallback) for t,e in zip(targets,expected)]
     print(json.dumps(result, indent=2))
 
 

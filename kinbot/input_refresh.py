@@ -105,10 +105,12 @@ def submit(source, *, apply=False, directory=None):
         if changed-FIELDS:
             raise ValueError('Unsupported live scientific changes: '+', '.join(sorted(changed-FIELDS))+
                              '. Use resource controls or an explicit scientific migration.')
-        # No newly discovered worker may escape this revision. Wait for the
-        # exploration barrier before accepting a PES-wide file resubmission.
-        if m['phase']!='postprocessing' or any(w['status'] not in ('postprocessing','assembled')
-                                              for w in m['workers'].values()):
+        model_only = changed == {'vrc_tst_surface_models'}
+        # Additive orbital reviews do not change L1/L2 exploration. Existing
+        # branches quiesce; searching/new workers inherit at their ready gate.
+        if m['phase'] not in ('exploring', 'postprocessing') or (not model_only and (
+                m['phase'] != 'postprocessing' or any(w['status'] not in ('postprocessing','assembled')
+                                                    for w in m['workers'].values()))):
             raise ValueError('Resubmit after PES exploration is complete; no files or jobs changed.')
         options = {k: proposed[k] for k in changed if k in proposed}
         if changed-set(options):
@@ -120,10 +122,12 @@ def submit(source, *, apply=False, directory=None):
         if not scope and (root/'chemids').exists():
             scope = (root/'chemids').read_text().splitlines()[0]
         if 'vrc_tst_surface_models' in options:
-            options['vrc_tst_surface_models'] = validate_models(prior, proposed, root, scope=scope)
+            options['vrc_tst_surface_models'] = validate_models(prior, proposed, source.parent, scope=scope)
         ident = uuid.uuid4().hex
         requests = []
         for name in sorted(m['workers']):
+            if model_only and m['workers'][name]['status'] == 'exploring':
+                continue
             worker = root/name
             if not phase.active_worker(worker):
                 raise ValueError(f'{name}: no live worker to accept this revision.')
@@ -142,7 +146,8 @@ def submit(source, *, apply=False, directory=None):
         record = dict(schema=1, id=ident, token=m['token'], status='queued',
             input_file=str(source), source_sha256=file_sha256(source), before=prior, after=proposed,
             previous_source_sha256=m['input_sha256'], options=options,
-            requests=requests, control_root=str(control_path.parent), drivers_started=0)
+            requests=requests, control_root=str(control_path.parent), drivers_started=0,
+            model_only=model_only)
         resolved=root/'resolved_parameters.json'
         if resolved.exists():
             values=json.loads(resolved.read_text())
@@ -172,6 +177,39 @@ def consume(root, m):
         r.update(status='blocked', error='Input was edited again before the owner accepted it.')
         atomic_json(path, r)
         return
+    if r['status'] == 'queued' and r.get('model_only'):
+        # A search can become ready between submit and this locked owner tick.
+        # Include it before publishing; later ready workers inherit below.
+        from kinbot import live_control as control
+        existing = {Path(q['target']).name for q in r['requests']}
+        for name, worker in sorted(m['workers'].items()):
+            if name in existing or worker['status'] == 'exploring':
+                continue
+            directory = root/name
+            if control.requests(directory, kinds={'reaction','network'}):
+                r.update(status='blocked',error=f'{name}: another search revision arrived before publication.')
+                atomic_json(path,r)
+                return
+            inp = directory/(name+'.json')
+            saved = json.loads(inp.read_text())
+            validate_models(saved, dict(saved, **r['options']), directory,
+                            scope=saved.get('vrc_tst_surface_model_scope'))
+            r['requests'].append(dict(schema=1, id=r['id']+'_'+name, kind='network',
+                target=str(directory), action='retry', expected=dict(input_sha256=file_sha256(inp)),
+                options=r['options'], cancel_running=False, pending_only=False,
+                reason='Explicit PES orbital-model resubmission',
+                input_revision=dict(path=str(path), id=r['id']), status='queued',
+                created_at=control.now()))
+    if r['status'] == 'queued':
+        from kinbot import live_control as control
+        for request in r['requests']:
+            directory=Path(request['target'])
+            inp=directory/(directory.name+'.json')
+            if (control.requests(directory,kinds={'reaction','network'})
+                    or file_sha256(inp)!=request['expected']['input_sha256']):
+                r.update(status='blocked',error=f'{directory.name}: worker revision changed before publication.')
+                atomic_json(path,r)
+                return
     r['status']='publishing'; atomic_json(path,r)
     for request in r['requests']:
         dest=Path(r['control_root'])/'.kinbot_controls/requests'/(request['id']+'.json')
@@ -207,6 +245,39 @@ def consume(root, m):
                 atomic_json(manifest,prepared)
     m['input_sha256']=r['source_sha256']
     r['status']='published'; atomic_json(path,r)
+
+
+def inherit_models(root, generator):
+    """At a worker's locked ready boundary, inherit accepted additive reviews.
+
+    The owner lock excludes partial publication. Never copy a proposal or
+    change a running reaction/branch; only its future VRC model is extended.
+    """
+    root = Path(root)
+    if generator is None or not (root/JOURNAL).exists():
+        return
+    r = json.loads((root/JOURNAL).read_text())
+    from kinbot import pes_phase, live_control as control
+    if (r['token'] != json.loads((root/pes_phase.NAME).read_text())['token']
+            or r['status'] != 'published' or 'vrc_tst_surface_models' not in r['options']):
+        return
+    models = r['options']['vrc_tst_surface_models']  # normalized absolute paths
+    prior = generator.par
+    if prior.get('vrc_tst_surface_models', {}) == models:
+        return
+    inp = Path(generator.inp).resolve()
+    if any(Path(q['target']) == inp.parent for _, q in control.requests(inp.parent, kinds={'network'})):
+        return  # Its generation-fenced request owns this edit and acknowledgement.
+    validate_models(prior, dict(prior, vrc_tst_surface_models=models), inp.parent,
+                    scope=prior.get('vrc_tst_surface_model_scope'))
+    saved = json.loads(inp.read_text())
+    saved['vrc_tst_surface_models'] = deepcopy(models)
+    atomic_json(inp, saved)
+    path = inp.parent/'.kinbot_search_options.json'
+    overrides = json.loads(path.read_text()) if path.exists() else {}
+    overrides['vrc_tst_surface_models'] = deepcopy(models)
+    atomic_json(path, overrides)
+    generator.par['vrc_tst_surface_models'] = deepcopy(models)
 
 
 def receipt(root):

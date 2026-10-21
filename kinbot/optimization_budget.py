@@ -8,9 +8,12 @@ DEFAULT_STEP_RETRIES = 2
 
 
 def step_retries(directory=None):
+    import os
     from kinbot.run_policy import read
     policy = read(directory or Path.cwd()) or {}
     value = policy.get('optimization_step_retries', DEFAULT_STEP_RETRIES)
+    if 'KINBOT_OPTIMIZATION_STEP_RETRIES' in os.environ:
+        value = int(os.environ['KINBOT_OPTIMIZATION_STEP_RETRIES'])
     if type(value) is not int or not 0 <= value <= 10:
         raise ValueError('optimization_step_retries must be an integer from 0 to 10.')
     return value

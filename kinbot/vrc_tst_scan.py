@@ -89,6 +89,8 @@ def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
 
     task_ids = tuple(task_ids)
     while True:
+        from kinbot.pes_phase import checkpoint
+        checkpoint()
         returncode, summary = drive_run(run_dir, interval=interval, hold_failures=False)
         if not returncode:
             return returncode, summary
@@ -132,6 +134,7 @@ def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
             return returncode, summary
         for task_id, phase, attempt in retry:
             while True:
+                checkpoint()
                 try:
                     archive = retry_failed(run_dir, task_id)
                     break
@@ -196,6 +199,11 @@ class VTS:
         """
         The main driver for scanning the potential.
         """
+        from kinbot.pes_phase import checkpoint
+        from kinbot.vrc_multistate import SurfaceModelRequired
+        self.review_requests = []
+        deferred = set()
+        checkpoint()
         # Automatic homolytic-channel selection happens after KinBot's
         # initial ``make_dirs`` call.  VRC execution must therefore own its
         # directory precondition instead of relying on the input mapping to
@@ -237,8 +245,8 @@ class VTS:
                 configured_selection(self.par[option], self.well, []))
             if not reactions:
                 continue
-            self.opt_products(reactions)
-            self.save_products(reactions)
+            # Resolve/review parent-local state models before any fragment QC.
+            self.opt_products(reactions, submit=False)
             self.find_scan_coos(reactions)
             invalid = [name for name in reactions
                        if not isinstance(self.scan_reac[name].scan_coo,
@@ -248,11 +256,47 @@ class VTS:
                 raise ValueError(
                     'VRC scan coordinate is unavailable for: '
                     + ', '.join(invalid))
-            self.find_equiv(reactions)
             from kinbot.vrc_multistate import channel_for_reaction, calculate_channel
             scalar = []
+            selections = {}
             for name in reactions:
-                selection = channel_for_reaction(self.par, self.scan_reac[name])
+                checkpoint()
+                try:
+                    selection = channel_for_reaction(self.par, self.scan_reac[name])
+                except SurfaceModelRequired as error:
+                    deferred.add(name)
+                    reaction = self.scan_reac[name]
+                    request = dict(schema=1, status='needs_review', reaction=name,
+                        parent=routing_name(self.well), smiles=self.well.smiles,
+                        bond=[int(i)+1 for i in reaction.scan_coo],
+                        symbols=list(self.well.atom), positions=np.asarray(self.well.geom).tolist(),
+                        charge=int(self.well.charge), multiplicity=int(self.well.mult),
+                        products=[dict(smiles=p.smiles, charge=int(p.charge),
+                                       multiplicity=int(p.mult)) for p in reaction.products],
+                        error=str(error))
+                    from kinbot.execution import atomic_json
+                    path = Path('vrctst/orbital_review')/name/'request.json'
+                    atomic_json(path, request)
+                    self.review_requests.append(dict(reaction=name, request=str(path), error=str(error)))
+                    atomic_json(Path('vrc_model_review.json'), dict(status='needs_review',
+                        error='Orbital/state review required for: '+', '.join(sorted(deferred)),
+                        channels=self.review_requests))
+                    logger.warning('%s Held for orbital review: %s', name, error)
+                    continue
+                selections[name] = selection
+                review_path=Path('vrctst/orbital_review')/name/'request.json'
+                if review_path.exists():
+                    from kinbot.execution import atomic_json
+                    accepted=json.loads(review_path.read_text())
+                    accepted.update(status='model_accepted', surface_model=selection[1] if selection else None)
+                    atomic_json(review_path,accepted)
+            approved = list(selections)
+            self.opt_products(approved)
+            self.save_products(approved)
+            self.find_scan_coos(approved)
+            self.find_equiv(approved)
+            for name, selection in selections.items():
+                checkpoint()
                 if selection is None:
                     scalar.append(name)
                 else:
@@ -262,7 +306,7 @@ class VTS:
             if scalar:
                 self.do_scan(scalar, noscan=noscan)
                 self.energies(scalar, noscan=noscan)
-        if self.scan_reac:
+        if set(self.scan_reac)-deferred:
             # A direct KinBot run has all information needed here.  Waiting
             # for a later PES aggregation step left single-well runs without
             # the rotdPy input that the user requested.
@@ -270,6 +314,8 @@ class VTS:
             barrierless = []
             reactant = routing_name(self.well)
             for name, reaction in self.scan_reac.items():
+                if name in deferred:
+                    continue
                 barrierless.append([
                     reactant, name,
                     [routing_name(product) for product in reaction.products],
@@ -281,13 +327,15 @@ class VTS:
                 rotd_parameters['rotdpy_run'] = 0
             create_rotdpy_inputs(rotd_parameters, barrierless, [],
                                  correction_root='.')
+        if deferred:
+            raise SurfaceModelRequired('Orbital/state review required for: '+', '.join(sorted(deferred)))
         return
 
     def configured_reactions(self, reactions):
         return [reaction.instance_name for reaction in self.well.reac_obj
                 if matches_name(reaction.instance_name, reactions)]
 
-    def opt_products(self, reactions):
+    def opt_products(self, reactions, *, submit=True):
         """
         reac: name of reaction for which scan is needed
         Find the products based on the reaction name.
@@ -317,7 +365,7 @@ class VTS:
                             else:  # submit at vrc_tst level
                                 prod_chemid.append(routing_key(prod))
                                 from kinbot.vrc_orbitals import pivot_backend, asymptotic_fragments
-                                if not asymptotic_fragments(self.par) and pivot_backend(self.par) == 'gaussian':
+                                if submit and not asymptotic_fragments(self.par) and pivot_backend(self.par) == 'gaussian':
                                     self.qc.qc_vts_frag(prod)
             if not hit:
                 logger.warning(f'Reaction {reac} requested \
@@ -567,6 +615,8 @@ class VTS:
         step0_geoms = [np.array(geoms[ri]) for ri in range(len(reactions))]
 
         while 1:
+            from kinbot.pes_phase import checkpoint
+            checkpoint()
             for ri, reac in enumerate(reactions):
                 if status[ri] == 'ready' and (step[ri] < \
                    len(self.par['vrc_tst_scan_points']) + 1 or

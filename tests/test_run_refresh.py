@@ -116,6 +116,29 @@ def test_refresh_keeps_live_anl_and_vrc_and_restarts_once(live_tree):
     assert len(t.launches) == 2
 
 
+def test_network_revisit_handoff_preserves_live_and_pending_graphs(live_tree):
+    from kinbot.network_revisit import settings
+    t=live_tree
+    for case in ('ch3s','ch3ss'):
+        worker=t.root/case/'123'
+        atomic_json(worker/'123.json',dict(vdW_detection=.5))
+        (worker/'kinbot_monitor.out').write_text('-1 0 accepted\n-999 0 retry_this\n')
+    t.jobs[-1]['state']='PENDING'
+    before=scientific_files(t.root)
+    jobs=deepcopy(t.jobs)
+    options=settings(0.,True,True)
+    preview=run_refresh.refresh(t.root,network_options=options)
+    assert preview['phase']=='reviewed' and not t.signals
+    result=run_refresh.refresh(t.root,apply=True,network_options=options)
+    assert result['phase']=='launched' and t.jobs==jobs
+    assert scientific_files(t.root)==before
+    for case in ('ch3s','ch3ss'):
+        assert json.loads((t.root/case/'input.json').read_text())['vdW_detection']==0
+        assert json.loads((t.root/case/'123/.kinbot_revisit.json').read_text())['rejected']==['retry_this']
+    assert run_refresh.refresh(t.root,apply=True,network_options=options)==result
+    assert len(t.launches)==2
+
+
 def test_deduplicate_refresh_cancels_only_verified_duplicate_and_retains_chain(live_tree, monkeypatch):
     from tests.test_vrc_graph import graph, spec
     t = live_tree

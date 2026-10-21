@@ -171,8 +171,11 @@ All geometry, curvature, connectivity, electronic-state and result-provenance
 checks run again. A retry never marks a rejected calculation as successful.
 
 Task retries refuse to invalidate already staged/running/completed dependent
-work. Search retries are accepted only while that search still owns the
-network; once results have gone downstream, use dependency-aware recovery.
+work. A rejected reaction can also be retried after its search finishes while
+its revision-aware PES owner remains in exploration/postprocessing. The owner
+first quiesces downstream dispatch across that PES, then reopens exploration.
+Running native allocations continue. Closed conformer searches and finalized
+PES/ROTD/MESS campaigns still require dependency-aware recovery.
 Reaction retry retains shared product wells and other reaction namespaces.
 Missing allocation ownership or missing ordinary-worker retry seeds require
 reconciliation, not a guessed resubmission. Custom ordinary backends outside
@@ -201,3 +204,89 @@ add pending replacement or VRC migration flags simply to enable these controls.
 Configuration/history, request receipts, scheduler receipts and archived
 attempts remain in the run directory for review. Nothing in this interface
 assumes a username, chemistry example, hostname, partition, or scratch path.
+
+## Exploration and reviewed network extensions
+
+`pes_phase_policy` defaults to `auto`: automatic CBH/ANL and VRC/ROTD PES runs
+finish exploration of all eligible wells before downstream dispatch begins.
+`simultaneous_kinbot` limits exploring wells, not parked controllers. Thus a
+value of one permits serial exploration followed by concurrent downstream
+work. Ordinary runs without these branches retain their prior behavior.
+Explicit `legacy` or `exploration_first` policies remain available. A live
+revisit is supported only by an exploration-first owner.
+
+```bash
+python -m kinbot.run_control revisit "$KB_RUN" --worker 'case/WELL' \
+  --vdw-detection 0 --rejected --reason 'Reassess complex cutoff and rejected channels'
+# Repeat with --apply to request it.
+```
+
+This grants one additional attempt to each currently rejected channel. It
+replays accepted results through the ordinary validation path, retaining shared
+product calculations. It does not waive connectivity, curvature, stereochemical
+or scientific acceptance checks. Zero is a well-depth cutoff, not an instruction
+to accept unbound structures. A scientifically changed previously accepted
+geometry requires explicit dependency invalidation; the interface refuses to
+silently reuse its old single points.
+
+The ANL plan may grow with new species, TSs, CBH references and accepted vdW
+complexes. Unchanged graph identities keep complete/submitted QC. Derived
+profiles, formations and handoff reports are archived and rebuilt. A reference
+promoted to a network species with a new L2 geometry gets a separate graph;
+single points from the old geometry cannot become its results. Disconnected
+complexes use same-method binding energies plus fragment formation enthalpies,
+not an invented covalent CBH decomposition.
+
+## Resubmit the same JSON without a second driver
+
+New parent wells cannot inherit the initial well's orbital indices. Missing
+surface models create `vrc_model_review.json` and per-channel
+`vrctst/orbital_review/REACTION/request.json` records with parent geometry,
+products, state and bond indices. The unreviewed channel starts no fragment/scan
+QC. Other reviewed channels and ANL work proceed. These records request orbital
+reconnaissance and human review; they are not automatically approved active
+spaces or proof that native reconnaissance has run. Final network assembly and
+PES sampling wait for all required corrections, including these holds.
+
+After reviewing the native orbitals, add `vrc_tst_surface_models` to the original
+PES `input.json`. It maps parent routing names (recommended) or SMILES to the
+existing schema-1 reviewed surface model format. Each new parent's bottleneck
+must carry its own `parameters.vrc_tst_state_model` (including basis models,
+active orbital indices, state-average weights and seed provenance), or an
+explicit reviewed state-model file. Inline models keep the scientific settings
+in the single input. Required native WFU seed files remain explicit hashed
+artifacts. Choose scan/sampling/reference methods, bases, extrapolation and spin
+settings through that bottleneck's existing parameter overrides.
+
+```bash
+python -m kinbot.run_control resubmit /absolute/path/to/case/input.json
+python -m kinbot.run_control resubmit /absolute/path/to/case/input.json --apply
+python -m kinbot.run_control resubmit /absolute/path/to/case/input.json --status
+```
+
+An input stored outside the run directory remains supported. Run resubmission
+from its PES directory, or add `--run-directory /absolute/path/to/case`.
+Accepted snapshots retain the original directory for resolving orbital paths.
+
+An unchanged resubmission is a no-op. Re-running `python -m kinbot.pes INPUT`
+also detects its live owner and uses this interface instead of starting another
+driver. Explicit `run_control resubmit` is preferable for preview and receipts.
+The existing owner consumes a durable batch, acknowledges each worker, and
+re-enters downstream dispatch. It does not replace controller PIDs. The
+receipt distinguishes `queued`, `published`, `applied` and `blocked`; publication
+alone does not establish successful worker application.
+
+Only `vrc_tst_surface_models` additions and explicit `vdW_detection` updates are
+accepted by this scientific file interface. Existing reviewed channels must
+remain unchanged. Live CPU/memory/walltime/capacity edits use the resource
+commands above. Unsupported scientific edits are refused with an explanation;
+they never silently invalidate expensive work. Resubmit after exploration has
+completed and while its PES owner remains alive; a finished controller cannot
+consume a request. Editing a file without resubmission has no effect on the
+running owner or new wells: they read the last accepted snapshot.
+
+Input publication is serialized with the PES closing/reopening barrier and
+shared control requests. Partial batches are invisible until publication
+completes. Receipts are idempotent and preserve exact input/prepared-manifest
+hashes. The review hold, exploration epoch and task results are visible in the
+ordinary monitor. This interface does not start native QC on the login node.

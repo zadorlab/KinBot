@@ -212,14 +212,14 @@ def cancel_scans(plan, journal, marker):
         current = slurm_job_record(ident)
         if (not ident.isdecimal() or current.get('JobId') != ident
                 or Path(current.get('WorkDir', '/')).resolve() != Path(job['directory']).resolve()):
-            raise RuntimeError(f'VRC job {ident}: scheduler identity unavailable; repeat this refresh.')
+            raise RuntimeError(f'Selected job {ident}: scheduler identity unavailable; repeat this refresh.')
         outcome = outcomes.setdefault(ident, {'before': current, 'phase': 'inspected'})
         if current.get('JobState') in terminal:
             outcome.update(phase='terminal', record=current)
             atomic_json(marker, journal)
             continue
         if current.get('JobState') not in ('PENDING', 'RUNNING', 'CONFIGURING', 'SUSPENDED', 'COMPLETING'):
-            raise RuntimeError(f'VRC job {ident}: unrecognized state; no cancellation attempted.')
+            raise RuntimeError(f'Selected job {ident}: unrecognized state; no cancellation attempted.')
         if current['JobState'] != 'COMPLETING':
             outcome['phase'] = 'requested'
             atomic_json(marker, journal)
@@ -236,19 +236,19 @@ def cancel_scans(plan, journal, marker):
                and current.get('JobState') in ('RUNNING', 'PENDING', 'COMPLETING', 'CONFIGURING')
                and time.monotonic() < deadline):
             if not waiting:
-                print(f'Waiting for superseded VRC job {ident} to release its allocation...', flush=True)
+                print(f'Waiting for superseded job {ident} to release its allocation...', flush=True)
                 waiting = True
             time.sleep(2)
             current = slurm_job_record(ident)
         if (current.get('JobId') != ident or current.get('JobState') not in terminal
                 or Path(current.get('WorkDir', '/')).resolve() != Path(job['directory']).resolve()):
-            raise RuntimeError(f'VRC job {ident}: cancellation/finish is not yet confirmed. '
+            raise RuntimeError(f'Selected job {ident}: cancellation/finish is not yet confirmed. '
                                'Other allocations remain running; repeat this same refresh command.')
         outcome.update(phase='terminal', record=current)
         atomic_json(marker, journal)
 
 
-def apply_inputs(root, plan, archive):
+def apply_inputs(root, plan, archive, *, record_name='vrc_restart.json'):
     """Idempotent bytes-first migration; native graph files are never edited."""
     from kinbot import run_salvage
     import hashlib
@@ -272,7 +272,7 @@ def apply_inputs(root, plan, archive):
         atomic_json(marker, prepared)
     # Graphs/checkpoints remain at their original locations, including failed
     # last evaluations. They are comparison evidence, not new-basis results.
-    atomic_json(root/'vrc_restart.json', {
+    atomic_json(root/record_name, {
         'schema': 1, 'settings': plan['settings'], 'archive': str(archive),
         'retired_scans': plan['scans'], 'cancellations': plan.get('cancellations', {}),
         'note': 'Old scan artifacts retained in place. Cancelled jobs lose in-memory optimizer state.'})

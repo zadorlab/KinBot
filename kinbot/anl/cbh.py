@@ -83,6 +83,7 @@ class FormationEnthalpy:
     # when the same lower-rung ATcT or CBS source occurs more than once.
     uncertainty_source_sensitivities_kj_mol: Mapping[str, float] = field(
         default_factory=dict)
+    construction: str = 'cbh'
 
 
 @dataclass(frozen=True)
@@ -138,7 +139,12 @@ def formation_from_dict(value, reaction=None) -> FormationEnthalpy:
         stoichiometry=stoichiometry, formulas=formulas, states=states,
         uncertainty_kj_mol=value.get('uncertainty_kj_mol'),
         uncertainty_components_kj_mol=components,
-        uncertainty_source_sensitivities_kj_mol=sensitivities)
+        uncertainty_source_sensitivities_kj_mol=sensitivities,
+        construction=value.get('construction', 'cbh'))
+    if result.construction == 'binding_energy' and (result.rung != 0 or '.' not in result.target_smiles):
+        raise ValueError('Binding formation requires a disconnected target and rung 0.')
+    if result.construction not in ('cbh', 'binding_energy'):
+        raise ValueError('Unknown formation enthalpy construction.')
     if (isinstance(result.rung, bool) or result.rung not in range(4)
             or not isinstance(result.method, str) or not result.method
             or not isinstance(result.atct_version, str)
@@ -189,6 +195,8 @@ def formation_from_dict(value, reaction=None) -> FormationEnthalpy:
                 or state[1] < 1):
             raise ValueError('CBH electronic-state metadata are invalid.')
     if not result.stoichiometry:
+        if result.construction != 'cbh':
+            raise ValueError('Binding formation requires an explicit balanced reaction.')
         # A terminal wrapper is allowed only around the matching pinned ATcT
         # species.  It exists so higher rungs retain an explicit CBH-0 leaf.
         reference = result.references.get(result.target_smiles)
@@ -223,14 +231,15 @@ def formation_from_dict(value, reaction=None) -> FormationEnthalpy:
                 _canonical_smiles(smiles):
             raise ValueError(f'{smiles}: CBH reference identity differs.')
         if isinstance(reference, ATcTRecord):
-            if (result.rung != 0
+            if (result.construction != 'cbh' or result.rung != 0
                     or reference.version != result.atct_version
                     or reference.source_sha256 != result.atct_source_sha256
                     or reference.phase != 'g'
                     or reference.formation_0k_kj_mol is None
                     or reference.formation_298k_kj_mol is None):
                 raise ValueError(f'{smiles}: invalid direct ATcT reference.')
-        elif (result.rung == 0 or reference.rung >= result.rung
+        elif ((result.construction == 'cbh' and
+               (result.rung == 0 or reference.rung >= result.rung))
               or reference.atct_version != result.atct_version
               or reference.atct_source_sha256 != result.atct_source_sha256):
             raise ValueError(f'{smiles}: invalid lower-rung CBH reference.')
@@ -573,6 +582,7 @@ def solve_formation_enthalpy(
         atct: ATcTTable | None = None, *,
         reference_ids: Mapping[str, str] | None = None,
         reference_formations: Mapping[str, FormationEnthalpy] | None = None,
+        binding_energy: bool = False,
         ) -> FormationEnthalpy:
     """Apply one signed CBH reaction at 0 K.
 
@@ -603,7 +613,9 @@ def solve_formation_enthalpy(
                          '0 K electronic-structure method.')
     references: dict[str, ATcTRecord | FormationEnthalpy] = {}
     reference_ids = reference_ids or {}
-    if reaction.rung == 0:
+    if binding_energy and (reaction.rung != 0 or '.' not in reaction.target_smiles):
+        raise ValueError('Binding-energy construction requires a disconnected complex and rung 0.')
+    if reaction.rung == 0 and not binding_energy:
         if atct is None:
             raise ValueError('CBH-0 requires a pinned ATcT table.')
         if reference_formations:
@@ -627,7 +639,7 @@ def solve_formation_enthalpy(
             if (not isinstance(value, FormationEnthalpy)
                     or _canonical_smiles(value.target_smiles) !=
                        _canonical_smiles(smiles)
-                    or value.rung >= reaction.rung
+                    or (not binding_energy and value.rung >= reaction.rung)
                     or not math.isfinite(value.formation_0k_kj_mol)):
                 raise ValueError(
                     f'{smiles}: invalid lower-rung CBH formation reference.')
@@ -710,7 +722,8 @@ def solve_formation_enthalpy(
         dict(reaction.stoichiometry),
         {smiles: dict(formula) for smiles, formula in reaction.formulas.items()},
         dict(reaction.states), uncertainty, uncertainty_components,
-        uncertainty_sensitivities)
+        uncertainty_sensitivities,
+        construction='binding_energy' if binding_energy else 'cbh')
 
 
 def cbh_size_metrics(smiles: str, *, charge: int = 0,

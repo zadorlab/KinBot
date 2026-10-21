@@ -124,6 +124,10 @@ class Parameters:
             'pes': 0,
             # Maximum number of simultaneous kinbot runs in a pes search
             'simultaneous_kinbot': 5,
+            'pes_phase_policy': 'auto',
+            'vrc_tst_surface_model_scope': '',
+            'vrc_tst_surface_models': {},
+            'anl_ts_reuse': False,
             # Perform high level optimization and freq calculation (L2)
             'high_level': 0,
             # Calculate AIE for each conformer - requires conformer search
@@ -727,6 +731,13 @@ class Parameters:
         # the composite DAG.  Existing nonautomatic inputs and explicit
         # subsystem overrides retain their historical behavior.
         queue_limit = self.par['queue_job_limit']
+        if not isinstance(self.par['vrc_tst_surface_models'],dict):
+            raise ValueError('vrc_tst_surface_models must map species selectors to reviewed surface models.')
+        if self.par['pes_phase_policy'] not in ('auto', 'exploration_first', 'legacy'):
+            raise ValueError('pes_phase_policy must be auto, exploration_first or legacy.')
+        if self.par['anl_ts_reuse'] is not False:
+            from kinbot.anl.ts_reuse import options
+            options(self.par['anl_ts_reuse'])
         from kinbot.run_policy import validate_options as validate_resource_policy
         validate_resource_policy(self.par['queue_live_policy'])
         if self.par['queue_live_policy'] and self.par['queuing'] != 'slurm':

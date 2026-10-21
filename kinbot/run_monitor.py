@@ -45,7 +45,7 @@ LOG_NAMES = {'driver.log', 'pes.log', 'kinbot.log', 'kinbot.err', 'kinbot.out'}
 STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'mess_execution.json', '.kinbot_post_reaction_branches.json',
                'kinbot_status.json', 'pes_status.json', 'recovery.json',
-               'minimum_recovery.json', 'composite_preflight.json'}
+               'minimum_recovery.json', 'composite_preflight.json', 'vrc_model_review.json'}
 REACTION_STAGES = {-999: 'failed/rejected', -1: 'accepted', 0: 'TS search',
                    1: 'barrier/IRC', 2: 'product characterization',
                    3: 'start product/TS optimization', 4: 'product/TS optimization',
@@ -414,6 +414,7 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
                 'surface_directories': len(list(path.glob('Surface_*'))),
                 'surface_output_files': len(list(path.glob('output/surface_*.dat')))})
     return {'directory': str(root), 'name': root.name, 'sampling': sampling,
+            'exploration': read_json(root/'pes_exploration.json', warnings),
             'allocation_cap': par.get('queue_job_limit'), 'configured_exclusions': par.get('slurm_exclude_nodes', []),
             'jobs': case_jobs,
             'processes': [p for p in processes if inside(p['cwd'], root)],
@@ -595,6 +596,9 @@ def render_status_summary(case):
                    '  '.join(f'{k}={v}' for k, v in sorted(counts.items())))
     for item in case['artifacts']:
         label = display_path(item['path'], case['directory'])
+        if item['status']=='needs_review':
+            out.append(f'  REVIEW HOLD {label}: {item.get("error", "reviewed input required")}')
+            continue
         if item.get('previous_controller'):
             if item.get('branches'):
                 out.append('Branch report belongs to the previous controller; '
@@ -687,6 +691,13 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                    + (states or 'no post-reaction branch record yet'))
     for case in report['cases']:
         out += ['', f'=== {case["name"]} ===']
+        exploration = case.get('exploration', {})
+        if exploration:
+            counts = dict(Counter(w.get('status', 'unknown') for w in exploration.get('workers', {}).values()))
+            owner_alive = any(p['pid']==exploration.get('owner_pid') for p in case['processes'])
+            out.append(f'PES exploration: {exploration.get("phase", "unknown")}; '
+                       f'epoch={exploration.get("epoch")}; wells={counts}; '
+                       f'owner={"present" if owner_alive else "not observed"}')
         out.append(f'Slurm: {"UNKNOWN" if report["scheduler_error"] else len(case["jobs"])} allocations'
                    + (' / shared pool; ' if shared else f' / cap {case["allocation_cap"] or "unspecified"}; ')
                    + f'local processes: {"UNKNOWN" if report["process_error"] else len(case["processes"])}')

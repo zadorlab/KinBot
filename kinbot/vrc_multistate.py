@@ -38,6 +38,21 @@ def _positive_integer(value, name):
     return value
 
 
+class SurfaceModelRequired(ValueError):
+    """A discovered channel needs reviewed electronic-state input."""
+
+
+def extend_surface_model(previous, current):
+    """Permit added channels while preserving every existing MR contract."""
+    current = validate_surface_model(current)
+    if previous is not None:
+        previous = validate_surface_model(previous)
+        channels = {tuple(sorted(c['bond'])): c for c in current['channels']}
+        if any(channels.get(tuple(sorted(c['bond']))) != c for c in previous['channels']):
+            raise ValueError('Existing VRC channel settings changed; a scientific migration is required.')
+    return current
+
+
 def validate_surface_model(payload, *, reviewed=True):
     """Validate declarative channel/state choices without inventing chemistry."""
     model = deepcopy(payload)
@@ -145,6 +160,15 @@ def resolve_state_model_paths(payload, base):
 
 
 def normalize_inline_model_paths(parameters, base):
+    models = parameters.get('vrc_tst_surface_models', {})
+    if not isinstance(models, dict):
+        raise ValueError('vrc_tst_surface_models must map species selectors to reviewed surface models.')
+    for selector, model in models.items():
+        if not isinstance(selector, str) or not selector or not isinstance(model, dict):
+            raise ValueError('Species surface models require nonempty selectors and inline model objects.')
+        holder = {'vrc_tst_surface_model': model}
+        normalize_inline_model_paths(holder, base)
+        parameters['vrc_tst_surface_models'][selector] = holder['vrc_tst_surface_model']
     if parameters.get('vrc_tst_state_model') is not None:
         parameters['vrc_tst_state_model'] = resolve_state_model_paths(parameters['vrc_tst_state_model'], base)
     surface = parameters.get('vrc_tst_surface_model')
@@ -195,14 +219,42 @@ def load_surface_model(parameters):
 
 
 def channel_for_reaction(parameters, reaction):
+    # Atom/bond indices are local to a reviewed parent, not transferable to
+    # every isomer reached by PES exploration.
+    from kinbot.species_routing import routing_name
+    models = parameters.get('vrc_tst_surface_models', {})
+    scope = parameters.get('vrc_tst_surface_model_scope')
+    require_parent_space = False
+    if models or scope:
+        parent = getattr(reaction, 'species', None)
+        if parent is None:
+            raise ValueError('Scoped VRC surface models require the reaction parent identity.')
+        route = routing_name(parent)
+        override = models.get(route, models.get(getattr(parent, 'smiles', '')))
+        if override is not None:
+            require_parent_space = bool(scope and scope != route)
+            parameters = dict(parameters, vrc_tst_surface_model=override, vrc_tst_surface_model_file='')
+        elif scope not in (None, '', route):
+            raise SurfaceModelRequired(f'{route}: VRC needs a reviewed surface model for this newly explored well; '
+                             'set vrc_tst_surface_models[species] in the input. '
+                             'The initial well orbital indices cannot be silently reused.')
     loaded = load_surface_model(parameters)
     if loaded is None:
         return None
     model, provenance = loaded
     bond = sorted(int(index) + 1 for index in reaction.scan_coo)
     matches = [channel for channel in model['channels'] if sorted(channel['bond']) == bond]
+    if not matches:
+        raise SurfaceModelRequired(f'Accepted VRC bond {bond} needs a reviewed surface channel.')
     if len(matches) != 1:
         raise ValueError(f'Accepted VRC bond {bond} has no unique reviewed surface channel.')
+    if require_parent_space:
+        for stage in matches[0]['bottlenecks']:
+            settings = stage['parameters']
+            if not (settings.get('vrc_tst_state_model') or settings.get('vrc_tst_state_model_file')):
+                raise SurfaceModelRequired(f'{route}, bond {bond}: each new-parent bottleneck needs its own '
+                    'reviewed vrc_tst_state_model and basis-specific orbital selection; '
+                    'an initial-parent active space will not be inherited.')
     from kinbot.vrc_correction import coupled_multiplicities
     from kinbot.electronic_states import state_average_roots
     allowed = coupled_multiplicities(*(int(product.mult) for product in reaction.products))

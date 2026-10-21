@@ -108,16 +108,25 @@ def _controllers(root):
 
 
 def _graphs(root):
-    for pattern in ('*/[0-9]*/anl_automatic/states/*/composite',
-                    '*/[0-9]*/vrctst/molpro_scan/*',
+    directories = set(root.glob('*/[0-9]*/anl_automatic/states/*/composite'))
+    for inp in root.glob('*/[0-9]*/*.json'):
+        if inp.name != inp.parent.name+'.json':
+            continue
+        parameters=json.loads(inp.read_text())
+        base=inp.parent/parameters.get('anl_automatic_directory','anl_automatic')
+        directories.update(base.glob('states/*/composite'))
+    for pattern in ('*/[0-9]*/vrctst/molpro_scan/*',
                     '*/[0-9]*/vrctst/molpro_pivots/*',
                     '*/[0-9]*/vrctst/molpro/dispatch*'):
-        for graph in sorted(root.glob(pattern)):
-            if not graph.is_dir():
-                continue
-            if not all((graph / name).is_file() for name in ('workflow.json', 'state.json')):
-                raise RuntimeError(f'{graph}: graph preparation is incomplete; repeat later.')
-            yield graph / 'state.json'
+        directories.update(root.glob(pattern))
+    for graph in sorted(directories):
+        if not graph.is_dir():
+            continue
+        if not graph.resolve().is_relative_to(root.resolve()):
+            raise RuntimeError(f'{graph}: dispatcher directory is outside this run; refusing ownership.')
+        if not all((graph / name).is_file() for name in ('workflow.json', 'state.json')):
+            raise RuntimeError(f'{graph}: graph preparation is incomplete; repeat later.')
+        yield graph / 'state.json'
 
 
 def _owned_jobs(root):
@@ -262,6 +271,15 @@ def _unchanged_stopped_handoff(root, journal):
             'pending_holds', 'pending_cancel_acknowledged', 'pending_plans',
             'pending_cancellation_evidence')):
         return False
+    network = journal.get('network_revision') or {}
+    if network.get('cancellations') or network.get('archive'):
+        return False
+    if network:
+        if run_salvage.file_sha256(root/'prepared.json') != network['prepared_sha256']:
+            return False
+        for edit in network['inputs']:
+            if run_salvage.file_sha256(root/edit['path']) != edit['before']:
+                return False
     migration = journal.get('vrc_migration') or {}
     if migration.get('cancellations'):
         return False
@@ -436,7 +454,7 @@ def _replace_pending(root, journal, marker):
 
 
 def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
-            cancel_superseded_vrc_scans=False, deduplicate_vrc=False):
+            cancel_superseded_vrc_scans=False, deduplicate_vrc=False, network_options=None):
     """Journal a controller-only handoff; repeated same-code calls are no-ops."""
     root = Path(root).resolve(strict=True)
     marker = root / 'salvage.json'
@@ -444,6 +462,11 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
     journal_path = root / 'controller_refresh.json'
     journal = json.loads(journal_path.read_text()) if journal_path.exists() else None
     vrc_updates = vrc_updates or {}
+    if network_options and (vrc_updates or replace_pending or deduplicate_vrc):
+        raise ValueError("Network revision must not be mixed with VRC/resource migration.")
+    if (journal and journal["phase"] != "launched"
+            and journal.get("network_options") != network_options):
+        raise RuntimeError("Repeat the interrupted refresh with the same network options.")
     if deduplicate_vrc and (vrc_updates or replace_pending):
         raise ValueError('VRC deduplication cannot be combined with a scientific migration or pending replacement.')
     if (journal and journal['phase'] != 'launched'
@@ -455,6 +478,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         raise ValueError('Cancelling superseded scans requires explicit VRC settings.')
     pin = run_salvage._pin_code(root, refresh=True)
     if (journal and journal['phase'] == 'launched' and journal['code'] == str(pin)
+            and journal.get('network_options') == network_options
             and (not replace_pending or journal.get('replace_pending'))
             and (not deduplicate_vrc or journal.get('deduplicate_vrc'))
             and (not vrc_updates or journal.get('vrc_migration', {}).get('settings') == vrc_updates)):
@@ -496,6 +520,12 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         _preflight(root)  # Do this while the original controllers keep working.
         migration = None
         duplicate = None
+        network = None
+        if network_options:
+            from kinbot import network_revisit
+            network = network_revisit.plan(root, jobs, network_options)
+            print(f"Network revisit: {sum(len(w['rejected']) for w in network['workers'])} rejected channels; "
+                  f"{len(network['selected_jobs'])} verified duplicate TS allocations selected.", flush=True)
         if deduplicate_vrc:
             from kinbot import vrc_deduplicate
             duplicate = vrc_deduplicate.plan(root, jobs)
@@ -514,7 +544,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         if not apply:
             return {'phase': 'reviewed', 'controllers': records, 'jobs': jobs, 'code': str(pin),
                     'replace_pending': replace_pending, 'vrc_migration': migration,
-                    'vrc_deduplication': duplicate}
+                    'vrc_deduplication': duplicate, 'network_revision': network}
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         archive = root.with_name(root.name + '.controllers.' + stamp)
         archive.mkdir()
@@ -522,7 +552,10 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             atomic_json(archive / 'previous_refresh.json', journal)
         journal = {'phase': 'preparing', 'code': str(pin), 'previous_code': history['code'],
                    'archive': str(archive), 'created_utc': stamp, 'replace_pending': replace_pending,
-                   'pending_cancel_method': pending_method, 'deduplicate_vrc': deduplicate_vrc}
+                   'pending_cancel_method': pending_method, 'deduplicate_vrc': deduplicate_vrc,
+                   'network_options': network_options}
+        if network is not None:
+            journal['network_revision'] = network
         if duplicate is not None:
             journal['vrc_deduplication'] = duplicate
         if migration is not None:
@@ -537,6 +570,9 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         print('Quiescing only PES/KB controllers; Slurm jobs remain running.', flush=True)
         with _freeze(root, records) as handles:
             jobs = _owned_jobs(root)  # No thread can submit/write while checked.
+            if journal.get('network_options'):
+                from kinbot import network_revisit
+                journal['network_revision'] = network_revisit.plan(root,jobs,journal['network_options'])
             if journal.get('deduplicate_vrc'):
                 from kinbot import vrc_deduplicate
                 journal['vrc_deduplication'] = vrc_deduplicate.plan(root, jobs)
@@ -586,6 +622,11 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 vrc_restart.apply_inputs(root, journal['vrc_migration'], archive/'vrc_inputs')
                 journal['jobs'] = _owned_jobs(root)
                 atomic_json(journal_path, journal)
+            if journal.get('network_revision'):
+                from kinbot import network_revisit
+                network_revisit.apply(root,journal['network_revision'],archive/'network_revision',journal,journal_path)
+                journal['jobs'] = _owned_jobs(root)
+                atomic_json(journal_path,journal)
             _archive_controllers(root, archive)
             history.update(status='prepared', code=str(pin))
             atomic_json(marker, history)
@@ -608,6 +649,9 @@ def main(argv=None):
                         help='Archive and replace pending allocations; preserve running allocations.')
     parser.add_argument('--deduplicate-vrc', action='store_true',
                         help='Verify original VRC results, cancel and archive resource-only duplicate chains.')
+    parser.add_argument('--vdw-detection', type=float)
+    parser.add_argument('--revisit-rejected', action='store_true')
+    parser.add_argument('--deduplicate-ts', action='store_true')
     parser.add_argument('--vrc-scan-basis', help='Change only the VRC relaxed/asymptotic geometry basis.')
     parser.add_argument('--vrc-fragment-geometry', choices=['legacy', 'asymptotic_scan'])
     parser.add_argument('--vrc-pivot-level', choices=['L2', 'custom'])
@@ -623,13 +667,23 @@ def main(argv=None):
     with root.with_suffix('.salvage.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         from kinbot.vrc_restart import settings
+        from kinbot.network_revisit import settings as network_settings
+        network_options = (network_settings(args.vdw_detection,args.revisit_rejected,args.deduplicate_ts)
+                           if args.vdw_detection is not None or args.revisit_rejected or args.deduplicate_ts else None)
         result = refresh(root, apply=args.apply, replace_pending=args.replace_pending,
             vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,
                                  args.vrc_reference_basis, args.vrc_reference_power),
             cancel_superseded_vrc_scans=args.cancel_superseded_vrc_scans,
-            deduplicate_vrc=args.deduplicate_vrc)
+            deduplicate_vrc=args.deduplicate_vrc, network_options=network_options)
     print(json.dumps({k: result[k] for k in ('phase', 'code', 'archive') if k in result}, indent=2))
     print('Retained Slurm IDs: ' + ', '.join(j['job_id'] for j in result.get('jobs', [])))
+    if result.get('network_revision'):
+        revision = result['network_revision']
+        print('Network revisit: ' + json.dumps(revision['settings'],sort_keys=True))
+        print('Rejected channels selected: '+str(sum(len(w['rejected']) for w in revision['workers'])))
+        print('Verified duplicate TS allocation IDs selected: '+
+              ', '.join(j['job_id'] for j in revision['selected_jobs']))
+        print('QC graphs retained except archived, verified TS aliases; existing VRC paths retained.')
     if result.get('pending_cancellation_evidence'):
         print('Cancelled pending IDs (archived for replacement): ' +
               ', '.join(result['pending_cancellation_evidence']))

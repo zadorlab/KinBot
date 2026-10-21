@@ -137,6 +137,12 @@ def main(argv=None):
     sub = parser.add_subparsers(dest='action', required=True)
     enable = sub.add_parser('enable'); enable.add_argument('root', type=Path)
     enable.add_argument('--hold-failures', action=argparse.BooleanOptionalAction, default=None)
+    resubmit = sub.add_parser('resubmit', help='Validate an edited PES input; ask its existing owner to apply it.')
+    resubmit.add_argument('input', type=Path)
+    resubmit.add_argument('--run-directory', type=Path,
+                          help='PES directory when its input is stored elsewhere.')
+    resubmit.add_argument('--apply', action='store_true')
+    resubmit.add_argument('--status', action='store_true')
     cap = sub.add_parser('capacity'); cap.add_argument('root', type=Path)
     cap.add_argument('--max-jobs', type=int)
     cap.add_argument('--exclude', action='append', default=[])
@@ -160,6 +166,15 @@ def main(argv=None):
         g.add_argument('--cancel-running', action='store_true')
         g.add_argument('--pending-only', action='store_true')
         p.add_argument('--apply', action='store_true', help='Publish the reviewed request; default only previews.')
+    revisit = sub.add_parser('revisit')
+    revisit.add_argument('root', type=Path)
+    revisit.add_argument('--worker', required=True, help='Worker directory relative to ROOT.')
+    revisit.add_argument('--vdw-detection', type=float)
+    revisit.add_argument('--rejected', action='store_true')
+    revisit.add_argument('--reload-vrc-models', action='store_true',
+                         help='Read additional reviewed models from this worker input JSON.')
+    revisit.add_argument('--reason', required=True)
+    revisit.add_argument('--apply', action='store_true')
     wall = sub.add_parser('pending-time'); wall.add_argument('root', type=Path)
     group = wall.add_mutually_exclusive_group(required=True)
     group.add_argument('--job', action='append'); group.add_argument('--all-pending', action='store_true')
@@ -167,7 +182,16 @@ def main(argv=None):
     group.add_argument('--walltime'); group.add_argument('--delta', help='Signed HH:MM:SS, e.g. --delta=-02:00:00')
     wall.add_argument('--apply', action='store_true')
     args = parser.parse_args(argv)
-    if args.action == 'resume-scheduler':
+    if args.action == 'resubmit':
+        from kinbot.input_refresh import submit, receipt, owner_directory
+        if args.status:
+            owner = owner_directory(args.input,directory=args.run_directory,require_live=False)
+            if owner is None:
+                raise ValueError('No PES input owner record was found.')
+            result = receipt(owner)
+        else:
+            result = submit(args.input, apply=args.apply,directory=args.run_directory)
+    elif args.action == 'resume-scheduler':
         from kinbot import run_policy
         from kinbot.run_refresh import _pending_request
         path = args.receipt.resolve(strict=True)
@@ -196,6 +220,23 @@ def main(argv=None):
     elif args.action == 'resources':
         values = {k:getattr(args,k) for k in ('cores','memory_mb','walltime') if getattr(args,k) is not None}
         result = control.resources(args.root, args.name, args.select, values, remove=args.remove)
+    elif args.action == 'revisit':
+        root = args.root.resolve(strict=True)
+        target = (root/args.worker).resolve(strict=True)
+        if not target.is_relative_to(root):
+            raise ValueError('Worker must be within ROOT.')
+        from kinbot.network_revisit import settings
+        settings(args.vdw_detection,args.rejected)
+        options = dict(vdW_detection=args.vdw_detection,rejected=args.rejected)
+        if args.reload_vrc_models:
+            saved=json.loads((target/(target.name+'.json')).read_text())
+            if not saved.get('vrc_tst_surface_models'):
+                raise ValueError('Worker input must contain reviewed vrc_tst_surface_models.')
+            options['vrc_tst_surface_models']=saved['vrc_tst_surface_models']
+        result = dict(target=str(target), options=options, expected=control.generation(target,'network'))
+        if args.apply:
+            result = control.request(root,target,kind='network',reason=args.reason,
+                                     expected=result['expected'], options=options)
     elif args.action == 'pending-time':
         result = pending_time(args.root, ['all'] if args.all_pending else args.job,
                               args.delta or args.walltime, delta=args.delta is not None, apply=args.apply)

@@ -2167,6 +2167,8 @@ class QuantumChemistry:
 
     def check_qc(self, job):
         """Reconcile the current generation and optionally recover a timeout."""
+        from kinbot.pes_phase import checkpoint
+        checkpoint()
         from kinbot import qc_timeout, timeout_retry
         if self.queuing == 'slurm':
             waiting = qc_timeout.resume(self, job)

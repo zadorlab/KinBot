@@ -41,6 +41,20 @@ def _network_species(root):
     return stable, transition_states
 
 
+def detach_handoff(root):
+    """Remove derived decorations before reopening L1/L2 exploration.
+
+    Native L2 energies, geometries and frequencies were never overwritten.
+    The old derived records remain in the revision archive on disk.
+    """
+    stable, saddles = _network_species(root)
+    for point in (*stable.values(), *saddles.values()):
+        for key in ('final_zero_k_energy', 'barrier_zero_k_energy',
+                    'formation_enthalpy_0k', 'anl_identity_smiles',
+                    'anl_thermochemistry_frequencies', 'anl_thermochemistry_frequency_source'):
+            point.__dict__.pop(key, None)
+
+
 def _formation(path, final):
     try:
         record = json.loads(path.read_text())

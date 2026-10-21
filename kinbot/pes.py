@@ -307,12 +307,24 @@ def _rotdpy_sampling_calculator(par, pp_info, metadata):
 
 
 def main():
+    # Re-running the same input against its live owner is a resubmission, not
+    # permission to overwrite status files or start duplicate controllers.
+    from kinbot import pes_phase
+    if len(sys.argv)==2:
+        source=Path(sys.argv[1]).resolve()
+        from kinbot.input_refresh import owner_directory, submit
+        owner=owner_directory(source)
+        if owner is not None:
+            print(json.dumps(submit(source,apply=True,directory=owner),indent=2))
+            return
     # Compatibility rejection must not write new status/log files into an
     # unsupported legacy calculation directory.
     ensure_current_run(create=not (len(sys.argv) > 2 and sys.argv[2] == 'no-kinbot'))
     try:
         from kinbot.driver_status import run_recorded
-        return run_recorded(_main, 'pes_status.json')
+        from kinbot.kb import _driver_lock
+        with _driver_lock():
+            return run_recorded(_main, 'pes_status.json')
     except (StereoRoutingError, UnsupportedStereochemistry) as error:
         logging.getLogger('KinBot').error('KinBot stopped: %s', error)
         raise SystemExit(1) from None
@@ -393,6 +405,13 @@ def _main():
     log_input_stereochemistry(well0, par, logger)
     if no_kinbot:
         ensure_current_run(routing_name(well0))
+    from kinbot import pes_phase
+    from kinbot.theory import automatic_cbh_anl_requested
+    phase_policy = par.get('pes_phase_policy', 'auto')
+    phased = not no_kinbot and (phase_policy == 'exploration_first' or
+        (phase_policy == 'auto' and (automatic_cbh_anl_requested(par)
+         or par.get('rotdpy_run') or par.get('vrc_tst_scan') or par.get('vrc_tst_noscan'))))
+    phase_record = pes_phase.initialize(Path.cwd(), input_file, routing_name(well0)) if phased else None
     write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
@@ -457,7 +476,13 @@ def _main():
             if len(finished) == len(jobs):
                 break
 
-        while (len(running) < par['simultaneous_kinbot'] and
+        eligible = [j for j in jobs if not (matches_name(j, par['skip_chemids'])
+                    and 'none' not in par['skip_chemids']) and
+                    (matches_name(j, par['keep_chemids']) or 'none' in par['keep_chemids'])]
+        searching, phase = (pes_phase.tick(Path.cwd(), eligible,
+                             max_searches=par['simultaneous_kinbot'], known_jobs=jobs)
+                             if phased else (running, 'legacy'))
+        while (len(searching) < par['simultaneous_kinbot'] and
                len(running) + len(finished) < len(jobs)):
             # start a new job
             job = jobs[len(running) + len(finished)]
@@ -471,13 +496,17 @@ def _main():
             if kb == 1:
                 pid = 0
                 if not no_kinbot:
-                    pid = submit_job(job, par)  # kinbot is submitted here
+                    pid = submit_job(job, par, phase_record=phase_record)
+                    if phased:
+                        pes_phase.register(Path.cwd(), job, pid)
                 else:
                     get_wells(job)
                 pids[job] = pid
                 t = datetime.datetime.now()
                 logger.info(f'Started job {job} at {t}. PID = {pid}')
                 running.append(job)
+                if phased:
+                    searching.append(job)
             elif kb == 0:
                 logger.info('Skipping KinBot for {}'.format(job))
                 finished.append(job)
@@ -2144,7 +2173,7 @@ def check_status(job, pid):
     return 0
 
 
-def submit_job(chemid, par):
+def submit_job(chemid, par, *, phase_record=None):
     """
     Submit a kinbot run using subprocess and return the pid
     """
@@ -2178,10 +2207,14 @@ def submit_job(chemid, par):
     if par['vrc_tst_scan_molpro_tpl'] != '':
         shutil.copyfile('{}'.format(par['vrc_tst_scan_molpro_tpl']), 
                         '{}/{}'.format(chemid, par['vrc_tst_scan_molpro_tpl']))
+    env = os.environ.copy()
+    if phase_record is not None:
+        env.update(KINBOT_PES_PHASE_ROOT=str(Path.cwd()),
+                   KINBOT_PES_PHASE_TOKEN=phase_record['token'])
     with open(f'{chemid}/kinbot.out', 'w') as outfile, \
             open(f'{chemid}/kinbot.err', 'w') as errfile:
         process = subprocess.Popen(command,
-                                   cwd=chemid,
+                                   cwd=chemid, env=env,
                                    stdout=outfile,
                                    stdin=subprocess.DEVNULL,
                                    stderr=errfile)
@@ -2189,6 +2222,23 @@ def submit_job(chemid, par):
     time.sleep(1)
     pid = process.pid
     return pid
+
+
+def publish_well(input_file, species, threshold, threshold_L2, root, me):
+    """Serialize discovery so two workers cannot overwrite one new well."""
+    from kinbot import pes_phase
+    root=Path(root)
+    name=routing_name(species)
+    with pes_phase.locked(root):
+        path=root/'chemids'
+        names=path.read_text().splitlines()
+        if name in names:
+            return False
+        write_input(input_file,species,threshold,threshold_L2,str(root),me)
+        temporary=root/'.chemids.new'
+        temporary.write_text('\n'.join([*names,name])+'\n')
+        os.replace(temporary,path)
+    return True
 
 
 def write_input(input_file, species, threshold, threshold_L2, root, me):
@@ -2199,7 +2249,8 @@ def write_input(input_file, species, threshold, threshold_L2, root, me):
 
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
-    par2 = Parameters(input_file).par
+    from kinbot.input_refresh import accepted_source
+    par2 = Parameters(str(accepted_source(input_file, directory=root))).par
     # Generated worker inputs must resolve external reviewed models relative
     # to the original input, even when PES was launched with a relative path.
     par2['input_file'] = os.path.abspath(input_file)
@@ -2221,6 +2272,13 @@ def write_input(input_file, species, threshold, threshold_L2, root, me):
     # overwrite the barrier threshold for L2
     par2['barrier_threshold_L2'] = threshold_L2
     # set the pes option to 1
+    if ((par2.get('vrc_tst_surface_model') or par2.get('vrc_tst_surface_model_file'))
+            and not par2.get('vrc_tst_surface_model_scope')):
+        discovered = Path(root)/'chemids'
+        first = discovered.read_text().splitlines() if discovered.exists() else []
+        phase=Path(root)/'pes_exploration.json'
+        initial=json.loads(phase.read_text()).get('initial_worker') if phase.exists() else None
+        par2['vrc_tst_surface_model_scope'] = initial or (first[0] if first else routing_name(species))
     par2['pes'] = 1
     # don't do ME for these kinbots but write the files
     if me:
@@ -2245,7 +2303,9 @@ def write_input_keep(input_file, keepchemid, root):
     par_keep = Parameters(saved_input).par
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
-    par_new = Parameters(input_file).par
+    from kinbot.input_refresh import accepted_source
+    par_new = Parameters(str(accepted_source(input_file, directory=root))).par
+    par_new['input_file'] = os.path.abspath(input_file)
     # overwrite the title
     par_new['title'] = str(keepchemid)
     for key in ('structure', 'smiles', 'charge', 'mult', 'stereo_reference', 'optical_population'):
@@ -2254,6 +2314,12 @@ def write_input_keep(input_file, keepchemid, root):
     par_new['barrier_threshold_L2'] = par_keep['barrier_threshold_L2']
     par_new['pes'] = 1
     par_new['me'] = 2
+    if ((par_new.get('vrc_tst_surface_model') or par_new.get('vrc_tst_surface_model_file'))
+            and not par_new.get('vrc_tst_surface_model_scope')):
+        phase=Path(root)/'pes_exploration.json'
+        initial=json.loads(phase.read_text()).get('initial_worker') if phase.exists() else None
+        if initial:
+            par_new['vrc_tst_surface_model_scope']=initial
 
     file_name = directory + str(keepchemid) + '.json'
     with open(file_name, 'w') as outfile:

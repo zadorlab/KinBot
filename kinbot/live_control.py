@@ -123,8 +123,19 @@ def overrides(target):
     return result
 
 
+@contextmanager
+def _request_lock(root, target, kind):
+    from contextlib import nullcontext
+    from kinbot import pes_phase
+    directory = target if kind=='network' else target.parent
+    parent = directory.parent
+    with locked(root):
+        with pes_phase.locked(parent) if (parent/pes_phase.NAME).exists() else nullcontext():
+            yield
+
+
 def request(root, target, *, kind='task', action='retry', cancel_running=False,
-            pending_only=False, reason='', expected=None):
+            pending_only=False, reason='', expected=None, options=None):
     """Publish one explicit request, never submit/cancel from this function."""
     root = Path(root).resolve(strict=True)
     if find(root) != root/NAME:
@@ -133,16 +144,26 @@ def request(root, target, *, kind='task', action='retry', cancel_running=False,
     target = target.resolve() if target.is_absolute() else (root/target).resolve()
     if not target.is_relative_to(root) or target == root:
         raise ValueError('Target must be inside the live-control root.')
-    if kind not in ('task', 'qc', 'reaction', 'conformer') or action not in ('retry', 'release'):
+    if kind not in ('task', 'qc', 'reaction', 'conformer', 'network') or action not in ('retry', 'release'):
         raise ValueError('Unknown live-control target/action.')
     if pending_only and cancel_running:
         raise ValueError('Pending-only and cancel-running are mutually exclusive.')
     if not reason.strip():
         raise ValueError('Give a reason for the operator request.')
+    if kind == 'network':
+        from kinbot.network_revisit import settings
+        if not isinstance(options, dict) or set(options)-{'vdW_detection','rejected','vrc_tst_surface_models'} or action!='retry':
+            raise ValueError('Network revisit accepts vdW_detection, rejected and reviewed VRC models.')
+        settings(options.get('vdW_detection'),options.get('rejected',False))
+        if 'vrc_tst_surface_models' in options:
+            from kinbot.vrc_multistate import normalize_inline_model_paths, validate_surface_model
+            normalize_inline_model_paths(options,target)
+            for model in options['vrc_tst_surface_models'].values():
+                validate_surface_model(model)
     if expected is None:
         expected = generation(target, kind)
-    with locked(root):
-        if kind in ('reaction','conformer'):
+    with _request_lock(root, target, kind):
+        if kind in ('reaction','conformer','network'):
             generation(target,kind)  # Search closure and request publication share this lock.
         directory = root/'.kinbot_controls/requests'
         for p in directory.glob('*.json'):
@@ -154,12 +175,19 @@ def request(root, target, *, kind='task', action='retry', cancel_running=False,
         record = dict(schema=1, id=ident, kind=kind, target=str(target), action=action,
                       expected=expected, cancel_running=cancel_running, pending_only=pending_only,
                       reason=reason, status='queued', created_at=now())
+        if options is not None:
+            record['options'] = options
         atomic_json(directory/(ident+'.json'), record)
     return record
 
 
 def generation(target, kind):
     target = Path(target).resolve()
+    if kind == 'network':
+        from kinbot.pes_phase import active_worker
+        if not active_worker(target):
+            raise ValueError('Network revisit requires a live revision-aware PES worker.')
+        return {'input_sha256':file_sha256(target/(target.name+'.json'))}
     if kind == 'task':
         from kinbot.anl.dispatch import _load
         graph = target.parent.parent
@@ -176,7 +204,9 @@ def generation(target, kind):
             raise ValueError('This search has not registered a live retry point. Enable controls before the search starts.')
         scope = json.loads(marker.read_text())
         if scope['phase'] != 'active':
-            raise ValueError('This search already handed off its results. A dependency-aware restart is required.')
+            from kinbot.pes_phase import active_worker
+            if kind != 'reaction' or not active_worker(target.parent):
+                raise ValueError('This search already handed off its results and has no live PES owner that can reopen exploration.')
     worker = Path(str(target)+'.py')
     if kind == 'qc' and not worker.is_file():
         raise ValueError(f'Original worker is unavailable: {worker}')
@@ -242,6 +272,11 @@ def requests(directory, *, kinds=None):
     results = []
     for path in sorted((marker.parent/'.kinbot_controls/requests').glob('*.json')):
         value = json.loads(path.read_text())
+        batch=value.get('input_revision')
+        if batch:
+            publication=json.loads(Path(batch['path']).read_text())
+            if publication.get('id')!=batch['id'] or publication.get('status')!='published':
+                continue  # A partially published input batch is never visible.
         if (value['status'] in ('queued', 'applying')
                 and Path(value['target']).is_relative_to(directory)
                 and (kinds is None or value['kind'] in kinds)):

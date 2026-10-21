@@ -501,6 +501,7 @@ def audit_messpf_run(run_dir):
             'nasa7_low_cp_rmse_j_mol_k': nasa.get('low_cp_rmse_j_mol_k'),
             'nasa7_high_cp_rmse_j_mol_k': nasa.get('high_cp_rmse_j_mol_k'),
             'cbh_rung': formation.rung,
+            'construction': formation.construction,
         }
     reference_checks = {}
     for ident in sorted(set(manifest_species) - network_ids):

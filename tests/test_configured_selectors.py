@@ -93,7 +93,7 @@ def test_vrc_scan_overrides_agree_before_qc_and_pes_export(tmp_path, monkeypatch
                     name == exact and override is not None) else [jobs[0]]
                 qc = Mock()
                 scanner = VTS(point, par, qc)
-                scanner.opt_products = Mock(side_effect=lambda reactions: (
+                scanner.opt_products = Mock(side_effect=lambda reactions, **kwargs: (
                     scanner.scan_reac.update({
                         reaction.instance_name: reaction
                         for reaction in point.reac_obj
@@ -106,7 +106,9 @@ def test_vrc_scan_overrides_agree_before_qc_and_pes_export(tmp_path, monkeypatch
                 assert Path('vrctst/molpro').is_dir()
                 assert Path('perm/vrctst/molpro').is_dir()
                 if expected:
-                    scanner.opt_products.assert_called_once_with(expected)
+                    assert scanner.opt_products.call_count == 2
+                    assert scanner.opt_products.call_args_list[0].kwargs == {'submit':False}
+                    scanner.opt_products.assert_called_with(expected)
                     scanner.do_scan.assert_called_once_with(expected, noscan=option == 'vrc_tst_noscan')
                 else:
                     scanner.opt_products.assert_not_called()

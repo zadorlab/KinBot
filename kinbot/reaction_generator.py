@@ -46,6 +46,26 @@ class ReactionGenerator:
         self.inp = input_file
         self.qc = qc
 
+    def _publish_product_well(self, reaction):
+        if (not self.par['pes'] or self.par.get('stop_product_reaction_search',0)
+                or len(reaction.products)!=1):
+            return
+        product=reaction.prod_opt[0].species
+        relative=(product.energy+product.zpe-self.species.energy-self.species.zpe)*constants.AUtoKCAL
+        if self.par['barrier_threshold_L2'] and self.par['high_level']:
+            low,high=None,self.par['barrier_threshold_L2']-relative
+        else:
+            low,high=self.par['barrier_threshold']-relative,None
+        for _ in range(60):
+            try:
+                pes.publish_well(self.inp,reaction.products[0],low,high,
+                                 str(Path.cwd().parent),self.par['me'])
+                return
+            except OSError as error:
+                last_error=error
+                time.sleep(1)
+        raise RuntimeError(f'Unable to publish accepted PES well after 60 seconds: {last_error}')
+
     @staticmethod
     def _optimizer_snapshot(label, optimization):
         """Return the small, serializable state needed to diagnose stage 4."""
@@ -758,45 +778,6 @@ class ReactionGenerator:
                                 logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {np.round(valid, 2)} kcal/mol, reaction is deleted.')
                                 self.species.reac_ts_done[index] = -999
                                 continue
-                        # continue to PES search in case a new well was found
-                        if (self.par['pes']
-                                and not self.par.get(
-                                    'stop_product_reaction_search', 0)):
-                            # verify if product is monomolecular, and if it is new
-                            if len(obj.products) == 1:
-                                st_pt = obj.prod_opt[0].species
-                                chemid = routing_key(st_pt)
-                                # if high level was requested, it is L2, otherwise L1
-                                rel_en = (st_pt.energy + st_pt.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
-                                logger.info(f'\tProduct {obj.instance_name} energy is {np.round(rel_en, 2)} kcal/mol.')
-                                if self.par['barrier_threshold_L2'] and self.par['high_level']:
-                                    new_barrier_threshold = None
-                                    new_barrier_threshold_L2 = self.par['barrier_threshold_L2'] - rel_en
-                                else:
-                                    new_barrier_threshold = self.par['barrier_threshold'] - rel_en
-                                    new_barrier_threshold_L2 = None
-                                dirwell = os.path.dirname(os.getcwd())
-                                jobs = open(dirwell + '/chemids', 'r').read().split('\n')
-                                jobs = [ji for ji in jobs]
-                                if not str(chemid) in jobs:
-                                    # this well is new, add it to the jobs
-                                    write_error = None
-                                    for _ in range(60):
-                                        try:
-                                            # try to open the file and write to it
-                                            logger.info(f'\tLaunching new KinBot as {chemid}')
-                                            pes.write_input(self.inp, obj.products[0], new_barrier_threshold, new_barrier_threshold_L2, dirwell, self.par['me'])
-                                            with open(dirwell + '/chemids', 'a') as f:
-                                                f.write('{}\n'.format(chemid))
-                                            break
-                                        except IOError as error:
-                                            write_error = error
-                                            time.sleep(1)
-                                    else:
-                                        raise RuntimeError(
-                                            f'Unable to publish the new PES well {chemid} '
-                                            f'after 60 seconds: {write_error}')
-
                         # check for wrong number of negative frequencies
                         neg_freq = 0
                         for st_pt in obj.products:
@@ -816,6 +797,7 @@ class ReactionGenerator:
                             reassess_product_complex(obj, self.par)
                             # the reaction search is finished
                             self.species.reac_ts_done[index] = -1  # this is the success code
+                            self._publish_product_well(obj)
 
                             # write a temporary pes input file
                             # remove old xval and im_extent files
@@ -843,6 +825,7 @@ class ReactionGenerator:
             # per reaction and obscured this controller invariant.
             alldone = any(status >= 0
                           for status in self.species.reac_ts_done)
+            alldone |= search_control.pending_revisit(self)
             alldone |= any(status == -999 and live_control.holding(
                 Path.cwd()/self.species.reac_obj[i].instance_name, kind='reaction')
                 for i,status in enumerate(self.species.reac_ts_done))

@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from queue import Queue
 import threading
+import time
 import traceback
 
 from kinbot import license_message
@@ -48,6 +49,8 @@ def _configure_automatic_queue_admission(parameters, requested):
             or int(parameters.get('queue_job_limit', -1)) <= 0):
         return None
     root = Path.cwd().resolve()
+    if os.environ.get('KINBOT_PES_PHASE_ROOT') == str(root.parent):
+        root = root.parent
     os.environ['KINBOT_QUEUE_ROOT'] = str(root)
     os.environ['KINBOT_QUEUE_ROOT_RECURSIVE'] = '1'
     os.environ['KINBOT_QUEUE_LOCK'] = str(root / '.kinbot_submission.lock')
@@ -80,13 +83,14 @@ def main():
 
 
 def _accepted_homolytic_channels(species):
-    """Return completed public ``hom_sci`` channels eligible for VRC-TST."""
+    """Accepted homolytic or product-complex dissociation paths for VRC."""
     statuses = getattr(species, 'reac_ts_done', ())
     families = getattr(species, 'reac_type', ())
     selected = []
     for index, reaction in enumerate(getattr(species, 'reac_obj', ())):
         if (index < len(statuses) and statuses[index] == -1
-                and index < len(families) and families[index] == 'hom_sci'
+                and ((index < len(families) and families[index] == 'hom_sci')
+                     or getattr(reaction, 'do_vdW', False))
                 and len(reaction.products) == 2):
             selected.append(reaction.instance_name)
     return selected
@@ -116,8 +120,32 @@ def _execute_vrc_branch(well, parameters, qc):
         qc.queue_job_root = str(Path.cwd().resolve())
         qc.queue_job_root_recursive = False
     try:
-        vts = VTS(well, parameters, qc)
-        vts.calculate_correction_potentials()
+        # VRC must not overwrite the L2 geometries retained for live revisions.
+        from kinbot.vrc_orbitals import copy_fragment_geometries
+        vrc_well = copy.copy(well)
+        vrc_well.reac_obj = []
+        for reaction in well.reac_obj:
+            clone = copy.copy(reaction)
+            clone.products = copy_fragment_geometries(reaction.products)
+            vrc_well.reac_obj.append(clone)
+        vts = VTS(vrc_well, parameters, qc)
+        from kinbot.vrc_multistate import SurfaceModelRequired
+        from kinbot import live_control, pes_phase
+        review = Path('vrc_model_review.json')
+        try:
+            vts.calculate_correction_potentials()
+        except SurfaceModelRequired as error:
+            _atomic_json(review, dict(status='needs_review', error=str(error),
+                                     channels=getattr(vts, 'review_requests', [])))
+            if not live_control.find() or not pes_phase.active_worker(Path.cwd()):
+                raise
+            logger.warning('%s Waiting for a live reviewed-model update.', error)
+            while True:
+                pes_phase.checkpoint()
+                time.sleep(1)
+        else:
+            if review.exists():
+                _atomic_json(review, dict(status='resolved'))
     finally:
         qc.queue_job_limit = previous_limit
         qc.queue_job_root = previous_root
@@ -264,7 +292,9 @@ def _post_reaction_branches(well, parameters, qc, input_file,
             results[name] = function(*args)
         except Exception as error:
             errors.append((name, error))
-            publish_branch(name, status='failed', **failure_details(error))
+            from kinbot.pes_phase import ExplorationReopened
+            publish_branch(name, status=('paused' if isinstance(error, ExplorationReopened) else 'failed'),
+                           **failure_details(error))
         else:
             publish_branch(name, status='complete')
 
@@ -283,7 +313,9 @@ def _post_reaction_branches(well, parameters, qc, input_file,
                 value = _execute_automatic_branch(
                     well, automatic_parameters, input_file, directory, plan)
             except BaseException as error:
-                publish_branch('cbh_anl', status='failed', **failure_details(error))
+                from kinbot.pes_phase import ExplorationReopened
+                publish_branch('cbh_anl', status=('paused' if isinstance(error, ExplorationReopened) else 'failed'),
+                               **failure_details(error))
                 channel.put(('error', error))
             else:
                 publish_branch('cbh_anl', status='complete')
@@ -303,8 +335,9 @@ def _post_reaction_branches(well, parameters, qc, input_file,
         kind, payload = channel.get()
         if kind == 'error':
             errors.append(('cbh_anl', payload))
+            from kinbot.pes_phase import ExplorationReopened
             state['branches']['cbh_anl'].update(
-                status='failed', error=str(payload))
+                status=('paused' if isinstance(payload, ExplorationReopened) else 'failed'), error=str(payload))
         else:
             results['cbh_anl'] = payload
             state['branches']['cbh_anl']['status'] = 'complete'
@@ -321,6 +354,12 @@ def _post_reaction_branches(well, parameters, qc, input_file,
             record('cbh_anl', _execute_automatic_branch,
                    well, automatic_parameters, input_file, directory, plan)
 
+    from kinbot.pes_phase import ExplorationReopened, checkpoint
+    if any(isinstance(error, ExplorationReopened) for _, error in errors):
+        state.update(status='exploration_reopened', mess_gate='waiting')
+        _atomic_json(state_path, state)
+        raise ExplorationReopened('Postprocessing quiesced for network revision.')
+    checkpoint()
     if join_error is not None:
         errors.append(('mess', join_error))
     if errors:
@@ -358,6 +397,17 @@ def _main():
     from kinbot.qc_scratch import configure as configure_qc_scratch
     configure_qc_scratch(masterpar.par)
     par = masterpar.par
+    overrides = Path('.kinbot_search_options.json')
+    if overrides.exists():
+        import json
+        from kinbot.network_revisit import settings
+        from kinbot.vrc_multistate import normalize_inline_model_paths
+        saved = json.loads(overrides.read_text())
+        settings(saved.get('vdW_detection'))
+        if set(saved) - {'vdW_detection', 'vrc_tst_surface_models'}:
+            raise ValueError('Unknown persisted live search option.')
+        normalize_inline_model_paths(saved, Path.cwd())
+        par.update(saved)
     input_file = masterpar.input_file
     from kinbot.run_policy import initialize as initialize_resource_policy
     initialize_resource_policy(Path(input_file).resolve().parent, par['queue_live_policy'])
@@ -393,6 +443,11 @@ def _main():
                 par['queue_job_limit'], automatic_queue_root)
 
     make_dirs(par)
+    from kinbot import pes_phase
+    pes_phase.attach()
+    rg = None
+    auto_vrc = (par.get('rotdpy_run') and not par['vrc_tst_scan']
+                and not par['vrc_tst_noscan'])
 
     if par['bimol'] == 0:
         # initialize the reactant
@@ -643,45 +698,60 @@ def _main():
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
-    automatic = _post_reaction_branches(
-        well0, par, qc, input_file, automatic_run_requested)
-    if automatic is not None:
-        par['anl_handoff_manifest'] = automatic['handoff_manifest']
-        par['cbh_thermochemistry_models'] = automatic[
-            'thermochemistry_models']
-        logger.info('Automatic CBH/ANL network is complete')
+    while True:
+        try:
+            pes_phase.wait_for_exploration(rg)
+            if auto_vrc:
+                par['vrc_tst_scan'] = {routing_name(well0): _accepted_homolytic_channels(well0)}
+            automatic = _post_reaction_branches(
+                well0, par, qc, input_file, automatic_run_requested)
+            if automatic is not None:
+                par['anl_handoff_manifest'] = automatic['handoff_manifest']
+                par['cbh_thermochemistry_models'] = automatic[
+                    'thermochemistry_models']
+                logger.info('Automatic CBH/ANL network is complete')
 
-    if par.get('thermochemistry_model_output'):
-        model_writer = MESS(par, well0)
-        output = model_writer.write_thermochemistry_model(
-            well0, par['thermochemistry_model_output'])
-        logger.info('Wrote accepted L2 thermochemistry model to %s', output)
+            if par.get('thermochemistry_model_output'):
+                model_writer = MESS(par, well0)
+                output = model_writer.write_thermochemistry_model(
+                    well0, par['thermochemistry_model_output'])
+                logger.info('Wrote accepted L2 thermochemistry model to %s', output)
 
-    if par.get('anl_handoff_manifest'):
-        from kinbot.anl.handoff import apply_handoff
-        logger.info('Applying completed ANL/CBH results to the KinBot network')
-        apply_handoff(well0, par['anl_handoff_manifest'])
+            if par.get('anl_handoff_manifest'):
+                from kinbot.anl.handoff import apply_handoff
+                logger.info('Applying completed ANL/CBH results to the KinBot network')
+                apply_handoff(well0, par['anl_handoff_manifest'])
 
-    if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
-        mess = MESS(par, well0)
-        mess.write_input(qc)
-        if par.get('run_messpf'):
-            logger.info('Starting MESS partition-function calculations')
-            mess.run_partition_functions()
+            if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
+                mess = MESS(par, well0)
+                mess.write_input(qc)
+                if par.get('run_messpf'):
+                    logger.info('Starting MESS partition-function calculations')
+                    mess.run_partition_functions()
 
-    # Preserve the completed search even if the separate rate calculation fails.
-    postprocess.create_summary_file(well0, qc, par)
-    postprocess.createPESViewerInput(well0, qc, par)
-    postprocess.creatMLInput(well0, qc, par)
+            # Preserve the completed search even if the separate rate calculation fails.
+            postprocess.create_summary_file(well0, qc, par)
+            postprocess.createPESViewerInput(well0, qc, par)
+            postprocess.creatMLInput(well0, qc, par)
 
-    if par['me'] == 1 and par['me_code'] == 'mess':
-        logger.info('Starting Master Equation calculations')
-        mess.run()
+            if par['me'] == 1 and par['me_code'] == 'mess':
+                logger.info('Starting Master Equation calculations')
+                mess.run()
 
-    if automatic is not None:
-        from kinbot.anl.automatic import finalize_automatic_run
-        report = finalize_automatic_run(automatic, par)
-        logger.info('Wrote automatic CBH/ANL final report to %s', report)
+            if automatic is not None:
+                from kinbot.anl.automatic import finalize_automatic_run
+                report = finalize_automatic_run(automatic, par)
+                logger.info('Wrote automatic CBH/ANL final report to %s', report)
+
+            pes_phase.assembled()
+            break
+        except pes_phase.ExplorationReopened:
+            if automatic_run_requested:
+                from kinbot.anl.handoff import detach_handoff
+                detach_handoff(well0)
+                par.pop('anl_handoff_manifest', None)
+                par.pop('cbh_thermochemistry_models', None)
+            logger.info('Reopening PES exploration; existing QC jobs remain owned and reusable.')
 
     clean_files(diagnostic=True, qc=qc.qc)
     logger.info('KinBot finished.')

@@ -44,6 +44,12 @@ def test_incomplete_or_nonbimolecular_scission_is_not_selected():
     assert _accepted_homolytic_channels(species) == []
 
 
+def test_accepted_product_complex_dissociation_also_requires_vrc_review():
+    species=SimpleNamespace(reac_obj=[SimpleNamespace(instance_name='addition',
+        do_vdW=True, products=[object(),object()])],reac_ts_done=[-1],reac_type=['addition'])
+    assert _accepted_homolytic_channels(species)==['addition']
+
+
 def test_initial_frequency_check_supports_atoms_and_two_electron_diatomics():
     assert _check_initial_minimum_frequencies([], 'H')
     h2 = [-12.]

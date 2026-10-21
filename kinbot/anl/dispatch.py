@@ -1655,6 +1655,8 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     hashes, geometry, resource layout and Slurm tests are always task-specific.
     No success is reused across graphs, scheduler retries or later launches.
     """
+    from kinbot.pes_phase import checkpoint
+    checkpoint()
     from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)

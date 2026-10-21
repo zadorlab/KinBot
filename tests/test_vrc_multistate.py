@@ -82,6 +82,26 @@ def test_scalar_parameters_preserve_parent_and_select_each_native_root(tmp_path)
     assert par == before
 
 
+def test_new_pes_well_cannot_inherit_other_wells_orbitals(tmp_path,monkeypatch):
+    from test_rotdpy_profiles import sulfur_correction
+    from kinbot import species_routing
+    from kinbot.stationary_pt import StationaryPoint
+    par,_,_=sulfur_correction(tmp_path)
+    products=[StationaryPoint('a',0,2,smiles='[CH3]'),StationaryPoint('b',0,3,smiles='[S]')]
+    for p in products: p.characterize()
+    monkeypatch.setattr(species_routing,'routing_name',lambda parent:parent.route)
+    reaction=SimpleNamespace(species=SimpleNamespace(route='new',smiles='C[S]'),scan_coo=[0,1],products=products)
+    par.update(vrc_tst_surface_model=model(),vrc_tst_surface_model_file='',vrc_tst_surface_model_scope='original')
+    with pytest.raises(ValueError,match='newly explored well'):
+        channel_for_reaction(par,reaction)
+    par['vrc_tst_surface_models']={'new':model()}
+    with pytest.raises(ValueError,match='each new-parent bottleneck'):
+        channel_for_reaction(par,reaction)
+    for stage in par['vrc_tst_surface_models']['new']['channels'][0]['bottlenecks']:
+        stage['parameters']={'vrc_tst_state_model_file':'new-reviewed-state.json'}
+    assert channel_for_reaction(par,reaction)[0]['bond']==[1,2]
+
+
 def test_correction_orchestrator_uses_independent_paths_and_original_species(tmp_path, monkeypatch):
     from kinbot.vrc_tst_scan import VTS
     from kinbot.stationary_pt import StationaryPoint

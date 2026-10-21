@@ -485,6 +485,7 @@ def build_network_request(root, parameters):
     add_stable(root, 'initial_well')
     reactions = []
     transition_states = {}
+    complexes = {}
     for index, reaction in enumerate(getattr(root, 'reac_obj', ())):
         statuses = getattr(root, 'reac_ts_done', ())
         if index >= len(statuses) or statuses[index] != -1:
@@ -512,6 +513,21 @@ def build_network_request(root, parameters):
             'reactant': routing_name(root), 'products': sorted(products),
             'transition_state': ts_name, 'barrierless': barrierless,
         })
+        if getattr(reaction, 'do_vdW', False):
+            point = reaction.irc_prod_opt.species
+            record = _l2_species_record(point, l2_theory)
+            route = routing_name(point)
+            if '.' not in record['smiles']:
+                raise ValueError(f'{route}: product complex lacks disconnected fragment identity.')
+            if (Counter(point.atom) != Counter(root.atom) or point.charge != root.charge):
+                raise ValueError(f'{route}: product complex does not conserve parent composition/charge.')
+            tier, metrics = highest_tier(root.smiles, root.charge, root.mult, policy, requested)
+            record.update(highest_tier=tier, size_metrics=metrics,
+                          fallback_tiers=list(requested_ladder[requested_ladder.index(tier):]))
+            entry = dict(record=record, products=sorted(products))
+            if route in complexes and complexes[route] != entry:
+                raise ValueError(f'{route}: conflicting accepted product complexes.')
+            complexes[route] = entry
 
     cbh_targets = {}
     calculated_states = {}
@@ -626,7 +642,7 @@ def build_network_request(root, parameters):
         raise ValueError('queue_job_limit must be an integer.')
     if max_jobs < 1:
         max_jobs = 1
-    return {
+    result = {
         'schema': 1, 'status': 'planned',
         'requested_method': requested,
         'requested_cbh_rung': rung_policy,
@@ -664,6 +680,9 @@ def build_network_request(root, parameters):
                 for key in sorted(thermochemistry_states)],
         },
     }
+    if complexes:
+        result['network']['product_complexes'] = complexes
+    return result
 
 
 def routing_name_from_record(record):
@@ -1254,6 +1273,17 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
 
     active = []
     while pending or active:
+        from kinbot.pes_phase import checkpoint, ExplorationReopened
+        try:
+            checkpoint()
+        except ExplorationReopened:
+            # Child L2 controllers own separate reference directories. Leave
+            # them running; the next branch pass adopts their recorded PIDs.
+            for row in active:
+                for stream in row[-2:]:
+                    if stream is not None:
+                        stream.close()
+            raise
         while pending and len(active) < max_jobs:
             key, entry, directory, input_path, model, existing_pid = \
                 pending.pop(0)
@@ -1339,12 +1369,17 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
 def _prepare_graphs(plan, sources, root):
     root.mkdir(parents=True, exist_ok=True)
     graphs = {}
+    from kinbot.anl.ts_reuse import load as load_ts_aliases
+    aliases = load_ts_aliases(plan, root.parent)
     started = time.monotonic()
     total = (len(plan['cbh']['calculated_states'])
-             + len(plan['network']['transition_states']))
+             + len(plan['network']['transition_states']) - len(aliases)
+             + len(plan['network'].get('product_complexes', {})))
     progress_path = root.parent / 'composite_preflight.json'
 
     def check_graph(graph, name):
+        from kinbot.pes_phase import checkpoint
+        checkpoint()
         record = {'schema': 1, 'status': 'running', 'controller_pid': os.getpid(),
                   'graph': name, 'directory': str(graph),
                   'graphs_complete': len(graphs), 'graphs_total': total}
@@ -1366,12 +1401,21 @@ def _prepare_graphs(plan, sources, root):
         publish({'phase': 'graph_checked', 'graphs_complete': len(graphs) + 1,
                  **result})
 
+    stable_inputs = []
     for entry in plan['cbh']['calculated_states']:
         key = _state_key(entry['smiles'], entry['charge'],
                          entry['multiplicity'])
         record = sources[key]
         directory = root / _safe_state_directory(
             entry['smiles'], entry['charge'], entry['multiplicity'])
+        stable_inputs.append(('stable:'+key, entry, record, directory))
+    for route, entry in plan['network'].get('product_complexes', {}).items():
+        record = entry['record']
+        directory = root / ('complex_'+hashlib.sha256(route.encode()).hexdigest()[:16])
+        stable_inputs.append(('complex:'+route, record, record, directory))
+    for key, entry, record, directory in stable_inputs:
+        if entry.get('graph_revision'):
+            directory = directory.with_name(directory.name+'_'+entry['graph_revision'])
         graph = directory / 'composite'
         if not (graph / 'workflow.json').is_file():
             directory.mkdir(parents=True, exist_ok=True)
@@ -1391,9 +1435,11 @@ def _prepare_graphs(plan, sources, root):
                 require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
                 l3_max_retries=plan['resources'].get('l3_max_retries', 1))
             prepare(specification, graph)
-        check_graph(graph, 'stable:' + key)
-        graphs['stable:' + key] = graph
+        check_graph(graph, key)
+        graphs[key] = graph
     for name, entry in plan['network']['transition_states'].items():
+        if name in aliases:
+            continue
         molecule = entry['molecule']
         directory = root / ('ts_' + hashlib.sha256(
             name.encode()).hexdigest()[:16])
@@ -1854,6 +1900,10 @@ def finalize_automatic_run(automatic, parameters, *, run_dir='.'):
                 'atom-local radical electrons'],
         },
     }
+    if plan['network'].get('product_complexes'):
+        report['network']['product_complexes'] = sorted(plan['network']['product_complexes'])
+    if execution.get('ts_reuse'):
+        report['ts_reuse'] = _artifact(execution['ts_reuse']['path'], 'TS reuse proof')
     destination = execution_path.with_name('final_report.json')
     serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
     if destination.is_file() and destination.read_text() != serialized:
@@ -1953,6 +2003,13 @@ def prepare_automatic_cbh_anl(root_species, parameters, *,
     plan_path = base / 'network_request.json'
     if plan_path.is_file():
         previous = _read_json(plan_path, 'automatic network request')
+        # Directory revisions are execution provenance, not a changed input.
+        old_states = {(r['smiles'],r['charge'],r['multiplicity']):r
+                      for r in previous['cbh']['calculated_states']}
+        for entry in plan['cbh']['calculated_states']:
+            old = old_states.get((entry['smiles'],entry['charge'],entry['multiplicity']), {})
+            if 'graph_revision' in old and {k:v for k,v in old.items() if k!='graph_revision'} == entry:
+                entry['graph_revision'] = old['graph_revision']
         if _sha256_json(previous) != _sha256_json(plan):
             same_qc = (_sha256_json(_network_qc_contract(previous))
                        == _sha256_json(_network_qc_contract(plan)))
@@ -1972,6 +2029,10 @@ def prepare_automatic_cbh_anl(root_species, parameters, *,
                         same_qc = False
                         break
             if not same_qc:
+                from kinbot.anl.network_update import publish
+                expanded = publish(previous, plan, base)
+                if expanded:
+                    return expanded
                 raise ValueError(
                     'Accepted KinBot network differs from the existing automatic plan; '
                     'use a fresh calculation directory.')
@@ -1990,7 +2051,8 @@ def _electronic_state_audit(plan, parameters):
     """Cover the accepted network and every planned CBH rung/reference."""
     from kinbot.electronic_states import audit_electronic_states
     states = []
-    for record in plan['network']['stable_species']:
+    for record in [*plan['network']['stable_species'],
+                   *(e['record'] for e in plan['network'].get('product_complexes',{}).values())]:
         states.append(dict(smiles=record['smiles'],
                            charge=record['molecule']['charge'],
                            multiplicity=record['molecule']['multiplicity'],
@@ -2056,6 +2118,9 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         raise RuntimeError('Automatic L2 source records are missing: ' +
                            ', '.join(missing))
 
+    if parameters.get('anl_ts_reuse', False) is not False:
+        from kinbot.anl.ts_reuse import install_new
+        install_new(plan,base,parameters['anl_ts_reuse'])
     graphs = _prepare_graphs(plan, sources, base / 'states')
     _drive_graphs(graphs, plan['resources']['global_max_jobs'], interval)
 
@@ -2069,12 +2134,24 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
             profile_root / _safe_state_directory(
                 entry['smiles'], entry['charge'], entry['multiplicity']),
             state_id=key, parameters=parameters)
+    from kinbot.anl.ts_reuse import load as load_ts_aliases
+    aliases = load_ts_aliases(plan, base)
     for name, record in plan['network']['transition_states'].items():
+        if name in aliases:
+            continue
         profiles['ts:' + name] = assemble_available_profiles(
             graphs['ts:' + name], record,
             profile_root / ('ts_' + hashlib.sha256(
                 name.encode()).hexdigest()[:16]),
             state_id='ts:' + name, stationary_point='transition_state')
+    for alias, canonical in aliases.items():
+        profiles['ts:' + alias] = profiles['ts:' + canonical]
+
+    for route, entry in plan['network'].get('product_complexes', {}).items():
+        profiles['complex:'+route] = assemble_available_profiles(
+            graphs['complex:'+route], entry['record'],
+            profile_root/('complex_'+hashlib.sha256(route.encode()).hexdigest()[:16]),
+            state_id='complex:'+route, parameters=parameters)
 
     energies = {}
     for entry in plan['cbh']['calculated_states']:
@@ -2122,6 +2199,39 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         formations[route] = formation
         formation_paths[route] = path
 
+    # A noncovalent complex has no covalent CBH fragmentation. Its formation
+    # enthalpy is the fragment sum plus the computed binding energy, with
+    # matched energy methods and the ordinary recursive uncertainty model.
+    from kinbot.anl.cbh import CBHReaction, solve_formation_enthalpy
+    network_records = {r['routing_name']:r for r in plan['network']['stable_species']}
+    for route, entry in plan['network'].get('product_complexes', {}).items():
+        record = entry['record']
+        fragments = [network_records[name] for name in entry['products']]
+        smiles = record['smiles']
+        values = {label:zero_k_from_composite_record(smiles, path) for label,path in
+                  profiles['complex:'+route]['thermochemistry'].items()}
+        common = set(values)
+        for fragment in fragments:
+            common &= set(energies[fragment['smiles']])
+        method = next((label for label in _ordered_methods({smiles:values, **energies}) if label in common), None)
+        if method is None:
+            raise ValueError(f'{route}: no common accepted complex/fragment binding-energy method.')
+        stoichiometry = dict(Counter(f['smiles'] for f in fragments))
+        stoichiometry[smiles] = -1
+        records = {r['smiles']:r for r in [record, *fragments]}
+        reaction = CBHReaction(0, smiles, stoichiometry,
+            {s:dict(Counter(r['molecule']['symbols'])) for s,r in records.items()},
+            {s:(r['molecule']['charge'],r['molecule']['multiplicity']) for s,r in records.items()})
+        selected = {f['smiles']:energies[f['smiles']][method] for f in fragments}
+        selected[smiles] = values[method]
+        formation = solve_formation_enthalpy(reaction, selected, binding_energy=True,
+            reference_formations={network_records[name]['smiles']:formations[name] for name in entry['products']})
+        path = base/'formations'/(hashlib.sha256(route.encode()).hexdigest()[:16]+'.json')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_json(path, dict(schema=1, status='complete', reaction=asdict(reaction),
+                               formation=asdict(formation), skipped_ladder_entries=[]))
+        formations[route], formation_paths[route] = formation, path
+
     root_route = plan['network']['initial']
     root_smiles = plan['network']['route_to_smiles'][root_route]
     root_state = next(record for record in plan['network']['stable_species']
@@ -2164,6 +2274,10 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
             entry['vpt2'] = {'run': str(graph),
                              'task_id': 'gaussian_vpt2'}
         handoff['species'][route] = entry
+    for route, entry in plan['network'].get('product_complexes', {}).items():
+        handoff['species'][route] = dict(
+            composite=profiles['complex:'+route]['thermochemistry'][formations[route].method],
+            formation=str(formation_paths[route]), geometry=entry['record']['molecule'])
     for reaction in tight:
         name = reaction['transition_state']
         handoff['transition_states'][name] = {
@@ -2190,6 +2304,8 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
                        for key, value in formation_paths.items()},
         'selected_barrier_method': barrier_label,
     }
+    if (base/'ts_reuse.json').exists():
+        result['ts_reuse'] = _artifact(base/'ts_reuse.json', 'TS reuse proof')
     result_path = base / 'execution.json'
     result['execution_record'] = str(result_path)
     result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')

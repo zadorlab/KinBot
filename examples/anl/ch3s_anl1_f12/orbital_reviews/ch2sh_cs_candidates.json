@@ -1,0 +1,236 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "471030810040000000002",
+    "reaction": "471030810040000000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 3,
+        "smiles": "[H][C][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "ch2sh_cs_cas5_4",
+      "anchors": [
+        {
+          "source": "cs_r_2"
+        },
+        {
+          "source": "cs_r_3p5",
+          "name": "cs_r_2p75",
+          "distance_angstrom": 2.75
+        },
+        {
+          "source": "cs_r_3p5"
+        },
+        {
+          "source": "cs_r_6"
+        },
+        {
+          "source": "cs_r_30",
+          "name": "cs_r_20",
+          "distance_angstrom": 20.0
+        },
+        {
+          "source": "cs_r_30"
+        },
+        {
+          "source": "cs_r_3p5",
+          "name": "cs_r_3p5_sh_rot30",
+          "rotation": {
+            "atoms": [
+              2,
+              3
+            ],
+            "pivot_atom": 2,
+            "axis_bond": [
+              1,
+              2
+            ],
+            "angle_degrees": 30.0
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [
+        {
+          "method": "caspt2-f12(5,4)",
+          "shift": 0.1,
+          "ipea": 0.25,
+          "reference_policy": "state_average"
+        },
+        {
+          "method": "uccsd(t)-f12b",
+          "multiplicity": 4
+        }
+      ],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "chemical_note": "CAS(5,4): native source 11-14, SH pi pair and CH2 frontier pair, verified character at 2 and 30 A in both bases; no assumption of individual degenerate-orbital identity.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 4,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ]
+            },
+            {
+              "multiplicity": 2,
+              "roots": 4,
+              "weights": [
+                0.25,
+                0.25,
+                0.25,
+                0.25
+              ]
+            }
+          ],
+          "selected_roots": {
+            "4": 1,
+            "2": 1
+          },
+          "canonical_orbitals": true,
+          "correlation_options": {
+            "max_iterations": 2000,
+            "max_reference_iterations": 2000,
+            "max_reference_vectors": 60,
+            "energy_convergence": 1e-08,
+            "coefficient_convergence": 1e-05,
+            "reference_policy": "state_average"
+          }
+        },
+        "orbital_partition": {
+          "source_active_electrons": 13,
+          "source_active_orbitals": 11,
+          "close_lowest": 4,
+          "discard_highest": 3
+        }
+      }
+    },
+    {
+      "name": "ch2sh_cs_cas7_6",
+      "anchors": [
+        {
+          "source": "cs_r_2"
+        },
+        {
+          "source": "cs_r_3p5"
+        },
+        {
+          "source": "cs_r_30"
+        },
+        {
+          "source": "cs_r_3p5",
+          "name": "cs_r_3p5_sh_rot30",
+          "rotation": {
+            "atoms": [
+              2,
+              3
+            ],
+            "pivot_atom": 2,
+            "axis_bond": [
+              1,
+              2
+            ],
+            "angle_degrees": 30.0
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [
+        {
+          "method": "caspt2-f12(7,6)",
+          "shift": 0.1,
+          "ipea": 0.25,
+          "reference_policy": "state_average"
+        }
+      ],
+      "probe_definition": {
+        "active_electrons": 7,
+        "active_orbitals": 6,
+        "chemical_note": "CAS(7,6): native source 10-15; adds observed S-H sigma/sigma-star (10 and 15) to CAS(5,4). Compare matched interaction energies and gaps, not raw total energies.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 4,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ]
+            },
+            {
+              "multiplicity": 2,
+              "roots": 4,
+              "weights": [
+                0.25,
+                0.25,
+                0.25,
+                0.25
+              ]
+            }
+          ],
+          "selected_roots": {
+            "4": 1,
+            "2": 1
+          },
+          "canonical_orbitals": true,
+          "correlation_options": {
+            "max_iterations": 2000,
+            "max_reference_iterations": 2000,
+            "max_reference_vectors": 60,
+            "energy_convergence": 1e-08,
+            "coefficient_convergence": 1e-05,
+            "reference_policy": "state_average"
+          }
+        },
+        "orbital_partition": {
+          "source_active_electrons": 13,
+          "source_active_orbitals": 11,
+          "close_lowest": 3,
+          "discard_highest": 2
+        }
+      }
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from kinbot.execution import atomic_json
@@ -13,6 +14,7 @@ SPEC = importlib.util.spec_from_file_location('requested_orbital_recon',
 helper = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(helper)
 RECIPE = ROOT/'examples/anl/ch3s_anl1_f12/orbital_reviews/ch2sh_cs_screen.json'
+CANDIDATES = RECIPE.with_name('ch2sh_cs_candidates.json')
 
 
 @pytest.fixture
@@ -117,3 +119,137 @@ def test_screen_monitor_reads_registry_without_pilot_or_manifest_writes(request_
     assert data['counts']['manifest']['WAITING'] == 8
     assert '8/8' not in orbital_monitor.render(data, details=True)
     assert all(p.read_bytes() == value for p, value in before.items())
+
+
+def completed_screen(request_tree):
+    """Synthetic native artifacts exercise provenance, never native chemistry."""
+    from kinbot.execution import file_sha256
+    request, case_input, output = request_tree
+    helper.prepare(request, case_input, RECIPE, output)
+    manifest = output/'native/reconnaissance.json'
+    state = json.loads(manifest.read_text())
+    for j in state['jobs']:
+        d = Path(j['directory'])
+        wfu, out = d/(j['name']+'.wfu'), d/(j['name']+'.out')
+        wfu.write_bytes(b'synthetic checkpoint '+j['name'].encode())
+        out.write_text('Synthetic output, not electronic structure evidence.\n')
+        j.update(status='complete', wfu=str(wfu), wfu_sha256=file_sha256(wfu),
+                 output_sha256=file_sha256(out))
+    state['status'] = 'coverage_refinement_required'
+    atomic_json(manifest, state)
+    return output
+
+
+def test_candidates_use_exact_native_partitions_matched_seeds_and_one_shared_cap(request_tree, monkeypatch):
+    source = completed_screen(request_tree)
+    output = source.parent/'candidate-checks'
+    before = {p:p.read_bytes() for p in source.rglob('*') if p.is_file()}
+    result = helper.candidates(source, CANDIDATES, output)
+    assert result['tasks'] == 22 and result['models'] == 2 and result['max_jobs'] == 3
+    assert all(p.read_bytes()==v for p,v in before.items())
+    record = json.loads((output/'review_launch.json').read_text())
+    assert len(record['systems']) == 2
+    for system in record['systems']:
+        config = helper.recon._load(system['configuration'])
+        manifest = json.loads(Path(system['manifest']).read_text())
+        compact = config['_probe_space']['active_electrons']==5
+        assert len(manifest['jobs']) == (14 if compact else 8)
+        for j in manifest['jobs']:
+            assert j['orbital_predecessor'] is None
+            assert j['initial_record']['basis'] == j['basis']
+            assert j.get('status') in (None, 'prepared') and not j.get('job_id')
+            deck = (Path(j['directory'])/(j['name']+'.inp')).read_text()
+            assert 'start,2140.2,type=natural' in deck and 'diab,2140.2' not in deck
+            assert ('closed,10' if compact else 'closed,9') in deck
+            assert ('occ,14' if compact else 'occ,15') in deck
+            assert deck.count('{rs2-f12,') == 6
+            assert deck.count('{uccsd(t)-f12}') == int(compact)
+            assert 'maxit,999;' in deck and 'refstate,4,1,2,3,4;' in deck
+            if j['anchor']=='cs_r_20':
+                assert 'cs_r_30' in j['initial_record']['path']
+                a=next(a for a in config['anchors'] if a['name']==j['anchor'])
+                xyz=helper.recon._anchor_geometry(config,a)
+                assert np.linalg.norm(xyz[0]-xyz[1]) == pytest.approx(20.)
+            if j['anchor']=='cs_r_3p5_sh_rot30':
+                anchor=next(a for a in config['anchors'] if a['name']==j['anchor'])
+                unrotated=next(a for a in config['anchors'] if a['name']=='cs_r_3p5')
+                xyz=helper.recon._anchor_geometry(config,anchor)
+                reference=helper.recon._anchor_geometry(config,unrotated)
+                np.testing.assert_allclose(xyz[[0,1,3,4]],reference[[0,1,3,4]])
+                assert not np.allclose(xyz[2],reference[2])
+                assert np.linalg.norm(xyz[0]-xyz[1]) == pytest.approx(3.5)
+                assert np.linalg.norm(xyz[2]-xyz[1]) == pytest.approx(
+                    np.linalg.norm(reference[2]-reference[1]))
+                assert 'cs_r_3p5' in j['initial_record']['path']
+    with pytest.raises(FileExistsError):
+        helper.candidates(source, CANDIDATES, output)
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:None)
+    from kinbot import run_walltime
+    monkeypatch.setattr(run_walltime,'partition_walltime',lambda _: '31-00:00:00')
+    calls=[]
+    def run_many(paths,**kwargs):
+        calls.append((paths,kwargs))
+        return [dict(status='complete_review_required',jobs=helper._read(p)['jobs']) for p in paths]
+    monkeypatch.setattr(helper.recon,'run_many',run_many)
+    assert helper.run(output)['tasks'] == 22
+    assert len(calls)==1 and len(calls[0][0])==2
+    assert calls[0][1]['max_jobs']==3
+
+
+@pytest.mark.parametrize('corrupt', ['checkpoint','output','incomplete','counts','request'])
+def test_candidate_preflight_preserves_source_and_refuses_changed_evidence(request_tree, corrupt):
+    source=completed_screen(request_tree)
+    manifest=source/'native/reconnaissance.json'
+    state=helper._read(manifest)
+    job=state['jobs'][0]
+    if corrupt=='checkpoint':
+        Path(job['wfu']).write_text('changed')
+    elif corrupt=='output':
+        (Path(job['directory'])/(job['name']+'.out')).write_text('changed')
+    elif corrupt=='incomplete':
+        job['status']='submitted'; atomic_json(manifest,state)
+    elif corrupt=='counts':
+        job['probe_active_space']['active_electrons']=11; atomic_json(manifest,state)
+    else:
+        p=Path(helper._read(source/'review_launch.json')['request'])
+        m=helper._read(p); m['multiplicity']=4; atomic_json(p,m)
+    destination=source.parent/'candidate-checks'
+    with pytest.raises(ValueError):
+        helper.candidates(source,CANDIDATES,destination)
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize('rotation', [
+    {'atoms':[2,3],'pivot_atom':2,'axis_bond':[1,2],'angle_degrees':0.},
+    {'atoms':[2,3],'pivot_atom':2,'axis_bond':[1,1],'angle_degrees':30.},
+    {'atoms':[2,3],'pivot_atom':2,'axis_bond':[1,6],'angle_degrees':30.},
+    {'atoms':[2,3],'pivot_atom':1,'axis_bond':[1,2],'angle_degrees':30.},
+])
+def test_candidate_rotation_refuses_invalid_or_duplicate_geometry(request_tree, rotation):
+    source=completed_screen(request_tree)
+    recipe=helper._read(CANDIDATES)
+    recipe['candidates'][0]['anchors'][-1]['rotation']=rotation
+    recipe_path=source.parent/'invalid-rotation.json'
+    atomic_json(recipe_path,recipe)
+    output=source.parent/'invalid-candidates'
+    with pytest.raises(ValueError):
+        helper.candidates(source,recipe_path,output)
+    assert not output.exists()
+
+
+def test_saved_evidence_is_read_only_and_labels_theory(request_tree, monkeypatch):
+    source=completed_screen(request_tree)
+    manifest=source/'native/reconnaissance.json'
+    state=helper._read(manifest)
+    state['jobs'][0].update(
+        state_energies_hartree=[dict(multiplicity=2,root=1,energy_hartree=-436.99)],
+        correlated_energies_hartree=[dict(method='caspt2-f12(5,4)',multiplicity=2,
+                                        root=1,energy_hartree=-437.1)])
+    atomic_json(manifest,state)
+    before={p:p.read_bytes() for p in source.rglob('*') if p.is_file()}
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:pytest.fail('read-only report'))
+    report=helper.evidence(source)
+    assert 'CASCI Eh :m2r1=-436.9900000000' in report
+    assert 'CORRELATED Eh caspt2-f12(5,4):m2r1=-437.1000000000' in report
+    assert 'no production model has been accepted' in report
+    assert all(p.read_bytes()==v for p,v in before.items())

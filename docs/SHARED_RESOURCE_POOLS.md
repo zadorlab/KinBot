@@ -23,13 +23,15 @@ For a single new run, the existing JSON input can contain:
 ```json
 "queue_live_policy": {
   "max_jobs": 12,
-  "excluded_nodes": ["site_bad_node"]
+  "excluded_nodes": ["site_bad_node"],
+  "minimum_walltime": "7-00:00:00"
 }
 ```
 
 The default is `{}` (disabled). This initializes a policy alongside the input,
 unless an ancestor policy already governs the run. Input defaults never
 overwrite subsequent live edits. This option requires `queuing: "slurm"`.
+`minimum_walltime` is optional; omitting it retains each task's requested time.
 
 For multiple runs, initialize their **common ancestor** before launching or
 refreshing them:
@@ -57,6 +59,8 @@ python -m kinbot.run_policy set /path/to/campaign --max-jobs 18
 python -m kinbot.run_policy set /path/to/campaign --exclude nodeA,nodeB
 python -m kinbot.run_policy set /path/to/campaign --allow nodeA
 python -m kinbot.run_policy set /path/to/campaign --max-jobs 0
+python -m kinbot.run_policy set /path/to/campaign --minimum-walltime 7-00:00:00
+python -m kinbot.run_policy set /path/to/campaign --clear-minimum-walltime
 python -m kinbot.run_policy show /path/to/campaign
 ```
 
@@ -66,6 +70,19 @@ again. These flags change the pool's eligibility, not the administrator's
 Slurm node state or partition access. `max_jobs=0` pauses new admissions;
 lowering a limit lets existing allocations finish. Changes are read on the
 next admission check (normally within the controller polling interval).
+
+`minimum_walltime` raises future `sbatch` requests, including previously staged
+tasks, without changing their hash-bound scripts, geometry, or native inputs.
+It never reduces an existing request and is capped by the selected partition's
+`MaxTime`. Partition lookup failure pauses admission before any submission claim
+is made. Longer requests can affect backfill eligibility; they do not make a
+calculation faster. The exact override is saved in each submission's policy
+record. This does not extend jobs already in Slurm. Running controllers need
+code supporting this option; after one controller refresh, later edits are live.
+
+To inspect or extend existing allocations, use `kinbot.run_walltime`; see
+[walltime and activity checks](JOB_WALLTIMES.md). An extension changes only the
+scheduler's limit. Running-job increases normally require a Slurm administrator.
 
 Exclusions apply to **new submissions**. Running and already pending jobs keep
 their submitted settings. Use the existing `run_refresh --replace-pending`

@@ -57,6 +57,8 @@ def test_non_mrcc_graph_has_geometry_barrier_and_parallel_fanout():
     validate_spec(resolved)
     tasks = {task['id']: task for task in spec['tasks']}
     assert tasks['l3_geometry']['geometry_from'] == 'l2_geometry'
+    assert tasks['l3_geometry']['resources']['walltime'] == '7-00:00:00'
+    assert tasks['harmonic']['resources']['walltime'] == '7-00:00:00'
     for ident in ('harmonic', 'f12_tz', 'f12_qz', 'ccsdt_dz',
                   'cfour_dboc'):
         assert tasks[ident]['geometry_from'] == 'l3_geometry'

@@ -74,6 +74,49 @@ def test_live_exclusions_override_stale_header_and_environment_without_editing(p
     assert policy.read(directory)['excluded_nodes'] == []
 
 
+def test_live_walltime_updates_existing_staged_scripts_without_changing_capacity_or_hashes(pool, monkeypatch):
+    from kinbot import run_walltime
+    monkeypatch.setattr(run_walltime, 'partition_limits', lambda **kw: {'long': 604800})
+    for name in ('anl', 'vrc'):
+        directory = pool.root/name; directory.mkdir()
+        (directory/'job.slurm').write_text('#!/bin/bash\n#SBATCH --time=12:00:00\n'
+                                         '#SBATCH --partition=long\nrun_qc\n')
+    before = file_sha256(pool.root/'anl/job.slurm')
+    policy.update(pool.root, minimum_walltime='7-00:00:00')
+    assert policy.read(pool.root)['max_jobs'] == 2
+    assert policy.read(pool.root)['excluded_nodes'] == ['bad1']
+    assert submit(pool, 'anl').returncode == 0
+    assert '--time=7-00:00:00' in pool.commands[-1][0]
+    assert file_sha256(pool.root/'anl/job.slurm') == before
+    claim = json.loads((pool.root/'.kinbot_policy_submissions/101.json').read_text())
+    assert claim['walltime_override']['effective'] == '7-00:00:00'
+    policy.update(pool.root, minimum_walltime='')
+    assert submit(pool, 'vrc').returncode == 0
+    assert not any(x.startswith('--time') for x in pool.commands[-1][0])
+
+
+def test_walltime_lookup_outage_does_not_create_an_uncertain_submission(pool, monkeypatch):
+    from kinbot import run_walltime
+    from kinbot.anl.dispatch import SchedulerUnavailableError
+    policy.update(pool.root, minimum_walltime='7-00:00:00')
+    def offline(*args, **kwargs):
+        raise subprocess.TimeoutExpired('sinfo', 20)
+    monkeypatch.setattr(run_walltime, 'submission_override', offline)
+    with pytest.raises(SchedulerUnavailableError, match='walltime'):
+        submit(pool, 'anl')
+    assert not pool.commands
+    assert json.loads((pool.root/'.kinbot_policy_admissions.json').read_text()) == {}
+
+
+def test_single_input_walltime_default_can_be_edited_live(tmp_path):
+    policy.initialize(tmp_path, {'max_jobs': 3, 'minimum_walltime': '7-00:00:00'})
+    policy.update(tmp_path, minimum_walltime='10-00:00:00')
+    policy.initialize(tmp_path, {'max_jobs': 1, 'minimum_walltime': '1-00:00:00'})
+    assert policy.read(tmp_path)['minimum_walltime'] == '10-00:00:00'
+    with pytest.raises(ValueError, match='walltime'):
+        policy.validate_options({'max_jobs': 3, 'minimum_walltime': 'invalid'})
+
+
 def test_timeout_reserves_capacity_and_never_resubmits(pool, monkeypatch):
     policy.update(pool.root, max_jobs=1)
     def ambiguous(*args, **kwargs):

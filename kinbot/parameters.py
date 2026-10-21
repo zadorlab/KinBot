@@ -431,8 +431,9 @@ class Parameters:
             'vrc_tst_noscan': {},
             # Maximum concurrent exclusive nodes for Molpro correction jobs
             'vrc_tst_max_nodes': 1,
-            # Wall time for each Molpro correction job
-            'vrc_tst_walltime': '24:00:00',
+            # Per-job budget for MR scans/asymptotes and correction jobs;
+            # numerical gradients can require many native calculations.
+            'vrc_tst_walltime': '7-00:00:00',
             # Minimum Molpro memory stack (MW) available to every MPI rank
             'vrc_tst_min_stack_mw': 3200,
             # Explicit whole-node allocation ceiling for VRC jobs; None lets

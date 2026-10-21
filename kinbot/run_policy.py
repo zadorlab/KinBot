@@ -47,6 +47,9 @@ def _read(path):
     if value.get('schema') != 1 or type(value.get('max_jobs')) is not int or value['max_jobs'] < 0:
         raise ValueError(f'{path}: invalid shared scheduling policy.')
     _nodes(value['excluded_nodes'])
+    if 'minimum_walltime' in value:
+        from kinbot.run_walltime import validate_minimum
+        validate_minimum(value['minimum_walltime'])
     return value
 
 
@@ -93,7 +96,7 @@ def _initial_exclusions(root):
     return sorted(nodes)
 
 
-def update(root, *, max_jobs=None, exclude=(), allow=()):
+def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None):
     root = Path(root).resolve(strict=True)
     path = root/NAME
     ancestor = find(root.parent)
@@ -102,6 +105,9 @@ def update(root, *, max_jobs=None, exclude=(), allow=()):
     if max_jobs is not None and (type(max_jobs) is not int or max_jobs < 0):
         raise ValueError('max_jobs must be a nonnegative integer; zero pauses new admissions.')
     exclude, allow = _nodes(exclude), _nodes(allow)
+    if minimum_walltime not in (None, ''):
+        from kinbot.run_walltime import validate_minimum
+        validate_minimum(minimum_walltime)
     if set(exclude) & set(allow):
         raise ValueError('A node cannot be excluded and allowed in the same update.')
     with _locked(path):
@@ -116,6 +122,10 @@ def update(root, *, max_jobs=None, exclude=(), allow=()):
                                  'excluded_nodes': _initial_exclusions(root), 'revision': 0})
         if max_jobs is not None:
             value['max_jobs'] = max_jobs
+        if minimum_walltime == '':
+            value.pop('minimum_walltime', None)
+        elif minimum_walltime is not None:
+            value['minimum_walltime'] = minimum_walltime
         value['excluded_nodes'] = sorted((set(value['excluded_nodes']) | set(exclude)) - set(allow))
         value.update(revision=value['revision'] + 1,
                      updated_at=datetime.now(timezone.utc).isoformat())
@@ -128,11 +138,14 @@ def update(root, *, max_jobs=None, exclude=(), allow=()):
 def validate_options(options):
     if options == {}:
         return
-    if not isinstance(options, dict) or set(options) - {'max_jobs', 'excluded_nodes'}:
-        raise ValueError('queue_live_policy accepts max_jobs and excluded_nodes.')
+    if not isinstance(options, dict) or set(options) - {'max_jobs', 'excluded_nodes', 'minimum_walltime'}:
+        raise ValueError('queue_live_policy accepts max_jobs, excluded_nodes and minimum_walltime.')
     if type(options.get('max_jobs')) is not int or options['max_jobs'] < 0:
         raise ValueError('queue_live_policy.max_jobs must be a nonnegative integer.')
     _nodes(options.get('excluded_nodes', []))
+    if 'minimum_walltime' in options:
+        from kinbot.run_walltime import validate_minimum
+        validate_minimum(options['minimum_walltime'])
 
 
 def initialize(directory, options):
@@ -141,7 +154,8 @@ def initialize(directory, options):
     if not options:
         return
     if not find(directory):
-        update(directory, max_jobs=options['max_jobs'], exclude=options.get('excluded_nodes', []))
+        update(directory, max_jobs=options['max_jobs'], exclude=options.get('excluded_nodes', []),
+               minimum_walltime=options.get('minimum_walltime'))
 
 
 def exclude_failed_node(directory, node):
@@ -243,16 +257,30 @@ def _admit_locked(command, directory, path, kwargs):
            for c in claims.values()):
         raise RuntimeError('A previous pool submission is unconfirmed; reconcile it before resubmitting.')
     if occupied < policy['max_jobs']:
+        override = {}
+        if policy.get('minimum_walltime'):
+            from kinbot.run_walltime import submission_override
+            from kinbot.anl.dispatch import SchedulerUnavailableError
+            try:
+                override = submission_override(directory/command[-1], policy['minimum_walltime'],
+                                               env=kwargs.get('env'))
+            except (subprocess.SubprocessError, OSError, RuntimeError) as error:
+                # No sbatch has occurred. A failed partition lookup must not
+                # become an uncertain submission or consume a pool slot.
+                raise SchedulerUnavailableError(f'Cannot resolve walltime policy: {error}') from error
         token = uuid.uuid4().hex
         claim = {'directory': str(directory), 'command': list(command),
                  'created_at': datetime.now(timezone.utc).isoformat(),
                  'policy_revision': policy['revision'], 'excluded_nodes': policy['excluded_nodes'],
                  'status': 'submitting'}
+        if override:
+            claim['walltime_override'] = override
         claims[token] = claim
         atomic_json(ledger, claims)  # Durable before the first sbatch byte.
         # Command-line policy overrides stale script/environment exclusions.
         actual = [*command[:-1], '--nodes=1', '--exclusive',
-                  '--exclude=' + ','.join(policy['excluded_nodes']), command[-1]]
+                  '--exclude=' + ','.join(policy['excluded_nodes']),
+                  *(['--time='+override['effective']] if override else []), command[-1]]
         try:
             response = subprocess.run(actual, cwd=directory, **kwargs)
         except OSError:
@@ -283,11 +311,15 @@ def main(argv=None):
     change.add_argument('--max-jobs', type=int)
     change.add_argument('--exclude', action='append', default=[], help='Comma-separated explicit node names to exclude.')
     change.add_argument('--allow', action='append', default=[], help='Remove explicit/learned exclusions for these nodes.')
+    walltime = change.add_mutually_exclusive_group()
+    walltime.add_argument('--minimum-walltime', help='Raise future requests up to this time, capped by partition MaxTime.')
+    walltime.add_argument('--clear-minimum-walltime', action='store_true')
     show = sub.add_parser('show'); show.add_argument('root', type=Path)
     launch = sub.add_parser('submit'); launch.add_argument('script')
     args = parser.parse_args(argv)
     if args.action == 'set':
         result = update(args.root, max_jobs=args.max_jobs,
+                        minimum_walltime='' if args.clear_minimum_walltime else args.minimum_walltime,
                         exclude=[n for v in args.exclude for n in v.split(',')],
                         allow=[n for v in args.allow for n in v.split(',')])
         print(json.dumps(result, indent=2))

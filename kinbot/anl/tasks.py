@@ -175,7 +175,7 @@ MEMORY_SIZE={{{{WORK_MEMORY_MB}}}})
 
 
 def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
-              geometry_from='l3_geometry', walltime='24:00:00',
+              geometry_from='l3_geometry', walltime='7-00:00:00',
               max_cores=8, partition=None, command='dmrcc',
               scf_convergence=1.e-10, cc_convergence=1.e-8):
     """Build a direct MRCC higher-order task.
@@ -249,7 +249,7 @@ geom=xyz
 
 
 def higher_order_task(ident, method, basis, *, multiplicity, reference=None,
-                      geometry_from='l3_geometry', walltime='24:00:00',
+                      geometry_from='l3_geometry', walltime='7-00:00:00',
                       max_cores=8, partition=None, command='dmrcc',
                       scf_convergence=1.e-10, cc_convergence=1.e-8):
     """Select the pinned ANL higher-order backend for one electronic state.

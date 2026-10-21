@@ -127,7 +127,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         {
             'id': 'l3_geometry', 'kind': 'ase_optimize',
             'geometry_from': 'l2_geometry', 'geometry_output': 'final.xyz',
-            'resources': _resources('24:00:00', max_cores=12,
+            'resources': _resources('7-00:00:00', max_cores=12,
                                     min_stack_mw=1024, partition=partition),
             'profile': {
                 'calculator': 'molpro', 'method': 'CCSD(T)',
@@ -143,7 +143,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         _molpro_task(
             'harmonic',
             f'basis=cc-pVTZ\nrhf\n{conventional_command}\nfrequencies,numerical\n',
-            walltime='24:00:00', max_cores=8,
+            walltime='7-00:00:00', max_cores=8,
             parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ',
                     'reference': reference,
                     'stationary_point': stationary_point, **rank_parser},
@@ -530,12 +530,12 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         higher_order_task(
             'ccsdtq_tz', 'CCSDT(Q)', 'cc-pVTZ',
             multiplicity=multiplicity,
-            walltime='24:00:00',
+            walltime='7-00:00:00',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ',
             multiplicity=multiplicity,
-            walltime='12:00:00',
+            walltime='7-00:00:00',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtqp_dz', 'CCSDTQ(P)', 'cc-pVDZ',

@@ -70,6 +70,11 @@ class TestBackendWarnings(unittest.TestCase):
             vrc_tst_correction_model='spin_splitting')
         self.assertEqual(spin['vrc_tst_correction_model'], 'spin_splitting')
 
+    def test_vrc_long_walltime_default_preserves_explicit_input(self):
+        self.assertEqual(self.read_parameters()['vrc_tst_walltime'], '7-00:00:00')
+        self.assertEqual(self.read_parameters(vrc_tst_walltime='02:00:00')['vrc_tst_walltime'],
+                         '02:00:00')
+
     def test_anl1_f12_vrc_preset_requires_explicit_orbital_policy(self):
         with self.assertRaisesRegex(ValueError, 'not a chemical active space'):
             self.read_parameters(vrc_tst_accuracy_preset='anl1-f12')

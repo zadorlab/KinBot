@@ -71,7 +71,7 @@ def _resources(walltime, *, max_cores=8, min_stack_mw=None, partition=None):
 
 
 def _molpro_task(ident, body, *, geometry_from='l3_geometry',
-                  walltime='7-00:00:00', max_cores=8, parser=None,
+                  walltime='partition_max', max_cores=8, parser=None,
                   partition=None, scf_convergence=1.e-10,
                   cc_convergence=1.e-8):
     return native_molpro_task(
@@ -119,7 +119,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         {
             'id': 'l2_geometry', 'kind': 'ase_optimize',
             'geometry_from': 'initial', 'geometry_output': 'final.xyz',
-            'resources': _resources('7-00:00:00', max_cores=8,
+            'resources': _resources('partition_max', max_cores=8,
                                     partition=partition),
             'profile': l2_profile,
             'optimizer': {'fmax': 0.0005, 'steps': 160,
@@ -130,7 +130,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         {
             'id': 'l3_geometry', 'kind': 'ase_optimize',
             'geometry_from': 'l2_geometry', 'geometry_output': 'final.xyz',
-            'resources': _resources('7-00:00:00', max_cores=12,
+            'resources': _resources('partition_max', max_cores=12,
                                     min_stack_mw=1024, partition=partition),
             'profile': {
                 'calculator': 'molpro', 'method': 'CCSD(T)',
@@ -146,7 +146,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         _molpro_task(
             'harmonic',
             f'basis=cc-pVTZ\nrhf\n{conventional_command}\nfrequencies,numerical\n',
-            walltime='7-00:00:00', max_cores=8,
+            walltime='partition_max', max_cores=8,
             parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ',
                     'reference': reference,
                     'stationary_point': stationary_point, **rank_parser},
@@ -155,7 +155,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
             'f12_tz',
             f'basis=cc-pVTZ-F12\nrhf\n{f12}\n'
             'kb_f12b=energy\n',
-            walltime='7-00:00:00', max_cores=12,
+            walltime='partition_max', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
                     'basis': 'cc-pVTZ-F12', 'reference': reference,
                     **f12_rank_parser},
@@ -164,7 +164,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
             'f12_qz',
             f'basis=cc-pVQZ-F12\nrhf\n{f12}\n'
             'kb_f12b=energy\n',
-            walltime='7-00:00:00', max_cores=12,
+            walltime='partition_max', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
                     'basis': 'cc-pVQZ-F12', 'reference': reference,
                     **f12_rank_parser},
@@ -172,7 +172,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         _molpro_task(
             'ccsdt_dz',
             f'basis=cc-pVDZ\nrhf\n{conventional_command}\nkb_dz_energy=energy\n',
-            walltime='7-00:00:00', max_cores=8,
+            walltime='partition_max', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVDZ', 'reference': reference},
             partition=partition),
@@ -180,7 +180,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
             'l3_sp_l2',
             f'basis=cc-pVTZ\nrhf\n{conventional_command}\n'
             'kb_l3_sp_l2=energy\n',
-            walltime='7-00:00:00', max_cores=12,
+            walltime='partition_max', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVTZ', 'reference': reference,
                     **rank_parser},
@@ -189,7 +189,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         {
             'id': 'cfour_dboc', 'kind': 'external', 'backend': 'cfour',
             'geometry_from': 'l3_geometry',
-            'resources': _resources('7-00:00:00', max_cores=4,
+            'resources': _resources('partition_max', max_cores=4,
                                     partition=partition),
             'input_name': 'ZMAT',
             'input_template': (
@@ -210,7 +210,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         {
             'id': 'gaussian_vpt2', 'kind': 'external',
             'backend': 'gaussian', 'geometry_from': 'l2_geometry',
-            'resources': _resources('7-00:00:00', max_cores=8,
+            'resources': _resources('partition_max', max_cores=8,
                                     partition=partition),
             'input_name': 'vpt2.com',
             'input_template': (
@@ -384,8 +384,8 @@ def _anl0_reference_tasks(molecule, *, partition=None,
                    if effective else {})
     tasks = []
     for ident, basis, walltime, cores in (
-            ('anl0_qz', ANL0_NATIVE_REFERENCE_BASES[0], '7-00:00:00', 12),
-            ('anl0_5z', ANL0_NATIVE_REFERENCE_BASES[1], '7-00:00:00', 12)):
+            ('anl0_qz', ANL0_NATIVE_REFERENCE_BASES[0], 'partition_max', 12),
+            ('anl0_5z', ANL0_NATIVE_REFERENCE_BASES[1], 'partition_max', 12)):
         task = _molpro_task(
             ident, f'basis={basis}\nrhf\n{command}\nkb_{ident}=energy\n',
             geometry_from=geometry_from, walltime=walltime, max_cores=cores,
@@ -418,7 +418,7 @@ def _anl1_reference_tasks(molecule, *, partition=None,
             ('anl1_5z', 'anl1_6z'), ANL1_NATIVE_REFERENCE_BASES):
         task = _molpro_task(
             ident, f'basis={basis}\nrhf\n{command}\nkb_{ident}=energy\n',
-            geometry_from=geometry_from, walltime='7-00:00:00',
+            geometry_from=geometry_from, walltime='partition_max',
             max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': basis, 'reference': reference, **rank_parser},
@@ -453,7 +453,7 @@ def _anl1_f12_reference_tasks(molecule, *, partition=None,
     basis = f12_reference_bases('ANL1-F12', f12_augmented)[1]
     task = _molpro_task(
         ident, f'basis={basis}\nrhf\n{command}\nkb_{ident}=energy\n',
-        geometry_from=geometry_from, walltime='7-00:00:00', max_cores=12,
+        geometry_from=geometry_from, walltime='partition_max', max_cores=12,
         parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
                 'basis': basis, 'reference': reference, **rank_parser},
         partition=partition)
@@ -483,7 +483,7 @@ def _anl1_harmonic_tasks(molecule, *, partition=None,
         task = _molpro_task(
             ident,
             f'basis={basis}\nrhf\n{command}\nfrequencies,numerical\n',
-            geometry_from=geometry, walltime='7-00:00:00', max_cores=8,
+            geometry_from=geometry, walltime='partition_max', max_cores=8,
             parser={'kind': 'molpro_harmonic', 'basis': basis,
                     'reference': reference,
                     'stationary_point': stationary_point, **rank_parser},
@@ -517,7 +517,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         _molpro_task(
             'ccsdt_tz',
             f'basis=cc-pVTZ\nrhf\n{conventional}\nkb_ccsdt=energy\n',
-            walltime='7-00:00:00', max_cores=8,
+            walltime='partition_max', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVTZ',
                     'reference': restricted_reference, 'core': 'frozen'},
@@ -525,7 +525,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         _molpro_task(
             'ccsdt_dz',
             f'basis=cc-pVDZ\nrhf\n{conventional}\nkb_ccsdt=energy\n',
-            walltime='7-00:00:00', max_cores=8,
+            walltime='partition_max', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVDZ',
                     'reference': restricted_reference, 'core': 'frozen'},
@@ -533,17 +533,17 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         higher_order_task(
             'ccsdtq_tz', 'CCSDT(Q)', 'cc-pVTZ',
             multiplicity=multiplicity,
-            walltime='7-00:00:00',
+            walltime='partition_max',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ',
             multiplicity=multiplicity,
-            walltime='7-00:00:00',
+            walltime='partition_max',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtqp_dz', 'CCSDTQ(P)', 'cc-pVDZ',
             multiplicity=multiplicity,
-            walltime='7-00:00:00',
+            walltime='partition_max',
             max_cores=8, command=mrcc_command, **common),
     ]
     if task_ids is not None:
@@ -638,17 +638,17 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
 
     tasks = [
         energy_task('cv_ae_tz', 'cc-pCVTZ', core='all-electron',
-                    walltime='7-00:00:00'),
+                    walltime='partition_max'),
         energy_task('cv_ae_qz', 'cc-pCVQZ', core='all-electron',
-                    walltime='7-00:00:00'),
+                    walltime='partition_max'),
         energy_task('cv_fc_tz', 'cc-pCVTZ', core='frozen',
-                    walltime='7-00:00:00'),
+                    walltime='partition_max'),
         energy_task('cv_fc_qz', 'cc-pCVQZ', core='frozen',
-                    walltime='7-00:00:00'),
+                    walltime='partition_max'),
         energy_task('rel_dkh', 'aug-cc-pCVTZ-DK', core='all-electron',
-                    relativistic='DKH2', walltime='7-00:00:00'),
+                    relativistic='DKH2', walltime='partition_max'),
         energy_task('rel_nonrel', 'aug-cc-pCVTZ-DK', core='all-electron',
-                    relativistic='none', walltime='7-00:00:00'),
+                    relativistic='none', walltime='partition_max'),
     ]
     core_valence_exact = _rank_exact_core_valence(molecule)
     if core_valence_exact:
@@ -1004,7 +1004,7 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         qz_geometry['profile']['basis'] = 'cc-pVQZ'
         qz_geometry['profile']['label'] = 'CCSD(T)/cc-pVQZ'
         qz_geometry['resources'] = _resources(
-            '7-00:00:00', max_cores=12, min_stack_mw=1024,
+            'partition_max', max_cores=12, min_stack_mw=1024,
             partition=partition)
         tasks.append(qz_geometry)
         tasks.extend(_anl1_harmonic_tasks(

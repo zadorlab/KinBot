@@ -25,7 +25,7 @@ def sulfur_correction(tmp_path, name='ch3s', roots=3, sample_basis=None):
         par['vrc_tst_sample_basis'] = sample_basis
     par.update(input_file=str(tmp_path / 'input.json'), rotdpy_run=0,
                vrc_tst_state_model_file=f'{name}_state_model.json',
-               pp_orient='geometric',
+               pp_orient='geometric', rotdpy_walltime='01:00:00',
                vrc_tst_scan={'parent': ['parent_hom_sci_1_2']})
     models = {}
     for basis in ('avdz-f12', 'avtz-f12', 'avqz-f12'):

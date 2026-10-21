@@ -64,7 +64,7 @@ def writer(tmp_path, monkeypatch, queue='slurm', count=1, limit=2, run=True):
         Path(f'me/mess_{index:04d}.inp').write_text(
             f'! MESS input {index:04d}\n')
     return SimpleNamespace(par=dict(queuing=queue, uq_n=count, uq_max_runs=limit,
-                                    run_me=run),
+                                    run_me=run, queue_walltime='01:00:00'),
                            write_submitscript=lambda path, index: Path(path).write_text('script'))
 
 

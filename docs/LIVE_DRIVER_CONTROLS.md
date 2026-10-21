@@ -76,6 +76,12 @@ exclusions, change chemistry, or change scratch selection.
 
 ## CPU, memory and walltime rules
 
+New jobs default to `partition_max`, resolved from the selected Slurm
+partition's maximum time. Explicit finite limits in the input, task resources,
+or the rules below override that default. The fresh r7 campaign has no minimum
+walltime floor. Removing a rule restores the prepared task's base allocation;
+it does not alter existing scheduler allocations or silently reprepare QC.
+
 ```bash
 python -m kinbot.run_control resources "$KB_RUN" --name l3 \
   --select '*/tasks/l3_geometry*' --cores 8 --memory-mb 96000 --walltime 10-00:00:00

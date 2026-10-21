@@ -214,6 +214,7 @@ def _configuration(path):
              'moving_atoms': [2], 'distance_angstrom': 5.0},
         ],
         'partition': 'day-long-cpu',
+        'walltime': '01:00:00',
         'ppn': 8,
     }))
 
@@ -267,6 +268,41 @@ def test_submission_records_effective_resource_override(tmp_path, monkeypatch):
         return SimpleNamespace(stdout='42\n', stderr='', returncode=0)
     monkeypatch.setattr(recon.subprocess, 'run', scheduler)
     assert recon.submit(path)['jobs'][0]['job_id'] == '42'
+
+
+@pytest.mark.parametrize('available', [True, False])
+def test_default_time_resolves_before_submission_journal(tmp_path, monkeypatch, available):
+    from types import SimpleNamespace
+    from kinbot import molpro_reconnaissance as recon, run_walltime
+    source = tmp_path / 'input.json'
+    _configuration(source)
+    data = json.loads(source.read_text())
+    data.pop('walltime')
+    source.write_text(json.dumps(data))
+    path = recon.prepare(source, tmp_path / 'recon')
+    monkeypatch.delenv('SBATCH_TIMELIMIT', raising=False)
+    monkeypatch.delenv('SBATCH_PARTITION', raising=False)
+    monkeypatch.setattr(run_walltime, 'partition_limits', lambda **kw:
+                        {'day-long-cpu': 86400} if available else {})
+    submissions = []
+    def scheduler(command, **kwargs):
+        if command[0] == 'squeue':
+            return SimpleNamespace(stdout='', returncode=0)
+        assert command[0] == 'sbatch'
+        assert '--time=1-00:00:00' in command
+        assert json.loads(path.read_text())['jobs'][0]['submission_status'] == 'submitting'
+        submissions.append(command)
+        return SimpleNamespace(stdout='42\n', stderr='', returncode=0)
+    monkeypatch.setattr(recon.subprocess, 'run', scheduler)
+    if available:
+        assert recon.submit(path)['jobs'][0]['job_id'] == '42'
+        assert len(submissions) == 1
+    else:
+        with pytest.raises(RuntimeError, match='selected partition'):
+            recon.submit(path)
+        assert not submissions
+        assert all(j.get('submission_status') != 'submitting'
+                   for j in json.loads(path.read_text())['jobs'])
 
 
 def test_audit_requires_native_output_wfu_and_molden(tmp_path):

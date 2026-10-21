@@ -136,12 +136,13 @@ def _automatic_core_count(task, memory_mb, node_cores, limits):
 
 
 def assign_partitions(spec):
-    """Select partitions and resolve optional node-memory-based core counts.
+    """Select partitions and resolve node memory, cores, and maximum walltime.
 
     Explicit task partitions always win. A task may omit ``cores`` and/or
     ``memory_mb``; preparation then sizes it from the smallest node reported
     for the chosen partition, and requests all node memory when uncapped.
     Explicit resources remain useful for small smoke tests and local mocks.
+    Omitted walltime requests the selected partition maximum, not its default.
     """
     tasks = spec.get('tasks', [])
     if not isinstance(tasks, list):
@@ -151,16 +152,17 @@ def assign_partitions(spec):
         if not isinstance(task, dict) or not isinstance(task.get('resources'), dict):
             raise ValueError('Every task needs a resources object.')
         resources = task['resources']
+        auto_time = resources.setdefault('walltime', 'partition_max') == 'partition_max'
         auto_cores = resources.get('cores') in (None, 'auto')
         auto_memory = resources.get('memory_mb') in (None, 'auto', 'node')
-        if not resources.get('partition') or auto_cores or auto_memory:
-            pending.append((task, auto_cores, auto_memory))
+        if not resources.get('partition') or auto_cores or auto_memory or auto_time:
+            pending.append((task, auto_cores, auto_memory, auto_time))
     if not pending:
         return
     entries = _partitions()
     if not entries:
-        if any(auto_cores or auto_memory for _, auto_cores, auto_memory in pending):
-            raise RuntimeError('Automatic cores or node memory require sinfo on '
+        if any(auto_cores or auto_memory or auto_time for _, auto_cores, auto_memory, auto_time in pending):
+            raise RuntimeError('Automatic cores, node memory or partition maximum walltime require sinfo on '
                                'the target Slurm site during prepare.')
         if shutil.which('sinfo'):
             raise RuntimeError('sinfo returned no usable up partitions; set '
@@ -176,9 +178,9 @@ def assign_partitions(spec):
             raise ValueError(f'{name} must be a positive integer.')
     cap_walltime = bool(spec.get('intent', {}).get(
         'cap_walltime_to_explicit_partition'))
-    for task, auto_cores, auto_memory in pending:
+    for task, auto_cores, auto_memory, auto_time in pending:
         resources = task['resources']
-        needed = _duration_seconds(resources['walltime'])
+        needed = 0 if auto_time else _duration_seconds(resources['walltime'])
         selected = resources.get('partition')
         if selected and cap_walltime:
             capacity_fits = [entry for entry in entries
@@ -227,8 +229,13 @@ def assign_partitions(spec):
             raise RuntimeError(f"{task['id']}: node memory cannot support one "
                                'core at the configured per-core minimum.')
         chosen, memory, cores, policy = min(choices, key=lambda item: (
-            item[0]['seconds'], not item[0]['default'], item[0]['name']))
+            (not item[0]['default'], -item[0]['seconds'], item[0]['name']) if auto_time else
+            (item[0]['seconds'], not item[0]['default'], item[0]['name'])))
         resources['partition'] = chosen['name']
+        if auto_time:
+            resources['requested_walltime'] = 'partition_max'
+            resources['walltime'] = ('00:00:00' if chosen['seconds'] == float('inf')
+                                     else _slurm_duration(chosen['seconds']))
         if auto_memory:
             resources['memory_mb'] = memory
             resources['use_all_node_memory'] = 'max_memory_mb_per_node' not in limits

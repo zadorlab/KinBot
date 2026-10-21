@@ -34,7 +34,7 @@ def test_all_eight_variants_generate_consistent_graphs(tier, geom, dboc, dbasis,
     tasks = {t['id']: t for t in spec['tasks']}
     resolved = deepcopy(spec)
     for t in resolved['tasks']:
-        t['resources'].update(cores=2, memory_mb=32000, partition='test')
+        t['resources'].update(cores=2, memory_mb=32000, partition='test', walltime='01:00:00')
     validate_spec(resolved)
     req = {r.key: r for r in recipe(tier, component_version=2,
                                    augmented=augmented, multiplicity=mult).requirements}
@@ -104,7 +104,7 @@ def test_f12_rank_exact_geometry_and_frequencies(symbols, mult, effective):
     m['source']['geometry_sha256'] = _geometry_hash(Atoms(symbols, positions=m['positions']))
     spec = automatic_composite_spec(m, highest_tier='ANL1-F12')
     for t in spec['tasks']:
-        t['resources'].update(cores=2, memory_mb=32000, partition='test')
+        t['resources'].update(cores=2, memory_mb=32000, partition='test', walltime='01:00:00')
     validate_spec(spec)
     tasks = {t['id']: t for t in spec['tasks']}
     assert tasks['l3_geometry']['profile']['calculator_kwargs']['effective_method'] == effective

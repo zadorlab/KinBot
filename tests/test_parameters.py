@@ -71,7 +71,7 @@ class TestBackendWarnings(unittest.TestCase):
         self.assertEqual(spin['vrc_tst_correction_model'], 'spin_splitting')
 
     def test_vrc_long_walltime_default_preserves_explicit_input(self):
-        self.assertEqual(self.read_parameters()['vrc_tst_walltime'], '7-00:00:00')
+        self.assertEqual(self.read_parameters()['vrc_tst_walltime'], 'partition_max')
         self.assertEqual(self.read_parameters(vrc_tst_walltime='02:00:00')['vrc_tst_walltime'],
                          '02:00:00')
 

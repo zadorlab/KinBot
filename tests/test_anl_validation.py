@@ -48,13 +48,13 @@ def _molecule():
 
 
 @pytest.mark.parametrize('tier', ['ANL0', 'ANL0-F12', 'ANL1', 'ANL1-F12'])
-def test_all_production_components_have_long_default_allocation(tier):
+def test_all_production_components_default_to_partition_maximum(tier):
     molecule = _molecule()
     molecule['source'] = {'geometry_sha256': 'a'*64, 'record_sha256': 'b'*64,
                           'energy_hartree': -40.}
     spec = automatic_composite_spec(molecule, highest_tier=tier)
     assert spec['tasks']
-    assert {t['resources']['walltime'] for t in spec['tasks']} == {'7-00:00:00'}
+    assert {t['resources']['walltime'] for t in spec['tasks']} == {'partition_max'}
 
 
 def test_non_mrcc_graph_has_geometry_barrier_and_parallel_fanout():
@@ -63,12 +63,12 @@ def test_non_mrcc_graph_has_geometry_barrier_and_parallel_fanout():
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(cores=4, memory_mb=64000,
-                                 partition='test')
+                                 partition='test', walltime='01:00:00')
     validate_spec(resolved)
     tasks = {task['id']: task for task in spec['tasks']}
     assert tasks['l3_geometry']['geometry_from'] == 'l2_geometry'
-    assert tasks['l3_geometry']['resources']['walltime'] == '7-00:00:00'
-    assert tasks['harmonic']['resources']['walltime'] == '7-00:00:00'
+    assert tasks['l3_geometry']['resources']['walltime'] == 'partition_max'
+    assert tasks['harmonic']['resources']['walltime'] == 'partition_max'
     for ident in ('harmonic', 'f12_tz', 'f12_qz', 'ccsdt_dz',
                   'cfour_dboc'):
         assert tasks[ident]['geometry_from'] == 'l3_geometry'
@@ -106,7 +106,7 @@ def test_current_base_reuses_l2_but_reruns_unrestricted_l3_and_base_terms():
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(cores=4, memory_mb=64000,
-                                 partition='test')
+                                 partition='test', walltime='01:00:00')
     validate_spec(resolved)
 
 
@@ -160,7 +160,7 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     assert closed_tasks['ccsdtqp_dz']['result_parser']['reference'] == 'RHF'
     assert closed_tasks['ccsdtqp_dz']['result_parser']['correlation'] == \
         'unrestricted'
-    assert closed_tasks['ccsdtqp_dz']['resources']['walltime'] == '7-00:00:00'
+    assert closed_tasks['ccsdtqp_dz']['resources']['walltime'] == 'partition_max'
     assert closed_tasks['ccsdtqp_dz']['resources']['max_cores'] == 8
     assert closed_tasks['ccsdt_tz']['backend'] == 'molpro'
     for ident in ('ccsdtq_tz', 'ccsdtq_dz'):
@@ -194,7 +194,7 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
         resolved = deepcopy(spec)
         for task in resolved['tasks']:
             task['resources'].update(cores=4, memory_mb=64000,
-                                     partition='test')
+                                     partition='test', walltime='01:00:00')
         validate_spec(resolved)
 
 
@@ -228,7 +228,7 @@ def test_common_corrections_graph_pins_core_and_relativistic_differences():
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(cores=4, memory_mb=64000,
-                                 partition='test')
+                                 partition='test', walltime='01:00:00')
     validate_spec(resolved)
 
 
@@ -246,7 +246,7 @@ def test_post_geometry_graph_has_one_global_parallel_limit():
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(cores=4, memory_mb=64000,
-                                 partition='test')
+                                 partition='test', walltime='01:00:00')
     validate_spec(resolved)
 
 
@@ -291,7 +291,7 @@ def test_composite_graph_keeps_l2_fallbacks_independent_of_l3_barrier():
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(cores=4, memory_mb=64000,
-                                 partition='test')
+                                 partition='test', walltime='01:00:00')
     validate_spec(resolved)
 
 
@@ -330,7 +330,7 @@ def test_automatic_post_l2_graph_never_repeats_l2_and_prunes_by_tier():
     resolved = deepcopy(full)
     for task in resolved['tasks']:
         task['resources'].update(
-            cores=1, memory_mb=64000, partition='test')
+            cores=1, memory_mb=64000, partition='test', walltime='01:00:00')
     validate_spec(resolved)
 
 
@@ -364,7 +364,7 @@ def test_automatic_anl1_f12_graph_reuses_qz_without_anl0_duplicates():
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(
-            cores=4, memory_mb=64000, partition='test')
+            cores=4, memory_mb=64000, partition='test', walltime='01:00:00')
     validate_spec(resolved)
 
     augmented = automatic_composite_spec(
@@ -392,7 +392,7 @@ def test_frequency_only_vpt2_rejects_mismatched_imported_l2_profile():
     spec = automatic_composite_spec(molecule, highest_tier='L2')
     for task in spec['tasks']:
         task['resources'].update(
-            cores=1, memory_mb=64000, partition='test')
+            cores=1, memory_mb=64000, partition='test', walltime='01:00:00')
     with pytest.raises(ValueError, match='matching Gaussian geometry source'):
         validate_spec(spec)
 
@@ -411,7 +411,7 @@ def test_frequency_only_vpt2_rejects_imported_geometry_hash_mismatch():
         molecule, highest_tier='L2')
     for task in specification['tasks']:
         task['resources'].update(
-            cores=1, memory_mb=64000, partition='test')
+            cores=1, memory_mb=64000, partition='test', walltime='01:00:00')
     with pytest.raises(ValueError, match='matching Gaussian geometry source'):
         validate_spec(specification)
 
@@ -436,7 +436,7 @@ def test_atomic_composite_omits_fictitious_vibrational_jobs():
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(
-            cores=1, memory_mb=64000, partition='test')
+            cores=1, memory_mb=64000, partition='test', walltime='01:00:00')
     validate_spec(resolved)
 
 
@@ -680,7 +680,7 @@ def test_completed_run_geometry_export_is_hash_verified():
         task = next(item for item in spec['tasks']
                     if item['id'] == 'l3_geometry')
         task['geometry_from'] = 'initial'
-        task['resources'].update(cores=2, memory_mb=32000)
+        task['resources'].update(cores=2, memory_mb=32000, walltime='01:00:00')
         spec['tasks'] = [task]
         run_dir = prepare(spec, root / 'run')
         directory = run_dir / 'tasks' / task['id']

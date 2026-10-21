@@ -68,7 +68,7 @@ def test_prepare_cli_builds_only_the_default_small_species_pair_plus_low(
         'ccsdt_dz', 'ccsdtq_dz', 'ccsdtqp_dz']
     assert spec['molecule']['multiplicity'] == 1
     qp = next(task for task in spec['tasks'] if task['id'] == 'ccsdtqp_dz')
-    assert qp['resources']['walltime'] == '7-00:00:00'
+    assert qp['resources']['walltime'] == 'partition_max'
     assert qp['resources']['max_cores'] == 4
     assert spec['intent']['literature_benchmark']['name'] == \
         'methane-qz-2017'
@@ -95,7 +95,7 @@ def test_prepare_methyl_benchmark_uses_current_rohf_ucc_profile(
         tasks['ccsdtq_dz']['input_template']
     for task in captured['spec']['tasks']:
         task['resources'].update(
-            cores=4, memory_mb=64000, partition='test')
+            cores=4, memory_mb=64000, partition='test', walltime='01:00:00')
     validate_spec(captured['spec'])
 
 
@@ -106,7 +106,7 @@ def test_prepare_one_off_methyl_uhf_source_reproduction(
     def fake_prepare(spec, run_dir):
         for task in spec['tasks']:
             task['resources'].update(
-                cores=4, memory_mb=64000, partition='test')
+                cores=4, memory_mb=64000, partition='test', walltime='01:00:00')
         validate_spec(spec)
         captured['spec'] = spec
         return Path(run_dir)

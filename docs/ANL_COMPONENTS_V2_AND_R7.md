@@ -104,8 +104,9 @@ settings and live-policy defaults. The default campaign configuration:
 - selects six healthy partition nodes to exclude, preferring the named
   historically problematic nodes if healthy; excludes down/drained/unknown
   nodes and fixes the initial pool cap to healthy-count minus six;
-- uses exclusive one-node QC allocations, a seven-day minimum clipped to
-  the partition limit, one timeout retry with factor two, and two extra
+- uses exclusive one-node QC allocations and the selected partition's maximum
+  walltime by default, one timeout retry with factor two where a larger limit
+  is available, and two extra
   optimization-step chunks under the existing saved-geometry recovery;
 - retains the reviewed CASPT2 active spaces for CH3S C–S (two doublet roots)
   and CH3SS C–S/S–S, MR supermolecule asymptotes, aDZ-F12 relaxation,
@@ -116,6 +117,26 @@ settings and live-policy defaults. The default campaign configuration:
   of this failed-search option. `hold_task_failures: true` keeps failed ANL/VRC
   dispatcher tasks available for manual fallback/release while independent
   tasks continue; `hold_failures: false` lets ordinary rejected searches finish.
+
+The default `partition_max` is resolved from Slurm's `sinfo %l` maximum, not
+`%L` (the site default). New ordinary QC/MESS, ANL components, VRC
+scans/asymptotes/pivots/corrections, ROTD sampling, MRCC resume allocations,
+and orbital reconnaissance follow this rule. A month partition reporting
+`31-00:00:00` therefore gets a 31-day request without a cluster-specific constant.
+An unlimited partition is requested with Slurm time zero. Discovery failure
+blocks preparation/submission rather than silently falling back to a short
+site default. Reconnaissance can still be prepared offline; its controller
+resolves the maximum before recording an actual submission attempt.
+
+Explicit `queue_walltime`, `vrc_tst_walltime`, `rotdpy_walltime`, task
+`resources.walltime`, recon `walltime`, and live resource rules retain their
+chosen durations. User-supplied scheduler templates remain authoritative.
+The r7 policy no longer installs a seven-day `minimum_walltime` floor. A
+timeout already at the partition maximum cannot escalate beyond that maximum;
+it retains evidence for a deliberate retry/continuation or different partition.
+Account/QOS restrictions still apply. See the
+[sinfo formatting manual](https://slurm.schedmd.com/sinfo.html) and
+[sbatch time-limit semantics](https://slurm.schedmd.com/sbatch.html).
 
 The helper prepares inputs, checks reviewed WFU hashes, renders native inputs,
 and checks the launch environment before cancelling anything. On `--apply`
@@ -178,7 +199,10 @@ with `--apply` then uses that plan. Inspect `fresh_run.json` under r7 for the
 selected node exclusions and exact cap. This is a campaign admission policy,
 not a Slurm hardware reservation: KinBot leaves the six excluded nodes alone,
 but cannot guarantee that other cluster users leave them idle. Node health is
-not an automatic permission to remove later learned exclusions.
+not an automatic permission to remove exclusions learned later within r7.
+As explicitly requested for this fresh launch, r6's learned exclusions are
+not imported: r7 starts from a fresh Slurm inventory and the configured
+six-node reserve, then learns its own additional exclusions.
 
 ```bash
 watch -n 15 "$HOME/KinBot/.venv/bin/python -m kinbot.run_monitor $HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
@@ -254,13 +278,26 @@ rejected candidates, eligible for deliberate manual fallback, not automatic
 success. The snapshot contains no new optimizer/curvature tails for the four
 long geometries and therefore cannot establish their eventual convergence.
 
+The later **13:49:06 -07:00** snapshot has 21 running allocations (17 CH3S,
+4 CH3SS). CH3S has accepted VRC point 40 at 10.5 angstrom and started point
+41; its recorded dispatcher completions rose to 227. The same two CBH errors,
+35 old descriptor failures, and absent CH3SS PES owner remain. There is no new
+failure class in this snapshot. Cancellation inventories are collected live
+by the handoff, so these job IDs/counts are evidence, not a frozen cancellation
+list. CH3SS's four long geometries are still running; no new force/curvature
+evidence establishes their convergence.
+
 Tests cover all eight ANL variants for closed/open shells, basis/method/parser
 agreement, QZ/5Z correction assembly, strict same-basis DKH/NR pairing,
 high-precision energies, VRC extrapolation/orbital staging, shared capacity
 drain/release, review reserves, and interrupted/partial fresh handoffs.
 The full repository suite, including cleanup and live controls, passed with
-**2,607 passed, 7 skipped, 429 subtests passed** (`.venv/bin/python -m pytest -q`,
-114.40 seconds). The one warning is the existing test import of deprecated
+**2,620 passed, 7 skipped, 429 subtests passed** (`.venv/bin/python -m pytest -q`,
+116.34 seconds). This includes partition-maximum defaults, explicit shorter
+overrides, unlimited partitions, scheduler-discovery failures, and deferred
+reconnaissance submission. Local process-inspection tests require permission
+to run `ps` on macOS; sandbox-denied process inspection is not a passing audit.
+The one warning is the existing test import of deprecated
 `imp`. Skipped native/environment-dependent tests are not native QC evidence.
 
 The audited launch sequence is:
@@ -351,7 +388,7 @@ uses the previous geometry/orbitals, and leaves within a VRC worker are still
 visited serially. Independent wells, ANL graphs and the two PES cases can run
 concurrently. Numerical QZ/F12 gradients and curvature probes can dominate
 elapsed time. Raising CPUs without a native scaling measurement is not assumed
-to improve them. Seven-day requests favor completion but can reduce backfill
+to improve them. Partition-maximum requests favor completion but can reduce backfill
 opportunities; the live walltime controls permit deliberate adjustment.
 
 The manual/literature recheck preserves the intentionally revised ANL policy.

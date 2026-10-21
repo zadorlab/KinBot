@@ -337,7 +337,7 @@ def test_every_generated_acetaldehyde_composite_graph_validates():
     for specification in generated:
         for task in specification['tasks']:
             task['resources'].update(
-                cores=1, memory_mb=64000, partition='test')
+                cores=1, memory_mb=64000, partition='test', walltime='01:00:00')
         validate_spec(specification)
 
 

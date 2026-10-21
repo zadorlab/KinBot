@@ -441,7 +441,7 @@ class Parameters:
             'vrc_tst_max_nodes': 1,
             # Per-job budget for MR scans/asymptotes and correction jobs;
             # numerical gradients can require many native calculations.
-            'vrc_tst_walltime': '7-00:00:00',
+            'vrc_tst_walltime': 'partition_max',
             # Minimum Molpro memory stack (MW) available to every MPI rank
             'vrc_tst_min_stack_mw': 3200,
             # Explicit whole-node allocation ceiling for VRC jobs; None lets

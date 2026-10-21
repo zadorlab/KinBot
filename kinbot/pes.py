@@ -117,7 +117,8 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
         raise ValueError('rotdPy Slurm partition contains unsupported characters.')
     if walltime == 'partition_max':
         from kinbot.qc import _ordinary_slurm_walltime
-        walltime_directive = _ordinary_slurm_walltime(par, partition)
+        walltime_directive = _ordinary_slurm_walltime(
+            dict(par, queue_walltime='partition_max'), partition)
     elif re.fullmatch(r'(?:\d+-)?\d{1,2}:\d{2}:\d{2}', walltime):
         walltime_directive = f'#SBATCH --time={walltime}'
     else:

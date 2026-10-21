@@ -838,7 +838,7 @@ def test_failed_l3_geometry_stages_single_points_on_l2_and_skips_only_frequency(
     spec = interface_validation_spec(dispatch_spec()['molecule'])
     for task in spec['tasks']:
         task['resources'].update(
-            cores=4, memory_mb=64000, partition='test')
+            cores=4, memory_mb=64000, partition='test', walltime='01:00:00')
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         run_dir = prepare(_write_spec(root, spec), root / 'run')
@@ -867,7 +867,7 @@ def test_l3_preflight_failure_uses_the_same_l2_single_point_fallback():
     spec = interface_validation_spec(dispatch_spec()['molecule'])
     for task in spec['tasks']:
         task['resources'].update(
-            cores=4, memory_mb=64000, partition='test')
+            cores=4, memory_mb=64000, partition='test', walltime='01:00:00')
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         run_dir = prepare(_write_spec(root, spec), root / 'run')
@@ -980,7 +980,7 @@ def test_failed_cfour_ccsdt_q_can_be_rerouted_to_direct_mrcc():
     molecule = dispatch_spec()['molecule']
     task = cfour_energy_task(
         'high', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,
-        geometry_from='initial', partition='day')
+        geometry_from='initial', partition='day', walltime='24:00:00')
     task['resources'].update(
         cores=8, memory_mb=126000, use_all_node_memory=True)
     spec = {'schema': 1, 'name': 'cfour-migration', 'molecule': molecule,
@@ -1107,7 +1107,7 @@ def test_advance_automatically_reparses_old_successful_mrcc_output(
             ident, method, 'cc-pVDZ', multiplicity=2,
             reference='ROHF', geometry_from='initial')
         task['resources'].update(
-            cores=1, memory_mb=4096, partition='test')
+            cores=1, memory_mb=4096, partition='test', walltime='01:00:00')
         spec = {
             'schema': 1, 'name': 'automatic-parser-recovery',
             'molecule': {
@@ -1166,7 +1166,7 @@ def test_reparse_recovers_native_mrcc_success_misclassified_as_execution_failure
             ident, 'CCSDTQ(P)', 'cc-pVDZ', multiplicity=2,
             reference='ROHF', geometry_from='initial')
         task['resources'].update(
-            cores=1, memory_mb=4096, partition='test')
+            cores=1, memory_mb=4096, partition='test', walltime='01:00:00')
         spec = {
             'schema': 1, 'name': 'native-success-recovery',
             'molecule': {
@@ -1234,7 +1234,7 @@ def test_native_success_recovery_rejects_changed_staged_input():
             ident, 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,
             reference='RHF', geometry_from='initial')
         task['resources'].update(
-            cores=1, memory_mb=4096, partition='test')
+            cores=1, memory_mb=4096, partition='test', walltime='01:00:00')
         spec = {
             'schema': 1, 'name': 'reject-changed-input',
             'molecule': {
@@ -2044,7 +2044,7 @@ def test_preflight_refreshes_a_stale_generated_mrcc_site_setup():
             'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,
             geometry_from='initial')
         task['resources'].update(
-            cores=1, memory_mb=4096, partition='test')
+            cores=1, memory_mb=4096, partition='test', walltime='01:00:00')
         spec = {
             'schema': 1, 'name': 'late-mrcc-site',
             'molecule': {

@@ -35,6 +35,8 @@ def test_prepared_package_is_portable_immutable_and_records_resolved_settings(ha
         assert resolved['anl_cc_convergence'] == resolved['vrc_tst_correlation_convergence'] == 1e-7
         assert resolved['barrier_threshold_L2'] == 400
         assert resolved['barrier_threshold'] == 410
+        assert all(resolved[name] == 'partition_max' for name in (
+            'queue_walltime', 'vrc_tst_walltime', 'rotdpy_walltime'))
         assert max(resolved['TemperatureList']) == 5000
         # Match the actual RotdPy grid generator used in the rendered worker.
         def grid(values):

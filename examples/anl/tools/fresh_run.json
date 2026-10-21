@@ -8,7 +8,6 @@
   },
   "policy": {
     "manage_pending": true,
-    "minimum_walltime": "7-00:00:00",
     "timeout_retries": 1,
     "timeout_walltime_factor": 2.0,
     "optimization_step_retries": 2,

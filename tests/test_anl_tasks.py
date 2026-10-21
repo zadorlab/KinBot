@@ -53,17 +53,17 @@ def test_every_ccsdtq_p_routes_to_direct_mrcc_ucc(multiplicity, reference):
     _validate(task)
 
 
-def test_ccsdtq_p_defaults_allow_a_week_and_eight_openmp_threads():
+def test_ccsdtq_p_defaults_request_partition_max_and_eight_openmp_threads():
     task = higher_order_task(
         'hoe_dz_high', 'CCSDTQ(P)', 'cc-pVDZ', multiplicity=1)
-    assert task['resources']['walltime'] == '7-00:00:00'
+    assert task['resources']['walltime'] == 'partition_max'
     assert task['resources']['max_cores'] == 8
 
 
 def test_long_mrcc_defaults_do_not_replace_explicit_user_walltimes():
     for builder in (mrcc_task, higher_order_task):
         task = builder('high', 'CCSDT(Q)', 'cc-pVTZ', multiplicity=2)
-        assert task['resources']['walltime'] == '7-00:00:00'
+        assert task['resources']['walltime'] == 'partition_max'
         task = builder('high', 'CCSDT(Q)', 'cc-pVTZ', multiplicity=2, walltime='02:00:00')
         assert task['resources']['walltime'] == '02:00:00'
 

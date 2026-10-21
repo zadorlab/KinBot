@@ -73,11 +73,29 @@ def partition_limits(*, cached=False):
         key = name.rstrip('*')
         limits[key] = min(limits.get(key, math.inf), limit)
         if name.endswith('*'):
-            limits[''] = limit
+            limits[''] = limits[key]
     if not limits:
         raise RuntimeError('Slurm returned no partition time limits.')
     _LIMITS = time.monotonic(), limits
     return limits
+
+
+def partition_walltime(partition=''):
+    """Resolve maximum time for every eligible partition; zero means unlimited."""
+    limits = partition_limits(cached=True)
+    try:
+        cap = min(limits[name] for name in partition.split(','))
+    except KeyError as error:
+        raise RuntimeError(f'Slurm did not report the selected partition: {partition!r}') from error
+    if cap <= 0:
+        raise RuntimeError(f'Partition {partition!r} has no positive time limit.')
+    if math.isinf(cap):
+        return '00:00:00'
+    days, remainder = divmod(int(cap), 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, secs = divmod(remainder, 60)
+    clock = f'{hours:02d}:{minutes:02d}:{secs:02d}'
+    return f'{days}-{clock}' if days else clock
 
 
 def partition_defaults():

@@ -856,11 +856,14 @@ def _prepare(source, output):
     # reserve 25% beyond that for auxiliary allocations and I/O buffering.
     # This is a starting budget, not an upper bound on every MR calculation.
     memory_mb = int(data.get('memory_mb', ppn * (data.get('memory_mw', 1000) + 300) * 8 * 1.25))
-    walltime = str(data.get('walltime', '7-00:00:00'))
+    walltime = str(data.get('walltime', 'partition_max'))
     if memory_mb < ppn * data.get('memory_mw', 1000) * 8:
         raise ValueError('Slurm memory_mb must cover every Molpro rank memory stack.')
-    if not re.fullmatch(r'(?:\d+-)?\d+:\d{2}:\d{2}', walltime):
-        raise ValueError('Reconnaissance walltime must be a Slurm time string.')
+    if walltime != 'partition_max' and not re.fullmatch(r'(?:\d+-)?\d+:\d{2}:\d{2}', walltime):
+        raise ValueError('Reconnaissance walltime must be partition_max or a Slurm time string.')
+    # Resolve at submission: offline preparation must not guess site limits.
+    time_directive = ('# KINBOT_WALLTIME=partition_max\n' if walltime == 'partition_max'
+                      else f'#SBATCH --time={walltime}\n')
     records = []
     manifest_file = root / 'reconnaissance.json'
     previous = (json.loads(manifest_file.read_text()) if manifest_file.is_file() else {})
@@ -922,7 +925,7 @@ def _prepare(source, output):
                 '#!/bin/bash\n'
                 f'#SBATCH -N 1\n#SBATCH --exclusive\n#SBATCH -n {ppn}\n#SBATCH -c 1\n'
                 + (f'#SBATCH -p {partition}\n' if partition else '')
-                + f'#SBATCH --mem={memory_mb}M\n#SBATCH --time={walltime}\n'
+                + f'#SBATCH --mem={memory_mb}M\n' + time_directive +
                 f'#SBATCH -J kb-orb-{stem[:40]}\n'
                 f'#SBATCH -o {stem}.stdout\n#SBATCH -e {stem}.stderr\n'
                 'set -euo pipefail\n'
@@ -1968,13 +1971,23 @@ def _slurm_submission_options(batch, excluded):
     if any(not isinstance(node, str) or not _SAFE.fullmatch(node) for node in excluded):
         raise ValueError('Invalid recorded Slurm exclusion node.')
     values = [os.environ.get('SBATCH_EXCLUDE', ''), *sorted(excluded)]
+    auto_time = False
+    partition = ''
     for line in batch.splitlines():
         if line.strip() and not line.lstrip().startswith('#'):
             break  # Slurm stops reading directives at the first shell command.
+        if line.strip() == '# KINBOT_WALLTIME=partition_max':
+            auto_time = True
         if not line.lstrip().startswith('#SBATCH '):
             continue
         tokens = shlex.split(line.lstrip()[len('#SBATCH '):])
         for i, token in enumerate(tokens):
+            if token in ('--partition', '-p') and i + 1 < len(tokens):
+                partition = tokens[i + 1]
+            elif token.startswith('--partition='):
+                partition = token.split('=', 1)[1]
+            elif token.startswith('-p') and len(token) > 2:
+                partition = token[2:]
             if token in ('--exclude', '-x') and i + 1 < len(tokens):
                 values.append(tokens[i + 1])
             elif token.startswith('--exclude='):
@@ -1982,7 +1995,12 @@ def _slurm_submission_options(batch, excluded):
             elif token.startswith('-x') and len(token) > 2:
                 values.append(token[2:])
     value = ','.join(dict.fromkeys(v for v in values if v))
-    return ['--exclude=' + value] if value else []
+    options = ['--exclude=' + value] if value else []
+    if auto_time and not os.environ.get('SBATCH_TIMELIMIT'):
+        from kinbot.run_walltime import partition_walltime
+        options.append('--time=' + partition_walltime(
+            os.environ.get('SBATCH_PARTITION', partition)))
+    return options
 
 
 def _retry_allocation_failures(path, manifest, live, limit):
@@ -2152,7 +2170,6 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
             inp.write_text(inp.read_text().replace('{{PREVIOUS_WFU_SHA256}}', prior['wfu_sha256']))
             job['initial_wfu_sha256'] = prior['wfu_sha256']
             job['input_sha256'] = file_sha256(inp)
-        job['submission_status'] = 'submitting'
         # Existing snapshotted campaigns gain the shared batch retry guard
         # without changing the chemically meaningful prepared input/hash.
         from kinbot.slurm_retry import wrap_script
@@ -2161,9 +2178,11 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
                                      directories=[job['directory']]))
         options = _slurm_submission_options(batch.read_text(), manifest.get('slurm_excluded_nodes', []))
         command = ['sbatch', '--export=ALL', '--parsable', *options, job['name'] + '.sbatch']
+        job['submission_status'] = 'submitting'
         job['submission_command'] = command
         job['submission_overrides'] = {key: os.environ[key] for key in
-            ('SBATCH_MEM_PER_NODE', 'SBATCH_MEM_PER_CPU') if key in os.environ}
+            ('SBATCH_MEM_PER_NODE', 'SBATCH_MEM_PER_CPU', 'SBATCH_TIMELIMIT',
+             'SBATCH_PARTITION') if key in os.environ}
         atomic_json(path, manifest)
         try:
             result = subprocess.run(

@@ -289,8 +289,9 @@ def _ordinary_slurm_walltime(par, queue_name=None):
     partition = str(queue_name or par.get('queue_name', '')).strip()
     if not _SLURM_PARTITION.fullmatch(partition):
         raise ValueError('queue_name is not a valid Slurm partition name.')
-    if partition in _SLURM_WALLTIME_CACHE:
-        return _SLURM_WALLTIME_CACHE[partition]
+    cached = _SLURM_WALLTIME_CACHE.get(partition)
+    if cached and time.monotonic() - cached[0] < 60:
+        return cached[1]
     try:
         result = subprocess.run(
             ['sinfo', '-h', '-p', partition, '-o', '%l'],
@@ -302,7 +303,9 @@ def _ordinary_slurm_walltime(par, queue_name=None):
                     if line.strip()]
         limits = [_slurm_seconds(value) for value in displays]
         finite = [limit for limit in limits if limit is not None]
-        if result.returncode == 0 and finite:
+        valid = all(limit is not None or value.lower() in ('infinite', 'unlimited')
+                    for value, limit in zip(displays, limits))
+        if result.returncode == 0 and valid and finite:
             directive = f'#SBATCH --time={_slurm_time(min(finite))}'
         elif (result.returncode == 0 and displays
               and all(value.lower() in ('infinite', 'unlimited')
@@ -311,9 +314,10 @@ def _ordinary_slurm_walltime(par, queue_name=None):
         else:
             directive = ''
     if not directive:
-        logger.warning('Could not discover the maximum wall time for Slurm '
-                       'partition %s; its site default will apply.', partition)
-    _SLURM_WALLTIME_CACHE[partition] = directive
+        from kinbot.anl.dispatch import SchedulerUnavailableError
+        raise SchedulerUnavailableError('Could not discover the maximum walltime for '
+                                        f'partition {partition}; no job was submitted.')
+    _SLURM_WALLTIME_CACHE[partition] = (time.monotonic(), directive)
     return directive
 
 

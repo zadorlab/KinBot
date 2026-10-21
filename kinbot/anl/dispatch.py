@@ -2142,7 +2142,7 @@ def migrate_cfour_vcc_keyword(run_dir, ident):
     return reroute_cfour_higher_order_to_mrcc(run_dir, ident)
 
 
-def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
+def resume_mrcc_failed(run_dir, ident, *, walltime='partition_max',
                        partition=None, max_cores=None):
     """Restage a time-limited direct-MRCC task without discarding amplitudes.
 
@@ -2175,8 +2175,9 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
     amplitude = directory / 'fort.16'
     if not amplitude.is_file() or amplitude.stat().st_size == 0:
         raise RuntimeError(f'{ident}: nonempty MRCC fort.16 is required to resume.')
-    if (not isinstance(walltime, str) or not _TIME.fullmatch(walltime)):
-        raise ValueError('MRCC resume walltime must be HH:MM:SS or D-HH:MM:SS.')
+    if (not isinstance(walltime, str)
+            or (walltime != 'partition_max' and not _TIME.fullmatch(walltime))):
+        raise ValueError('MRCC resume walltime must be partition_max, HH:MM:SS or D-HH:MM:SS.')
     if partition is not None:
         _basename(partition, 'MRCC resume partition')
     if max_cores is not None:
@@ -2188,9 +2189,7 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
     resources['cores'] = 'auto'
     if max_cores is not None:
         resources['max_cores'] = max_cores
-    if partition is None:
-        resources.pop('partition', None)
-    else:
+    if partition is not None:
         resources['partition'] = partition
     template = replacement['input_template']
     if re.search(r'^\s*rest\s*=\s*1\s*$', template,
@@ -2729,7 +2728,7 @@ def main(argv=None):
     resume_mrcc = sub.add_parser('resume-mrcc')
     resume_mrcc.add_argument('run_dir')
     resume_mrcc.add_argument('task_id')
-    resume_mrcc.add_argument('--walltime', default='7-00:00:00')
+    resume_mrcc.add_argument('--walltime', default='partition_max')
     resume_mrcc.add_argument('--partition')
     resume_mrcc.add_argument('--max-cores', type=int)
     reparse = sub.add_parser('reparse')

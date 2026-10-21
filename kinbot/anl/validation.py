@@ -68,7 +68,7 @@ def _resources(walltime, *, max_cores=8, min_stack_mw=None, partition=None):
 
 
 def _molpro_task(ident, body, *, geometry_from='l3_geometry',
-                  walltime='04:00:00', max_cores=8, parser=None,
+                  walltime='7-00:00:00', max_cores=8, parser=None,
                   partition=None, scf_convergence=1.e-10,
                   cc_convergence=1.e-8):
     return native_molpro_task(
@@ -116,7 +116,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         {
             'id': 'l2_geometry', 'kind': 'ase_optimize',
             'geometry_from': 'initial', 'geometry_output': 'final.xyz',
-            'resources': _resources('06:00:00', max_cores=8,
+            'resources': _resources('7-00:00:00', max_cores=8,
                                     partition=partition),
             'profile': l2_profile,
             'optimizer': {'fmax': 0.0005, 'steps': 160,
@@ -152,7 +152,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
             'f12_tz',
             f'basis=cc-pVTZ-F12\nrhf\n{f12}\n'
             'kb_f12b=energy\n',
-            walltime='12:00:00', max_cores=12,
+            walltime='7-00:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
                     'basis': 'cc-pVTZ-F12', 'reference': reference,
                     **f12_rank_parser},
@@ -161,7 +161,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
             'f12_qz',
             f'basis=cc-pVQZ-F12\nrhf\n{f12}\n'
             'kb_f12b=energy\n',
-            walltime='24:00:00', max_cores=12,
+            walltime='7-00:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
                     'basis': 'cc-pVQZ-F12', 'reference': reference,
                     **f12_rank_parser},
@@ -169,7 +169,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         _molpro_task(
             'ccsdt_dz',
             f'basis=cc-pVDZ\nrhf\n{conventional_command}\nkb_dz_energy=energy\n',
-            walltime='08:00:00', max_cores=8,
+            walltime='7-00:00:00', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVDZ', 'reference': reference},
             partition=partition),
@@ -177,7 +177,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
             'l3_sp_l2',
             f'basis=cc-pVTZ\nrhf\n{conventional_command}\n'
             'kb_l3_sp_l2=energy\n',
-            walltime='12:00:00', max_cores=12,
+            walltime='7-00:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVTZ', 'reference': reference,
                     **rank_parser},
@@ -186,7 +186,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         {
             'id': 'cfour_dboc', 'kind': 'external', 'backend': 'cfour',
             'geometry_from': 'l3_geometry',
-            'resources': _resources('08:00:00', max_cores=4,
+            'resources': _resources('7-00:00:00', max_cores=4,
                                     partition=partition),
             'input_name': 'ZMAT',
             'input_template': (
@@ -207,7 +207,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
         {
             'id': 'gaussian_vpt2', 'kind': 'external',
             'backend': 'gaussian', 'geometry_from': 'l2_geometry',
-            'resources': _resources('24:00:00', max_cores=8,
+            'resources': _resources('7-00:00:00', max_cores=8,
                                     partition=partition),
             'input_name': 'vpt2.com',
             'input_template': (
@@ -381,8 +381,8 @@ def _anl0_reference_tasks(molecule, *, partition=None,
                    if effective else {})
     tasks = []
     for ident, basis, walltime, cores in (
-            ('anl0_qz', ANL0_NATIVE_REFERENCE_BASES[0], '24:00:00', 12),
-            ('anl0_5z', ANL0_NATIVE_REFERENCE_BASES[1], '24:00:00', 12)):
+            ('anl0_qz', ANL0_NATIVE_REFERENCE_BASES[0], '7-00:00:00', 12),
+            ('anl0_5z', ANL0_NATIVE_REFERENCE_BASES[1], '7-00:00:00', 12)):
         task = _molpro_task(
             ident, f'basis={basis}\nrhf\n{command}\nkb_{ident}=energy\n',
             geometry_from=geometry_from, walltime=walltime, max_cores=cores,
@@ -514,7 +514,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         _molpro_task(
             'ccsdt_tz',
             f'basis=cc-pVTZ\nrhf\n{conventional}\nkb_ccsdt=energy\n',
-            walltime='08:00:00', max_cores=8,
+            walltime='7-00:00:00', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVTZ',
                     'reference': restricted_reference, 'core': 'frozen'},
@@ -522,7 +522,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         _molpro_task(
             'ccsdt_dz',
             f'basis=cc-pVDZ\nrhf\n{conventional}\nkb_ccsdt=energy\n',
-            walltime='04:00:00', max_cores=8,
+            walltime='7-00:00:00', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVDZ',
                     'reference': restricted_reference, 'core': 'frozen'},
@@ -635,17 +635,17 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
 
     tasks = [
         energy_task('cv_ae_tz', 'cc-pCVTZ', core='all-electron',
-                    walltime='12:00:00'),
+                    walltime='7-00:00:00'),
         energy_task('cv_ae_qz', 'cc-pCVQZ', core='all-electron',
-                    walltime='24:00:00'),
+                    walltime='7-00:00:00'),
         energy_task('cv_fc_tz', 'cc-pCVTZ', core='frozen',
-                    walltime='12:00:00'),
+                    walltime='7-00:00:00'),
         energy_task('cv_fc_qz', 'cc-pCVQZ', core='frozen',
-                    walltime='24:00:00'),
+                    walltime='7-00:00:00'),
         energy_task('rel_dkh', 'aug-cc-pCVTZ-DK', core='all-electron',
-                    relativistic='DKH2', walltime='12:00:00'),
+                    relativistic='DKH2', walltime='7-00:00:00'),
         energy_task('rel_nonrel', 'aug-cc-pCVTZ-DK', core='all-electron',
-                    relativistic='none', walltime='12:00:00'),
+                    relativistic='none', walltime='7-00:00:00'),
     ]
     core_valence_exact = _rank_exact_core_valence(molecule)
     if core_valence_exact:

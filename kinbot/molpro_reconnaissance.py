@@ -856,7 +856,7 @@ def _prepare(source, output):
     # reserve 25% beyond that for auxiliary allocations and I/O buffering.
     # This is a starting budget, not an upper bound on every MR calculation.
     memory_mb = int(data.get('memory_mb', ppn * (data.get('memory_mw', 1000) + 300) * 8 * 1.25))
-    walltime = str(data.get('walltime', '24:00:00'))
+    walltime = str(data.get('walltime', '7-00:00:00'))
     if memory_mb < ppn * data.get('memory_mw', 1000) * 8:
         raise ValueError('Slurm memory_mb must cover every Molpro rank memory stack.')
     if not re.fullmatch(r'(?:\d+-)?\d+:\d{2}:\d{2}', walltime):

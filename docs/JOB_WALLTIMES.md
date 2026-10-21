@@ -1,10 +1,11 @@
 # Job walltimes and read-only activity checks
 
-ANL MRCC CCSDT(Q)/CCSDTQ(P) tasks now default to seven days, including the
-previously 12-hour DZ and 24-hour TZ quadruples jobs. TZ L3 optimization and
-numerical harmonic tasks also default to seven days; ANL1 QZ geometries,
-5Z/6Z reference energies, and basis-matched harmonic tasks already did so.
-`vrc_tst_walltime` now defaults to `7-00:00:00` for Molpro VRC calculations.
+ANL task builders now default to seven days for all components: L2/L3
+optimization, numerical harmonic calculations, VPT2, DBOC, reference energies,
+higher-order coupled cluster, core-valence and relativistic corrections.
+This removes the previous 4–24-hour component defaults. Molpro orbital
+reconnaissance and `vrc_tst_walltime` also default to `7-00:00:00`.
+Ordinary L1/L2 workers and ROTD sampling retain their `partition_max` defaults.
 Explicit task/input overrides remain supported. Automatic ANL jobs respect an
 explicit partition's maximum time through the existing resource resolution.
 These defaults affect newly built graphs, not persisted graphs or allocations.
@@ -27,6 +28,52 @@ This adopts running and pending jobs and archives/replaces only controllers.
 Do not use `--replace-pending` for a walltime-only change. No native job is
 cancelled or requeued. Scratch selection, exclusivity, cores, memory,
 convergence, active spaces, and accepted results are unchanged.
+
+## Repair a VRC chain duplicated by a resource change
+
+Earlier VRC asymptote/scan and pivot directory hashes included resource settings.
+Changing walltime could therefore start a second calculation instead of adopting
+the existing one. Repeating the asymptote could change the fragment coordinates
+slightly and create a second pivot and checkpoint chain as well.
+
+VRC now finds legacy graphs by exact scientific specification, independent of
+resources and graph concurrency. It retains the original directory and records
+a stable binding. Geometry, method, basis, root/active space, native input,
+constraints, convergence and checkpoint path/hash remain part of identity.
+Close geometries are never treated as equal. This also applies after a timeout
+retry changes a graph's resource request. Completed results are reloaded;
+submitted tasks remain owned by their recorded allocation IDs.
+
+For an affected existing salvage run, use the explicit repair:
+
+```bash
+python -m kinbot.run_policy set /path/to/run \
+  --minimum-walltime 7-00:00:00 --timeout-retries 1 --timeout-walltime-factor 2
+python -u -m kinbot.run_refresh /path/to/run --deduplicate-vrc --apply
+```
+
+The refresh verifies completed original artifacts, quiesces the controllers,
+then rechecks the plan. It cancels only identified duplicate VRC allocations,
+requiring terminal scheduler evidence before moving their graphs. Duplicate
+descendants are traced through checkpoint paths and pivot geometry provenance;
+their native files and published cube metadata are archived under the new
+controller archive's `vrc_duplicates/` directory. Original scan graphs, completed
+points, active original points, and unrelated ANL/pending allocations remain in
+place. Replacement controllers replay the original chain and use the existing
+dispatcher to reconcile finished jobs and recover eligible native parser successes
+without rerunning QC. The audit record is `vrc_deduplication.json` in the run root.
+
+Uncertain ownership, corrupt original artifacts, or correction potentials already
+built from an ambiguous chain stop this targeted repair. It does not guess which
+nearby geometry is interchangeable. Repeating the same command resumes an
+interrupted archive/cancellation and does not broaden the selected job set.
+Do not combine this repair with `--replace-pending` or a scientific VRC migration.
+
+Regression coverage includes real task builders, legacy completed/running graph
+adoption, exact pivot cube reuse, resource-independent timeout identity, native
+artifact checks, derived-chain retirement, interrupted archives, and controller
+handoff retaining unrelated jobs. Scheduler/native execution is simulated in
+these tests; the repair still checks the actual cluster state before acting.
 
 ## Automatic walltime retries
 

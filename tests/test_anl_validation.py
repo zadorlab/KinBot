@@ -47,6 +47,16 @@ def _molecule():
             'charge': 0, 'multiplicity': 1}
 
 
+@pytest.mark.parametrize('tier', ['ANL0', 'ANL0-F12', 'ANL1', 'ANL1-F12'])
+def test_all_production_components_have_long_default_allocation(tier):
+    molecule = _molecule()
+    molecule['source'] = {'geometry_sha256': 'a'*64, 'record_sha256': 'b'*64,
+                          'energy_hartree': -40.}
+    spec = automatic_composite_spec(molecule, highest_tier=tier)
+    assert spec['tasks']
+    assert {t['resources']['walltime'] for t in spec['tasks']} == {'7-00:00:00'}
+
+
 def test_non_mrcc_graph_has_geometry_barrier_and_parallel_fanout():
     spec = interface_validation_spec(
         _molecule(), max_nodes=4, partition='day-long-cpu')

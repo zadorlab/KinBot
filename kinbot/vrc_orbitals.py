@@ -199,15 +199,13 @@ def validate_cube_geometry(cube, atoms):
 
 
 def prepare_fixed_pivot(product, parameters, destination, geometry_evidence):
-    from kinbot.anl.dispatch import _load, prepare, preflight_until_scheduler_ready
+    from kinbot.anl.dispatch import _load, preflight_until_scheduler_ready
     from kinbot.vrc_tst_scan import _drive_vrc_dispatch
     from kinbot.execution import atomic_json, file_sha256
     spec = fixed_pivot_spec(product, parameters)
-    digest = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:16]
     destination = Path(destination)
-    graph = Path('vrctst/molpro_pivots') / f'{destination.name}_fixed_{digest}'
-    if not graph.exists():
-        prepare(spec, graph)
+    from kinbot.vrc_graph import select_graph
+    graph = select_graph(Path('vrctst/molpro_pivots'), destination.name+'_fixed', spec)
     preflight_until_scheduler_ready(graph, interval=20.)
     code, summary = _drive_vrc_dispatch(graph, ['pivot'])
     if code or _load(graph)[2]['tasks']['pivot']['status'] != 'complete':
@@ -358,15 +356,13 @@ def validate_molpro_pivot(directory, spec):
 
 def prepare_molpro_fragment(product, parameters, destination):
     """Resume one immutable pivot task without requiring Gaussian utilities."""
-    from kinbot.anl.dispatch import _load, prepare, preflight_until_scheduler_ready
+    from kinbot.anl.dispatch import _load, preflight_until_scheduler_ready
     from kinbot.vrc_tst_scan import _drive_vrc_dispatch
 
     spec = molpro_pivot_spec(product, parameters)
-    digest = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:16]
     destination = Path(destination)
-    run_dir = destination.parent/'molpro_pivots'/f'{destination.name}_{digest}'
-    if not run_dir.exists():
-        prepare(spec, run_dir)
+    from kinbot.vrc_graph import select_graph
+    run_dir = select_graph(destination.parent/'molpro_pivots', destination.name, spec)
     preflight_until_scheduler_ready(run_dir, interval=20.)
     returncode, summary = _drive_vrc_dispatch(run_dir, ['pivot'])
     if returncode:

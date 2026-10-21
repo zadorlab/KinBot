@@ -667,7 +667,7 @@ class VTS:
             state_model_override=None):
         """Run one constrained Molpro multireference scan point."""
         from kinbot.anl.dispatch import (
-            _load, preflight_until_scheduler_ready, prepare)
+            _load, preflight_until_scheduler_ready)
 
         constraints = {'fixed_bonds': [list(map(int, reaction.scan_coo))],
                        'minimum_bonds': []}
@@ -742,8 +742,6 @@ class VTS:
             'molecule': molecule, 'task': task,
         }, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         safe_name = re.sub(r'[^A-Za-z0-9_.-]', '_', logical_name)
-        run_dir = (Path('vrctst/molpro_scan').resolve() /
-                   f'{safe_name}_{fingerprint[:16]}')
         spec = {
             'schema': 1, 'name': f'vrc-caspt2-{safe_name}',
             'molecule': molecule,
@@ -754,14 +752,8 @@ class VTS:
                 'vrc_scan_distance_angstrom': float(distance),
             },
         }
-        if not run_dir.exists():
-            prepare(spec, run_dir)
-        else:
-            _, stored, _ = _load(run_dir)
-            if stored.get('intent', {}).get(
-                    'vrc_scan_fingerprint') != fingerprint:
-                raise RuntimeError(
-                    f'VRC scan provenance collision at {run_dir}.')
+        from kinbot.vrc_graph import select_graph
+        run_dir = select_graph(Path('vrctst/molpro_scan'), safe_name, spec)
         preflight_until_scheduler_ready(run_dir, interval=20.)
         _, _, state = _load(run_dir)
         # Explicit outage recovery can archive an interrupted attempt before

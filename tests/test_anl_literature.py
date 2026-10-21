@@ -68,7 +68,7 @@ def test_prepare_cli_builds_only_the_default_small_species_pair_plus_low(
         'ccsdt_dz', 'ccsdtq_dz', 'ccsdtqp_dz']
     assert spec['molecule']['multiplicity'] == 1
     qp = next(task for task in spec['tasks'] if task['id'] == 'ccsdtqp_dz')
-    assert qp['resources']['walltime'] == '24:00:00'
+    assert qp['resources']['walltime'] == '7-00:00:00'
     assert qp['resources']['max_cores'] == 4
     assert spec['intent']['literature_benchmark']['name'] == \
         'methane-qz-2017'

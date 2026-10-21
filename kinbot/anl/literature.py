@@ -609,9 +609,8 @@ def main(argv=None):
             task_ids=selected)
         for task in spec['tasks']:
             if task['id'] == 'ccsdtqp_dz':
-                # The small source-matched probes should finish on a day
-                # partition. A genuine timeout can then exercise resume-mrcc.
-                task['resources']['walltime'] = '24:00:00'
+                # Retain the benchmark's core count, but do not force an
+                # artificial one-day timeout for the higher-order solver.
                 task['resources']['max_cores'] = 4
         spec['intent']['literature_benchmark'] = {
             'name': args.benchmark,

@@ -116,6 +116,41 @@ def test_refresh_keeps_live_anl_and_vrc_and_restarts_once(live_tree):
     assert len(t.launches) == 2
 
 
+def test_deduplicate_refresh_cancels_only_verified_duplicate_and_retains_chain(live_tree, monkeypatch):
+    from tests.test_vrc_graph import graph, spec
+    t = live_tree
+    scans = t.root/'ch3s/123/vrctst/molpro_scan'
+    original = graph(scans/'asymptote_old', spec(), job='1000')
+    duplicate = graph(scans/'asymptote_new', spec(walltime='7-00:00:00'), 'submitted', '1001')
+    t.jobs.append(dict(job_id='1001', directory=str(duplicate/'tasks/point'), state='RUNNING'))
+    preserved = {p: file_sha256(p) for g in (*t.graphs, original) for p in g.rglob('*') if p.is_file()}
+    cancelled = []
+    terminal = {}
+    def record(ident):
+        job = next((j for j in t.jobs if j['job_id'] == ident), terminal.get(ident))
+        return {} if job is None else dict(JobId=ident, WorkDir=job['directory'], JobState=job['state'])
+    def cancel(command):
+        assert command == ['scancel', '1001']
+        job = next(j for j in t.jobs if j['job_id'] == command[1])
+        t.jobs.remove(job)
+        terminal['1001'] = dict(job, state='CANCELLED')
+        cancelled.append(command[1])
+        return ''
+    monkeypatch.setattr('kinbot.execution.slurm_job_record', record)
+    monkeypatch.setattr(run_refresh, '_pending_request', cancel)
+    review = run_refresh.refresh(t.root, deduplicate_vrc=True)
+    assert review['phase'] == 'reviewed' and not t.signals and not cancelled
+    result = run_refresh.refresh(t.root, apply=True, deduplicate_vrc=True)
+    assert result['phase'] == 'launched' and cancelled == ['1001']
+    assert len(t.jobs) == 4 and len(t.launches) == 2
+    assert preserved == {p: file_sha256(p) for p in preserved}
+    assert not duplicate.exists() and original.exists()
+    archived = Path(result['archive'])/'vrc_duplicates'/duplicate.relative_to(t.root)
+    assert (archived/'workflow.json').is_file()
+    assert run_refresh.refresh(t.root, apply=True, deduplicate_vrc=True) == result
+    assert cancelled == ['1001'] and len(t.launches) == 2
+
+
 def test_refresh_preserves_shared_policy_and_all_running_allocations(live_tree):
     from kinbot import run_policy
     t = live_tree

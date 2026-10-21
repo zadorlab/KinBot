@@ -265,6 +265,9 @@ def _unchanged_stopped_handoff(root, journal):
     migration = journal.get('vrc_migration') or {}
     if migration.get('cancellations'):
         return False
+    duplicate = journal.get('vrc_deduplication') or {}
+    if duplicate.get('cancellations') or duplicate.get('phase') == 'archived':
+        return False
     if migration:
         if run_salvage.file_sha256(root/'prepared.json') != migration['prepared_sha256']:
             return False
@@ -433,7 +436,7 @@ def _replace_pending(root, journal, marker):
 
 
 def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
-            cancel_superseded_vrc_scans=False):
+            cancel_superseded_vrc_scans=False, deduplicate_vrc=False):
     """Journal a controller-only handoff; repeated same-code calls are no-ops."""
     root = Path(root).resolve(strict=True)
     marker = root / 'salvage.json'
@@ -441,6 +444,11 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
     journal_path = root / 'controller_refresh.json'
     journal = json.loads(journal_path.read_text()) if journal_path.exists() else None
     vrc_updates = vrc_updates or {}
+    if deduplicate_vrc and (vrc_updates or replace_pending):
+        raise ValueError('VRC deduplication cannot be combined with a scientific migration or pending replacement.')
+    if (journal and journal['phase'] != 'launched'
+            and bool(journal.get('deduplicate_vrc')) != deduplicate_vrc):
+        raise RuntimeError('Repeat the interrupted refresh with the same VRC deduplication option.')
     if vrc_updates and replace_pending:
         raise ValueError('Targeted VRC migration cannot replace unrelated pending allocations.')
     if cancel_superseded_vrc_scans and not vrc_updates:
@@ -448,6 +456,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
     pin = run_salvage._pin_code(root, refresh=True)
     if (journal and journal['phase'] == 'launched' and journal['code'] == str(pin)
             and (not replace_pending or journal.get('replace_pending'))
+            and (not deduplicate_vrc or journal.get('deduplicate_vrc'))
             and (not vrc_updates or journal.get('vrc_migration', {}).get('settings') == vrc_updates)):
         return journal
     if (journal and journal['phase'] != 'launched'
@@ -486,6 +495,13 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         jobs = _owned_jobs(root)
         _preflight(root)  # Do this while the original controllers keep working.
         migration = None
+        duplicate = None
+        if deduplicate_vrc:
+            from kinbot import vrc_deduplicate
+            duplicate = vrc_deduplicate.plan(root, jobs)
+            print(f'VRC deduplication: retain {len(duplicate["keep"])} original graphs; '
+                  f'archive {len(duplicate["remove"])} duplicate/derived graphs; '
+                  f'cancel {len(duplicate["selected_jobs"])} duplicate allocations.', flush=True)
         if vrc_updates:
             from kinbot import vrc_restart
             migration = vrc_restart.plan(root, vrc_updates)
@@ -497,7 +513,8 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             migration.update(scans=scans, selected_jobs=selected)
         if not apply:
             return {'phase': 'reviewed', 'controllers': records, 'jobs': jobs, 'code': str(pin),
-                    'replace_pending': replace_pending, 'vrc_migration': migration}
+                    'replace_pending': replace_pending, 'vrc_migration': migration,
+                    'vrc_deduplication': duplicate}
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         archive = root.with_name(root.name + '.controllers.' + stamp)
         archive.mkdir()
@@ -505,7 +522,9 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             atomic_json(archive / 'previous_refresh.json', journal)
         journal = {'phase': 'preparing', 'code': str(pin), 'previous_code': history['code'],
                    'archive': str(archive), 'created_utc': stamp, 'replace_pending': replace_pending,
-                   'pending_cancel_method': pending_method}
+                   'pending_cancel_method': pending_method, 'deduplicate_vrc': deduplicate_vrc}
+        if duplicate is not None:
+            journal['vrc_deduplication'] = duplicate
         if migration is not None:
             journal['vrc_migration'] = migration
             journal['cancel_superseded_vrc_scans'] = cancel_superseded_vrc_scans
@@ -518,6 +537,9 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         print('Quiescing only PES/KB controllers; Slurm jobs remain running.', flush=True)
         with _freeze(root, records) as handles:
             jobs = _owned_jobs(root)  # No thread can submit/write while checked.
+            if journal.get('deduplicate_vrc'):
+                from kinbot import vrc_deduplicate
+                journal['vrc_deduplication'] = vrc_deduplicate.plan(root, jobs)
             if journal.get('vrc_migration'):
                 from kinbot import vrc_restart
                 # Re-inventory after quiescing: a point may have finished and
@@ -552,6 +574,12 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 _replace_pending(root, journal, journal_path)
             else:
                 _owned_jobs(root)
+            if journal.get('deduplicate_vrc'):
+                from kinbot import vrc_deduplicate
+                vrc_deduplicate.apply(root, journal['vrc_deduplication'],
+                    archive/'vrc_duplicates', journal, journal_path)
+                journal['jobs'] = _owned_jobs(root)
+                atomic_json(journal_path, journal)
             if journal.get('vrc_migration'):
                 from kinbot import vrc_restart
                 vrc_restart.cancel_scans(journal['vrc_migration'], journal, journal_path)
@@ -578,6 +606,8 @@ def main(argv=None):
     parser.add_argument('--apply', action='store_true', help='Replace controllers and launch with current code.')
     parser.add_argument('--replace-pending', action='store_true',
                         help='Archive and replace pending allocations; preserve running allocations.')
+    parser.add_argument('--deduplicate-vrc', action='store_true',
+                        help='Verify original VRC results, cancel and archive resource-only duplicate chains.')
     parser.add_argument('--vrc-scan-basis', help='Change only the VRC relaxed/asymptotic geometry basis.')
     parser.add_argument('--vrc-fragment-geometry', choices=['legacy', 'asymptotic_scan'])
     parser.add_argument('--vrc-pivot-level', choices=['L2', 'custom'])
@@ -596,7 +626,8 @@ def main(argv=None):
         result = refresh(root, apply=args.apply, replace_pending=args.replace_pending,
             vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,
                                  args.vrc_reference_basis, args.vrc_reference_power),
-            cancel_superseded_vrc_scans=args.cancel_superseded_vrc_scans)
+            cancel_superseded_vrc_scans=args.cancel_superseded_vrc_scans,
+            deduplicate_vrc=args.deduplicate_vrc)
     print(json.dumps({k: result[k] for k in ('phase', 'code', 'archive') if k in result}, indent=2))
     print('Retained Slurm IDs: ' + ', '.join(j['job_id'] for j in result.get('jobs', [])))
     if result.get('pending_cancellation_evidence'):
@@ -607,6 +638,13 @@ def main(argv=None):
         print('VRC changes: ' + json.dumps(migration['settings'], sort_keys=True))
         print('Superseded scan IDs (native files retained): ' +
               ', '.join(j['job_id'] for j in migration['selected_jobs']))
+    if result.get('vrc_deduplication'):
+        repair = result['vrc_deduplication']
+        print('VRC original graphs retained: ' + str(len(repair['keep'])))
+        print('Duplicate/derived graphs archived: ' + str(len(repair['remove'])))
+        print('Duplicate allocation IDs selected: ' + ', '.join(j['job_id'] for j in repair['selected_jobs']))
+        if repair.get('archive'):
+            print('VRC duplicate archive: ' + repair['archive'])
 
 
 if __name__ == '__main__':

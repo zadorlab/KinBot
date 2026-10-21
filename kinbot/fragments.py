@@ -414,19 +414,26 @@ class Fragment(StationaryPoint):
             v0=v1,
             v1=v2,
             v2=v3)
-        ra_to_plane: float = geometry.dist_point_to_plane(
-            point=ra_pos,
-            plane=plane)
+        normal_length = np.linalg.norm(plane[0])
+        if not np.isfinite(normal_length) or normal_length <= 1.e-12:
+            raise ValueError('Cannot orient geometric pivots from collinear neighbours.')
+        normal = plane[0] / normal_length
+        # The neighbour coordinates above are relative to the reactive atom,
+        # so the atom is at the origin in this plane's coordinate frame.
+        signed_distance = -plane[1] / normal_length
+        ra_to_plane = abs(signed_distance)
         if abs(ra_to_plane) >= .1:
             # If carbon atom out of plane,
             # only place a single pp on other side of the plane
             n_pp = 1
         pp_list = []
-        # To know in which direction to place the pivot point
-        plane_direction = geometry.unit_vector(np.dot(plane[0], ra_pos))
+        # A planar center has two opposite pivots. A pyramidal center has one
+        # pointing away from the neighbour plane. Never normalize a zero
+        # scalar for a planar atom, or depend on the absolute molecular origin.
+        plane_direction = -1. if signed_distance < 0 else 1.
         for i in range(n_pp):
             pp_orient = np.array(
-                geometry.unit_vector(vector=plane[0]) *
+                normal *
                 plane_direction*np.power(-1, i),
                 dtype=float)
             pp_list.append(geometry.unit_vector(pp_orient))

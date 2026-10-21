@@ -88,10 +88,11 @@ The current inputs are **one JSON per PES**: all channel, state, solver and
 orbital-index choices are inline. The obsolete separate surface/state JSON
 files have been removed. Only the six hash-checked binary orbital checkpoints
 are staged as data. Methods explicitly read CAS(5,4) or CAS(7,5). RotdPy's
-statistical target in the base example JSON is **1%**. The r7 campaign's
-`fresh_run.json` overrides it to **5%** and sets 47 relaxed-scan points
-(2–8 angstrom by 0.2, 8.5–12 by 0.5, 13–20 by 1). Its ROTD dividing surfaces
-and separate 30-angstrom asymptotic reference are unchanged. Final L1/L2,
+statistical target in both base example JSON files and r7 is **5%**. Both the
+relaxed-scan and ROTD dividing-distance grids have 47 points
+(2–8 angstrom by 0.2, 8.5–12 by 0.5, 13–20 by 1), including each reviewed
+bottleneck's explicit grid. Pivot alternatives can give multiple surfaces at
+one distance. The separate 30-angstrom asymptotic reference is unchanged. Final L1/L2,
 automatic L3 and constrained VRC force
 thresholds are **0.0005 eV/angstrom**, with SCF Conver8 / Molpro 1e-8 and
 CC/CASPT2/MRCI energy convergence 1e-7. Molpro coefficient tolerances remain

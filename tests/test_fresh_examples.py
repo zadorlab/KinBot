@@ -94,12 +94,12 @@ def test_r7_scan_and_sampling_controls_reach_all_reviewed_surfaces(fresh):
         assert par['rotdpy_flux_parameters'] == dict(
             original['rotdpy_flux_parameters'], flux_rel_err=5)
         assert par['vrc_tst_scan_points'] == expected
-        assert par['rotdpy_dist'] == original['rotdpy_dist']
+        assert par['rotdpy_dist'] == original['rotdpy_dist'] == expected
         surface, _ = load_surface_model(par)
         for ci, channel in enumerate(surface['channels']):
             for si, stage in enumerate(channel['bottlenecks']):
                 previous = original['vrc_tst_surface_model']['channels'][ci]['bottlenecks'][si]
-                assert stage['distances_angstrom'] == previous['distances_angstrom']
+                assert stage['distances_angstrom'] == previous['distances_angstrom'] == expected
                 assert stage['states'] == previous['states']
                 for state in stage['states']:
                     leaf = state_parameters(par, stage, state, [2, 3])

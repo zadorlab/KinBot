@@ -28,7 +28,7 @@ def test_prepared_package_is_portable_immutable_and_records_resolved_settings(ha
         assert resolved['queue_job_limit'] == 10
         assert resolved['vrc_tst_surface_model_file'] == ''
         assert resolved['vrc_tst_surface_model']['channels']
-        assert resolved['rotdpy_flux_parameters']['flux_rel_err'] == 1
+        assert resolved['rotdpy_flux_parameters']['flux_rel_err'] == 5
         assert resolved['sella_fmax'] == resolved['anl_geometry_fmax'] == 5e-4
         assert resolved['vrc_tst_scan_fmax'] == 5e-4
         assert resolved['anl_scf_convergence'] == resolved['vrc_tst_scf_convergence'] == 1e-8

@@ -112,18 +112,22 @@ settings and live-policy defaults. The default campaign configuration:
   and CH3SS C–S/S–S, MR supermolecule asymptotes, aDZ-F12 relaxation,
   L2 fixed-geometry orbital pivots, and aDZ/aTZ-F12 extrapolation of both
   CC reference energies and MR spin gaps;
-- sets relaxed-scan distances to 2.0–8.0 angstrom inclusive by 0.2, then
+- sets both relaxed-scan and ROTD dividing distances to 2.0–8.0 angstrom inclusive by 0.2, then
   8.5–12.0 by 0.5, then 13–20 by 1.0: **47 points per electronic surface**,
   94 per starting PES (188 across the four reviewed surfaces). The separately
   computed asymptotic reference remains at its existing 30 angstrom. The
-  ROTD dividing surfaces remain unchanged. Coarser interpolation still needs
+  reviewed bottlenecks explicitly contain the same 47 dividing distances.
+  Oriented/atom pivot alternatives can create more than one surface at a
+  distance; 47 distances does not mean exactly 47 Surface objects.
+  Coarser interpolation still needs
   inspection of the resulting correction potential; point count alone does
   not establish unchanged accuracy;
 - sets the ROTD Monte Carlo relative flux-error target to **5%** using
   `rotdpy_flux_parameters.flux_rel_err: 5`, preserving the other sampling
   bounds. This is a statistical stopping target, not a confidence level or
-  a total kinetic-error guarantee. Both choices live in `input_overrides`
-  in the campaign JSON and in each generated case input;
+  a total kinetic-error guarantee. The scan and sampling overrides live in
+  the campaign JSON; both grids and the 5% target are explicit in the source
+  examples and each generated case input;
 - enables live controls without holding every scientifically rejected TS
   indefinitely. Unreviewed VRC channels have their own review hold, independent
   of this failed-search option. `hold_task_failures: true` keeps failed ANL/VRC
@@ -223,12 +227,22 @@ watch -n 15 "$HOME/KinBot/.venv/bin/python -m kinbot.run_monitor $HOME/kinbot-ru
 ## Exploration, review, and continuation
 
 Each well completes its L1/L2 exploration and publishes accepted L2 evidence.
-The outer PES waits for **all discovered wells**, applies its L2 pathway
+The outer PES waits for **all discovered eligible wells**, applies its L2 pathway
 selection (including reverse discoveries), and only then schedules ANL for
 selected states plus required CBH references. VRC can run reviewed channels
 after their own well finishes. Unknown active spaces produce a review request
-without blocking exploration or the later ANL network. See
+without blocking exploration or the later ANL network. Eligibility still obeys
+the configured energy limits and exclusions. Rejected searches are recorded;
+they do not become accepted pathways merely because exploration is finished.
+See
 [the ordering and selection audit](OUTER_PES_ANL_SELECTION_2026-10-21.md).
+
+Here, independent VRC progress means asymptotic geometries, pivots, relaxed
+scans, correction energies and prepared ROTD inputs for reviewed channels.
+The outer PES owns the final ROTD sampling campaign after worker handoffs;
+it does not start duplicate sampling campaigns from each worker. Final
+assembly/sampling can therefore still wait for an outstanding VRC review.
+MESS additionally requires the accepted thermochemistry and rate inputs.
 
 With `orbital_review_reserve: 3`, a current `needs_review` request reduces the
 shared campaign ceiling by three. Running allocations finish; owned pending
@@ -304,17 +318,32 @@ agreement, QZ/5Z correction assembly, strict same-basis DKH/NR pairing,
 high-precision energies, VRC extrapolation/orbital staging, shared capacity
 drain/release, review reserves, and interrupted/partial fresh handoffs.
 The full repository suite, including cleanup and live controls, passed with
-**2,620 passed, 7 skipped, 429 subtests passed** (`.venv/bin/python -m pytest -q`,
-116.34 seconds). This includes partition-maximum defaults, explicit shorter
+**2,628 passed, 7 skipped, 429 subtests passed** (`.venv/bin/python -m pytest -q`,
+108.52 seconds; final 47-distance surface revision). This includes partition-maximum defaults, explicit shorter
 overrides, unlimited partitions, scheduler-discovery failures, and deferred
 reconnaissance submission. Local process-inspection tests require permission
 to run `ps` on macOS; sandbox-denied process inspection is not a passing audit.
 The one warning is the existing test import of deprecated
 `imp`. Skipped native/environment-dependent tests are not native QC evidence.
-After the requested scan-grid and sampling-target changes, the focused handoff,
-multistate VRC, correction, and ROTD input suites passed **101 tests**. They
-check the 47-point grid and 5% target in every reviewed leaf and the generated
-sampling inputs, including preservation of the separate dividing surfaces.
+The final grid checks use the actual surface builder, not just mocked sampling
+inputs. They check both 47-point grids and the 5% target in every reviewed leaf,
+all generated radial distances through 20 angstrom, and custom output directories.
+The focused handoff/surface suites also passed 61 tests with RuntimeWarnings
+treated as errors.
+They exposed and repaired three additional surface-generation defects:
+
+- An explicit reactive-coordinate stage suppressed COM surfaces but stopped
+  atom-centered surfaces at the legacy 12-angstrom crossover. It now retains
+  reactive atom pivots at the requested far distances. Legacy mixed-coordinate
+  stages retain their existing COM crossover. An uncovered explicit reactive
+  distance raises an error rather than silently disappearing.
+- Geometric pivot construction normalized a zero scalar at an exactly planar
+  three-neighbour center and mixed absolute and relative coordinate frames.
+  It now gives two finite opposite plane normals, or one outward normal for a
+  pyramidal center, invariant under translation. HOMO-derived pivots retain
+  their orbital-based implementation.
+- Surface diagnostic XYZ files used a hardcoded `rotdPy` output directory.
+  They now follow the configured directory, including nested VRC stages.
 
 The audited launch sequence is:
 
@@ -325,7 +354,7 @@ The audited launch sequence is:
 4. Launch one pinned PES controller per case using one shared admission pool.
 5. Explore discovered wells at L1/L2, with configured parallel well slots.
    Reviewed VRC channels can progress after their own well is ready.
-6. Select the outer L2 PES after all discovered wells finish; only then plan
+6. Select the outer L2 PES after all eligible discovered wells finish; only then plan
    ANL on selected states and required CBH references. TZ geometry feeds QZ;
    dependent single points require the correct accepted geometry.
 7. Hold new VRC channels for reviewed active spaces, keep other work moving,

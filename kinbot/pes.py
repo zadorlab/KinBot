@@ -1741,7 +1741,8 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
         for dist in par['rotdpy_dist']:
             coordinate = par.get('_vrc_dividing_coordinate', 'legacy')
             if coordinate == 'com':
-                fw, sf, surf = pp_settings.create_surface(dist, pp_info['unique'])
+                fw, sf, surf = pp_settings.create_surface(
+                    dist, pp_info['unique'], output_directory=folder)
                 surfaces.append(surf)
                 faces_weights.append(fw)
                 selected_faces.append(sf)
@@ -1750,14 +1751,14 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
                 logger.info(f"Removing sampling surface {dist} for reaction {reac_name}")
                 continue
             else:
-                pivot_par = par
-                if coordinate == 'reactive':
-                    pivot_par = dict(par, pp_on_COM=float('inf'))
                 (fw, sf, surfs) = pp_settings.create_all_surf_for_dist(
                     dist=dist,
                     equiv_ra=pp_info['unique'],
                     fragments=fragments,
-                    par=pivot_par)
+                    par=par)
+                if coordinate == 'reactive' and not surfs:
+                    raise ValueError(f'No reactive-coordinate ROTD surface at {dist} angstrom; '
+                                     'check the pivot-placement ranges.')
                 # for sur in surfs:
                 #     if any(sur.dist_matrix <= pp_info['smallest']):
                 #         logger.warning(f'Surface {sur.id} is not on the reaction coordinate.')

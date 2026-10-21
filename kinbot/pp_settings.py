@@ -1,6 +1,7 @@
 from kinbot.species_routing import routing_name
 import logging
 from typing import Any
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
@@ -44,6 +45,8 @@ def create_all_surf_for_dist(dist: float,
     surf: VRC_TST_Surface
     selected_faces: list[list[int]] = []
     faces_weights: list[list[int]] = []
+    output_directory = par.get('rotdpy_directory', 'rotdPy')
+    reactive = par.get('_vrc_dividing_coordinate') == 'reactive'
 
     # Create 'oriented_pp' surfaces
     if dist <= max(par['pp_oriented']):
@@ -64,7 +67,7 @@ def create_all_surf_for_dist(dist: float,
                     pps_l=pps_l,
                     dist=dist,
                     equiv_ra=equiv_ra,
-                    fragments=fragments)
+                    fragments=fragments, output_directory=output_directory)
             surfaces.extend(surfs)
             faces_weights.extend(fws)
             selected_faces.extend(sfs)
@@ -76,25 +79,28 @@ def create_all_surf_for_dist(dist: float,
                     dist=dist,
                     equiv_ra=equiv_ra,
                     fragments=fragments,
-                    pps_dists=[pp_l_f1, pp_l_f2])
+                    pps_dists=[pp_l_f1, pp_l_f2], output_directory=output_directory)
                 surfaces.append(surf)
                 faces_weights.append(fw)
                 selected_faces.append(sf)
     # Create 'on_atom' surfaces
-    if dist <= max(par['pp_on_atom']) and\
+    # Explicit reactive-coordinate stages must not silently lose their far
+    # surfaces when the legacy atom/COM crossover is reached. Keep reactive
+    # atom pivots beyond that crossover instead of changing coordinates.
+    if (reactive or dist <= max(par['pp_on_atom'])) and\
        dist >= min(par['pp_on_atom']):
         (fw, sf, surf) = create_surface(
             dist=dist,
             equiv_ra=equiv_ra,
-            fragments=fragments)
+            fragments=fragments, output_directory=output_directory)
         surfaces.append(surf)
         faces_weights.append(fw)
         selected_faces.append(sf)
 
-    if dist >= par['pp_on_COM']:
+    if not reactive and dist >= par['pp_on_COM']:
         (fw, sf, surf) = create_surface(
             dist=dist,
-            equiv_ra=equiv_ra)
+            equiv_ra=equiv_ra, output_directory=output_directory)
         surfaces.append(surf)
         faces_weights.append(fw)
         selected_faces.append(sf)
@@ -108,7 +114,7 @@ def create_combinatorial_surfaces(pp_l_idxs,
                                   pps_l,
                                   dist,
                                   equiv_ra,
-                                  fragments):
+                                  fragments, output_directory='rotdPy'):
         surfaces = []
         faces_weights = []
         selected_faces = []
@@ -132,7 +138,7 @@ def create_combinatorial_surfaces(pp_l_idxs,
                     dist=dist,
                     equiv_ra=equiv_ra,
                     fragments=fragments,
-                    pps_dists=[pp_l_f1, pp_l_f2])
+                    pps_dists=[pp_l_f1, pp_l_f2], output_directory=output_directory)
                 surfaces.append(surf)
                 faces_weights.append(fw)
                 selected_faces.append(sf)
@@ -194,7 +200,8 @@ def create_combinatorial_surfaces(pp_l_idxs,
 def create_surface(dist,
                    equiv_ra: list[list[list[int]]],
                    fragments: list[Fragment] = [],
-                   pps_dists: list[list[float]] | None = None
+                   pps_dists: list[list[float]] | None = None,
+                   output_directory='rotdPy',
                    ) -> tuple[list[int], list[int], VRC_TST_Surface]:
     """Collect the coord of all pivot points and
     return a list containing VRC_TST surfaces."""
@@ -306,7 +313,9 @@ def create_surface(dist,
         pos.extend(pps_coords[fnum])
         atm = Atoms(symbols=f'{frag.atom}{pps}',
                     positions=pos)
-        atm.write(f'rotdPy/S_{VRC_TST_Surface.__id__}_F_{routing_name(frag)}.xyz')
+        directory = Path(output_directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        atm.write(directory/f'S_{VRC_TST_Surface.__id__}_F_{routing_name(frag)}.xyz')
 
     return (faces_weights,
             selected_faces,

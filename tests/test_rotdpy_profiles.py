@@ -119,6 +119,68 @@ def test_generated_cbs_input_is_valid_python_and_selects_worker_bridge(tmp_path,
     assert (tmp_path / 'custom_rotd' / 'qu.tpl').is_file()
 
 
+@pytest.mark.parametrize('coordinate', ['reactive', 'legacy'])
+def test_real_surface_builder_covers_r7_grid_and_custom_output_directory(tmp_path, monkeypatch, coordinate):
+    import re
+    par, data, path = sulfur_correction(tmp_path)
+    grid = ([i / 10 for i in range(20, 81, 2)]
+            + [i / 2 for i in range(17, 25)] + list(range(13, 21)))
+    par.update(rotdpy_dist=grid, vrc_tst_scan_points=grid,
+               _vrc_dividing_coordinate=coordinate, rotdpy_directory='custom_rotd')
+    data['dist'] = [2., 8., 20., 30.]
+    # Non-collinear methyl geometry: the real geometric pivot construction
+    # runs here; no QC, surface builder or Surface constructor is mocked.
+    data['frags_geom'] = [[[0., 0., 0.], [1.08, 0., 0.],
+                          [-.54, .935, 0.], [-.54, -.935, 0.]], [[0., 0., 0.]]]
+    path.write_text(json.dumps(data))
+    monkeypatch.chdir(tmp_path)
+    generated = create_rotdpy_inputs(par,
+        [['parent', 'parent_hom_sci_1_2', ['methyl', 'sulfur'], 0.]], [], correction_root=tmp_path)
+    text = Path(generated[0]).read_text()
+    compile(text, generated[0], 'exec')
+    assert set(map(float, re.findall(r'#Distance: ([\d.]+) Angstrom', text))) == set(grid)
+    far = text[:re.search(r'#Distance: 20(?:\.0)? Angstrom', text).start()].split('#Surface id:')[-1]
+    assert ('#Fragment 0: on atom' in far) == (coordinate == 'reactive')
+    assert ('#Fragment 0: COM' in far) == (coordinate == 'legacy')
+    assert list(Path('custom_rotd').glob('S_*_F_*.xyz'))
+    assert not Path('rotdPy').exists()
+    assert not re.search(r'\b(?:nan|inf)\b', text, re.I)
+
+
+@pytest.mark.parametrize('height', [0., .3, -.3])
+def test_geometric_pivots_are_finite_and_translation_invariant(height):
+    from kinbot.fragments import Fragment
+    geom = np.array([[0., 0., height], [1., 0., 0.],
+                     [-.5, .866, 0.], [-.5, -.866, 0.]])
+    bonds = np.zeros((1, 4, 4), dtype=int)
+    bonds[0, 0, 1:] = bonds[0, 1:, 0] = 1
+    def orientations(positions):
+        return Fragment.pp_bipyramide_triangle_base(
+            SimpleNamespace(geom=positions, bonds=bonds), 0)
+    with np.errstate(all='raise'):
+        actual = orientations(geom)
+        translated = orientations(geom + [3., -2., 5.])
+    assert np.all(np.isfinite(actual))
+    assert np.allclose(actual, translated)
+    assert np.allclose(np.linalg.norm(actual, axis=1), 1.)
+    if height:
+        assert actual.shape == (1, 3)
+        assert actual[0, 2] * height > 0
+    else:
+        assert actual.shape == (2, 3)
+        assert np.allclose(actual[0], -actual[1])
+
+
+def test_explicit_reactive_grid_rejects_uncovered_pivot_range(tmp_path, monkeypatch):
+    par, _, _ = sulfur_correction(tmp_path)
+    par.update(rotdpy_dist=[3., 4., 5.], _vrc_dividing_coordinate='reactive',
+               pp_oriented=[1., 2.], pp_on_atom=[5., 12.])
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match='No reactive-coordinate ROTD surface at 3.0'):
+        create_rotdpy_inputs(par,
+            [['parent', 'parent_hom_sci_1_2', ['methyl', 'sulfur'], 0.]], [], correction_root=tmp_path)
+
+
 @pytest.mark.parametrize('name,roots,electrons,partition,sulfur_x', [
     ('ch3s', 3, 25, 'occ,14\nclosed,10', 12.),
     ('ch3ss', 1, 41, 'occ,22\nclosed,17', 12.),

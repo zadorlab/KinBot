@@ -358,7 +358,7 @@ def test_actual_scalar_templates_are_generated_for_each_state_and_coordinate(tmp
         def __repr__(self):
             return 'Surface()'
     calls = []
-    def com(*args):
+    def com(*args, **kwargs):
         calls.append('com')
         return [1], [0], SurfaceFixture()
     monkeypatch.setattr('kinbot.pp_settings.create_surface', com)

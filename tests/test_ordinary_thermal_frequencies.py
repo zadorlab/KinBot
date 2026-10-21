@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
+from ase import Atoms
 from ase.build import molecule
 
 from kinbot.calculation import load_calculation_record
@@ -22,6 +23,40 @@ from kinbot.stereo_identity import canonical_identity
 
 
 class TestOrdinaryThermalFrequencies(unittest.TestCase):
+    def test_completed_atomic_product_finalizes_without_resubmitting_qc(self):
+        previous = Path.cwd()
+        with TemporaryDirectory() as directory:
+            try:
+                os.chdir(directory)
+                Path('input.json').write_text(json.dumps({'barrier_threshold': 100.}))
+                par = Parameters('input.json', show_warnings=False).par
+                par.update(high_level=1, rotor_scan=1, conformer_search=0,
+                           multi_conf_tst=0, L3_calc=0, pes=0)
+                qc = QuantumChemistry(par)
+                atoms = Atoms('S', positions=[[-3.3673412843178974, .2, .3]])
+                p = StationaryPoint('sulfur', 0, 3, atom=['S'], geom=atoms.positions)
+                p.characterize()
+                p.optical_reference = canonical_identity(p)
+                job = 'accepted_sulfur_high'
+                qc.db.write(atoms, name=job, data={'energy': -100., 'zpe': 0.,
+                    'frequencies': [], 'hess': np.zeros((3, 3)), 'status': 'normal'})
+                load_calculation_record(p, qc, job)
+                opt = Optimize(p, par, qc)
+                opt.selected_job, opt.shigh, opt.shir = job, 1, 1
+                with patch.object(qc, 'submit_qc', side_effect=AssertionError('No new QC needed')):
+                    opt.do_optimization()
+                self.assertEqual((p.freq, p.kinbot_freqs, p.reduced_freqs), ([], [], []))
+                self.assertEqual(p.rotor_projection['external_rank'], 3)
+                self.assertEqual(p.rotor_projection['reference']['hessian_source_job'], job)
+                final = list(qc.db.select(name=opt.log_name(1)))[-1]
+                self.assertEqual(final.data.status, 'normal')
+                self.assertEqual(list(final.data.frequencies), [])
+                self.assertEqual(final.data.energy, -100.)
+                np.testing.assert_array_equal(final.positions, atoms.positions)
+                self.assertEqual(len(list(qc.db.select(name=job))), 1)
+            finally:
+                os.chdir(previous)
+
     def test_final_writer_corrects_soft_modes_and_preserves_raw_record(self):
         previous = Path.cwd()
         with TemporaryDirectory() as directory:

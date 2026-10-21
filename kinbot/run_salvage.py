@@ -180,10 +180,40 @@ def _save(path, root, archive, *, move=False):
         shutil.copy2(path, target)
 
 
+def _controller_history(root):
+    """Read a completed launch receipt without modifying a fresh campaign.
+
+    The first controller refresh of a fresh run uses the normal handoff
+    transaction. Its salvage.json is written after handoff preflight succeeds;
+    fresh_run.json remains the immutable record of the original launch.
+    """
+    marker = root / 'salvage.json'
+    if marker.exists():
+        return json.loads(marker.read_text())
+    fresh = json.loads((root / 'fresh_run.json').read_text())
+    if fresh.get('schema') != 1 or fresh.get('phase') != 'launched':
+        raise RuntimeError('Controller refresh requires a completed fresh-run launch.')
+    _, inputs = _cases(root)
+    pin = Path(fresh['code'])
+    if (pin.parent != root or not pin.name.startswith('.fresh_code.')
+            or pin.is_symlink() or not pin.is_dir()):
+        raise ValueError('Fresh launch code must be a local pinned directory.')
+    for path in inputs:
+        receipt = json.loads((path.parent / 'launch.json').read_text())
+        if (receipt != fresh.get('launches', {}).get(path.parent.name)
+                or receipt.get('code') != str(pin)
+                or receipt.get('input') != str(path)
+                or type(receipt.get('pid')) is not int or receipt['pid'] <= 0):
+            raise RuntimeError(f'{path.parent}: fresh launch receipt does not match; '
+                               'no controllers or allocations changed.')
+    return dict(status='launched', inputs=[str(p) for p in inputs], code=str(pin),
+                fresh_launch_record=str(root / 'fresh_run.json'))
+
+
 def _pin_code(root, *, refresh=False):
     import kinbot
     source = Path(kinbot.__file__).parent
-    record = json.loads((root / 'salvage.json').read_text())
+    record = _controller_history(root)
     pin = Path(record.get('code', root / '.salvage_code'))
     if refresh:
         hashes = {str(p.relative_to(source)): file_sha256(p)
@@ -247,7 +277,7 @@ def _preflight_worker_routes(root):
     """Exercise the real QC router used at worker startup, without submitting."""
     from kinbot.parameters import Parameters
     from kinbot.qc import QuantumChemistry
-    _, paths = _cases(root, json.loads((root / 'salvage.json').read_text()).get('input_updates'))
+    _, paths = _cases(root, _controller_history(root).get('input_updates'))
     previous = Path.cwd()
     try:
         for path in paths:
@@ -459,6 +489,10 @@ def launch(root):
         env = dict(os.environ)
         env['PYTHONPATH'] = record['code'] + (os.pathsep + env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
         env['PATH'] = str(Path(sys.executable).parent) + os.pathsep + env.get('PATH', '')
+        # Match fresh launch: only native batch jobs use the configured QC
+        # core count. Controller imports must not create node-sized BLAS pools.
+        for key in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+            env[key] = '1'
         with (case / 'driver.log').open('ab') as log:
             process = subprocess.Popen([sys.executable, '-u', '-m', 'kinbot.pes', str(path)],
                 cwd=case, env=env, stdin=subprocess.DEVNULL, stdout=log,

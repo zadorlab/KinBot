@@ -19,6 +19,8 @@ from kinbot.anl import dispatch
 from kinbot.execution import atomic_json, file_sha256
 from tests.anl_fixture import dispatch_spec, molpro_task
 
+PIN_CODE = run_salvage._pin_code
+
 
 @pytest.fixture
 def live_tree(tmp_path, monkeypatch):
@@ -91,6 +93,102 @@ def live_tree(tmp_path, monkeypatch):
     monkeypatch.setattr(run_salvage.subprocess, 'Popen', launch)
     return SimpleNamespace(root=root, processes=processes, jobs=jobs, graphs=graphs,
                            signals=signals, launches=launches, send=send)
+
+
+@pytest.fixture
+def fresh_tree(live_tree):
+    t = live_tree
+    pin = t.root / '.fresh_code.original'
+    pin.mkdir()
+    launches = {}
+    for case in ('ch3s', 'ch3ss'):
+        directory = t.root / case
+        receipt = json.loads((directory/'launch.json').read_text())
+        receipt.update(code=str(pin), input=str(directory/'input.json'))
+        atomic_json(directory/'launch.json', receipt)
+        launches[case] = receipt
+    atomic_json(t.root/'fresh_run.json', dict(schema=1, phase='launched', code=str(pin),
+                                            launches=launches))
+    (t.root/'salvage.json').unlink()
+    # One controller tree has exited; the other still owns expensive jobs.
+    t.processes[:] = [p for p in t.processes if '/ch3ss' not in p['cwd']]
+    return t
+
+
+def test_fresh_refresh_preserves_qc_and_original_launch_and_restarts_once(fresh_tree):
+    t = fresh_tree
+    before = scientific_files(t.root)
+    original_jobs = deepcopy(t.jobs)
+    original_receipt = (t.root/'fresh_run.json').read_bytes()
+    prepared = (t.root/'prepared.json').read_bytes()
+    assert run_refresh.refresh(t.root)['phase'] == 'reviewed'
+    assert not (t.root/'salvage.json').exists()
+    assert not t.signals and not t.launches
+    result = run_refresh.refresh(t.root, apply=True)
+    assert result['phase'] == 'launched'
+    assert t.jobs == original_jobs and scientific_files(t.root) == before
+    assert (t.root/'fresh_run.json').read_bytes() == original_receipt
+    assert (t.root/'prepared.json').read_bytes() == prepared
+    assert {pid for pid, sig in t.signals if sig == signal.SIGKILL} == {100, 101}
+    assert len(t.launches) == 2
+    for _, kwargs in t.launches:
+        for key in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+            assert kwargs['env'][key] == '1'
+    assert run_refresh.refresh(t.root, apply=True) == result
+    assert len(t.launches) == 2
+
+
+@pytest.mark.parametrize('problem', ['incomplete', 'receipt', 'code', 'input'])
+def test_fresh_refresh_refuses_inconsistent_launch_before_signalling(fresh_tree, problem):
+    t = fresh_tree
+    path = t.root/'fresh_run.json'
+    m = json.loads(path.read_text())
+    if problem == 'incomplete':
+        m['phase'] = 'cleaned'
+    elif problem == 'receipt':
+        m['launches']['ch3s']['pid'] += 1
+    elif problem == 'code':
+        m['code'] = str(t.root.parent/'.fresh_code.other')
+    else:
+        (t.root/'ch3s/input.json').write_text('{"changed":true}')
+    atomic_json(path, m)
+    with pytest.raises((RuntimeError, ValueError)):
+        run_refresh.refresh(t.root, apply=True)
+    assert not t.signals and not t.launches
+    assert not (t.root/'salvage.json').exists()
+
+
+def test_fresh_refresh_recovers_after_launch_receipts_archived(fresh_tree, monkeypatch):
+    t = fresh_tree
+    original = run_refresh._archive_controllers
+    def interrupted(root, archive):
+        original(root, archive)
+        raise RuntimeError('interrupted after archiving controller receipts')
+    monkeypatch.setattr(run_refresh, '_archive_controllers', interrupted)
+    before = scientific_files(t.root)
+    with pytest.raises(RuntimeError, match='interrupted after'):
+        run_refresh.refresh(t.root, apply=True)
+    assert not (t.root/'ch3s/launch.json').exists()
+    monkeypatch.setattr(run_refresh, '_archive_controllers', original)
+    assert run_refresh.refresh(t.root, apply=True)['phase'] == 'launched'
+    assert scientific_files(t.root) == before
+    assert len(t.launches) == 2
+
+
+def test_fresh_refresh_pins_current_code_without_rewriting_original(fresh_tree, monkeypatch):
+    t = fresh_tree
+    monkeypatch.setattr(run_salvage, '_pin_code', PIN_CODE)
+    original = (t.root/'fresh_run.json').read_bytes()
+    review = run_refresh.refresh(t.root)
+    pin = Path(review['code'])
+    assert pin.name.startswith('.salvage_code.')
+    manifest = json.loads((pin/'manifest.json').read_text())
+    assert manifest['kinbot/frequencies.py'] == file_sha256(Path(run_salvage.__file__).with_name('frequencies.py'))
+    result = run_refresh.refresh(t.root, apply=True)
+    assert result['code'] == str(pin)
+    assert (t.root/'fresh_run.json').read_bytes() == original
+    assert run_refresh.refresh(t.root, apply=True) == result
+    assert len(t.launches) == 2
 
 
 def scientific_files(root):

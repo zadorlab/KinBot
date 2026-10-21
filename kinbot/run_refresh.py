@@ -1,4 +1,4 @@
-"""Replace salvage controllers while retaining owned QC Slurm jobs.
+"""Replace fresh-run or salvage controllers while retaining owned QC Slurm jobs.
 
 Only verified PES/KB controllers (including CBH-reference controllers) are
 replaceable. Native calculations and ambiguous submissions cause a refusal.
@@ -534,7 +534,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
     """Journal a controller-only handoff; repeated same-code calls are no-ops."""
     root = Path(root).resolve(strict=True)
     marker = root / 'salvage.json'
-    history = json.loads(marker.read_text())
+    history = run_salvage._controller_history(root)
     journal_path = root / 'controller_refresh.json'
     journal = json.loads(journal_path.read_text()) if journal_path.exists() else None
     vrc_updates = vrc_updates or {}
@@ -630,6 +630,11 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             return {'phase': 'reviewed', 'controllers': records, 'jobs': jobs, 'code': str(pin),
                     'replace_pending': replace_pending, 'vrc_migration': migration,
                     'vrc_deduplication': duplicate, 'network_revision': network}
+        if not marker.exists():
+            # Bootstrap the normal handoff journal from verified fresh-launch
+            # receipts before archiving any of them. A partial archive must be
+            # resumable even if launch.json has already moved into the archive.
+            atomic_json(marker, history)
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         archive = root.with_name(root.name + '.controllers.' + stamp)
         archive.mkdir()

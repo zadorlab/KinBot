@@ -9,7 +9,8 @@ import numpy as np
 from scipy.linalg import null_space
 from scipy.spatial.transform import Rotation
 
-from kinbot import constants, frequencies
+from kinbot import constants, frequencies, geometry
+from kinbot.calculation import array_fingerprint
 
 
 # ASE reference geometries; bonds and the rotated top are specified explicitly
@@ -72,6 +73,37 @@ def rotor_fixture(name, saddle=False):
 
 
 class TestPhysicalRotorProjection(unittest.TestCase):
+    def test_translated_atoms_have_only_three_translations(self):
+        # These coordinates leave nonzero floating-point COM residuals for
+        # each element, including the sulfur product in the CH3SS workflow.
+        for atom, x in [('S', -3.3673412843178974),
+                        ('C', -5.822671815393681),
+                        ('H', -7.946949491504098)]:
+            for weighted in (False, True):
+                with self.subTest(atom=atom, massweighted=weighted):
+                    xyz = np.array([[x, .2, .3]])
+                    centered = xyz - geometry.get_center_of_mass(xyz, [atom])
+                    self.assertGreater(np.linalg.norm(centered), 0.)
+                    translations, rotations = frequencies.rigid_body_vectors(centered, [atom])
+                    np.testing.assert_allclose(translations @ translations.T, np.eye(3))
+                    np.testing.assert_array_equal(rotations, np.zeros((3, 3)))
+                    species = SimpleNamespace(name=atom, atom=[atom], natom=1,
+                        geom=xyz.copy(), bond=np.zeros((1, 1)), dihed=[],
+                        hessian_source_job='accepted_atom')
+                    hessian = np.eye(3) * 1.e-12  # Small numerical noise is not vibration.
+                    original = hessian.copy()
+                    self.assertEqual(frequencies.get_frequencies(
+                        species, hessian, xyz, massweighted=weighted), ([], []))
+                    evidence = species.rotor_projection
+                    self.assertEqual(evidence['external_rank'], 3)
+                    self.assertEqual(evidence['internal_rank'], 0)
+                    self.assertEqual(evidence['rotors'], [])
+                    self.assertEqual(evidence['reference']['hessian_sha256'], array_fingerprint(hessian))
+                    self.assertEqual(evidence['reference']['hessian_source_job'], 'accepted_atom')
+                    self.assertEqual(evidence['reference']['hessian_massweighted'], weighted)
+                    np.testing.assert_array_equal(xyz, species.geom)
+                    np.testing.assert_array_equal(hessian, original)
+
     def test_only_the_known_torsional_mode_is_removed(self):
         for name in ROTORS:
             for saddle in (False, True):

@@ -124,6 +124,11 @@ def rigid_body_vectors(geom, atom):
         ar = [np.array([1., 0., 0.] * natom) * np.sqrt(masses)]
         tvecs[i] = np.roll(ar, i)
         tvecs[i] /= np.linalg.norm(tvecs[i])
+    # An atom has only translations. Centering can leave a roundoff-sized
+    # coordinate; normalising its cross products would invent rotations and
+    # give the vibrational projector a negative dimension (3 - 3 - 2).
+    if natom == 1:
+        return tvecs, [np.zeros(3) for _ in range(3)]
     I = geometry.get_moments_of_inertia(geom, atom)[1]
     P = np.dot(geom, I.T)
     D = np.zeros((natom, 3, 3))
@@ -213,6 +218,16 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
                                  else 'hartree / bohr^2')
     atom = species.atom
     natom = species.natom
+    if natom == 1:
+        # Atomic calculations may legitimately omit a Hessian altogether.
+        # There is no vibrational or rotational subspace to diagonalize.
+        species.rotor_projection = {
+            'method': 'atomic_no_vibrations', 'reference': reference,
+            'external_rank': 3, 'internal_rank': 0, 'rotors': [],
+        }
+        if getattr(species, 'hir', None) is not None:
+            species.hir.projection_status = []
+        return [], []
 
     masses = []
     for at in atom:

@@ -4,6 +4,52 @@ This version changes new ANL graphs. Existing version-1 graphs keep their
 original definitions and are not relabeled as version 2. The r7 handoff starts
 fresh chemistry and copies only the reviewed VRC orbital seeds/settings.
 
+## Atomic product postprocessing repair (October 21)
+
+The first CH3SS worker exited in `frequencies.get_frequencies`, after product
+optimizations, with `ValueError: negative dimensions are not allowed`. The
+external-mode projector classified floating-point center-of-mass residuals
+of a single atom as real rotations: `3N - 3 - rotation_rank` became negative.
+This is coordinate dependent; previously passing atomic products did not
+exercise it. A translated sulfur atom reproduces the failure locally.
+
+Atoms now return empty vibrational spectra with three translations and no
+rotations. No atomic Hessian is required. Geometry/source provenance remains
+recorded; molecular linearity and TS acceptance rules are unchanged. Tests
+cover translated S/C/H, weighted/unweighted Hessians, and finalizing a stored
+sulfur product through `Optimize` without submitting QC.
+
+To load the repair into the existing r7 controllers:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+git pull --ff-only origin composite
+.venv/bin/python -u -m kinbot.run_refresh \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" --apply
+BASH
+```
+
+`run_refresh` now recognizes a completed fresh-run launch, verifies its input
+hashes and per-case launch receipts, and enters the existing journaled
+controller handoff. It replaces the PES/KB controllers for both cases,
+archives their logs, retains calculation databases, native files, task/route
+ledgers, and running/pending Slurm allocations. It does not retire r7, run
+cache cleanup, change science/resource inputs, or reset QC attempts. The
+original `fresh_run.json` remains historical evidence; subsequent controller
+handoffs are recorded in `controller_refresh.json` and `salvage.json`.
+Controller numerical-library threads remain capped at one, as at fresh
+launch. The existing r7 monitor command remains valid. Do not use the fresh
+campaign creation/retirement command to resume this stopped controller.
+
+Validation of this repair: **2,639 passed, 7 skipped, 435 subtests passed** in
+the full local suite (119.05 s); the one warning is the existing deprecated
+`imp` test import. Handoff tests cover one failed controller tree, preservation
+of calculation files and job IDs, interrupted archival, and repeated commands
+without duplicate controller launches. This is local regression evidence;
+the repaired controllers have not yet been run on Blodgett.
+
 ## Complete component matrix
 
 `VnZ` means cc-pVnZ; `VnZ-F12` means cc-pVnZ-F12; `wCVnZ` means

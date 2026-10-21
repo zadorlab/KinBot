@@ -22,6 +22,47 @@ SCAN_MIRROR_RMSD_TOLERANCE = .1
 logger = logging.getLogger('KinBot')
 
 
+class RotorTopologyError(ValueError):
+    """The graph cannot split an otherwise defined rotor into two parts."""
+
+
+def rotor_axes(rotors):
+    """Validate represented axes without requiring them to be chemical bonds."""
+    axes = {}
+    for rotor in rotors:
+        axis = frozenset(rotor['axis'])
+        domain = rotor.get('represented_domain_degrees')
+        sigma = rotor.get('sigma_int')
+        if (len(axis) != 2 or axis in axes or not rotor.get('usable')
+                or not domain or len(domain) != 2 or domain[0] != 0
+                or not 0 < domain[1] <= 360 or sigma is None or sigma <= 0):
+            raise ValueError('Optical coverage requires distinct usable rotor domains.')
+        axes[axis] = (float(sigma), float(domain[1]))
+    return axes
+
+
+def nonbonded_rotor_partitions(graph, rotors):
+    """Identify abstraction rotations with recorded groups on a nonbonded axis."""
+    partitions = {}
+    bridges = {frozenset(edge) for edge in nx.bridges(graph)}
+    for rotor in rotors:
+        axis = frozenset(rotor['axis'])
+        if graph.has_edge(*rotor['axis']):
+            if axis not in bridges:
+                raise RotorTopologyError('A represented rotor axis cannot be separated by cutting a chemical bond.')
+            continue
+        groups = rotor.get('partition')
+        if (not groups or len(groups) != 2
+                or any(len(set(g)) != len(g) for g in groups)
+                or set(groups[0]) & set(groups[1])
+                or set(groups[0]) | set(groups[1]) != set(graph)):
+            raise ValueError('A nonbonded rotor requires two complete, disjoint recorded HIR groups.')
+        if any(axis <= set(group) for group in groups):
+            raise ValueError('The recorded HIR groups do not separate the rotor axis atoms.')
+        partitions[axis] = frozenset(frozenset(group) for group in groups)
+    return partitions
+
+
 def unresolved_optical_default(result):
     """Keep geometric uncertainty explicit while permitting weight-one output."""
     if (result.get('status') == 'unresolved' and result.get('reason') in (
@@ -55,17 +96,10 @@ class _Parts:
         self.species = species
         self.graph = chemical_graph(species)
         cut = self.graph.copy()
-        self.axes = {}
+        self.axes = rotor_axes(rotors)
         bridges = {frozenset(edge) for edge in nx.bridges(cut)}
-        for rotor in rotors:
-            axis = frozenset(rotor['axis'])
-            domain = rotor.get('represented_domain_degrees')
-            sigma = rotor.get('sigma_int')
-            if (axis not in bridges or axis in self.axes or not rotor.get('usable')
-                    or not domain or domain[0] != 0 or not 0 < domain[1] <= 360
-                    or sigma is None or sigma <= 0):
-                raise ValueError('Optical coverage requires distinct usable bridge-rotor domains.')
-            self.axes[axis] = (float(sigma), float(domain[1]))
+        if any(axis not in bridges for axis in self.axes):
+            raise RotorTopologyError('A represented rotor axis cannot be separated by cutting a chemical bond.')
         cut.remove_edges_from(tuple(axis) for axis in self.axes)
         # Separate fragments still belong to ONE rigid-body model. Their
         # relative pose cannot be changed by independently aligning them.
@@ -269,12 +303,17 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
         return result
     # Validate rotor definitions before any optical fallback. Missing scan
     # coordinates cannot make an invalid torsional domain usable.
+    parts_issue = None
     try:
         parts = _Parts(species, rotors)
+    except RotorTopologyError as error:
+        if not nonbonded_rotor_partitions(chemical_graph(species), rotors):
+            raise
+        parts, parts_issue = None, str(error)
     except ValueError as error:
         if str(error) != 'Disconnected assemblies require an explicit relative-motion model.':
             raise
-        parts = None
+        parts, parts_issue = None, str(error)
     observations, omitted, missing_geometries = [], [], []
     measured = None
     for rotor in rotors:
@@ -368,7 +407,7 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
     if parts is None:
         result.update(reason='The represented motions do not establish mirror coverage or retained handedness.',
                       coordinate_coverage={'status': 'unsupported',
-                          'reason': 'Disconnected assemblies require an explicit relative-motion model.'})
+                          'reason': parts_issue})
         return result
     comparison = parts.compare(geom, geom, tolerance, observations=observations)
     result['coordinate_coverage'] = dict(comparison, additional_qc_calculations=0,

@@ -12,7 +12,8 @@ from ase import Atoms, units
 
 from kinbot import constants, frequencies, geometry
 from kinbot.calculation import array_fingerprint
-from kinbot.molecular_symmetry import _physical_role_graphs, _preserves_resonance
+from kinbot.molecular_symmetry import (chemical_graph, _physical_role_graphs,
+                                      _preserves_resonance)
 
 
 METHOD = 'torsion-aligned-harmonic-midpoint-v1'
@@ -125,26 +126,41 @@ def mirror_midpoint_diagnostic(species, hessian, *, hessian_unit, rotors=(), max
     A capped search reports only the best tested construction, never a global
     optimum. No torsional angles are varied by a numerical optimizer.
     """
-    from kinbot.optical import _Parts
+    from kinbot.optical import _Parts, rotor_axes, nonbonded_rotor_partitions
     if not isinstance(max_mappings, int) or isinstance(max_mappings, bool) or max_mappings < 1:
         raise ValueError('max_mappings must be a positive integer.')
-    parts = _Parts(species, rotors)
-    graph = parts.graph.copy()
+    axes = rotor_axes(rotors)
+    graph = chemical_graph(species)
+    partitions = nonbonded_rotor_partitions(graph, rotors)
+    if not partitions:
+        # Ordinary bond rotors retain the existing graph checks, including
+        # refusal to align disconnected fragments independently.
+        _Parts(species, rotors)
     for a, b, edge in graph.edges(data=True):
-        edge['represented_axis'] = parts.axes.get(frozenset((a, b)))
+        edge['represented_axis'] = axes.get(frozenset((a, b)))
     original = np.asarray(species.geom, float)
     target_geometry = original if target_geometry is None else np.asarray(target_geometry, float)
     if target_geometry.shape != original.shape or not np.all(np.isfinite(target_geometry)):
         raise ValueError('The reflected comparison structure has invalid coordinates.')
     reference = Atoms(species.atom, positions=original)
     instructions = []
+    bridges = {frozenset(edge) for edge in nx.bridges(graph)}
     for rotor in rotors:
         dihed = list(rotor['dihedral'])
-        if len(dihed) != 4 or len(set(dihed)) != 4 or set(dihed[1:3]) != set(rotor['axis']):
+        if (len(dihed) != 4 or len(set(dihed)) != 4
+                or not set(dihed) <= set(graph)
+                or set(dihed[1:3]) != set(rotor['axis'])):
             raise ValueError('A rotor must supply four distinct atoms and its actual central axis.')
-        cut = graph.copy()
-        cut.remove_edge(*dihed[1:3])
-        group = sorted(nx.node_connected_component(cut, dihed[2]))
+        axis = frozenset(dihed[1:3])
+        if axis in bridges:
+            cut = graph.copy()
+            cut.remove_edge(*dihed[1:3])
+            group = sorted(nx.node_connected_component(cut, dihed[2]))
+        else:
+            # Abstraction can rotate about donor--abstractor, across the
+            # transferring atom. Reuse its HIR groups; invent no chemical edge.
+            groups = partitions[axis]
+            group = next((sorted(g) for g in groups if dihed[2] in g), [])
         if dihed[0] in group or dihed[3] not in group:
             raise ValueError('The rotor outer references do not lie on opposite sides of its axis.')
         instructions.append((dihed, group, reference.get_dihedral(*dihed)))
@@ -164,6 +180,13 @@ def mirror_midpoint_diagnostic(species, hessian, *, hessian_unit, rotors=(), max
             seen.add(order)
             tested += 1
             if not _preserves_resonance(species, list(order)):
+                continue
+            # Chemical mappings must also preserve nonbonded rotor domains
+            # and their moving groups, which are not edges of the graph.
+            if any(axes.get(frozenset(mapping[i] for i in axis)) != axes[axis]
+                   or partitions.get(frozenset(mapping[i] for i in axis)) !=
+                   frozenset(frozenset(mapping[i] for i in group) for group in groups)
+                   for axis, groups in partitions.items()):
                 continue
             mirror = Atoms(species.atom, positions=(target_geometry * [-1., 1., 1.])[list(order)])
             for dihed, group, angle in instructions:

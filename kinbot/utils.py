@@ -169,6 +169,14 @@ def clean_files(diagnostic=False, qc=None):
                 atoms = read(ll)
             except (StopIteration, ValueError):
                 continue
+            except RuntimeError as error:
+                # Cleanup is not a result-acceptance path. In particular, a
+                # rejected Gaussian SCF log must survive for the normal QC
+                # status/recovery machinery, not kill the replacement driver
+                # before it can reconcile that job.
+                logger.warning('Startup cleanup retained unreadable QC output %s: %s',
+                               ll, error)
+                continue
             else:
                 if len(atoms.positions) > 1 and np.all(atoms.positions == 0):
                     if not diagnostic:

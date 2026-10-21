@@ -35,6 +35,62 @@ def test_append_only_network_expansion_and_changes_refused():
         network_update.extend(old,altered)
 
 
+@pytest.mark.parametrize('name,smiles,atoms,mult', [
+    ('150390060000000000002', '[CH3]', ['C','H','H','H'], 2),
+    ('140260020000000000003', '[CH2]', ['C','H','H'], 3),
+])
+def test_real_cbh_plan_json_roundtrip_and_authorized_expansion(
+        tmp_path, name, smiles, atoms, mult):
+    from test_anl_automatic import _species
+    from kinbot.anl.automatic import build_network_request, prepare_automatic_cbh_anl
+    root = _species(name, smiles, atoms, mult)
+    root.reac_obj, root.reac_ts_done, root.reac_type = [], [], []
+    par = {'composite_method':'ANL1-F12', 'queue_job_limit':2}
+    old = prepare_automatic_cbh_anl(root, par, directory=tmp_path)
+    saved = json.loads((tmp_path/'network_request.json').read_text())
+    assert old == saved
+    assert prepare_automatic_cbh_anl(root, par, directory=tmp_path) == saved
+    # An added channel needs extension, unlike an identical ordinary restart.
+    product = _species('new_product', 'C', ['C','H','H','H','H'])
+    root.reac_obj = [SimpleNamespace(instance_name='new_channel', family_name='hom_sci',
+                                     products=[product], ts=None, do_vdW=False)]
+    root.reac_ts_done, root.reac_type = [-1], ['hom_sci']
+    new = build_network_request(root, par)
+    # Reproduce the old builder's in-memory tuple form explicitly as well.
+    for target in new['cbh']['targets'].values():
+        reaction = target.get('reaction', {})
+        reaction['states'] = {s:tuple(v) for s,v in reaction.get('states',{}).items()}
+    expanded = network_update.extend(saved, new)
+    expected = json.loads(json.dumps(new))
+    promoted = next(r for r in expected['cbh']['calculated_states'] if r['smiles']=='C')
+    promoted['graph_revision'] = ts_reuse.digest({
+        k:v for k,v in promoted['network_record'].items() if k!='roles'})[:16]
+    assert expanded == expected
+    for field, value in [('states', {smiles:(0, mult+2)}),
+                         ('stoichiometry', {smiles:-2})]:
+        bad = deepcopy(new)
+        bad['cbh']['targets'][name]['reaction'][field] = value
+        with pytest.raises(ValueError, match='CBH targets/'+name):
+            network_update.extend(saved, bad)
+    bad = deepcopy(new)
+    bad['network']['stable_species'][0]['energy_hartree'] += .001
+    with pytest.raises(ValueError, match='stable species'):
+        network_update.extend(saved, bad)
+    bad = deepcopy(new)
+    bad['network']['stable_species'][0]['molecule']['positions'][0][0] += .01
+    with pytest.raises(ValueError, match='stable species'):
+        network_update.extend(saved, bad)
+    archive = tmp_path/'archive'
+    atomic_json(tmp_path/'network_revisit.json', dict(
+        previous_sha256=ts_reuse.digest(saved), archive=str(archive)))
+    (tmp_path/'native.out').write_text('existing expensive work')
+    result = prepare_automatic_cbh_anl(root, par, directory=tmp_path)
+    assert result == expanded
+    assert json.loads((archive/'network_request.json').read_text()) == saved
+    assert (tmp_path/'native.out').read_text() == 'existing expensive work'
+    assert prepare_automatic_cbh_anl(root, par, directory=tmp_path) == result
+
+
 def test_path_metadata_can_be_added_but_not_changed_during_expansion():
     old = network()
     old['network']['reactions'] = [dict(name='ts',reactant='a',products=['b'])]

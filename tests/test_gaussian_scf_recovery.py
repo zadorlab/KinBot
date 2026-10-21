@@ -174,6 +174,29 @@ def test_reader_rejects_native_nonconvergence_even_with_zero_exit(tail):
         read_gaussian_out(StringIO(ORIENTATION + UNCONVERGED + tail))
 
 
+@pytest.mark.parametrize('diagnostic', [False, True])
+def test_startup_cleanup_retains_rejected_scf_for_recovery(
+        tmp_path, monkeypatch, caplog, diagnostic):
+    from kinbot.utils import clean_files
+    from kinbot.ase_modules.io.formats import read
+    monkeypatch.chdir(tmp_path)
+    path = tmp_path/'330330000000000000002_well.log'
+    native = (' Entering Gaussian System\n'+ORIENTATION+UNCONVERGED+
+              'Error termination via Lnk1e in /opt/gaussian/g16/l701.exe\n')
+    path.write_text(native)
+    checkpoint = tmp_path/'330330000000000000002_well.chk'
+    checkpoint.write_bytes(b'failed-attempt evidence')
+    with pytest.raises(RuntimeError, match='Gaussian SCF did not converge'):
+        read(path)
+    clean_files(qc='gauss', diagnostic=diagnostic)
+    assert 'Startup cleanup retained unreadable QC output' in caplog.text
+    assert path.read_text() == native
+    assert checkpoint.read_bytes() == b'failed-attempt evidence'
+    # Surviving cleanup must never turn the failed native output into a result.
+    with pytest.raises(RuntimeError, match='Gaussian SCF did not converge'):
+        read(path)
+
+
 @pytest.mark.parametrize('scf', [CONVERGED, UNCONVERGED + QC_CONVERGED])
 def test_reader_accepts_converged_diis_and_successful_xqc(scf):
     from io import StringIO

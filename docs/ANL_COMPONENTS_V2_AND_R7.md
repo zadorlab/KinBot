@@ -230,13 +230,37 @@ See [the complete live-control commands and fallback schema](LIVE_DRIVER_CONTROL
 
 ## Validation and limits
 
+The final r6 monitor at **2026-10-21 13:27:44 -07:00** exposed two additional
+code defects, both reproduced and repaired before this handoff:
+
+- CBH expansion compared in-memory `(charge, multiplicity)` tuples against
+  JSON lists. This falsely reported changed `[CH3]` and `[CH2]` targets.
+  Plans and extension comparisons now use the persisted JSON representation;
+  real changes to spin, stoichiometry, geometry, or energy still fail. Tests
+  exercise real generated CBH plans through save, extension, publication,
+  and repeated restart, retaining native work and reference-promotion rules.
+- Startup cleanup tried to parse the failed SH Gaussian log and propagated
+  the strict SCF reader's exception before QC reconciliation could run.
+  Cleanup now warns and retains rejected output for recovery. The reader
+  still rejects that output; cleanup does not accept it or erase evidence.
+
+That snapshot is not a healthy r6 status: CH3SS's PES owner had exited, and
+two CH3S CBH branches had failed. Its 35 bad-file-descriptor records belong
+to the already addressed worker-lock failure. Conversely, CH3S's outer L2
+selection (8 retained, 18 omitted), reviewed VRC scan progress through point
+38, and two new-well orbital-review holds demonstrate those paths advancing.
+The 750-step exhausted searches and invalid TS frequency checks remain genuine
+rejected candidates, eligible for deliberate manual fallback, not automatic
+success. The snapshot contains no new optimizer/curvature tails for the four
+long geometries and therefore cannot establish their eventual convergence.
+
 Tests cover all eight ANL variants for closed/open shells, basis/method/parser
 agreement, QZ/5Z correction assembly, strict same-basis DKH/NR pairing,
 high-precision energies, VRC extrapolation/orbital staging, shared capacity
 drain/release, review reserves, and interrupted/partial fresh handoffs.
 The full repository suite, including cleanup and live controls, passed with
-**2,603 passed, 7 skipped, 429 subtests passed** (`.venv/bin/python -m pytest -q`,
-106.72 seconds). The one warning is the existing test import of deprecated
+**2,607 passed, 7 skipped, 429 subtests passed** (`.venv/bin/python -m pytest -q`,
+114.40 seconds). The one warning is the existing test import of deprecated
 `imp`. Skipped native/environment-dependent tests are not native QC evidence.
 
 The audited launch sequence is:

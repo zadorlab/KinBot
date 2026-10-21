@@ -690,7 +690,10 @@ def build_network_request(root, parameters):
     }
     if complexes:
         result['network']['product_complexes'] = complexes
-    return result
+    # Keep the in-memory contract identical to its persisted representation:
+    # CBH dataclass states are tuples before JSON serialization. Otherwise a
+    # legitimate later network expansion can mistake them for changed states.
+    return json.loads(json.dumps(result, allow_nan=False))
 
 
 def routing_name_from_record(record):

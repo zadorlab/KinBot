@@ -9,7 +9,8 @@ from kinbot.anl.ts_reuse import digest
 
 def enrich_path_metadata(previous, current):
     """Only fill missing classes for otherwise identical accepted reactions."""
-    result = deepcopy(previous)
+    result = _persisted(previous)
+    current = _persisted(current)
     rows = {r['name']:r for r in current['network']['reactions']}
     for row in result['network']['reactions']:
         candidate = rows.get(row['name'], {})
@@ -19,12 +20,23 @@ def enrich_path_metadata(previous, current):
     return result
 
 
+def _persisted(record):
+    """Compare precisely the JSON contract used by the on-disk manifest.
+
+    CBH dataclasses store (charge, multiplicity) as tuples, while a saved
+    manifest reads them back as lists. This is representation only; every
+    element, its order, and every scientific field still participates in the
+    comparison. Nonfinite numbers are not valid scientific records.
+    """
+    return json.loads(json.dumps(record, allow_nan=False))
+
+
 def extend(previous, current):
     """Permit additional work, never change the scientific input of saved work."""
+    previous, current = _persisted(previous), _persisted(current)
     for key in set(previous) | set(current):
         if key not in ('network', 'cbh') and previous.get(key) != current.get(key):
             raise ValueError(f'Network extension changed {key}; scientific migration is required.')
-    current = deepcopy(current)
     a, b = enrich_path_metadata(previous,current)['network'], current['network']
     if a['initial'] != b['initial']:
         raise ValueError('Network extension changed the initial well.')

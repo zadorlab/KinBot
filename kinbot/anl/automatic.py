@@ -513,6 +513,11 @@ def build_network_request(root, parameters):
             'reactant': routing_name(root), 'products': sorted(products),
             'transition_state': ts_name, 'barrierless': barrierless,
         })
+        if not barrierless and hasattr(reaction.ts, 'stereopath_metadata'):
+            # Previously this classification was used only by final PES
+            # export. Graph reuse must protect it before expensive QC too.
+            from kinbot.reaction_path import reaction_path_id
+            reactions[-1]['path_class'] = reaction_path_id(reaction)
         if getattr(reaction, 'do_vdW', False):
             point = reaction.irc_prod_opt.species
             record = _l2_species_record(point, l2_theory)
@@ -2047,6 +2052,14 @@ def prepare_automatic_cbh_anl(root_species, parameters, *,
             old = old_states.get((entry['smiles'],entry['charge'],entry['multiplicity']), {})
             if 'graph_revision' in old and {k:v for k,v in old.items() if k!='graph_revision'} == entry:
                 entry['graph_revision'] = old['graph_revision']
+        from kinbot.anl.network_update import enrich_path_metadata
+        enriched = enrich_path_metadata(previous, plan)
+        if enriched != previous and enriched == plan:
+            # Adding a previously unrecorded pathway class changes no QC
+            # input, graph identity, energy, geometry, or network membership.
+            atomic_json(base/'network_metadata_history'/(_sha256_json(previous)+'.json'), previous)
+            atomic_json(plan_path, plan)
+            return plan
         if _sha256_json(previous) != _sha256_json(plan):
             same_qc = (_sha256_json(_network_qc_contract(previous))
                        == _sha256_json(_network_qc_contract(plan)))

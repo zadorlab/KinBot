@@ -604,6 +604,13 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             network = network_revisit.plan(root, jobs, network_options)
             print(f"Network revisit: {sum(len(w['rejected']) for w in network['workers'])} rejected channels; "
                   f"{len(network['selected_jobs'])} verified duplicate ANL allocations selected.", flush=True)
+            local = sum(len(e['mapping']['aliases']) for e in network['aliases'])
+            shared = sum(len(e['mapping']['aliases']) for e in network.get('external_ts', []))
+            retired = {e['graph'] for group in [*network['aliases'], *network.get('external_ts', [])]
+                       for e in group['remove']}
+            print(f'ANL reuse mappings: local={local}; across wells={shared}; '
+                  f'existing duplicate graphs to archive={len(retired)}. '
+                  'Allocation cancellations are a separate count.', flush=True)
         if deduplicate_vrc:
             from kinbot import vrc_deduplicate
             duplicate = vrc_deduplicate.plan(root, jobs)

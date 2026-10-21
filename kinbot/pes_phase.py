@@ -176,6 +176,8 @@ def _status(status):
 
 def wait_for_exploration(generator=None):
     global _EPOCH
+    from kinbot.pes_snapshot import publish
+    publish(generator)
     if _ROOT is None:
         return
     _EPOCH = None
@@ -199,6 +201,7 @@ def wait_for_exploration(generator=None):
             revise_network(generator)
             reactions(generator)
             generator.generate()
+            publish(generator)
             _status('ready')
         time.sleep(1)
 

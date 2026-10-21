@@ -199,10 +199,13 @@ def reaction_summary(path, warnings):
                 continue
             state = int(parts[0])
             rows.append({'name': parts[2], 'step': parts[1], 'code': state,
-                         'stage': REACTION_STAGES.get(state, f'state {state}')})
+                         'stage': REACTION_STAGES.get(state, f'state {state}'),
+                         'products': parts[3:]})
     except (OSError, ValueError) as error:
         warnings.append(f'{path}: {error}')
-    return {'path': str(path), 'counts': dict(Counter(r['stage'] for r in rows)), 'rows': rows}
+    return {'path': str(path), 'counts': dict(Counter(r['stage'] for r in rows)), 'rows': rows,
+            'accepted_product_groups': len({tuple(sorted(r['products'])) for r in rows
+                                            if r['code'] == -1 and r['products']})}
 
 
 def previous_controller_record(path, root, warnings):
@@ -212,28 +215,30 @@ def previous_controller_record(path, root, warnings):
     Compare against the worker's start, never its status-file modification time
     (which also changes on exit). Unknown provenance keeps diagnostics visible.
     """
+    starts = []
     for directory in path.parents:
         if not directory.is_relative_to(root):
             break
-        marker = directory / 'kinbot_status.json'
-        try:
-            if not marker.exists():
+        # A replacement PES can be exploring other wells before it launches
+        # this child. In that interval there is no new child status file.
+        for name in ('kinbot_status.json', 'pes_status.json'):
+            marker = directory/name
+            try:
+                if not marker.exists():
+                    continue
+                status = read_json(marker, warnings)
+                started = datetime.fromisoformat(status['started_utc'])
+                if started.tzinfo is not None:
+                    starts.append(started.timestamp())
+            except (KeyError, TypeError, ValueError):
                 continue
-        except OSError as error:
-            warnings.append(f'{marker}: {error}')
-            return False
-        status = read_json(marker, warnings)
-        try:
-            started = datetime.fromisoformat(status['started_utc'])
-            if started.tzinfo is None:
-                return False
-            return path.stat().st_mtime < started.timestamp()
-        except (KeyError, TypeError, ValueError):
-            return False
-        except OSError as error:
-            warnings.append(f'{path}: {error}')
-            return False
-    return False
+            except OSError as error:
+                warnings.append(f'{marker}: {error}')
+    try:
+        return bool(starts and path.stat().st_mtime < max(starts))
+    except OSError as error:
+        warnings.append(f'{path}: {error}')
+        return False
 
 
 def artifacts(paths, root, warnings):
@@ -780,6 +785,9 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             out.append(f'WORKER {worker["directory"]}: {status}; PES says {worker["reported_pes_state"] or "unlisted"}')
             if worker['reactions']:
                 out.append('  Reaction search outcomes: '+str(worker['reactions']['counts']))
+                groups = worker['reactions'].get('accepted_product_groups')
+                if groups:
+                    out.append(f'  Accepted searches reach {groups} product group(s); counts are not unique saddles.')
                 rows = worker['reactions']['rows']
                 for row in rows if include_all or details else [r for r in rows if r['code'] >= 0][:12]:
                     out.append(f'    {row["name"]}: {row["stage"]}; step={row["step"]}')

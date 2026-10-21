@@ -202,6 +202,23 @@ def test_new_branch_report_replaces_startup_history(production):
     assert 'previous controller' not in text
 
 
+def test_unstarted_child_branch_uses_replacement_pes_start(production):
+    root, case = production
+    put(case/'pes_status.json', {'status':'running', 'started_utc':'2026-10-21T17:32:53+00:00'})
+    branch = case/'well/.kinbot_post_reaction_branches.json'
+    put(branch, {'branches':{'cbh_anl':{'status':'failed','error':'OLD CHILD FAILURE'}}})
+    previous = monitor.datetime.fromisoformat('2026-10-21T15:00:00+00:00').timestamp()
+    os.utime(branch,(previous,previous))
+    text = monitor.render(monitor.snapshot(root))
+    assert 'cbh_anl=not_reported_yet' in text
+    assert 'OLD CHILD FAILURE' not in text
+    assert 'OLD CHILD FAILURE' in monitor.render(monitor.snapshot(root),details=True)
+    # An actual branch failure after the parent launch must remain current.
+    current = monitor.datetime.fromisoformat('2026-10-21T17:40:00+00:00').timestamp()
+    os.utime(branch,(current,current))
+    assert 'cbh_anl=failed' in monitor.render(monitor.snapshot(root))
+
+
 def test_anl_curvature_recovery_report_is_visible(production):
     root, case = production
     put(case/'anl/tasks/l3_geometry/minimum_recovery.json', {

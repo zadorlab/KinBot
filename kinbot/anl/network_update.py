@@ -7,13 +7,25 @@ from kinbot.execution import atomic_json
 from kinbot.anl.ts_reuse import digest
 
 
+def enrich_path_metadata(previous, current):
+    """Only fill missing classes for otherwise identical accepted reactions."""
+    result = deepcopy(previous)
+    rows = {r['name']:r for r in current['network']['reactions']}
+    for row in result['network']['reactions']:
+        candidate = rows.get(row['name'], {})
+        if ('path_class' not in row and candidate.get('path_class')
+                and {k:v for k,v in candidate.items() if k!='path_class'} == row):
+            row['path_class'] = candidate['path_class']
+    return result
+
+
 def extend(previous, current):
     """Permit additional work, never change the scientific input of saved work."""
     for key in set(previous) | set(current):
         if key not in ('network', 'cbh') and previous.get(key) != current.get(key):
             raise ValueError(f'Network extension changed {key}; scientific migration is required.')
     current = deepcopy(current)
-    a, b = previous['network'], current['network']
+    a, b = enrich_path_metadata(previous,current)['network'], current['network']
     if a['initial'] != b['initial']:
         raise ValueError('Network extension changed the initial well.')
 

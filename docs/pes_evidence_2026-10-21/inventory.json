@@ -1,0 +1,391 @@
+{
+  "source": "User-pasted live monitor inventory, 2026-10-21; no new cluster read",
+  "limitations": "Search-route counts, not unique saddles. Input geometry labels are connectivity inferences, not accepted current structures or stereochemical identities. No relative energies inferred.",
+  "cases": {
+    "ch3s": {
+      "nodes": {
+        "A": {
+          "route": "470831050000000000002",
+          "label": "C[S]",
+          "provenance": "manifest"
+        },
+        "B": {
+          "route": "471030810040000000002",
+          "label": "C=[SH]",
+          "provenance": "manifest"
+        },
+        "C": {
+          "route": "471230610040000000002",
+          "label": "[CH]=[SH2]",
+          "provenance": "manifest"
+        },
+        "P1": {
+          "route": "150390060000000000002+320000000000000000003",
+          "label": "[CH3] + [S]",
+          "provenance": "manifest"
+        },
+        "P2": {
+          "route": "140260020000000000003+330330000000000000002",
+          "label": "[CH2] + [SH]",
+          "provenance": "manifest"
+        },
+        "P3": {
+          "route": "20020000000000000001+450770130000000000002",
+          "label": "[H][H] + [C]#S",
+          "provenance": "manifest"
+        },
+        "P4": {
+          "route": "10000000000000000002+460900460020000000001",
+          "label": "H + product 46090046\u2026",
+          "provenance": "partial label"
+        },
+        "P5": {
+          "route": "130130000000000000002+340660020000000000001",
+          "label": "Products 13013000\u2026 + 34066002\u2026",
+          "provenance": "unmapped"
+        }
+      },
+      "directions": [
+        {
+          "from": "A",
+          "to": "B",
+          "searches": [
+            "intra_H_migration_2_3",
+            "r12_insertion_R_3_1_2",
+            "R_Addition_MultipleBond_2_1_3",
+            "12_shift_S_R_2_1_3"
+          ]
+        },
+        {
+          "from": "A",
+          "to": "P1",
+          "searches": [
+            "hom_sci_1_2"
+          ]
+        },
+        {
+          "from": "B",
+          "to": "A",
+          "searches": [
+            "intra_H_migration_1_3",
+            "r12_insertion_R_3_2_1",
+            "R_Addition_MultipleBond_1_2_3",
+            "12_shift_S_F_1_2_3",
+            "h2_elim_3_5"
+          ]
+        },
+        {
+          "from": "B",
+          "to": "C",
+          "searches": [
+            "intra_H_migration_2_4",
+            "intra_H_migration_2_5"
+          ]
+        },
+        {
+          "from": "B",
+          "to": "P3",
+          "searches": [
+            "r12_insertion_R_4_1_2",
+            "r12_insertion_R_4_1_5",
+            "r12_insertion_R_5_1_4"
+          ]
+        },
+        {
+          "from": "B",
+          "to": "P2",
+          "searches": [
+            "hom_sci_1_2"
+          ]
+        },
+        {
+          "from": "C",
+          "to": "B",
+          "searches": [
+            "intra_H_migration_1_3",
+            "intra_H_migration_1_4",
+            "r12_insertion_R_1_2_4",
+            "R_Addition_MultipleBond_1_2_4",
+            "12_shift_S_F_1_2_3",
+            "12_shift_S_F_1_2_4"
+          ]
+        },
+        {
+          "from": "C",
+          "to": "P3",
+          "searches": [
+            "r12_insertion_R_5_1_2"
+          ]
+        },
+        {
+          "from": "C",
+          "to": "P4",
+          "searches": [
+            "R_Addition_MultipleBond_1_2_3",
+            "h2_elim_3_4"
+          ]
+        },
+        {
+          "from": "C",
+          "to": "P5",
+          "searches": [
+            "hom_sci_1_2"
+          ]
+        }
+      ],
+      "accepted_search_routes": 26,
+      "endpoint_pairs": 8
+    },
+    "ch3ss": {
+      "nodes": {
+        "D": {
+          "route": "791471490990000000002",
+          "label": "CS[S]",
+          "provenance": "manifest"
+        },
+        "E": {
+          "route": "791671450790040000002",
+          "label": "C=S=[SH]",
+          "provenance": "manifest"
+        },
+        "F": {
+          "route": "791671580700000000002-s8fc26f5f496eeb4e",
+          "label": "[S]S=C",
+          "provenance": "manifest"
+        },
+        "F2": {
+          "route": "791671580700000000002-s36f1e2b924862f12",
+          "label": "CH2\u2013S(H)\u2013S connectivity",
+          "provenance": "input geometry only"
+        },
+        "G": {
+          "route": "791671560700020000002-sedd8f7729b69b19b",
+          "label": "H\u2013S\u2013C(H)\u2013S\u2013H connectivity",
+          "provenance": "input geometry only"
+        },
+        "H1": {
+          "route": "791871560500020000002-s1a4d7914034ddafc",
+          "label": "CH\u2013S(H)\u2013S(H) connectivity",
+          "provenance": "input geometry only"
+        },
+        "H2": {
+          "route": "791871560500020000002-s254020c87a151164",
+          "label": "CH\u2013S(H)\u2013S(H) connectivity",
+          "provenance": "input geometry only"
+        },
+        "I": {
+          "route": "791472110370000000002",
+          "label": "HS\u2013CH2\u2013S connectivity",
+          "provenance": "input geometry only"
+        },
+        "J": {
+          "route": "791871710370000000002",
+          "label": "CH\u2013S(H)2\u2013S connectivity",
+          "provenance": "input geometry only"
+        },
+        "P1": {
+          "route": "150390060000000000002+640640000000000000003",
+          "label": "[CH3] + [S][S]",
+          "provenance": "manifest"
+        },
+        "P2": {
+          "route": "320000000000000000003+470831050000000000002",
+          "label": "[S] + C[S]",
+          "provenance": "manifest"
+        },
+        "P3": {
+          "route": "140260020000000000003+650970330000000000002",
+          "label": "[CH2] + product 65097033\u2026",
+          "provenance": "partial label"
+        },
+        "P4": {
+          "route": "10000000000000000002+781541100460020000001",
+          "label": "H + product 78154110\u2026",
+          "provenance": "partial label"
+        },
+        "P5": {
+          "route": "20020000000000000001+771210770330000000002",
+          "label": "H2 + product 77121077\u2026",
+          "provenance": "partial label"
+        },
+        "P6": {
+          "route": "320000000000000000003+471030810040000000002",
+          "label": "[S] + C=[SH]",
+          "provenance": "manifest"
+        }
+      },
+      "directions": [
+        {
+          "from": "D",
+          "to": "F",
+          "searches": [
+            "intra_H_migration_2_4"
+          ]
+        },
+        {
+          "from": "D",
+          "to": "E",
+          "searches": [
+            "intra_H_migration_3_4",
+            "r13_insertion_RSR_4_1_2_3"
+          ]
+        },
+        {
+          "from": "D",
+          "to": "P1",
+          "searches": [
+            "hom_sci_1_2"
+          ]
+        },
+        {
+          "from": "D",
+          "to": "P2",
+          "searches": [
+            "hom_sci_2_3"
+          ]
+        },
+        {
+          "from": "E",
+          "to": "G",
+          "searches": [
+            "intra_H_migration_2_5"
+          ]
+        },
+        {
+          "from": "E",
+          "to": "H2",
+          "searches": [
+            "intra_H_migration_2_6"
+          ]
+        },
+        {
+          "from": "E",
+          "to": "F2",
+          "searches": [
+            "intra_H_migration_2_4",
+            "12_shift_S_F_2_3_4",
+            "12_shift_S_R_2_3_4"
+          ]
+        },
+        {
+          "from": "E",
+          "to": "I",
+          "searches": [
+            "intra_R_migration_3_1",
+            "intra_R_migration_1_3",
+            "Intra_R_Add_ExoTetCyclic_F_1_3_4",
+            "R_Addition_MultipleBond_1_2_3",
+            "12_shift_S_F_3_2_1",
+            "12_shift_S_F_1_2_3",
+            "12_shift_S_R_3_2_1"
+          ]
+        },
+        {
+          "from": "E",
+          "to": "P3",
+          "searches": [
+            "r12_insertion_R_2_1_5",
+            "hom_sci_1_2"
+          ]
+        },
+        {
+          "from": "E",
+          "to": "F",
+          "searches": [
+            "r12_insertion_R_3_2_1"
+          ]
+        },
+        {
+          "from": "E",
+          "to": "P4",
+          "searches": [
+            "r12_insertion_R_6_1_2",
+            "r12_insertion_R_6_1_5"
+          ]
+        },
+        {
+          "from": "E",
+          "to": "P5",
+          "searches": [
+            "h2_elim_5_6"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "D",
+          "searches": [
+            "intra_H_migration_1_4",
+            "r12_insertion_R_2_1_6",
+            "h2_elim_4_5",
+            "h2_elim_4_6"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "J",
+          "searches": [
+            "intra_H_migration_2_5"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "H1",
+          "searches": [
+            "intra_H_migration_2_6",
+            "r12_insertion_R_6_1_2",
+            "r13_insertion_RSR_5_1_2_3",
+            "r13_insertion_RSR_6_1_2_3",
+            "h2_elim_5_6"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "E",
+          "searches": [
+            "intra_H_migration_3_4",
+            "r12_insertion_R_3_2_4",
+            "12_shift_S_F_3_2_4",
+            "12_shift_S_R_3_2_4"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "I",
+          "searches": [
+            "intra_R_migration_3_1"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "G",
+          "searches": [
+            "r12_insertion_R_5_1_2"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "P5",
+          "searches": [
+            "r12_insertion_R_5_1_6"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "P3",
+          "searches": [
+            "hom_sci_1_2"
+          ]
+        },
+        {
+          "from": "F",
+          "to": "P6",
+          "searches": [
+            "hom_sci_2_3"
+          ]
+        }
+      ],
+      "accepted_search_routes": 42,
+      "endpoint_pairs": 19
+    }
+  }
+}

@@ -73,47 +73,65 @@ def aligned_permutation(symbols_x, px, symbols_y, py, tolerance):
 
 def equivalent(plan, left, right, limits, *, stationary_point='transition_state'):
     """Return measured evidence, or None. Never use endpoints alone as identity."""
+    result = comparison(plan, left, right, limits, stationary_point=stationary_point)
+    return result['measurements'] if result['equivalent'] else None
+
+
+def comparison(plan, left, right, limits, *, stationary_point='transition_state'):
+    """Explain a reuse decision without changing tolerances or accepting a task.
+
+    This is also the implementation used by the planner, so a read-only audit
+    cannot report a looser definition of equivalence than actual graph reuse.
+    """
+    def reject(reason, **details):
+        return dict(equivalent=False, reason=reason, **details)
+
     reactions = {r['transition_state']: r for r in plan['network']['reactions']
                  if r.get('transition_state')}
     a, b = reactions[left], reactions[right]
     endpoints = lambda r: sorted(((r['reactant'],), tuple(sorted(r['products']))))
     if endpoints(a) != endpoints(b):
-        return None
+        return reject('different_endpoints')
     if a.get('path_class') != b.get('path_class'):
-        return None
+        return reject('different_path_class')
     x, y = (plan['network']['transition_states'][n] for n in (left, right))
     if any(x.get(k) != y.get(k) for k in ('l2_theory', 'highest_tier', 'fallback_tiers')):
-        return None
+        return reject('different_theory_or_tier')
     # Legacy records omit isotope/site metadata. Do not infer it from formula.
     if any(re.search(r'\[\d', z['smiles']) for z in (x,y)):
-        return None
+        return reject('isotope_identity_requires_review')
     mx, my = x['molecule'], y['molecule']
     if any(mx.get(k) != my.get(k) for k in ('charge', 'multiplicity')):
-        return None
+        return reject('different_charge_or_multiplicity')
     px, py = (np.asarray(m['positions'], dtype=float) for m in (mx, my))
     if px.shape != py.shape or px.shape != (len(mx['symbols']), 3):
-        return None
+        return reject('different_geometry_dimensions')
     if not np.isfinite(px).all() or not np.isfinite(py).all():
-        return None
+        return reject('nonfinite_geometry')
     px, py = px-px.mean(axis=0), py-py.mean(axis=0)
     alignment = aligned_permutation(mx['symbols'],px,my['symbols'],py,limits['rmsd_angstrom'])
     if alignment is None:
-        return None
+        return reject('geometry_outside_tolerance_or_mapping_limit',
+                      rmsd_limit_angstrom=limits['rmsd_angstrom'])
     rmsd, permutation = alignment
     fx, fy = (np.asarray(z.get('frequencies_cm_inverse', []), float) for z in (x, y))
     if not len(fx) or fx.shape != fy.shape or not np.isfinite(fx).all() or not np.isfinite(fy).all():
-        return None
+        return reject('missing_or_incompatible_frequencies')
     order = 1 if stationary_point == 'transition_state' else 0
     if np.count_nonzero(fx < 0) != order or np.count_nonzero(fy < 0) != order:
-        return None
+        return reject('different_stationary_point_order',
+                      negative_modes=[int(np.count_nonzero(f < 0)) for f in (fx, fy)])
     measurements = dict(rmsd_angstrom=rmsd,
         energy_hartree=abs(x['energy_hartree']-y['energy_hartree']),
         zpe_hartree=abs(x['harmonic_zpe_hartree']-y['harmonic_zpe_hartree']),
         frequency_cm_inverse=float(np.max(np.abs(np.sort(fx)-np.sort(fy)))))
-    if any(not np.isfinite(v) or v > limits[k] for k, v in measurements.items()):
-        return None
+    exceeded = [k for k, v in measurements.items() if not np.isfinite(v) or v > limits[k]]
+    if exceeded:
+        return reject('numerical_tolerance_exceeded', exceeded=exceeded,
+                      measurements=measurements, limits=limits)
     measurements['atom_permutation'] = permutation
-    return measurements
+    return dict(equivalent=True, reason='equivalent', measurements=measurements,
+                path_class_known=bool(a.get('path_class') and b.get('path_class')))
 
 
 def discover(plan, base, limits, previous=None, pinned=()):
@@ -123,6 +141,10 @@ def discover(plan, base, limits, previous=None, pinned=()):
     for name, signature in result['records'].items():
         if name not in records or digest(records[name]) != signature:
             raise ValueError(f'{name}: accepted TS changed since reuse was established.')
+    for alias, canonical_name in result['aliases'].items():
+        if equivalent(plan, alias, canonical_name, result['evidence'][alias]['limits']) is None:
+            raise ValueError(f'{alias}: saved TS alias no longer meets endpoint/pathway/geometry criteria; '
+                             'calculation files were retained for review.')
     def rank(name):
         p = directory(base, name)/'state.json'
         entries = json.loads(p.read_text()).get('tasks', {}).values() if p.exists() else []
@@ -158,6 +180,9 @@ def load(plan, base):
     aliases = result['aliases']
     if any(k == v or v in aliases for k, v in aliases.items()):
         raise ValueError('TS reuse must be a flat map of aliases to canonical saddles.')
+    for alias, canonical in aliases.items():
+        if equivalent(plan, alias, canonical, result['evidence'][alias]['limits']) is None:
+            raise ValueError(f'{alias}: saved TS alias no longer meets endpoint/pathway/geometry criteria.')
     return aliases
 
 

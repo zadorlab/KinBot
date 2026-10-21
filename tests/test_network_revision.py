@@ -35,6 +35,30 @@ def test_append_only_network_expansion_and_changes_refused():
         network_update.extend(old,altered)
 
 
+def test_path_metadata_can_be_added_but_not_changed_during_expansion():
+    old = network()
+    old['network']['reactions'] = [dict(name='ts',reactant='a',products=['b'])]
+    new = deepcopy(old)
+    new['network']['reactions'][0]['path_class'] = 'ordinary'
+    assert network_update.enrich_path_metadata(old,new)==new
+    assert network_update.extend(old,new)==new
+    changed = deepcopy(new)
+    changed['network']['reactions'][0]['path_class'] = 'stereopath:other'
+    with pytest.raises(ValueError,match='reaction/ts'):
+        network_update.extend(new,changed)
+
+
+def test_saved_alias_is_revalidated_after_path_metadata_enrichment(tmp_path):
+    plan = saddle_plan()
+    limits = ts_reuse.options({})
+    mapping = ts_reuse.discover(plan,tmp_path,limits)
+    assert mapping['aliases']
+    plan['network']['reactions'][0]['path_class'] = 'ordinary'
+    plan['network']['reactions'][1]['path_class'] = 'stereopath:other'
+    with pytest.raises(ValueError,match='saved TS alias no longer meets'):
+        ts_reuse.discover(plan,tmp_path,limits,mapping)
+
+
 def test_reopening_removes_derived_energies_without_changing_l2(monkeypatch):
     from kinbot.anl import handoff
     point=SimpleNamespace(energy=-100.,zpe=.01,geom=[[0,0,0]],freq=[100.],

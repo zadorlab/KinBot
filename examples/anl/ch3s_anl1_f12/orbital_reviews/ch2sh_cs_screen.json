@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "471030810040000000002",
+    "reaction": "471030810040000000002_hom_sci_1_2",
+    "symbols": ["C", "S", "H", "H", "H"],
+    "bond": [1, 2],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {"charge": 0, "multiplicity": 3, "smiles": "[H][C][H]"},
+      {"charge": 0, "multiplicity": 2, "smiles": "[SH]"}
+    ]
+  },
+  "reconnaissance": {
+    "title": "ch2sh_cs_valence_screen",
+    "multiplicity": 4,
+    "bases": [{"name": "adz", "basis": "avdz-f12"}, {"name": "atz", "basis": "avtz-f12"}],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-9,
+    "scf_options": {"solver": "so_sci", "max_iterations": 256},
+    "coordinates": [{
+      "name": "cs",
+      "bond": [1, 2],
+      "distances_angstrom": [2.0, 3.5, 6.0, 30.0],
+      "fragment_states": [
+        {"atom": 1, "charge": 0, "multiplicity": 3, "smiles": "[CH2]"},
+        {"atom": 2, "charge": 0, "multiplicity": 2, "smiles": "[SH]"}
+      ]
+    }],
+    "probe_active_space": true,
+    "probe_method": "casci",
+    "orbital_initialization": "independent",
+    "avas_reference": "rhf",
+    "probe_definition": {
+      "active_electrons": 13,
+      "active_orbitals": 11,
+      "chemical_note": "Diagnostic all-valence CASCI only: C 2s/2p, S 3s/3p and all three H 1s targets. Quartet ROHF initializes the orbitals; the production parent remains doublet. Two quartet and four doublet roots screen the SH Pi partners and additional low doublets; root character is not inferred from energy order. Inspect these orbitals before choosing CAS(5,4) or CAS(7,6). No production approval or CASPT2-F12 validation is implied.",
+      "state_model": {
+        "orbital_selection": {
+          "mode": "avas", "threshold": 0.3, "minao_basis": "minao",
+          "centers": [
+            {"atom": 1, "orbitals": ["2s", "2p"]},
+            {"atom": 2, "orbitals": ["3s", "3p"]},
+            {"atom": 3, "orbitals": ["1s"]},
+            {"atom": 4, "orbitals": ["1s"]},
+            {"atom": 5, "orbitals": ["1s"]}
+          ]
+        },
+        "state_average": [
+          {"multiplicity": 4, "roots": 2, "weights": [0.5, 0.5]},
+          {"multiplicity": 2, "roots": 4, "weights": [0.25, 0.25, 0.25, 0.25]}
+        ],
+        "selected_roots": {"4": 1, "2": 1},
+        "canonical_orbitals": true
+      }
+    }
+  }
+}

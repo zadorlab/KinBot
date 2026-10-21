@@ -954,10 +954,16 @@ class QuantumChemistry:
         values.update(reaction.get_bimol_search_data())
         values.update({
             'reaction_name': reaction.instance_name,
+            'reactant_geom': np.asarray(species.geom).tolist(),
             'instance': list(reaction.instance),
             'conformers_a': np.asarray(conformers_a).tolist(),
             'conformers_b': np.asarray(conformers_b).tolist(),
             'start_after': start_after,
+        })
+        values['search_kwargs'].update({
+            'bimol_ts_rmsd': self.par['bimol_ts_rmsd'],
+            'bimol_energy_tolerance': self.par['bimol_energy_tolerance'],
+            'allow_reflection': getattr(reaction, 'allow_reflection', True),
         })
         return self._write_bimol_job(
             job, 'ase_bimol_search.tpl.py', values, species)

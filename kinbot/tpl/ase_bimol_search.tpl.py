@@ -23,10 +23,13 @@ frag_b = StationaryPoint('frag_b', {charge_b}, {mult_b}, atom={atom_b},
 frag_a.characterize()
 frag_b.characterize()
 species = StationaryPoint('bimolecular', {charge}, {mult}, atom={atom},
-                          geom=np.vstack((conformers_a[0], conformers_b[0])),
+                          geom=np.array({reactant_geom}, dtype=float),
                           fragA=frag_a, fragB=frag_b)
 
 try:
+    # Use the controller's separated reactants for atom equivalence. Individual
+    # fragment conformers can overlap when stacked without their placement.
+    species.characterize()
     calculator = create_calculator(
         '{l0_qc}', '{calculator_module}', '{calculator_class}',
         {calculator_kwargs}, '{qc_command}', {ppn}, '{model}', '{task}',

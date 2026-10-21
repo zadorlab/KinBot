@@ -369,9 +369,11 @@ def update_ts_topology_from_irc(reaction):
     }
 
 
-def _l0_endpoint_identities(reaction):
+def _l0_endpoint_identities(reaction, validation=None):
     """Configured evidence gates early selection, not final reaction identity."""
-    endpoints = getattr(reaction, 'l0_validation', {}).get('endpoints', [])
+    if validation is None:
+        validation = getattr(reaction, 'l0_validation', {})
+    endpoints = validation.get('endpoints', [])
     if len(endpoints) != 2 or sum(p.get('state') == 'reactant' for p in endpoints) != 1:
         return None
     identities = [p.get('configured_identity', {}) for p in endpoints]
@@ -1178,6 +1180,12 @@ def find_ts_candidates(species, conformers_a, conformers_b, instance,
                'sampling_complete': False,
                'sampling_policy': ('first intended IRC-validated pose; TS conformers sampled subsequently'
                                    if sequential else 'all encounter poses')}
+    if sequential and start_after is not None and (workdir / 'search.json').is_file():
+        saved = json.loads((workdir / 'search.json').read_text())
+        # Keep completed IRC checks when a failed L1 calculation reopens the
+        # remaining poses. Later saved poses do not belong to this continuation.
+        summary['observations'] = [item for item in saved.get('observations', [])
+            if 'cursor' in item and tuple(item['cursor']) <= tuple(start_after)]
     saddles = []
     for index_a, geom_a in enumerate(conformers_a):
         for index_b, geom_b in enumerate(conformers_b):
@@ -1253,6 +1261,21 @@ def find_ts_candidates(species, conformers_a, conformers_b, instance,
                                 'result': result,
                             }
                             if sequential:
+                                observation['cursor'] = cursor
+                                previous = next((item for item in summary['observations']
+                                    if _completed_l0_irc(item.get('validation', {}))
+                                    and _same_l0_saddle(species, observation, item,
+                                        instance, instance,
+                                        settings.get('bimol_ts_rmsd', .1),
+                                        settings.get('bimol_energy_tolerance', .25),
+                                        settings.get('allow_reflection',
+                                                     not np.any(species.chiral)))), None)
+                                if previous is not None:
+                                    # Keep the original endpoint atom order in its
+                                    # own files; a symmetry match may permute atoms.
+                                    observation['irc_reused_from'] = previous['directory']
+                                    summary['observations'].append(observation)
+                                    continue
                                 validation_dir = candidate_dir / 'validation'
                                 try:
                                     validation = validate_candidate(species, ts.positions,
@@ -1293,19 +1316,37 @@ def find_ts_candidates(species, conformers_a, conformers_b, instance,
     return (0 if geometries else -1), geometries, summary
 
 
-def cluster_candidates(species, entries, rmsd_threshold, energy_tolerance):
-    """Cluster symmetry-equivalent L0 saddles across reaction channels."""
+def _completed_l0_irc(validation):
+    """Reuse completed endpoint checks, including ordinary IRC point limits."""
+    endpoints = validation.get('endpoints', [])
+    return (not validation.get('traceback') and len(endpoints) == 2
+            and 'reactant_configuration_matches' in validation
+            and all(endpoint.get('converged') and not endpoint.get('error')
+                    and not endpoint.get('irc_error') for endpoint in endpoints))
+
+
+def _same_l0_saddle(species, first, second, first_instance, second_instance,
+                    rmsd_threshold, energy_tolerance, allow_reflection):
+    """Compare L0 energy and geometry while preserving reacting atom roles."""
     from kinbot.bimol_network import symmetry_rmsd
 
-    tolerance = (energy_tolerance * constants.KCALtoHARTREE
-                 / constants.EVtoHARTREE)
+    tolerance = energy_tolerance * constants.KCALtoHARTREE / constants.EVtoHARTREE
+    energy = first.get('result', {}).get('energy')
+    other = second.get('result', {}).get('energy')
+    if energy is not None and other is not None and abs(energy - other) > tolerance:
+        return False
+    return symmetry_rmsd(species, species, first['geometry'], second['geometry'],
+        first_instance, second_instance, allow_reflection=allow_reflection) <= rmsd_threshold
+
+
+def cluster_candidates(species, entries, rmsd_threshold, energy_tolerance):
+    """Cluster symmetry-equivalent L0 saddles across reaction channels."""
     ordered = sorted(entries, key=lambda item: (
         item['candidate'].get('result', {}).get('energy', np.inf),
         item['reaction'].instance_name,
         item['candidate'].get('directory', '')))
     groups = []
     for entry in ordered:
-        energy = entry['candidate'].get('result', {}).get('energy')
         match = None
         for group in groups:
             for member in group:
@@ -1315,19 +1356,14 @@ def cluster_candidates(species, entries, rmsd_threshold, energy_tolerance):
                 if not same_stereopath(
                         entry['reaction'], member['reaction']):
                     continue
-                other = member['candidate'].get('result', {}).get('energy')
-                if (energy is not None and other is not None
-                        and abs(energy - other) > tolerance):
-                    continue
-                value = symmetry_rmsd(
-                    species, species, entry['candidate']['geometry'],
-                    member['candidate']['geometry'],
+                if _same_l0_saddle(
+                    species, entry['candidate'], member['candidate'],
                     entry['reaction'].instance, member['reaction'].instance,
+                    rmsd_threshold, energy_tolerance,
                     allow_reflection=(getattr(
                         entry['reaction'], 'allow_reflection', True)
                         and getattr(member['reaction'],
-                                    'allow_reflection', True)))
-                if value <= rmsd_threshold:
+                                    'allow_reflection', True))):
                     match = group
                     break
             if match is not None:
@@ -1348,11 +1384,23 @@ def _group_members(group):
     } for member in group]
 
 
+def _candidate_digest(species, group, representative, append):
+    from kinbot.bimol_network import geometry_signature
+
+    candidate = representative['candidate']
+    energy = candidate.get('result', {}).get('energy')
+    identity = '|'.join(
+        [geometry_signature(species, candidate['geometry']), str(energy)]
+        + sorted(member['reaction'].instance_name for member in group))
+    if append:
+        # Distinct retries can have the same rounded geometry signature.
+        identity += '|' + candidate['directory'] + '|' + repr(candidate.get('cursor'))
+    return hashlib.sha1(identity.encode()).hexdigest()[:10]
+
+
 def export_unique_candidates(species, groups,
                              directory='bimol/unique_candidates', append=False):
     """Write one unvalidated representative for every L0 saddle cluster."""
-    from kinbot.bimol_network import geometry_signature
-
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     index = []
@@ -1361,14 +1409,7 @@ def export_unique_candidates(species, groups,
             'result', {}).get('energy', np.inf))
         candidate = representative['candidate']
         energy = candidate.get('result', {}).get('energy')
-        identity = '|'.join(
-            [geometry_signature(species, candidate['geometry']), str(energy)]
-            + sorted(member['reaction'].instance_name for member in group))
-        if append:
-            # A rounded geometry hash is not proof that another pose is the
-            # same calculation. Keep retries and their failed records distinct.
-            identity += '|' + candidate['directory'] + '|' + repr(candidate.get('cursor'))
-        digest = hashlib.sha1(identity.encode()).hexdigest()[:10]
+        digest = _candidate_digest(species, group, representative, append)
         candidate_id = f'candidate_{digest}'
         target = directory / candidate_id
         target.mkdir(exist_ok=True)
@@ -1514,6 +1555,7 @@ def _promote_pose(species, par, qc, state, candidate):
 def advance_pose_searches(species, par, qc):
     """Poll L0 workers; reopen only the pathway whose TS or IRC failed."""
     pending = False
+    ready = []
     for state in getattr(species, 'bimol_pose_searches', []):
         if state['done']:
             continue
@@ -1560,16 +1602,49 @@ def advance_pose_searches(species, par, qc):
             state['done'] = True
             continue
         state['cursor'] = candidate['cursor']
-        # Retry only new L0 saddles for this reaction site. Reuse the ordinary
-        # energy/symmetry/stereochemistry grouping, including failed L1 trials.
         entry = dict(reaction=reaction, candidate=candidate)
+        digest = _candidate_digest(species, [entry], entry, append=True)
+        job = f'{reaction.instance_name}_l0_ts_{digest}'
+        ready.append((state, entry, qc.check_qc(job)))
+
+    # A later-listed site may have finished first in the previous run. Restore
+    # its L1 job before an equivalent earlier-listed site can start another one.
+    for state, entry, existing in sorted(ready, key=lambda item: item[2] == 0):
+        reaction, candidate = entry['reaction'], entry['candidate']
+        validation = candidate['validation']
+        # Compare with previous promotions, including equivalent reacting sites.
+        # Different configured products still need their own L1 calculation.
+        identity = _l0_endpoint_identities(reaction, validation)
         tried = [dict(reaction=previous, candidate=previous.search_candidate)
                  for previous in species.reac_obj
-                 if getattr(previous, 'search_parent', None) == reaction.instance_name]
+                 if hasattr(previous, 'search_candidate')
+                 and (getattr(previous, 'search_parent', None) == reaction.instance_name
+                      or (identity is not None
+                          and identity == _l0_endpoint_identities(previous)))]
         groups = cluster_candidates(species, tried + [entry],
             par.get('bimol_ts_rmsd', .1), par.get('bimol_energy_tolerance', .25))
         group = next(group for group in groups if any(member is entry for member in group))
         previous = next((member['reaction'] for member in group if member is not entry), None)
+        if previous is not None and previous.search_parent != reaction.instance_name:
+            if existing != 0:
+                # Restore existing L1 work on restart. It may have a lower TS
+                # or complex; ordinary final selection must still see it.
+                previous = None
+            else:
+                members = previous.search_members
+                for member in _group_members([entry]):
+                    if member not in members:
+                        members.append(member)
+                previous.search_instances = [list(instance) for instance in sorted({
+                    tuple(member['instance']) for member in members})]
+                update_bimol_status(previous, members=members,
+                                    search_instances=previous.search_instances)
+                state['active'] = species.reac_obj.index(previous)
+                pending = True
+                logger.info('Using %s for equivalent L0 saddle at %s. Both reaction '
+                            'sites retain their remaining poses if refinement or IRC fails.',
+                            previous.instance_name, candidate['directory'])
+                continue
         if previous is not None:
             logger.info('Skipping L0 saddle at %s: equivalent to %s, already promoted '
                         'to L1. Continuing with the remaining poses.',

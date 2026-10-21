@@ -32,8 +32,10 @@ def reactants():
 def validation(species, expected=True):
     return dict(valid=True, product_matches_expected=expected,
         reactant_configuration_matches=True, endpoints=[
-            dict(state='reactant', direction='forward', geometry_angstrom=species.geom.tolist()),
-            dict(state='product', direction='reverse', geometry_angstrom=species.geom.tolist())])
+            dict(state='reactant', direction='forward', converged=True,
+                 geometry_angstrom=species.geom.tolist()),
+            dict(state='product', direction='reverse', converged=True,
+                 geometry_angstrom=species.geom.tolist())])
 
 
 def search_fixture(tmp_path, monkeypatch, validations):
@@ -46,7 +48,11 @@ def search_fixture(tmp_path, monkeypatch, validations):
     monkeypatch.setattr(bimol, '_force_path', force)
     def refine(candidate, charge, mult, calculator, settings, directory):
         directory.mkdir(parents=True, exist_ok=True)
-        return dict(saddle=True, energy=-10., converged=True), atoms.copy()
+        refined = atoms.copy()
+        pose = int(directory.parent.name[1:])
+        seed = int(directory.name.split('_')[1])
+        refined.positions[species.fragA.natom:] += [.5 * (pose + seed), 0., 0.]
+        return dict(saddle=True, energy=-10., converged=True), refined
     monkeypatch.setattr(bimol, '_refine_candidate', refine)
     def validate(*args):
         Path(args[5]).mkdir(parents=True, exist_ok=True)

@@ -115,6 +115,9 @@ def create_summary_file(species, qc, par):
 
     promoted_parents = {getattr(reaction, 'search_parent', None)
                         for reaction in species.reac_obj} if par.get('bimol') else set()
+    if par.get('bimol'):
+        promoted_parents.update(member['reaction'] for reaction in species.reac_obj
+                                for member in getattr(reaction, 'search_members', []))
     for index in range(len(species.reac_inst)):
         reaction = species.reac_obj[index]
         if par.get('bimol'):

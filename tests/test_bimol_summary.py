@@ -27,8 +27,10 @@ def test_summary_distinguishes_searches_duplicates_and_failures(tmp_path, monkey
     failed_parent = SimpleNamespace(instance_name='failed_search', pose_search_template=True)
     failed = SimpleNamespace(instance_name='failed_refinement', search_parent='failed_search')
     exhausted = SimpleNamespace(instance_name='exhausted_search', pose_search_template=True)
-    species.reac_obj = [parent, reaction, duplicate, conformer, failed_parent, failed, exhausted]
-    species.reac_ts_done = [-998, -1, -998, -998, -998, -999, -998]
+    equivalent = SimpleNamespace(instance_name='equivalent_search', pose_search_template=True)
+    reaction.search_members = [dict(reaction='equivalent_search')]
+    species.reac_obj = [parent, reaction, duplicate, conformer, failed_parent, failed, exhausted, equivalent]
+    species.reac_ts_done = [-998, -1, -998, -998, -998, -999, -998, -998]
     species.reac_inst = [reaction.instance] * len(species.reac_obj)
     species.reac_name = [r.instance_name for r in species.reac_obj]
     species.reac_type = ['abstraction'] * len(species.reac_obj)
@@ -38,7 +40,7 @@ def test_summary_distinguishes_searches_duplicates_and_failures(tmp_path, monkey
     failed_names = {line.split()[1] for line in text.splitlines() if line.startswith('FAILED')}
     assert failed_names == ({'failed_refinement', 'exhausted_search'} if bimolecular else
                            {'methanol_search', 'same_saddle', 'other_conformer',
-                            'failed_search', 'failed_refinement', 'exhausted_search'})
+                            'failed_search', 'failed_refinement', 'exhausted_search', 'equivalent_search'})
     assert (f'# DUPLICATE same_saddle; represented by {reaction.instance_name}' in text) is bimolecular
     assert (f'# CONFORMER other_conformer; represented by {reaction.instance_name}' in text) is bimolecular
     assert read_summary_paths(text.splitlines()) == {reaction.instance_name: 'ordinary'}

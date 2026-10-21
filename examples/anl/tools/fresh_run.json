@@ -16,6 +16,21 @@
   "input_overrides": {
     "vdW_detection": 0.0,
     "anl_augmented": true,
+    "vrc_tst_scan_points": [
+      2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8,
+      4.0, 4.2, 4.4, 4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8,
+      6.0, 6.2, 6.4, 6.6, 6.8, 7.0, 7.2, 7.4, 7.6, 7.8, 8.0,
+      8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0,
+      13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0
+    ],
+    "rotdpy_flux_parameters": {
+      "pot_smp_max": 1000,
+      "pot_smp_min": 100,
+      "tot_smp_max": 15000,
+      "tot_smp_min": 100,
+      "flux_rel_err": 5,
+      "smp_len": 1
+    },
     "pes_phase_policy": "exploration_first",
     "simultaneous_kinbot": 5,
     "queue_live_control": {"hold_failures": false, "hold_task_failures": true}

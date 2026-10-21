@@ -76,6 +76,41 @@ def test_failed_preflight_never_stops_old_run(fresh, monkeypatch):
     assert fresh.old.exists() and not fresh.events
 
 
+def test_r7_scan_and_sampling_controls_reach_all_reviewed_surfaces(fresh):
+    from kinbot.parameters import Parameters
+    from kinbot.vrc_correction import asymptote_distance
+    from kinbot.vrc_multistate import load_surface_model, state_parameters
+
+    f = fresh
+    f.module.handoff.prepare(f.root, overrides=f.config['input_overrides'])
+    expected = ([i / 10 for i in range(20, 81, 2)]
+                + [i / 2 for i in range(17, 25)] + list(range(13, 21)))
+    assert len(expected) == len(set(expected)) == 47
+    count = 0
+    for case in f.module.handoff.CASES:
+        source = PACKAGE.parent/f'{case}_anl1_f12'/f'{case}.json'
+        original = Parameters(str(source), show_warnings=False).par
+        par = Parameters(str(f.root/case/'input.json'), show_warnings=False).par
+        assert par['rotdpy_flux_parameters'] == dict(
+            original['rotdpy_flux_parameters'], flux_rel_err=5)
+        assert par['vrc_tst_scan_points'] == expected
+        assert par['rotdpy_dist'] == original['rotdpy_dist']
+        surface, _ = load_surface_model(par)
+        for ci, channel in enumerate(surface['channels']):
+            for si, stage in enumerate(channel['bottlenecks']):
+                previous = original['vrc_tst_surface_model']['channels'][ci]['bottlenecks'][si]
+                assert stage['distances_angstrom'] == previous['distances_angstrom']
+                assert stage['states'] == previous['states']
+                for state in stage['states']:
+                    leaf = state_parameters(par, stage, state, [2, 3])
+                    assert leaf['vrc_tst_scan_points'] == expected
+                    assert leaf['rotdpy_flux_parameters']['flux_rel_err'] == 5
+                    assert leaf['rotdpy_dist'] == previous['distances_angstrom']
+                    assert asymptote_distance(leaf) == asymptote_distance(original) == 30.
+                    count += 1
+    assert count == 4
+
+
 def test_interrupted_after_archive_move_recovers_without_losing_evidence(fresh, monkeypatch):
     original = fresh.module.retire
     def interrupt(*args):

@@ -112,6 +112,18 @@ settings and live-policy defaults. The default campaign configuration:
   and CH3SS C–S/S–S, MR supermolecule asymptotes, aDZ-F12 relaxation,
   L2 fixed-geometry orbital pivots, and aDZ/aTZ-F12 extrapolation of both
   CC reference energies and MR spin gaps;
+- sets relaxed-scan distances to 2.0–8.0 angstrom inclusive by 0.2, then
+  8.5–12.0 by 0.5, then 13–20 by 1.0: **47 points per electronic surface**,
+  94 per starting PES (188 across the four reviewed surfaces). The separately
+  computed asymptotic reference remains at its existing 30 angstrom. The
+  ROTD dividing surfaces remain unchanged. Coarser interpolation still needs
+  inspection of the resulting correction potential; point count alone does
+  not establish unchanged accuracy;
+- sets the ROTD Monte Carlo relative flux-error target to **5%** using
+  `rotdpy_flux_parameters.flux_rel_err: 5`, preserving the other sampling
+  bounds. This is a statistical stopping target, not a confidence level or
+  a total kinetic-error guarantee. Both choices live in `input_overrides`
+  in the campaign JSON and in each generated case input;
 - enables live controls without holding every scientifically rejected TS
   indefinitely. Unreviewed VRC channels have their own review hold, independent
   of this failed-search option. `hold_task_failures: true` keeps failed ANL/VRC
@@ -299,6 +311,10 @@ reconnaissance submission. Local process-inspection tests require permission
 to run `ps` on macOS; sandbox-denied process inspection is not a passing audit.
 The one warning is the existing test import of deprecated
 `imp`. Skipped native/environment-dependent tests are not native QC evidence.
+After the requested scan-grid and sampling-target changes, the focused handoff,
+multistate VRC, correction, and ROTD input suites passed **101 tests**. They
+check the 47-point grid and 5% target in every reviewed leaf and the generated
+sampling inputs, including preservation of the separate dividing surfaces.
 
 The audited launch sequence is:
 

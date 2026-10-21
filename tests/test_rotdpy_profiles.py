@@ -87,8 +87,11 @@ def test_production_provenance_uses_the_actual_sulfur_channel(tmp_path, name, ro
     assert data['levels']['sampling']['basis'] == 'avdz-f12'
 
 
-def test_generated_cbs_input_is_valid_python_and_selects_worker_bridge(tmp_path, monkeypatch):
+@pytest.mark.parametrize('flux_target', [1, 5])
+def test_generated_cbs_input_is_valid_python_and_selects_worker_bridge(tmp_path, monkeypatch, flux_target):
+    import ast
     par, data, path = sulfur_correction(tmp_path, sample_basis=['avtz-f12', 'avqz-f12'])
+    par['rotdpy_flux_parameters']['flux_rel_err'] = flux_target
     monkeypatch.chdir(tmp_path)
     par['rotdpy_directory'] = 'custom_rotd'
     class SurfaceFixture:
@@ -106,6 +109,13 @@ def test_generated_cbs_input_is_valid_python_and_selects_worker_bridge(tmp_path,
     assert 'from kinbot.rotdpy_molpro import KinBotMultiSample as MultiSample' in text
     assert 'calc["kinbot_vrc"]' in text
     assert "'sampling_atom_order': [0, 2, 3, 4, 1]" in text
+    assignments = {node.targets[0].id: node.value for node in ast.parse(text).body
+                   if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
+    assert ast.literal_eval(assignments['flux_parameter']) == par['rotdpy_flux_parameters']
+    metadata = assignments['validation_metadata']
+    recorded_flux = next(value for key, value in zip(metadata.keys, metadata.values)
+                         if ast.literal_eval(key) == 'flux_parameters')
+    assert ast.literal_eval(recorded_flux) == par['rotdpy_flux_parameters']
     assert (tmp_path / 'custom_rotd' / 'qu.tpl').is_file()
 
 

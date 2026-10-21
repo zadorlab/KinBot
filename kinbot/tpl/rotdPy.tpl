@@ -78,7 +78,8 @@ elif (sample_root / 'rotdPy_restart.db').is_file() and 'kinbot_vrc' in calc:
 sample_fingerprint.write_text(input_fingerprint + '\n')
 
 # Flux parameters:
-#flux_rel_err: flux accuracy (1=99% certitude, 2=98%, ...)
+#flux_rel_err: target relative Monte Carlo flux error in percent (5 = 5%)
+# This statistical tolerance is not a confidence level or a total rate-error bound.
 #pot_smp_max: maximum number of sampling for each facet
 #pot_smp_min: minimum number of sampling for each facet
 #tot_smp_max: maximum number of total sampling per surface

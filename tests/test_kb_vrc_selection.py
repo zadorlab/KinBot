@@ -74,6 +74,33 @@ def _branch_parameters(tmp_path):
     }
 
 
+def test_early_vrc_revision_joins_waiting_anl_before_search_can_reopen(monkeypatch, tmp_path):
+    from kinbot import pes_phase as phase
+    monkeypatch.chdir(tmp_path)
+    phase_record = dict(token='test', epoch=0, phase='exploring', workers={})
+    kb._atomic_json(tmp_path/phase.NAME, phase_record)
+    monkeypatch.setattr(phase, '_ROOT', tmp_path)
+    monkeypatch.setattr(phase, '_WORKER', 'well')
+    monkeypatch.setattr(phase, '_EPOCH', 0)
+    monkeypatch.setenv('KINBOT_PES_PHASE_TOKEN', 'test')
+    monkeypatch.setattr(automatic, 'prepare_automatic_cbh_anl',
+                        lambda *a, **k: pytest.fail('ANL planned before selection'))
+    monkeypatch.setattr(kb, '_execute_automatic_branch',
+                        lambda *a: pytest.fail('ANL dispatched before selection'))
+    def vrc(*args):
+        phase_record.update(epoch=1, quiescing=True)
+        kb._atomic_json(tmp_path/phase.NAME, phase_record)
+        phase.checkpoint()
+    monkeypatch.setattr(kb, '_execute_vrc_branch', vrc)
+    with pytest.raises(phase.ExplorationReopened):
+        _post_reaction_branches(object(), _branch_parameters(tmp_path), object(), 'input.json', True)
+    state = json.loads(Path('.kinbot_post_reaction_branches.json').read_text())
+    assert state['status'] == 'exploration_reopened'
+    assert state['mess_gate'] == 'waiting'
+    assert all(b['status']=='paused' for b in state['branches'].values())
+    assert not any(t.name=='kinbot-composite' and t.is_alive() for t in threading.enumerate())
+
+
 def test_automatic_run_configures_one_recursive_queue_scope(
         monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)

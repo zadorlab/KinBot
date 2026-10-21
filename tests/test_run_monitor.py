@@ -105,6 +105,16 @@ def test_selection_display_distinguishes_old_controller_and_current_choice(produ
     assert '1 retained; 1 omitted' in monitor.render(monitor.snapshot(root))
 
 
+def test_exploration_slot_wait_is_distinct_from_qc_pool(production):
+    root, case = production
+    put(case/'pes_exploration.json', dict(token='new', epoch=0, phase='exploring',
+        max_searches=1, waiting_workers=['c'], exploring_workers=['b'],
+        workers={'a':dict(status='vrc'), 'b':dict(status='exploring')}))
+    text = monitor.render(monitor.snapshot(root))
+    assert 'Exploration slots: 1/1; unstarted wells=1' in text
+    assert 'Next well waits for an exploring well to finish: b' in text
+
+
 def test_archived_failure_is_cached_outcome_but_new_attempt_is_visible(production):
     from kinbot.execution import file_sha256
     root, case = production

@@ -179,16 +179,17 @@ def _post_reaction_branches(well, parameters, qc, input_file,
     if not automatic_requested and not vrc_requested:
         return None
 
-    from kinbot import run_policy
+    from kinbot import run_policy, pes_phase
+    managed_pes = pes_phase._ROOT is not None
     shared_pool = run_policy.find()
     total_slots = parameters.get('queue_job_limit', -1)
     if isinstance(total_slots, bool) or not isinstance(total_slots, int):
         raise ValueError('queue_job_limit must be an integer.')
     total_slots = max(1, total_slots)
-    concurrent = automatic_requested and vrc_requested and total_slots > 1
+    concurrent = automatic_requested and vrc_requested and (total_slots > 1 or managed_pes)
     automatic_parameters = copy.deepcopy(parameters)
     vrc_parameters = copy.deepcopy(parameters)
-    if concurrent:
+    if automatic_requested and vrc_requested and total_slots > 1:
         # Preserve the frozen plan/resource contract on restart. A live
         # shared policy overrides these legacy caps at admission time; its
         # cross-process lock replaces the static reservation in that mode.
@@ -225,7 +226,7 @@ def _post_reaction_branches(well, parameters, qc, input_file,
         # independent VRC and composite branches from producing reusable
         # scientific results.
         join_error = error
-    if automatic_requested:
+    if automatic_requested and not managed_pes:
         from kinbot.anl.automatic import prepare_automatic_cbh_anl
         try:
             from kinbot.pes_selection import selected_view
@@ -301,20 +302,36 @@ def _post_reaction_branches(well, parameters, qc, input_file,
         else:
             publish_branch(name, status='complete')
 
+    def run_automatic():
+        # A locally completed well may run VRC immediately. Freeze and plan
+        # ANL only after all wells have supplied the outer PES L2 selection.
+        selected_well, selected_plan = automatic_well, plan
+        if managed_pes:
+            publish_branch('cbh_anl', status='waiting_for_l2_selection')
+            pes_phase.wait_for_selection()
+            publish_branch('cbh_anl', status='preparing')
+            from kinbot.pes_selection import selected_view
+            from kinbot.anl.automatic import prepare_automatic_cbh_anl
+            selected_well = selected_view(well, parameters)
+            selected_plan = prepare_automatic_cbh_anl(
+                selected_well, automatic_parameters, directory=directory)
+        publish_branch('cbh_anl', status='running')
+        return _execute_automatic_branch(
+            selected_well, automatic_parameters, input_file, directory, selected_plan)
+
     if concurrent and preparation_error is None:
         # Keep VRC in the main thread. Its ROTD_py wrapper installs signal
         # forwarding handlers so termination reaches its process group; Python
         # permits that only in the main thread. The immutable composite branch
         # is the sole background worker.
         state['branches']['vrc_tst']['status'] = 'running'
-        state['branches']['cbh_anl']['status'] = 'running'
+        state['branches']['cbh_anl']['status'] = ('waiting_for_l2_selection' if managed_pes else 'running')
         _atomic_json(state_path, state)
         channel = Queue(maxsize=1)
 
         def run_composite():
             try:
-                value = _execute_automatic_branch(
-                    automatic_well, automatic_parameters, input_file, directory, plan)
+                value = run_automatic()
             except BaseException as error:
                 from kinbot.pes_phase import ExplorationReopened
                 publish_branch('cbh_anl', status=('paused' if isinstance(error, ExplorationReopened) else 'failed'),
@@ -354,8 +371,7 @@ def _post_reaction_branches(well, parameters, qc, input_file,
         if automatic_requested and preparation_error is None:
             state['branches']['cbh_anl']['status'] = 'running'
             _atomic_json(state_path, state)
-            record('cbh_anl', _execute_automatic_branch,
-                   automatic_well, automatic_parameters, input_file, directory, plan)
+            record('cbh_anl', run_automatic)
 
     from kinbot.pes_phase import ExplorationReopened, checkpoint
     if any(isinstance(error, ExplorationReopened) for _, error in errors):
@@ -703,11 +719,15 @@ def _main():
 
     while True:
         try:
-            pes_phase.wait_for_exploration(rg)
+            pes_phase.wait_for_exploration(rg, allow_vrc=bool(
+                auto_vrc or par.get('vrc_tst_scan') or par.get('vrc_tst_noscan')))
             if auto_vrc:
                 par['vrc_tst_scan'] = {routing_name(well0): _accepted_homolytic_channels(well0)}
             automatic = _post_reaction_branches(
                 well0, par, qc, input_file, automatic_run_requested)
+            # VRC-only or no-branch workers still join the global exploration
+            # barrier before producing the final PES/MESS artifacts.
+            pes_phase.wait_for_selection()
             from kinbot.pes_selection import selected_view
             downstream_well = selected_view(well0, par) if automatic_run_requested else well0
             if automatic is not None:

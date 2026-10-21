@@ -704,6 +704,13 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             out.append(f'PES exploration: {exploration.get("phase", "unknown")}; '
                        f'epoch={exploration.get("epoch")}; wells={counts}; '
                        f'owner={"present" if owner_alive else "not observed"}')
+            if 'max_searches' in exploration:
+                exploring = exploration.get('exploring_workers', [])
+                waiting = exploration.get('waiting_workers', [])
+                out.append(f'Exploration slots: {len(exploring)}/{exploration["max_searches"]}; '
+                           f'unstarted wells={len(waiting)} (separate from the QC node pool).')
+                if waiting and len(exploring) >= exploration['max_searches']:
+                    out.append('Next well waits for an exploring well to finish: '+', '.join(exploring))
             selected = case.get('anl_selection', {})
             current = (selected.get('token'), selected.get('epoch')) == (
                 exploration.get('token'), exploration.get('epoch'))

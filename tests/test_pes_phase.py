@@ -101,7 +101,55 @@ def test_closed_search_refuses_dead_owner_or_finalized_pes(root):
 def test_checkpoint_noop_outside_managed_pes(root):
     phase.checkpoint()
     phase.wait_for_exploration()
+    phase.wait_for_selection()
     phase.assembled()
+
+
+def test_early_vrc_releases_search_slot_without_opening_anl(root, monkeypatch):
+    record = phase.initialize(root)
+    phase.register(root, 'a', os.getpid())
+    monkeypatch.setattr(phase, '_ROOT', root)
+    monkeypatch.setattr(phase, '_WORKER', 'a')
+    monkeypatch.setenv('KINBOT_PES_PHASE_TOKEN', record['token'])
+    phase.wait_for_exploration(allow_vrc=True)
+    phase.checkpoint()  # Exploring globally is legal for VRC in this epoch.
+    assert state(root)['workers']['a']['status'] == 'vrc'
+    assert phase.tick(root, ['a','b'], max_searches=1) == ([], 'exploring')
+    assert state(root)['waiting_workers'] == ['b']
+    phase.register(root, 'b', os.getpid())
+    worker_status(root, 'b', 'ready')
+    assert phase.tick(root, ['a','b'], max_searches=1) == ([], 'postprocessing')
+    phase.wait_for_selection()
+    assert state(root)['workers']['a']['status'] == 'postprocessing'
+
+
+def test_revision_during_early_vrc_waits_for_branch_acknowledgement(root, monkeypatch):
+    control.configure(root)
+    record = phase.initialize(root)
+    for name in ('a','b'):
+        (root/name).mkdir()
+        phase.register(root, name, os.getpid())
+        worker_status(root, name, 'vrc')
+    phase.register(root, 'still_exploring', os.getpid())
+    target = root/'a'/'failed_reaction'
+    control.search_scope(target, 'reaction', -999, close=True)
+    control.request(root, target, kind='reaction', reason='review while VRC runs')
+    monkeypatch.setattr(phase, '_ROOT', root)
+    monkeypatch.setattr(phase, '_WORKER', 'a')
+    monkeypatch.setattr(phase, '_EPOCH', 0)
+    monkeypatch.setenv('KINBOT_PES_PHASE_TOKEN', record['token'])
+    for _ in range(3):
+        phase.tick(root, ['a','b','still_exploring'], max_searches=2)
+        assert state(root)['epoch'] == 1  # One invalidation, not one per tick.
+        assert state(root)['grants'] == []
+    with pytest.raises(phase.ExplorationReopened):
+        phase.wait_for_selection()
+    worker_status(root, 'a', 'ready')
+    phase.tick(root, ['a','b','still_exploring'], max_searches=2)
+    assert state(root)['grants'] == []
+    worker_status(root, 'b', 'ready')
+    assert phase.tick(root, ['a','b','still_exploring'], max_searches=2)[0] == ['still_exploring','a']
+    assert not state(root)['quiescing']
 
 
 def test_concurrent_discovery_publishes_one_input_without_overwriting(root,monkeypatch):
@@ -169,3 +217,76 @@ p.assembled()
             if p.poll() is None:
                 p.terminate()
             p.wait(timeout=5)
+
+
+@pytest.mark.parametrize('slots', [1, 8])
+def test_real_workers_run_vrc_early_and_anl_during_vrc_hold(root, slots):
+    """Use the real branch join and owner loop, including a single-slot input."""
+    import subprocess
+    import sys
+    import time
+    record = phase.initialize(root)
+    child = '''from pathlib import Path
+import time
+from kinbot import pes_phase as p, kb
+from kinbot.anl import automatic
+assert p.attach()
+root = Path.cwd().parent
+if Path.cwd().name == 'a':
+    def prepare(*args, **kwargs):
+        Path('planned').touch()
+        return {}
+    def vrc(*args):
+        Path('vrc_started').touch()
+        while not (root/'release_vrc').exists():
+            p.checkpoint()
+            time.sleep(.02)
+        return {'status':'complete'}
+    def anl(*args):
+        Path('anl_done').touch()
+        return {'status':'complete'}
+    automatic.prepare_automatic_cbh_anl = prepare
+    automatic.validate_mess_environment = lambda *a: None
+    kb._execute_vrc_branch = vrc
+    kb._execute_automatic_branch = anl
+    p.wait_for_exploration(allow_vrc=True)
+    kb._post_reaction_branches(object(), dict(queue_job_limit=SLOTS,
+        vrc_tst_scan={'a':['scission']}, vrc_tst_max_nodes=SLOTS,
+        rotdpy_max_jobs=SLOTS), object(), 'input.json', True)
+else:
+    # The second well starts while the first is running/reviewing VRC.
+    assert (root/'a/vrc_started').exists()
+    assert not (root/'a/planned').exists()
+    Path('explored').touch()
+    p.wait_for_exploration()
+p.wait_for_selection()
+p.assembled()
+'''.replace('SLOTS', str(slots))
+    processes = {}
+    env = {**os.environ, 'PYTHONPATH':str(Path(__file__).parents[1]),
+           'OPENBLAS_NUM_THREADS':'1', 'OMP_NUM_THREADS':'1',
+           'KINBOT_PES_PHASE_ROOT':str(root), 'KINBOT_PES_PHASE_TOKEN':record['token']}
+    try:
+        deadline = time.monotonic()+25
+        while time.monotonic() < deadline:
+            busy, status = phase.tick(root, ['a','b'], max_searches=1)
+            if not busy and len(processes) < 2 and (not processes or (root/'a/vrc_started').exists()):
+                name = ('a','b')[len(processes)]
+                (root/name).mkdir()
+                proc = subprocess.Popen([sys.executable,'-c',child], cwd=root/name, env=env)
+                processes[name] = proc
+                phase.register(root, name, proc.pid)
+            if (root/'a/anl_done').exists() and not (root/'release_vrc').exists():
+                assert (root/'b/explored').exists()
+                assert status == 'postprocessing'
+                (root/'release_vrc').touch()
+            if len(processes)==2 and all(p.poll() is not None for p in processes.values()):
+                break
+            time.sleep(.03)
+        assert len(processes)==2 and all(p.poll()==0 for p in processes.values())
+        assert (root/'a/planned').exists() and (root/'a/anl_done').exists()
+    finally:
+        for proc in processes.values():
+            if proc.poll() is None:
+                proc.terminate()
+            proc.wait(timeout=5)

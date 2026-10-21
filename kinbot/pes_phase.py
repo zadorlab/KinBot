@@ -1,8 +1,8 @@
 """PES-wide exploration barrier and cooperative reopening of live searches.
 
-Parked well controllers retain their in-memory accepted chemistry. They do not
-occupy exploration slots or submit downstream work until the PES owner opens
-the barrier. QC allocations are never signalled by this coordinator.
+Explored well controllers retain their accepted chemistry and release their
+exploration slots. VRC can proceed while ANL waits for the outer L2 selection.
+QC allocations are never signalled by this coordinator.
 """
 from contextlib import contextmanager
 import fcntl
@@ -119,7 +119,7 @@ def checkpoint():
     if _EPOCH is None:
         return
     m = _read()
-    if m['epoch'] != _EPOCH or m['phase'] == 'exploring':
+    if m['epoch'] != _EPOCH:
         raise ExplorationReopened('PES exploration reopened; retaining submitted QC allocations.')
 
 
@@ -139,28 +139,39 @@ def tick(root, jobs, *, max_searches, known_jobs=None):
         pending = _pending(root)
         targets = {(Path(r['target']).name if r['kind']=='network' else Path(r['target']).parent.name) for _, r in pending}
         workers = m['workers']
+        m['max_searches'] = max_searches
+        m['waiting_workers'] = [n for n in jobs if n not in workers]
         # A worker can publish another well between the owner's directory
         # read and this tick. Its ready acknowledgement uses the same lock.
         discovered = (root/'chemids').read_text().splitlines() if known_jobs is not None else []
         current_inventory = known_jobs is None or set(discovered) <= set(known_jobs)
-        if m['phase'] == 'postprocessing' and targets:
-            m.update(phase='exploring', epoch=m['epoch']+1, grants=[])
+        branches = any(w['status'] in ('vrc', 'postprocessing') for w in workers.values())
+        if targets and (m['phase'] == 'postprocessing' or branches) and not m.get('quiescing'):
+            m.update(phase='exploring', epoch=m['epoch']+1, grants=[], quiescing=True)
+        if m.get('quiescing') and not branches:
+            m['quiescing'] = False
         busy = [n for n, w in workers.items() if w['status'] == 'exploring']
         # All branch threads must first surrender their graph locks. Waiting
         # for this acknowledgement prevents editing a plan while it is used.
-        if m['phase'] == 'exploring' and not any(w['status']=='postprocessing' for w in workers.values()):
-            grants = sorted(n for n in targets if n in workers
-                            and workers[n]['status'] in ('ready','assembled'))[:max(0,max_searches-len(busy))]
-            m['grants'] = grants
-            busy += grants
-            if (current_inventory and not targets and set(jobs) <= set(workers)
-                    and all(workers[n]['status'] in ('ready','assembled') for n in jobs)):
+        if m['phase'] == 'exploring':
+            if not branches:
+                grants = sorted(n for n in targets if n in workers
+                                and workers[n]['status'] in ('ready','assembled'))[:max(0,max_searches-len(busy))]
+                m['grants'] = grants
+                busy += grants
+            if (current_inventory and not targets and not m.get('quiescing')
+                    and set(jobs) <= set(workers)
+                    and all(workers[n]['status'] in ('ready','vrc','assembled') for n in jobs)):
                 from kinbot.pes_selection import publish
                 publish(root, m, jobs)
                 m.update(phase='postprocessing', grants=[])
+                for worker in workers.values():
+                    if worker['status'] == 'vrc':
+                        worker['status'] = 'postprocessing'
         if (current_inventory and m['phase']=='postprocessing' and not targets and set(jobs)<=set(workers)
                 and all(workers[n]['status']=='assembled' for n in jobs)):
             m['phase'] = 'closing'
+        m['exploring_workers'] = busy
         atomic_json(root/NAME, m)
     return busy, m['phase']
 
@@ -178,20 +189,60 @@ def _status(status):
         return True
 
 
-def wait_for_exploration(generator=None):
+def _publish_ready(generator):
+    """Snapshot and acknowledgement must describe the same locked epoch."""
+    from kinbot.pes_snapshot import publish
+    with locked(_ROOT):
+        m = _read()
+        record = m['workers'].get(_WORKER)
+        if record is None:
+            return None
+        if record['pid'] != os.getpid():
+            raise RuntimeError('PES worker ownership changed.')
+        publish(generator)
+        record.update(status='ready', epoch=m['epoch'])
+        atomic_json(_ROOT/NAME, m)
+        return m['epoch']
+
+
+def wait_for_exploration(generator=None, *, allow_vrc=False):
+    """Publish local L2 completion; optionally let VRC start before global selection.
+
+    Only this main-thread boundary applies search revisions, after both branch
+    threads have joined. Claiming an epoch and checking for revisions share the
+    owner's lock, so a review update cannot race a new branch launch.
+    """
     global _EPOCH
     from kinbot.pes_snapshot import publish
-    publish(generator)
     if _ROOT is None:
+        publish(generator)
         return
     _EPOCH = None
-    while not _status('ready'):
+    while True:
+        snapshot_epoch = _publish_ready(generator)
+        if snapshot_epoch is not None:
+            break
         time.sleep(.1)
     while True:
-        m = _read()
-        if m['phase']=='postprocessing':
-            _EPOCH = m['epoch']
-            _status('postprocessing')
+        with locked(_ROOT):
+            m = _read()
+            # A parked worker also needs a current-generation snapshot after
+            # another worker's live revision; its accepted chemistry is intact.
+            if snapshot_epoch != m['epoch']:
+                publish(generator)
+                snapshot_epoch = m['epoch']
+            available = (not m.get('quiescing') and not _pending(_ROOT)
+                         and (m['phase'] == 'postprocessing'
+                              or (allow_vrc and m['phase'] == 'exploring')))
+            if available:
+                record = m['workers'][_WORKER]
+                if record['pid'] != os.getpid():
+                    raise RuntimeError('PES worker ownership changed.')
+                _EPOCH = m['epoch']
+                record.update(status=('postprocessing' if m['phase']=='postprocessing' else 'vrc'),
+                              epoch=_EPOCH)
+                atomic_json(_ROOT/NAME, m)
+        if available:
             checkpoint()
             return
         if _WORKER in m.get('grants', ()) and any(
@@ -205,8 +256,19 @@ def wait_for_exploration(generator=None):
             revise_network(generator)
             reactions(generator)
             generator.generate()
-            publish(generator)
-            _status('ready')
+            snapshot_epoch = _publish_ready(generator)
+        time.sleep(1)
+
+
+def wait_for_selection():
+    """ANL/join gate only: never run a search or mutate its reaction objects."""
+    if _ROOT is None:
+        return
+    while True:
+        checkpoint()
+        if _read()['phase'] in ('postprocessing', 'closing'):
+            checkpoint()
+            return
         time.sleep(1)
 
 

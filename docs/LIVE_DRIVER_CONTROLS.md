@@ -207,11 +207,16 @@ assumes a username, chemistry example, hostname, partition, or scratch path.
 
 ## Exploration and reviewed network extensions
 
-`pes_phase_policy` defaults to `auto`: automatic CBH/ANL and VRC/ROTD PES runs
-finish exploration of all eligible wells before downstream dispatch begins.
+`pes_phase_policy` defaults to `auto`: automatic CBH/ANL PES runs finish
+exploration of all eligible wells and outer L2 pathway selection before new
+ANL planning/dispatch begins. Reviewed VRC channels may start once their own
+well finishes exploration, while other wells continue exploring. Final network
+assembly still waits for the entire exploration and both branches.
 `simultaneous_kinbot` limits exploring wells, not parked controllers. Thus a
-value of one permits serial exploration followed by concurrent downstream
-work. Ordinary runs without these branches retain their prior behavior.
+value of one permits serial exploration with independent VRC work. If that
+one exploring well is waiting on its last QC job, the next well still waits;
+raising a shared node cap does not increase well concurrency. Ordinary runs
+without these branches retain their prior behavior.
 Explicit `legacy` or `exploration_first` policies remain available. A live
 revisit is supported only by an exploration-first owner.
 

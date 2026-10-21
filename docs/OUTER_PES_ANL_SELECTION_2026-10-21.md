@@ -18,10 +18,10 @@ which pathways to retain. This change moves that choice before ANL dispatch.
    only the selected saddles, stable products, retained complexes, and their
    recursively required CBH references. Exact-identity aliases can consume an
    existing canonical graph even when that owner's observation is selected out.
-4. VRC still receives the full accepted network and retains its independent
-   execution and active-space review path. VRC review does not block ANL. This
-   change does not move the existing exploration barrier for new VRC planning;
-   already submitted VRC allocations continue during exploration.
+4. VRC receives the full accepted network and retains its independent execution
+   and active-space review path. Reviewed VRC channels now start after their
+   own well completes exploration, without waiting for the other wells. VRC
+   review does not occupy an exploration slot or block ANL after L2 selection.
 5. Handoff, worker MESS inputs and final summaries use the selected network.
    Omitted successful searches are labelled `SELECTED_OUT`, not `FAILED`.
    Final ANL auditing records both the selected plan and original accepted QC
@@ -81,10 +81,35 @@ git pull --ff-only origin composite
 ```
 
 The current run is still exploring. Its replacement controllers reconstruct
-accepted chemistry through the existing caches, finish remaining L1/L2 work,
-and then select the full L2 PES before starting new ANL work. Existing scratch,
+accepted chemistry through the existing caches, run reviewed VRC for completed
+wells, finish remaining L1/L2 work, and then select the full L2 PES before
+starting new ANL work. Existing scratch,
 exclusivity, resource pool, exclusion, walltime and recovery settings are not
 changed by this update. New VRC channels still require reviewed models.
+
+## Independent VRC gate follow-up
+
+The first selection patch left the global exploration wait ahead of both
+branches. This unnecessarily held VRC. The wait now applies to ANL planning
+and the final join, while VRC keeps the main thread needed by its signal
+handlers. Even a one-slot input can keep ANL waiting independently of a VRC
+review hold; scheduler admission still enforces the existing QC resource cap.
+
+Live reaction/network edits increment the exploration epoch and wait for all
+active VRC/ANL branch threads to acknowledge it before changing reaction
+objects or plans. No allocation is cancelled by this coordination. Accepted
+L2 snapshots and epoch acknowledgements are published together under the
+owner lock. The monitor reports exploration slots and unstarted wells, making
+the separate `simultaneous_kinbot` limit visible.
+
+For an already reconciled run on `ebb3c3ff`, enable this follow-up with
+`git pull --ff-only origin composite` and the ordinary
+`python -u -m kinbot.run_refresh RUN --apply`. This refresh archives controller
+records and replaces the controllers while retaining existing QC allocations
+and results. Do not repeat migration, rejected-reaction, deduplication or
+pending-replacement flags merely to enable the scheduling change. It does not
+increase `simultaneous_kinbot`: the next well remains gated by that explicit
+input setting while the current well's last search is running.
 
 ## Validation and limits
 
@@ -97,6 +122,11 @@ do not constitute a new Gaussian/Molpro/MRCC/CFOUR run on Blodgett.
 
 Validation on October 21:
 
+- Independent VRC gate follow-up: 211 passed, 1 skipped across phase, branch,
+  selection, input refresh, monitoring, controller refresh, live control and
+  network revision tests. Real subprocess tests cover VRC before the next
+  well finishes and ANL completing during a VRC hold, with one-slot and
+  multi-slot inputs. These are orchestration tests with fixture QC callbacks.
 - Focused selection, refresh, ownership, handoff and compatibility suite:
   253 passed, 1 skipped.
 - Full repository suite: 2,502 passed, 7 skipped, 11 failed. The same 11 failures

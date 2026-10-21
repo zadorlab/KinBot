@@ -98,6 +98,11 @@ To run a full PES search, make an input file (e.g. input.json) and run:
 
 You can find additional command line arguments in the manual. 
 
+For bimolecular H abstraction, start with the two inputs in
+[`examples/bimol_abstraction`](examples/bimol_abstraction).
+Add your theory profiles and machine settings before running a copied input in
+a new calculation directory.
+
 SMILES inputs use RDKit with a fixed seed to generate the starting geometry.
 The same SMILES and RDKit version give the same starting stereoisomer and
 calculation name. Explicit tetrahedral and double-bond SMILES assignments are
@@ -197,11 +202,12 @@ Changing it on restart applies to new jobs; completed results remain usable.
 For Gaussian AM1 exploration use `l0_profile` with `calculator: "gaussian"`,
 `method: "AM1"`, `basis: ""` and the desired Gaussian `command`.
 
-L0 covers preliminary conformers and ring preparation.
+L0 covers preliminary conformers, ring preparation and bimolecular exploration.
 L1 covers ordinary well/conformer optimization, reaction discovery and its IRC.
 L2 is enabled by `high_level: 1`; it refines stationary points. Hindered rotors
-use the selected stationary point's level. The preliminary conformer switch
-remains restricted to wells.
+and the final bimolecular IRC use the selected stationary point's level.
+The preliminary conformer switch remains restricted to wells; bimolecular
+L0 saddle exploration is a separate stage.
 
 Explicit profile fields override the corresponding legacy settings for the
 selected optimization level. Adding `l1: "gauss"` alone does not change the
@@ -213,7 +219,7 @@ generated calculator keywords. A FairChem L1 profile uses its UMA model
 throughout the search. L0 does not control the constrained TS steps.
 `l0`, `l1` and `l2` also accept calculator aliases such as `gauss`, `fc` and `uma`.
 Ordinary inputs without profiles retain their previous settings, including the
-Gaussian command used by preliminary searches. Flat `l0_qc`,
+Gaussian command used by preliminary searches. Old bimolecular `l0_qc`,
 `l0_qc_command`, `l0_basis` and `l0_calc_kwargs` inputs remain accepted;
 `l0_method` is a fallback beneath `l0_profile.method`.
 

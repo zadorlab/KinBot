@@ -26,7 +26,7 @@
     6
   ],
   "conformer_search": 1,
-  "semi_emp_conformer_search": 0,
+  "L0_conformer_search": 0,
   "high_level": 0,
   "barrier_threshold": 100.0,
   "optical_population": "specified",

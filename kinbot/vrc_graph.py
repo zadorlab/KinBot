@@ -11,6 +11,15 @@ from pathlib import Path
 from kinbot.execution import atomic_json
 
 
+def _unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f'Ambiguous VRC specification key after JSON serialization: {key!r}')
+        result[key] = value
+    return result
+
+
 def scientific_spec(spec):
     value = deepcopy(spec)
     value.pop('limits', None)
@@ -21,7 +30,11 @@ def scientific_spec(spec):
         intent.pop(key, None)
     if not intent:
         value.pop('intent', None)
-    return value
+    # Use the same representation as workflow.json. In particular, validated
+    # MR models use integer multiplicity keys, but JSON objects use strings.
+    # Do not round coordinates, normalize physical values or omit state data.
+    return json.loads(json.dumps(value, allow_nan=False),
+                      object_pairs_hook=_unique_object)
 
 
 def identity(spec):

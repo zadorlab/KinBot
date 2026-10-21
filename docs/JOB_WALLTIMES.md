@@ -40,6 +40,11 @@ VRC now finds legacy graphs by exact scientific specification, independent of
 resources and graph concurrency. It retains the original directory and records
 a stable binding. Geometry, method, basis, root/active space, native input,
 constraints, convergence and checkpoint path/hash remain part of identity.
+Identity comparisons use the persisted JSON representation: validated MR
+models use integer multiplicity keys in memory, while JSON stores those keys
+as strings. This representation change must not reject an existing binding or
+create a duplicate unbound graph. Coordinates and physical values are not
+rounded, and ambiguous duplicate JSON keys or nonfinite values are rejected.
 Close geometries are never treated as equal. This also applies after a timeout
 retry changes a graph's resource request. Completed results are reloaded;
 submitted tasks remain owned by their recorded allocation IDs.

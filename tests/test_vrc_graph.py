@@ -77,6 +77,37 @@ def test_changed_manifest_is_not_silently_accepted(tmp_path):
         vrc_graph.select_graph(tmp_path, 'asymptote', spec())
 
 
+def test_mr_json_identity_preserves_root_weights_and_orbital_provenance():
+    from kinbot.molpro import validate_vrc_state_model
+    model = validate_vrc_state_model({
+        'state_average': [{'multiplicity': 2, 'roots': 2, 'weights': [.5, .5]}],
+        'selected_roots': {'2': 1}, 'energy_selection': {'2': 'lowest'}})
+    requested = {'tasks': [{'profile': {'calculator_kwargs': {'state_model': model}}}]}
+    saved = json.loads(json.dumps(requested))
+    assert model['selected_roots'] == {2: 1}
+    assert saved['tasks'][0]['profile']['calculator_kwargs']['state_model']['selected_roots'] == {'2': 1}
+    assert vrc_graph.scientific_spec(requested) == vrc_graph.scientific_spec(saved)
+    assert vrc_graph.identity(requested) == vrc_graph.identity(saved)
+    # Existing binding hashes of persisted specifications remain valid.
+    import hashlib
+    expected = hashlib.sha256(json.dumps(saved, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    assert vrc_graph.identity(requested) == expected
+    for field, value in [('selected_roots', {'2': 2}),
+                         ('energy_selection', {}),
+                         ('state_average', [{'multiplicity': 2, 'roots': 2, 'weights': [.4, .6]}]),
+                         ('orbital_selection', {'mode': 'molpro_record', 'path': '/different.wfu', 'sha256': 'b'*64})]:
+        changed = deepcopy(saved)
+        changed['tasks'][0]['profile']['calculator_kwargs']['state_model'][field] = value
+        assert vrc_graph.identity(changed) != vrc_graph.identity(requested)
+    assert model['selected_roots'] == {2: 1}  # Caller remains unmodified.
+
+
+def test_ambiguous_or_nonfinite_identity_is_rejected():
+    for model in ({'selected_roots': {2: 1, '2': 2}}, {'weight': float('nan')}):
+        with pytest.raises(ValueError):
+            vrc_graph.identity({'tasks': [{'model': model}]})
+
+
 @pytest.fixture
 def duplicates(tmp_path):
     root = tmp_path/'run'
@@ -193,12 +224,14 @@ def test_completed_corrections_require_review(duplicates):
         vrc_deduplicate.plan(root, jobs)
 
 
+@pytest.mark.parametrize('prebound', [False, True])
 @pytest.mark.parametrize('initial_status', ['complete', 'submitted'])
 def test_actual_mr_scan_resumes_legacy_checkpoint_chain_after_walltime_change(
-        tmp_path, monkeypatch, initial_status):
+        tmp_path, monkeypatch, initial_status, prebound):
     from types import SimpleNamespace
     import numpy as np
     from kinbot.vrc_tst_scan import VTS
+    from kinbot.molpro import automatic_vrc_state_model
     monkeypatch.chdir(tmp_path)
     geom = np.asarray([[0., 0., 0.], [0., 0., 2.5]])
     reaction = SimpleNamespace(scan_coo=[0, 1], equiv=[[0], [1]], products=[],
@@ -207,6 +240,10 @@ def test_actual_mr_scan_resumes_legacy_checkpoint_chain_after_walltime_change(
     par = dict(vrc_tst_scan_method='caspt2(2,2)', vrc_tst_scan_basis='vdz',
                vrc_tst_walltime='24:00:00', single_point_ppn=4,
                vrc_tst_min_stack_mw=50, queue_name='short')
+    par['vrc_tst_state_model'] = automatic_vrc_state_model(
+        ['H', 'H'], 0, [1, 3], roots={1: 2, 3: 1},
+        selected_roots={1: 1, 3: 1},
+        active_space={'active_electrons': 2, 'active_orbitals': 2})
     captured = {}
     class Prepared(Exception): pass
     prepare = dispatch.prepare
@@ -231,6 +268,10 @@ def test_actual_mr_scan_resumes_legacy_checkpoint_chain_after_walltime_change(
     state['tasks']['relaxed_scan'].update(status=initial_status, job_id='42',
         final_geometry_sha256=execution['details']['final_geometry_sha256'])
     atomic_json(old/'state.json', state)
+    if prebound:
+        # The repair binds the JSON-loaded original; the restarted controller
+        # constructs an in-memory MR model with integer multiplicity keys.
+        vrc_graph.bind(old.parent, dispatch._load(old)[1], old)
     monkeypatch.setattr(dispatch, 'preflight_until_scheduler_ready', lambda *a, **kw: None)
     adopted = []
     def drive(path, *args, **kwargs):

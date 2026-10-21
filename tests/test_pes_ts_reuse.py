@@ -79,7 +79,27 @@ def test_changed_theory_prevents_cross_well_sharing(tmp_path):
     assert reuse.load(a)=={} and reuse.load(b)=={}
 
 
-def test_shared_graph_waits_for_live_owner_private_work_then_adopts(tmp_path,monkeypatch):
+def test_explicit_repair_reconciles_previously_reserved_equivalent_owners(tmp_path):
+    a,b=fixture(tmp_path/'case')
+    case=a.parent.parent
+    items=reuse.catalog(case)
+    # An earlier registry can contain separate reservations for work that is
+    # now provably equivalent. Ordinary registration cannot demote them.
+    reserved=dict(schema=1,owners=list(items),aliases={},evidence={},
+                  records={k:reuse.signature(v['record']) for k,v in items.items()},catalog=items)
+    atomic_json(case/reuse.NAME,reserved)
+    assert reuse.discover(case,ts_reuse.options({}))[0]['aliases']=={}
+    canonical=ts_reuse.directory(b,'reverse')
+    atomic_json(canonical/'state.json',{'tasks':{'sp':{'status':'complete'}}})
+    fixed,_=reuse.discover(case,ts_reuse.options({}),reconcile_owners=True)
+    assert fixed['aliases']=={'111/anl_automatic/forward':'222/anl_automatic/reverse'}
+    assert fixed['owners']==['222/anl_automatic/reverse']
+    atomic_json(case/reuse.NAME,fixed)
+    assert reuse.load(a)['forward']['graph']==canonical
+    assert reuse.discover(case,ts_reuse.options({}),reconcile_owners=True)[0]==fixed
+
+
+def test_shared_graph_can_adopt_without_waiting_for_unrelated_owner_work(tmp_path,monkeypatch):
     from kinbot import pes_phase
     from kinbot.anl import automatic
     a,b=fixture(tmp_path/'case');reuse.install(a,{})
@@ -98,7 +118,7 @@ def test_shared_graph_waits_for_live_owner_private_work_then_adopts(tmp_path,mon
     monkeypatch.setattr(automatic,'preflight_until_scheduler_ready',lambda *a,**k:calls.append('verify'))
     monkeypatch.setattr(automatic,'_drive_graphs_locked',lambda *a:calls.append('drive'))
     assert reuse.finish(target)==graph
-    assert calls==['wait','prepare','verify','drive']
+    assert calls==['prepare','verify','drive']
 
 
 def add_minimum(base, *, complex_route=None, revision=''):

@@ -114,7 +114,8 @@ def plan(root, jobs, options):
             scope=case.parent
             if not (scope/'pes_exploration.json').exists():
                 continue
-            mapping,items=pes_ts_reuse.discover(scope,ts_reuse.options({}),local_maps)
+            mapping,items=pes_ts_reuse.discover(scope,ts_reuse.options({}),local_maps,
+                                               reconcile_owners=True)
             remove=[]
             for key,other in mapping['aliases'].items():
                 item,target=items[key],items[other]

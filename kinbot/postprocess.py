@@ -171,6 +171,11 @@ def create_summary_file(species, qc, par):
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name,
                                                                     max_len=max_len+1))
+        elif (species.reac_ts_done[index] == -2
+              and hasattr(species, 'anl_pathway_selection')):
+            selection = species.anl_pathway_selection['omitted'][species.reac_name[index]]
+            s.append('# SELECTED_OUT {} retained={}'.format(
+                species.reac_name[index], ','.join(selection['retained'])))
         else:
             status = "FAILED"
             s.append('{status:16s}  {name:{max_len}s}'.format(status=status,

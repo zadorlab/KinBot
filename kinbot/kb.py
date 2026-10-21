@@ -214,6 +214,7 @@ def _post_reaction_branches(well, parameters, qc, input_file,
                     shared_pool.parent, run_policy.limit(total_slots))
     directory = parameters.get('anl_automatic_directory', 'anl_automatic')
     plan = None
+    automatic_well = well
     preparation_error = None
     join_error = None
     try:
@@ -227,8 +228,10 @@ def _post_reaction_branches(well, parameters, qc, input_file,
     if automatic_requested:
         from kinbot.anl.automatic import prepare_automatic_cbh_anl
         try:
+            from kinbot.pes_selection import selected_view
+            automatic_well = selected_view(well, parameters)
             plan = prepare_automatic_cbh_anl(
-                well, automatic_parameters, directory=directory)
+                automatic_well, automatic_parameters, directory=directory)
         except Exception as error:  # preserve the independent VRC branch
             preparation_error = error
 
@@ -311,7 +314,7 @@ def _post_reaction_branches(well, parameters, qc, input_file,
         def run_composite():
             try:
                 value = _execute_automatic_branch(
-                    well, automatic_parameters, input_file, directory, plan)
+                    automatic_well, automatic_parameters, input_file, directory, plan)
             except BaseException as error:
                 from kinbot.pes_phase import ExplorationReopened
                 publish_branch('cbh_anl', status=('paused' if isinstance(error, ExplorationReopened) else 'failed'),
@@ -352,7 +355,7 @@ def _post_reaction_branches(well, parameters, qc, input_file,
             state['branches']['cbh_anl']['status'] = 'running'
             _atomic_json(state_path, state)
             record('cbh_anl', _execute_automatic_branch,
-                   well, automatic_parameters, input_file, directory, plan)
+                   automatic_well, automatic_parameters, input_file, directory, plan)
 
     from kinbot.pes_phase import ExplorationReopened, checkpoint
     if any(isinstance(error, ExplorationReopened) for _, error in errors):
@@ -705,6 +708,8 @@ def _main():
                 par['vrc_tst_scan'] = {routing_name(well0): _accepted_homolytic_channels(well0)}
             automatic = _post_reaction_branches(
                 well0, par, qc, input_file, automatic_run_requested)
+            from kinbot.pes_selection import selected_view
+            downstream_well = selected_view(well0, par) if automatic_run_requested else well0
             if automatic is not None:
                 par['anl_handoff_manifest'] = automatic['handoff_manifest']
                 par['cbh_thermochemistry_models'] = automatic[
@@ -720,19 +725,19 @@ def _main():
             if par.get('anl_handoff_manifest'):
                 from kinbot.anl.handoff import apply_handoff
                 logger.info('Applying completed ANL/CBH results to the KinBot network')
-                apply_handoff(well0, par['anl_handoff_manifest'])
+                apply_handoff(downstream_well, par['anl_handoff_manifest'])
 
             if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
-                mess = MESS(par, well0)
+                mess = MESS(par, downstream_well)
                 mess.write_input(qc)
                 if par.get('run_messpf'):
                     logger.info('Starting MESS partition-function calculations')
                     mess.run_partition_functions()
 
             # Preserve the completed search even if the separate rate calculation fails.
-            postprocess.create_summary_file(well0, qc, par)
-            postprocess.createPESViewerInput(well0, qc, par)
-            postprocess.creatMLInput(well0, qc, par)
+            postprocess.create_summary_file(downstream_well, qc, par)
+            postprocess.createPESViewerInput(downstream_well, qc, par)
+            postprocess.creatMLInput(downstream_well, qc, par)
 
             if par['me'] == 1 and par['me_code'] == 'mess':
                 logger.info('Starting Master Equation calculations')

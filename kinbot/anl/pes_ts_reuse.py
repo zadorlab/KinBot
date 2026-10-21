@@ -153,7 +153,7 @@ def history(case, result, current):
     return items
 
 
-def discover(case, limits, local_maps=None):
+def discover(case, limits, local_maps=None, *, reconcile_owners=False):
     p = case/NAME
     result = json.loads(p.read_text()) if p.exists() else dict(schema=1,aliases={},records={},evidence={})
     items = history(case, result, catalog(case,local_maps))
@@ -167,6 +167,30 @@ def discover(case, limits, local_maps=None):
     # two simultaneously preparing wells can both see an uncreated graph and
     # assign ownership in opposite directions.
     canonical=sorted(set(result.get('owners',result['aliases'].values())),key=rank)
+    if reconcile_owners:
+        # Only the stopped-controller repair may reconsider reserved owners.
+        # Normal registration must keep reservations immutable to avoid two
+        # live planners assigning ownership in opposite directions.
+        survivors = []
+        for key in canonical:
+            match = next(((other, proof) for other in survivors
+                          if (proof := compare(items[key], items[other], limits)) is not None), None)
+            if match is None:
+                survivors.append(key)
+                continue
+            other, proof = match
+            # Re-prove every redirected alias against the final owner. Close
+            # numerical matches are not necessarily transitive.
+            children = [alias for alias, owner in result['aliases'].items() if owner == key]
+            proofs = {alias: compare(items[alias], items[other], limits) for alias in children}
+            if any(value is None for value in proofs.values()):
+                survivors.append(key)
+                continue
+            for alias, evidence in {key: proof, **proofs}.items():
+                result['aliases'][alias] = other
+                result['evidence'][alias] = dict(canonical=other, measurements=evidence,
+                    limits=limits, scientific=scientific(items[alias]['plan']))
+        canonical = survivors
     for key in sorted(items,key=rank):
         if key in result['aliases'] or key in canonical:
             continue
@@ -232,18 +256,14 @@ def load(base):
 def finish(target, interval=20.):
     """Reuse a whole canonical graph; if its owner stopped, safely drive it."""
     from kinbot.anl import automatic
-    from kinbot.pes_phase import checkpoint, active_worker
+    from kinbot.pes_phase import checkpoint
     graph=target['graph']
     while True:
         checkpoint()
-        base=graph.parents[2]
-        marker=base/'ts_private_graphs_complete.json'
-        current_plan=json.loads((base/'network_request.json').read_text())
-        ready=(marker.exists() and json.loads(marker.read_text()).get('plan_sha256') ==
-               automatic._sha256_json(current_plan))
-        if active_worker(base.parent) and not ready:
-            time.sleep(interval)
-            continue
+        # Callers have released all their private graph locks. Ownership of
+        # this graph's drive lock is sufficient; waiting for the peer's whole
+        # network could wait forever after selection omitted this saddle or
+        # an unrelated CBH reference blocked that peer.
         if target['kind']=='ts':
             automatic._prepare_ts_graph(target['plan'],target['record'],graph)
         else:

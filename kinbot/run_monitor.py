@@ -420,6 +420,7 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
                 'surface_output_files': len(list(path.glob('output/surface_*.dat')))})
     return {'directory': str(root), 'name': root.name, 'sampling': sampling,
             'exploration': read_json(root/'pes_exploration.json', warnings),
+            'anl_selection': read_json(root/'pes_l2_selection.json', warnings),
             'allocation_cap': par.get('queue_job_limit'), 'configured_exclusions': par.get('slurm_exclude_nodes', []),
             'jobs': case_jobs,
             'processes': [p for p in processes if inside(p['cwd'], root)],
@@ -703,6 +704,18 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             out.append(f'PES exploration: {exploration.get("phase", "unknown")}; '
                        f'epoch={exploration.get("epoch")}; wells={counts}; '
                        f'owner={"present" if owner_alive else "not observed"}')
+            selected = case.get('anl_selection', {})
+            current = (selected.get('token'), selected.get('epoch')) == (
+                exploration.get('token'), exploration.get('epoch'))
+            if current and selected.get('status') == 'selected':
+                chosen = sum(len(w['selected']) for w in selected['workers'].values())
+                omitted = sum(len(w['omitted']) for w in selected['workers'].values())
+                out.append(f'Outer PES L2 selection: {chosen} retained; {omitted} omitted by pathway policy.')
+            elif current and selected.get('status') == 'blocked':
+                out.append('ANL selection blocked: '+selected.get('error', 'incomplete L2 evidence'))
+            elif (exploration.get('phase') == 'exploring'
+                  and exploration.get('anl_selection_policy') == 'lowest_l2'):
+                out.append('New ANL work waits for outer PES L2 pathway selection; retained QC may still be running.')
         out.append(f'Slurm: {"UNKNOWN" if report["scheduler_error"] else len(case["jobs"])} allocations'
                    + (' / shared pool; ' if shared else f' / cap {case["allocation_cap"] or "unspecified"}; ')
                    + f'local processes: {"UNKNOWN" if report["process_error"] else len(case["processes"])}')

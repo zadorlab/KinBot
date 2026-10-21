@@ -89,6 +89,22 @@ def test_live_pool_is_shown_instead_of_stale_per_case_limit(production):
     assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
 
 
+def test_selection_display_distinguishes_old_controller_and_current_choice(production):
+    root, case = production
+    phase = dict(token='new', epoch=1, phase='exploring', workers={})
+    put(case/'pes_exploration.json', phase)
+    assert 'New ANL work waits' not in monitor.render(monitor.snapshot(root))
+    phase['anl_selection_policy']='lowest_l2'
+    put(case/'pes_exploration.json', phase)
+    put(case/'pes_l2_selection.json',dict(token='old',epoch=1,status='selected',
+        workers={'a':dict(selected=['ts'],omitted={})}))
+    text=monitor.render(monitor.snapshot(root))
+    assert 'New ANL work waits' in text and '1 retained' not in text
+    put(case/'pes_l2_selection.json',dict(token='new',epoch=1,status='selected',
+        workers={'a':dict(selected=['ts'],omitted={'other':{}})}))
+    assert '1 retained; 1 omitted' in monitor.render(monitor.snapshot(root))
+
+
 def test_archived_failure_is_cached_outcome_but_new_attempt_is_visible(production):
     from kinbot.execution import file_sha256
     root, case = production

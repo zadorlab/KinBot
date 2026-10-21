@@ -65,6 +65,8 @@ def initialize(root, input_file=None, initial_worker=None):
     if input_file is not None:
         from kinbot.input_refresh import capture
         record.update(capture(root,input_file))
+        if json.loads(Path(input_file).read_text()).get('composite_method'):
+            record['anl_selection_policy'] = 'lowest_l2'
     atomic_json(root/NAME, record)
     return record
 
@@ -153,6 +155,8 @@ def tick(root, jobs, *, max_searches, known_jobs=None):
             busy += grants
             if (current_inventory and not targets and set(jobs) <= set(workers)
                     and all(workers[n]['status'] in ('ready','assembled') for n in jobs)):
+                from kinbot.pes_selection import publish
+                publish(root, m, jobs)
                 m.update(phase='postprocessing', grants=[])
         if (current_inventory and m['phase']=='postprocessing' and not targets and set(jobs)<=set(workers)
                 and all(workers[n]['status']=='assembled' for n in jobs)):

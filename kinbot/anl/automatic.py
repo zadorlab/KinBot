@@ -1426,16 +1426,20 @@ def _prepare_ts_graph(plan, entry, graph):
             l3_max_retries=plan['resources'].get('l3_max_retries', 1))
         prepare(specification, graph)
 
-def _prepare_graphs(plan, sources, root):
+def _prepare_graphs(plan, sources, root, selection=None):
     root.mkdir(parents=True, exist_ok=True)
     graphs = {}
     from kinbot.anl.ts_reuse import load as load_ts_aliases
     aliases = load_ts_aliases(plan, root.parent)
+    from kinbot.pes_selection import task_names, graph_keys
+    needed_ts = task_names(plan, aliases, selection)
     from kinbot.anl.pes_ts_reuse import load as load_pes_aliases
     external = load_pes_aliases(root.parent)
+    required = graph_keys(plan, needed_ts)
+    external = {n:v for n,v in external.items() if n in required}
     started = time.monotonic()
     total = (len(plan['cbh']['calculated_states'])
-             + len(plan['network']['transition_states']) - len(aliases) - len(external)
+             + len(needed_ts - set(aliases)) - len(external)
              + len(plan['network'].get('product_complexes', {})))
     progress_path = root.parent / 'composite_preflight.json'
 
@@ -1489,7 +1493,7 @@ def _prepare_graphs(plan, sources, root):
             check_graph(graph, key)
         graphs[key] = graph
     for name, entry in plan['network']['transition_states'].items():
-        if name in aliases or name in external:
+        if name not in needed_ts or name in aliases or name in external:
             continue
         molecule = entry['molecule']
         directory = root / ('ts_' + hashlib.sha256(
@@ -2041,7 +2045,10 @@ def prepare_automatic_cbh_anl(root_species, parameters, *,
     """
     base = Path(directory).expanduser().resolve()
     base.mkdir(parents=True, exist_ok=True)
-    plan = build_network_request(root_species, parameters)
+    # Keep the immutable accepted-QC catalog, including previously scheduled
+    # saddles. The outer PES selection controls execution and handoff instead
+    # of deleting scientific evidence or relabelling a different saddle.
+    plan = build_network_request(getattr(root_species, 'anl_accepted_source', root_species), parameters)
     plan_path = base / 'network_request.json'
     if plan_path.is_file():
         previous = _read_json(plan_path, 'automatic network request')
@@ -2117,10 +2124,12 @@ def _electronic_state_audit(plan, parameters):
     return audit_electronic_states(states, parameters)
 
 
-def _shared_profiles(base, graphs, parameters, interval):
+def _shared_profiles(base, graphs, parameters, interval, required=None):
     """Carry canonical ownership through assembly, VPT2 and final QC auditing."""
     from kinbot.anl import pes_ts_reuse
     external = pes_ts_reuse.load(base)
+    if required is not None:
+        external = {n:v for n,v in external.items() if n in required}
     profiles = {}
     consumed = {}
     for name, target in external.items():
@@ -2161,6 +2170,11 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         raise ValueError(
             'Prepared automatic CBH/ANL plan differs from its published file.')
 
+    selection = getattr(root_species, 'anl_pathway_selection', None)
+    from kinbot.pes_selection import bind, task_names, project, graph_keys
+    bind(base, plan, selection)
+    plan = project(plan, selection)
+
     atomic_json(base / 'electronic_state_audit.json',
                 _electronic_state_audit(plan, parameters))
 
@@ -2198,12 +2212,15 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         install_new(plan,base,parameters['anl_ts_reuse'])
         from kinbot.anl.pes_ts_reuse import install as install_pes_reuse
         install_pes_reuse(base,parameters['anl_ts_reuse'])
-    graphs = _prepare_graphs(plan, sources, base / 'states')
+    graphs = _prepare_graphs(plan, sources, base / 'states', selection=selection)
     _drive_graphs(graphs, plan['resources']['global_max_jobs'], interval)
-    atomic_json(base/'ts_private_graphs_complete.json', {'plan_sha256': _sha256_json(plan)})
+    atomic_json(base/'ts_private_graphs_complete.json', {'plan_sha256': _sha256_json(saved_plan)})
 
     profile_root = base / 'profiles'
-    external, profiles = _shared_profiles(base, graphs, parameters, interval)
+    from kinbot.anl.ts_reuse import load as load_ts_aliases
+    aliases = load_ts_aliases(plan, base)
+    needed_ts = task_names(plan, aliases, selection)
+    external, profiles = _shared_profiles(base, graphs, parameters, interval, graph_keys(plan, needed_ts))
     for entry in plan['cbh']['calculated_states']:
         key = _state_key(entry['smiles'], entry['charge'],
                          entry['multiplicity'])
@@ -2215,10 +2232,8 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
             profile_root / _safe_state_directory(
                 entry['smiles'], entry['charge'], entry['multiplicity']),
             state_id=key, parameters=parameters)
-    from kinbot.anl.ts_reuse import load as load_ts_aliases
-    aliases = load_ts_aliases(plan, base)
     for name, record in plan['network']['transition_states'].items():
-        if name in aliases or name in external:
+        if name not in needed_ts or name in aliases or name in external:
             continue
         profiles['ts:' + name] = assemble_available_profiles(
             graphs['ts:' + name], record,
@@ -2226,7 +2241,8 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
                 name.encode()).hexdigest()[:16]),
             state_id='ts:' + name, stationary_point='transition_state')
     for alias, canonical in aliases.items():
-        profiles['ts:' + alias] = profiles['ts:' + canonical]
+        if alias in needed_ts:
+            profiles['ts:' + alias] = profiles['ts:' + canonical]
 
     for route, entry in plan['network'].get('product_complexes', {}).items():
         if 'complex:'+route in external:
@@ -2274,11 +2290,11 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
                 smiles=smiles, charge=record['molecule']['charge'],
                 mult=record['molecule']['multiplicity'], wellorts=0,
                 atom=record['molecule']['symbols'])
-            selection = select_cbh_ladder(
+            ladder_selection = select_cbh_ladder(
                 point, energies, table,
                 max_rung=target['requested_rung'],
                 method_ladder=method_ladder)
-            formation = _write_formation(path, selection)
+            formation = _write_formation(path, ladder_selection)
         formations[route] = formation
         formation_paths[route] = path
 
@@ -2322,7 +2338,8 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
     root_key = _state_key(root_smiles, root_state['charge'],
                           root_state['multiplicity'])
     tight = [item for item in plan['network']['reactions']
-             if item['transition_state'] is not None]
+             if item['transition_state'] is not None and
+             (selection is None or item['name'] in selection['selected'])]
     barrier_label = None
     if tight:
         barrier_label = _choose_common_barrier([
@@ -2387,6 +2404,20 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
                        for key, value in formation_paths.items()},
         'selected_barrier_method': barrier_label,
     }
+    if selection is not None:
+        # Final auditing must describe the selected kinetic network, while
+        # the original plan remains the immutable catalog for graph reuse.
+        selected_plan = deepcopy(plan)
+        selected_plan['network']['reactions'] = [r for r in plan['network']['reactions']
+                                                 if r['name'] in selection['selected']]
+        selected_plan['network']['transition_states'] = {
+            n:r for n,r in plan['network']['transition_states'].items()
+            if n in selection['selected']}
+        selected_path = base/'selected_network_request.json'
+        atomic_json(selected_path, selected_plan)
+        result.update(plan=str(selected_path),
+                      accepted_plan=_artifact(plan_path, 'accepted L2 catalog'),
+                      pathway_selection=deepcopy(selection))
     if (base/'ts_reuse.json').exists():
         result['ts_reuse'] = _artifact(base/'ts_reuse.json', 'TS reuse proof')
     if (base/'pes_reuse_consumed.json').exists():

@@ -1,7 +1,7 @@
 """Accepted L2 evidence published before downstream planning and CBH expansion.
 
-This diagnostic is deliberately independent of successful CBH construction.
-It does not select reactions, launch calculations, or change their acceptance.
+This evidence feeds outer-PES selection and the diagnostic audit independently
+of successful CBH construction. Publication changes no reaction acceptance or QC.
 """
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,6 +38,8 @@ def snapshot(species, parameters):
                    products=sorted(add(p) for p in reaction.products),
                    barrierless=family == 'hom_sci',
                    transition_state=None if family == 'hom_sci' else name)
+        if getattr(reaction, 'do_vdW', False):
+            row['product_complex'] = routing_name(reaction.irc_prod_opt.species)
         if not row['barrierless']:
             try:
                 row['path_class'] = reaction_path_id(reaction)
@@ -54,5 +56,9 @@ def snapshot(species, parameters):
 def publish(generator):
     """One small atomic write when exploration finishes, including live revisits."""
     if generator is not None and getattr(generator, 'par', {}).get('composite_method'):
-        atomic_json(Path('accepted_l2_network.json'),
-                    snapshot(generator.species, generator.par))
+        from kinbot import pes_phase
+        evidence = snapshot(generator.species, generator.par)
+        phase = pes_phase._read()
+        if phase is not None:
+            evidence['generation'] = dict(token=phase['token'], epoch=phase['epoch'])
+        atomic_json(Path('accepted_l2_network.json'), evidence)

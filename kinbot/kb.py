@@ -3,6 +3,7 @@ import sys
 import datetime
 import copy
 import logging
+import json
 
 from os.path import isfile
 
@@ -313,7 +314,15 @@ def _main():
             rg.generate()
 
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
-        mess = MESS(par, well0)
+        if par['bimol']:
+            from kinbot.bimol_mess import BimolecularMESS
+            if not par['reaction_search']:
+                from kinbot.bimol_network import BimolecularNetwork
+                BimolecularNetwork(well0, par).write_json()
+            with open('bimol_network.json') as handle:
+                mess = BimolecularMESS(par, json.load(handle))
+        else:
+            mess = MESS(par, well0)
         mess.write_input(qc)
 
     # Preserve the completed search even if the separate rate calculation fails.

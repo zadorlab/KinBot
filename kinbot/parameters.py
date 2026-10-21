@@ -388,13 +388,16 @@ class Parameters:
             'epsilon': 0.0,
             'epsilon_unit': 'K',  # can be K or J/mol or cm-1
             'sigma': 0.0,
-            # Omit optional product complexes from final MESS networks only.
+            # Unimolecular: omit optional product complexes. Bimolecular:
+            # omit both complexes; the higher separated-fragment E + ZPE
+            # selects the outer PST surface in the two-TS approximation.
             'me_skip_vdW': 0,
             # Raise submerged barriers to connected bound-well ground energies.
             'correct_submerged': 0,
             # MESS specific keywords
             # Executable and optional arguments; quote paths that contain spaces.
             'mess_command': 'mess',
+            'mess_abstraction_command': 'mess-abstraction',  # Argonne direct bimolecular TST executable
             'TemperatureList': [300. + 100. * i for i in range(18)],
             'PressureList': [7.6, 76., 760., 7600., 76000.],
             'EnergyStepOverTemperature': .2,
@@ -454,7 +457,8 @@ class Parameters:
                 err = 'AIE calculation requires a conformer search.'
             if self.par['epsilon'] == 0. or self.par['sigma'] == 0.:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
-            if self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0:
+            if (self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0
+                    and not self.par['bimol']):
                 err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
         if self.par['me'] in (1, 2):
             # convert to cm-1 units

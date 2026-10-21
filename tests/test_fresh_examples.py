@@ -176,3 +176,40 @@ def test_node_inventory_counts_nodes_once_and_never_admits_unhealthy(monkeypatch
     assert plan['max_jobs'] == 3
     assert plan['reserved_healthy_nodes'] == ['n2', 'n1']
     assert set(plan['excluded_nodes']) == {'n1', 'n2', 'n6', 'n7', 'n8', 'n9'}
+
+
+def test_skip_cleanup_resumes_permission_failure_without_repeating_retirement(fresh, monkeypatch):
+    f = fresh
+    evidence = dict(status='planned', entries=[dict(status='planned', path='unchanged-cache')])
+    def denied(archive, root, *args, **kwargs):
+        atomic_json(root/'cache_cleanup.json', evidence)
+        raise RuntimeError('Cannot establish cache inactivity: Permission denied')
+    monkeypatch.setattr(f.module.run_cache_cleanup, 'cleanup', denied)
+    with pytest.raises(RuntimeError, match='Permission denied'):
+        f.module.run(f.root, f.old, f.config, apply=True)
+    prior = json.loads((f.root/'fresh_run.json').read_text())
+    assert prior['phase'] == 'retired' and not prior['launches']
+    contents = {str(p.relative_to(f.root)): p.read_bytes()
+                for p in f.root.glob('*/input.json')}
+    result = f.module.run(f.root, f.old, f.config, apply=True, skip_cleanup=True)
+    assert result['phase'] == 'launched'
+    assert result['cleanup']['status'] == 'skipped'
+    assert result['config'] == prior['config'] and result['code'] == prior['code']
+    assert json.loads((f.root/'cache_cleanup.json').read_text()) == evidence
+    for name, value in contents.items():
+        assert (f.root/name).read_bytes() == value
+    for case in ('ch3s', 'ch3ss'):
+        assert f.events.count(('stop', case)) == 1
+        assert f.events.count(('launch', case)) == 1
+    events = list(f.events)
+    f.module.run(f.root, f.old, f.config, apply=True, skip_cleanup=True)
+    assert f.events == events
+
+
+def test_skip_cleanup_does_not_bypass_preflight(fresh, monkeypatch):
+    def fail(root):
+        raise RuntimeError('missing executable')
+    monkeypatch.setattr(fresh.module.handoff, 'preflight', fail)
+    with pytest.raises(RuntimeError, match='missing executable'):
+        fresh.module.run(fresh.root, fresh.old, fresh.config, apply=True, skip_cleanup=True)
+    assert fresh.old.exists() and not fresh.events

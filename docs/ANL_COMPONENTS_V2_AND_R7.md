@@ -185,6 +185,14 @@ or launching r7; it does not cancel that work. Rerun the same command after it
 finishes. Scheduler/proc inspection failures block deletion. Do not start
 separate jobs during this short handoff: the guard is not a Slurm reservation.
 
+If optional cleanup is blocked (for example, permission to inspect a process's
+`/proc/PID/cwd` is denied), repeat the same fresh-run command with
+`--apply --skip-cleanup`. This resumes the prepared handoff without deleting
+remaining caches or changing its scientific inputs/code snapshot. It records
+cleanup as skipped and retains any earlier cleanup journal. All retirement,
+seed verification and duplicate-launch guards still apply. Do not manually
+edit the journal's phase or configuration to bypass cleanup.
+
 Each target is moved to a journaled sibling before deletion, so a repeated
 handoff never empties a newly created replacement directory. Symlink roots,
 mounted directories and overlaps with run/source data are refused. Internal

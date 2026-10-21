@@ -99,7 +99,7 @@ def retire(previous, root, journal):
     previous.rename(archive)
 
 
-def run(root, previous, config, *, apply=False):
+def run(root, previous, config, *, apply=False, skip_cleanup=False):
     run_cache_cleanup.validate(config.get('cleanup', {}))
     root = Path(root).expanduser().resolve()
     previous = Path(previous).expanduser().resolve()
@@ -154,8 +154,17 @@ def run(root, previous, config, *, apply=False):
             atomic_json(path, journal)
         if journal['phase'] == 'retired':
             handoff.verify(root)  # Reviewed WFU seeds must survive cache removal.
-            journal['cleanup'] = run_cache_cleanup.cleanup(
-                journal['archive'], root, config.get('cleanup', {}), protected=[handoff.REPO])
+            if skip_cleanup:
+                # This is an invocation-level opt-out, not a change to the
+                # immutable prepared chemistry/configuration. Keep any partial
+                # cleanup journal and remaining cache contents as evidence.
+                print('Skipping optional home-cache cleanup; remaining cache files are retained.', flush=True)
+                journal['cleanup'] = dict(status='skipped', reason='Explicit --skip-cleanup',
+                    previous_cleanup_record=(str(root/'cache_cleanup.json')
+                                             if (root/'cache_cleanup.json').exists() else None))
+            else:
+                journal['cleanup'] = run_cache_cleanup.cleanup(
+                    journal['archive'], root, config.get('cleanup', {}), protected=[handoff.REPO])
             handoff.verify(root)
             journal['phase'] = 'cleaned'
             atomic_json(path, journal)
@@ -189,6 +198,9 @@ if __name__ == '__main__':
     parser.add_argument('--replace', required=True, type=Path)
     parser.add_argument('--config', type=Path, default=Path(__file__).with_name('fresh_run.json'))
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--skip-cleanup', action='store_true',
+                        help='Retain remaining home caches and resume launch; all run/seed/launch checks still apply.')
     args = parser.parse_args()
-    result = run(args.root, args.replace, json.loads(args.config.read_text()), apply=args.apply)
+    result = run(args.root, args.replace, json.loads(args.config.read_text()),
+                 apply=args.apply, skip_cleanup=args.skip_cleanup)
     print(json.dumps({k: result[k] for k in ('phase', 'previous', 'archive', 'nodes', 'code', 'launches')}, indent=2))

@@ -361,6 +361,8 @@ def _main():
     input_file = masterpar.input_file
     from kinbot.run_policy import initialize as initialize_resource_policy
     initialize_resource_policy(Path(input_file).resolve().parent, par['queue_live_policy'])
+    from kinbot.live_control import initialize as initialize_live_control
+    initialize_live_control(Path(input_file).resolve().parent, par['queue_live_control'])
     if (par.get('vrc_tst_surface_model') or par.get('vrc_tst_surface_model_file')):
         # Validate reviewed chemistry inputs before expensive discovery/QC.
         from kinbot.vrc_multistate import load_surface_model

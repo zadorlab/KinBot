@@ -1492,6 +1492,9 @@ def _drive_graphs_locked(graphs, max_jobs, interval):
     scheduler_error = None
     while True:
         try:
+            from kinbot.anl.live_control import process as process_controls
+            for graph in graphs.values():
+                process_controls(graph)
             states = {
                 name: advance(graphs[name], submit=False) for name in names}
             for name in names:
@@ -1511,10 +1514,14 @@ def _drive_graphs_locked(graphs, max_jobs, interval):
                         hard.append(f'{name}/{task}={status}')
             runnable = any(e['status'] == 'staged'
                            for state in states.values() for e in state['tasks'].values())
-            if hard and not active and not runnable:
+            from kinbot.live_control import holding
+            held = any(e['status'] in ('failed','unavailable') and holding(
+                Path(graphs[name])/'tasks'/task) for name,state in states.items()
+                for task,e in state['tasks'].items())
+            if hard and not active and not runnable and not held:
                 raise RuntimeError('Automatic composite graph failed: ' +
                                    ', '.join(hard))
-            if complete:
+            if complete and not held:
                 return states
             slots = run_policy.limit(max_jobs, graphs[names[0]]) - active if names else 0
             for offset in range(len(names)):

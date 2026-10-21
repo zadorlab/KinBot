@@ -588,6 +588,9 @@ class Parameters:
             # Opt-in shared Slurm pool. An ancestor runtime policy overrides
             # subsystem job caps; future edits use python -m kinbot.run_policy.
             'queue_live_policy': {},
+            # Optional live resources/operator retries. Empty preserves the
+            # legacy terminal failure and restart behaviour.
+            'queue_live_control': {},
             # Whether to raise an error when 'queuing' is set to 'local' and the 
             # files and db entries are missing, otherwise just show a warning.
             'error_missing_local': True,
@@ -728,6 +731,10 @@ class Parameters:
         validate_resource_policy(self.par['queue_live_policy'])
         if self.par['queue_live_policy'] and self.par['queuing'] != 'slurm':
             raise ValueError('queue_live_policy requires queuing=slurm.')
+        from kinbot.live_control import validate_options as validate_live_control
+        validate_live_control(self.par['queue_live_control'])
+        if self.par['queue_live_control'] and self.par['queuing'] != 'slurm':
+            raise ValueError('queue_live_control requires queuing=slurm.')
         if (automatic_cbh_anl_requested(self.par)
                 and not isinstance(queue_limit, bool)
                 and isinstance(queue_limit, int) and queue_limit > 0):

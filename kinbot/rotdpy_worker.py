@@ -31,6 +31,15 @@ def run(name):
                 raise
             time.sleep(5)
     tag = FluxTag(int_tag)
+    resource_edit = os.environ.get('KINBOT_ROTD_RESOURCES')
+    if resource_edit:
+        import json
+        options = json.loads(resource_edit)
+        from kinbot.anl.dispatch import _molpro_stack_mw
+        stack = _molpro_stack_mw(options)
+        if stack != options['stack_mw'] or flux.calculator['code'].lower() != 'molpro':
+            raise ValueError('ROTD live resources require the supported Molpro worker.')
+        flux.calculator = dict(flux.calculator,processors=options['cores'],mem=stack)
     if tag == FluxTag.FLUX_TAG:
         flux.run(length, face_id, sample_id)
     elif tag == FluxTag.SURF_TAG:

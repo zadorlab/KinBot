@@ -84,6 +84,20 @@ def _finish(qc, job, marker, record):
             qc.db.write(rows[-1].toatoms(), name=job,
                         data={'status': 0, 'timeout_retry_of': old_job})
         original = (archive/'batch.original').read_text()
+        if record.get('resource_overrides'):
+            import shlex
+            from kinbot.qc_live import worker_resources, script_resources
+            worker = Path(record['effective_worker'])
+            replacement_worker = archive/'retry_worker.py'
+            replacement_worker.write_text(worker_resources(
+                worker.read_text(), record['backend'], record['resource_overrides']))
+            record['inputs'][str(replacement_worker)] = file_sha256(replacement_worker)
+            token = re.escape(record['worker_command'])
+            original, count = re.subn(r'(?<![\w/.-])(?:\"'+token+r'\"|\''+token+r'\'|'+token+r')(?=\s|$)',
+                                     lambda _: shlex.quote(str(replacement_worker)), original)
+            if count != 1:
+                raise RuntimeError('Cannot uniquely identify the Python worker in the original batch script.')
+            original = script_resources(original, record['resource_overrides'])
         # Slurm stops reading directives at the first executable line; the
         # new final directive must precede that line and override old -t.
         lines = original.splitlines(keepends=True)
@@ -156,6 +170,14 @@ def _finish(qc, job, marker, record):
     if record['phase'] == 'submitted':
         qc.job_ids[job] = record['replacement_ids'][-1]
         qc.job_generation_tagged[job] = True
+        if record.get('manual_request_file'):
+            from kinbot import live_control
+            path = Path(record['manual_request_file'])
+            request = json.loads(path.read_text())
+            if request['id'] != record['manual_request']:
+                raise RuntimeError('Manual retry receipt identity changed.')
+            live_control.acknowledge(path, request, 'applied', job_id=qc.job_ids[job],
+                                     archive=record['attempts'][-1]['archive'])
     return None
 
 
@@ -173,38 +195,50 @@ def resume(qc, job):
         return _finish(qc, job, marker, record)
 
 
-def recover(qc, job):
+def recover(qc, job, *, manual=None):
     from kinbot.qc import _slurm_job_active
     from kinbot.slurm_retry import _artifacts
 
     settings = timeout_retry.policy(Path.cwd())
     limit = settings.get('timeout_retries', 0)
-    if not limit or job not in qc.job_ids:
+    if (not limit and manual is None) or job not in qc.job_ids:
         return None
     job_id = str(qc.job_ids[job])
     if _slurm_job_active(job_id) is not False:
         return 'running'  # Includes unknown scheduler status.
-    proof = timeout_retry.evidence(Path.cwd(), job_id, [Path('perm')/(job+'.err')])
+    if manual is not None:
+        from kinbot.anl.live_control import _ownership
+        native = _ownership(Path.cwd(), job_id)
+        proof = {'job_id': job_id, 'partition': native['Partition'],
+                 'previous_walltime': native['TimeLimit'], 'source': 'operator',
+                 'request': manual['id']}
+    else:
+        proof = timeout_retry.evidence(Path.cwd(), job_id, [Path('perm')/(job+'.err')])
     if proof is None:
         return None
     waits = getattr(qc, '_timeout_publication_waits', {})
     qc._timeout_publication_waits = waits
     now = time.time()
-    if now - waits.setdefault(job_id, now) < _GRACE:
+    if manual is None and now - waits.setdefault(job_id, now) < _GRACE:
         return 'running'
     marker = _marker(job)
     with _locked(marker):
         record = json.loads(marker.read_text()) if marker.exists() else None
         if record and _belongs(record, job_id):
+            if manual and record.get('manual_request') == manual['id']:
+                return _finish(qc, job, marker, record) or 'running'
             if record['phase'] != 'submitted':
                 return _finish(qc, job, marker, record) or 'running'
             history = record['attempts']
         else:
             record, history = None, []
-        if len(history) >= limit:
+        if manual is None and sum(a.get('source') != 'operator' for a in history) >= limit:
             qc._timeout_retry_blocked = f'{job}: timeout retry limit reached ({limit}).'
             return None
-        walltime = timeout_retry.next_walltime(settings, proof)
+        from kinbot import live_control
+        overrides = live_control.overrides(Path.cwd()/job) if manual else {}
+        walltime = (overrides.get('walltime', proof['previous_walltime']) if manual
+                    else timeout_retry.next_walltime(settings, proof))
         if walltime is None:
             qc._timeout_retry_blocked = f'{job}: partition maximum prevents a longer allocation.'
             return None
@@ -216,9 +250,21 @@ def recover(qc, job):
         archive.mkdir()
         if record:
             atomic_json(archive/'previous.json', record)
-        shutil.copy2(script, archive/'batch.original')
+        previous_script = Path(record['script']) if record and job_id in record['replacement_ids'] else script
+        shutil.copy2(previous_script, archive/'batch.original')
         shutil.copy2(worker, archive/worker.name)
         inputs = {str(p): file_sha256(p) for p in (script, worker)}
+        effective_worker = worker
+        worker_command = job+'.py'
+        if record and job_id in record['replacement_ids']:
+            previous_worker = Path(record['attempts'][-1]['archive'])/'retry_worker.py'
+            if previous_worker.exists():
+                effective_worker, worker_command = previous_worker, str(previous_worker)
+            elif record.get('effective_worker'):
+                effective_worker = Path(record['effective_worker'])
+                worker_command = record['worker_command']
+            inputs[str(previous_script)] = file_sha256(previous_script)
+            inputs[str(effective_worker)] = file_sha256(effective_worker)
         # The existing I/O guard saved the inputs/checkpoints before this
         # allocation started. Restore those verified seeds, not a checkpoint
         # possibly interrupted during a write. Required Guess=Read inputs in
@@ -226,9 +272,24 @@ def recover(qc, job):
         token = hashlib.sha256(job.encode()).hexdigest()[:20]
         baseline = Path.cwd()/'.kinbot_slurm_io_retries'/token/job_id
         guard_file = baseline/'execution.json'
-        if not guard_file.is_file():
+        if (not guard_file.is_file() and manual and manual.get('pending_only')
+                and manual.get('pending_holds', {}).get(job_id, {}).get('phase') == 'cancelled'):
+            import secrets
+            guard = {'identity': job, 'slurm_job_id': job_id, 'initial_artifacts': {},
+                     'random_seed': str(secrets.randbelow(2**31-1))}
+            # The pending allocation never started. Preserve its current seeds
+            # before archiving, including Guess=Read checkpoints and inputs.
+            for source in _artifacts([job, 'perm/'+job], [], marker.parent):
+                relative = str(source.relative_to(Path.cwd()))
+                saved = baseline/'initial'/relative
+                saved.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(source,saved)
+                guard['initial_artifacts'][relative] = file_sha256(saved)
+            atomic_json(guard_file,guard)
+        elif not guard_file.is_file():
             raise RuntimeError(f'{job}: pre-allocation retry seeds are unavailable; manual review required.')
-        guard = json.loads(guard_file.read_text())
+        else:
+            guard = json.loads(guard_file.read_text())
         if guard.get('identity') != job or str(guard.get('slurm_job_id')) != job_id:
             raise RuntimeError('Timeout retry seed generation does not match the failed job.')
         seeds = {}
@@ -256,6 +317,11 @@ def recover(qc, job):
                   'replacement_ids': record['replacement_ids'] if record else [],
                   'attempts': [*history, attempt], 'inputs': inputs, 'moves': moves,
                   'script': str(archive/'retry.sbatch'), 'seeds': seeds, 'random_seed': seed}
+        record.update(effective_worker=str(effective_worker),worker_command=worker_command)
+        if manual:
+            record.update(manual_request=manual['id'], resource_overrides=overrides,
+                          manual_request_file=manual['request_file'],
+                          backend=qc.qc, original_worker=str(worker))
         atomic_json(marker, record)
         _finish(qc, job, marker, record)
         return 'running'

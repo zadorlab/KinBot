@@ -20,6 +20,8 @@ def cooperative_multi(base):
             self._refresh_limit()
 
         def _refresh_limit(self):
+            from kinbot.pool_drain import pulse
+            pulse(None)
             # Zero is enforced by the shared admission gate. Keep ROTD's
             # local polling loop able to reconcile completed jobs meanwhile.
             self.calculator['max_jobs'] = max(1, run_policy.limit(self.calculator['max_jobs']))

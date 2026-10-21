@@ -52,11 +52,15 @@ def _run(command, *, timeout=None):
 def _submit(queue, script):
     try:
         from kinbot import run_policy
+        from kinbot.batch_live import callback
+        prepare = callback(script,kind='mess') if queue=='slurm' else None
         if queue == 'slurm' and run_policy.find():
             result = run_policy.submit([constants.qsubmit[queue], str(script)],
                 wait=True, capture_output=True, text=True, check=False,
-                timeout=_QUERY_TIMEOUT_SECONDS)
+                timeout=_QUERY_TIMEOUT_SECONDS,
+                **({'before_submit':prepare} if prepare else {}))
         else:
+            if prepare: prepare()
             result = _run([constants.qsubmit[queue], str(script)],
                           timeout=_QUERY_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired as error:
@@ -304,6 +308,8 @@ def run_mess(writer):
     save_progress()
 
     def poll():
+        from kinbot.pool_drain import pulse
+        pulse(Path.cwd())
         time.sleep(5)
         for pid, (index, previous) in list(active.items()):
             if pid not in ended:

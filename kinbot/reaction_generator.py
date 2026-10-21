@@ -228,6 +228,8 @@ class ReactionGenerator:
         frag_unique = []
 
         while alldone:
+            from kinbot import search_control, live_control
+            search_control.reactions(self)
             optimization_monitor = []
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
@@ -825,6 +827,7 @@ class ReactionGenerator:
 
                     elif self.species.reac_ts_done[index] == -999:
                         if (self.par['delete_intermediate_files'] == 1
+                                and live_control.find() is None
                                 and not getattr(obj, 'stereochemical_rejection', None)):
                             if not self.species.reac_obj[index].instance_name in deleted:
                                 self.delete_files(self.species.reac_obj[index].instance_name)
@@ -840,6 +843,11 @@ class ReactionGenerator:
             # per reaction and obscured this controller invariant.
             alldone = any(status >= 0
                           for status in self.species.reac_ts_done)
+            alldone |= any(status == -999 and live_control.holding(
+                Path.cwd()/self.species.reac_obj[i].instance_name, kind='reaction')
+                for i,status in enumerate(self.species.reac_ts_done))
+            if not alldone:
+                alldone = not search_control.close_reactions(self)
 
             # write a small summary while running
             with open('kinbot_monitor.out', 'w') as f_out:

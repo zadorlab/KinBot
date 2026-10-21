@@ -443,9 +443,15 @@ def snapshot(root, *, include_all=False, log_lines=4):
     from kinbot import run_policy
     policy = run_policy.read(root)
     policy_root = run_policy.find(root)
+    from kinbot.live_control import summary as control_summary
+    try:
+        controls = control_summary(root)
+    except (OSError, ValueError) as error:
+        controls = {'error': str(error)}
     return {'time': datetime.fromtimestamp(now).astimezone().isoformat(timespec='seconds'),
             'timestamp': now,
             'shared_policy': policy,
+            'live_controls': controls,
             'shared_policy_root': str(policy_root.parent) if policy_root else None,
             'directory': str(root), 'scheduler_error': queue_error, 'process_error': process_error,
             'warnings': warnings, 'cases': [case_snapshot(d, jobs, processes, now,
@@ -653,6 +659,15 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
     common_exclusions = report['cases'][0]['configured_exclusions'] if report['cases'] else []
     same_exclusions = all(c['configured_exclusions'] == common_exclusions for c in report['cases'])
     shared = report.get('shared_policy')
+    controls = report.get('live_controls')
+    if controls:
+        if controls.get('error'):
+            out.append('Live controls: UNKNOWN — '+controls['error'])
+        else:
+            out.append(f'Live controls: revision {controls["revision"]}; '
+                       f'hold failures={controls["hold_failures"]}; requests={controls["requests"]}')
+            if controls.get('drain',{}).get('status') == 'blocked':
+                out.append('Pending drain unconfirmed: '+str(controls['drain']['error']))
     if shared:
         out.append(f'Shared pool: cap {shared["max_jobs"]} across all runs/branches under '
                    f'{report["shared_policy_root"]} (revision {shared["revision"]})')

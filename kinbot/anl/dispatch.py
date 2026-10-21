@@ -555,6 +555,15 @@ def validate_spec(spec, *, allow_obsolete=False):
 
 def _load(run_dir):
     run_dir = Path(run_dir).resolve()
+    marker = run_dir/'.manifest.lock'
+    if marker.exists():
+        with marker.open('r') as handle:
+            fcntl.flock(handle,fcntl.LOCK_SH)
+            return _load_unlocked(run_dir)
+    return _load_unlocked(run_dir)
+
+
+def _load_unlocked(run_dir):
     spec = json.loads((run_dir / 'workflow.json').read_text())
     validate_spec(spec, allow_obsolete=True)
     state = json.loads((run_dir / 'state.json').read_text())
@@ -647,6 +656,8 @@ def _runtime_profile(task):
         stack_mw = _molpro_stack_mw(resources)
         if stack_mw < resources.get('min_stack_mw', 32):
             raise ValueError(f"{task['id']}: Molpro stack per rank is below min_stack_mw.")
+        if resources.get('live_override'):
+            kwargs.update(nproc=cores, stack_mw=stack_mw)
         if 'nproc' in kwargs and kwargs['nproc'] != cores:
             raise ValueError(f"{task['id']}: Molpro nproc must match Slurm cores.")
         if 'stack_mw' in kwargs and kwargs['stack_mw'] != stack_mw:
@@ -660,6 +671,9 @@ def _runtime_profile(task):
         if not isinstance(kwargs, dict):
             raise ValueError(f"{task['id']}: calculator_kwargs must be an object.")
         cores = task['resources']['cores']
+        if task['resources'].get('live_override'):
+            kwargs.update(nprocshared=cores,
+                          mem=f"{max(1, int(task['resources']['memory_mb'] * 0.7))}MB")
         if 'nprocshared' in kwargs and kwargs['nprocshared'] != cores:
             raise ValueError(f"{task['id']}: Gaussian nprocshared must match Slurm cores.")
         kwargs.setdefault('nprocshared', cores)
@@ -726,6 +740,7 @@ def _slurm_script(task, directory, python):
 
 
 def _stage_task(run_dir, spec, state, task):
+    (run_dir / '.manifest.lock').touch(exist_ok=True)
     ident = task['id']
     directory = run_dir / 'tasks' / ident
     if directory.exists():
@@ -756,7 +771,7 @@ def _stage_task(run_dir, spec, state, task):
             rendered = normalize_cfour_zmat(rendered)
         (directory / task['input_name']).write_text(rendered)
     _atomic_json(directory / 'task.json', {
-        'schema': 1, 'task': task,
+        'schema': 1, 'live_control_schema': 1, 'task': task,
         'molecule': {'symbols': initial.get_chemical_symbols(),
                      'charge': spec['molecule'].get('charge', 0),
                      'multiplicity': spec['molecule'].get('multiplicity', 1)},
@@ -1383,7 +1398,8 @@ def run_task(task_file):
               'execution_node': os.environ.get('SLURMD_NODENAME', socket.gethostname()),
               'geometry_sha256': record['geometry_sha256']}
     try:
-        run_dir, spec, state = _load(directory.parents[1])
+        from kinbot.anl.live_control import worker_load
+        run_dir, spec, state = worker_load(directory.parents[1], task['id'])
         task_spec = next(item for item in spec['tasks'] if item['id'] == task['id'])
         if task != task_spec or task['id'] != directory.name:
             raise RuntimeError('Task record does not match prepared workflow.')
@@ -2363,6 +2379,9 @@ def advance(run_dir, submit=False, submit_only=None):
         if (entry.get('status') != 'failed'
                 or task.get('failure_policy') != 'skip_component'):
             continue
+        from kinbot.live_control import holding
+        if holding(run_dir/'tasks'/ident):
+            continue  # Keep the retry window open before optional fallback.
         outcome = run_dir / 'tasks' / ident / 'execution.json'
         execution = (json.loads(outcome.read_text())
                      if outcome.is_file() else {})
@@ -2416,6 +2435,14 @@ def advance(run_dir, submit=False, submit_only=None):
             if state['tasks'].get(dependency, {}).get('status') in
             ('failed', 'blocked', 'unavailable', 'skipped')]
         entry = state['tasks'].get(ident)
+        from kinbot.live_control import holding
+        sources = set(_task_dependencies(task)) | set(task.get('fallback_on', ()))
+        held_sources = [n for n in sources if state['tasks'].get(n,{}).get('status')
+                        in ('failed','unavailable') and holding(run_dir/'tasks'/n)]
+        if held_sources and (entry is None or entry.get('status')=='blocked'):
+            state['tasks'][ident] = dict(status='blocked',blocked_by=held_sources,
+                                        reason='Upstream failure is held for operator review.')
+            continue
         if (entry is not None and entry.get('status') == 'skipped'
                 and entry.get('skipped_by')
                 and all(state['tasks'].get(source, {}).get('status') == 'complete'
@@ -2580,7 +2607,7 @@ def refresh_status(run_dir):
     return _summary(spec, state)
 
 
-def drive_run(run_dir, *, interval=20., submit_only=None):
+def drive_run(run_dir, *, interval=20., submit_only=None, hold_failures=True):
     """Drive a dispatcher graph without creating an orphanable controller."""
     run_dir = Path(run_dir).resolve()
     with (run_dir / 'drive.lock').open('w') as lock:
@@ -2592,6 +2619,8 @@ def drive_run(run_dir, *, interval=20., submit_only=None):
         scheduler_error = None
         while True:
             try:
+                from kinbot.anl.live_control import process as process_controls
+                process_controls(run_dir)
                 state = advance(
                     run_dir, submit=True, submit_only=submit_only)
             except SchedulerUnavailableError as error:
@@ -2618,6 +2647,11 @@ def drive_run(run_dir, *, interval=20., submit_only=None):
             terminal = {
                 'complete', 'failed', 'blocked', 'unavailable', 'skipped'}
             if all(value in terminal for value in summary.values()):
+                from kinbot.live_control import holding
+                if hold_failures and any(value in ('failed','unavailable') and holding(
+                        run_dir/'tasks'/name) for name,value in summary.items()):
+                    time.sleep(float(interval))
+                    continue
                 successful = all(value in (
                     'complete', 'unavailable', 'skipped')
                     for value in summary.values())

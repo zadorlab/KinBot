@@ -257,7 +257,11 @@ class Conformers:
             for i, si in enumerate(self.cyc_conf_status):
                 if si == -1:
                     self.cyc_conf_status[i] = self.test_ring_conformer(i)[1]
-            if all([si >= 0 for si in self.cyc_conf_status]):
+            from kinbot.search_control import conformers as live_conformers
+            held = live_conformers(self,self.cyc_conf_status,ring=True)
+            if not held and all(si>=0 for si in self.cyc_conf_status):
+                held = live_conformers(self,self.cyc_conf_status,ring=True,close=True)
+            if all([si >= 0 for si in self.cyc_conf_status]) and not held:
                 geoms = [self.species.geom]  # list used for intermediate ring conformer generation
                 final_geoms = []
                 for ci in range(self.cyc_conf):
@@ -434,7 +438,11 @@ class Conformers:
                 if si == -1:
                     status[i] = self.test_conformer(i)[1]
             # problem: if the first sample has 2 imaginary frequencies, what to do then?
-            if all([si >= 0 for si in status]):
+            from kinbot.search_control import conformers as live_conformers
+            held = live_conformers(self,status)
+            if not held and all(si>=0 for si in status):
+                held = live_conformers(self,status,close=True)
+            if all([si >= 0 for si in status]) and not held:
                 if not self.species.wellorts:
                     lowest_job = f'{name}_well'
                 else:

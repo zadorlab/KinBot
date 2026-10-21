@@ -89,7 +89,7 @@ def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
 
     task_ids = tuple(task_ids)
     while True:
-        returncode, summary = drive_run(run_dir, interval=interval)
+        returncode, summary = drive_run(run_dir, interval=interval, hold_failures=False)
         if not returncode:
             return returncode, summary
         _, spec, state = _load(run_dir)
@@ -124,6 +124,11 @@ def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
             if phase in ('execution', 'scheduler') and attempt < max_attempts:
                 retry.append((task_id, phase, attempt))
         if not retry:
+            from kinbot.live_control import holding
+            if any(state['tasks'].get(task,{}).get('status') in ('failed','unavailable')
+                   and holding(Path(run_dir)/'tasks'/task) for task in task_ids):
+                time.sleep(interval)
+                continue
             return returncode, summary
         for task_id, phase, attempt in retry:
             while True:

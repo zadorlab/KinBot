@@ -1694,6 +1694,14 @@ class QuantumChemistry:
         with open(qu_file, 'w') as f_out_qu:
             f_out_qu.write(job_template)
 
+        live_submit = None
+        from kinbot import live_control
+        if self.queuing == 'slurm' and live_control.find():
+            from kinbot.qc_live import prepare_resources
+            original_worker = Path(job+'.py').read_text()
+            def live_submit():
+                Path(qu_file).write_text(prepare_resources(self,job,job_template,original_worker))
+
         if self.queuing == 'slurm':
             # Slurm signal 53 occurs before the script starts when it cannot
             # open stdout/stderr. Catch missing directories, permissions,
@@ -1726,10 +1734,13 @@ class QuantumChemistry:
                 if shared_pool:
                     response = run_policy.submit(
                         command, wait=True, capture_output=True, check=False,
-                        timeout=_SCHEDULER_SUBMIT_TIMEOUT)
+                        timeout=_SCHEDULER_SUBMIT_TIMEOUT,
+                        **({'before_submit':live_submit} if live_submit else {}))
                     raw_out, raw_err = response.stdout, response.stderr
                     returncode = response.returncode
                 else:
+                    if live_submit:
+                        live_submit()
                     process = subprocess.Popen(
                         command, shell=False, stdout=subprocess.PIPE,
                         stdin=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1794,6 +1805,7 @@ class QuantumChemistry:
                 f'Cannot parse scheduler job id for {job}. stdout: {out!r}; '
                 f'stderr: {err!r}')
         self.job_ids[job] = pid
+        live_control.observe_qc(Path.cwd()/job,pid,'running')
         generations = getattr(self, 'job_generation_tagged', None)
         if generations is None:
             generations = {}
@@ -2168,6 +2180,9 @@ class QuantumChemistry:
                 replacement = qc_timeout.recover(self, job)
                 if replacement is not None:
                     return replacement
+        if self.queuing == 'slurm':
+            from kinbot.qc_live import process
+            status = process(self, job, status)
         return status
 
     def _check_qc_with_grace(self, job):

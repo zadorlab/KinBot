@@ -48,6 +48,8 @@ def _read(path):
         raise ValueError(f'{path}: invalid shared scheduling policy.')
     _nodes(value['excluded_nodes'])
     _validate_timeout(value)
+    if 'manage_pending' in value and type(value['manage_pending']) is not bool:
+        raise ValueError('manage_pending must be boolean.')
     if 'minimum_walltime' in value:
         from kinbot.run_walltime import validate_minimum
         validate_minimum(value['minimum_walltime'])
@@ -108,7 +110,7 @@ def _validate_timeout(value):
 
 
 def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
-           timeout_retries=None, timeout_walltime_factor=None):
+           timeout_retries=None, timeout_walltime_factor=None, manage_pending=None):
     root = Path(root).resolve(strict=True)
     path = root/NAME
     ancestor = find(root.parent)
@@ -134,6 +136,10 @@ def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
                                  'excluded_nodes': _initial_exclusions(root), 'revision': 0})
         if max_jobs is not None:
             value['max_jobs'] = max_jobs
+        if manage_pending is not None:
+            if type(manage_pending) is not bool:
+                raise ValueError('manage_pending must be boolean.')
+            value['manage_pending'] = manage_pending
         if minimum_walltime == '':
             value.pop('minimum_walltime', None)
         elif minimum_walltime is not None:
@@ -157,12 +163,14 @@ def validate_options(options):
         return
     if not isinstance(options, dict) or set(options) - {
             'max_jobs', 'excluded_nodes', 'minimum_walltime',
-            'timeout_retries', 'timeout_walltime_factor'}:
+            'timeout_retries', 'timeout_walltime_factor', 'manage_pending'}:
         raise ValueError('Invalid queue_live_policy option.')
     if type(options.get('max_jobs')) is not int or options['max_jobs'] < 0:
         raise ValueError('queue_live_policy.max_jobs must be a nonnegative integer.')
     _nodes(options.get('excluded_nodes', []))
     _validate_timeout(options)
+    if 'manage_pending' in options and type(options['manage_pending']) is not bool:
+        raise ValueError('manage_pending must be boolean.')
     if 'minimum_walltime' in options:
         from kinbot.run_walltime import validate_minimum
         validate_minimum(options['minimum_walltime'])
@@ -177,6 +185,7 @@ def initialize(directory, options):
         update(directory, max_jobs=options['max_jobs'], exclude=options.get('excluded_nodes', []),
                minimum_walltime=options.get('minimum_walltime'),
                timeout_retries=options.get('timeout_retries'),
+               manage_pending=options.get('manage_pending'),
                timeout_walltime_factor=options.get('timeout_walltime_factor'))
 
 
@@ -226,12 +235,12 @@ def _reconcile(root, jobs, claims):
     return sum(jobs.values()) + len(claims)
 
 
-def _submit_once(command, directory, path, kwargs):
+def _submit_once(command, directory, path, kwargs, before_submit=None):
     with _locked(path):
-        return _admit_locked(command, directory, path, kwargs)
+        return _admit_locked(command, directory, path, kwargs, before_submit)
 
 
-def submit(command, *, cwd=None, wait=False, **kwargs):
+def submit(command, *, cwd=None, wait=False, before_submit=None, **kwargs):
     """Serialize count + sbatch across threads/processes, retaining ambiguity.
 
     Return None when the pool is full and wait=False. No scheduler submission
@@ -241,6 +250,8 @@ def submit(command, *, cwd=None, wait=False, **kwargs):
     directory = Path(cwd or Path.cwd()).resolve()
     path = find(directory)
     if path is None:
+        if before_submit:
+            before_submit()
         try:
             return subprocess.run(command, cwd=cwd, **kwargs)
         except OSError as error:
@@ -258,7 +269,8 @@ def submit(command, *, cwd=None, wait=False, **kwargs):
     warned = False
     while True:
         try:
-            result = _submit_once(command, directory, path, kwargs)
+            result = (_submit_once(command, directory, path, kwargs, before_submit)
+                      if before_submit else _submit_once(command, directory, path, kwargs))
         except SchedulerUnavailableError as error:
             if not wait:
                 raise
@@ -273,16 +285,26 @@ def submit(command, *, cwd=None, wait=False, **kwargs):
         time.sleep(20)
 
 
-def _admit_locked(command, directory, path, kwargs):
+def _admit_locked(command, directory, path, kwargs, before_submit=None):
     policy = _read(path)
     ledger = path.parent/'.kinbot_policy_admissions.json'
     claims = json.loads(ledger.read_text()) if ledger.exists() else {}
-    occupied = _reconcile(path.parent, _queue(path.parent), claims)
+    jobs = _queue(path.parent)
+    occupied = _reconcile(path.parent, jobs, claims)
     atomic_json(ledger, claims)
+    if policy.get('manage_pending'):
+        from kinbot.pool_drain import reconcile
+        from kinbot.anl.dispatch import SchedulerUnavailableError
+        try:
+            reconcile(path, policy, jobs, claims)
+        except (OSError,RuntimeError) as error:
+            raise SchedulerUnavailableError(f'Pending drain is unconfirmed: {error}') from error
     if any(c['directory'] == str(directory) and c['command'] == list(command)
            for c in claims.values()):
         raise RuntimeError('A previous pool submission is unconfirmed; reconcile it before resubmitting.')
     if occupied < policy['max_jobs']:
+        if before_submit:
+            before_submit()
         override = {}
         if policy.get('minimum_walltime'):
             from kinbot.run_walltime import submission_override
@@ -368,8 +390,10 @@ def main(argv=None):
                               'live_nodes': sum(jobs.values()), 'reserved_slots': occupied,
                               'unreconciled_admissions': claims}, indent=2))
     else:
+        from kinbot.batch_live import callback
+        prepare = callback(args.script,kind='rotd')
         result = submit(['sbatch', args.script], wait=True, capture_output=True,
-                        text=True, check=False, timeout=30)
+                        text=True, check=False, timeout=30,before_submit=prepare)
         print(result.stdout, end='')
         if result.stderr:
             import sys

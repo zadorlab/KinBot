@@ -403,7 +403,12 @@ class ProfiledQuantumChemistry:
         return result
 
     def check_qc(self, job):
-        return self._backend_for(job).check_qc(job)
+        level = self._level_for(job)
+        backend = self.backends[level]
+        status = backend.check_qc(job)
+        if backend.job_ids.get(job):
+            self._record(job, level, backend.job_ids[job])
+        return status
 
     def is_in_database(self, job):
         return self._backend_for(job).is_in_database(job)

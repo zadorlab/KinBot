@@ -47,6 +47,7 @@ def _read(path):
     if value.get('schema') != 1 or type(value.get('max_jobs')) is not int or value['max_jobs'] < 0:
         raise ValueError(f'{path}: invalid shared scheduling policy.')
     _nodes(value['excluded_nodes'])
+    _validate_timeout(value)
     if 'minimum_walltime' in value:
         from kinbot.run_walltime import validate_minimum
         validate_minimum(value['minimum_walltime'])
@@ -96,7 +97,18 @@ def _initial_exclusions(root):
     return sorted(nodes)
 
 
-def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None):
+def _validate_timeout(value):
+    retries = value.get('timeout_retries', 0)
+    factor = value.get('timeout_walltime_factor', 2.0)
+    if type(retries) is not int or not 0 <= retries <= 10:
+        raise ValueError('timeout_retries must be an integer from 0 to 10.')
+    import math
+    if type(factor) not in (int, float) or not math.isfinite(factor) or factor <= 1:
+        raise ValueError('timeout_walltime_factor must be finite and greater than one.')
+
+
+def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
+           timeout_retries=None, timeout_walltime_factor=None):
     root = Path(root).resolve(strict=True)
     path = root/NAME
     ancestor = find(root.parent)
@@ -126,6 +138,11 @@ def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None):
             value.pop('minimum_walltime', None)
         elif minimum_walltime is not None:
             value['minimum_walltime'] = minimum_walltime
+        if timeout_retries is not None:
+            value['timeout_retries'] = timeout_retries
+        if timeout_walltime_factor is not None:
+            value['timeout_walltime_factor'] = timeout_walltime_factor
+        _validate_timeout(value)
         value['excluded_nodes'] = sorted((set(value['excluded_nodes']) | set(exclude)) - set(allow))
         value.update(revision=value['revision'] + 1,
                      updated_at=datetime.now(timezone.utc).isoformat())
@@ -138,11 +155,14 @@ def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None):
 def validate_options(options):
     if options == {}:
         return
-    if not isinstance(options, dict) or set(options) - {'max_jobs', 'excluded_nodes', 'minimum_walltime'}:
-        raise ValueError('queue_live_policy accepts max_jobs, excluded_nodes and minimum_walltime.')
+    if not isinstance(options, dict) or set(options) - {
+            'max_jobs', 'excluded_nodes', 'minimum_walltime',
+            'timeout_retries', 'timeout_walltime_factor'}:
+        raise ValueError('Invalid queue_live_policy option.')
     if type(options.get('max_jobs')) is not int or options['max_jobs'] < 0:
         raise ValueError('queue_live_policy.max_jobs must be a nonnegative integer.')
     _nodes(options.get('excluded_nodes', []))
+    _validate_timeout(options)
     if 'minimum_walltime' in options:
         from kinbot.run_walltime import validate_minimum
         validate_minimum(options['minimum_walltime'])
@@ -155,7 +175,9 @@ def initialize(directory, options):
         return
     if not find(directory):
         update(directory, max_jobs=options['max_jobs'], exclude=options.get('excluded_nodes', []),
-               minimum_walltime=options.get('minimum_walltime'))
+               minimum_walltime=options.get('minimum_walltime'),
+               timeout_retries=options.get('timeout_retries'),
+               timeout_walltime_factor=options.get('timeout_walltime_factor'))
 
 
 def exclude_failed_node(directory, node):
@@ -219,7 +241,11 @@ def submit(command, *, cwd=None, wait=False, **kwargs):
     directory = Path(cwd or Path.cwd()).resolve()
     path = find(directory)
     if path is None:
-        return subprocess.run(command, cwd=cwd, **kwargs)
+        try:
+            return subprocess.run(command, cwd=cwd, **kwargs)
+        except OSError as error:
+            error.kinbot_submission_not_started = True
+            raise
     if Path(command[0]).name != 'sbatch':
         raise ValueError('Shared resource policies currently support Slurm submissions only.')
     # All KinBot callers submit a script, optionally with --parsable. Refuse
@@ -283,9 +309,10 @@ def _admit_locked(command, directory, path, kwargs):
                   *(['--time='+override['effective']] if override else []), command[-1]]
         try:
             response = subprocess.run(actual, cwd=directory, **kwargs)
-        except OSError:
+        except OSError as error:
             del claims[token]  # Failed exec: sbatch never started.
             atomic_json(ledger, claims)
+            error.kinbot_submission_not_started = True
             raise
         # Timeout/BaseException intentionally leaves an uncertain claim.
         if response.returncode:
@@ -311,6 +338,8 @@ def main(argv=None):
     change.add_argument('--max-jobs', type=int)
     change.add_argument('--exclude', action='append', default=[], help='Comma-separated explicit node names to exclude.')
     change.add_argument('--allow', action='append', default=[], help='Remove explicit/learned exclusions for these nodes.')
+    change.add_argument('--timeout-retries', type=int, help='Bounded clean retries after confirmed walltime exhaustion (0 disables).')
+    change.add_argument('--timeout-walltime-factor', type=float, help='Multiply the previous time limit for a timeout retry (default 2).')
     walltime = change.add_mutually_exclusive_group()
     walltime.add_argument('--minimum-walltime', help='Raise future requests up to this time, capped by partition MaxTime.')
     walltime.add_argument('--clear-minimum-walltime', action='store_true')
@@ -319,6 +348,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.action == 'set':
         result = update(args.root, max_jobs=args.max_jobs,
+                        timeout_retries=args.timeout_retries,
+                        timeout_walltime_factor=args.timeout_walltime_factor,
                         minimum_walltime='' if args.clear_minimum_walltime else args.minimum_walltime,
                         exclude=[n for v in args.exclude for n in v.split(',')],
                         allow=[n for v in args.allow for n in v.split(',')])

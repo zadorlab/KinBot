@@ -2154,6 +2154,23 @@ class QuantumChemistry:
         return None
 
     def check_qc(self, job):
+        """Reconcile the current generation and optionally recover a timeout."""
+        from kinbot import qc_timeout, timeout_retry
+        if self.queuing == 'slurm':
+            waiting = qc_timeout.resume(self, job)
+            if waiting is not None:
+                return waiting
+        status = QuantumChemistry._check_qc_with_grace(self, job)
+        if self.queuing == 'slurm' and job in self.job_ids:
+            if status == 'running':
+                timeout_retry.observe(Path.cwd(), self.job_ids[job])
+            elif status == 'error':
+                replacement = qc_timeout.recover(self, job)
+                if replacement is not None:
+                    return replacement
+        return status
+
+    def _check_qc_with_grace(self, job):
         """Read job status, allowing 60 s for a submitted job's final files."""
         status = QuantumChemistry._check_qc(self, job)
         if self.queuing not in ('slurm', 'pbs') or job not in self.job_ids:

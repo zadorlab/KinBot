@@ -930,6 +930,17 @@ def _run_external(directory, record):
                    task.get('stderr', 'stderr.txt')]
         outputs.extend(name for alternatives in task.get('output_aliases', {}).values()
                        for name in alternatives)
+        if task['backend'].lower() == 'mrcc':
+            restart = task.get('restart', {})
+            if restart.get('kind') == 'mrcc_amplitudes':
+                if (restart.get('checkpoint') != 'fort.16'
+                        or _file_hash(directory/'fort.16') != restart.get('sha256')):
+                    raise RuntimeError('MRCC restart checkpoint changed or is not hash-bound.')
+                inputs.append('fort.16')
+                if restart.get('fort17_sha256'):
+                    if _file_hash(directory/'fort.17') != restart['fort17_sha256']:
+                        raise RuntimeError('MRCC auxiliary restart checkpoint changed.')
+                    inputs.append('fort.17')
         if task.get('gaussian_orbital_export'):
             from kinbot.vrc_orbitals import GAUSSIAN_EXPORT_FILES
             export_files = GAUSSIAN_EXPORT_FILES
@@ -944,6 +955,11 @@ def _run_external(directory, record):
                         (local / task.get('stderr', 'stderr.txt')).open('wb') as stderr:
                     result = subprocess.run(command, cwd=local, stdin=stdin, stdout=stdout,
                                             stderr=stderr, check=False, env=child_env)
+                    if result.returncode and task['backend'].lower() == 'mrcc':
+                        # Retain once after a handled native failure for manual
+                        # review. Never mirror large amplitudes during a run or
+                        # add them to every successful job's shared outputs.
+                        outputs.extend(['fort.16', 'fort.17'])
             except OSError as exc:
                 raise CalculationUnavailableError(f'Could not start native program: {exc}') from exc
             finally:
@@ -1623,9 +1639,10 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     hashes, geometry, resource layout and Slurm tests are always task-specific.
     No success is reused across graphs, scheduler retries or later launches.
     """
-    from kinbot.anl import account_recovery, scratch_recovery
+    from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)
+    timeout_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     refresh_attempts = (set() if _site_refresh_attempts is None
                         else _site_refresh_attempts)
@@ -2140,8 +2157,10 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
         replacement['input_template'] = template
     replacement['restart'] = {
         'kind': 'mrcc_amplitudes', 'keyword': 'rest=1',
-        'checkpoint': 'fort.16',
+        'checkpoint': 'fort.16', 'sha256': _file_hash(amplitude),
     }
+    if (directory/'fort.17').is_file():
+        replacement['restart']['fort17_sha256'] = _file_hash(directory/'fort.17')
     spec['tasks'][spec['tasks'].index(task)] = replacement
     assign_partitions(spec)
     validate_spec(spec)
@@ -2211,9 +2230,11 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
 
 def advance(run_dir, submit=False, submit_only=None):
     """Complete finished tasks, stage ready tasks, and optionally submit jobs."""
-    from kinbot.anl import account_recovery, scratch_recovery
+    from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery
+    from kinbot import timeout_retry
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)
+    timeout_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
     if submit_only is not None:
@@ -2290,6 +2311,7 @@ def advance(run_dir, submit=False, submit_only=None):
         # is alive. Query first, then read the final record, never a failed
         # intermediate attempt captured before a slow scheduler response.
         if entry['status'] == 'submitted' and _job_active(entry['job_id']):
+            timeout_retry.observe(run_dir / 'tasks' / ident, entry['job_id'])
             entry.pop('missing_since', None)
             continue
         outcome = run_dir / 'tasks' / ident / 'execution.json'
@@ -2327,6 +2349,8 @@ def advance(run_dir, submit=False, submit_only=None):
     # only this recognized startup bug, once, before deriving component skips.
     state = account_recovery.recover(run_dir, spec, state)
     state = scratch_recovery.recover(run_dir, spec, state)
+    spec, state = timeout_recovery.recover(run_dir, spec, state)
+    by_id = {task['id']: task for task in spec['tasks']}
 
     # An optional component that cannot execute is unavailable at this
     # requested level. Keep the failed native record for provenance, stop
@@ -2477,11 +2501,18 @@ def advance(run_dir, submit=False, submit_only=None):
             entry['status'] = 'submitting'
             _atomic_json(run_dir / 'state.json', state)
             directory = run_dir / 'tasks' / ident
+            submission_options = {}
+            if state.get('timeout_retries', {}).get(ident):
+                # SBATCH_* inherited from the controller must not shorten a
+                # verified replacement budget or move it to another partition.
+                submission_options['env'] = dict(
+                    os.environ, SBATCH_TIMELIMIT=task['resources']['walltime'],
+                    SBATCH_PARTITION=task['resources']['partition'])
             try:
                 response = run_policy.submit(
                     ['sbatch', '--parsable', 'job.slurm'], cwd=directory,
                     capture_output=True, text=True, check=False,
-                    timeout=_SCHEDULER_TIMEOUT)
+                    timeout=_SCHEDULER_TIMEOUT, **submission_options)
             except SchedulerUnavailableError:
                 # The shared pool could not count occupancy; no sbatch was
                 # attempted. Preserve a runnable task for the next poll.
@@ -2493,13 +2524,15 @@ def advance(run_dir, submit=False, submit_only=None):
                     f'{ident}: sbatch timed out; submission outcome is '
                     'uncertain and state remains submitting for manual '
                     'reconciliation.') from error
-            except FileNotFoundError as error:
-                entry['status'] = 'staged'
-                _atomic_json(run_dir / 'state.json', state)
-                raise
             except OSError as error:
+                if not getattr(error, 'kinbot_submission_not_started', False):
+                    raise RuntimeError(
+                        f'{ident}: submission outcome uncertain after I/O error; '
+                        'state remains submitting for manual reconciliation.') from error
                 entry['status'] = 'staged'
                 _atomic_json(run_dir / 'state.json', state)
+                if isinstance(error, FileNotFoundError):
+                    raise
                 raise SchedulerUnavailableError(
                     f'{ident}: sbatch could not start: {error}') from error
             if response is None:

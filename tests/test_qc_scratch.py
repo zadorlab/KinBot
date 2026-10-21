@@ -314,3 +314,48 @@ def test_external_native_backend_runs_locally_and_retains_alternative_output_nam
     assert details['returncode'] == 0
     assert (result/'energy.dat').read_text() == 'completed result'
     assert not (result/'huge.integrals').exists() and not list(local.iterdir())
+
+
+@pytest.mark.parametrize('restart', [False, True])
+@pytest.mark.parametrize('exit_code', [0, 1])
+def test_mrcc_amplitudes_stage_into_local_workspace_and_publish_after_exit(tmp_path, monkeypatch, restart, exit_code):
+    from kinbot.anl.dispatch import _run_external
+    from kinbot.execution import file_sha256
+    result, local = tmp_path/'results', tmp_path/'local'
+    result.mkdir()
+    monkeypatch.setattr(scratch, 'candidates', lambda *a: iter([('test', local)]))
+    (result/'MINP').write_text('rest=1' if restart else 'rest=0')
+    (result/'geometry.xyz').write_text('1\nfixture\nH 0 0 0\n')
+    task = {'id': 'test', 'backend': 'mrcc', 'kind': 'external',
+        'resources': {'memory_mb': 8192, 'cores': 2},
+        'input_name': 'MINP', 'required_outputs': ['energy.dat']}
+    if restart:
+        (result/'fort.16').write_bytes(b'initial amplitudes')
+        (result/'fort.17').write_bytes(b'auxiliary restart')
+        task['restart'] = {'kind': 'mrcc_amplitudes', 'checkpoint': 'fort.16',
+                           'sha256': file_sha256(result/'fort.16'),
+                           'fort17_sha256': file_sha256(result/'fort.17')}
+    native = tmp_path/'native'
+    native.write_text(f'#!{sys.executable}\nfrom pathlib import Path\nimport os\n'
+        'assert Path.cwd().parent == Path(os.environ["TMPDIR"])\n'
+        + ('assert Path("fort.16").read_bytes() == b"initial amplitudes"\n'
+           'assert Path("fort.17").read_bytes() == b"auxiliary restart"\n' if restart
+           else 'assert not Path("fort.16").exists()\n')
+        + 'Path("fort.16").write_bytes(b"final amplitudes")\n'
+          'Path("energy.dat").write_text("completed result")\n'
+        + f'raise SystemExit({exit_code})\n')
+    native.chmod(0o755)
+    task['command'] = [str(native)]
+    if exit_code:
+        from kinbot.anl.dispatch import CalculationUnavailableError
+        with pytest.raises(CalculationUnavailableError): _run_external(result, {'task': task})
+    else:
+        assert _run_external(result, {'task': task})['returncode'] == 0
+    if restart or exit_code:
+        assert (result/'fort.16').read_bytes() == b'final amplitudes'
+    else:
+        assert not (result/'fort.16').exists()
+    assert not list(local.iterdir())
+    if restart:
+        with pytest.raises(RuntimeError, match='checkpoint changed'):
+            _run_external(result, {'task': task})

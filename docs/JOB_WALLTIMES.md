@@ -28,6 +28,105 @@ Do not use `--replace-pending` for a walltime-only change. No native job is
 cancelled or requeued. Scratch selection, exclusivity, cores, memory,
 convergence, active spaces, and accepted results are unchanged.
 
+## Automatic walltime retries
+
+Slurm timeout recovery is opt-in and independent of the existing I/O,
+scratch-node, L3 geometry, and VPT2 symmetry retry budgets. It covers ordinary
+KinBot L1/L2 workers (including Gaussian geometry, frequency and single-point
+workers) and all external/ASE ANL and VRC dispatcher tasks: Gaussian, Molpro,
+MRCC and CFOUR. It does not implement an allocation retry for MESS or ROTD
+sampling, or for PBS/local execution.
+
+Enable one replacement allocation per logical calculation, with a seven-day
+minimum and a factor of two applied to the previous allocation's actual limit:
+
+```bash
+python -m kinbot.run_policy set /path/to/run \
+  --minimum-walltime 7-00:00:00 --timeout-retries 1 --timeout-walltime-factor 2
+python -u -m kinbot.run_refresh /path/to/run --apply
+```
+
+Refresh once to install this capability in older pinned controllers. Running
+and pending allocations are retained; their current limits do not change.
+Later policy edits are live. Setting `--timeout-retries 0` disables creating
+new timeout retries. Prepared transactions still finish consistently; pausing
+admission with `--max-jobs 0` also pauses their submissions.
+
+The same controls belong in the single KinBot JSON input, for example:
+
+```json
+"queue_live_policy": {
+  "max_jobs": 8,
+  "excluded_nodes": [],
+  "minimum_walltime": "7-00:00:00",
+  "timeout_retries": 1,
+  "timeout_walltime_factor": 2.0
+}
+```
+
+The node count here is illustrative, not a program default. Existing policy
+capacity and exclusions are unchanged by a timeout-only live edit. Defaults
+remain zero timeout retries and factor two; allowed retries are 0–10. A retry
+uses the same partition, capped at its current maximum. A 24-hour failure
+therefore receives seven days with these settings; a seven-day failure receives
+14 days if the partition permits it. No longer allocation available means a
+visible hard failure, not another identical attempt or a lower scientific tier.
+
+Recovery requires the exact job to be absent from the live queue and confirmed
+`TIMEOUT` in its matching `scontrol` record. When that record has expired, an
+exact job-ID Slurm `DUE TO TIME LIMIT` diagnostic plus the saved allocation,
+work directory, start time and limit can establish exhaustion without `sacct`.
+Unknown scheduler status, cancellation, arbitrary exit codes, and generic
+nonconvergence are not timeout evidence. Complete verified results are accepted
+before retry; missing result publication receives the existing grace period.
+
+**These automatic replacements are clean retries, not continuation of the
+interrupted optimizer, Hessian probe sequence or coupled-cluster iteration.**
+Only the failed task is repeated. Previously completed graph tasks and VRC scan
+points remain available. Dispatcher retries restage the same task using its
+accepted upstream geometry, preserve input/provenance checks, and block dependent
+work until completion. Ordinary QC workers restore hash-verified pre-allocation
+seeds from the existing I/O guard, preserving required `Guess=Read` inputs while
+rejecting checkpoints changed during the failed allocation. The worker's
+scientific settings and random seed are retained. Legacy/custom workers without
+those seed records require review rather than guessed recovery.
+
+Failed attempts are archived under the graph's `attempts/timeout_*` or the
+ordinary worker's `.kinbot_timeout_retries/`. Journals survive controller
+replacement, and profiled L1/L2 route ledgers adopt replacement IDs. Shared
+admission, exclusivity, exclusions and local scratch policies still apply.
+Uncertain `sbatch` submissions are never blindly repeated. Timeout exhaustion
+does not consume or reactivate the independent L3 geometry retry budget.
+
+## Existing continuation and other recovery
+
+- Slurm I/O guard: by default two retries **inside the current allocation**;
+  no extra walltime. It restores saved pre-allocation seeds.
+- Scratch startup: by default two allocation retries for verified local
+  scratch faults, with failed-node exclusions.
+- ANL L3: configurable `l3_max_retries` (normally one) gives a clean retry of
+  execution/scheduler failures. It does not resume Sella curvature probes.
+- VPT2: bounded recovery for the recognized framework-symmetry diagnostic.
+- Direct MRCC: `kinbot.anl.dispatch resume-mrcc GRAPH TASK` is an explicit
+  amplitude restart using `rest=1`, not an automatic timeout policy. The
+  checkpoint is now hash-bound and staged into node-local execution; `fort.17`
+  is also staged if present. The [MRCC manual](https://www.mrcc.hu/MRCC/manual/pdf/manual.pdf)
+  requires `fort.16`, and additionally `fort.17` for multiple roots or geometry
+  optimization. Missing required auxiliary files need review before using this
+  manual route. A nonempty/hash-matching file alone does not prove its native
+  consistency after an interrupted write.
+
+New MRCC workers preserve amplitude files once after a handled native failure
+for manual review. They do not repeatedly copy amplitudes to shared storage
+while running or add them to every successful job's outputs. An abrupt Slurm
+kill can prevent publication; no automatic partial-checkpoint salvage from old
+node-local scratch is promised. Gaussian `Opt=Restart`/`Freq=Restart`, Molpro
+WFU continuation and CFOUR checkpoint continuation are **not** enabled by this
+change. Their timeout replacements use the clean-retry route described above.
+
+Validation uses scheduler mocks, interruption tests and native-program shims;
+it does not substitute for a real Gaussian/Molpro/MRCC/CFOUR timeout on the site.
+
 ## Extend existing allocations
 
 ```bash

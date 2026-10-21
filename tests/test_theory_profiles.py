@@ -79,6 +79,21 @@ class TestTheoryProfiles(unittest.TestCase):
             self.assertEqual(backend.queue_job_root, str(Path.cwd()))
             self.assertFalse(backend.queue_job_root_recursive)
 
+    def test_timeout_replacement_id_is_persisted_in_profile_route(self):
+        parameters = self.parameters(theory_preset='b3lyp-b2plyp-anl')
+        qc = QuantumChemistry(parameters.par)
+        qc.l2.job_generation_tagged['well_high'] = True
+        qc.l2.job_ids['well_high'] = '123'
+        qc._record('well_high', 'l2', '123')
+        def replacement(job):
+            qc.l2.job_ids[job] = '456'
+            return 'running'
+        with patch.object(qc.l2, 'check_qc', side_effect=replacement):
+            self.assertEqual(qc.check_qc('well_high'), 'running')
+        resumed = QuantumChemistry(parameters.par)
+        self.assertEqual(resumed.l2.job_ids['well_high'], '456')
+        self.assertTrue(resumed.l2.job_generation_tagged['well_high'])
+
     def test_profiled_introspection_before_initialization_does_not_recurse(self):
         from kinbot.profiled_qc import ProfiledQuantumChemistry
         router = ProfiledQuantumChemistry.__new__(ProfiledQuantumChemistry)

@@ -148,6 +148,18 @@ def test_atct_client_ignores_invalid_generic_proxy(monkeypatch):
     assert os.environ['all_proxy'] == 'socks://proxy.example:80'
 
 
+@pytest.mark.parametrize('smiles,multiplicity,parent,hydrogens', [
+    ('[CH]', 2, 'C', 3), ('[CH]', 4, 'C', 3),
+    ('[C]', 3, 'C', 4), ('[CH2]', 1, 'C', 2), ('[NH]', 1, 'N', 2),
+])
+def test_terminal_cbh_preserves_explicit_spin_state(smiles, multiplicity, parent, hydrogens):
+    reaction = generate_cbh_reaction(smiles, 0, multiplicity=multiplicity)
+    assert reaction.states[smiles] == (0, multiplicity)
+    assert reaction.stoichiometry == {
+        smiles: -1, parent: 1, '[H]': hydrogens, '[H][H]': -hydrogens}
+    assert generate_cbh_reaction(smiles, 1, multiplicity=multiplicity) is None
+
+
 def test_original_cbh_rungs_from_smiles_connectivity():
     assert generate_cbh_reaction('C', 0) is None
     assert generate_cbh_reaction('CC', 0).stoichiometry == {

@@ -9,10 +9,38 @@ from kinbot.execution import atomic_json, file_sha256
 from kinbot.anl import ts_reuse
 
 
-def settings(vdw=None, rejected=False, deduplicate=False):
+def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None):
     if vdw is not None and (isinstance(vdw, bool) or not math.isfinite(vdw) or vdw < 0):
         raise ValueError('vdW_detection must be finite and nonnegative.')
-    return dict(vdW_detection=vdw, rejected=bool(rejected), deduplicate_ts=bool(deduplicate))
+    if barrier_l2 is not None and (isinstance(barrier_l2,bool) or not math.isfinite(barrier_l2) or barrier_l2<=0):
+        raise ValueError('L2 barrier ceiling must be positive and finite.')
+    return dict(vdW_detection=vdw, rejected=bool(rejected), deduplicate_ts=bool(deduplicate), barrier_threshold_L2=barrier_l2)
+
+
+def retirement(root, live, graph, canonical_graph, source):
+    from kinbot.anl import dispatch
+    cg, spec, state = dispatch._load(canonical_graph)
+    if any(spec['molecule'].get(k)!=source.get(k) for k in ('symbols','positions','charge','multiplicity')):
+        raise RuntimeError(f'{cg}: canonical workflow geometry differs from the accepted L2 record.')
+    for task in spec['tasks']:
+        e = state['tasks'].get(task['id'],{})
+        if e.get('status')=='complete':
+            dispatch._verify_stage_files(cg,task,e)
+            execution = json.loads((cg/'tasks'/task['id']/'execution.json').read_text())
+            if dispatch._verify_execution(cg,task,e,execution)!=e.get('final_geometry_sha256'):
+                raise RuntimeError(f'{cg}: canonical geometry verification failed.')
+    _, spec, state = dispatch._load(graph)
+    selected=[]
+    for task in spec['tasks']:
+        e=state['tasks'].get(task['id'],{})
+        if e.get('status')=='submitting':
+            raise RuntimeError(f'{graph}: ambiguous submission; reconcile before retiring.')
+        job=live.get(str(graph/'tasks'/task['id']))
+        if job:
+            if str(e.get('job_id'))!=str(job['job_id']):
+                raise RuntimeError(f'{graph}: live allocation owner differs.')
+            selected.append(job)
+    return dict(graph=str(graph),workflow_sha256=file_sha256(graph/'workflow.json')),selected
 
 
 def plan(root, jobs, options):
@@ -22,6 +50,8 @@ def plan(root, jobs, options):
     edits, workers, aliases, selected = [], [], [], []
     live = {str(Path(j['directory']).resolve()): j for j in jobs}
     for case in inputs:
+        from kinbot.barrier_policy import for_case
+        reference = for_case(case.parent,options['barrier_threshold_L2']) if options.get('barrier_threshold_L2') is not None else None
         paths = [case]
         if (case.parent/'resolved_parameters.json').exists():
             paths.append(case.parent/'resolved_parameters.json')
@@ -38,6 +68,9 @@ def plan(root, jobs, options):
                 if revised!=previous:
                     edits.append(dict(path=str(p.relative_to(root)),before=file_sha256(p),after=revised))
                 continue
+            if reference is not None:
+                revised.update(pes_barrier_reference=reference, barrier_threshold=None,
+                               barrier_threshold_L2=reference['ceiling_kcal_mol'])
             revised['pes_phase_policy'] = 'exploration_first'
             if options['deduplicate_ts']:
                 revised['anl_ts_reuse'] = {}
@@ -61,41 +94,39 @@ def plan(root, jobs, options):
                 continue
             network = json.loads(request.read_text())
             old = json.loads((base/'ts_reuse.json').read_text()) if (base/'ts_reuse.json').exists() else None
-            mapping = ts_reuse.discover(network, base, ts_reuse.options({}), old)
+            mapping = ts_reuse.discover(network, base, ts_reuse.options({}), old, ts_reuse.protected(base))
             remove = []
             for alias, canonical in mapping['aliases'].items():
                 graph = ts_reuse.directory(base,alias)
                 if not graph.exists():
                     continue
                 canonical_graph = ts_reuse.directory(base,canonical)
-                # Verify reusable canonical artifacts, not just status counts.
-                cg, spec, state = dispatch._load(canonical_graph)
-                source = network['network']['transition_states'][canonical]['molecule']
-                if any(spec['molecule'].get(k)!=source.get(k) for k in ('symbols','positions','charge','multiplicity')):
-                    raise RuntimeError(f'{cg}: canonical workflow geometry differs from the accepted TS.')
-                for task in spec['tasks']:
-                    e = state['tasks'].get(task['id'],{})
-                    if e.get('status')=='complete':
-                        if not e.get('task_sha256'):
-                            raise RuntimeError(f'{cg}: complete TS task has no staged provenance.')
-                        dispatch._verify_stage_files(cg,task,e)
-                        execution = json.loads((cg/'tasks'/task['id']/'execution.json').read_text())
-                        if dispatch._verify_execution(cg,task,e,execution)!=e.get('final_geometry_sha256'):
-                            raise RuntimeError(f'{cg}: canonical geometry verification failed.')
-                _, spec, state = dispatch._load(graph)
-                for task in spec['tasks']:
-                    e = state['tasks'].get(task['id'],{})
-                    if e.get('status')=='submitting':
-                        raise RuntimeError(f'{graph}: ambiguous submission; reconcile before retiring.')
-                    job = live.get(str(graph/'tasks'/task['id']))
-                    if job:
-                        if str(e.get('job_id'))!=str(job['job_id']):
-                            raise RuntimeError(f'{graph}: live allocation owner differs.')
-                        selected.append(job)
-                remove.append(dict(graph=str(graph),workflow_sha256=file_sha256(graph/'workflow.json')))
+                item, owned = retirement(root,live,graph,canonical_graph,
+                    network['network']['transition_states'][canonical]['molecule'])
+                selected.extend(owned)
+                remove.append(item)
             aliases.append(dict(base=str(base),network_sha256=file_sha256(request),mapping=mapping,remove=remove))
+    external=[]
+    if options['deduplicate_ts']:
+        from kinbot.anl import pes_ts_reuse
+        local_maps={e['base']:e['mapping'] for e in aliases}
+        for case in inputs:
+            scope=case.parent
+            if not (scope/'pes_exploration.json').exists():
+                continue
+            mapping,items=pes_ts_reuse.discover(scope,ts_reuse.options({}),local_maps)
+            remove=[]
+            for key,other in mapping['aliases'].items():
+                item,target=items[key],items[other]
+                graph=Path(item['graph'])
+                if not graph.exists():
+                    continue
+                canonical=Path(target['graph'])
+                retired,owned=retirement(root,live,graph,canonical,target['record']['molecule'])
+                remove.append(retired);selected.extend(owned)
+            external.append(dict(case=str(scope),mapping=mapping,remove=remove))
     return dict(settings=options, inputs=edits, workers=workers, aliases=aliases,
-                selected_jobs=selected, prepared_before=prepared,
+                external_ts=external, selected_jobs=selected, prepared_before=prepared,
                 prepared_sha256=file_sha256(root/'prepared.json'), revision=uuid.uuid4().hex)
 
 
@@ -122,6 +153,18 @@ def apply(root, record, archive, journal, marker):
             elif not saved.exists():
                 raise RuntimeError(f'{graph}: duplicate and archive are both missing.')
         atomic_json(base/'ts_reuse.json',entry['mapping'])
+    for entry in record.get('external_ts',[]):
+        for item in entry['remove']:
+            graph=Path(item['graph']);saved=archive/'duplicate_ts'/graph.relative_to(root)
+            if any(Path(j['directory']).is_relative_to(graph) for j in remaining):
+                raise RuntimeError(f'{graph}: duplicate allocation still present.')
+            if graph.exists():
+                if saved.exists() or file_sha256(graph/'workflow.json')!=item['workflow_sha256']:
+                    raise RuntimeError(f'{graph}: archive/input collision.')
+                saved.parent.mkdir(parents=True,exist_ok=True);graph.rename(saved)
+            elif not saved.exists():
+                raise RuntimeError(f'{graph}: duplicate and archive both missing.')
+        atomic_json(Path(entry['case'])/'pes_anl_reuse.json',entry['mapping'])
     # Reuse the exact-hash, idempotent input publisher; it edits no QC graph.
     payload = {**record,'scans':[]}
     vrc_restart.apply_inputs(root,payload,archive/'inputs', record_name='network_restart.json')

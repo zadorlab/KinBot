@@ -116,6 +116,39 @@ def test_refresh_keeps_live_anl_and_vrc_and_restarts_once(live_tree):
     assert len(t.launches) == 2
 
 
+def test_refresh_preserves_profiled_exploration_allocations_and_routes(live_tree):
+    t = live_tree
+    worker = t.root/'ch3ss/123'
+    atomic_json(worker/'123.json', {})
+    routes = {}
+    for job, phase, name in [('901', 'RUNNING', '123_irc'), ('902', 'PENDING', '123_conf_0001')]:
+        routes[name] = dict(level='l1', job_id=job, generation_tagged=True)
+        (worker/(name+'.py')).write_text('# expensive worker\n')
+        (worker/(name+'.sbatch')).write_text('#!/bin/bash\n')
+        t.jobs.append(dict(job_id=job, directory=str(worker), state=phase))
+    path = worker/'.kinbot_theory_jobs.json'
+    atomic_json(path, dict(schema=1, jobs=routes))
+    expected = path.read_bytes()
+    old_jobs = deepcopy(t.jobs)
+    result = run_refresh.refresh(t.root, apply=True)
+    assert result['phase'] == 'launched'
+    assert t.jobs == old_jobs
+    assert path.read_bytes() == expected
+    assert {j['job_id'] for j in result['jobs']} >= {'901', '902'}
+
+
+def test_refresh_rejects_wrong_directory_in_ordinary_route(live_tree):
+    t = live_tree
+    worker = t.root/'ch3ss/123'
+    atomic_json(worker/'123.json', {})
+    atomic_json(worker/'.kinbot_theory_jobs.json', dict(schema=1, jobs={
+        '123_irc': dict(level='l1', job_id='901', generation_tagged=True)}))
+    t.jobs.append(dict(job_id='901', directory=str(t.root/'ch3s/123'), state='RUNNING'))
+    with pytest.raises(RuntimeError, match='ordinary QC'):
+        run_refresh.refresh(t.root, apply=True)
+    assert not t.signals and not t.launches
+
+
 def test_network_revisit_handoff_preserves_live_and_pending_graphs(live_tree):
     from kinbot.network_revisit import settings
     t=live_tree
@@ -796,3 +829,25 @@ def test_real_linux_process_handles_without_python_wrappers(monkeypatch):
             child.kill(); child.wait(timeout=5)
         if fd is not None:
             os.close(fd)
+
+
+def test_refresh_adopts_nested_reference_allocations_and_replaces_only_its_controller(live_tree):
+    t=live_tree;worker=t.root/'ch3s/123'
+    atomic_json(worker/'123.json',{})
+    ref=worker/'anl_automatic/reference_l2/state_ref';ref.mkdir(parents=True)
+    atomic_json(ref/'input.json',{})
+    atomic_json(ref/'.kinbot_theory_jobs.json',dict(schema=1,jobs={'reference_high':dict(level='l2',job_id='908',generation_tagged=True)}))
+    (ref/'reference_high.py').write_text('worker')
+    (ref/'reference_high.sbatch').write_text('#!/bin/bash\n')
+    (ref/'.kinbot_run.json').write_text('{}')
+    (ref/'driver.pid').write_text('108')
+    (ref/'driver.stderr').write_text('old reference controller log')
+    atomic_json(ref/'kinbot_status.json',dict(pid=108,host=socket.gethostname(),status='running'))
+    t.processes.append(dict(pid=108,ppid=101,starttime='1080',cwd=str(ref),state='S',
+                           command='/python -m kinbot.kb '+str(ref/'input.json')))
+    t.jobs.append(dict(job_id='908',directory=str(ref),state='RUNNING'))
+    result=run_refresh.refresh(t.root,apply=True)
+    assert result['phase']=='launched' and t.jobs[-1]['job_id']=='908'
+    assert (108,signal.SIGKILL) in t.signals
+    assert (ref/'reference_high.sbatch').read_text()=='#!/bin/bash\n'
+    assert (Path(result['archive'])/ref.relative_to(t.root)/'driver.stderr').exists()

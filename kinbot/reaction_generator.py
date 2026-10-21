@@ -45,6 +45,8 @@ class ReactionGenerator:
         self.par = par
         self.inp = input_file
         self.qc = qc
+        from kinbot.barrier_policy import apply as apply_barrier_reference
+        apply_barrier_reference(species, par)
 
     def _publish_product_well(self, reaction):
         if (not self.par['pes'] or self.par.get('stop_product_reaction_search',0)

@@ -1,3 +1,4 @@
+from kinbot.optimization_budget import run_optimizer
 import os
 import sys
 import shutil
@@ -55,14 +56,16 @@ opt = Sella(mol,
 mol.calc.label = '{label}'
 
 try:
-    opt.run(fmax={fmax}, steps={steps})
+    if not run_optimizer(opt, fmax={fmax}, steps={steps}, report='{label}.optimization_budget.json'):
+        raise RuntimeError('Ring conformer optimization exhausted its step budget.')
     e = mol.get_potential_energy()
     db.write(mol, name='{label}', 
              data={{'energy': e, 'status': 'normal'}})
 except (RuntimeError, ValueError):
     try:
         sella_kwargs['internal'] = 1 - sella_kwargs['internal']
-        opt.run(fmax={fmax}, steps={steps})
+        if not run_optimizer(opt, fmax={fmax}, steps={steps}, report='{label}.optimization_budget.json'):
+            raise RuntimeError('Ring conformer optimization exhausted its step budget.')
         e = mol.get_potential_energy()
         db.write(mol, name='{label}',
              data={{'energy': e, 'status': 'normal'}})

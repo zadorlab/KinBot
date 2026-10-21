@@ -336,6 +336,7 @@ def write_gaussian_in(fd, atoms, properties=['energy'],
     params = deepcopy(params)
     # KinBot calculator control; also omit it in direct input previews.
     params.pop('scf_recovery', None)
+    params.pop('diatomic_scf_symmetry', None)
     atomic_symmetry = params.pop('atomic_scf_symmetry', True)
     if atomic_symmetry not in (True, False, 0, 1):
         raise ValueError('atomic_scf_symmetry must be true or false.')

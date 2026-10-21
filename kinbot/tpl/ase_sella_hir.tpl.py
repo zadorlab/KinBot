@@ -1,3 +1,4 @@
+from kinbot.optimization_budget import run_optimizer
 import os
 import pickle
 import shutil
@@ -42,7 +43,7 @@ try:
                 trajectory='{label}.traj',
                 logfile='{label}_sella.log',
                 **sella_kwargs)
-    converged = opt.run(fmax={fmax}, steps={steps})
+    converged = run_optimizer(opt, fmax={fmax}, steps={steps}, report='{label}.optimization_budget.json')
 except Exception as error:
     failure = error
     with open('{label}_sella.log', 'a') as stream:

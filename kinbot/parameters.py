@@ -112,6 +112,7 @@ class Parameters:
             'barrier_threshold': None,
             # Additional threshold if L2 screening is desired instead of L1
             'barrier_threshold_L2': None,
+            'pes_barrier_reference': None,
             # Threshold allowance for L1 relative to L2
             'barrier_threshold_add': 10.,
             # Additional barrier allowance for homolytic scissions
@@ -1069,6 +1070,8 @@ class Parameters:
         if self.par['pp_orient'].casefold() not in ['homo', 'geometric']:
             err = "pp_orient not well defined. 'homo' and 'geometric' are currently the only possible options"
 
+        from kinbot.barrier_policy import validate as validate_barrier_reference
+        validate_barrier_reference(self.par['pes_barrier_reference'])
         if self.par['barrier_threshold'] == 'none':
             self.par['barrier_threshold'] = None
         if self.par['barrier_threshold_L2'] == 'none':

@@ -1,5 +1,9 @@
 # Network revisit and live review handoff
 
+For the subsequent numerical-failure repair and cross-well stable/TS reuse, use
+[the October 21 recovery handoff](RECOVERY_AND_PES_REUSE_2026-10-21.md). It preserves
+ongoing exploration and does not repeat the blanket rejected-channel revisit.
+
 ## What this recovery changes
 
 The recovery is implemented; the command below applies it on the cluster.

@@ -1,3 +1,4 @@
+from kinbot.optimization_budget import run_optimizer
 import os
 import shutil
 import numpy as np
@@ -95,7 +96,7 @@ if success:
                 logfile='{label}_prod_sella.log',
                 **sella_kwargs)
     try:
-        converged_opt = opt.run(fmax={fmax}, steps={steps})
+        converged_opt = run_optimizer(opt, fmax={fmax}, steps={steps}, report='{label}.optimization_budget.json')
         if converged_opt and finite_geometry(mol):
             e = mol.get_potential_energy()
             db.write(mol, name='{label}_prod', 
@@ -110,7 +111,7 @@ if success:
                 trajectory='{label}_prod.traj',
                 logfile='{label}_prod_sella.log',
                 **sella_kwargs)
-            converged_opt = opt.run(fmax={fmax}, steps={steps})
+            converged_opt = run_optimizer(opt, fmax={fmax}, steps={steps}, report='{label}.optimization_budget.json')
             if not converged_opt or not finite_geometry(mol):
                 raise RuntimeError('Endpoint optimization did not converge '
                                    'to a finite geometry.')

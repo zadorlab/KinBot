@@ -128,6 +128,79 @@ def test_transaction_interruption_allows_unchanged_worker_and_resumes_once(root,
     assert len(list((g/'attempts').iterdir()))==1
 
 
+def test_worker_shared_lock_works_with_posix_nfs_semantics(root, monkeypatch):
+    import fcntl
+    g = graph(root)
+    expected = dispatch._load(g)
+    # Linux local flock tolerates O_WRONLY + LOCK_SH, while NFS translates
+    # that combination into a failing POSIX read lock. Exercise the actual
+    # kernel permission check, without requiring an NFS mount in CI.
+    monkeypatch.setattr(owner.fcntl, 'flock', fcntl.lockf)
+    assert owner.worker_load(g, 'live') == expected
+
+
+def test_lock_startup_recovery_archives_once_and_keeps_live_results(root, monkeypatch):
+    from kinbot.anl import lock_recovery
+    g = graph(root, ('change', 'live', 'done', 'native_failure'))
+    _mock_execution(g, 'done')
+    dispatch.advance(g)
+    state = dispatch._load(g)[2]
+    state['tasks']['live'].update(status='submitted', job_id='42')
+    for name, job, trace in [
+        ('change', '41', 'File "kinbot/anl/live_control.py", line 17, in worker_load\n'
+                         '    fcntl.flock(handle, fcntl.LOCK_SH)\nOSError: [Errno 9] Bad file descriptor'),
+        ('native_failure', '43', 'File "unrelated.py", in execute\nOSError: [Errno 9] Bad file descriptor'),
+    ]:
+        state['tasks'][name].update(status='submitted', job_id=job)
+        atomic_json(g/'tasks'/name/'execution.json', dict(schema=1, task_id=name,
+            status='failed', slurm_job_id=job, geometry_sha256=state['tasks'][name]['geometry_sha256'],
+            error='[Errno 9] Bad file descriptor', failure_phase='validation', traceback=trace))
+    atomic_json(g/'state.json', state)
+    preserved = {p: file_sha256(p) for name in ('live', 'done', 'native_failure')
+                 for p in (g/'tasks'/name).iterdir() if p.is_file()}
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: job == '42')
+    monkeypatch.setattr('kinbot.timeout_retry.observe', lambda *a: None)
+    state = dispatch.advance(g)
+    assert state['tasks']['change']['status'] == 'staged'
+    assert state['tasks']['change']['attempt'] == 2
+    assert state['tasks']['live']['job_id'] == '42'
+    assert state['tasks']['done']['status'] == 'complete'
+    assert state['tasks']['native_failure']['status'] == 'failed'
+    old = Path(state['tasks']['change']['previous_attempt'])
+    assert lock_recovery.eligible(json.loads((old/'execution.json').read_text()))
+    assert preserved == {p: file_sha256(p) for p in preserved}
+    archive = state['manifest_lock_retries']['change']
+    dispatch.advance(g)
+    assert dispatch._load(g)[2]['manifest_lock_retries']['change'] == archive
+
+
+def test_lock_startup_recovery_resumes_interrupted_archive(root, monkeypatch):
+    from kinbot import run_recover
+    from kinbot.anl import lock_recovery
+    g = graph(root, ('change',))
+    state = dispatch._load(g)[2]
+    entry = state['tasks']['change']
+    entry.update(status='failed', job_id='41')
+    atomic_json(g/'state.json', state)
+    atomic_json(g/'tasks/change/execution.json', dict(schema=1, task_id='change', status='failed',
+        geometry_sha256=entry['geometry_sha256'], error='[Errno 9] Bad file descriptor',
+        traceback='live_control.py in worker_load\nfcntl.flock(handle, fcntl.LOCK_SH)'))
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: False)
+    original = run_recover.atomic_json
+    def interrupt(path, data):
+        if path == g/'state.json':
+            raise OSError('interrupted')
+        return original(path, data)
+    monkeypatch.setattr(run_recover, 'atomic_json', interrupt)
+    with pytest.raises(OSError, match='interrupted'):
+        dispatch.advance(g)
+    monkeypatch.setattr(run_recover, 'atomic_json', original)
+    state = dispatch.advance(g)
+    assert state['tasks']['change']['status'] == 'staged'
+    assert state['tasks']['change']['attempt'] == 2
+    assert json.loads((g/'manifest_lock_recovery.json').read_text())['phase'] == 'complete'
+
+
 def request_path(root,record):
     return root/'.kinbot_controls/requests'/(record['id']+'.json')
 

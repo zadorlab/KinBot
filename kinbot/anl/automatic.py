@@ -1119,6 +1119,11 @@ def _reference_input(source_input, entry, directory, model_path,
         'title': 'automatic_cbh_reference_' + directory.name,
         'smiles': entry['smiles'], 'structure': [], 'bimol': 0,
         'charge': entry['charge'], 'mult': entry['multiplicity'],
+        # This is a different molecule, not another conformer of the parent.
+        # Its explicit SMILES defines its stereochemistry; a serialized
+        # parent geometry identity/population cannot be transferred to it.
+        'stereo_reference': None, 'optical_population': 'specified',
+        'pes_barrier_reference': None,
         'reaction_search': 0, 'selected_reactions': {},
         'pes': 0, 'specific_reaction': 0, 'skip_chemids': [],
         'stop_product_reaction_search': 1,
@@ -1254,9 +1259,7 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
             records[key] = _model_record(model, entry, l2_theory)
             continue
         directory.mkdir(parents=True, exist_ok=True)
-        input_path = _reference_input(
-            source_input, entry, directory, model,
-            queue_job_limit=max_jobs)
+        input_path = directory/'input.json'
         pid_path = directory / 'driver.pid'
         if pid_path.is_file():
             try:
@@ -1269,6 +1272,8 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
             else:
                 pending.append((key, entry, directory, input_path, model, pid))
                 continue
+        input_path = _reference_input(
+            source_input, entry, directory, model, queue_job_limit=max_jobs)
         pending.append((key, entry, directory, input_path, model, None))
 
     active = []
@@ -1351,6 +1356,8 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
                 # real Popen return code and follows the hard-failure path
                 # below instead of being resubmitted indefinitely.
                 (directory / 'driver.pid').unlink(missing_ok=True)
+                input_path = _reference_input(
+                    source_input, entry, directory, model, queue_job_limit=max_jobs)
                 pending.append((key, entry, directory, input_path, model,
                                 None))
                 continue
@@ -1366,14 +1373,64 @@ def _run_reference_l2(entries, source_input, root, max_jobs, l2_theory):
     return records
 
 
+def _prepare_stable_graph(plan, entry, record, graph):
+    graph.parent.mkdir(parents=True,exist_ok=True)
+    with (graph.parent/'.prepare.lock').open('a+') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        if (graph/'workflow.json').is_file():
+            return
+        specification = automatic_composite_spec(
+            record['molecule'], highest_tier=entry['highest_tier'],
+            max_nodes=plan['resources']['global_max_jobs'],
+            partition=plan['resources']['partition'],
+            vpt2_method=plan['l2_theory']['method'],
+            vpt2_basis=plan['l2_theory']['basis'],
+            vpt2_dispersion=plan['l2_theory']['dispersion'],
+            scf_convergence=plan['resources']['scf_convergence'],
+            cc_convergence=plan['resources']['cc_convergence'],
+            geometry_fmax=plan['resources'].get('geometry_fmax', 1.e-4),
+            minimum_recovery=plan['resources'].get('minimum_recovery', {}),
+            f12_augmented=plan['resources'].get(
+                'f12_augmented', False),
+            require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
+            l3_max_retries=plan['resources'].get('l3_max_retries', 1))
+        prepare(specification, graph)
+
+
+def _prepare_ts_graph(plan, entry, graph):
+    graph.parent.mkdir(parents=True,exist_ok=True)
+    with (graph.parent/'.prepare.lock').open('a+') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        if (graph/'workflow.json').is_file():
+            return
+        specification = automatic_composite_spec(
+            entry['molecule'], highest_tier=entry['highest_tier'],
+            max_nodes=plan['resources']['global_max_jobs'],
+            partition=plan['resources']['partition'],
+            stationary_point='transition_state',
+            vpt2_method=plan['l2_theory']['method'],
+            vpt2_basis=plan['l2_theory']['basis'],
+            vpt2_dispersion=plan['l2_theory']['dispersion'],
+            scf_convergence=plan['resources']['scf_convergence'],
+            cc_convergence=plan['resources']['cc_convergence'],
+            geometry_fmax=plan['resources'].get('geometry_fmax', 1.e-4),
+            minimum_recovery=plan['resources'].get('minimum_recovery', {}),
+            f12_augmented=plan['resources'].get(
+                'f12_augmented', False),
+            require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
+            l3_max_retries=plan['resources'].get('l3_max_retries', 1))
+        prepare(specification, graph)
+
 def _prepare_graphs(plan, sources, root):
     root.mkdir(parents=True, exist_ok=True)
     graphs = {}
     from kinbot.anl.ts_reuse import load as load_ts_aliases
     aliases = load_ts_aliases(plan, root.parent)
+    from kinbot.anl.pes_ts_reuse import load as load_pes_aliases
+    external = load_pes_aliases(root.parent)
     started = time.monotonic()
     total = (len(plan['cbh']['calculated_states'])
-             + len(plan['network']['transition_states']) - len(aliases)
+             + len(plan['network']['transition_states']) - len(aliases) - len(external)
              + len(plan['network'].get('product_complexes', {})))
     progress_path = root.parent / 'composite_preflight.json'
 
@@ -1414,56 +1471,29 @@ def _prepare_graphs(plan, sources, root):
         directory = root / ('complex_'+hashlib.sha256(route.encode()).hexdigest()[:16])
         stable_inputs.append(('complex:'+route, record, record, directory))
     for key, entry, record, directory in stable_inputs:
+        if key in external:
+            continue
         if entry.get('graph_revision'):
             directory = directory.with_name(directory.name+'_'+entry['graph_revision'])
         graph = directory / 'composite'
         if not (graph / 'workflow.json').is_file():
             directory.mkdir(parents=True, exist_ok=True)
-            specification = automatic_composite_spec(
-                record['molecule'], highest_tier=entry['highest_tier'],
-                max_nodes=plan['resources']['global_max_jobs'],
-                partition=plan['resources']['partition'],
-                vpt2_method=plan['l2_theory']['method'],
-                vpt2_basis=plan['l2_theory']['basis'],
-                vpt2_dispersion=plan['l2_theory']['dispersion'],
-                scf_convergence=plan['resources']['scf_convergence'],
-                cc_convergence=plan['resources']['cc_convergence'],
-                geometry_fmax=plan['resources'].get('geometry_fmax', 1.e-4),
-                minimum_recovery=plan['resources'].get('minimum_recovery', {}),
-                f12_augmented=plan['resources'].get(
-                    'f12_augmented', False),
-                require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
-                l3_max_retries=plan['resources'].get('l3_max_retries', 1))
-            prepare(specification, graph)
-        check_graph(graph, key)
+            _prepare_stable_graph(plan, entry, record, graph)
+        with (graph/'drive.lock').open('a+') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            check_graph(graph, key)
         graphs[key] = graph
     for name, entry in plan['network']['transition_states'].items():
-        if name in aliases:
+        if name in aliases or name in external:
             continue
         molecule = entry['molecule']
         directory = root / ('ts_' + hashlib.sha256(
             name.encode()).hexdigest()[:16])
         graph = directory / 'composite'
-        if not (graph / 'workflow.json').is_file():
-            directory.mkdir(parents=True, exist_ok=True)
-            specification = automatic_composite_spec(
-                molecule, highest_tier=entry['highest_tier'],
-                max_nodes=plan['resources']['global_max_jobs'],
-                partition=plan['resources']['partition'],
-                stationary_point='transition_state',
-                vpt2_method=plan['l2_theory']['method'],
-                vpt2_basis=plan['l2_theory']['basis'],
-                vpt2_dispersion=plan['l2_theory']['dispersion'],
-                scf_convergence=plan['resources']['scf_convergence'],
-                cc_convergence=plan['resources']['cc_convergence'],
-                geometry_fmax=plan['resources'].get('geometry_fmax', 1.e-4),
-                minimum_recovery=plan['resources'].get('minimum_recovery', {}),
-                f12_augmented=plan['resources'].get(
-                    'f12_augmented', False),
-                require_l3_geometry=plan['resources'].get('require_l3_geometry', True),
-                l3_max_retries=plan['resources'].get('l3_max_retries', 1))
-            prepare(specification, graph)
-        check_graph(graph, 'ts:' + name)
+        _prepare_ts_graph(plan, entry, graph)
+        with (graph/'drive.lock').open('a+') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            check_graph(graph, 'ts:' + name)
         graphs['ts:' + name] = graph
     atomic_json(progress_path, {
         'schema': 1, 'status': 'complete', 'phase': 'ready_for_dispatch',
@@ -1521,10 +1551,17 @@ def _drive_graphs(graphs, max_jobs, interval=20.):
     with ExitStack() as locks:
         for graph in sorted(set(Path(g).resolve() for g in graphs.values())):
             handle = locks.enter_context((graph / 'drive.lock').open('a'))
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                raise RuntimeError(f'Another driver is managing {graph}.') from error
+            while True:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    # A sibling may have adopted this shared graph while its
+                    # original controller was restarting. Wait; never compete
+                    # for its allocations or fail the receiving network.
+                    from kinbot.pes_phase import checkpoint
+                    checkpoint()
+                    time.sleep(interval)
         return _drive_graphs_locked(graphs, max_jobs, interval)
 
 
@@ -2067,6 +2104,30 @@ def _electronic_state_audit(plan, parameters):
     return audit_electronic_states(states, parameters)
 
 
+def _shared_profiles(base, graphs, parameters, interval):
+    """Carry canonical ownership through assembly, VPT2 and final QC auditing."""
+    from kinbot.anl import pes_ts_reuse
+    external = pes_ts_reuse.load(base)
+    profiles = {}
+    consumed = {}
+    for name, target in external.items():
+        graph = pes_ts_reuse.finish(target, interval)
+        key = 'ts:'+name if target['kind']=='ts' else name
+        state_id = key.removeprefix('stable:')
+        profiles[key] = assemble_available_profiles(
+            graph, target['record'], base/'profiles'/('shared_'+hashlib.sha256(name.encode()).hexdigest()[:16]),
+            state_id=state_id, stationary_point='transition_state' if target['kind']=='ts' else 'minimum',
+            parameters=parameters if target['kind']!='ts' else None)
+        graphs[key] = graph
+        consumed[key] = dict(graph=str(graph), canonical_name=target['name'],
+            accepted_source=target['record'], scientific=pes_ts_reuse.scientific(target['plan']))
+    if consumed:
+        # The global registry can grow while this network assembles. Bind the
+        # consumed mapping, not a checksum of that mutable global registry.
+        atomic_json(base/'pes_reuse_consumed.json', dict(schema=1, graphs=consumed))
+    return external, profiles
+
+
 def run_automatic_cbh_anl(root_species, parameters, input_file, *,
                           directory='anl_automatic', interval=20., plan=None):
     """Build, execute, solve, and publish a complete automatic CBH/ANL DAG."""
@@ -2118,17 +2179,24 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         raise RuntimeError('Automatic L2 source records are missing: ' +
                            ', '.join(missing))
 
+    (base/'ts_private_graphs_complete.json').unlink(missing_ok=True)
     if parameters.get('anl_ts_reuse', False) is not False:
         from kinbot.anl.ts_reuse import install_new
         install_new(plan,base,parameters['anl_ts_reuse'])
+        from kinbot.anl.pes_ts_reuse import install as install_pes_reuse
+        install_pes_reuse(base,parameters['anl_ts_reuse'])
     graphs = _prepare_graphs(plan, sources, base / 'states')
     _drive_graphs(graphs, plan['resources']['global_max_jobs'], interval)
+    atomic_json(base/'ts_private_graphs_complete.json', {'plan_sha256': _sha256_json(plan)})
 
-    profiles = {}
     profile_root = base / 'profiles'
+    external, profiles = _shared_profiles(base, graphs, parameters, interval)
     for entry in plan['cbh']['calculated_states']:
         key = _state_key(entry['smiles'], entry['charge'],
                          entry['multiplicity'])
+        if 'stable:'+key in external:
+            profiles[key]=profiles['stable:'+key]
+            continue
         profiles[key] = assemble_available_profiles(
             graphs['stable:' + key], sources[key],
             profile_root / _safe_state_directory(
@@ -2137,7 +2205,7 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
     from kinbot.anl.ts_reuse import load as load_ts_aliases
     aliases = load_ts_aliases(plan, base)
     for name, record in plan['network']['transition_states'].items():
-        if name in aliases:
+        if name in aliases or name in external:
             continue
         profiles['ts:' + name] = assemble_available_profiles(
             graphs['ts:' + name], record,
@@ -2148,6 +2216,8 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         profiles['ts:' + alias] = profiles['ts:' + canonical]
 
     for route, entry in plan['network'].get('product_complexes', {}).items():
+        if 'complex:'+route in external:
+            continue
         profiles['complex:'+route] = assemble_available_profiles(
             graphs['complex:'+route], entry['record'],
             profile_root/('complex_'+hashlib.sha256(route.encode()).hexdigest()[:16]),
@@ -2306,6 +2376,8 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
     }
     if (base/'ts_reuse.json').exists():
         result['ts_reuse'] = _artifact(base/'ts_reuse.json', 'TS reuse proof')
+    if (base/'pes_reuse_consumed.json').exists():
+        result['pes_reuse'] = _artifact(base/'pes_reuse_consumed.json', 'PES ANL reuse proof')
     result_path = base / 'execution.json'
     result['execution_record'] = str(result_path)
     result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')

@@ -100,6 +100,9 @@ def _initial_exclusions(root):
 
 
 def _validate_timeout(value):
+    steps = value.get('optimization_step_retries', 2)
+    if type(steps) is not int or not 0 <= steps <= 10:
+        raise ValueError('optimization_step_retries must be an integer from 0 to 10.')
     retries = value.get('timeout_retries', 0)
     factor = value.get('timeout_walltime_factor', 2.0)
     if type(retries) is not int or not 0 <= retries <= 10:
@@ -110,7 +113,8 @@ def _validate_timeout(value):
 
 
 def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
-           timeout_retries=None, timeout_walltime_factor=None, manage_pending=None):
+           timeout_retries=None, timeout_walltime_factor=None, manage_pending=None,
+           optimization_step_retries=None):
     root = Path(root).resolve(strict=True)
     path = root/NAME
     ancestor = find(root.parent)
@@ -148,6 +152,8 @@ def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
             value['timeout_retries'] = timeout_retries
         if timeout_walltime_factor is not None:
             value['timeout_walltime_factor'] = timeout_walltime_factor
+        if optimization_step_retries is not None:
+            value['optimization_step_retries'] = optimization_step_retries
         _validate_timeout(value)
         value['excluded_nodes'] = sorted((set(value['excluded_nodes']) | set(exclude)) - set(allow))
         value.update(revision=value['revision'] + 1,
@@ -163,7 +169,7 @@ def validate_options(options):
         return
     if not isinstance(options, dict) or set(options) - {
             'max_jobs', 'excluded_nodes', 'minimum_walltime',
-            'timeout_retries', 'timeout_walltime_factor', 'manage_pending'}:
+            'timeout_retries', 'timeout_walltime_factor', 'manage_pending', 'optimization_step_retries'}:
         raise ValueError('Invalid queue_live_policy option.')
     if type(options.get('max_jobs')) is not int or options['max_jobs'] < 0:
         raise ValueError('queue_live_policy.max_jobs must be a nonnegative integer.')
@@ -185,6 +191,7 @@ def initialize(directory, options):
         update(directory, max_jobs=options['max_jobs'], exclude=options.get('excluded_nodes', []),
                minimum_walltime=options.get('minimum_walltime'),
                timeout_retries=options.get('timeout_retries'),
+               optimization_step_retries=options.get('optimization_step_retries'),
                manage_pending=options.get('manage_pending'),
                timeout_walltime_factor=options.get('timeout_walltime_factor'))
 
@@ -362,6 +369,7 @@ def main(argv=None):
     change.add_argument('--allow', action='append', default=[], help='Remove explicit/learned exclusions for these nodes.')
     change.add_argument('--timeout-retries', type=int, help='Bounded clean retries after confirmed walltime exhaustion (0 disables).')
     change.add_argument('--timeout-walltime-factor', type=float, help='Multiply the previous time limit for a timeout retry (default 2).')
+    change.add_argument('--optimization-step-retries', type=int, help='Extra same-optimizer step chunks (default 2; zero disables).')
     walltime = change.add_mutually_exclusive_group()
     walltime.add_argument('--minimum-walltime', help='Raise future requests up to this time, capped by partition MaxTime.')
     walltime.add_argument('--clear-minimum-walltime', action='store_true')
@@ -371,6 +379,7 @@ def main(argv=None):
     if args.action == 'set':
         result = update(args.root, max_jobs=args.max_jobs,
                         timeout_retries=args.timeout_retries,
+                        optimization_step_retries=args.optimization_step_retries,
                         timeout_walltime_factor=args.timeout_walltime_factor,
                         minimum_walltime='' if args.clear_minimum_walltime else args.minimum_walltime,
                         exclude=[n for v in args.exclude for n in v.split(',')],

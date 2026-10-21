@@ -1,3 +1,4 @@
+from kinbot.optimization_budget import run_optimizer
 import os
 import numpy as np
 import shutil
@@ -57,7 +58,7 @@ opt = Sella(mol,
 # the final saddle must still pass its independent TS checks.
 recovery_reason = None
 try:
-    converged = opt.run(fmax=0.1, steps=100)
+    converged = run_optimizer(opt, fmax=0.1, steps=100)
 except Exception as error:
     converged = False
     recovery_reason = f'{{type(error).__name__}}: {{error}}'

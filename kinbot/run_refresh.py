@@ -1,7 +1,7 @@
-"""Replace salvage controllers while retaining dispatcher-owned Slurm jobs.
+"""Replace salvage controllers while retaining owned QC Slurm jobs.
 
-Only idle PES/KB control processes are replaceable. Native calculations,
-reference subprocesses and ambiguous submissions cause a refusal, not a kill.
+Only verified PES/KB controllers (including CBH-reference controllers) are
+replaceable. Native calculations and ambiguous submissions cause a refusal.
 With --replace-pending, only jobs still PENDING are cancelled and restaged;
 running allocations and completed calculations are retained.
 """
@@ -85,6 +85,8 @@ def _controllers(root):
         for worker in path.parent.glob('[0-9]*'):
             if worker.is_dir():
                 roles[worker] = ('kinbot.kb', 'kinbot_status.json')
+    for inp in _ordinary_inputs(root):
+        roles[inp.parent.resolve()] = ('kinbot.kb', 'kinbot_status.json')
     for directory, (_, name) in roles.items():
         for marker in (directory / name, directory / 'launch.json'):
             if marker.exists():
@@ -129,8 +131,59 @@ def _graphs(root):
         yield graph / 'state.json'
 
 
+def _ordinary_inputs(root):
+    prepared = json.loads((root/'prepared.json').read_text())
+    inputs = [Path(p).resolve() for p in prepared['inputs']]
+    if not inputs or any(not p.is_relative_to(root) for p in inputs):
+        raise RuntimeError('Prepared inputs are outside the requested run.')
+    result = set()
+    for source in inputs:
+        for inp in source.parent.glob('[0-9]*/*.json'):
+            if inp.name != inp.parent.name+'.json':
+                continue
+            result.add(inp)
+            settings = json.loads(inp.read_text())
+            base = inp.parent/settings.get('anl_automatic_directory', 'anl_automatic')
+            if not base.resolve().is_relative_to(root):
+                raise RuntimeError('Automatic reference directory escapes the run.')
+            result.update(base.glob('reference_l2/*/input.json'))
+    return sorted(result)
+
+
+def _ordinary_job_owners(root):
+    """Read the persisted routes that replacement L1/L2 controllers adopt."""
+    owners = {}
+    # Ownership also runs while a journalled input migration is interrupted.
+    # Its input hashes are validated by that migration, not against the old
+    # prepared hash between its two atomic writes.
+    for inp in _ordinary_inputs(root):
+        settings = json.loads(inp.read_text())
+        worker = inp.parent.resolve()
+        route = Path(settings.get('profiled_route_file', '.kinbot_theory_jobs.json'))
+        route = route if route.is_absolute() else worker/route
+        if not route.resolve().is_relative_to(root):
+            raise RuntimeError(f'{route}: ordinary job routes are outside this run.')
+        if not route.is_file():
+            continue
+        payload = json.loads(route.read_text())
+        if payload.get('schema') != 1 or not isinstance(payload.get('jobs'), dict):
+            raise RuntimeError(f'{route}: invalid ordinary QC routes.')
+        for name, entry in payload['jobs'].items():
+            job = entry.get('job_id')
+            if not job:
+                continue
+            target = (worker/name).resolve()
+            if not target.is_relative_to(worker) or target == worker:
+                raise RuntimeError(f'{route}: QC target is outside its worker.')
+            job = str(job)
+            if job in owners:
+                raise RuntimeError(f'Slurm job {job} has duplicate ordinary QC ownership.')
+            owners[job] = (worker, target)
+    return owners
+
+
 def _owned_jobs(root):
-    """Verify both composite and VRC job ownership without reconciling state."""
+    """Verify composite, VRC and profiled L1/L2 ownership without resetting it."""
     from kinbot.anl import dispatch
     jobs = run_cleanup._jobs(root)  # A query failure must abort the handoff.
     owned = {}
@@ -155,10 +208,21 @@ def _owned_jobs(root):
             if job in owned:
                 raise RuntimeError(f'Slurm job {job} has duplicate graph ownership.')
             owned[job] = (graph / 'tasks' / ident).resolve()
+    ordinary = _ordinary_job_owners(root)
+    if owned.keys() & ordinary.keys():
+        raise RuntimeError('An allocation has both dispatcher and ordinary QC ownership.')
     for job in jobs:
-        if owned.get(job['job_id']) != Path(job['directory']).resolve():
+        ident = job['job_id']
+        directory = Path(job['directory']).resolve()
+        if ident in ordinary:
+            worker, target = ordinary[ident]
+            if (directory != worker or
+                    not Path(str(target)+'.py').is_file() or
+                    not Path(str(target)+'.sbatch').is_file()):
+                raise RuntimeError(f'Job {ident}: ordinary QC directory/worker/script does not match its route.')
+        elif owned.get(ident) != directory:
             raise RuntimeError(f'Live Slurm job {job["job_id"]} lacks matching '
-                               'ANL/VRC dispatcher ownership; nothing reset.')
+                               'dispatcher or profiled QC ownership; nothing reset.')
     return jobs
 
 
@@ -223,15 +287,16 @@ def _preflight(root):
 
 def _archive_controllers(root, archive):
     _, paths = run_salvage._cases(root)
+    directories = {p.parent for p in _ordinary_inputs(root)}
     for path in paths:
-        for directory in (path.parent, *sorted(path.parent.glob('[0-9]*'))):
-            if not directory.is_dir():
-                continue
-            for name in ('driver.log', 'pes.log', 'pes_summary.txt', 'launch.json',
-                         'pes_status.json', 'kinbot.log', 'kinbot.err', 'kinbot.out',
-                         'kinbot_status.json'):
-                run_salvage._save(directory / name, root, archive, move=True)
-            run_salvage._save(directory / '.kinbot_post_reaction_branches.json', root, archive)
+        directories.add(path.parent)
+        directories.update(p for p in path.parent.glob('[0-9]*') if p.is_dir())
+    for directory in sorted(directories):
+        for name in ('driver.log', 'driver.stdout', 'driver.stderr', 'driver.pid',
+                     'pes.log', 'pes_summary.txt', 'launch.json', 'pes_status.json',
+                     'kinbot.log', 'kinbot.err', 'kinbot.out', 'kinbot_status.json'):
+            run_salvage._save(directory / name, root, archive, move=True)
+        run_salvage._save(directory / '.kinbot_post_reaction_branches.json', root, archive)
 
 
 @contextmanager
@@ -239,7 +304,9 @@ def _worker_locks(root, *, timeout=30.):
     """Wait for controller-lock release without replacing the locked inode."""
     deadline = time.monotonic() + timeout
     with ExitStack() as locks:
-        for path in sorted(root.glob('*/[0-9]*/.kinbot_run.json')):
+        paths = set(root.glob('*/[0-9]*/.kinbot_run.json'))
+        paths.update(p.parent/'.kinbot_run.json' for p in _ordinary_inputs(root) if (p.parent/'.kinbot_run.json').exists())
+        for path in sorted(paths):
             handle = locks.enter_context(path.open('r+'))
             noticed = False
             while True:
@@ -403,6 +470,7 @@ def _replace_pending(root, journal, marker):
             journal['pending_candidates'] = [j for j in _owned_jobs(root) if j['state'] == 'PENDING']
             atomic_json(marker, journal)
         candidates = journal['pending_candidates']
+        _check_pending_scope(root, candidates)
         ids = [j['job_id'] for j in candidates]
         if any(not ident.isdecimal() for ident in ids):
             raise RuntimeError('Pending replacement requires individual numeric Slurm job IDs.')
@@ -451,6 +519,14 @@ def _replace_pending(root, journal, marker):
         _apply_graph(plan, root, Path(journal['archive'])/'pending_allocations')
     journal['jobs'] = _owned_jobs(root)
     atomic_json(marker, journal)
+
+
+def _check_pending_scope(root, jobs):
+    ordinary = _ordinary_job_owners(root)
+    if any(j['state'] == 'PENDING' and j['job_id'] in ordinary for j in jobs):
+        raise RuntimeError('Ordinary L1/L2 allocations are retained by controller refresh. '
+                           'Omit --replace-pending; use live QC pending-only requests '
+                           'for an explicit ordinary allocation replacement.')
 
 
 def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
@@ -517,6 +593,8 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             raise RuntimeError('Controller refresh requires a launched salvage run.')
         records = _controllers(root)
         jobs = _owned_jobs(root)
+        if replace_pending:
+            _check_pending_scope(root, jobs)
         _preflight(root)  # Do this while the original controllers keep working.
         migration = None
         duplicate = None
@@ -525,7 +603,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             from kinbot import network_revisit
             network = network_revisit.plan(root, jobs, network_options)
             print(f"Network revisit: {sum(len(w['rejected']) for w in network['workers'])} rejected channels; "
-                  f"{len(network['selected_jobs'])} verified duplicate TS allocations selected.", flush=True)
+                  f"{len(network['selected_jobs'])} verified duplicate ANL allocations selected.", flush=True)
         if deduplicate_vrc:
             from kinbot import vrc_deduplicate
             duplicate = vrc_deduplicate.plan(root, jobs)
@@ -570,6 +648,8 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         print('Quiescing only PES/KB controllers; Slurm jobs remain running.', flush=True)
         with _freeze(root, records) as handles:
             jobs = _owned_jobs(root)  # No thread can submit/write while checked.
+            if journal.get('replace_pending'):
+                _check_pending_scope(root, jobs)
             if journal.get('network_options'):
                 from kinbot import network_revisit
                 journal['network_revision'] = network_revisit.plan(root,jobs,journal['network_options'])
@@ -651,7 +731,8 @@ def main(argv=None):
                         help='Verify original VRC results, cancel and archive resource-only duplicate chains.')
     parser.add_argument('--vdw-detection', type=float)
     parser.add_argument('--revisit-rejected', action='store_true')
-    parser.add_argument('--deduplicate-ts', action='store_true')
+    parser.add_argument('--deduplicate-ts', '--deduplicate-anl', action='store_true', help='Verify and share equivalent ANL stable/TS graphs within each PES.')
+    parser.add_argument('--barrier-threshold-l2', type=float, help='L2 ceiling relative to the initial PES well, kcal/mol.')
     parser.add_argument('--vrc-scan-basis', help='Change only the VRC relaxed/asymptotic geometry basis.')
     parser.add_argument('--vrc-fragment-geometry', choices=['legacy', 'asymptotic_scan'])
     parser.add_argument('--vrc-pivot-level', choices=['L2', 'custom'])
@@ -668,8 +749,8 @@ def main(argv=None):
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         from kinbot.vrc_restart import settings
         from kinbot.network_revisit import settings as network_settings
-        network_options = (network_settings(args.vdw_detection,args.revisit_rejected,args.deduplicate_ts)
-                           if args.vdw_detection is not None or args.revisit_rejected or args.deduplicate_ts else None)
+        network_options = (network_settings(args.vdw_detection,args.revisit_rejected,args.deduplicate_ts,args.barrier_threshold_l2)
+                           if args.vdw_detection is not None or args.revisit_rejected or args.deduplicate_ts or args.barrier_threshold_l2 is not None else None)
         result = refresh(root, apply=args.apply, replace_pending=args.replace_pending,
             vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,
                                  args.vrc_reference_basis, args.vrc_reference_power),
@@ -681,9 +762,9 @@ def main(argv=None):
         revision = result['network_revision']
         print('Network revisit: ' + json.dumps(revision['settings'],sort_keys=True))
         print('Rejected channels selected: '+str(sum(len(w['rejected']) for w in revision['workers'])))
-        print('Verified duplicate TS allocation IDs selected: '+
+        print('Verified duplicate ANL allocation IDs selected: '+
               ', '.join(j['job_id'] for j in revision['selected_jobs']))
-        print('QC graphs retained except archived, verified TS aliases; existing VRC paths retained.')
+        print('QC graphs retained except archived, verified ANL aliases; existing VRC paths retained.')
     if result.get('pending_cancellation_evidence'):
         print('Cancelled pending IDs (archived for replacement): ' +
               ', '.join(result['pending_cancellation_evidence']))

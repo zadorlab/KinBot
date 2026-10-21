@@ -132,6 +132,8 @@ def test_ts_identity_not_shared_product_only_and_no_reflections(tmp_path):
     m=saddle_plan(); limits=ts_reuse.options({})
     assert ts_reuse.equivalent(m,'a','b',limits)
     assert ts_reuse.equivalent(m,'a','different',limits) is None
+    for entry in m['network']['transition_states'].values():
+        entry['molecule']['symbols']=['C','S','H','F']  # distinct ligands: genuinely chiral
     m['network']['transition_states']['b']['molecule']['positions'][3][2]=-1
     assert ts_reuse.equivalent(m,'a','b',limits) is None
 
@@ -194,7 +196,9 @@ def test_complex_is_added_to_plan_and_gets_its_own_graph(tmp_path, monkeypatch):
     # Planning must remain noncovalent; it is not a fake CBH covalent target.
     assert 'complex' not in plan['cbh']['targets']
     made=[]
-    monkeypatch.setattr(a,'prepare',lambda spec,graph:made.append((spec,graph)))
+    def prepare(spec,graph):
+        graph.mkdir(parents=True,exist_ok=True);made.append((spec,graph))
+    monkeypatch.setattr(a,'prepare',prepare)
     monkeypatch.setattr(a,'preflight_until_scheduler_ready',lambda *a,**k:{})
     sources={a._state_key(e['smiles'],e['charge'],e['multiplicity']):
              (e['network_record'] or plan['network']['stable_species'][0]) for e in plan['cbh']['calculated_states']}

@@ -209,3 +209,59 @@ def test_zero_exit_unconverged_retry_fails_and_clears_results(tmp_path, monkeypa
     report = json.loads(Path('atom.scf_recovery.json').read_text())
     assert report['status'] == 'failed'
     assert 'SCF did not converge' in report['error']
+
+
+def test_diatomic_symmetry_fallback_keeps_requested_physics_and_avoids_custom_states():
+    from ase import Atoms
+    from kinbot.ase_modules.calculators.gaussian import diatomic_recovery_parameters
+    original=dict(method='B3LYP',basis='cc-pVDZ',mult=2,charge=0,
+        scf='xqc,conver=8',Symm='None',guess='Read',integral='UltraFine',EmpiricalDispersion='GD3BJ')
+    result=diatomic_recovery_parameters(original,Atoms('SH'))
+    assert result['guess']=='Huckel' and 'Symm' not in result
+    assert 'conver=8' in result['scf'] and result['scf'].endswith(',Symm')
+    for k in ('method','basis','mult','charge','integral','EmpiricalDispersion'):
+        assert result[k]==original[k]
+    assert diatomic_recovery_parameters(original,Atoms('CH3S')) is None
+    assert diatomic_recovery_parameters(dict(original,guess='Alter'),Atoms('SH')) is None
+    assert diatomic_recovery_parameters(dict(original,mult=1),Atoms('SH')) is None
+
+
+def test_link701_density_failure_uses_symmetry_once(tmp_path,monkeypatch):
+    from ase import Atoms
+    monkeypatch.chdir(tmp_path);monkeypatch.setattr(Gaussian,'command','true')
+    decks=[]
+    def execute(self):
+        decks.append(Path(self.label+'.com').read_text())
+        if len(decks)==1:
+            Path(self.label+'.log').write_text('Convergence criterion not met.\nSCFChk: convergence required\nError termination in l701.exe')
+            raise RuntimeError('Gaussian failed')
+        Path(self.label+'.log').write_text('Normal termination of Gaussian')
+    monkeypatch.setattr(Gaussian,'execute',execute)
+    monkeypatch.setattr(Gaussian,'read_results',lambda self:self.results.update(energy=-1.))
+    atoms=Atoms('SH',positions=[[.06,-2.55,.77],[-.52,-1.97,1.85]])
+    atoms.calc=Gaussian(label='sh',method='B3LYP',basis='cc-pVDZ',mult=2,charge=0,
+                        scf='xqc,conver=8',Symm='None',guess='Read')
+    assert atoms.get_potential_energy()==-1.
+    assert len(decks)==2 and 'guess(Huckel)' in decks[1] and 'Symm(None)' not in decks[1]
+    assert 'conver=8' in decks[1] and 'CDIIS' in decks[1]
+    assert atoms.calc.parameters['Symm']=='None'
+    assert json.loads(Path('sh.scf_recovery.json').read_text())['recovery_kind']=='diatomic_symmetry'
+
+
+def test_symmetry_force_table_is_already_in_input_frame(tmp_path,monkeypatch):
+    import numpy as np
+    from ase import Atoms
+    from ase.calculators.singlepoint import SinglePointCalculator
+    from kinbot.ase_modules.calculators import gaussian
+    original=Atoms('SH',positions=[[.066735,-2.557438,.770077],[-.518863,-1.974158,1.854251]])
+    native=Atoms('SH',positions=[[0,0,.080194],[0,0,-1.283101]])
+    forces=np.array([[-.000012558,.000012509,.000023250],[.000012558,-.000012509,-.000023250]])
+    native.calc=SinglePointCalculator(native,energy=-1.,forces=forces)
+    monkeypatch.setattr(gaussian,'read',lambda *a,**k:native)
+    calc=Gaussian(command='true');calc.atoms=original.copy();calc._diatomic_symmetry_retry_active=True
+    calc.read_results()
+    assert calc.results['forces']==pytest.approx(forces)
+    native.positions[1,2]-=.01
+    with pytest.raises(RuntimeError,match='changed geometry'):
+        calc.read_results()
+    assert calc.results=={}

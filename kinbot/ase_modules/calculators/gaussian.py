@@ -26,6 +26,44 @@ def qc_scf_failure(path):
             ('no lower point found' in text or 'convergence failure' in text))
 
 
+def density_scf_failure(path):
+    """Recognize the native density gate, including Link 701 after SCF Done."""
+    try:
+        with Path(path).open('rb') as stream:
+            stream.seek(max(0, Path(path).stat().st_size - 65536))
+            text = stream.read().decode(errors='replace').lower()
+    except OSError:
+        return False
+    return ('convergence criterion not met' in text
+            and (('scfchk:' in text and 'required' in text and 'l701.exe' in text)
+                 or 'normal termination' in text))
+
+
+def diatomic_recovery_parameters(parameters, atoms):
+    """Restore detected symmetry for open-shell diatomics, not polyatomics.
+
+    A fresh symmetric guess avoids importing the failed symmetry-broken density.
+    Explicit occupation/guess models are never replaced by this automatic path.
+    """
+    from kinbot.gaussian_input import route_options
+    if atoms is None or len(atoms) != 2 or int(parameters.get('mult', 1)) <= 1:
+        return None
+    guess = next((v for k,v in parameters.items() if k.lower()=='guess'), '')
+    if {s.lower() for s in route_options(guess)} - {'read'}:
+        return None
+    if any(k.lower() in {'extra', 'addsec', 'ioplist', 'spinlist'} and v
+           for k,v in parameters.items()):
+        return None
+    result = scf_recovery_parameters(parameters)
+    for key in tuple(result):
+        if key.lower() in {'guess', 'symm', 'symmetry', 'nosymm', 'nosymmetry'}:
+            del result[key]
+    options = [s for s in route_options(result['scf'])
+               if s.lower() not in {'symm','nosymm'}]
+    result.update(scf=','.join(options+['Symm']), guess='Huckel')
+    return result
+
+
 def scf_recovery_parameters(parameters):
     """Change the SCF algorithm only; retain the requested density threshold."""
     from kinbot.gaussian_input import route_options
@@ -174,10 +212,15 @@ class Gaussian(FileIOCalculator):
     command = 'GAUSSIAN < PREFIX.com > PREFIX.log'
     discard_results_on_any_change = True
 
-    def __init__(self, *args, label='Gaussian', scf_recovery=True, **kwargs):
+    def __init__(self, *args, label='Gaussian', scf_recovery=True,
+                 diatomic_scf_symmetry=True, **kwargs):
         if scf_recovery not in (True, False, 0, 1):
             raise ValueError('scf_recovery must be true or false.')
         self.scf_recovery = bool(scf_recovery)
+        if diatomic_scf_symmetry not in (True, False, 0, 1):
+            raise ValueError('diatomic_scf_symmetry must be true or false.')
+        self.diatomic_scf_symmetry = bool(diatomic_scf_symmetry)
+        self._diatomic_symmetry_retry_active = False
         FileIOCalculator.__init__(self, *args, label=label, **kwargs)
 
     def _initialize_profile(self, command):
@@ -219,10 +262,15 @@ class Gaussian(FileIOCalculator):
             FileIOCalculator.calculate(self, *args, **kwargs)
         except RuntimeError:
             output = Path(self.label + '.log')
-            if not self.scf_recovery or not qc_scf_failure(output):
+            original = copy.deepcopy(self.parameters)
+            atoms = kwargs.get('atoms', args[0] if args else self.atoms)
+            diatomic = (diatomic_recovery_parameters(original, atoms)
+                        if self.diatomic_scf_symmetry else None)
+            if not self.scf_recovery or not (qc_scf_failure(output)
+                    or (diatomic is not None and density_scf_failure(output))):
                 raise
-            # Retry the same geometry and requested electronic state once.
-            # No checkpoint/guess replacement or relaxed convergence criterion.
+            # Retry once at the same geometry/state/threshold. Diatomics get
+            # the cause-specific symmetry recovery; other jobs retain CDIIS.
             from kinbot.execution import atomic_json, file_sha256
             archive_root = output.parent / 'restart_gaussian_scf'
             archive_root.mkdir(exist_ok=True)
@@ -242,20 +290,20 @@ class Gaussian(FileIOCalculator):
                     target = archive / path.name
                     shutil.copy2(path, target)
                     preserved[str(path)] = {'archive': str(target), 'sha256': file_sha256(target)}
-            original = copy.deepcopy(self.parameters)
-            replacement = scf_recovery_parameters(original)
-            record = {'status': 'retrying', 'reason': 'Gaussian QC-SCF failure in Link 508',
+            replacement = diatomic if diatomic is not None else scf_recovery_parameters(original)
+            reason = ('Open-shell diatomic SCF: detected symmetry and fresh Huckel guess'
+                      if diatomic is not None else 'Gaussian QC-SCF failure in Link 508')
+            record = {'status': 'retrying', 'reason': reason,
+                      'recovery_kind': 'diatomic_symmetry' if diatomic is not None else 'cdiis',
                       'original_scf': next((v for k, v in original.items() if k.lower() == 'scf'), ''),
                       'retry_scf': replacement['scf'], 'preserved_files': preserved}
             report = Path(self.label + '.scf_recovery.json')
             atomic_json(report, record)
             logging.getLogger('KinBot').warning(
-                '%s: QC-SCF failed; one CDIIS retry at unchanged theory and convergence. Evidence: %s',
+                '%s: SCF failed; one bounded retry at unchanged theory and convergence. Evidence: %s',
                 self.label, report)
-            self.parameters.update(replacement)
-            for key in tuple(self.parameters):
-                if key.lower() == 'scf' and key != 'scf':
-                    del self.parameters[key]
+            self.parameters = type(original)(replacement)
+            self._diatomic_symmetry_retry_active = diatomic is not None
             try:
                 FileIOCalculator.calculate(self, *args, **kwargs)
             except Exception as error:
@@ -265,6 +313,7 @@ class Gaussian(FileIOCalculator):
                 record.update(status='complete', output_sha256=file_sha256(output))
             finally:
                 self.parameters = original
+                self._diatomic_symmetry_retry_active = False
                 atomic_json(report, record)
 
     def write_input(self, atoms, properties=None, system_changes=None):
@@ -279,7 +328,24 @@ class Gaussian(FileIOCalculator):
         self.calc = None
         output = read(self.label + '.log', format='gaussian-out')
         self.calc = output.calc
-        self.results = output.calc.results
+        results = dict(output.calc.results)
+        if self._diatomic_symmetry_retry_active and 'forces' in results:
+            import numpy as np
+            source = output.positions - output.positions.mean(axis=0)
+            target = self.atoms.positions - self.atoms.positions.mean(axis=0)
+            if output.get_chemical_symbols() != self.atoms.get_chemical_symbols():
+                raise RuntimeError('Gaussian symmetry recovery changed atom identity.')
+            u, _, vt = np.linalg.svd(source.T @ target)
+            correction = np.eye(3)
+            correction[-1,-1] = np.linalg.det(u @ vt)
+            rotation = u @ correction @ vt
+            if not np.allclose(source @ rotation, target, atol=2.e-5, rtol=0):
+                raise RuntimeError('Gaussian symmetry recovery changed geometry.')
+            # Gaussian restores derivatives to the INPUT frame before printing
+            # this force table. The preceding geometry can still be STANDARD
+            # orientation. Use the rotation only to validate geometry; applying
+            # it to these forces would rotate them a second time.
+        self.results = results
 
     # Method(s) defined in the old calculator, added here for
     # backwards compatibility

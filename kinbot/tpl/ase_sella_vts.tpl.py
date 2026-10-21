@@ -1,3 +1,4 @@
+from kinbot.optimization_budget import step_retries
 import time
 import os
 import copy
@@ -203,7 +204,7 @@ while 1:
         e = mol.get_potential_energy()
         break
     try:
-        for i in opts[attempt].irun(fmax=fmax, steps=100):
+        for i in opts[attempt].irun(fmax=fmax, steps=100 * (1 + step_retries())):
             # Stop if constraint is lost (probably due to dummy atom)
             current_dist = np.linalg.norm(mol.positions[scan_coo[0]]
                                           - mol.positions[scan_coo[1]])

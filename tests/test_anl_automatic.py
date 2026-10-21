@@ -633,6 +633,29 @@ def test_reference_input_uses_the_shared_automatic_branch_limit(tmp_path):
     assert json.loads(output.read_text())['queue_job_limit'] == 4
 
 
+def test_reference_rebuilds_identity_without_changing_theory_or_resources(tmp_path):
+    source = tmp_path/'parent.json'
+    settings = {'smiles': 'F[C@H](Cl)Br', 'charge': 0, 'mult': 1,
+                'stereo_reference': {'status': 'assigned', 'id': 'parent-only'},
+                'optical_population': 'racemic', 'high_level': 1,
+                'high_level_method': 'B2PLYP', 'high_level_basis': 'cc-pVTZ',
+                'qc_scratch_fallbacks': [], 'slurm_exclusive': 1,
+                'slurm_exclude_nodes': ['excluded'], 'ppn': 8}
+    source.write_text(json.dumps(settings))
+    directory = tmp_path/'reference'
+    directory.mkdir()
+    path = _reference_input(source, {'smiles': 'C', 'charge': 0, 'multiplicity': 1},
+                            directory, directory/'model.json')
+    generated = json.loads(path.read_text())
+    assert generated['stereo_reference'] is None
+    assert generated['optical_population'] == 'specified'
+    assert generated['smiles'] == 'C'
+    for key in ('high_level_method', 'high_level_basis', 'qc_scratch_fallbacks',
+                'slurm_exclusive', 'slurm_exclude_nodes', 'ppn'):
+        assert generated[key] == settings[key]
+    assert json.loads(source.read_text()) == settings
+
+
 def test_inherited_reference_controller_is_replaced_once_if_it_disappears(
         monkeypatch, tmp_path):
     source = tmp_path / 'parent.json'
@@ -1096,7 +1119,10 @@ def test_automatic_graph_driver_holds_exclusive_lock(tmp_path, monkeypatch):
     from kinbot.anl import automatic
     with (tmp_path / 'drive.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with pytest.raises(RuntimeError, match='Another driver'):
+        def stop(_):
+            raise RuntimeError('waiting without dispatch')
+        monkeypatch.setattr(automatic.time,'sleep',stop)
+        with pytest.raises(RuntimeError, match='waiting without dispatch'):
             automatic._drive_graphs({'test': tmp_path}, 1)
 
 
@@ -1135,3 +1161,24 @@ def test_graph_preflight_publishes_progress_without_submitting(tmp_path, monkeyp
     assert final['graphs_complete'] == (1 if failure else 2)
     if failure:
         assert final['error'] == 'missing executable'
+
+
+def test_adopting_live_reference_does_not_overwrite_its_input(tmp_path,monkeypatch):
+    from kinbot.anl import automatic as a
+    from kinbot import pes_phase
+    source=tmp_path/'parent.json';source.write_text('{}')
+    entry=dict(smiles='[SH]',charge=0,multiplicity=2)
+    root=tmp_path/'refs';directory=root/a._safe_state_directory('[SH]',0,2)
+    directory.mkdir(parents=True)
+    (directory/'input.json').write_text('{"existing":true}\n')
+    (directory/'driver.pid').write_text('100')
+    monkeypatch.setattr(a.os,'kill',lambda *args:None)
+    monkeypatch.setattr(a,'_pid_matches_reference',lambda *args:True)
+    def forbidden(*args,**kwargs):
+        pytest.fail('must not rewrite the adopted live reference input')
+    monkeypatch.setattr(a,'_reference_input',forbidden)
+    def stop():raise pes_phase.ExplorationReopened()
+    monkeypatch.setattr(pes_phase,'checkpoint',stop)
+    with pytest.raises(pes_phase.ExplorationReopened):
+        a._run_reference_l2([entry],source,root,1,{})
+    assert (directory/'input.json').read_text()=='{"existing":true}\n'

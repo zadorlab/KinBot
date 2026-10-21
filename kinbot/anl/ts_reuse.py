@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+from itertools import islice
 
 import numpy as np
 
@@ -37,23 +38,57 @@ def directory(base, name):
     return Path(base)/'states'/('ts_'+hashlib.sha256(name.encode()).hexdigest()[:16])/'composite'
 
 
-def equivalent(plan, left, right, limits):
+def aligned_permutation(symbols_x, px, symbols_y, py, tolerance):
+    """Element/distance graph mapping, followed by a proper-rotation RMSD.
+
+    Distance matching alone would merge enantiomers. The final determinant +1
+    alignment prevents that. Cap enumeration conservatively: missing a match
+    never grants reuse. Isotope-bearing states are rejected by the caller.
+    """
+    import networkx as nx
+    if sorted(symbols_x) != sorted(symbols_y):
+        return None
+    cutoff = 2 * np.sqrt(len(px)) * tolerance + 1.e-12
+    def graph(symbols, positions):
+        g = nx.Graph()
+        g.add_nodes_from((i, {'element': s}) for i,s in enumerate(symbols))
+        g.add_edges_from((i,j,{'distance':float(np.linalg.norm(positions[i]-positions[j]))})
+                         for i in range(len(positions)) for j in range(i))
+        return g
+    matcher = nx.algorithms.isomorphism.GraphMatcher(
+        graph(symbols_x,px), graph(symbols_y,py),
+        node_match=lambda a,b:a['element']==b['element'],
+        edge_match=lambda a,b:abs(a['distance']-b['distance'])<=cutoff)
+    for mapping in islice(matcher.isomorphisms_iter(), 10000):
+        permutation = [mapping[i] for i in range(len(px))]
+        target = py[permutation]
+        u, _, vt = np.linalg.svd(px.T@target)
+        correction = np.eye(3)
+        correction[-1,-1] = np.linalg.det(u@vt)
+        rmsd = float(np.sqrt(np.mean(np.sum((px@u@correction@vt-target)**2,axis=1))))
+        if rmsd <= tolerance:
+            return rmsd, permutation
+    return None
+
+
+def equivalent(plan, left, right, limits, *, stationary_point='transition_state'):
     """Return measured evidence, or None. Never use endpoints alone as identity."""
     reactions = {r['transition_state']: r for r in plan['network']['reactions']
                  if r.get('transition_state')}
     a, b = reactions[left], reactions[right]
-    if (a['reactant'], sorted(a['products'])) != (b['reactant'], sorted(b['products'])):
+    endpoints = lambda r: sorted(((r['reactant'],), tuple(sorted(r['products']))))
+    if endpoints(a) != endpoints(b):
         return None
     if a.get('path_class') != b.get('path_class'):
         return None
     x, y = (plan['network']['transition_states'][n] for n in (left, right))
-    if any(x.get(k) != y.get(k) for k in ('l2_theory', 'highest_tier', 'fallback_tiers', 'smiles')):
+    if any(x.get(k) != y.get(k) for k in ('l2_theory', 'highest_tier', 'fallback_tiers')):
         return None
     # Legacy records omit isotope/site metadata. Do not infer it from formula.
-    if re.search(r'\[\d', x['smiles']):
+    if any(re.search(r'\[\d', z['smiles']) for z in (x,y)):
         return None
     mx, my = x['molecule'], y['molecule']
-    if any(mx.get(k) != my.get(k) for k in ('symbols', 'charge', 'multiplicity')):
+    if any(mx.get(k) != my.get(k) for k in ('charge', 'multiplicity')):
         return None
     px, py = (np.asarray(m['positions'], dtype=float) for m in (mx, my))
     if px.shape != py.shape or px.shape != (len(mx['symbols']), 3):
@@ -61,14 +96,15 @@ def equivalent(plan, left, right, limits):
     if not np.isfinite(px).all() or not np.isfinite(py).all():
         return None
     px, py = px-px.mean(axis=0), py-py.mean(axis=0)
-    u, _, vt = np.linalg.svd(px.T@py)
-    correction = np.eye(3)
-    correction[-1, -1] = np.linalg.det(u@vt)
-    rmsd = float(np.sqrt(np.mean(np.sum((px@u@correction@vt-py)**2, axis=1))))
+    alignment = aligned_permutation(mx['symbols'],px,my['symbols'],py,limits['rmsd_angstrom'])
+    if alignment is None:
+        return None
+    rmsd, permutation = alignment
     fx, fy = (np.asarray(z.get('frequencies_cm_inverse', []), float) for z in (x, y))
     if not len(fx) or fx.shape != fy.shape or not np.isfinite(fx).all() or not np.isfinite(fy).all():
         return None
-    if np.count_nonzero(fx < 0) != 1 or np.count_nonzero(fy < 0) != 1:
+    order = 1 if stationary_point == 'transition_state' else 0
+    if np.count_nonzero(fx < 0) != order or np.count_nonzero(fy < 0) != order:
         return None
     measurements = dict(rmsd_angstrom=rmsd,
         energy_hartree=abs(x['energy_hartree']-y['energy_hartree']),
@@ -76,10 +112,11 @@ def equivalent(plan, left, right, limits):
         frequency_cm_inverse=float(np.max(np.abs(np.sort(fx)-np.sort(fy)))))
     if any(not np.isfinite(v) or v > limits[k] for k, v in measurements.items()):
         return None
+    measurements['atom_permutation'] = permutation
     return measurements
 
 
-def discover(plan, base, limits, previous=None):
+def discover(plan, base, limits, previous=None, pinned=()):
     """Prefer the graph with most completed tasks, then most retained allocations."""
     records = plan['network']['transition_states']
     result = deepcopy(previous or dict(schema=1, aliases={}, evidence={}, records={}))
@@ -90,8 +127,8 @@ def discover(plan, base, limits, previous=None):
         p = directory(base, name)/'state.json'
         entries = json.loads(p.read_text()).get('tasks', {}).values() if p.exists() else []
         return (-sum(e.get('status') == 'complete' for e in entries),
-                -sum(e.get('status') == 'submitted' for e in entries), name)
-    canonical = sorted(set(result['aliases'].values()), key=rank)
+                -sum(e.get('status') == 'submitted' for e in entries), -int(p.exists()), name)
+    canonical = sorted(set(result['aliases'].values()) | set(pinned), key=rank)
     for name in sorted(records, key=rank):
         if name in result['aliases'] or name in canonical:
             continue
@@ -101,7 +138,7 @@ def discover(plan, base, limits, previous=None):
             other, evidence = match
             result['aliases'][name] = other
             result['evidence'][name] = dict(canonical=other, measurements=evidence,
-                                           limits=limits, atom_mapping='same_order_proper_rotation')
+                                           limits=limits, atom_mapping='element_permutation_proper_rotation')
         else:
             canonical.append(name)
     result['records'] = {n: digest(records[n]) for n in
@@ -128,9 +165,21 @@ def install_new(plan, base, value):
     """Share not-yet-created graphs; existing allocations require explicit retirement."""
     path=Path(base)/'ts_reuse.json'
     previous=json.loads(path.read_text()) if path.exists() else None
-    result=discover(plan,base,options(value),previous)
+    result=discover(plan,base,options(value),previous,protected(base))
     for alias in set(result['aliases'])-set((previous or {}).get('aliases',{})):
         if directory(base,alias).exists():
             raise ValueError('TS graph already exists; use --deduplicate-ts to retire it with scheduler verification.')
     atomic_json(path,result)
     return result
+
+
+def protected(base):
+    """PES ownership is immutable even when a later local duplicate appears."""
+    from kinbot.anl.pes_ts_reuse import scope, NAME
+    case=scope(base)
+    if case is None or not (case/NAME).exists():
+        return ()
+    record=json.loads((case/NAME).read_text())
+    prefix=str(Path(base).resolve().relative_to(case))+'/'
+    return tuple(key[len(prefix):] for key in record['records']
+                 if key.startswith(prefix) and not key[len(prefix):].startswith(('stable:', 'complex:')))

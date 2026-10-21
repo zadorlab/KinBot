@@ -13,7 +13,9 @@ def worker_load(graph, ident):
     """Unchanged allocations may start even if a controller died mid-edit."""
     from kinbot.anl import dispatch
     graph = Path(graph).resolve()
-    with (graph/'.manifest.lock').open('a') as handle:
+    # NFS implements flock through POSIX byte-range locks. A shared lock
+    # requires a readable descriptor there (write-only append raises EBADF).
+    with (graph/'.manifest.lock').open('a+') as handle:
         fcntl.flock(handle, fcntl.LOCK_SH)
         journal = graph/'.live_control_transaction.json'
         txn = json.loads(journal.read_text()) if journal.exists() else {}

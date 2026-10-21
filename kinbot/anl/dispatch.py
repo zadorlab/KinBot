@@ -770,8 +770,11 @@ def _stage_task(run_dir, spec, state, task):
         if _backend(task) == 'cfour':
             rendered = normalize_cfour_zmat(rendered)
         (directory / task['input_name']).write_text(rendered)
+    from kinbot.anl.optimization_recovery import stage_seed
+    continuation = stage_seed(run_dir, directory, task, state, atoms)
     _atomic_json(directory / 'task.json', {
         'schema': 1, 'live_control_schema': 1, 'task': task,
+        **({'optimizer_continuation': continuation} if continuation else {}),
         'molecule': {'symbols': initial.get_chemical_symbols(),
                      'charge': spec['molecule'].get('charge', 0),
                      'multiplicity': spec['molecule'].get('multiplicity', 1)},
@@ -853,6 +856,10 @@ def _verify_stage_files(run_dir, task, entry):
         path = directory / filename
         if not path.is_file() or _file_hash(path) != entry.get(key):
             raise RuntimeError(f"{task['id']}: staged {filename} changed or is missing.")
+    record = json.loads((directory/'task.json').read_text())
+    if record.get('optimizer_continuation'):
+        from kinbot.anl.optimization_recovery import load_seed
+        load_seed(directory, record, read(directory/'geometry.xyz'))
     geometry = directory / 'geometry.xyz'
     if (not geometry.is_file() or
             _geometry_hash(read(geometry)) != entry['geometry_sha256']):
@@ -1328,6 +1335,9 @@ def _run_ase_optimize(directory, record):
     from sella import Sella, Constraints
     from kinbot.ase_modules.calculators.factory import build_calculator
 
+    initial_positions = atoms.positions.copy()
+    from kinbot.anl.optimization_recovery import load_seed
+    used_chunks = load_seed(directory, record, atoms)
     # UMA/OMol reads these from Atoms.info; XYZ does not preserve them.
     atoms.info['charge'] = record['molecule']['charge']
     atoms.info['spin'] = record['molecule']['multiplicity']
@@ -1348,7 +1358,8 @@ def _run_ase_optimize(directory, record):
                 for pair in specification.get('fixed_bonds', ()):
                     if max(pair) >= len(atoms):
                         raise ValueError('Fixed-bond atom index is out of range.')
-                    constraints.fix_bond(tuple(pair))
+                    constraints.fix_bond(tuple(pair), target=float(np.linalg.norm(
+                        initial_positions[pair[0]] - initial_positions[pair[1]])))
                 for first, second, distance in specification.get(
                         'minimum_bonds', ()):
                     if max(first, second) >= len(atoms):
@@ -1360,8 +1371,11 @@ def _run_ase_optimize(directory, record):
                 **common, **options.get('sella_kwargs', {}))
         else:
             optimizer = BFGS(atoms, **common)
-        return optimizer.run(fmax=options.get('fmax', 0.03),
-                             steps=options.get('steps', 100))
+        from kinbot.optimization_budget import run_optimizer, step_retries
+        return run_optimizer(optimizer, fmax=options.get('fmax', 0.03),
+                             steps=options.get('steps', 100),
+                             chunks=max(1, 1 + step_retries(directory) - used_chunks),
+                             used=used_chunks, report=directory/'optimization_budget.json')
 
     recovery_files = []
     if 'minimum_recovery' in options:
@@ -1428,7 +1442,7 @@ def run_task(task_file):
             names.update(task.get('files_from_env', {}))
             names.update(details.get('generated_files', []))
         else:
-            names |= {'final.xyz', 'optimization.log'}
+            names |= {'final.xyz', 'optimization.log', 'continuation.xyz', 'optimization_budget.json'}
             if (directory / 'optimization.traj').is_file():
                 names.add('optimization.traj')
             names.update(_basename(name, 'calculator artifact')
@@ -1657,10 +1671,12 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     """
     from kinbot.pes_phase import checkpoint
     checkpoint()
-    from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery
+    from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery, lock_recovery, optimization_recovery
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)
     timeout_recovery.resume(run_dir)
+    lock_recovery.resume(run_dir)
+    optimization_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     refresh_attempts = (set() if _site_refresh_attempts is None
                         else _site_refresh_attempts)
@@ -2248,11 +2264,13 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
 
 def advance(run_dir, submit=False, submit_only=None):
     """Complete finished tasks, stage ready tasks, and optionally submit jobs."""
-    from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery
+    from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery, lock_recovery, optimization_recovery
     from kinbot import timeout_retry
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)
     timeout_recovery.resume(run_dir)
+    lock_recovery.resume(run_dir)
+    optimization_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
     if submit_only is not None:
@@ -2365,6 +2383,8 @@ def advance(run_dir, submit=False, submit_only=None):
 
     # Old pinned workers may fail after replacement controllers start. Repair
     # only this recognized startup bug, once, before deriving component skips.
+    state = lock_recovery.recover(run_dir, spec, state)
+    state = optimization_recovery.recover(run_dir, spec, state)
     state = account_recovery.recover(run_dir, spec, state)
     state = scratch_recovery.recover(run_dir, spec, state)
     spec, state = timeout_recovery.recover(run_dir, spec, state)

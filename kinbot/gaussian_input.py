@@ -76,7 +76,7 @@ def merge_gaussian_kwargs(base, override):
               'label', 'directory', 'mem', 'chk', 'oldchk', 'nprocshared',
               'nprocs', 'cpu', 'rwf', 'command', 'basisfile', 'basis_set',
               'addsec', 'ioplist', 'extra', 'spinlist', 'output_type', 'scf_recovery',
-              'atomic_scf_symmetry'}
+              'diatomic_scf_symmetry', 'atomic_scf_symmetry'}
     result = dict(base)
     for key, value in override.items():
         existing = next((k for k in result if k.lower() == key.lower()), key)

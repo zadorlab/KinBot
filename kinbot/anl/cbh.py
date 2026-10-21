@@ -519,6 +519,12 @@ def generate_cbh_reaction(smiles: str, rung: int, *, charge: int = 0,
               if (charge, multiplicity) != (0, 1) else {})
     for vertices, coefficient in fragments.items():
         fragment, formula, state = _fragment(graph, vertices)
+        if set(vertices) == set(graph) and fragment == target:
+            # RDKit radical counts describe valence, not spin coupling.
+            # An unchanged whole molecule retains the requested state,
+            # including low-spin terminal radicals. Proper fragments still
+            # follow the explicit fragment-state convention above.
+            state = (charge, multiplicity)
         if fragment in formulas and formulas[fragment] != formula:
             raise ValueError(f'CBH canonical fragment {fragment} has inconsistent formulas.')
         if fragment in states and states[fragment] != state:

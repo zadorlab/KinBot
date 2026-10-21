@@ -84,6 +84,18 @@ def _finish(qc, job, marker, record):
             qc.db.write(rows[-1].toatoms(), name=job,
                         data={'status': 0, 'timeout_retry_of': old_job})
         original = (archive/'batch.original').read_text()
+        if record.get('numerical_recovery'):
+            import shlex
+            from kinbot.qc_optimizer_recovery import render
+            worker=Path(record['effective_worker'])
+            replacement_worker=archive/'retry_worker.py'
+            replacement_worker.write_text(render(worker.read_text(),record['numerical_recovery'],job))
+            record['inputs'][str(replacement_worker)]=file_sha256(replacement_worker)
+            token=re.escape(record['worker_command'])
+            original,count=re.subn(r'(?<![\w/.-])(?:"'+token+r'"|\''+token+r'\'|'+token+r')(?=\s|$)',
+                lambda _:shlex.quote(str(replacement_worker)),original)
+            if count!=1:
+                raise RuntimeError('Cannot uniquely identify the optimizer worker for continuation.')
         if record.get('resource_overrides'):
             import shlex
             from kinbot.qc_live import worker_resources, script_resources
@@ -201,11 +213,9 @@ def recover(qc, job, *, manual=None):
 
     settings = timeout_retry.policy(Path.cwd())
     limit = settings.get('timeout_retries', 0)
-    if (not limit and manual is None) or job not in qc.job_ids:
+    if job not in qc.job_ids:
         return None
     job_id = str(qc.job_ids[job])
-    if _slurm_job_active(job_id) is not False:
-        return 'running'  # Includes unknown scheduler status.
     if manual is not None:
         from kinbot.anl.live_control import _ownership
         native = _ownership(Path.cwd(), job_id)
@@ -213,9 +223,18 @@ def recover(qc, job, *, manual=None):
                  'previous_walltime': native['TimeLimit'], 'source': 'operator',
                  'request': manual['id']}
     else:
-        proof = timeout_retry.evidence(Path.cwd(), job_id, [Path('perm')/(job+'.err')])
+        proof = (timeout_retry.evidence(Path.cwd(), job_id, [Path('perm')/(job+'.err')])
+                 if limit else None)
+        if proof is None:
+            from kinbot.qc_scf_recovery import evidence
+            proof = evidence(qc, job, job_id)
+        if proof is None:
+            from kinbot.qc_optimizer_recovery import evidence
+            proof = evidence(qc, job, job_id)
     if proof is None:
         return None
+    if _slurm_job_active(job_id) is not False:
+        return 'running'  # Includes unknown scheduler status for an eligible retry.
     waits = getattr(qc, '_timeout_publication_waits', {})
     qc._timeout_publication_waits = waits
     now = time.time()
@@ -232,12 +251,16 @@ def recover(qc, job, *, manual=None):
             history = record['attempts']
         else:
             record, history = None, []
-        if manual is None and sum(a.get('source') != 'operator' for a in history) >= limit:
+        numerical_sources=('diatomic_symmetry','optimizer_steps','optimizer_ode')
+        symmetry_retry = proof['source'] in numerical_sources
+        consumed = sum(a.get('source') == proof['source'] for a in history) if symmetry_retry else sum(
+            a.get('source') not in ('operator', *numerical_sources) for a in history)
+        if manual is None and consumed >= (1 if symmetry_retry else limit):
             qc._timeout_retry_blocked = f'{job}: timeout retry limit reached ({limit}).'
             return None
         from kinbot import live_control
         overrides = live_control.overrides(Path.cwd()/job) if manual else {}
-        walltime = (overrides.get('walltime', proof['previous_walltime']) if manual
+        walltime = (overrides.get('walltime', proof['previous_walltime']) if manual or symmetry_retry
                     else timeout_retry.next_walltime(settings, proof))
         if walltime is None:
             qc._timeout_retry_blocked = f'{job}: partition maximum prevents a longer allocation.'
@@ -322,6 +345,10 @@ def recover(qc, job, *, manual=None):
             record.update(manual_request=manual['id'], resource_overrides=overrides,
                           manual_request_file=manual['request_file'],
                           backend=qc.qc, original_worker=str(worker))
+        if proof['source'] in ('optimizer_steps','optimizer_ode'):
+            record['numerical_recovery']=proof
+            record['effective_worker']=str(effective_worker)
+            record['worker_command']=worker_command
         atomic_json(marker, record)
         _finish(qc, job, marker, record)
         return 'running'

@@ -1,3 +1,4 @@
+from kinbot.optimization_budget import run_optimizer
 import os
 import shutil
 import sys
@@ -62,11 +63,11 @@ mol.calc.label = '{label}'
 converged = False
 failure_reason = ''
 try:
-    converged = opt.run(fmax=fmax, steps=steps)
+    converged = run_optimizer(opt, fmax=fmax, steps=steps, report='{label}.optimization_budget.json')
     traj = read('{label}.traj', index=':')
     write('{label}.xyz', traj, format='xyz')
     if not converged:
-        failure_reason = report_failure('Optimization did not converge within {steps} steps.')
+        failure_reason = report_failure(f'Optimization did not converge within {{opt.nsteps}} steps.')
 except Exception as error:
     failure_reason = report_failure(
         f'Optimization failed: {{type(error).__name__}}: {{error}}')

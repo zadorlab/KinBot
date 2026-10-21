@@ -205,6 +205,37 @@ def reaction_summary(path, warnings):
     return {'path': str(path), 'counts': dict(Counter(r['stage'] for r in rows)), 'rows': rows}
 
 
+def previous_controller_record(path, root, warnings):
+    """Identify retained branch/preflight reports from before a worker restart.
+
+    Refresh preserves these reports until the replacement reaches the branch.
+    Compare against the worker's start, never its status-file modification time
+    (which also changes on exit). Unknown provenance keeps diagnostics visible.
+    """
+    for directory in path.parents:
+        if not directory.is_relative_to(root):
+            break
+        marker = directory / 'kinbot_status.json'
+        try:
+            if not marker.exists():
+                continue
+        except OSError as error:
+            warnings.append(f'{marker}: {error}')
+            return False
+        status = read_json(marker, warnings)
+        try:
+            started = datetime.fromisoformat(status['started_utc'])
+            if started.tzinfo is None:
+                return False
+            return path.stat().st_mtime < started.timestamp()
+        except (KeyError, TypeError, ValueError):
+            return False
+        except OSError as error:
+            warnings.append(f'{path}: {error}')
+            return False
+    return False
+
+
 def artifacts(paths, root, warnings):
     results = []
     for path in paths:
@@ -237,7 +268,9 @@ def artifacts(paths, root, warnings):
         elif path.name == '.kinbot_post_reaction_branches.json':
             item.update(branches=data.get('branches'), mess_gate=data.get('mess_gate'),
                         final_solver=data.get('final_solver'))
+            item['previous_controller'] = previous_controller_record(path, root, warnings)
         elif path.name == 'composite_preflight.json':
+            item['previous_controller'] = previous_controller_record(path, root, warnings)
             item['preflight'] = {key: data.get(key) for key in (
                 'controller_pid', 'phase', 'graph', 'task', 'graphs_complete',
                 'graphs_total', 'environment_checks', 'environment_checks_reused',
@@ -556,6 +589,11 @@ def render_status_summary(case):
                    '  '.join(f'{k}={v}' for k, v in sorted(counts.items())))
     for item in case['artifacts']:
         label = display_path(item['path'], case['directory'])
+        if item.get('previous_controller'):
+            if item.get('branches'):
+                out.append('Branch report belongs to the previous controller; '
+                           'current outcomes not reported yet (--details retains history).')
+            continue
         if item.get('branches'):
             for name, branch in item['branches'].items():
                 if branch.get('error'):
@@ -625,7 +663,8 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
     # never make the other run invisible on a terminal/watch display.
     for case in report['cases']:
         branches = [item for item in case['artifacts'] if item.get('branches')]
-        states = '; '.join(f'{name}={value.get("status", "unknown")}'
+        states = '; '.join(f'{name}=' + ('not_reported_yet' if item.get('previous_controller')
+                           else value.get('status', 'unknown'))
                            for item in branches for name, value in item['branches'].items())
         out.append(f'OVERVIEW {case["name"]}: '
                    f'jobs={len(case["jobs"]) if not report["scheduler_error"] else "UNKNOWN"}; '
@@ -664,6 +703,10 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             p = item['preflight']
             alive = any(proc['pid'] == p['controller_pid'] for proc in case['processes'])
             status = item['status']
+            if item.get('previous_controller'):
+                out.append('Composite preflight: previous controller report; '
+                           'current preflight not reported yet')
+                continue
             if status == 'running' and not alive:
                 status = 'controller not observed; recorded state only'
             out.append(f'Composite preflight: {status}; graphs checked '
@@ -742,7 +785,8 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
         for item in items:
             if not details and not item.get('error') and Path(item['path']).name == 'kinbot_status.json':
                 continue  # Already in the WORKER row above.
-            out.append(f'RECORD {item["path"]}: {item["status"]}')
+            historical = ' [previous controller]' if item.get('previous_controller') else ''
+            out.append(f'RECORD {item["path"]}{historical}: {item["status"]}')
             for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error'):
                 if item.get(key) is not None:
                     value = item[key]

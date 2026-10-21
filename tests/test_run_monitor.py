@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -130,6 +131,75 @@ def test_preflight_progress_is_visible_and_stale_record_is_labelled(production, 
     assert 'graphs checked 3/13' in text and 'checking_slurm_script' in text
     assert 'task=l3_geometry' in text
     assert ('recorded state only' in text) == (not alive)
+
+
+@pytest.mark.parametrize('worker_status', ['running', 'failed'])
+def test_previous_branch_report_is_not_a_new_failure(production, worker_status):
+    root, case = production
+    worker = case/'well'
+    put(worker/'kinbot_status.json', {
+        'status': worker_status, 'pid': 42,
+        'started_utc': '2026-10-21T02:31:48+00:00',
+        **({'error': 'NEW CONTROLLER FAILURE'} if worker_status == 'failed' else {})})
+    branch = worker/'.kinbot_post_reaction_branches.json'
+    put(branch, {'status': 'running', 'mess_gate': 'blocked', 'branches': {
+        'cbh_anl': {'status': 'running'},
+        'vrc_tst': {'status': 'failed', 'error': 'OLD BOUND GRAPH FAILURE'}}})
+    preflight = worker/'anl_automatic/composite_preflight.json'
+    put(preflight, {'status': 'complete', 'controller_pid': 41,
+                    'phase': 'ready_for_dispatch', 'graphs_complete': 19, 'graphs_total': 19})
+    previous = monitor.datetime.fromisoformat('2026-10-21T02:30:00+00:00').timestamp()
+    for p in (branch, preflight):
+        os.utime(p, (previous, previous))
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert 'vrc_tst=not_reported_yet' in text
+    assert 'cbh_anl=not_reported_yet' in text
+    assert 'OLD BOUND GRAPH FAILURE' not in text
+    assert 'MESS gate: blocked' not in text
+    assert 'Composite preflight: previous controller report' in text
+    assert ('NEW CONTROLLER FAILURE' in text) == (worker_status == 'failed')
+    detailed = monitor.render(report, details=True)
+    assert '.kinbot_post_reaction_branches.json [previous controller]' in detailed
+    assert 'OLD BOUND GRAPH FAILURE' in detailed
+    assert 'OLD BOUND GRAPH FAILURE' in json.dumps(report)
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+
+@pytest.mark.parametrize('started', ['2026-10-21T02:31:48+00:00', None, 'invalid'])
+def test_current_branch_failure_remains_visible_after_controller_exits(production, started):
+    root, case = production
+    worker = case/'well'
+    branch = worker/'.kinbot_post_reaction_branches.json'
+    put(branch, {'status': 'failed', 'mess_gate': 'blocked', 'branches': {
+        'vrc_tst': {'status': 'failed', 'error': 'CURRENT FAILURE'}}})
+    written = monitor.datetime.fromisoformat('2026-10-21T02:31:59+00:00').timestamp()
+    os.utime(branch, (written, written))
+    # This file is rewritten AFTER the branch failure at controller exit.
+    put(worker/'kinbot_status.json', {'status': 'failed', 'pid': 42,
+                                      'started_utc': started})
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert 'vrc_tst=failed' in text and 'CURRENT FAILURE' in text
+    assert 'MESS gate: blocked' in text
+    assert 'previous controller' not in text
+
+
+def test_new_branch_report_replaces_startup_history(production):
+    root, case = production
+    worker = case/'well'
+    put(worker/'kinbot_status.json', {'status': 'running', 'pid': 42,
+        'started_utc': '2026-10-21T02:31:48+00:00'})
+    branch = worker/'.kinbot_post_reaction_branches.json'
+    put(branch, {'status': 'running', 'mess_gate': 'waiting', 'branches': {
+        'cbh_anl': {'status': 'running'}, 'vrc_tst': {'status': 'running'}}})
+    written = monitor.datetime.fromisoformat('2026-10-21T02:31:59+00:00').timestamp()
+    os.utime(branch, (written, written))
+    text = monitor.render(monitor.snapshot(root))
+    assert 'cbh_anl=running; vrc_tst=running' in text
+    assert 'MESS gate: waiting' in text
+    assert 'previous controller' not in text
 
 
 def test_anl_curvature_recovery_report_is_visible(production):

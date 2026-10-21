@@ -208,6 +208,14 @@ each job after the request. See [Slurm scontrol](https://slurm.schedmd.com/scont
 
 ## Read-only progress
 
+After a controller refresh, the monitor compares retained branch and composite
+preflight reports with the worker's `started_utc`. Reports older than that start
+are labelled as previous-controller history; current branch outcomes show
+`not_reported_yet` until the replacement controller reaches those branches.
+Historical diagnostics remain in `--details` and `--json`. A branch failure
+written after the new start remains visible, including after controller exit.
+This display update can be pulled without refreshing controllers or QC jobs.
+
 ```bash
 KB_REPORT=$(mktemp -d /tmp/kinbot-timecheck.XXXXXX)
 python -m kinbot.run_walltime /path/to/run --progress --output "$KB_REPORT/report.json"

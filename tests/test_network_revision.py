@@ -312,3 +312,47 @@ def test_refresh_network_edit_is_idempotent_and_keeps_qc(tmp_path, monkeypatch):
     nr.apply(tmp_path,plan,archive,journal,marker)
     assert json.loads(pending.read_text())['attempted']==['rejected']
     assert (worker/'kinbot.db').read_text()=='untouched'
+
+
+def test_deduplication_only_preserves_search_policy_and_retry_receipt(tmp_path, monkeypatch):
+    from kinbot import network_revisit as nr, run_salvage, run_refresh
+    from kinbot.execution import file_sha256
+    worker=tmp_path/'case'/'123';worker.mkdir(parents=True)
+    case=worker.parent/'input.json'
+    original=dict(vdW_detection=.5,profiled_l1_reuse_only=1,pes_phase_policy='exploration_first')
+    atomic_json(case,original);atomic_json(worker/'123.json',original)
+    pending=worker/'.kinbot_revisit.json'
+    atomic_json(pending,dict(revision='previous',rejected=['search'],attempted=['search']))
+    before=pending.read_bytes()
+    prepared={'sha256':{'case/input.json':file_sha256(case)}}
+    atomic_json(tmp_path/'prepared.json',prepared)
+    monkeypatch.setattr(run_salvage,'_cases',lambda root:(prepared,[case]))
+    monkeypatch.setattr(run_refresh,'_owned_jobs',lambda root:[])
+    plan=nr.plan(tmp_path,[],nr.settings(deduplicate=True))
+    assert all(e['after']==dict(original,anl_ts_reuse={}) for e in plan['inputs'])
+    journal={'network_revision':plan}
+    marker=tmp_path/'journal.json';atomic_json(marker,journal)
+    nr.apply(tmp_path,plan,tmp_path/'archive',journal,marker)
+    assert pending.read_bytes()==before
+    assert json.loads(case.read_text())==dict(original,anl_ts_reuse={})
+
+
+def test_deduplication_preserves_stricter_tolerances_and_uses_them(tmp_path, monkeypatch):
+    from kinbot import network_revisit as nr, run_salvage
+    from kinbot.execution import file_sha256
+    worker=tmp_path/'case'/'123';worker.mkdir(parents=True)
+    case=worker.parent/'input.json'
+    original=dict(anl_ts_reuse={'energy_hartree':1.e-8})
+    atomic_json(case,original);atomic_json(worker/'123.json',original)
+    plan=saddle_plan()
+    plan['network']['transition_states']['b']['energy_hartree']+=5.e-7
+    atomic_json(worker/'anl_automatic/network_request.json',plan)
+    prepared={'sha256':{'case/input.json':file_sha256(case)}}
+    atomic_json(tmp_path/'prepared.json',prepared)
+    monkeypatch.setattr(run_salvage,'_cases',lambda root:(prepared,[case]))
+    revision=nr.plan(tmp_path,[],nr.settings(deduplicate=True))
+    assert revision['inputs']==[]
+    assert revision['aliases'][0]['mapping']['aliases']=={}
+    atomic_json(worker/'123.json',dict(anl_ts_reuse={}))
+    with pytest.raises(ValueError,match='consistent comparison tolerances'):
+        nr.plan(tmp_path,[],nr.settings(deduplicate=True))

@@ -754,6 +754,12 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
     if shared:
         out.append(f'Shared pool: cap {shared["max_jobs"]} across all runs/branches under '
                    f'{report["shared_policy_root"]} (revision {shared["revision"]})')
+        if shared.get('orbital_review_reserved_slots'):
+            out.append(f'  Configured cap {shared["configured_max_jobs"]}; '
+                       f'{shared["orbital_review_reserved_slots"]} slots reserved for orbital review '
+                       '(released when the installed model is acknowledged).')
+            out.extend('  Capacity held by: '+name
+                       for name in shared.get('orbital_review_requests', []))
         out.append('New-submission exclusions: '+(','.join(shared['excluded_nodes']) or '(none)'))
     elif same_exclusions:
         out.append('Configured exclusions: '+(','.join(common_exclusions) or '(none)'))

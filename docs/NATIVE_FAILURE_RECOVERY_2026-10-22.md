@@ -79,3 +79,76 @@ staged/submitted/complete, and the serial VRC request applied (or current work
 explicitly retained). `owned_by_controller` during reconciliation means its
 live driver owns recovery. Staging alone is not proof of native success.
 The C + SH3 scan connectivity hold remains and must be reviewed before rates.
+
+## Follow-up: reviewed capacity, duplicate graphs, and archived abort evidence
+
+The effective cap of 20 was the configured 23 minus three orbital-review
+slots. Installing the CH + H2S model did not acknowledge the old request until
+reaction replay reached VRC. Workers now validate installed, already reviewed
+channels before replay, and at supported live model-update boundaries. They
+check parent identity, fragment terms, all required basis checkpoints and
+state/root contracts. Spin-splitting models additionally require their native
+reference review. A valid installed model changes the orbital request to
+`model_accepted`; the shared policy then releases the reservation automatically.
+Invalid models retain the hold. This does not accept a scan or waive its
+connectivity review. The monitor displays configured capacity, the reservation,
+and the requests responsible when any slots remain reserved.
+
+Deduplication alone now preserves L1 reuse-only settings and existing bounded
+search-retry receipts. It also preserves and uses configured comparison
+tolerances instead of resetting them to defaults; inconsistent tolerances
+within one PES stop the preflight. Exact graph reuse and outer-PES lowest-L2
+pathway selection remain separate. Raw reaction discoveries remain in history.
+Distinct saddles or stereochemical pathways are not made equivalent simply
+because their products match.
+
+The one serial diagnostic is now attempt 3, Slurm job 52919565. It started
+at 12:29:50 with the original scientific model. The initial force is still
+large (2.0869 eV/angstrom), so serialization alone does not establish smooth
+state-specific numerical derivatives. The saved attempt-2 files contain no
+more specific native error than the rank-5 MPI abort. The initiating cause is
+unresolved; this update does not claim a native Molpro repair. It retains the
+running diagnostic and never queues another copy.
+
+The next supplied read shows serial steps 0 through 4, ending at 12:47:24,
+without a failure receipt; convergence is still unproven. That read also shows
+capacity 23, no outstanding orbital-review requests and zero reserved slots:
+the old worker eventually acknowledged CH + H2S. The new acknowledgement code
+prevents the delay on future updates; it did not cause this already observed
+remote transition.
+
+New failure receipts retain error contexts from a bounded 16 MiB window per
+file, in addition to the existing 64 KiB tails. Aggregate context reads are
+bounded, and both dotted and underscore-numbered native logs are recognized.
+Truncation is recorded. A read-only report searches archived attempts and
+separates their failed job IDs from the current retry:
+
+```bash
+python -m kinbot.native_failure_report /path/to/graph/tasks/relaxed_scan \
+  --label relaxed_scan_step_0025
+```
+
+For r7, the following full controller refresh retains VRC work (including the
+serial diagnostic), completed QC and current direct CASPT2-F12 CBS models.
+Only allocations belonging to verified duplicate ANL graphs can be cancelled;
+their files are archived. The preflight is repeated with controllers quiesced
+before changing ownership. No rejected-channel revisit is requested.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+git pull --ff-only origin composite
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+KB_RUN="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+KB_PY="$HOME/KinBot/.venv/bin/python"
+"$KB_PY" -u -m kinbot.run_refresh "$KB_RUN" --deduplicate-anl --apply
+"$KB_PY" -m kinbot.run_monitor "$KB_RUN"
+BASH
+```
+
+The handoff prints verified duplicate allocation IDs and retained IDs. Once
+the CH + H2S worker acknowledges its model, expect capacity 23 unless another
+current channel needs orbital review. A launched handoff is not evidence that
+the serial diagnostic or a VPT2 retry has converged; inspect their current
+execution receipts separately.

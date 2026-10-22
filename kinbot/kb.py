@@ -495,6 +495,10 @@ def _main():
         require_supported_identity(well0)
         apply_input_reference(well0, par)
         log_input_stereochemistry(well0, par, logger)
+        from kinbot.vrc_review_status import acknowledge_installed
+        for receipt in acknowledge_installed(par, well0, Path.cwd()):
+            if receipt['status'] == 'model_accepted':
+                logger.info('Acknowledged installed VRC orbital model: %s', receipt['reaction'])
         if par['cluster']:
             well0.make_hbonds()
             while 1:

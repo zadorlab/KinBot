@@ -227,3 +227,19 @@ def test_failure_capture_does_not_call_mpi_abort_an_io_error(tmp_path):
     (tmp_path/'step.stderr').write_text('application called MPI_Abort; KILLED BY SIGNAL: 9')
     path = preserve_qc_failure({}, tmp_path, 'step', 255)
     assert json.loads(path.read_text())['explicit_io_failure'] is False
+
+
+@pytest.mark.parametrize('in_scratch', [True, False])
+def test_failure_capture_keeps_error_before_long_final_tail(tmp_path, in_scratch):
+    import json
+    from kinbot.anl.runtime import preserve_qc_failure
+    scratch = tmp_path/'scratch'; scratch.mkdir()
+    ((scratch if in_scratch else tmp_path)/'step.out_1').write_text('geometry displacement 4\nError writing 1024 words\n'
+                                   + 'normal bookkeeping\n'*8000)
+    path = preserve_qc_failure({'scratch_directory':str(scratch)}, tmp_path, 'step', 255)
+    report = json.loads(path.read_text())
+    evidence = report['files'][('scratch' if in_scratch else 'work')+'/step.out_1']
+    assert 'Error writing' not in evidence['tail']
+    assert 'Error writing' in evidence['error_context']
+    assert report['explicit_io_failure']
+    assert not evidence['scan_truncated']

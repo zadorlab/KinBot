@@ -17,6 +17,12 @@ def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None):
     return dict(vdW_detection=vdw, rejected=bool(rejected), deduplicate_ts=bool(deduplicate), barrier_threshold_L2=barrier_l2)
 
 
+def revisits_search(options):
+    """Graph deduplication alone does not authorize changing search policy."""
+    return (options['vdW_detection'] is not None or options['rejected']
+            or options.get('barrier_threshold_L2') is not None)
+
+
 def retirement(root, live, graph, canonical_graph, source):
     from kinbot.anl import dispatch
     cg, spec, state = dispatch._load(canonical_graph)
@@ -48,6 +54,7 @@ def plan(root, jobs, options):
     from kinbot.anl import dispatch
     prepared, inputs = run_salvage._cases(root)
     edits, workers, aliases, selected = [], [], [], []
+    reuse_limits = {}
     live = {str(Path(j['directory']).resolve()): j for j in jobs}
     for case in inputs:
         from kinbot.barrier_policy import for_case
@@ -71,13 +78,23 @@ def plan(root, jobs, options):
             if reference is not None:
                 revised.update(pes_barrier_reference=reference, barrier_threshold=None,
                                barrier_threshold_L2=reference['ceiling_kcal_mol'])
-            revised['pes_phase_policy'] = 'exploration_first'
+            if revisits_search(options):
+                revised['pes_phase_policy'] = 'exploration_first'
             if options['deduplicate_ts']:
-                revised['anl_ts_reuse'] = {}
+                value = previous.get('anl_ts_reuse', False)
+                revised['anl_ts_reuse'] = value if isinstance(value, dict) else {}
+                limits = ts_reuse.options(revised['anl_ts_reuse'])
+                key = str(case.parent)
+                if key in reuse_limits and reuse_limits[key] != limits:
+                    raise ValueError('ANL deduplication requires consistent comparison tolerances '
+                                     f'within each PES; differing input: {p}')
+                reuse_limits[key] = limits
             if options['vdW_detection'] is not None:
                 revised['vdW_detection'] = options['vdW_detection']
-            # Preserve successful L1 work while permitting new reaction work.
-            revised['profiled_l1_reuse_only'] = 0
+            # Only an explicit search revision permits new L1 work. Sharing
+            # equivalent ANL graphs must preserve a user's reuse-only policy.
+            if revisits_search(options):
+                revised['profiled_l1_reuse_only'] = 0
             if revised != previous:
                 edits.append(dict(path=str(p.relative_to(root)),before=file_sha256(p),after=revised))
             if p.name!=p.parent.name+'.json':
@@ -94,7 +111,7 @@ def plan(root, jobs, options):
                 continue
             network = json.loads(request.read_text())
             old = json.loads((base/'ts_reuse.json').read_text()) if (base/'ts_reuse.json').exists() else None
-            mapping = ts_reuse.discover(network, base, ts_reuse.options({}), old, ts_reuse.protected(base))
+            mapping = ts_reuse.discover(network, base, limits, old, ts_reuse.protected(base))
             remove = []
             for alias, canonical in mapping['aliases'].items():
                 graph = ts_reuse.directory(base,alias)
@@ -114,7 +131,7 @@ def plan(root, jobs, options):
             scope=case.parent
             if not (scope/'pes_exploration.json').exists():
                 continue
-            mapping,items=pes_ts_reuse.discover(scope,ts_reuse.options({}),local_maps,
+            mapping,items=pes_ts_reuse.discover(scope,reuse_limits[str(scope)],local_maps,
                                                reconcile_owners=True)
             remove=[]
             for key,other in mapping['aliases'].items():
@@ -173,6 +190,8 @@ def apply(root, record, archive, journal, marker):
     for entry in record['workers']:
         worker = root/entry['path']
         authorize_revision(worker,record['revision'])
+        if not revisits_search(record['settings']):
+            continue  # Preserve any existing bounded search-retry receipt.
         pending = worker/'.kinbot_revisit.json'
         if pending.exists() and json.loads(pending.read_text()).get('revision')==record['revision']:
             continue

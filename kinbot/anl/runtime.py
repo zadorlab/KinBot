@@ -116,15 +116,16 @@ def _preserve_qc_failure(provenance, directory, label, returncode):
     report = {'returncode': returncode, 'runtime': dict(provenance),
               'host': socket.gethostname(), 'files': {}, 'capture_errors': []}
     root = Path(provenance['scratch_directory']) if provenance.get('scratch_directory') else None
+    native_output = re.compile(r'\.(?:out|log|err|stderr|stdout)(?:[._]\d+)?$', re.I)
     candidates = [(f'work/{p.name}', p) for p in directory.glob(label + '.*')
-                  if p.suffix in ('.out', '.log', '.stderr', '.stdout')]
+                  if native_output.search(p.name)]
     if root and root.is_dir():
         try:
             report['scratch_free_bytes_at_exit'] = shutil.disk_usage(root).free
             for parent, folders, files in os.walk(root, followlinks=False):
                 folders[:] = [n for n in folders if not Path(parent, n).is_symlink()]
                 for name in files:
-                    if re.search(r'\.(?:out|log|err|stderr|stdout)(?:\.\d+)?$', name, re.I):
+                    if native_output.search(name):
                         p = Path(parent, name)
                         candidates.append(('scratch/' + str(p.relative_to(root)), p))
                         if len(candidates) >= 64:
@@ -134,20 +135,23 @@ def _preserve_qc_failure(provenance, directory, label, returncode):
                     break
         except OSError as error:
             report['capture_errors'].append(str(error))
+    context_budget = 64*1024*1024
     for name, path in candidates[:64]:
         if path.is_symlink():
             continue
         try:
-            with path.open('rb') as stream:
-                stream.seek(0, 2)
-                size = stream.tell()
-                stream.seek(max(0, size - 65536))
-                tail = stream.read(65536).decode(errors='replace')
-            report['files'][name] = {'size_bytes': size, 'tail': tail}
+            from kinbot.native_failure_report import excerpt
+            # Bound aggregate reads too; every remaining file still keeps its
+            # ordinary tail once the larger error-context budget is used.
+            limit = max(65536, min(16*1024*1024, context_budget))
+            evidence = excerpt(path, limit=limit)
+            report['files'][name] = evidence
+            context_budget -= min(evidence['size_bytes'], limit)
         except OSError as error:
             report['capture_errors'].append(f'{name}: {error}')
     report['explicit_io_failure'] = any(
-        molpro_io_failure(e['tail']) for e in report['files'].values())
+        molpro_io_failure(e['tail']+'\n'+e.get('error_context',''))
+        for e in report['files'].values())
     destination = directory / f'{label}.failure.json'
     try:
         atomic_json(destination, report)

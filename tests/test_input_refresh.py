@@ -188,7 +188,8 @@ def test_orbital_review_during_exploration_inherits_at_safe_boundary(run,monkeyp
     phase.tick(root,['123','456'],max_searches=2)
     assert [Path(r['target']).name for _,r in control.requests(root)]==['123']
     w=root/'456'
-    generator=SimpleNamespace(inp=str(w/'456.json'),par=deepcopy(original))
+    generator=SimpleNamespace(inp=str(w/'456.json'),par=deepcopy(original),
+                              species=SimpleNamespace(name='456'))
     refresh.inherit_models(root,generator)
     assert '456' in generator.par['vrc_tst_surface_models']
     assert json.loads((w/'456.json').read_text())['vrc_tst_surface_models']==generator.par['vrc_tst_surface_models']
@@ -200,7 +201,8 @@ def test_orbital_review_during_exploration_inherits_at_safe_boundary(run,monkeyp
     assert file_sha256(w/'123.json')==before
     # A newly discovered well whose input was written earlier inherits too.
     w=root/'789';w.mkdir();atomic_json(w/'789.json',original)
-    generator=SimpleNamespace(inp=str(w/'789.json'),par=deepcopy(original))
+    generator=SimpleNamespace(inp=str(w/'789.json'),par=deepcopy(original),
+                              species=SimpleNamespace(name='789'))
     refresh.inherit_models(root,generator)
     assert '456' in generator.par['vrc_tst_surface_models']
 

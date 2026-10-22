@@ -223,6 +223,9 @@ def revise_network(generator):
             atomic_json(inp,saved)
             atomic_json(override_path,overrides)
             generator.par.update(overrides)
+            if models is not None:
+                from kinbot.vrc_review_status import acknowledge_installed
+                acknowledge_installed(generator.par, species, inp.parent)
             if replay:
                 atomic_json(Path('.kinbot_revisit.json'),dict(schema=1,revision=r['id'],rejected=rejected,attempted=[]))
                 species.reac_obj=copies

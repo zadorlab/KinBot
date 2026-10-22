@@ -106,6 +106,21 @@ def test_live_pool_is_shown_instead_of_stale_per_case_limit(production):
     assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
 
 
+def test_review_reserve_and_exact_request_explain_reduced_cap(production):
+    from kinbot import run_policy
+    root, case = production
+    run_policy.update(root, max_jobs=23, orbital_review_reserve=3)
+    request = case/'123/vrctst/orbital_review/channel/request.json'
+    put(request, dict(status='needs_review'))
+    text = monitor.render(monitor.snapshot(root))
+    assert 'Shared pool: cap 20' in text
+    assert 'Configured cap 23; 3 slots reserved for orbital review' in text
+    assert 'Capacity held by: '+str(request.relative_to(root)) in text
+    put(request, dict(status='model_accepted'))
+    text = monitor.render(monitor.snapshot(root))
+    assert 'Shared pool: cap 23' in text and 'Capacity held by:' not in text
+
+
 def test_selection_display_distinguishes_old_controller_and_current_choice(production):
     root, case = production
     phase = dict(token='new', epoch=1, phase='exploring', workers={})

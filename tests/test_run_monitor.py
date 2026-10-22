@@ -240,6 +240,81 @@ def test_new_branch_report_replaces_startup_history(production):
     assert 'previous controller' not in text
 
 
+def review_records(case, names=('reviewed',)):
+    worker = case/'well'
+    aggregate = worker/'vrc_model_review.json'
+    put(aggregate, {'status': 'needs_review', 'error': 'OLD REVIEW HOLD',
+                    'channels': [{'reaction': name} for name in names]})
+    os.utime(aggregate, (1000, 1000))
+    requests = []
+    for name in names:
+        request = worker/'vrctst/orbital_review'/name/'request.json'
+        put(request, {'status': 'model_accepted', 'reaction': name})
+        os.utime(request, (1001, 1001))
+        requests.append(request)
+    return aggregate, requests
+
+
+def test_accepted_vrc_receipts_supersede_hold_before_qc_finishes(production):
+    root, case = production
+    aggregate, _ = review_records(case, ('first', 'second'))
+    put(case/'well/vrctst/molpro_scan/point/state.json',
+        {'tasks': {'relaxed_scan': {'status': 'submitted', 'job_id': '42'}}})
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert 'REVIEW HOLD' not in text
+    assert 'listed channel models accepted' in text
+    assert 'submitted=1' in text
+    item = next(i for i in report['cases'][0]['artifacts']
+                if i['path'] == str(aggregate.relative_to(case)))
+    assert item['status'] == 'model_accepted'
+    assert item['recorded_status'] == 'needs_review'
+    assert item['recorded_error'] == 'OLD REVIEW HOLD'
+    assert 'OLD REVIEW HOLD' in monitor.render(report, details=True)
+    assert 'model_accepted' in monitor.render(report, include_all=True)
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+
+@pytest.mark.parametrize('status', ['needs_review', 'missing', 'malformed',
+                                  'mismatched', 'older', 'unknown'])
+def test_vrc_review_unknown_or_unaccepted_receipt_remains_visible(production, status):
+    root, case = production
+    aggregate, requests = review_records(case, ('accepted', 'unconfirmed'))
+    request = requests[1]
+    if status == 'missing':
+        request.unlink()
+    elif status == 'malformed':
+        put(request, '{')
+    elif status == 'mismatched':
+        put(request, {'status': 'model_accepted', 'reaction': 'different'})
+    elif status == 'older':
+        os.utime(request, (999, 999))
+    else:
+        put(request, {'status': status, 'reaction': 'unconfirmed'})
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert 'REVIEW HOLD' in text
+    assert 'unconfirmed' in text
+    assert 'listed channel models accepted' not in text
+    item = next(i for i in report['cases'][0]['artifacts']
+                if i['path'] == str(aggregate.relative_to(case)))
+    assert item['status'] == 'needs_review'
+    assert item['error'].endswith('unconfirmed')
+    assert not item['error'].endswith('accepted, unconfirmed')
+
+
+@pytest.mark.parametrize('channels', [None, [], [{'reaction': '../outside'}],
+                                     [{'reaction': 42}], ['bad record']])
+def test_vrc_review_without_valid_channel_identity_is_not_hidden(production, channels):
+    root, case = production
+    put(case/'well/vrc_model_review.json',
+        {'status': 'needs_review', 'error': 'Review required', 'channels': channels})
+    text = monitor.render(monitor.snapshot(root))
+    assert 'REVIEW HOLD' in text
+    assert 'listed channel models accepted' not in text
+
+
 def test_unstarted_child_branch_uses_replacement_pes_start(production):
     root, case = production
     put(case/'pes_status.json', {'status':'running', 'started_utc':'2026-10-21T17:32:53+00:00'})

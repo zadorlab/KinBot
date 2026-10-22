@@ -241,6 +241,56 @@ def previous_controller_record(path, root, warnings):
         return False
 
 
+def vrc_review_status(path, data, warnings):
+    """Reconcile a retained well-level hold with its newer channel receipts.
+
+    Older controllers clear the aggregate only after *all calculations* finish,
+    although each channel request is marked model_accepted before dispatch.
+    Never infer approval from a running job or an input refresh alone. Missing,
+    unreadable, mismatched or older receipts leave the hold visible.
+    """
+    if data.get('status') != 'needs_review':
+        return {}
+    channels = data.get('channels')
+    if not isinstance(channels, list) or not channels:
+        return {}
+    try:
+        held_at = path.stat().st_mtime_ns
+    except OSError as error:
+        warnings.append(f'{path}: {error}')
+        return {}
+    receipts, outstanding = [], []
+    for channel in channels:
+        name = channel.get('reaction') if isinstance(channel, dict) else None
+        if not isinstance(name, str):
+            name = None
+        record = {'reaction': name, 'status': 'unknown'}
+        if isinstance(name, str) and name not in ('', '.', '..') and Path(name).name == name:
+            request = path.parent/'vrctst/orbital_review'/name/'request.json'
+            receipt = read_json(request, warnings)
+            try:
+                current = (receipt.get('reaction') == name
+                           and request.stat().st_mtime_ns >= held_at)
+            except FileNotFoundError:
+                current = False
+            except OSError as error:
+                warnings.append(f'{request}: {error}')
+                current = False
+            record.update(status=receipt.get('status', 'unknown'),
+                          current=current)
+        if record['status'] != 'model_accepted' or not record.get('current'):
+            outstanding.append(name or '(unidentified channel)')
+        receipts.append(record)
+    result = {'review_channels': receipts, 'recorded_status': data['status'],
+              'recorded_error': data.get('error')}
+    if outstanding:
+        result['error'] = 'Orbital/state review still required or unconfirmed for: ' + ', '.join(outstanding)
+    else:
+        result.update(status='model_accepted', error=None,
+                      stale_review_hold=True)
+    return result
+
+
 def artifacts(paths, root, warnings):
     results = []
     for path in paths:
@@ -295,6 +345,8 @@ def artifacts(paths, root, warnings):
             continue  # Per-task successful execution is covered by state.json.
         if data.get('error'):
             item['error'] = str(data['error'])
+        if path.name == 'vrc_model_review.json':
+            item.update(vrc_review_status(path, data, warnings))
         results.append(item)
     return results
 
@@ -602,6 +654,10 @@ def render_status_summary(case):
                    '  '.join(f'{k}={v}' for k, v in sorted(counts.items())))
     for item in case['artifacts']:
         label = display_path(item['path'], case['directory'])
+        if item.get('stale_review_hold'):
+            out.append(f'  VRC REVIEW {label}: listed channel models accepted; '
+                       'old aggregate hold superseded (not a QC completion verdict).')
+            continue
         if item['status']=='needs_review':
             out.append(f'  REVIEW HOLD {label}: {item.get("error", "reviewed input required")}')
             continue
@@ -847,7 +903,8 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                 continue  # Already in the WORKER row above.
             historical = ' [previous controller]' if item.get('previous_controller') else ''
             out.append(f'RECORD {item["path"]}{historical}: {item["status"]}')
-            for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error'):
+            for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error',
+                        'review_channels', 'recorded_status', 'recorded_error'):
                 if item.get(key) is not None:
                     value = item[key]
                     if key == 'recovery' and not details and 'curvature_checks' in value:

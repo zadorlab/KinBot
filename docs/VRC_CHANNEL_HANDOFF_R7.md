@@ -653,3 +653,16 @@ Other reviewed paths continue; a new unspecified channel remains held for
 review. ANL still waits for outer-PES L2 selection. Neither successful orbital
 review nor a passing parser certifies eventual convergence of every native
 point or the complete kinetics calculation.
+
+### Review status during production
+
+Older controllers retain `vrc_model_review.json: needs_review` until the
+entire VRC branch finishes, even after individual
+`vrctst/orbital_review/<reaction>/request.json` records become
+`model_accepted` and scans start. The read-only monitor now checks those
+channel receipts: newer, matching acceptances supersede the old aggregate
+hold. Missing, unreadable, older or unaccepted receipts remain visible as
+outstanding or unconfirmed reviews. The original aggregate status/error is
+retained in `--json` and `--details`. Model acceptance does not certify QC
+completion. This display correction takes effect on the next monitor
+invocation after pulling; existing drivers and jobs need no refresh.

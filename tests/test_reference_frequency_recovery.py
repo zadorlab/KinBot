@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import numpy as np
 import pytest
+from ase import Atoms
 from ase.build import molecule
 from ase.db import connect
 
@@ -106,3 +107,55 @@ def test_recovered_harmonic_spectrum_enables_strict_owner_reconciliation(referen
     assert mapping['aliases']=={'b':'a'}
     assert mapping['frequency_migrations']['b']['previous_record']==old
     assert mapping['evidence']['b']['measurements']['frequency_cm_inverse']==0.
+
+
+@pytest.mark.parametrize('name,native,valid', [
+    ('H', [], True), ('He', [], True), ('H2', [4400.], True),
+    ('CH3', [514.4159, 1427.6941, 1427.7039, 3139.5836, 3320.8406, 3320.8435], True),
+    ('H', [0.], False), ('H2', [], False),
+])
+def test_qc_writer_numpy_spectra_survive_database_roundtrip(tmp_path, name, native, valid):
+    atoms = Atoms(name) if name in ('H', 'He') else molecule(name)
+    smiles = {'H':'[H]', 'He':'[He]', 'H2':'[H][H]', 'CH3':'[CH3]'}[name]
+    mult = 2 if name in ('H', 'CH3') else 1
+    energy, zpe = -1., 0. if len(atoms) == 1 else .01
+    job = name + '_well_high'
+    with connect(str(tmp_path/'kinbot.db')) as db:
+        row_id = db.write(atoms, name=job, data=dict(status='normal',
+            energy=energy/constants.EVtoHARTREE, zpe=zpe,
+            frequencies=np.array(native)))
+        assert isinstance(db.get(id=row_id).data['frequencies'], np.ndarray)
+    model = dict(name=name, smiles=smiles, charge=0, multiplicity=mult,
+        symbols=list(atoms.symbols), positions=atoms.positions.tolist(), symmetry_factor=1.,
+        frequencies_cm_inverse=[1.] * len(native), hindered_rotor_blocks='',
+        hindered_rotor_source='none-no-rotatable-bonds',
+        source=dict(source_job=job, source_row_id=row_id,
+            electronic_energy_hartree=energy, harmonic_zpe_hartree=zpe,
+            geometry_sha256=_geometry_hash(atoms)))
+    path = tmp_path/'thermochemistry_model.json'
+    atomic_json(path, dict(schema=1, species={smiles:model}))
+    original = path.read_bytes()
+    if not valid:
+        with pytest.raises(ValueError, match='invalid minimum frequencies'):
+            _model_record(path, dict(smiles=smiles, charge=0, multiplicity=mult),
+                          {'calculator':'gaussian'})
+        return
+    record = _model_record(path, dict(smiles=smiles, charge=0, multiplicity=mult),
+                           {'calculator':'gaussian'})
+    assert record['frequencies_cm_inverse'] == native
+    assert record['thermochemistry_model']['frequencies_cm_inverse'] == native
+    assert path.read_bytes() == original
+    with connect(str(tmp_path/'kinbot.db')) as db:
+        np.testing.assert_array_equal(db.get(id=row_id).data['frequencies'], native)
+
+
+@pytest.mark.parametrize('native', [None, np.array([]), np.array([514.]),
+    np.array([[1., 2., 3., 4., 5., 6.]]), np.array([1., 2., 3., 4., 5., np.nan]),
+    np.array([1., 2., 3., 4., 5., np.inf]), np.array([-100., 2., 3., 4., 5., 6.]),
+    ['1', '2', '3', '4', '5', '6'], np.array([True]*6)])
+def test_malformed_native_spectrum_still_blocks_recovery(reference, native):
+    old, _, path, _ = reference
+    with connect(str(path.parent/'kinbot.db')) as db:
+        db.update(1, data={'frequencies':native})
+    with pytest.raises(ValueError, match='selected L2'):
+        recovery.recover(old)

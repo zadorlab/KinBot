@@ -807,3 +807,27 @@ H, and continuation at later points does not validate earlier points or permit
 rate assembly. Do not clear that hold automatically.
 
 Focused validation for this morning repair: **413 passed, 1 skipped, 32 subtests passed** in 14.73 seconds. This includes replay of both supplied CFOUR summaries through saved-output recovery with native launching forbidden, native-frame rotation checks for atoms/diatomics/linear/nonlinear molecules, exact-row reference import and strict reuse migration, admission fairness/lease expiry, monitor inventory, and controller-refresh ownership tests. No native production job was run locally.
+
+### 09:30 refresh preflight correction: ASE array storage
+
+The first remote application of the morning repair stopped in
+`network_revisit.plan` at the atomic H reference
+`471030810040000000002/anl_automatic/reference_l2/state_44566ede38c89505`:
+`selected L2 row lacks finite harmonic frequencies`. This happened before
+controller quiescence, duplicate cancellation or the new refresh journal.
+Existing controllers and allocations were left running by that attempt.
+
+The new recovery reader accepted Python lists/tuples but omitted NumPy arrays.
+KinBot's QC writers store NumPy arrays in ASE, including an empty array for an
+atom, and ASE preserves that type when reading the database. The correction
+accepts one-dimensional finite real numeric arrays as well as lists/tuples,
+normalizes them to a list, and retains minimum mode-count and negative-mode
+checks. An atomic empty array is valid; an empty molecular spectrum, nonempty
+atomic spectrum, missing value, nonfinite value, matrix or nonnumeric spectrum
+is still refused. No frequencies are invented and no QC files are rewritten.
+
+Database round-trip tests reproduce the original failure for H, He, H2 and CH3
+and pass after the correction. Reference recovery, reuse, network revision,
+automatic ANL and refresh tests: **153 passed, 1 skipped**. Pull the correction
+and repeat the same `run_refresh --deduplicate-anl --apply` command above;
+no cleanup or fresh production restart is required.

@@ -40,9 +40,18 @@ def recover(record):
                               atol=1e-10, rtol=0)):
         raise ValueError(f'{root}: reference frequencies do not match the selected L2 row.')
     native = data.get('frequencies')
-    if not isinstance(native, (list, tuple)) or not np.isfinite(native).all():
+    # ASE database round-trips preserve the arrays written by QC templates,
+    # including a length-zero array for an atom. JSON-derived rows use lists.
+    if not isinstance(native, (list, tuple, np.ndarray)):
         raise ValueError(f'{root}: selected L2 row lacks finite harmonic frequencies.')
-    native = list(map(float, native))
+    try:
+        native = np.asarray(native)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f'{root}: selected L2 row has malformed harmonic frequencies.') from exc
+    if (native.ndim != 1 or native.dtype.kind not in 'iuf'
+            or not np.isfinite(native).all()):
+        raise ValueError(f'{root}: selected L2 row lacks finite harmonic frequencies.')
+    native = native.astype(float).tolist()
     n = len(model['symbols'])
     counts = {0} if n == 1 else {1} if n == 2 else {3*n-6, 3*n-5}
     if len(native) not in counts or any(f < -50. for f in native):

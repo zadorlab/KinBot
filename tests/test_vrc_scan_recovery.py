@@ -29,7 +29,8 @@ def scan(tmp_path, monkeypatch):
     parameters = dict(vrc_tst_fragment_geometry='asymptotic_scan', pp_orient='geometric',
         vrc_tst_scan_method='caspt2(2,2)', vrc_tst_scan_basis='avdz-f12',
         vrc_tst_scan_points=[2.5, 2.7, 2.9], vrc_tst_asymptote_distance=30.)
-    fixture = SimpleNamespace(calls=[], retry_fails=False, repair_primary=False, interrupt=None,
+    fixture = SimpleNamespace(calls=[], retry_fails=False, retry_native_fails=False,
+                              repair_primary=False, interrupt=None,
                               extra_failures=set(),
                               results={}, original=deepcopy(reaction))
     def optimize(reaction, geom, distance, logical_name, **kwargs):
@@ -45,6 +46,8 @@ def scan(tmp_path, monkeypatch):
             raise recovery.ScanPointFailure('H transfer', graph, connectivity=True)
         if logical_name.endswith('fragment_retry') and fixture.retry_fails:
             raise recovery.ScanPointFailure('still H transfer', graph, connectivity=True)
+        if logical_name.endswith('fragment_retry') and fixture.retry_native_fails:
+            raise recovery.ScanPointFailure('Optimization budget exhausted', graph)
         a = Atoms('H4', positions=geom)
         a.positions[0] = a.positions[1] - [0, 0, .8 if distance == 30. else .81]
         a.positions[3] = a.positions[2] + [0, 0, .82 if distance == 30. else .83]
@@ -84,8 +87,10 @@ def test_retry_uses_asymptotic_coordinates_and_orbitals_then_continues(scan):
     assert json.loads(scan.review.read_text())['status'] == 'resolved'
 
 
-def test_failed_retry_skips_gap_and_next_point_restarts_from_fragments(scan):
-    scan.retry_fails = True
+@pytest.mark.parametrize('native_failure', [False, True])
+def test_failed_retry_skips_gap_and_next_point_restarts_from_fragments(scan, native_failure):
+    scan.retry_fails = not native_failure
+    scan.retry_native_fails = native_failure
     with pytest.raises(recovery.ScanReviewRequired):
         scan.make().do_scan(['r'])
     next_point = scan.calls[-1]
@@ -96,6 +101,9 @@ def test_failed_retry_skips_gap_and_next_point_restarts_from_fragments(scan):
     assert not list(db.select(name='vrctst/r_vts_pt01'))
     assert list(db.select(name='vrctst/r_vts_pt02'))
     assert list(db.select(name='vrctst/r_vts_pt_asymptote'))
+    record = json.loads(scan.review.read_text())
+    assert record['points']['r_vts_pt01']['status'] == 'needs_review'
+    assert record['points']['r_vts_pt01']['attempts'][-1]['connectivity'] is not native_failure
     with pytest.raises(ValueError, match='complete accepted grid'):
         recovery.approve(scan.review, 'Cannot waive a gap.')
 

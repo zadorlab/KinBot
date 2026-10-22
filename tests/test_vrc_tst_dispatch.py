@@ -607,6 +607,39 @@ def test_vrc_dispatch_retries_each_task_at_most_once(tmp_path):
     retry.assert_not_called()
 
 
+@pytest.mark.parametrize('max_attempts', [1, 2])
+def test_bounded_fragment_retry_returns_failure_despite_global_task_hold(tmp_path, monkeypatch, max_attempts):
+    from kinbot.anl import dispatch
+    failed = {'tasks': {'relaxed_scan': {'status': 'failed', 'attempt': 1,
+                                       'failure_phase': 'execution'}}}
+    spec = {'intent': {'vrc_fragment_retry': True}, 'tasks': []}
+    monkeypatch.setattr(dispatch, 'drive_run', lambda *a, **k: (1, {'relaxed_scan': 'failed'}))
+    monkeypatch.setattr(dispatch, '_load', lambda *a: (tmp_path, spec, failed))
+    monkeypatch.setattr('kinbot.live_control.holding', lambda *a, **k: True)
+    monkeypatch.setattr('kinbot.vrc_tst_scan.time.sleep',
+                        lambda *a: pytest.fail('Bounded fragment retry must yield to scan review.'))
+    monkeypatch.setattr(dispatch, 'retry_failed',
+                        lambda *a: pytest.fail('Bounded fragment retry must not resubmit.'))
+    assert _drive_vrc_dispatch(tmp_path, ('relaxed_scan',), max_attempts=max_attempts) == (
+        1, {'relaxed_scan': 'failed'})
+
+
+def test_ordinary_vrc_task_still_obeys_explicit_failure_hold(tmp_path, monkeypatch):
+    from kinbot.anl import dispatch
+    failed = {'tasks': {'relaxed_scan': {'status': 'failed', 'attempt': 2,
+                                       'failure_phase': 'execution'}}}
+    monkeypatch.setattr(dispatch, 'drive_run', lambda *a, **k: (1, {'relaxed_scan': 'failed'}))
+    monkeypatch.setattr(dispatch, '_load', lambda *a: (tmp_path, {}, failed))
+    monkeypatch.setattr('kinbot.live_control.holding', lambda *a, **k: True)
+    class Held(Exception):
+        pass
+    def wait(*args):
+        raise Held
+    monkeypatch.setattr('kinbot.vrc_tst_scan.time.sleep', wait)
+    with pytest.raises(Held):
+        _drive_vrc_dispatch(tmp_path, ('relaxed_scan',))
+
+
 def test_asymptotic_mr_geometry_feeds_fixed_pivots_and_every_frozen_point(tmp_path, monkeypatch):
     from kinbot.stationary_pt import StationaryPoint
     from kinbot.conformers import Conformers

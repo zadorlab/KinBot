@@ -95,6 +95,12 @@ def _drive_vrc_dispatch(run_dir, task_ids, *, interval=20., max_attempts=2):
         if not returncode:
             return returncode, summary
         _, spec, state = _load(run_dir)
+        if spec.get('intent', {}).get('vrc_fragment_retry'):
+            # This separate seed has an explicit one-attempt budget. Return
+            # its terminal failure to ScanProgress so the gap remains held
+            # for review while later points proceed. A global task hold must
+            # not park this surface before that continuation can happen.
+            return returncode, summary
         tasks = {task['id']: task for task in spec.get('tasks', [])}
         retry = []
         for task_id in task_ids:

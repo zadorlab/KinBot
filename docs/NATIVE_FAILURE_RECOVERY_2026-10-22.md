@@ -230,3 +230,39 @@ current-pass versus saved scan progress. Replayed acceptance can reuse QC;
 it is not a count of new calculations. Diagnostic convergence remains
 separate from production-model acceptance. Updating this read-only monitor
 requires a code pull, not replacement of the running controllers.
+
+### Bounded retries and unattended continuation
+
+The 14:34 PDT snapshot confirms r2 point 14 (4.8 A) and point 15 (5.0 A)
+are accepted, with point 16 (5.2 A) running. The serial result has therefore
+been consumed by the production scan. The separate C + SH3 6 A probe ended
+with `ASE geometry optimization did not converge` at its 50-step budget.
+It remains a failed diagnostic, not an approved outer point. Its optimizer
+tail alone does not establish final connectivity or state continuity.
+
+Review of the failure path exposed a hold interaction: after an explicitly
+bounded fragment retry failed, `_drive_vrc_dispatch` could honor the global
+`hold_task_failures` setting forever instead of returning the failure to
+`ScanProgress`. Graphs marked `vrc_fragment_retry` now return their terminal
+failure immediately, without another submission. The scan records the gap
+as `needs_review`, retains the failed attempt, and continues from the verified
+fragment seed at later distances. The complete-grid requirement still blocks
+production use of the incomplete path. Ordinary VRC tasks retain their failure
+hold and existing transient-retry behavior. This controller change requires
+replacement of running controllers; `run_refresh ROOT --apply` alone retains
+existing QC allocations, task results and scientific inputs.
+
+The same snapshot has 21 allocations under a cap of 23 and no reserved
+orbital-review slots. Two completed receipts are intentionally deferred:
+CH3 `anl1_6z` job 52920059 awaits outer-PES L2 selection, while CH3SS scan
+point 5 job 52919120 awaits its replacement worker returning from reaction
+search to VRC. Neither is evidence for rerunning the native calculation.
+The C2V CH2 and C1 VPT2 recoveries are staged behind the ANL gate; their
+automatic framework-recovery path remains enabled. Historical rejected TS
+searches and the C + SH3 connectivity gaps remain explicit scientific
+limitations, rather than being relabeled as successful for the handoff.
+
+Validation: 82 tests passed across VRC dispatch, scan recovery, parallel
+channels and branch probes. The regressions cover an exhausted native
+fragment retry under a global hold, continuation to the next point without
+accepting the gap, and preservation of ordinary task holds.

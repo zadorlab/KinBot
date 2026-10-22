@@ -182,3 +182,29 @@ CH3 intact, but the requested threshold is 0.0005 eV/A. The last three
 completed central energy evaluations identify RSPT2 STATE 2.1 and agree with
 the saved high-precision energy. This does not yet establish convergence,
 displaced-state continuity, or the cause of the earlier MPI abort.
+
+### Separate fragment-branch diagnostic
+
+`python -m kinbot.vrc_branch_probe run SCAN_REVIEW_JSON --distance 6`
+starts one independent constrained relaxation from the hash-verified, completed
+asymptotic geometry and final orbital checkpoint. It preserves the native
+method, basis, state average, selected root, convergence thresholds, and internal
+fragment geometry. It does not freeze additional bonds or publish production
+scan geometries, corrections, or approvals.
+
+The default budget is 50 steps and one hour in one allocation under the existing
+production shared pool. The existing bounded fragment-retry dispatcher policy
+prevents automatic task/walltime extensions. Explicit shared I/O recovery, if
+triggered inside that allocation, remains subject to its walltime. Repeating the
+same command reattaches to the same graph, including a failed graph. Source
+checkpoint, geometry, task and context hashes are checked before staging; an
+explicitly modified source task is refused. Diagnostic graphs live separately
+under `diagnostics/vrc_branch_probes`.
+
+Use `python -m kinbot.vrc_branch_probe status PRODUCTION_ROOT` for a read-only
+summary of task IDs, recent optimizer steps and, on completion, all pair
+distances. A converged intact result establishes an outer constrained solution
+at that orientation/model; it does not establish a barrierless channel or
+active-space completeness. A transfer or budget failure likewise does not prove
+that no intact solution exists. Keep the production path under review until
+the branch and electronic-state continuity are established.

@@ -277,14 +277,36 @@ def state_parameters(parameters, stage, state, fragment_multiplicities):
     par['vrc_tst_surface_model'] = None
     par['mult'] = state['multiplicity']
     spin = deepcopy(par.get('vrc_tst_spin_splitting') or {})
+    overrides = stage['parameters'].get('vrc_tst_spin_splitting')
+    if isinstance(overrides, dict):
+        # A channel may change only the auxiliary reference multiplicity;
+        # retain the case's CC/gap basis and extrapolation policy.
+        inherited = deepcopy(parameters.get('vrc_tst_spin_splitting') or {})
+        overrides = deepcopy(overrides)
+        for settings in (inherited, overrides):
+            for old, new in (('singlet_multiplicity', 'target_multiplicity'),
+                             ('triplet_multiplicity', 'reference_multiplicity'),
+                             ('triplet_reference', 'reference')):
+                if old in settings:
+                    if new in settings:
+                        raise ValueError(f'Specify {old} or {new}, not both.')
+                    settings[new] = settings.pop(old)
+        for key, value in overrides.items():
+            if key in ('reference', 'weighting') and isinstance(value, dict):
+                inherited[key] = {**inherited.get(key, {}), **deepcopy(value)}
+            else:
+                inherited[key] = deepcopy(value)
+        spin = inherited
     spin.pop('singlet_multiplicity', None)
-    spin.pop('triplet_multiplicity', None)
     spin['target_multiplicity'] = state['multiplicity']
     spin['fragment_multiplicities'] = list(fragment_multiplicities)
     par['vrc_tst_spin_splitting'] = spin
-    # The highest-spin leaf needs no low-spin-gap construction. Its trusted
-    # direct MR level remains explicit and state-specific.
+    # Default to direct for a highest coupled-spin leaf only when no separate
+    # energy reference was requested. Explicit references need not be
+    # reactive states of the ground-fragment channel.
     if (correction_model(par) == 'spin_splitting'
+            and 'reference_multiplicity' not in spin
+            and 'triplet_multiplicity' not in spin
             and state['multiplicity'] == max(coupled_multiplicities(*fragment_multiplicities))):
         par['vrc_tst_correction_model'] = 'direct'
     selected = {str(key): value for key, value in root_overrides(

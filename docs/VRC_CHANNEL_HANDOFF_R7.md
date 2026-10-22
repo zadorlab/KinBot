@@ -5,14 +5,14 @@ and the three additional orbital selections completed on October 21. Live
 refresh adds accepted channels without replacing existing models. The two
 provisionally screened CH3SS cleavages still await their accepted requests.
 
-The October 22 [CH + H2S review](CH_H2S_ORBITAL_REVIEW.md) selects CAS(5,4)
-from source indices 8,12,13,14 in the two 2 A natural-orbital records. It uses
-four equally weighted doublets, D1 reactive flux, and direct CASPT2-F12
-correction because the specified doublet/singlet fragments have no quartet
-coupling. Its recipe is ready for live publication; this document does not
-assert that the remote owner has applied it. The linked review records the
-donor's 8-to-7 ordering change, the omitted S-H antibonding occupation and the
-limits of the compact-space evidence. Other channels' treatment is unchanged.
+The October 22 [CH + H2S review](CH_H2S_ORBITAL_REVIEW.md) proposes CAS(5,4)
+from source indices 8,12,13,14 in the two 2 A natural-orbital records. It now
+uses four doublets plus one auxiliary quartet, D1 reactive flux, and the
+CC-reference-plus-MR-gap correction. The earlier direct-only justification
+confused a reactive spin coupling with an auxiliary energy reference and is
+withdrawn. Run the [finite native reference panel](VRC_REFERENCE_CHECKS_R7.md)
+before publishing this model. It also checks the actual saved production
+models for the other scalar leaves; existing scientific settings are unchanged.
 
 ## Bounded scan recovery and live review, October 22
 

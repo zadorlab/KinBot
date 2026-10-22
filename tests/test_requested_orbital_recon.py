@@ -106,6 +106,104 @@ def test_ch_h2s_screen_uses_requested_geometry_and_only_doublet_casci(request_tr
         assert 'rs2' not in deck and 'ccsd' not in deck
 
 
+def test_ch_h2s_reference_panel_uses_six_matched_jobs_and_production_seed(request_tree, monkeypatch):
+    request, _, source = request_tree
+    recipe = RECIPE.with_name('ch_h2s_cs_screen.json')
+    saved = helper._read(request)
+    saved.update(helper._read(recipe)['request_match'])
+    # CH has H5, H2S has H3/H4; retain the exact request coordinates.
+    saved['positions'] = [[.7467252173,-.7423275741,-.5474233962],
+        [.1678425237,.4711769182,.5418506859], [1.0595729495,1.3596853597,1.1290564624],
+        [.0422254396,-.2114253717,1.6944421867], [1.1828471196,-.1760172776,-1.3830416653]]
+    atomic_json(request, saved)
+    source = completed_screen(request_tree, recipe)
+    before = {p:p.read_bytes() for p in source.rglob('*') if p.is_file()}
+    monkeypatch.setattr(helper.subprocess, 'run', lambda *a, **k: pytest.fail('No launch'))
+    output = source.parent/'reference-check'
+    result = helper.candidates(source, recipe.with_name('ch_h2s_cs_reference_check.json'), output)
+    assert result['tasks'] == 6 and result['max_jobs'] == 3
+    system = helper._read(output/'review_launch.json')['systems'][0]
+    data = helper.recon._load(system['configuration'])
+    selection = helper._read(recipe.with_name('ch_h2s_cs_selected.json'))
+    assert data['probe_definition']['state_model'] == selection['state_model']
+    manifest = helper._read(system['manifest'])
+    assert {j['distance_angstrom'] for j in manifest['jobs']} == {2.,3.5,30.}
+    for job in manifest['jobs']:
+        assert job['initial_record']['path'].endswith('__cs_r_2.wfu')
+        assert job['orbital_predecessor'] is None
+        deck = (Path(job['directory'])/(job['name']+'.inp')).read_text()
+        assert 'rotate,8.1,11.1,0' in deck and 'closed,10' in deck and 'occ,14' in deck
+        assert 'wf,25,1,1\nstate,4' in deck and 'wf,25,1,3\nstate,1' in deck
+        assert deck.count('{rs2-f12,') == 5 and deck.count('{uccsd(t)-f12b,') == 1
+        assert 'natorb,3001.2,state=1.1,spin=3' in deck
+        assert deck.index('natorb,3001.2') < deck.index('canonical,2141.2')
+        assert deck.index('load,dhf,den,2150.2') < deck.index('{uccsd(t)-f12b,')
+        assert 'wf,25,1,3;occ,14;closed,11;orbital,2150.2' in deck
+        assert '.reference_c6_m4.molden' in deck
+        anchor = next(a for a in data['anchors'] if a['name'] == job['anchor'])
+        xyz = helper.recon._anchor_geometry(data, anchor)
+        assert np.linalg.norm(xyz[1]-xyz[0]) == pytest.approx(job['distance_angstrom'])
+    assert all(p.read_bytes() == v for p,v in before.items())
+
+    # A report is observational, including finite nonzero asymptotic gaps.
+    from kinbot.execution import file_sha256
+    for j in manifest['jobs']:
+        distance, basis = j['distance_angstrom'], j['basis']
+        offset = .01 if basis == 'avdz-f12' else 0.
+        values = [-437.+offset-.2/distance, -437.1+offset-.3/distance,
+                  -437.02+offset-.1/distance]
+        j.update(status='complete', correlated_energies_hartree=[
+            dict(method=method,multiplicity=mult,root=1,energy_hartree=e)
+            for method,mult,e in zip(('uccsd(t)-f12b','caspt2-f12(5,4)','caspt2-f12(5,4)'),
+                                     (4,2,4),values)])
+        out = Path(j['directory'])/(j['name']+'.out')
+        out.write_text('Synthetic native output; not chemical validation.\n')
+        j['output_sha256'] = file_sha256(out)
+    atomic_json(Path(system['manifest']), manifest)
+    before = {p:p.read_bytes() for p in output.rglob('*') if p.is_file()}
+    report = helper.reference_report(output)
+    assert '-117.135102' in report  # (-.4/2+.4/30)*627.509474
+    assert 'No production input changed' in report
+    assert all(p.read_bytes() == v for p,v in before.items())
+
+
+def test_production_evidence_uses_accepted_native_points_and_undisplaced_section(tmp_path, monkeypatch):
+    import gzip
+    from kinbot.execution import file_sha256
+    root = tmp_path/'production'
+    well = root/'ch3s/123'
+    request = well/'vrctst/scan_review/123_hom_sci_1_2__single_m2_r1/scan_review.json'
+    model = {'state_average':[dict(multiplicity=2,roots=3)], 'selected_roots':{'2':2}}
+    native = gzip.open(ROOT/'tests/fixtures/molpro_recon/caspt2_native_legacy_selector.out.gz','rt').read()
+    xyz = '2\nsynthetic geometry\nH 0 0 0\nH 0 0 2\n'
+    points = {}
+    for distance in (2.,4.,30.):
+        graph = well/'vrctst/molpro_scan'/f'point_{distance}'
+        d = graph/'tasks/relaxed_scan'
+        atomic_json(d/'task.json', {'task':{'profile':dict(method='caspt2-f12(5,4)',
+            basis='avdz-f12', calculator_kwargs=dict(state_model=model))}})
+        (d/'final.xyz').write_text(xyz)
+        (d/'relaxed_scan_step_0001.xyz').write_text(xyz)
+        (d/'relaxed_scan_step_0001.inp').write_text('synthetic input')
+        (d/'relaxed_scan_step_0001.out').write_text(native+'\n'+native.replace('PROGRAM * MULTI','PROGRAM * UNUSED'))
+        atomic_json(graph/'workflow.json', {})
+        atomic_json(d/'execution.json', {'status':'executed','details':{
+            'generated_files':['relaxed_scan_step_0001.inp']}})
+        points[str(distance)] = dict(status='accepted', graph=str(graph),distance_angstrom=distance,
+            hashes={str(p):file_sha256(p) for p in (graph/'workflow.json',d/'execution.json',d/'final.xyz')})
+    points['rejected'] = dict(status='needs_review',graph='must_not_read',distance_angstrom=5.)
+    atomic_json(request,dict(status='running',reaction=request.parent.name,
+        context={'separation_angstrom':30.},points=points))
+    before = {p:p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    monkeypatch.setattr(helper.subprocess, 'run', lambda *a, **k: pytest.fail('Read only'))
+    report = helper.production_evidence(root)
+    assert 'POINT 4.0' in report and 'POINT 30.0' in report and 'POINT 2.0' not in report
+    assert '"selected_roots": {"2": 2}' in report
+    assert 'NATIVE STATES' in report and 'ACTIVE ' in report
+    assert 'state agreement is NOT verified' in report
+    assert all(p.read_bytes() == v for p,v in before.items())
+
+
 def test_refuse_to_write_into_production_tree(request_tree):
     request, case_input, _ = request_tree
     with pytest.raises(ValueError, match='outside the production'):
@@ -336,10 +434,10 @@ def test_review_publishes_only_selected_parent_and_reuses_basis_specific_seeds(r
     assert len(calls)==6 and helper._read(case_input)==proposed
 
 
-def test_ch_h2s_selection_repacks_donor_and_uses_doublet_direct_cbs(request_tree, monkeypatch):
+def test_ch_h2s_selection_repacks_donor_and_uses_auxiliary_quartet_cbs(request_tree, monkeypatch):
     from kinbot import input_refresh
     from kinbot.molpro import _render_vrc_state_model
-    from kinbot.vrc_correction import correction_components, expected_levels
+    from kinbot.vrc_correction import correction_components, expected_levels, spin_splitting_settings
     from kinbot.vrc_multistate import state_parameters
     _, case_input, output = request_tree
     recipe = RECIPE.with_name('ch_h2s_cs_screen.json')
@@ -385,22 +483,29 @@ def test_ch_h2s_selection_repacks_donor_and_uses_doublet_direct_cbs(request_tree
     stage = proposed['vrc_tst_surface_models'][match['parent']]['channels'][0]['bottlenecks'][0]
     assert len(stage['states']) == 1 and stage['states'][0]['root'] == 1
     leaf = state_parameters(proposed, stage, stage['states'][0], [2,1])
-    assert leaf['vrc_tst_correction_model'] == 'direct'
-    assert leaf['vrc_tst_selected_roots'] == {'2':1}
-    components = correction_components(leaf, symbols=match['symbols'], state_roots={2:4})
-    assert [c['role'] for c in components] == ['sampling','trusted:0','trusted:1']
+    assert leaf['vrc_tst_correction_model'] == 'spin_splitting'
+    assert leaf['vrc_tst_selected_roots'] == {'2':1,'4':1}
+    spin = spin_splitting_settings(leaf, parent_multiplicity=2, fragment_multiplicities=[2,1])
+    assert spin['reference_multiplicity'] == 4
+    components = correction_components(leaf, symbols=match['symbols'], settings=spin,
+                                       state_roots={2:4,4:1})
+    assert [c['role'] for c in components] == ['sampling','reference:0','reference:1',
+        'gap:caspt2_f12:target:0','gap:caspt2_f12:target:1',
+        'gap:caspt2_f12:reference:0','gap:caspt2_f12:reference:1']
     for component in components:
-        assert component['method'] == 'caspt2-f12(5,4)'
+        assert component['method'] == ('uccsd(t)-f12b' if component['role'].startswith('reference:')
+                                       else 'caspt2-f12(5,4)')
         model = component['state_model']
-        assert model['state_average'] == [dict(multiplicity=2,roots=4,weights=[.25]*4)]
+        assert model['state_average'] == [dict(multiplicity=2,roots=4,weights=[.25]*4),
+                                         dict(multiplicity=4,roots=1,weights=[1.])]
         assert model['orbital_selection']['active_indices'] == [8,12,13,14]
         assert '__cs_r_2.wfu' in model['orbital_selection']['path']
         _, deck, _ = _render_vrc_state_model(model, nelectron=25, active_electrons=5, active_orbitals=4, spin=1)
-        assert 'closed,10' in deck and 'occ,14' in deck and 'wf,25,1,3' not in deck
+        assert 'closed,10' in deck and 'occ,14' in deck and 'wf,25,1,3' in deck
         assert 'rotate,8.1,11.1,0' in deck or 'rotate,11.1,8.1,0' in deck
-    levels = expected_levels(leaf, symbols=match['symbols'], state_roots={2:4})
-    assert levels['trusted_correction']['basis'] == previous['vrc_tst_high_basis']
-    assert levels['trusted_correction']['extrapolation_power'] == 3.7
+    levels = expected_levels(leaf, symbols=match['symbols'], settings=spin, state_roots={2:4,4:1})
+    assert levels['trusted_correction']['reference']['basis'] == previous['vrc_tst_high_basis']
+    assert levels['trusted_correction']['reference']['extrapolation_power'] == 3.7
     assert stage['distances_angstrom'] == previous['rotdpy_dist']
     assert all(p.read_bytes()==value for p,value in before.items())
     helper.review(source, case_input, selected, apply=True)
@@ -441,10 +546,14 @@ def test_review_serializes_concurrent_input_edits(request_tree):
 
 
 @pytest.mark.parametrize('worker_status',['exploring','ready'])
-def test_review_reaches_existing_owner_and_preserves_native_work(request_tree,worker_status):
+def test_review_reaches_existing_owner_and_preserves_native_work(request_tree,worker_status,monkeypatch):
     import os
     from types import SimpleNamespace
     from kinbot import input_refresh, pes_phase, live_control
+    # Exercise the real owner/worker identity comparisons without depending
+    # on the host's ps latency or permission policy (Linux /proc is separate).
+    monkeypatch.setattr(pes_phase,'process_identity',lambda pid:
+        dict(host='test-host',pid=pid,start='fixed-start',boot='test-boot'))
     source=completed_screen(request_tree)
     _,case_input,_=request_tree
     root=case_input.parent
@@ -480,3 +589,104 @@ def test_review_reaches_existing_owner_and_preserves_native_work(request_tree,wo
     helper.review(source,case_input,SELECTION,apply=True)
     assert len(live_control.requests(worker,kinds={'network'}))==int(worker_status=='ready')
     assert native.read_bytes()==b'existing expensive work'
+
+
+@pytest.mark.parametrize('far_in_points', [True, False])
+def test_production_checks_run_actual_saved_models_under_one_cap(request_tree, monkeypatch, far_in_points):
+    from copy import deepcopy
+    from ase import Atoms
+    from ase.io import write
+    from kinbot.execution import file_sha256
+    from kinbot.molpro import validate_vrc_state_model
+    request, case_input, source = request_tree
+    source = completed_screen(request_tree)
+    output = source.parent/'combined'
+    helper.candidates(source, CANDIDATES, output)
+    well = request.parents[3]
+    # This fixture has an artificial accepted D2 leaf with two Q roots and
+    # minimum-Q energy selection: staging must not silently turn it into D1/Q1.
+    selection = helper._read(SELECTION)
+    model = deepcopy(selection['state_model'])
+    model['selected_roots']['2'] = 2
+    model['energy_selection'] = {'4':'lowest'}
+    model = validate_vrc_state_model(model,active_electrons=5,active_orbitals=4,nelectron=25)
+    model = json.loads(json.dumps(model))
+    state = dict(selection['states'][0], root=2)
+    surface = dict(schema=1, reviewed=True, review_note='Synthetic test', channels=[dict(
+        bond=[1,2],combination='single',bottlenecks=[dict(name='single',coordinate='reactive',
+        distances_angstrom=[2.,4.,20.],parameters={},states=[state])])])
+    par = dict(helper._read(case_input), vrc_tst_surface_model=surface,
+        vrc_tst_active_space=selection['active_space'], vrc_tst_state_model=model,
+        vrc_tst_selected_roots={'2':2,'4':1}, vrc_tst_correction_model='spin_splitting',
+        vrc_tst_spin_splitting=dict(reference=dict(method='uccsd(t)-f12b',basis=['avdz-f12','avtz-f12'],
+            extrapolation_power=3.7), gap_levels=[dict(label='caspt2',method='caspt2-f12(5,4)',
+                basis=['avdz-f12','avtz-f12'],extrapolation_power=3.7,shift=.1,ipea=.25)],
+            weighting={'model':'arithmetic_mean'}),
+        vrc_tst_sample_method='caspt2-f12(5,4)',vrc_tst_sample_basis='avdz-f12')
+    atomic_json(well/(well.name+'.json'),par)
+    leaf = well.name+'_hom_sci_1_2__single_m2_r2'
+    live = well/'vrctst/orbital_review'/(well.name+'_hom_sci_1_2')/'request.json'
+    atomic_json(live,helper._read(request))
+    points = {}
+    for distance in (2.,4.,30.):
+        graph = well/'vrctst/molpro_scan'/(f'{leaf}_vts_fragments_asymptote_test'
+                                        if distance == 30. else f'point_{distance}')
+        d = graph/'tasks/relaxed_scan'; d.mkdir(parents=True)
+        wfu = d/'native.wfu';wfu.write_text('immutable synthetic checkpoint')
+        checkpoint = dict(model, orbital_selection=dict(mode='molpro_record',path=str(wfu),
+            record='2140.2',sha256=file_sha256(wfu),orbital_type='natural',active_indices=[11,12,13,14],
+            align_active_orbitals=False))
+        profile = dict(method='caspt2-f12(5,4)',basis='avdz-f12',calculator_kwargs=dict(
+            state_model=checkpoint,caspt2_shift=.1,caspt2_ipea=.25,scf_convergence=1.e-8,
+            correlation_convergence=1.e-7))
+        atoms = Atoms('CSHHH',positions=helper._read(request)['positions'])
+        for name in ('final.xyz','relaxed_scan_step_0001.xyz'): write(d/name,atoms,format='xyz')
+        (d/'relaxed_scan_step_0001.inp').write_text('synthetic native force evaluation')
+        (d/'relaxed_scan_step_0001.out').write_text('synthetic native force output')
+        atomic_json(d/'task.json',dict(task=dict(profile=profile)))
+        atomic_json(graph/'workflow.json',dict(molecule=dict(symbols=atoms.get_chemical_symbols(),
+                                                           positions=atoms.positions.tolist(),charge=0,multiplicity=2)))
+        artifacts = {p.name:file_sha256(p) for p in d.iterdir() if p.is_file()}
+        atomic_json(d/'execution.json',dict(status='executed',artifacts=artifacts,
+            details=dict(generated_files=['relaxed_scan_step_0001.inp','native.wfu'],orbital_checkpoint_model=checkpoint)))
+        points[str(distance)] = dict(status='accepted',graph=str(graph),distance_angstrom=distance,
+            hashes={str(p):file_sha256(p) for p in (graph/'workflow.json',d/'final.xyz',d/'execution.json')})
+    points['bad'] = dict(status='needs_review',distance_angstrom=6.,graph='/never/use')
+    if not far_in_points:
+        points.pop('30.0')
+    atomic_json(well/'vrctst/scan_review'/leaf/'scan_review.json',
+        dict(reaction=leaf,status='running',context=dict(separation_angstrom=30.,
+             state_model=checkpoint,fragment_geometry=atoms.positions.tolist()),points=points))
+    production = case_input.parent.parent
+    before = {p:p.read_bytes() for p in production.rglob('*') if p.is_file()}
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:pytest.fail('Staging must not launch anything'))
+    result = helper.production_checks(production,output)
+    assert result['added_tasks'] == 2 and result['skipped'] == [] and result['max_jobs'] == 3
+    record = helper._saved(output)
+    for system in record['systems'][-2:]:
+        m = helper._read(system['manifest']);j = m['jobs'][0]
+        assert len(m['jobs']) == 1
+        assert j['initial_record']['path'].endswith('/native.wfu')
+        assert j['state_model']['selected_roots']['2'] == 2
+        assert j['state_model']['energy_selection']['4'] == 'lowest'
+        assert j['state_model']['state_average'] == model['state_average']
+        assert system['production_probe']['distance_angstrom'] in (4.,30.)
+        deck = (Path(j['directory'])/(j['name']+'.inp')).read_text()
+        assert 'rotate,' not in deck and 'diab,' not in deck and 'force' not in deck
+        assert 'natorb,3001.2,state=1.1,spin=3' in deck
+        assert 'natorb,3002.2,state=2.1,spin=3' in deck
+        assert '{uccsd(t)-f12b,thrden=1.d-7,thrvar=1.d-10}' in deck
+    assert helper.production_checks(production,output)['status'] == 'already_prepared'
+    assert all(p.read_bytes()==value for p,value in before.items())
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:None)
+    from kinbot import run_walltime
+    monkeypatch.setattr(run_walltime,'partition_walltime',lambda _: '31-00:00:00')
+    calls = []
+    def launch(paths, **kwargs):
+        calls.append((paths,kwargs))
+        return [dict(status='complete_review_required',jobs=helper._read(p)['jobs']) for p in paths]
+    monkeypatch.setattr(helper.recon,'run_many',launch)
+    monkeypatch.chdir(output)
+    helper.run(output)
+    assert len(calls) == 1 and len(calls[0][0]) == len(record['systems'])
+    assert calls[0][1] == dict(keep_going=True,max_jobs=3,allocation_retries=2)

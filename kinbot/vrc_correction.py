@@ -222,7 +222,8 @@ def spin_splitting_settings(parameters, *, parent_multiplicity=None,
         if not alternatives:
             raise ValueError(
                 'The accepted fragments provide only one coupled spin '
-                'surface; a spin-splitting correction is not defined.')
+                'surface; specify reference_multiplicity explicitly for '
+                'a separately reviewed energy-reference state.')
         # The single-reference anchor is the maximum-spin coupling. Falling
         # back to a lower-spin anchor for an already-high-spin target reverses
         # the physical justification for this correction. Expert references
@@ -262,6 +263,9 @@ def _validate_spin_splitting_settings(settings):
             or target == reference_multiplicity):
         raise ValueError('Spin-splitting target and reference multiplicities '
                          'must be distinct positive integers.')
+    if target % 2 != reference_multiplicity % 2:
+        raise ValueError('Spin-splitting target and reference multiplicities '
+                         'must have the same electron-spin parity.')
     fragments = settings['fragment_multiplicities']
     if fragments is not None:
         if (not isinstance(fragments, list) or len(fragments) != 2
@@ -270,9 +274,13 @@ def _validate_spin_splitting_settings(settings):
             raise ValueError('fragment_multiplicities must contain two '
                              'positive integers.')
         allowed = coupled_multiplicities(*fragments)
-        if target not in allowed or reference_multiplicity not in allowed:
-            raise ValueError('Spin-splitting multiplicities are not allowed '
+        if target not in allowed:
+            raise ValueError('Spin-splitting target multiplicity is not allowed '
                              'by the two fragment spins.')
+        # The reference is an auxiliary energy calculation, not another
+        # reactive surface. An explicitly selected reference may correlate
+        # with excited fragment terms. Its CC and MR states must match; the
+        # actual products and target-spin statistical weights stay unchanged.
     reference = settings['reference']
     if (not isinstance(reference, dict)
             or set(reference) - {'method', 'basis', 'extrapolation_power'}

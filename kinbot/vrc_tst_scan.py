@@ -1217,10 +1217,9 @@ class VTS:
                     raise ValueError(
                         'The spin-splitting target multiplicity differs from '
                         'the associated molecular state.')
-                if (parent_mult not in allowed
-                        or settings['reference_multiplicity'] not in allowed):
+                if parent_mult not in allowed:
                     raise ValueError(
-                        'The requested target/reference spin surfaces are '
+                        'The requested target spin surface is '
                         'not allowed by the fragment multiplicities.')
             elif len(reaction.products) == 2:
                 roots = self._state_average_roots(reaction.products,

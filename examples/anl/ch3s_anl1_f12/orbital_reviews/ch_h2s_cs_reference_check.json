@@ -1,0 +1,147 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "471230610040000000002",
+    "reaction": "471230610040000000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]"
+      }
+    ]
+  },
+  "reference_check": {
+    "target_multiplicity": 2,
+    "reference_multiplicity": 4,
+    "root": 1,
+    "bases": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "extrapolation_power": 3.7,
+    "far_distance_angstrom": 30.0
+  },
+  "candidates": [
+    {
+      "name": "ch_h2s_cs_reference_check",
+      "anchors": [
+        {
+          "source": "cs_r_2"
+        },
+        {
+          "source": "cs_r_2",
+          "name": "cs_r_3p5",
+          "distance_angstrom": 3.5
+        },
+        {
+          "source": "cs_r_2",
+          "name": "cs_r_30",
+          "distance_angstrom": 30.0
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [
+        {
+          "method": "caspt2-f12(5,4)",
+          "shift": 0.1,
+          "ipea": 0.25,
+          "reference_policy": "state_average"
+        },
+        {
+          "method": "uccsd(t)-f12b",
+          "multiplicity": 4
+        }
+      ],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "chemical_note": "Fixed-geometry reference check, not a relaxed scan or production approval. Use the exact proposed 2 A basis-specific natural seed at every distance; exchange source 8 with 11 once and keep 12-14. This tests transfer of the proposed initial active span without mistaking far source 8 for the donor. Retain four doublets and one auxiliary quartet with equal spin-block weights; compare MR quartet character with independent quartet ROHF/CC. The candidate far quartet is CH(a4Sigma-) + H2S; its gap need not vanish. All CC/MR energies share the same geometry in each job.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 4,
+              "weights": [
+                0.25,
+                0.25,
+                0.25,
+                0.25
+              ]
+            },
+            {
+              "multiplicity": 4,
+              "roots": 1,
+              "weights": [
+                1.0
+              ]
+            }
+          ],
+          "selected_roots": {
+            "2": 1,
+            "4": 1
+          },
+          "canonical_orbitals": true,
+          "correlation_options": {
+            "max_iterations": 2000,
+            "max_reference_iterations": 2000,
+            "max_reference_vectors": 60,
+            "energy_convergence": 1e-08,
+            "coefficient_convergence": 1e-05,
+            "reference_policy": "state_average"
+          },
+          "casscf_options": {
+            "solver": "so_sci",
+            "quasi_newton": true,
+            "exact_diagonalization": true,
+            "energy_convergence": 1e-08,
+            "gradient_convergence": 1e-05,
+            "max_iterations": 999
+          }
+        },
+        "orbital_partition": {
+          "source_active_electrons": 13,
+          "source_active_orbitals": 11,
+          "close_lowest": 4,
+          "discard_highest": 3,
+          "orbital_swaps": [
+            [
+              2,
+              5
+            ]
+          ]
+        }
+      },
+      "reference_identity_check": true,
+      "scf_convergence": 1e-08,
+      "correlation_convergence": 1e-07,
+      "scf_options": {}
+    }
+  ]
+}

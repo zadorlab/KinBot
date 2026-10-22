@@ -213,6 +213,83 @@ def test_default_multireference_scan_publishes_only_caspt2_geometries():
             os.chdir(previous)
 
 
+@pytest.mark.parametrize('fragment_mults', [(3, 2), (2, 1)])
+def test_energy_anchor_geometry_cbs_and_nonzero_asymptotic_gap(tmp_path, monkeypatch, fragment_mults):
+    """Synthetic energies exercise the actual dispatcher/assembler, not QC."""
+    from kinbot import constants
+    from kinbot.anl.extrapolation import two_point_cbs
+    monkeypatch.chdir(tmp_path)
+    Path('vrctst/molpro').mkdir(parents=True)
+    distances = [2., 3., 4., 30.]
+    symbols = ['C', 'S', 'H', 'H', 'H']
+    database = connect('kinbot.db')
+    geometries = {}
+    for index, distance in enumerate(distances):
+        base = 'r_vts_pt_asymptote' if index == 3 else f'r_vts_pt{index:02d}'
+        geom = np.array([[0.,0.,0.],[distance,0.,0.],[distance,1.,0.],
+                         [distance,-1.,0.],[0.,0.,1.]])
+        frozen = geom.copy(); frozen[2,1] += .12
+        for name, positions in [(base,geom),(base+'_fr',frozen)]:
+            geometries[name] = positions
+            database.write(Atoms(symbols, positions=positions), name='vrctst/'+name,
+                           data={'status':'normal'})
+    product_maps = ([0,3,4],[1,2]) if fragment_mults == (3,2) else ([0,4],[1,2,3])
+    products = [SimpleNamespace(atom=[symbols[i] for i in mapping],
+        geom=geom[mapping], mult=mult) for mapping,mult in zip(product_maps,fragment_mults)]
+    parameters = dict(vrc_tst_scan_points=distances[:-1], vrc_tst_scan_molpro_key='MYENERGY',
+        vrc_tst_correction_model='spin_splitting',
+        vrc_tst_sample_method='caspt2-f12(5,4)', vrc_tst_sample_basis='avdz-f12',
+        vrc_tst_state_average_roots={'2':4,'4':1},
+        vrc_tst_spin_splitting={'reference_multiplicity':4,
+            'gap_levels':[dict(label='cas',method='caspt2-f12(5,4)',
+                basis=['avdz-f12','avtz-f12'],extrapolation_power=3.7)]})
+    vts = VTS(SimpleNamespace(geom=geom), parameters, None)
+    vts._surface_name = 'r'  # avoid plotting
+    vts.scan_reac['r'] = SimpleNamespace(products=products, usym=[[[0]],[[1]]],
+        equiv=[[0],[1]], maps=[np.array(m) for m in product_maps],
+        species=SimpleNamespace(atom=symbols,charge=0,mult=2))
+    values = {
+        'sampling': [-9.98,-9.99,-9.995,-10.],
+        'reference:0': [-9.80,-9.78,-9.77,-9.75],
+        'reference:1': [-9.90,-9.88,-9.87,-9.85],
+        'gap:cas:target:0': [-9.88,-9.86,-9.85,-9.83],
+        'gap:cas:target:1': [-9.99,-9.965,-9.95,-9.92],
+        'gap:cas:reference:0': [-9.60,-9.58,-9.57,-9.55],
+        'gap:cas:reference:1': [-9.70,-9.68,-9.67,-9.65]}
+    saved = {}
+    class Native:
+        def __init__(self, species, par): self.species = species
+        def create_molpro_input(self, name, VTS, sample, vrc_level):
+            index = 3 if 'asymptote' in name else int(name.split('_vts_pt')[1][:2])
+            base = 'r_vts_pt_asymptote' if index == 3 else f'r_vts_pt{index:02d}'
+            expected = base + ('_fr' if sample or index == 3 else '')
+            assert self.species.geom == pytest.approx(geometries[expected])
+            saved[name] = values[vrc_level['role']][index]
+            Path(f'vrctst/molpro/{name}.inp').write_text(str(vrc_level))
+        def get_molpro_energy(self, key, name, VTS):
+            return (1,saved[name]) if Path(f'vrctst/molpro/{name}.out').exists() else (0,-1.)
+    def dispatch(pending):
+        from kinbot.input_refresh import file_sha256
+        for name in pending:
+            p = Path('vrctst/molpro')/name
+            p.with_suffix('.out').write_text('Synthetic converged energy fixture')
+            p.with_suffix('.input.sha256').write_text(file_sha256(p.with_suffix('.inp')))
+    monkeypatch.setattr('kinbot.vrc_tst_scan.Molpro', Native)
+    monkeypatch.setattr(vts, '_dispatch_molpro_corrections', dispatch)
+    vts.energies(['r'])
+    correction = json.loads(Path('vrctst/corr_r.json').read_text())
+    def cbs(role):
+        return np.array([two_point_cbs(a,b,upper_cardinal=3,power=3.7)
+                         for a,b in zip(values[role+':0'],values[role+':1'])])
+    high = cbs('reference') + cbs('gap:cas:target') - cbs('gap:cas:reference')
+    assert correction['e_inf_high'] == pytest.approx(high[-1])
+    assert correction['e_high'] == pytest.approx((high-high[-1])*constants.AUtoKCAL)
+    assert correction['e_samp'] == pytest.approx((np.array(values['sampling'])+10.)*constants.AUtoKCAL)
+    assert correction['frags_mult'] == list(fragment_mults)
+    assert correction['vrc_molecule']['multiplicity'] == 2
+    assert len(saved) == 28
+
+
 def test_explicit_gaussian_scan_keeps_legacy_qc_route():
     geometry = np.asarray([
         [0., 0., 0.], [0., 0., .74],

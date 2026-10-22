@@ -483,6 +483,14 @@ def _load(path):
     checks = data.get('correlation_checks', [])
     if not isinstance(checks, list):
         raise ValueError('correlation_checks must be a list.')
+    if type(data.get('reference_identity_check', False)) is not bool:
+        raise ValueError('reference_identity_check must be boolean.')
+    if data.get('reference_identity_check'):
+        refs = [c.get('multiplicity') for c in checks
+                if isinstance(c, dict) and c.get('method', '').lower() == 'uccsd(t)-f12b']
+        if (len(refs) != 1 or refs[0] not in
+                {e['multiplicity'] for e in data.get('_probe_model', {}).get('state_average', [])}):
+            raise ValueError('Reference identity check requires one CC reference in the MR state average.')
     if checks and data.get('probe_method') != 'casscf':
         raise ValueError('Correlated validation requires optimized CASSCF orbitals.')
     single_reference_seen = False
@@ -630,6 +638,9 @@ def _deck(data, basis, anchor, stem, previous=None):
         for symbol, (x, y, z) in zip(data['symbols'], geometry))
     scf = fortran_threshold(data.get('scf_convergence', 1.e-10),
                             'scf_convergence')
+    coeff = fortran_threshold(data.get('correlation_convergence', 1.e-5), 'correlation_convergence')
+    thresholds = (f'gthresh,energy={scf},coeff={coeff},civec={coeff}\n'
+                  if 'correlation_convergence' in data else f'gthresh,energy={scf},coeff=1.d-5\n')
     scf_options = data.get('scf_options', {})
     scf_command = 'rhf' + {'diis': '', 'second_order': ',so', 'so_sci': ',so-sci'}[
         scf_options.get('solver', 'diis')]
@@ -642,8 +653,7 @@ def _deck(data, basis, anchor, stem, previous=None):
         f'file,2,{stem}.wfu\n'
         'angstrom\norient,noorient\nsymmetry,nosym\n'
         f'geometry={{\n{len(data["symbols"])}\n{stem}\n{rows}\n}}\n'
-        + basis_input +
-        f'gthresh,energy={scf},coeff=1.d-5\n'
+        + basis_input + thresholds +
         'gprint,orbitals,orben,civector\n'
         + _recon_rhf(scf_command, data['_electrons'], data['multiplicity'] - 1, '2100.2') +
         'gprint,orbitals,orben,civector\n'
@@ -719,6 +729,14 @@ def _deck(data, basis, anchor, stem, previous=None):
             deck = '! Initial orbital checkpoint SHA-256: {{PREVIOUS_WFU_SHA256}}\n' + deck
         if method == 'casscf' and controls:
             multi = multi.replace('{multi,', '{multi,' + ','.join(controls) + ';', 1)
+        if data.get('reference_identity_check'):
+            from kinbot.molpro_reference_identity import natural_cards
+            reference = next(c['multiplicity'] for c in data['correlation_checks']
+                             if c['method'].lower() == 'uccsd(t)-f12b')
+            # Diagnostic saves only: keep the original SA natural/canonical
+            # records last, and do not change optimization roots or weights.
+            multi = multi.replace('canonical,2141.2\n',
+                natural_cards(model, reference)+'canonical,2141.2\n')
         deck += (avas + multi + f'{{put,molden,{stem}.natural.molden;orbital,2140.2,type=natural}}\n'
                  'reconenergy=energy(1)\nshow,reconenergy\n')
         for index in range(1, sum(entry['roots'] for entry in model['state_average']) + 1):
@@ -731,9 +749,19 @@ def _deck(data, basis, anchor, stem, previous=None):
                 counter += 1
                 # Fresh restricted reference for this explicitly requested spin.
                 # Preserve the reviewed MULTI orbital records for later selection.
-                deck += (_recon_rhf(scf_command, data['_electrons'], check['multiplicity'] - 1, '2150.2')
-                         + '{uccsd(t)-f12}\n'
-                         f'reconc{counter}=energy(2)\nshow,reconc{counter}\n')
+                deck += _recon_rhf(scf_command, data['_electrons'], check['multiplicity'] - 1, '2150.2')
+                if data.get('reference_identity_check'):
+                    from kinbot.molpro_reference_identity import export_deck
+                    deck += (f'put,molden,{stem}.reference_c{counter}_m{check["multiplicity"]}.molden\n'
+                             + export_deck(stem, model, check['multiplicity']))
+                if data.get('reference_identity_check'):
+                    from kinbot.theory import molpro_cc_thresholds
+                    den, var = molpro_cc_thresholds(data.get('correlation_convergence', 1.e-7))
+                    deck += (f'{{uccsd(t)-f12b,thrden={den},thrvar={var}}}\n'
+                             f'reconc{counter}=energy\nshow,reconc{counter}\n')
+                else:
+                    deck += ('{uccsd(t)-f12}\n'
+                             f'reconc{counter}=energy(2)\nshow,reconc{counter}\n')
                 continue
             for entry in model['state_average']:
                 simultaneous = (model.get('correlation_options', {}).get('state_policy')
@@ -1211,6 +1239,10 @@ def _execute(job):
                 result = subprocess.run(command, cwd=local, env=env, check=False,
                                         stdout=stdout, stderr=stderr)
         execution['returncode'] = result.returncode
+        identity = [directory/p for p in re.findall(
+            r'(?im)^write,\w+,([^,\n]+\.identity_\w+\.out),new,scientific\s*$', native_text)]
+        if identity:
+            execution['reference_identity_matrices'] = {p.name: file_sha256(p) for p in identity if p.is_file()}
         from kinbot.molpro_diagnostics import write_native_report
         report = write_native_report(directory / (name + '.out'), native)
         if report is not None:
@@ -1225,6 +1257,8 @@ def _execute(job):
                     detail += f'\n{label}:\n{tail}'
             execution['retryable_io'] = molpro_io_failure(detail)
             raise RuntimeError(f'{name}: Molpro exited with status {result.returncode}.{detail}')
+        if any(not p.is_file() for p in identity):
+            raise RuntimeError('Native calculation did not export every requested reference-identity matrix.')
         execution['status'] = 'complete'
     except BaseException as error:
         execution.update(status='failed', error=str(error))

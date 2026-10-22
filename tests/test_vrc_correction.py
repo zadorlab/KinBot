@@ -132,6 +132,26 @@ def test_already_high_spin_target_does_not_silently_use_low_spin_cc_anchor():
     assert settings['reference_multiplicity'] == 2
 
 
+def test_explicit_energy_reference_need_not_be_a_ground_fragment_coupling():
+    parameters = _parameters(vrc_tst_spin_splitting={'reference_multiplicity': 4})
+    settings = spin_splitting_settings(parameters, parent_multiplicity=2,
+                                        fragment_multiplicities=[2, 1])
+    assert settings['fragment_multiplicities'] == [2, 1]
+    assert settings['target_multiplicity'] == 2
+    assert settings['reference_multiplicity'] == 4
+    with pytest.raises(ValueError, match='specify reference_multiplicity'):
+        spin_splitting_settings(_parameters(), parent_multiplicity=2,
+                                fragment_multiplicities=[2, 1])
+    with pytest.raises(ValueError, match='same electron-spin parity'):
+        spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
+            'reference_multiplicity': 3}), parent_multiplicity=2,
+            fragment_multiplicities=[2, 1])
+    with pytest.raises(ValueError, match='target multiplicity is not allowed'):
+        spin_splitting_settings(_parameters(vrc_tst_spin_splitting={
+            'reference_multiplicity': 2}), parent_multiplicity=4,
+            fragment_multiplicities=[2, 1])
+
+
 @pytest.mark.parametrize('override,message', [
     ({'target_multiplicity': 4}, 'accepted parent'),
     ({'fragment_multiplicities': [2, 5]}, 'accepted products'),

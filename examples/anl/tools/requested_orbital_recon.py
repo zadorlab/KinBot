@@ -10,6 +10,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import tempfile
@@ -110,7 +111,11 @@ def candidates(source, recipe, output):
             data.update(title=name, probe_method='casscf', orbital_initialization='independent',
                         probe_definition=definition, anchors=[], initial_records={},
                         casscf_options=deepcopy(item['casscf_options']),
+                        reference_identity_check=item.get('reference_identity_check', False),
                         correlation_checks=deepcopy(item['correlation_checks']))
+            for key in ('scf_convergence', 'correlation_convergence', 'scf_options'):
+                if key in item:
+                    data[key] = deepcopy(item[key])
             for choice in item['anchors']:
                 if set(choice) - {'source', 'name', 'distance_angstrom', 'rotation'}:
                     raise ValueError('Candidate anchors accept source, name, distance and rotation.')
@@ -408,7 +413,64 @@ def bind(source, request, *, apply=True):
     return dict(status='bound_for_review',request=str(request),production_model_accepted=False)
 
 
+def production_checks(production, output):
+    """Append fixed-geometry native checks to one unstarted shared-cap panel."""
+    from kinbot.vrc_reference_probes import prepare_configs
+    root = Path(output).expanduser().resolve(strict=True)
+    production = Path(production).expanduser().resolve(strict=True)
+    if root.is_relative_to(production):
+        raise ValueError('Keep reference checks outside production.')
+    with recon._manifest_lock(root):
+        record = _saved(root)
+        if Path(record['production_policy']).parent != production:
+            raise ValueError('The panel and production must share one resource policy.')
+        if record.get('production_checks'):
+            return dict(status='already_prepared', **record['production_checks'])
+        for system in record['systems']:
+            state = _read(system['manifest'])
+            if any(j.get('job_id') or j.get('status', 'prepared') != 'prepared' for j in state['jobs']):
+                raise ValueError('Append production checks before starting this panel.')
+        template = _read(record['systems'][0]['configuration'])
+        configurations, skipped = prepare_configs(production, template)
+        if not configurations:
+            raise ValueError('No eligible production points: '+json.dumps(skipped))
+        policy = run_policy.read(production) or {}
+        # Preflight every native deck before publishing the new systems.
+        with tempfile.TemporaryDirectory(prefix='kinbot-production-probe-') as tmp:
+            for data, provenance in configurations:
+                path = Path(tmp)/(data['title']+'.json')
+                atomic_json(path, data)
+                loaded = recon._load(path)
+                basis, anchor = loaded['bases'][0], loaded['anchors'][0]
+                recon.validate_input_blocks(recon._deck(loaded, basis['basis'], anchor, 'native__point',
+                    previous=loaded['initial_records']['native__point']), data['title'])
+        for data, provenance in configurations:
+            path = root/(data['title']+'.json')
+            if path.exists() or (root/data['title']).exists():
+                raise FileExistsError('Partial production staging exists; use a fresh panel directory.')
+            atomic_json(path, data)
+            manifest = recon.prepare(path, root/data['title'])
+            state = _read(manifest)
+            state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
+            atomic_json(manifest, state)
+            record['files'][path.name] = file_sha256(path)
+            record['systems'].append(dict(title=data['title'], configuration=str(path),
+                                         manifest=str(manifest), production_probe=provenance))
+        record['max_jobs'] = min(3, record['max_jobs'])
+        record['production_checks'] = dict(added_tasks=len(configurations), skipped=skipped,
+            total_tasks=sum(len(_read(s['manifest'])['jobs']) for s in record['systems']),
+            max_jobs=record['max_jobs'], production_model_accepted=False)
+        atomic_json(root/'review_launch.json', record)
+    return dict(status='prepared', **record['production_checks'])
+
+
 def run(output):
+    root = Path(output).expanduser().resolve(strict=True)
+    with recon._manifest_lock(root):
+        return _run(root)
+
+
+def _run(output):
     root = Path(output).expanduser().resolve(strict=True)
     record = _saved(root)
     policy = run_policy.read(Path(record['request']).parent) or {}
@@ -435,7 +497,7 @@ def run(output):
     previous = Path.cwd()
     try:
         os.chdir(root)
-        options = {'keep_going': True} if record.get('reviews') else {}
+        options = {'keep_going': True} if record.get('reviews') or record.get('production_checks') else {}
         result = recon.run_many(manifests, max_jobs=min(record['max_jobs'], slots),
                                allocation_retries=2, **options)
     finally:
@@ -477,6 +539,229 @@ def evidence(output):
             lines.append('COVERAGE '+key+' '+json.dumps({k:value.get(k) for k in
                 ('status', 'asymptote_plateau', 'suggested_midpoints_angstrom',
                  'suggested_far_distance_angstrom')}))
+    return '\n'.join(lines)
+
+
+def reference_report(output):
+    """Read the finite reference panel; report evidence, never approve science."""
+    from kinbot.molpro_diagnostics import _orbital_tables, parse_native_output
+    root = Path(output).expanduser().resolve(strict=True)
+    record = _saved(root)
+    policy = _read(root/'recipe.json')['reference_check']
+    target, reference = policy['target_multiplicity'], policy['reference_multiplicity']
+    rows, lines = {}, [evidence(root),
+        'Reference audit: convergence is not state-identity or CC-quality acceptance.']
+
+    def orbitals(label, table, low, high):
+        for orbital in table['orbitals']:
+            if not low <= int(orbital['index'].split('.')[0]) <= high:
+                continue
+            ao = sorted(orbital['ao_coefficients'],
+                        key=lambda v: abs(v['coefficient']), reverse=True)[:5]
+            lines.append(f'{label} {orbital["index"]} occ={orbital["occupation"]} AO='
+                         + str([(v['center'], v['component'], v['coefficient']) for v in ao]))
+
+    for system in record['systems']:
+        manifest = _read(system['manifest'])
+        production = system.get('production_probe')
+        reference = production['reference_multiplicity'] if production else policy['reference_multiplicity']
+        target = production['target_multiplicity'] if production else policy['target_multiplicity']
+        for job in manifest['jobs']:
+            if job['status'] != 'complete' or job.get('validation_errors'):
+                continue
+            path = Path(job['directory'])/(job['name']+'.out')
+            if file_sha256(path) != job['output_sha256']:
+                raise ValueError(f'Native output changed: {path}')
+            text = path.read_text(errors='replace')
+            lines.append('\nNATIVE '+system['title']+'/'+job['name'])
+            if production:
+                lines.append('PRODUCTION CONTRACT '+json.dumps(production))
+            audit = parse_native_output(text)
+            tables = [t for section in audit['native_sections']
+                      for t in section.get('orbital_tables', [])
+                      if 'NATURAL' in t['heading'].upper()]
+            closed = (manifest['electron_count']-job['probe_active_space']['active_electrons'])//2
+            if tables:
+                orbitals('CAS', tables[-1], closed+1,
+                         closed+job['probe_active_space']['active_orbitals'])
+            else:
+                lines.append('CAS ORBITAL TABLE MISSING: inspect native output.')
+            for section in audit['native_sections']:
+                if section['program'].upper() not in ('MULTI', 'MCSCF'):
+                    continue
+                for table in section.get('ci_tables', []):
+                    lines.append('CI '+table['text'][:1600])
+            # The last RHF section is the independent reference immediately
+            # before CC, not the initial doublet used to enter MULTI.
+            blocks = re.split(r'(?im)^\s*PROGRAM\s*\*\s*', text)[1:]
+            scf = [b for b in blocks if re.match(r'RHF(?:-SCF)?\b', b, re.I)]
+            if scf:
+                normalized = re.sub(r'(?im)^\s*ELECTRON ORBITALS\s*$',
+                                    'CANONICAL ORBITALS', scf[-1])
+                tables = _orbital_tables(normalized.splitlines(), 1, None, None)
+                if tables:
+                    nclosed = (manifest['electron_count']-reference+1)//2
+                    orbitals('REFERENCE ROHF', tables[-1], nclosed+1, nclosed+reference-1)
+                else:
+                    lines.append('REFERENCE ORBITAL TABLE MISSING: inspect reference Molden/WFU.')
+            diagnostics = [s.strip() for s in text.splitlines() if re.search(
+                r'T1 diagnostic|D1 diagnostic|Norm of t[12]|Expectation value of S|'
+                r'\(T\).*contribution|triples.*(?:energy|contribution)', s, re.I)]
+            lines.extend('CC '+s for s in diagnostics[-12:])
+            from kinbot.molpro_reference_identity import report as identity_report
+            try:
+                identity = identity_report(job['directory'], job['name'],
+                                           job['probe_active_space'], manifest['electron_count'], reference)
+            except (ValueError, OSError, KeyError) as exc:
+                identity = dict(verdict='unavailable', reason=str(exc))
+            reference_energies = [e for e in job.get('correlated_energies_hartree', [])
+                if e['multiplicity'] == reference and e['method'].lower() != 'uccsd(t)-f12b']
+            if reference_energies:
+                root = (min(reference_energies, key=lambda e:e['energy_hartree'])['root']
+                        if production and production['reference_selection'] == 'lowest'
+                        else production['reference_root'] if production else policy['root'])
+                identity['selected_mr_reference_root'] = root
+                identity['correlated_reference_roots'] = reference_energies
+                if 'closest_density_root' in identity:
+                    identity['closest_density_matches_selected_root'] = identity['closest_density_root'] == root
+                    identity['flags'] = []
+                    if identity['closest_density_root'] != root:
+                        identity['flags'].append('Selected MR reference is not the closest ROHF density; inspect root identity/degeneracy.')
+                    if min(identity['rohf_somo_active_projection_eigenvalues'], default=0.) < .9:
+                        identity['flags'].append('ROHF open-shell subspace projects below 90% into the MR active span.')
+                    identity['threshold_note'] = '90% is a diagnostic screening threshold, not a production acceptance criterion.'
+            lines.append('NATIVE IDENTITY '+json.dumps(identity))
+            if production:
+                continue  # DZ spot checks cannot stand in for a new CBS curve.
+            energies = job.get('correlated_energies_hartree', [])
+            values = []
+            for mult, cc in ((reference, True), (target, False), (reference, False)):
+                found = [v['energy_hartree'] for v in energies
+                         if v['multiplicity'] == mult and v['root'] == policy['root']
+                         and (v['method'].lower() == 'uccsd(t)-f12b') == cc]
+                if len(found) != 1 or not np.isfinite(found[0]):
+                    raise ValueError(f'{job["name"]}: reference panel energies are missing or ambiguous.')
+                values.append(found[0])
+            key = (job['distance_angstrom'], job['basis'])
+            if key in rows:
+                raise ValueError('Reference report requires one geometry per distance and basis.')
+            rows[key] = np.array(values)
+    # A deliberately independent DZ/TZ calculation of the production formula.
+    # Report the finite 30 A reference explicitly; do not claim a proven limit.
+    low, high = policy['bases']
+    power = policy['extrapolation_power']
+    complete = {}
+    for distance in sorted({r for r, _ in rows}):
+        if (distance, low) in rows and (distance, high) in rows:
+            complete[distance] = (3.**power*rows[distance, high]
+                                  - 2.**power*rows[distance, low])/(3.**power-2.**power)
+    far = policy['far_distance_angstrom']
+    lines.append('\nCBS columns: R/A, CCref/Eh, MRtarget/Eh, MRref/Eh, '
+                 'MRgap/Eh, anchored interaction/kcal mol-1, direct MR interaction/kcal mol-1')
+    if far not in complete:
+        lines.append('Waiting for both far-reference results; no interaction curve yet.')
+    else:
+        anchor = complete[far][0]+complete[far][1]-complete[far][2]
+        for distance, (cc, low_spin, high_spin) in complete.items():
+            lines.append(f'{distance:g} {cc:.10f} {low_spin:.10f} {high_spin:.10f} '
+                         f'{low_spin-high_spin:.10f} '
+                         f'{(cc+low_spin-high_spin-anchor)*627.509474:.6f} '
+                         f'{(low_spin-complete[far][1])*627.509474:.6f}')
+    lines.append('No production input changed. Inspect CC/MR reference character, '
+                 'active span and diagnostics before refresh; three distances do not certify continuity.')
+    return '\n'.join(lines)
+
+
+def production_evidence(production):
+    """Inspect actual accepted scan artifacts without replaying native QC.
+
+    Select the latest accepted interior point and the separated reference of
+    every saved leaf. Never substitute a proposed recipe or a rejected point.
+    """
+    from ase.io import read as read_atoms
+    from kinbot.molpro_diagnostics import parse_native_output
+    root = Path(production).expanduser().resolve(strict=True)
+    lines = ['READ ONLY: native production state evidence, not scientific approval.']
+    for request in sorted(root.glob('*/[0-9]*/vrctst/scan_review/*/scan_review.json')):
+        saved = _read(request)
+        lines.append('\nCHANNEL '+str(request.relative_to(root)))
+        lines.append('REVIEW '+str(saved.get('status'))+' '+str(saved.get('error')))
+        points = {**saved.get('history', {}), **saved.get('points', {})}
+        accepted = [v for v in points.values() if v.get('status') == 'accepted' and v.get('graph')]
+        if not accepted:
+            lines.append('No accepted native points available.')
+            continue
+        far = saved['context']['separation_angstrom']
+        inner = [v for v in accepted if v['distance_angstrom'] < far]
+        chosen = ([max(inner, key=lambda p: p['distance_angstrom'])] if inner else [])
+        chosen += [v for v in accepted if v['distance_angstrom'] == far]
+        for point in chosen:
+            graph = Path(point['graph'])
+            if not graph.resolve().is_relative_to(root):
+                raise ValueError(f'Production graph lies outside this run: {graph}')
+            for name, expected in point.get('hashes', {}).items():
+                if file_sha256(name) != expected:
+                    raise ValueError(f'Accepted production evidence changed: {name}')
+            directory = graph/'tasks/relaxed_scan'
+            if (directory/'scan_rejection.json').exists():
+                lines.append('REJECTED marker present; excluding '+str(graph))
+                continue
+            execution = _read(directory/'execution.json')
+            if execution.get('status') != 'executed':
+                lines.append('Incomplete execution; excluding '+str(graph))
+                continue
+            task = _read(directory/'task.json')['task']
+            profile = task['profile']
+            options = profile['calculator_kwargs']
+            lines.append('POINT '+str(point['distance_angstrom'])+' A '+str(graph.relative_to(root)))
+            lines.append('PROFILE '+json.dumps({k: profile.get(k) for k in ('method', 'basis')}))
+            model = options['state_model']
+            lines.append('MODEL '+json.dumps({k: model.get(k) for k in
+                ('state_average', 'selected_roots', 'energy_selection', 'correlation_options')}))
+            generated = execution.get('details', {}).get('generated_files', [])
+            inputs = [directory/Path(n).name for n in generated
+                      if re.search(r'_step_\d+\.inp$', str(n))]
+            if not inputs:
+                lines.append('No recorded final force evaluation; native identity unresolved.')
+                continue
+            inp = inputs[-1]
+            actual = read_atoms(inp.with_suffix('.xyz'))
+            final = read_atoms(directory/'final.xyz')
+            if (actual.get_chemical_symbols() != final.get_chemical_symbols()
+                    or not np.allclose(actual.positions, final.positions, atol=1.e-7, rtol=0.)):
+                lines.append('Last force geometry differs from final.xyz; inspect manually.')
+                continue
+            out = inp.with_suffix('.out')
+            audit = parse_native_output(out.read_text(errors='replace'), inp.read_text())
+            # Numerical-gradient output repeats MULTI at displaced geometries.
+            # The first MULTI is the undisplaced final-force evaluation.
+            sections = [s for s in audit['native_sections'] if s['program'].upper() in ('MULTI', 'MCSCF')]
+            lines.append('NATIVE '+str(out.relative_to(root))+' sha256='+file_sha256(out))
+            if not sections:
+                lines.append('No native MULTI section; identity unresolved.')
+                continue
+            section = sections[0]
+            lines.append('NATIVE STATES '+json.dumps(section['states']))
+            lines.append('NATIVE ROOTS '+json.dumps(section['state_energies']))
+            tables = [t for t in section['orbital_tables'] if 'NATURAL' in t['heading'].upper()]
+            if tables:
+                for orbital in tables[-1]['orbitals']:
+                    if orbital['role'] != 'active':
+                        continue
+                    ao = sorted(orbital['ao_coefficients'], key=lambda a: abs(a['coefficient']), reverse=True)[:4]
+                    lines.append(f'ACTIVE {orbital["index"]} occ={orbital["occupation"]} AO='
+                        +str([(v['center'], v['component'], v['coefficient']) for v in ao]))
+            for table in section['ci_tables']:
+                lines.append('CI '+table['text'][:1000])
+        correction = request.parents[2]/('corr_'+saved['reaction']+'.json')
+        if correction.exists():
+            payload = _read(correction)
+            lines.append('CORRECTION '+json.dumps({k: payload.get(k) for k in
+                ('correction_model', 'levels', 'e_inf_high', 'e_inf_samp')}))
+            lines.append('Native correction components: '+str(list(payload.get('native_components', {}))))
+            lines.append('CC/MR reference identity still requires inspection of those native components.')
+        else:
+            lines.append('CC/MR correction components not yet published; their state agreement is NOT verified.')
     return '\n'.join(lines)
 
 
@@ -705,6 +990,9 @@ def main():
     candidate_cmd = commands.add_parser('candidates')
     for name in ('source', 'recipe', 'output'):
         candidate_cmd.add_argument(name)
+    production_cmd = commands.add_parser('production-checks', help='Append native production CC/MR identity probes.')
+    for name in ('production', 'output'):
+        production_cmd.add_argument(name)
     batch_cmd = commands.add_parser('batch',help='Prepare one shared-cap orbital-only campaign.')
     for name in ('production','plan','output'):
         batch_cmd.add_argument(name)
@@ -719,7 +1007,7 @@ def main():
     for name in ('production', 'campaign', 'plan'):
         reviews_cmd.add_argument(name)
     reviews_cmd.add_argument('--apply', action='store_true')
-    for name in ('run', 'monitor', 'evidence'):
+    for name in ('run', 'monitor', 'evidence', 'reference-report', 'production-evidence'):
         commands.add_parser(name).add_argument('output')
     args = parser.parse_args()
     if args.action == 'prepare':
@@ -730,6 +1018,8 @@ def main():
         result = bind(args.source,args.request)
     elif args.action == 'candidates':
         result = candidates(args.source, args.recipe, args.output)
+    elif args.action == 'production-checks':
+        result = production_checks(args.production, args.output)
     elif args.action == 'review':
         result = review(args.source, args.case_input, args.recipe, apply=args.apply)
     elif args.action == 'review-batch':
@@ -738,6 +1028,12 @@ def main():
         result = run(args.output)
     elif args.action == 'evidence':
         print(evidence(args.output))
+        return
+    elif args.action == 'reference-report':
+        print(reference_report(args.output))
+        return
+    elif args.action == 'production-evidence':
+        print(production_evidence(args.output))
         return
     else:
         from kinbot.orbital_monitor import snapshot, render

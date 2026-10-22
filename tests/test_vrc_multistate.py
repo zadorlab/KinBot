@@ -82,6 +82,28 @@ def test_scalar_parameters_preserve_parent_and_select_each_native_root(tmp_path)
     assert par == before
 
 
+@pytest.mark.parametrize('reference_key', ['reference_multiplicity', 'triplet_multiplicity'])
+@pytest.mark.parametrize('inherited_reference', [None, 'triplet_multiplicity'])
+def test_explicit_auxiliary_reference_survives_scalar_routing(reference_key, inherited_reference):
+    from kinbot.vrc_correction import spin_splitting_settings
+    par = {'vrc_tst_correction_model': 'spin_splitting',
+           'vrc_tst_spin_splitting': {
+               'reference': {'method': 'uccsd(t)-f12b', 'basis': ['avdz-f12', 'avtz-f12'],
+                             'extrapolation_power': 3.9}}}
+    if inherited_reference:
+        par['vrc_tst_spin_splitting'][inherited_reference] = 3
+    stage = {'parameters': {'vrc_tst_spin_splitting': {reference_key: 4}},
+             'coordinate': 'reactive', 'distances_angstrom': [2., 3.]}
+    before = deepcopy(par)
+    leaf = state_parameters(par, stage, {'multiplicity': 2, 'root': 1}, [2, 1])
+    assert leaf['vrc_tst_correction_model'] == 'spin_splitting'
+    spin = spin_splitting_settings(leaf, parent_multiplicity=2,
+                                  fragment_multiplicities=[2, 1])
+    assert spin['reference_multiplicity'] == 4
+    assert spin['reference'] == before['vrc_tst_spin_splitting']['reference']
+    assert par == before
+
+
 def test_new_pes_well_cannot_inherit_other_wells_orbitals(tmp_path,monkeypatch):
     from test_rotdpy_profiles import sulfur_correction
     from kinbot import species_routing

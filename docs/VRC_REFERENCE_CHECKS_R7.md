@@ -57,6 +57,35 @@ a missing point never counts as verified. Resume using the usual `run PANEL`
 command. No production refresh is required for this repair. The corrected
 native export still needs confirmation on Blodgett; local tests do not run Molpro.
 
+## Production scope audit after the export failure
+
+Audited at `c56e150c`: the failing `MATROP LOAD ... DEN` diagnostic path is
+called only by `molpro_reconnaissance`. Neither the production single-point
+generator (`kinbot/molpro.py`) nor the ASE/Sella gradient generator
+(`kinbot/ase_modules/calculators/molpro.py`) loads these individual densities.
+The missing DM directive therefore does not invalidate their existing energies
+or gradients. No production controller replacement or QC archival is required
+for either diagnostic export defect.
+
+The production generators specify MULTI/RS2 wavefunctions with `WF` spin=2S,
+use the selected root explicitly (or the declared lowest-energy selector for
+energy-only reference calculations), read the SA canonical orbitals from
+2141.2 for CASPT2 and propagate the packed SA natural orbitals from 2140.2.
+The separate ROHF-UCCSD(T)-F12b reference uses its explicit WF multiplicity;
+the pivot/cube path selects the alpha orbital type for UKS, without a density
+SPIN selector. The dispatch SPIN placeholder is also multiplicity minus one.
+
+Validation: 167 existing tests passed for Molpro ASE, VRC corrections,
+multistate routing, orbital pivots and scan dispatch. A separate renderer audit
+checked 112 inputs using the repository's six current scalar-leaf models plus
+the proposed CH + H2S model, in both aDZ-F12 and aTZ-F12, for initial and packed
+continuation records: target-doublet gradients, target/reference MR energies,
+and quartet CC energies. Synthetic geometry/checkpoint bytes were used solely
+to exercise generation; no native calculation or live production write was
+performed. This establishes the input/selector scope, not native state identity
+or absence of unrelated scientific errors. The panel remains the native check
+at the actual hash-bound production geometries; existing scan holds remain.
+
 ## What runs
 
 * CH + H2S: six fixed-geometry jobs, at 2, 3.5 and 30 A in aDZ-F12 and aTZ-F12.

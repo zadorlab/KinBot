@@ -283,6 +283,11 @@ def _preflight(root):
     for path in paths:
         print(f'Checking replacement controller environment: {path.parent.name}', flush=True)
         validate_automatic_environment(Parameters(str(path)).par)
+        from kinbot.input_refresh import SNAPSHOT
+        from kinbot.vrc_reference_review import validate_input_change
+        snapshot = path.parent/SNAPSHOT
+        if snapshot.exists():
+            validate_input_change(json.loads(snapshot.read_text()), json.loads(path.read_text()), path.parent)
 
 
 def _archive_controllers(root, archive):
@@ -782,6 +787,10 @@ def main(argv=None):
     parser.add_argument('--vrc-scan-basis', help='Change only the VRC relaxed/asymptotic geometry basis.')
     parser.add_argument('--vrc-fragment-geometry', choices=['legacy', 'asymptotic_scan'])
     parser.add_argument('--vrc-pivot-level', choices=['L2', 'custom'])
+    parser.add_argument('--vrc-direct-caspt2-cbs', action='store_true',
+                        help='Use direct CASPT2-F12 aDZ/aTZ CBS for every channel; retain scans.')
+    parser.add_argument('--vrc-reviewed-models', type=Path,
+                        help='Install a hash-bound orbital model proposal in the same handoff.')
     parser.add_argument('--vrc-reference-basis', nargs='+',
                         help='One CC reference basis, or two adjacent bases for CBS extrapolation.')
     parser.add_argument('--vrc-reference-power', type=float,
@@ -799,7 +808,9 @@ def main(argv=None):
                            if args.vdw_detection is not None or args.revisit_rejected or args.deduplicate_ts or args.barrier_threshold_l2 is not None else None)
         result = refresh(root, apply=args.apply, replace_pending=args.replace_pending,
             vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,
-                                 args.vrc_reference_basis, args.vrc_reference_power),
+                                 args.vrc_reference_basis, args.vrc_reference_power,
+                                 direct_caspt2_cbs=args.vrc_direct_caspt2_cbs,
+                                 reviewed_models=args.vrc_reviewed_models),
             cancel_superseded_vrc_scans=args.cancel_superseded_vrc_scans,
             deduplicate_vrc=args.deduplicate_vrc, network_options=network_options)
     print(json.dumps({k: result[k] for k in ('phase', 'code', 'archive') if k in result}, indent=2))
@@ -817,6 +828,11 @@ def main(argv=None):
     if result.get('vrc_migration'):
         migration = result['vrc_migration']
         print('VRC changes: ' + json.dumps(migration['settings'], sort_keys=True))
+        if migration['settings'].get('direct_caspt2_cbs') and result['phase']=='launched':
+            from kinbot.vrc_restart import audit_direct_inputs
+            print('Verified current VRC inputs: '+json.dumps(audit_direct_inputs(root),sort_keys=True))
+            if migration['settings'].get('reviewed_models'):
+                print('Reviewed orbital proposal installed in the same controller handoff.')
         print('Superseded scan IDs (native files retained): ' +
               ', '.join(j['job_id'] for j in migration['selected_jobs']))
     if result.get('vrc_deduplication'):

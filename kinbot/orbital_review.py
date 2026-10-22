@@ -721,6 +721,11 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
         bottleneck['parameters']['vrc_tst_selected_roots'] = {}
         data.pop('vrc_tst_surface_model_file', None)
         data['vrc_tst_surface_model'] = surface
+    from kinbot.vrc_reference_review import validate, validate_additions
+    if data.get('vrc_tst_surface_model'):
+        validate_additions(None, data['vrc_tst_surface_model'], data, input_file.parent)
+    else:
+        validate(data, input_file.parent)
     atomic_json(output, data)
     return output
 

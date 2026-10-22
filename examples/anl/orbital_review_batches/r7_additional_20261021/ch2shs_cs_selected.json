@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "reviewed": true,
-  "review_note": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source 19/20 span the HSS frontier pair and 21/22 become the two singly occupied CH2 frontier orbitals. Far occupations are about 1.5095, 1.5050, 1.0000, 1.0000. Keep five frontier electrons in these four orbitals. Source 18/23 remains a largely filled/empty S-S pair (about 1.958/0.049 far). Two doublets and two quartets retain the diagnostic HSS frontier support; their asymptotic energies differ, so the 1.5/1.5 averaged occupations do not establish an exactly degenerate HSS ground state. Only D1 contributes reactive flux. These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested.",
+  "review_note": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source 19/20 span the HSS frontier pair and 21/22 become the two singly occupied CH2 frontier orbitals. Far occupations are about 1.5095, 1.5050, 1.0000, 1.0000. Keep five frontier electrons in these four orbitals. Source 18/23 remains a largely filled/empty S-S pair (about 1.958/0.049 far). Two doublets and two quartets retain the diagnostic HSS frontier support; their asymptotic energies differ, so the 1.5/1.5 averaged occupations do not establish an exactly degenerate HSS ground state. Only D1 contributes reactive flux. These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested. Update 2026-10-22: use direct CASPT2-F12 aDZ/aTZ CBS (power 3.7), retaining this reviewed orbital state average. No CC energy anchor or spin-gap correction is used.",
   "request_match": {
     "parent": "791671580700000000002-s36f1e2b924862f12",
     "reaction": "791671580700000000002-s36f1e2b924862f12_hom_sci_1_2",
@@ -123,7 +123,13 @@
     "vrc_tst_selected_roots": {
       "2": 1,
       "4": 1
-    }
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
   },
   "required_complete_jobs": [
     "adz__cs_r_2",

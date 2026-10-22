@@ -242,32 +242,6 @@
   },
   "vrc_tst_scan_shift": 0.1,
   "vrc_tst_scan_ipea": 0.25,
-  "vrc_tst_spin_splitting": {
-    "reference": {
-      "method": "uccsd(t)-f12b",
-      "basis": [
-        "avdz-f12",
-        "avtz-f12"
-      ],
-      "extrapolation_power": 3.7
-    },
-    "gap_levels": [
-      {
-        "label": "caspt2_f12",
-        "method": "caspt2-f12(7,5)",
-        "basis": [
-          "avdz-f12",
-          "avtz-f12"
-        ],
-        "extrapolation_power": 3.7,
-        "shift": 0.1,
-        "ipea": 0.25
-      }
-    ],
-    "weighting": {
-      "model": "arithmetic_mean"
-    }
-  },
   "vrc_tst_scan_method": "caspt2-f12(7,5)",
   "vrc_tst_scan_basis": "avdz-f12",
   "vrc_tst_scan_gradient": "numerical",
@@ -278,7 +252,7 @@
     "avtz-f12"
   ],
   "vrc_tst_high_extrapolation_power": 3.7,
-  "vrc_tst_correction_model": "spin_splitting",
+  "vrc_tst_correction_model": "direct",
   "single_point_ppn": 8,
   "vrc_tst_max_nodes": 10,
   "vrc_tst_min_stack_mw": 1000,
@@ -519,7 +493,14 @@
                   ],
                   "charge": 0
                 }
-              }
+              },
+              "vrc_tst_correction_model": "direct",
+              "vrc_tst_high_method": "caspt2-f12(7,5)",
+              "vrc_tst_high_basis": [
+                "avdz-f12",
+                "avtz-f12"
+              ],
+              "vrc_tst_high_extrapolation_power": 3.7
             },
             "states": [
               {
@@ -755,7 +736,14 @@
                   ],
                   "charge": 0
                 }
-              }
+              },
+              "vrc_tst_correction_model": "direct",
+              "vrc_tst_high_method": "caspt2-f12(7,5)",
+              "vrc_tst_high_basis": [
+                "avdz-f12",
+                "avtz-f12"
+              ],
+              "vrc_tst_high_extrapolation_power": 3.7
             },
             "states": [
               {

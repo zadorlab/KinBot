@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "reviewed": true,
-  "review_note": "Reviewed 2026-10-21: CASCI natural orbital character at 2 and 30 angstrom in both avdz-f12 and avtz-f12 identifies source orbitals 11-14 as the SH pi pair plus CH2 frontier pair. Completed avdz CASSCF(5,4) retains this character with occupations 1.70808, 1.48606, 1.02341, 0.78245. Expanded CASSCF(7,6) at 2, 3.5 and 30 angstrom leaves the additional SH sigma/sigma-star pair near 1.98/0.02. Select the compact orbital space for production; no claim of completed two-basis correlated-potential or angular validation. Production performs its configured relaxation and spin-splitting calculations.",
+  "review_note": "Reviewed 2026-10-21: CASCI natural orbital character at 2 and 30 angstrom in both avdz-f12 and avtz-f12 identifies source orbitals 11-14 as the SH pi pair plus CH2 frontier pair. Completed avdz CASSCF(5,4) retains this character with occupations 1.70808, 1.48606, 1.02341, 0.78245. Expanded CASSCF(7,6) at 2, 3.5 and 30 angstrom leaves the additional SH sigma/sigma-star pair near 1.98/0.02. Select the compact orbital space for production; no claim of completed two-basis correlated-potential or angular validation. Production performs its configured relaxation and spin-splitting calculations. Update 2026-10-22: use direct CASPT2-F12 aDZ/aTZ CBS (power 3.7), retaining this reviewed orbital state average. No CC energy anchor or spin-gap correction is used.",
   "request_match": {
     "parent": "471030810040000000002",
     "reaction": "471030810040000000002_hom_sci_1_2",
@@ -124,6 +124,12 @@
     "vrc_tst_selected_roots": {
       "2": 1,
       "4": 1
-    }
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
   }
 }

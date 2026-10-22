@@ -125,7 +125,10 @@ def test_ch_h2s_reference_panel_uses_six_matched_jobs_and_production_seed(reques
     system = helper._read(output/'review_launch.json')['systems'][0]
     data = helper.recon._load(system['configuration'])
     selection = helper._read(recipe.with_name('ch_h2s_cs_selected.json'))
-    assert data['probe_definition']['state_model'] == selection['state_model']
+    # Retain the historical auxiliary-quartet diagnostic recipe; production
+    # now deliberately uses only the four-doublet orbital objective.
+    assert data['probe_definition']['state_model']['state_average'][:1] == selection['state_model']['state_average']
+    assert len(data['probe_definition']['state_model']['state_average']) == 2
     manifest = helper._read(system['manifest'])
     assert {j['distance_angstrom'] for j in manifest['jobs']} == {2.,3.5,30.}
     for job in manifest['jobs']:
@@ -136,7 +139,8 @@ def test_ch_h2s_reference_panel_uses_six_matched_jobs_and_production_seed(reques
         assert 'wf,25,1,1\nstate,4' in deck and 'wf,25,1,3\nstate,1' in deck
         assert deck.count('{rs2-f12,') == 5 and deck.count('{uccsd(t)-f12b,') == 1
         assert 'orbital,3000.2\ndm\n' in deck
-        assert 'load,dr1,den,3000.2,state=1.1,ms2=3' in deck
+        assert 'load,dr1,den,3000.2,set=5' in deck
+        assert deck.index('load,dr1,') < deck.index('{rs2-f12,')
         assert deck.index('orbital,3000.2') < deck.index('canonical,2141.2')
         assert deck.index('load,dhf,den,2150.2') < deck.index('{uccsd(t)-f12b,')
         assert 'wf,25,1,3;occ,14;closed,11;orbital,2150.2' in deck
@@ -435,7 +439,7 @@ def test_review_publishes_only_selected_parent_and_reuses_basis_specific_seeds(r
     assert len(calls)==6 and helper._read(case_input)==proposed
 
 
-def test_ch_h2s_selection_repacks_donor_and_uses_auxiliary_quartet_cbs(request_tree, monkeypatch):
+def test_ch_h2s_selection_repacks_donor_and_uses_direct_doublet_cbs(request_tree, monkeypatch):
     from kinbot import input_refresh
     from kinbot.molpro import _render_vrc_state_model
     from kinbot.vrc_correction import correction_components, expected_levels, spin_splitting_settings
@@ -484,30 +488,22 @@ def test_ch_h2s_selection_repacks_donor_and_uses_auxiliary_quartet_cbs(request_t
     stage = proposed['vrc_tst_surface_models'][match['parent']]['channels'][0]['bottlenecks'][0]
     assert len(stage['states']) == 1 and stage['states'][0]['root'] == 1
     leaf = state_parameters(proposed, stage, stage['states'][0], [2,1])
-    assert leaf['vrc_tst_correction_model'] == 'spin_splitting'
-    assert leaf['vrc_tst_selected_roots'] == {'2':1,'4':1}
-    spin = spin_splitting_settings(leaf, parent_multiplicity=2, fragment_multiplicities=[2,1])
-    assert spin['reference_multiplicity'] == 4
-    components = correction_components(leaf, symbols=match['symbols'], settings=spin,
-                                       state_roots={2:4,4:1})
-    assert [c['role'] for c in components] == ['sampling','reference:0','reference:1',
-        'gap:caspt2_f12:target:0','gap:caspt2_f12:target:1',
-        'gap:caspt2_f12:reference:0','gap:caspt2_f12:reference:1']
+    assert leaf['vrc_tst_correction_model'] == 'direct'
+    assert leaf['vrc_tst_selected_roots'] == {'2':1}
+    components = correction_components(leaf, symbols=match['symbols'], state_roots={2:4})
+    assert [c['role'] for c in components] == ['sampling','trusted:0','trusted:1']
     for component in components:
-        assert component['method'] == ('uccsd(t)-f12b' if component['role'].startswith('reference:')
-                                       else 'caspt2-f12(5,4)')
+        assert component['method'] == 'caspt2-f12(5,4)'
         model = component['state_model']
-        assert model['state_average'] == [dict(multiplicity=2,roots=4,weights=[.25]*4),
-                                         dict(multiplicity=4,roots=1,weights=[1.])]
+        assert model['state_average'] == [dict(multiplicity=2,roots=4,weights=[.25]*4)]
         assert model['orbital_selection']['active_indices'] == [8,12,13,14]
         assert '__cs_r_2.wfu' in model['orbital_selection']['path']
         _, deck, _ = _render_vrc_state_model(model, nelectron=25, active_electrons=5, active_orbitals=4, spin=1)
-        assert 'closed,10' in deck and 'occ,14' in deck and 'wf,25,1,3' in deck
+        assert 'closed,10' in deck and 'occ,14' in deck and 'wf,25,1,3' not in deck
         assert 'rotate,8.1,11.1,0' in deck or 'rotate,11.1,8.1,0' in deck
-    levels = expected_levels(leaf, symbols=match['symbols'], settings=spin, state_roots={2:4,4:1})
-    assert levels['trusted_correction']['reference']['basis'] == previous['vrc_tst_high_basis']
-    assert levels['trusted_correction']['reference']['extrapolation_power'] == 3.7
-    assert stage['distances_angstrom'] == previous['rotdpy_dist']
+    levels = expected_levels(leaf, symbols=match['symbols'], state_roots={2:4})
+    assert levels['trusted_correction']['basis'] == previous['vrc_tst_high_basis']
+    assert levels['trusted_correction']['extrapolation_power'] == 3.7
     assert all(p.read_bytes()==value for p,value in before.items())
     helper.review(source, case_input, selected, apply=True)
     assert publications == [proposed,proposed]
@@ -675,7 +671,8 @@ def test_production_checks_run_actual_saved_models_under_one_cap(request_tree, m
         deck = (Path(j['directory'])/(j['name']+'.inp')).read_text()
         assert 'rotate,' not in deck and 'diab,' not in deck and 'force' not in deck
         assert 'orbital,3000.2\ndm\n' in deck
-        assert 'load,dr2,den,3000.2,state=2.1,ms2=3' in deck
+        from kinbot.molpro_reference_identity import density_sets
+        assert f"load,dr2,den,3000.2,set={density_sets(model,4)[2]}" in deck
         assert '{uccsd(t)-f12b,thrden=1.d-7,thrvar=1.d-10}' in deck
     assert helper.production_checks(production,output)['status'] == 'already_prepared'
     assert all(p.read_bytes()==value for p,value in before.items())
@@ -739,8 +736,10 @@ def test_reference_export_retry_preserves_input_and_failed_evidence(request_tree
     record=helper._saved(output); path=Path(record['systems'][0]['manifest'])
     m=helper._read(path); j=m['jobs'][0]; d=Path(j['directory'])
     inp=d/(j['name']+'.inp')
-    inp.write_text(inp.read_text()+'\n{multi;\nnatorb,3001.2,state=1.1,spin=3\n}\n'
-                   f'{{matrop\nload,dr1,den,3001.2,state=1.1,{selector}=3\n}}\n')
+    inp.write_text('{multi;\nwf,25,1,3\nstate,1\nnatorb,3001.2,state=1.1,spin=3\n}\n'
+                   'reconr1=energy(1)\nshow,reconr1\n'
+                   f'{{matrop\nload,dr1,den,3001.2,state=1.1,{selector}=3\n'
+                   'write,dr1,probe.identity_dr1.out,new,scientific\n}\n')
     j.update(input_sha256=file_sha256(inp),job_id='42',status='incomplete')
     atomic_json(path,m)
     failed = '?REQUESTED DENSITY NOT FOUND IN RECORD    3001.2 FOR STATE= SYM= 1 MS2= 6\n'
@@ -793,3 +792,22 @@ def test_reference_preflight_uses_one_job_and_checks_native_matrices(tmp_path, m
     else:
         helper._reference_preflight(record,[path,other])
     assert calls == [([path],dict(max_jobs=1,allocation_retries=2,capacity_manifests=[other]))]
+
+
+def test_orbital_proposal_is_hash_bound_without_publication(request_tree, monkeypatch):
+    from kinbot import input_refresh
+    from kinbot.execution import file_sha256
+    _, case_input, output = request_tree
+    source=completed_screen(request_tree)
+    monkeypatch.setattr(input_refresh,'owner_directory',lambda _:case_input.parent)
+    monkeypatch.setattr(input_refresh,'submit',lambda *a,**k:pytest.fail('Live publication'))
+    atomic_json(case_input,dict(helper._read(case_input),rotdpy_dist=[2.,3.,4.]))
+    previous=case_input.read_bytes()
+    path=output.parent/'proposal.json'
+    result=helper.proposal(source,case_input,SELECTION,path)
+    record=helper._read(path)
+    assert result['status']=='staged_for_controller_refresh'
+    assert case_input.read_bytes()==previous
+    assert record['input_sha256']==file_sha256(case_input)
+    assert record['models'] and record['evidence']
+    assert all(file_sha256(p)==s for p,s in record['evidence'].items())

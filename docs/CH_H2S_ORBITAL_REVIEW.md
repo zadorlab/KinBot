@@ -4,9 +4,9 @@ This is the orbital-model selection for
 `471230610040000000002_hom_sci_1_2` in the CH3S r7 PES. It does not approve a
 finished potential, scan, or rate. The user supplied eight complete CASCI
 records plus native AO coefficients at 2 and 30 angstrom in both bases.
-The compact orbital selection is a candidate. Run the finite native reference
-panel described below before installing it; the auxiliary quartet has not yet
-been validated by the supplied doublet-only screen.
+The user selected direct CASPT2-F12 CBS after the auxiliary quartet checks
+failed to establish a reliable CC/MR reference. The compact orbital model is
+a reviewed production choice, not a completed potential-validation result.
 
 ## Geometry and evidence
 
@@ -64,9 +64,8 @@ unchanged.
 
 ## State average and correction
 
-Retain **four doublet roots at weight 1/4 each**, as in the screen, and add
-**one quartet root at weight 1** for the auxiliary energy reference. Each spin
-block then has half the total weight (each doublet 1/8, the quartet 1/2). Select
+Retain **four doublet roots at weight 1/4 each**, as in the screen. Do not add
+the auxiliary quartet to this newly installed direct model. Select
 **D1 only** as this ground-parent reactive path. D2-D1 at 30 A is 2.7566 cm-1
 (DZ) or 3.5138 cm-1 (TZ), compared with 0.09034533/0.09020927 Eh at 2 A.
 The near merging is consistent with the CH ground orbital pair, but finite
@@ -84,15 +83,14 @@ reference, not additional reactive flux. CH's X2Pi and a4Sigma- terms are
 listed by [NIST](https://webbook.nist.gov/cgi/cbook.cgi?ID=C3315375&Mask=1000).
 Its quality and its correspondence between CC and MR must be checked.
 
-The revised recipe explicitly requests reference multiplicity 4 and the
-existing CC-plus-MR-gap construction. The implementation now permits that
-auxiliary reference while still enforcing the target's physical fragment
-coupling and electron-spin parity. A partial channel override preserves the
-case's reference basis, gap levels and weighting policy. The arithmetic is
-unchanged: CC reference plus MR target minus MR reference, independently
-extrapolated with aDZ/aTZ-F12 and power 3.7, then subtract the **complete same
-combination at 30 A**. A nonzero excited-reference gap at infinity is allowed.
-See [the correction audit and finite native panel](VRC_REFERENCE_CHECKS_R7.md).
+The installed recipe instead uses direct target-state CASPT2-F12 in avdz-f12
+and avtz-f12, extrapolated with power 3.7. Subtract that same extrapolated
+target energy at the separately optimized 30 A fragment geometry. Sampling
+remains CASPT2-F12/avdz-f12. Shift=0.1 and IPEA=0.25 are unchanged.
+There is no CC anchor or MR spin-gap term. This avoids the observed reference
+mismatch without asserting that direct CASPT2 is more accurate than a valid
+CC-plus-gap model. The failed quartet panel is retained as evidence; it is not
+silently counted as validation of the direct potential.
 
 ## Limits that remain visible
 
@@ -109,24 +107,16 @@ angular accuracy or every production geometry.
 `coverage_refinement_required` is retained in the source manifest. Its
 suggestions (2.75 and 42 A) arise from potential/occupation coverage checks;
 they do not turn successful fixed-geometry orbital probes into failed jobs,
-nor certify an asymptotic plateau. No compact optimized-CASSCF or correlated
-validation panel has been run for this selection. This follows the manual's
+nor certify an asymptotic plateau. No completed compact-space validation of the full direct potential is claimed.
+The partial auxiliary-reference panel used a different, mixed-spin orbital objective. This follows the manual's
 [AVAS screening workflow](https://www.molpro.net/manual/doku.php?id=automated_construction_of_atomic_valence_active_spaces)
 while distinguishing orbital choice from potential validation.
 
-## Check before live handoff
+## In-place handoff
 
-Run the [combined native reference panel](VRC_REFERENCE_CHECKS_R7.md#commands)
-before applying `ch_h2s_cs_selected.json`. It includes six fixed-geometry
-CASPT2-F12/CCSD(T)-F12b jobs for this channel and actual saved-point probes for
-existing production leaves, all under one three-allocation cap. The new
-channel uses its near-2-A donor seed consistently in both bases; the other
-channels use their actual final packed production checkpoints.
-
-After reviewing those results, an in-place controller replacement is needed
-to load the reference-routing fix in this existing r7 process snapshot. It
-retains completed/allocated QC in the same directory. Then the usual `review
---apply` command publishes the selection through live input refresh. Future
-runs started with this code can use explicit auxiliary references without a
-source edit or controller replacement. No refresh is part of the check panel.
-The separate C + SH3 whole-scan review remains unresolved.
+Use the single transaction in [the direct-CBS handoff](VRC_DIRECT_CBS_HANDOFF_R7.md).
+It stages the model from the completed, hash-verified screen, then replaces
+both cases' controllers and installs it while switching every existing channel
+to direct CASPT2-F12 CBS. Existing channels retain their state averages and
+scan work. This newly added channel starts its own four-doublet scan.
+The C + SH3 whole-scan connectivity review remains unresolved.

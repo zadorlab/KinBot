@@ -340,7 +340,7 @@ def vrc_migration_tree(live_tree, monkeypatch):
     from kinbot import vrc_restart
     import shutil
     t = live_tree
-    monkeypatch.setattr(vrc_restart, 'validate_input', lambda *a: None)
+    monkeypatch.setattr(vrc_restart, 'validate_input', lambda *a, **kw: None)
     t.commands = []
     t.terminal = {}
     for index, graph in enumerate(t.graphs):
@@ -949,3 +949,83 @@ def test_refresh_adopts_nested_reference_allocations_and_replaces_only_its_contr
     assert (108,signal.SIGKILL) in t.signals
     assert (ref/'reference_high.sbatch').read_text()=='#!/bin/bash\n'
     assert (Path(result['archive'])/ref.relative_to(t.root)/'driver.stderr').exists()
+
+
+def test_direct_cbs_and_reviewed_channel_share_one_handoff(vrc_migration_tree, tmp_path):
+    from kinbot import vrc_restart
+    from tests.test_input_refresh import surface
+    t = vrc_migration_tree
+    first = surface()
+    first['channels'][0]['bottlenecks'][0]['parameters'].update(
+        vrc_tst_scan_method='caspt2-f12(5,4)', vrc_tst_correction_model='spin_splitting')
+    existing = surface()
+    existing['channels'][0]['bottlenecks'][0]['parameters'].update(
+        vrc_tst_scan_method='caspt2-f12(3,4)', vrc_tst_correction_model='spin_splitting',
+        vrc_tst_active_space=dict(mode='selected', active_electrons=3, active_orbitals=4))
+    payload = dict(vrc_tst_scan_method='caspt2-f12(5,4)', vrc_tst_scan_basis='avdz-f12',
+        vrc_tst_fragment_geometry='asymptotic_scan', vrc_tst_correction_model='spin_splitting',
+        vrc_tst_spin_splitting={'reference_multiplicity':4},
+        vrc_tst_surface_model=first, vrc_tst_surface_models={'456':existing})
+    _, paths = run_salvage._cases(t.root)
+    for path in paths:
+        atomic_json(path, payload)
+        atomic_json(path.parent/'resolved_parameters.json', payload)
+        atomic_json(path.parent/'123/123.json', payload)
+        atomic_json(path.parent/'123/.kinbot_search_options.json',dict(
+            vdW_detection=.5,vrc_tst_surface_models=payload['vrc_tst_surface_models']))
+    prepared=json.loads((t.root/'prepared.json').read_text())
+    prepared['sha256']={str(p.relative_to(t.root)):file_sha256(p) for p in paths}
+    atomic_json(t.root/'prepared.json',prepared)
+    new = surface()
+    new['channels'][0]['bottlenecks'][0]['parameters'].update(
+        vrc_tst_scan_method='caspt2-f12(5,4)', vrc_tst_correction_model='direct')
+    evidence = tmp_path/'native.out';evidence.write_text('retained native screen')
+    proof = tmp_path/'proposal.json'
+    atomic_json(proof, dict(schema=1,kind='orbital_model_proposal',case_input=str(paths[0]),
+        input_sha256=file_sha256(paths[0]), models={**payload['vrc_tst_surface_models'],'789':new},
+        evidence={str(evidence):file_sha256(evidence)}))
+    updates = vrc_restart.settings(direct_caspt2_cbs=True, reviewed_models=proof)
+    before = scientific_files(t.root)
+    reviewed = run_refresh.refresh(t.root, vrc_updates=updates)
+    assert not reviewed['vrc_migration']['replace_geometry']
+    assert reviewed['vrc_migration']['selected_jobs'] == []
+    assert not t.signals
+    result = run_refresh.refresh(t.root, apply=True, vrc_updates=updates)
+    assert result['phase'] == 'launched' and len(t.jobs)==4 and not t.commands
+    assert before == scientific_files(t.root)
+    for path in paths:
+        for p in (path,path.parent/'resolved_parameters.json',path.parent/'123/123.json'):
+            data=json.loads(p.read_text())
+            assert data['vrc_tst_correction_model']=='direct'
+            assert 'vrc_tst_spin_splitting' not in data
+            assert data['vrc_tst_high_basis']==['avdz-f12','avtz-f12']
+            assert data['vrc_tst_high_extrapolation_power']==3.7
+            par=data['vrc_tst_surface_models']['456']['channels'][0]['bottlenecks'][0]['parameters']
+            assert par['vrc_tst_high_method']=='caspt2-f12(3,4)'
+            assert par['vrc_tst_correction_model']=='direct'
+            assert ('789' in data['vrc_tst_surface_models']) == (path==paths[0])
+    for path in paths:
+        overrides=json.loads((path.parent/'123/.kinbot_search_options.json').read_text())
+        assert set(overrides)=={'vdW_detection','vrc_tst_surface_models'}
+        assert overrides['vdW_detection']==.5
+        par=overrides['vrc_tst_surface_models']['456']['channels'][0]['bottlenecks'][0]['parameters']
+        assert par['vrc_tst_correction_model']=='direct'
+        assert ('789' in overrides['vrc_tst_surface_models']) == (path==paths[0])
+    assert vrc_restart.audit_direct_inputs(t.root)['input_files']==6
+    # Exact journal replay does not reject its now-old proposal or re-edit files.
+    assert run_refresh.refresh(t.root,apply=True,vrc_updates=updates)==result
+    assert len(t.launches)==2
+
+
+def test_direct_migration_refuses_changed_proposal_evidence_before_stop(vrc_migration_tree, tmp_path):
+    from kinbot import vrc_restart
+    t=vrc_migration_tree
+    _,paths=run_salvage._cases(t.root)
+    proof=tmp_path/'proposal.json';native=tmp_path/'native.out';native.write_text('old')
+    atomic_json(proof,dict(schema=1,kind='orbital_model_proposal',case_input=str(paths[0]),
+        input_sha256=file_sha256(paths[0]),models={},evidence={str(native):file_sha256(native)}))
+    updates=vrc_restart.settings(direct_caspt2_cbs=True,reviewed_models=proof)
+    native.write_text('changed')
+    with pytest.raises(ValueError,match='evidence changed'):
+        run_refresh.refresh(t.root,apply=True,vrc_updates=updates)
+    assert not t.signals and len(t.jobs)==4

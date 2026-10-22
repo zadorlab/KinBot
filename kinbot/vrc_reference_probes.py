@@ -211,6 +211,9 @@ def prepare_configs(production, template):
                                       'Use the final packed checkpoint without repeating initial orbital swaps.',
                         orbital_partition=dict(source_active_electrons=ne,source_active_orbitals=no,
                                                close_lowest=0,discard_highest=0)))
+                from kinbot.vrc_reference_review import contract, digest
+                data['reference_review_contract_sha256'] = digest(contract(par))
+                data['reference_review_distance_angstrom'] = point['distance_angstrom']
                 metadata = dict(channel=leaf, graph=str(graph), distance_angstrom=point['distance_angstrom'],
                     target_multiplicity=target, target_root=target_root, reference_multiplicity=reference,
                     reference_root=model['selected_roots'].get(str(reference), model['selected_roots'].get(reference)),

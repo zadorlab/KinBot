@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "reviewed": true,
-  "review_note": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source orbital 12 is the SH3 frontier orbital and 13-15 span the three carbon 2p directions at separation. Source 11 is principally C 2s (occupation 1.93 near, 1.956 far) and remains inactive. The three active carbon p occupations are about 0.681 each in this state average; the SH3 orbital is about 1.003. Select CAS(3,4) for the three frontier electrons; the summed diagnostic occupations need not be exactly three because the larger space includes correlation. Three doublets and three quartets cover the carbon spatial manifold coupled to the fragment radical. One reactive D1 is a ground-parent surface-model choice, not three reactive channels. These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested.",
+  "review_note": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source orbital 12 is the SH3 frontier orbital and 13-15 span the three carbon 2p directions at separation. Source 11 is principally C 2s (occupation 1.93 near, 1.956 far) and remains inactive. The three active carbon p occupations are about 0.681 each in this state average; the SH3 orbital is about 1.003. Select CAS(3,4) for the three frontier electrons; the summed diagnostic occupations need not be exactly three because the larger space includes correlation. Three doublets and three quartets cover the carbon spatial manifold coupled to the fragment radical. One reactive D1 is a ground-parent surface-model choice, not three reactive channels. These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested. Update 2026-10-22: use direct CASPT2-F12 aDZ/aTZ CBS (power 3.7), retaining this reviewed orbital state average. No CC energy anchor or spin-gap correction is used.",
   "request_match": {
     "parent": "471430450000000000002-s06a7b4c221beb748",
     "reaction": "471430450000000000002-s06a7b4c221beb748_hom_sci_1_2",
@@ -124,7 +124,13 @@
     "vrc_tst_selected_roots": {
       "2": 1,
       "4": 1
-    }
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
   },
   "required_complete_jobs": [
     "adz__cs_r_2",

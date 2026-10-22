@@ -11,8 +11,16 @@ import re
 from kinbot.execution import atomic_json, file_sha256
 
 
-def settings(basis=None, fragments=None, pivots=None, reference_bases=None, reference_power=None):
+def settings(basis=None, fragments=None, pivots=None, reference_bases=None, reference_power=None,
+             *, direct_caspt2_cbs=False, reviewed_models=None):
     values = {}
+    if direct_caspt2_cbs:
+        if reference_bases is not None or reference_power is not None:
+            raise ValueError('Direct CASPT2 CBS cannot also change a CC reference.')
+        values['direct_caspt2_cbs'] = True
+    if reviewed_models is not None:
+        path = Path(reviewed_models).expanduser().resolve(strict=True)
+        values['reviewed_models'] = dict(path=str(path), sha256=file_sha256(path))
     if basis is not None:
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_+*().,-]*', basis):
             raise ValueError('Scan basis must be a basis name.')
@@ -56,18 +64,45 @@ def revised_input(payload, updates):
                 target[key] = spin
             else:
                 target[key] = deepcopy(value)
-    apply(revised, updates)
+    apply(revised, {k:v for k,v in updates.items() if k not in ('direct_caspt2_cbs', 'reviewed_models')})
     if revised.get('vrc_tst_surface_model_file'):
         raise ValueError('VRC migration requires an inline surface model; external files are not edited.')
-    for channel in (revised.get('vrc_tst_surface_model') or {}).get('channels', []):
-        for stage in channel['bottlenecks']:
-            # Explicit stage overrides otherwise defeat top-level controls.
-            apply(stage['parameters'], {key: value for key, value in updates.items()
-                                       if key in stage['parameters']})
+    surfaces = [revised.get('vrc_tst_surface_model'),
+                *revised.get('vrc_tst_surface_models', {}).values()]
+    for surface in filter(None, surfaces):
+        for channel in surface['channels']:
+            for stage in channel['bottlenecks']:
+                apply(stage['parameters'], {key: value for key, value in updates.items()
+                                           if key in stage['parameters']})
+    if updates.get('direct_caspt2_cbs'):
+        # Derive each method from its own CAS. Never propagate the initial
+        # well's CAS(5,4) into a later CAS(3,4) or CAS(7,5) channel.
+        def direct(target, inherited):
+            from kinbot.vrc_correction import apply_selected_active_space_methods
+            effective = {**inherited, **target}
+            method = effective.get('vrc_tst_scan_method', '')
+            if not re.fullmatch(r'caspt2-f12\(\d+,\d+\)', method, re.I):
+                raise ValueError('Direct CASPT2 migration requires explicit CASPT2-F12 scan methods.')
+            effective['vrc_tst_high_method'] = method
+            space = effective.get('vrc_tst_active_space')
+            if isinstance(space, dict) and space.get('mode') == 'selected':
+                apply_selected_active_space_methods(effective, space)
+            target.update(vrc_tst_correction_model='direct',
+                          vrc_tst_high_method=effective['vrc_tst_high_method'],
+                          vrc_tst_high_basis=['avdz-f12', 'avtz-f12'],
+                          vrc_tst_high_extrapolation_power=3.7)
+            target.pop('vrc_tst_spin_splitting', None)
+            target.pop('vrc_tst_reference_review', None)
+        direct(revised, {})
+        for surface in filter(None, surfaces):
+            for channel in surface['channels']:
+                for stage in channel['bottlenecks']:
+                    direct(stage['parameters'], revised)
+
     return revised
 
 
-def validate_input(path, updates):
+def validate_input(path, updates, *, payload=None):
     """Resolve actual reviewed orbital records before stopping controllers."""
     from kinbot.parameters import Parameters
     from kinbot.vrc_multistate import load_surface_model
@@ -77,10 +112,16 @@ def validate_input(path, updates):
     from kinbot.vrc_orbitals import fixed_pivot_profile, asymptotic_fragments
     from kinbot.molpro import vrc_multireference_energy_contract
     from kinbot.anl.site import _executable
-    par = revised_input(Parameters(str(path)).par, updates)
-    surface = load_surface_model(par)
+    original = Parameters(str(path)).par
+    if payload is not None:
+        original.update(deepcopy(payload))
+    par = revised_input(original, updates)
+    surfaces = [load_surface_model(par)]
+    surfaces.extend(load_surface_model(dict(par, vrc_tst_surface_model=model,
+                    vrc_tst_surface_model_file=''))
+                    for model in par.get('vrc_tst_surface_models', {}).values())
     leaves = []
-    if surface:
+    for surface in filter(None, surfaces):
         for channel in surface[0]['channels']:
             for stage in channel['bottlenecks']:
                 for state in stage['states']:
@@ -88,13 +129,21 @@ def validate_input(path, updates):
                     leaf['mult'] = state['multiplicity']
                     leaf['vrc_tst_selected_roots'] = {str(state['multiplicity']): state['root']}
                     leaves.append(leaf)
-    else:
+    if not leaves:
         leaves.append(par)
     for leaf in leaves:
         validate_vrc_levels(leaf)
         if vrc_multireference_energy_contract(leaf['vrc_tst_scan_method']) is None:
             raise ValueError('This migration requires a multireference relaxed scan.')
         envelope = leaf.get('vrc_tst_state_model') or {}
+        if updates.get('direct_caspt2_cbs'):
+            if leaf.get('vrc_tst_state_model_file'):
+                model_path = Path(leaf['vrc_tst_state_model_file'])
+                if not model_path.is_absolute():
+                    model_path = Path(path).parent/model_path
+                envelope = json.loads(model_path.read_text())
+            if envelope.get('state_average_policy') != 'reviewed':
+                raise ValueError('Preserving scans requires an explicit reviewed state average in every channel.')
         molecule = envelope.get('molecule', {})
         resolved_state_model(leaf, molecule.get('symbols'), molecule.get('charge', par['charge']),
                              None, basis=leaf['vrc_tst_scan_basis'])
@@ -124,9 +173,13 @@ def validate_input(path, updates):
 def plan(root, updates):
     from kinbot import run_salvage
     allowed = {'vrc_tst_scan_basis', 'vrc_tst_fragment_geometry', 'vrc_tst_pivot_level',
-               'vrc_tst_spin_splitting'}
+               'vrc_tst_spin_splitting', 'direct_caspt2_cbs', 'reviewed_models'}
+    if 'direct_caspt2_cbs' in updates and updates['direct_caspt2_cbs'] is not True:
+        raise ValueError('Direct CASPT2 migration must be explicitly enabled.')
+    if updates.get('direct_caspt2_cbs') and 'vrc_tst_spin_splitting' in updates:
+        raise ValueError('Cannot request direct and spin-splitting migrations together.')
     if not updates or set(updates) - allowed:
-        raise ValueError('Only VRC geometry/pivot settings and reference CBS controls may change in this handoff.')
+        raise ValueError('Unsupported VRC migration controls.')
     settings(updates.get('vrc_tst_scan_basis'), updates.get('vrc_tst_fragment_geometry'),
              updates.get('vrc_tst_pivot_level'))
     if 'vrc_tst_spin_splitting' in updates:
@@ -136,9 +189,42 @@ def plan(root, updates):
                 or set(spin['reference']) - {'basis', 'extrapolation_power'}):
             raise ValueError('Reference migration can change only basis and extrapolation power.')
     record, inputs = run_salvage._cases(root)
-    paths = []
+    from kinbot import live_control, input_refresh
+    if live_control.requests(root, kinds={'network', 'reaction'}):
+        raise ValueError('Finish pending live input/reaction requests before a scientific migration.')
     for path in inputs:
-        validate_input(path, updates)
+        marker = path.parent/input_refresh.JOURNAL
+        if marker.exists() and json.loads(marker.read_text()).get('status') in ('queued','publishing','blocked'):
+            raise ValueError('Finish or resolve the pending input refresh before this migration.')
+    proposal = None
+    if 'reviewed_models' in updates:
+        binding = updates['reviewed_models']
+        proof = Path(binding['path'])
+        if file_sha256(proof) != binding['sha256']:
+            raise ValueError('Reviewed model proposal changed after staging.')
+        proposal = json.loads(proof.read_text())
+        if (proposal.get('schema') != 1 or proposal.get('kind') != 'orbital_model_proposal'
+                or Path(proposal['case_input']) not in inputs):
+            raise ValueError('Orbital proposal does not belong to this run.')
+        if file_sha256(proposal['case_input']) != proposal['input_sha256']:
+            raise ValueError('Case input changed; regenerate the orbital proposal before refreshing.')
+        for name, digest in proposal['evidence'].items():
+            if file_sha256(name) != digest:
+                raise ValueError('Orbital proposal evidence changed: '+name)
+        from kinbot.input_refresh import validate_models
+        previous = json.loads(Path(proposal['case_input']).read_text())
+        validate_models(previous, dict(previous, vrc_tst_surface_models=proposal['models']),
+                        Path(proposal['case_input']).parent)
+    paths = []
+    def with_proposal(path, payload):
+        if proposal and Path(proposal['case_input']).parent in (path.parent, path.parent.parent):
+            payload = dict(payload, vrc_tst_surface_models=deepcopy(proposal['models']))
+        return payload
+    for path in inputs:
+        if proposal and path == Path(proposal['case_input']):
+            validate_input(path, updates, payload=with_proposal(path, json.loads(path.read_text())))
+        else:
+            validate_input(path, updates)
         paths.append(path)
         if (path.parent/'resolved_parameters.json').is_file():
             paths.append(path.parent/'resolved_parameters.json')
@@ -147,11 +233,16 @@ def plan(root, updates):
                 worker_input = worker/(worker.name+'.json')
                 if worker_input.is_file():
                     paths.append(worker_input)
+                    overrides=worker/'.kinbot_search_options.json'
+                    if overrides.is_file():
+                        paths.append(overrides)
     edits = []
     replace_geometry = False
     def geometry_controls(payload):
         keys = ('vrc_tst_scan_basis', 'vrc_tst_fragment_geometry')
         result = [tuple(payload.get(k) for k in keys)]
+        # Added channels have no old scan to invalidate. Existing geometry
+        # controls are unchanged by the direct-energy migration.
         for channel in (payload.get('vrc_tst_surface_model') or {}).get('channels', []):
             for stage in channel['bottlenecks']:
                 result.append(tuple(stage['parameters'].get(k, payload.get(k)) for k in keys))
@@ -160,8 +251,25 @@ def plan(root, updates):
         if path.is_symlink() or not path.resolve().is_relative_to(root):
             raise ValueError(f'Input must be a regular file inside the run: {path}')
         previous = json.loads(path.read_text())
-        revised = revised_input(previous, updates)
-        replace_geometry |= geometry_controls(previous) != geometry_controls(revised)
+        sparse = path.name == '.kinbot_search_options.json'
+        effective = previous
+        if sparse:
+            effective = {**json.loads((path.parent/(path.parent.name+'.json')).read_text()), **previous}
+        if proposal:
+            candidate = with_proposal(path, effective)
+            if candidate != effective:
+                validate_models(effective, candidate, path.parent)
+        if path.name == path.parent.name+'.json' or sparse:
+            native_input = path.parent/(path.parent.name+'.json')
+            validate_input(native_input, updates, payload=with_proposal(path, effective))
+        revised = revised_input(with_proposal(path, effective), updates)
+        replace_geometry |= geometry_controls(effective) != geometry_controls(revised)
+        if sparse:
+            # kb.py accepts only live-search controls here, not a full input.
+            revised = {key:revised[key] for key in previous}
+            if proposal and with_proposal(path, {}) != {}:
+                revised['vrc_tst_surface_models'] = revised_input(
+                    with_proposal(path, effective), updates)['vrc_tst_surface_models']
         if revised != previous:
             edits.append({'path': str(path.relative_to(root)), 'before': file_sha256(path),
                           'after': revised})
@@ -276,3 +384,38 @@ def apply_inputs(root, plan, archive, *, record_name='vrc_restart.json'):
         'schema': 1, 'settings': plan['settings'], 'archive': str(archive),
         'retired_scans': plan['scans'], 'cancellations': plan.get('cancellations', {}),
         'note': 'Old scan artifacts retained in place. Cancelled jobs lose in-memory optimizer state.'})
+
+
+def audit_direct_inputs(root):
+    """Verify current input contracts after handoff, without reading QC tails."""
+    from kinbot import run_salvage
+    root=Path(root).resolve()
+    _,inputs=run_salvage._cases(root)
+    paths=[]
+    for path in inputs:
+        paths.append(path)
+        resolved=path.parent/'resolved_parameters.json'
+        if resolved.is_file(): paths.append(resolved)
+        paths.extend(p for p in path.parent.glob('[0-9]*/*.json')
+                     if p.name==p.parent.name+'.json')
+    leaves=0
+    for path in paths:
+        payload=json.loads(path.read_text())
+        override=path.parent/'.kinbot_search_options.json'
+        if path.name == path.parent.name+'.json' and override.exists():
+            payload.update(json.loads(override.read_text()))
+        settings=[payload]
+        for surface in [payload.get('vrc_tst_surface_model'),
+                        *payload.get('vrc_tst_surface_models',{}).values()]:
+            if surface:
+                settings.extend({**payload,**s['parameters']} for c in surface['channels'] for s in c['bottlenecks'])
+        for par in settings:
+            if (par.get('vrc_tst_correction_model')!='direct'
+                    or par.get('vrc_tst_spin_splitting')
+                    or par.get('vrc_tst_high_basis')!=['avdz-f12','avtz-f12']
+                    or par.get('vrc_tst_high_extrapolation_power')!=3.7
+                    or not re.fullmatch(r'caspt2-f12\(\d+,\d+\)',par.get('vrc_tst_high_method',''),re.I)):
+                raise RuntimeError(f'Direct CBS input audit failed: {path}')
+            leaves+=1
+    return dict(input_files=len(paths),parameter_blocks=leaves,
+                correction='direct CASPT2-F12 avdz-f12/avtz-f12 CBS, power 3.7')

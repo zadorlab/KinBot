@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "reviewed": true,
-  "review_note": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source 19-21 span the departing sulfur 3p shell, with four electrons and far occupations 1.33333 each. Source 22 is the CH2SH frontier radical orbital (about 1.0062 far). Select CAS(5,4). Source 18/23 is the largely filled/empty spectator C-S pair (about 1.977/0.027 far). The three sulfur spatial components motivate three doublets and three quartets in the average; only D1 is the reactive parent path. This fragment differs from CH3S, whose two frontier components required the earlier CAS(7,5). These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested.",
+  "review_note": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source 19-21 span the departing sulfur 3p shell, with four electrons and far occupations 1.33333 each. Source 22 is the CH2SH frontier radical orbital (about 1.0062 far). Select CAS(5,4). Source 18/23 is the largely filled/empty spectator C-S pair (about 1.977/0.027 far). The three sulfur spatial components motivate three doublets and three quartets in the average; only D1 is the reactive parent path. This fragment differs from CH3S, whose two frontier components required the earlier CAS(7,5). These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested. Update 2026-10-22: use direct CASPT2-F12 aDZ/aTZ CBS (power 3.7), retaining this reviewed orbital state average. No CC energy anchor or spin-gap correction is used.",
   "request_match": {
     "parent": "791671580700000000002-s36f1e2b924862f12",
     "reaction": "791671580700000000002-s36f1e2b924862f12_hom_sci_2_3",
@@ -125,7 +125,13 @@
     "vrc_tst_selected_roots": {
       "2": 1,
       "4": 1
-    }
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
   },
   "required_complete_jobs": [
     "adz__ss_r_2",

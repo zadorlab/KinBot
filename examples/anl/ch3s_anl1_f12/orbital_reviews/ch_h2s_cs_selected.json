@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "reviewed": true,
-  "review_note": "Reviewed 2026-10-22 from eight completed all-valence CASCI probes and user-supplied native natural-orbital AO coefficients at 2 and 30 angstrom in avdz-f12 and avtz-f12. Select the 2 angstrom source indices 8,12,13,14: the sulfur p-type lone-pair donor (two electrons) and the CH sigma/frontier-pair subspace (three electrons). The donor is source 8 at 2 angstrom but source 7 at 30 angstrom; these are geometry-specific indices, not a common energy window. Near selected occupations are 1.97918,1.48472,0.99467,0.50273 (DZ) and 1.97918,1.48447,0.99490,0.50297 (TZ). Far character-matched occupations are 1.99881,1.47041,0.76629,0.76595 (DZ) and 1.99881,1.47035,0.76637,0.76594 (TZ). Retain four equally weighted doublet roots and add one quartet reference root for production orbital optimization, with equal total spin-block weights. Only D1 is reactive flux. Use an explicitly selected quartet ROHF-UCCSD(T)-F12b energy anchor plus the CASPT2-F12 doublet-minus-quartet gap, all with the inherited DZ/TZ CBS policy. The quartet is an auxiliary energy reference, not a ground-fragment reactive channel; CH(a4Sigma-) + H2S is its candidate separated character. CAS(5,4) contains the three CH frontier orbitals needed for this configuration. The completed screen contains only doublets; quartet character, CC single-reference quality and CC/MR reference-state agreement are not certified by these data and must pass the requested small reference panel before live publication, then remain subject to production review. Subtract the assembled asymptote; do not assume the doublet-quartet gap vanishes at separation. Source 15 is mainly H2S S-H antibonding with occupation 0.08577/0.08553 at 2 angstrom, not the missing sulfur lone-pair donor. Its exclusion is a compact-space modeling choice, not demonstrated quantitative convergence; inspect S-H connectivity and orbital character in production and retain all scan-review guards. No optimized compact-CASSCF, correlated-potential, angular or asymptotic-plateau validation is claimed; the separate six-job reference panel is staged but has not yet been evaluated.",
+  "review_note": "Reviewed 2026-10-22 from eight completed all-valence CASCI probes and user-supplied native natural-orbital AO coefficients at 2 and 30 angstrom in avdz-f12 and avtz-f12. Select the 2 angstrom source indices 8,12,13,14: the sulfur p-type lone-pair donor (two electrons) and the CH sigma/frontier-pair subspace (three electrons). The donor is source 8 at 2 angstrom but source 7 at 30 angstrom; these are geometry-specific indices, not a common energy window. Near selected occupations are 1.97918,1.48472,0.99467,0.50273 (DZ) and 1.97918,1.48447,0.99490,0.50297 (TZ). Far character-matched occupations are 1.99881,1.47041,0.76629,0.76595 (DZ) and 1.99881,1.47035,0.76637,0.76594 (TZ). Use four equally weighted doublet roots, as in the completed orbital screen, with D1 as the single reactive flux. Direct CASPT2-F12 energies use avdz-f12/avtz-f12 CBS with power 3.7 and the separately calculated 30 angstrom asymptote. The attempted auxiliary quartet CC/MR checks did not establish reference-state correspondence or CC quality; spin splitting is not used and the auxiliary quartet is removed from this newly installed model. The sulfur donor is selected by its 2 angstrom checkpoint identity and packed once, then propagated as a subspace, not reselected by ordinal at each geometry. Source 15 is mainly H2S S-H antibonding with occupation 0.08577/0.08553 at 2 angstrom, not the missing sulfur lone-pair donor. Its exclusion is a compact-space modeling choice, not demonstrated quantitative convergence; inspect S-H connectivity and orbital character in production and retain all scan-review guards. No optimized compact-CASSCF, correlated-potential, angular or asymptotic-plateau validation is claimed; the partial reference panel is diagnostic evidence and does not certify the direct potential. Production must retain native orbital, root and connectivity evidence for review.",
   "request_match": {
     "parent": "471230610040000000002",
     "reaction": "471230610040000000002_hom_sci_1_2",
@@ -35,7 +35,7 @@
     "mode": "selected",
     "active_electrons": 5,
     "active_orbitals": 4,
-    "source": "Reviewed 2026-10-22 from eight completed all-valence CASCI probes and user-supplied native natural-orbital AO coefficients at 2 and 30 angstrom in avdz-f12 and avtz-f12. Select the 2 angstrom source indices 8,12,13,14: the sulfur p-type lone-pair donor (two electrons) and the CH sigma/frontier-pair subspace (three electrons). The donor is source 8 at 2 angstrom but source 7 at 30 angstrom; these are geometry-specific indices, not a common energy window. Near selected occupations are 1.97918,1.48472,0.99467,0.50273 (DZ) and 1.97918,1.48447,0.99490,0.50297 (TZ). Far character-matched occupations are 1.99881,1.47041,0.76629,0.76595 (DZ) and 1.99881,1.47035,0.76637,0.76594 (TZ). Retain four equally weighted doublet roots and add one quartet reference root for production orbital optimization, with equal total spin-block weights. Only D1 is reactive flux. Use an explicitly selected quartet ROHF-UCCSD(T)-F12b energy anchor plus the CASPT2-F12 doublet-minus-quartet gap, all with the inherited DZ/TZ CBS policy. The quartet is an auxiliary energy reference, not a ground-fragment reactive channel; CH(a4Sigma-) + H2S is its candidate separated character. CAS(5,4) contains the three CH frontier orbitals needed for this configuration. The completed screen contains only doublets; quartet character, CC single-reference quality and CC/MR reference-state agreement are not certified by these data and must pass the requested small reference panel before live publication, then remain subject to production review. Subtract the assembled asymptote; do not assume the doublet-quartet gap vanishes at separation. Source 15 is mainly H2S S-H antibonding with occupation 0.08577/0.08553 at 2 angstrom, not the missing sulfur lone-pair donor. Its exclusion is a compact-space modeling choice, not demonstrated quantitative convergence; inspect S-H connectivity and orbital character in production and retain all scan-review guards. No optimized compact-CASSCF, correlated-potential, angular or asymptotic-plateau validation is claimed; the separate six-job reference panel is staged but has not yet been evaluated."
+    "source": "Reviewed 2026-10-22 from eight completed all-valence CASCI probes and user-supplied native natural-orbital AO coefficients at 2 and 30 angstrom in avdz-f12 and avtz-f12. Select the 2 angstrom source indices 8,12,13,14: the sulfur p-type lone-pair donor (two electrons) and the CH sigma/frontier-pair subspace (three electrons). The donor is source 8 at 2 angstrom but source 7 at 30 angstrom; these are geometry-specific indices, not a common energy window. Near selected occupations are 1.97918,1.48472,0.99467,0.50273 (DZ) and 1.97918,1.48447,0.99490,0.50297 (TZ). Far character-matched occupations are 1.99881,1.47041,0.76629,0.76595 (DZ) and 1.99881,1.47035,0.76637,0.76594 (TZ). Use four equally weighted doublet roots, as in the completed orbital screen, with D1 as the single reactive flux. Direct CASPT2-F12 energies use avdz-f12/avtz-f12 CBS with power 3.7 and the separately calculated 30 angstrom asymptote. The attempted auxiliary quartet CC/MR checks did not establish reference-state correspondence or CC quality; spin splitting is not used and the auxiliary quartet is removed from this newly installed model. The sulfur donor is selected by its 2 angstrom checkpoint identity and packed once, then propagated as a subspace, not reselected by ordinal at each geometry. Source 15 is mainly H2S S-H antibonding with occupation 0.08577/0.08553 at 2 angstrom, not the missing sulfur lone-pair donor. Its exclusion is a compact-space modeling choice, not demonstrated quantitative convergence; inspect S-H connectivity and orbital character in production and retain all scan-review guards. No optimized compact-CASSCF, correlated-potential, angular or asymptotic-plateau validation is claimed; the partial reference panel is diagnostic evidence and does not certify the direct potential. Production must retain native orbital, root and connectivity evidence for review."
   },
   "basis_seeds": {
     "avdz-f12": {
@@ -70,18 +70,10 @@
           0.25,
           0.25
         ]
-      },
-      {
-        "multiplicity": 4,
-        "roots": 1,
-        "weights": [
-          1.0
-        ]
       }
     ],
     "selected_roots": {
-      "2": 1,
-      "4": 1
+      "2": 1
     },
     "canonical_orbitals": true,
     "correlation_options": {
@@ -117,17 +109,17 @@
     "vrc_tst_sample_method": "caspt2-f12(5,4)",
     "vrc_tst_high_method": "caspt2-f12(5,4)",
     "vrc_tst_state_average_roots": {
-      "2": 4,
-      "4": 1
+      "2": 4
     },
     "vrc_tst_selected_roots": {
-      "2": 1,
-      "4": 1
+      "2": 1
     },
-    "vrc_tst_correction_model": "spin_splitting",
-    "vrc_tst_spin_splitting": {
-      "reference_multiplicity": 4
-    }
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
   },
   "required_complete_jobs": [
     "adz__cs_r_2",

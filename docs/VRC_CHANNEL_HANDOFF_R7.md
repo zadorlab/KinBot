@@ -1,5 +1,12 @@
 # r7 VRC channel and orbital handoff, 2026-10-21
 
+**2026-10-22 current update:** use the [direct-CASPT2 CBS transaction](VRC_DIRECT_CBS_HANDOFF_R7.md)
+for all CH3S/CH3SS channels and the new CH + H2S model. It supersedes the earlier
+spin-splitting energy recommendation below; orbital evidence and existing
+state averages remain applicable. Historical commands below describe their
+original handoffs, not the current replacement command.
+
+
 This records the three initial reviewed channels, the applied CH2SH selection,
 and the three additional orbital selections completed on October 21. Live
 refresh adds accepted channels without replacing existing models. The two
@@ -737,12 +744,11 @@ basis-specific hashed natural-orbital seed. The source inputs prescribe:
    retaining the existing distance constraints, without imposing new C3v/Cs
    geometric symmetry. The 47 distances are 2–8 Å by 0.2, 8.5–12 by 0.5,
    and 13–20 by 1. The separate asymptote remains 30 Å.
-4. High-level reference curves from ROHF-UCCSD(T)-F12b on the quartet plus
-   CASPT2-F12 doublet-minus-quartet gaps. Both the CC reference and MR gaps
-   use aDZ/aTZ-F12 extrapolation with power 3.7. In Molpro, `rhf` is the
-   restricted-open-shell HF reference for these open-shell calculations.
-   For one gap method the construction is
-   `E_target = E_CC,quartet,CBS + E_MR,target,CBS - E_MR,quartet,CBS`.
+4. Direct target CASPT2-F12 energies in aDZ/aTZ-F12, extrapolated with
+   power 3.7, minus the same target CBS energy at the separate 30 A asymptote.
+   This supersedes the former CC-quartet plus MR-doublet-minus-quartet-gap
+   construction. The reviewed orbital state averages are retained for existing
+   scans; their quartet roots no longer supply an energy correction.
 5. Assemble the relaxation/high-level correction and perform CASPT2-F12/aDZ
    orientation sampling with RotdPy at the same 47 dividing distances.
    The relative flux sampling target is 5%; configured sample bounds still

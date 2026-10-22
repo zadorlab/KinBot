@@ -1,5 +1,11 @@
 # Production input parameters and provenance
 
+Current correction update (2026-10-22): the case JSON now requests direct
+CASPT2-F12 aDZ/aTZ CBS with power 3.7. Existing orbital state averages are
+unchanged. See [the r7 handoff](../../../../docs/VRC_DIRECT_CBS_HANDOFF_R7.md)
+for the matching in-place production update and CH + H2S installation.
+
+
 Baseline: `origin/master` as recorded at commit `5c6525a7` (5 October 2026). “Branch” includes earlier work on `composite`, not only the latest fix. Existing backend algorithms are distinguished from KinBot orchestration. Values are copied from the actual inputs; the complete JSON remains authoritative.
 
 | Parameter | CH3S / CH3SS value | Hook origin and purpose |

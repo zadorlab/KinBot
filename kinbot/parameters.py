@@ -521,6 +521,7 @@ class Parameters:
             'vrc_tst_correction_model': 'direct',
             # Optional overrides to the documented spin-splitting preset.
             'vrc_tst_spin_splitting': None,
+            'vrc_tst_reference_review': None,
             # Parameters for the vrc_tst scan
             'vrc_tst_scan_points': list(np.arange(2.5, 20.0, 0.2)),
             # Separated-fragment energy reference, reviewed against recon.

@@ -76,6 +76,8 @@ def validate_models(previous, current, base, *, scope=None):
             loaded = load_surface_model(dict(a, input_file=str(Path(base)/'input.json')))
             prior = loaded[0] if loaded else None
         extend_surface_model(prior, model)
+        from kinbot.vrc_reference_review import validate_additions
+        validate_additions(prior, model, b, base)
     return new
 
 

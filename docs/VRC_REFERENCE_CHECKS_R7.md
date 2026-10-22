@@ -1,8 +1,15 @@
 # r7 native CC/MR reference checks, 2026-10-22
 
+**Current production decision:** the user selected direct target CASPT2-F12
+CBS for all channels. The [single in-place handoff](VRC_DIRECT_CBS_HANDOFF_R7.md)
+also installs CH + H2S. The panel below remains diagnostic evidence; resuming
+its failed CC checks is not a prerequisite for the direct-CBS handoff.
+Future spin-splitting selections require the native reference-review receipt.
+
+
 This panel runs new native calculations before the proposed CH + H2S refresh.
 It does not accept a model, change production inputs, replace a controller,
-cancel work, or clear any scan-review hold. Native results are still pending.
+cancel work, or clear any scan-review hold. Native results are partial; no reference model is automatically approved.
 
 ## Native export repair, October 22 morning
 
@@ -22,7 +29,7 @@ The first repair was incomplete: per-root NATORB cards do not save each root's
 AO density to its own orbital record. In state-averaged MULTI, explicit `DM`
 is needed to save the individual densities, and they share the record selected
 by `ORBITAL`. The corrected diagnostic block uses `ORBITAL,3000.2; DM` and
-loads every root from 3000.2 with explicit STATE/MS2 selectors. The normal
+initially loaded every root from 3000.2 with explicit STATE/MS2 selectors (superseded below). The normal
 SA canonical/natural orbital records remain 2141.2/2140.2. Both prior generated
 input versions are repaired in the executed copy, preserving original inputs
 and archiving failed attempts. This is a diagnostic export change only.
@@ -33,7 +40,7 @@ but receive no submissions. Full native energies, all requested density
 exports, hashes, MO orthonormality, electron traces and ROHF occupations must
 validate before the remaining panel starts. A preflight failure stops there.
 Successful execution does not automatically approve the chemical state match.
-This native preflight is still pending on Blodgett; local tests use fixtures.
+The first native preflight passed on Blodgett, but did not exercise quartet-first state averaging. A repaired singleton is now selected for preflight after export recovery; a previously successful probe cannot stand in for the repaired ordering.
 
 The four missing CH3SS points were skipped because the independent VRC branch
 had no ANL `network_request.json` yet. Staging can now use the hash-bound
@@ -56,6 +63,38 @@ all existing point selections and attempts. Review the returned skipped list;
 a missing point never counts as verified. Resume using the usual `run PANEL`
 command. No production refresh is required for this repair. The corrected
 native export still needs confirmation on Blodgett; local tests do not run Molpro.
+
+## Mixed-spin export and reference findings, October 22 late morning
+
+Native CH2SH output explicitly saved quartet roots 1/2 as density sets 1/2,
+then four doublets as sets 3–6, followed by the state average as set 7. Yet
+MS2=3 lookup failed. This evidence does not establish a later overwrite or
+an internal Molpro cause. The diagnostic now uses documented `SET=` selection
+in declared WF/STATE order and exports before any correlation or new ROHF
+calculation. Execution checks the full native save sequence against that
+layout and records the mapping; a changed sequence fails validation. The
+state-average roots, weights and production orbital records do not change.
+Legacy prepared inputs are repaired only in the executed copy. Recovery
+archives only density-export failures, preserving completed probes and CC
+failures. Local regression coverage: 192 tests passed; the new selector still
+requires native confirmation.
+
+The completed identity matrices show good CH3SS C–S reference correspondence
+at 2.6/30 A (minimum squared open-shell projection 0.99753/0.99993).
+CH3SS S–S at 2 A has one projected direction of 0.00263 and MR occupation
+about 0.008 on that ROHF SOMO: its unrestricted automatic reference choice
+cannot be approved from this probe. CH + H2S at 3.5/30 A also shows a reference
+mismatch, alongside CC nonconvergence/inverted-gap CABS failure. Neither
+NOCHECK nor IGNORE_BAD_SINGL is an appropriate identity repair.
+
+CH3S D1/D2 and CH3SS S–S at 30 A have the closest density at quartet root 3,
+while the energy selector chooses root 1. Atomic-fragment degeneracy can rotate
+these states; inspect root energy splittings and the whole degenerate span
+before declaring an erroneous correction or changing the selected root. A
+finite probe's automatic SCF history is not byte-identical to every isolated
+production CC job, so it establishes a reference risk rather than proving
+that every existing production CC energy is wrong. Target MR scan geometries
+are separate from this CC-reference issue. The C + SH3 connectivity hold remains.
 
 ## Production scope audit after the export failure
 
@@ -132,9 +171,7 @@ repeating `run` resumes the same manifests. Keep this panel outside r7.
 ## What identity is actually tested
 
 MULTI `DM` saves **all individual CASSCF reference-root densities** to the
-explicit diagnostic `ORBITAL,3000.2` record. Immediately after the
-independent ROHF calculation, before CC, MATROP exports the AO overlap, SA-CAS
-orbitals, ROHF orbitals/density and the state-specific MR densities. Native
+explicit diagnostic `ORBITAL,3000.2` record. Immediately after MULTI and its energy markers, MATROP exports the overlap, SA-CAS orbitals and state-specific MR densities. A separate export immediately after ROHF saves its orbitals and density before CC. Native
 matrix files are hashed in `execution.json`. The commands use Molpro's
 [individual density saving and selection](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi)
 and [MATROP matrix export](https://www.molpro.net/manual/doku.php?id=matrix_operations).

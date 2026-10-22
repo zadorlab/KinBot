@@ -91,6 +91,8 @@ def apply_vrc_accuracy_preset(parameters, user_keys=()):
     for key, value in _VRC_ACCURACY_PRESETS[name].items():
         if key not in explicit:
             parameters[key] = deepcopy(value)
+    if correction_model(parameters) == 'direct' and 'vrc_tst_spin_splitting' not in explicit:
+        parameters['vrc_tst_spin_splitting'] = None
     space = active_space_settings(parameters)
     if space is not None and space.get('selection') == 'selected_orbital_subspace':
         apply_selected_active_space_methods(parameters, space)

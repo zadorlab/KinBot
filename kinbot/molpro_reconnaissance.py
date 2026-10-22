@@ -741,6 +741,9 @@ def _deck(data, basis, anchor, stem, previous=None):
                  'reconenergy=energy(1)\nshow,reconenergy\n')
         for index in range(1, sum(entry['roots'] for entry in model['state_average']) + 1):
             deck += f'reconr{index}=energy({index})\nshow,reconr{index}\n'
+        if data.get('reference_identity_check'):
+            from kinbot.molpro_reference_identity import export_deck
+            deck += export_deck(stem, model, reference, part='mr')
         # Reuse the production selected-state energy contract, including
         # Davidson-corrected rather than variational MRCI energies.
         counter = 0
@@ -753,7 +756,7 @@ def _deck(data, basis, anchor, stem, previous=None):
                 if data.get('reference_identity_check'):
                     from kinbot.molpro_reference_identity import export_deck
                     deck += (f'put,molden,{stem}.reference_c{counter}_m{check["multiplicity"]}.molden\n'
-                             + export_deck(stem, model, check['multiplicity']))
+                             + export_deck(stem, model, check['multiplicity'], part='hf'))
                 if data.get('reference_identity_check'):
                     from kinbot.theory import molpro_cc_thresholds
                     den, var = molpro_cc_thresholds(data.get('correlation_convergence', 1.e-7))
@@ -1020,6 +1023,8 @@ def _prepare(source, output):
                 'symbols': data['symbols'],
                 'ppn': ppn,
                 'scratch_min_mb': data.get('scratch_min_mb'),
+                **{k:data[k] for k in ('reference_review_contract_sha256',
+                                      'reference_review_distance_angstrom') if k in data},
             })
             if channel:
                 predecessors[(basis['name'], channel)] = stem
@@ -1243,10 +1248,16 @@ def _execute(job):
                 result = subprocess.run(command, cwd=local, env=env, check=False,
                                         stdout=stdout, stderr=stderr)
         execution['returncode'] = result.returncode
+        if job.get('reference_review_contract_sha256'):
+            execution['reference_review_contract_sha256'] = job['reference_review_contract_sha256']
         identity = [directory/p for p in re.findall(
             r'(?im)^write,\w+,([^,\n]+\.identity_\w+\.out),new,scientific\s*$', native_text)]
         if identity:
             execution['reference_identity_matrices'] = {p.name: file_sha256(p) for p in identity if p.is_file()}
+            if all(p.is_file() for p in identity):
+                from kinbot.molpro_reference_identity import validate_density_saves
+                execution['reference_density_selection'] = validate_density_saves(
+                    native_text, (directory/(name+'.out')).read_text(errors='replace'))
         from kinbot.molpro_diagnostics import write_native_report
         report = write_native_report(directory / (name + '.out'), native)
         if report is not None:

@@ -23,7 +23,7 @@ _OVERRIDES = {
     'vrc_tst_sample_method', 'vrc_tst_sample_basis',
     'vrc_tst_sample_extrapolation_power', 'vrc_tst_high_method',
     'vrc_tst_high_basis', 'vrc_tst_correction_model', 'vrc_tst_spin_splitting',
-    'vrc_tst_high_extrapolation_power',
+    'vrc_tst_high_extrapolation_power', 'vrc_tst_reference_review',
     'vrc_tst_state_average_roots',
     'vrc_tst_selected_roots',
     'vrc_tst_asymptote_distance',
@@ -169,6 +169,9 @@ def normalize_inline_model_paths(parameters, base):
         holder = {'vrc_tst_surface_model': model}
         normalize_inline_model_paths(holder, base)
         parameters['vrc_tst_surface_models'][selector] = holder['vrc_tst_surface_model']
+    binding = parameters.get('vrc_tst_reference_review')
+    if isinstance(binding, dict) and binding.get('path'):
+        binding['path'] = str((Path(base)/Path(binding['path']).expanduser()).resolve())
     if parameters.get('vrc_tst_state_model') is not None:
         parameters['vrc_tst_state_model'] = resolve_state_model_paths(parameters['vrc_tst_state_model'], base)
     surface = parameters.get('vrc_tst_surface_model')
@@ -309,6 +312,8 @@ def state_parameters(parameters, stage, state, fragment_multiplicities):
             and 'triplet_multiplicity' not in spin
             and state['multiplicity'] == max(coupled_multiplicities(*fragment_multiplicities))):
         par['vrc_tst_correction_model'] = 'direct'
+    if correction_model(par) == 'direct':
+        par.pop('vrc_tst_spin_splitting', None)
     selected = {str(key): value for key, value in root_overrides(
         par, 'vrc_tst_selected_roots').items()}
     selected[str(state['multiplicity'])] = state['root']

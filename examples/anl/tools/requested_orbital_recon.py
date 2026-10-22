@@ -455,6 +455,14 @@ def retry_reference_exports(output):
                     selected[path].add(str(job['job_id']))
         results = [recon._retry_failed(p, job_ids=ids, live_job_ids=live)
                    for p, ids in selected.items() if ids]
+        if results:
+            # Gate this new export layout on a repaired case, not a previously
+            # passing case whose WF order never exercised the failure.
+            singleton = next((p for p, ids in selected.items()
+                              if ids and len(_read(p)['jobs']) == 1), None)
+            if singleton is not None:
+                record['reference_export_preflight'] = str(singleton)
+            atomic_json(root/'review_launch.json', record)
     return dict(status='retry_ready', manifests=results, production_model_accepted=False)
 
 
@@ -535,7 +543,10 @@ def _reference_preflight(record, manifests):
     Re-audit on resume rather than trusting a stale 'passed' receipt.
     """
     from kinbot.molpro_reference_identity import report, state_records
-    system = next((s for s in record['systems'] if s.get('production_probe')), None)
+    preferred = record.get('reference_export_preflight')
+    system = next((s for s in record['systems'] if str(s['manifest']) == preferred), None)
+    if system is None:
+        system = next((s for s in record['systems'] if s.get('production_probe')), None)
     if system is None:
         raise ValueError('Reference panel needs a singleton production probe for native preflight.')
     path = Path(system['manifest'])
@@ -886,6 +897,38 @@ def _review(source, case_input, recipe, *, apply):
     return _publish_selection(case_input, previous, proposed, chosen, summary)
 
 
+def proposal(source, case_input, recipe, output):
+    """Stage a hash-bound additive model for a single controller migration.
+
+    No live input, review request, job or controller is changed here.
+    """
+    case_input = Path(case_input).expanduser().resolve(strict=True)
+    source = Path(source).expanduser().resolve(strict=True)
+    recipe = Path(recipe).expanduser().resolve(strict=True)
+    previous = _read(case_input)
+    proposed, summary, chosen = _selection(source, case_input, recipe, previous)
+    saved = _saved(source, allow_accepted=True)
+    manifest_path = Path(saved['systems'][0]['manifest'])
+    manifest = _read(manifest_path)
+    files = [recipe, source/'request.json', Path(saved['request']), manifest_path,
+             source/'review_launch.json', Path(saved['systems'][0]['configuration'])]
+    required = set(chosen.get('required_complete_jobs', [])) | {
+        v['job'] for v in chosen['basis_seeds'].values()}
+    for job in manifest['jobs']:
+        if job['name'] in required:
+            files.extend([Path(job['wfu']), Path(job['directory'])/(job['name']+'.out')])
+    record = dict(schema=1, kind='orbital_model_proposal', case_input=str(case_input),
+                  input_sha256=file_sha256(case_input),
+                  models=proposed['vrc_tst_surface_models'], selection=chosen, summary=summary,
+                  evidence={str(p):file_sha256(p) for p in files})
+    output = Path(output).expanduser().resolve()
+    if output in files or output == case_input:
+        raise ValueError('Proposal must not overwrite an input or evidence file.')
+    atomic_json(output, record)
+    return dict(summary, status='staged_for_controller_refresh', proposal=str(output),
+                sha256=file_sha256(output))
+
+
 def _selection(source, case_input, recipe, previous, *, bind_request=None):
     from kinbot import input_refresh
     from kinbot.molpro import validate_vrc_state_model
@@ -1099,6 +1142,9 @@ def main():
     for name in ('source', 'case_input', 'recipe'):
         review_cmd.add_argument(name)
     review_cmd.add_argument('--apply', action='store_true')
+    proposal_cmd = commands.add_parser('proposal', help='Stage a reviewed model for one controller refresh; no live publication.')
+    for name in ('source', 'case_input', 'recipe', 'output'):
+        proposal_cmd.add_argument(name)
     reviews_cmd = commands.add_parser('review-batch', help='Publish ready selections once per case, without new QC.')
     for name in ('production', 'campaign', 'plan'):
         reviews_cmd.add_argument(name)
@@ -1120,6 +1166,8 @@ def main():
         result = retry_reference_exports(args.output)
     elif args.action == 'review':
         result = review(args.source, args.case_input, args.recipe, apply=args.apply)
+    elif args.action == 'proposal':
+        result = proposal(args.source, args.case_input, args.recipe, args.output)
     elif args.action == 'review-batch':
         result = review_batch(args.production, args.campaign, args.plan, apply=args.apply)
     elif args.action == 'run':

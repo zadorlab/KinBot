@@ -1,5 +1,13 @@
 # Chemical orbital review and production handoff
 
+New spin-splitting selections now require a hash-bound native CC/MR
+reference review in addition to the orbital review. See the
+[review gate and receipt commands](VRC_DIRECT_CBS_HANDOFF_R7.md#future-spin-splitting-review).
+Direct MR selections do not require a CC reference. A scientific controller
+migration can stage an additive orbital proposal and install it together with
+a correction-model change, preserving unchanged scan graphs.
+
+
 The general entry point is `python -m kinbot.orbital_review`. It uses the
 existing Molpro/Slurm execution machinery. There are no molecule-name branches
 or prescribed sulfur active spaces in the implementation.

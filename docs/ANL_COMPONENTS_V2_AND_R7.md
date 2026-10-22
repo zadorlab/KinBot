@@ -687,3 +687,123 @@ Focused local validation: **201 passed, 1 skipped, 17 subtests passed** in
 7.45 seconds, covering refresh, strict three-graph retirement, defaults,
 allocation receipt recovery, requeue/lock fencing and interrupted admission.
 The full suite was not repeated for this expedited handoff.
+
+
+## 2026-10-22 morning: native successes, frame repair and fair admission
+
+The morning evidence identifies two software errors, not failed electronic
+structure calculations:
+
+* CFOUR printed `Summary of diagonal Born-Oppenheimer correction at the
+  correlated level`. The old reader required a named `CCSD` summary. Native H
+  and SH results were 0.0002719305 and 0.0061713414 Eh respectively; each had
+  consistent cm-1/kJ values and a normal final electronic energy. The reader
+  now resolves the generic heading only from unambiguous native CCSD method
+  declarations, checks the final CC+DBOC energy and retains the existing
+  reference/basis/unit checks. The dispatcher's saved-output reparse recovers
+  these attempts without another CFOUR execution. Inputs/methods are unchanged.
+* Gaussian's formatted checkpoint Hessian was in its own Cartesian frame,
+  while KinBot projected external rotations using the selected database
+  geometry. In the affected methyl reference (well 471030810040000000002,
+  state_0f4cbaeb31061e6d, source `150390060000000000002_well_high`, row 8),
+  rigid alignment gave RMSD 1.445654e-9 angstrom. Rotating every Hessian block
+  restored [514.415941, 1427.694052, 1427.703859, 3139.583554, 3320.840607,
+  3320.843516] cm-1, matching the native printed spectrum. The old export was
+  [180.085127, 514.416046, 793.579626, 2058.883136, 2745.269271,
+  3265.574091]. This is direct native evidence of the frame error.
+
+`read_qc_hess` now verifies checkpoint atomic numbers, atom order and geometry,
+then rotates the Cartesian Hessian into the selected row's frame. A changed
+checkpoint geometry is refused. A newer binary checkpoint causes the formatted
+copy to be regenerated. Stored ASE/Sella matrices remain in their original
+selected-geometry frame.
+
+Automatic reference imports recover **harmonic** spectra from their exact
+accepted source row, after checking job identity, geometry, atoms, energy and
+ZPE. Reuse must compare full harmonic spectra, including when a thermal model
+has rotor-reduced modes. For rotor-free thermal models the recovered native
+spectrum also replaces the erroneous spectrum in the derived in-memory model.
+Original model/QC files and workflow molecule provenance remain unchanged.
+`frequency_recovery` binds the old record digest, selected row and original
+model hash. Reuse registry migration accepts only this reproducible derivation;
+its `frequency_migrations` retains the prior records. No tolerances are loosened.
+Old Gaussian models containing explicit hindered-rotor blocks require re-export
+before thermal assembly; the full harmonic list is never substituted into a
+rotor-reduced model. New model exports identify the corrected frame policy.
+
+The monitor now budgets directories and optional QC logs separately. A large
+finite-difference job's wavefunction/step files no longer consume the metadata
+budget and hide subsequent wells or review records. Log truncation is still
+reported. This fixes visibility, not the scientific status of a calculation.
+
+Shared admission now gives waiting PES/branch groups turns at newly available
+slots. Groups are PES scope plus search, ANL or VRC branch; there is no fixed
+per-case allocation ceiling. All capacity, uncertain submissions and scheduler
+ownership still use the existing locked admission ledger. Waiter tickets are
+renewed by polling, expire after 120 seconds without renewal, and are removed
+when a same-host process has exited. A stopped waiter can therefore delay an
+otherwise eligible submission briefly, but cannot reserve an allocation.
+This does not preempt running work or reserve hardware against other users.
+A live policy override is available with `run_policy set ROOT
+--no-fair-submission` (or `--fair-submission` to enable it again).
+
+The CH + H2S request is
+`ch3s/471230610040000000002/vrctst/orbital_review/471230610040000000002_hom_sci_1_2/request.json`.
+`orbital_reviews/ch_h2s_cs_screen.json` prepares eight independent **CASCI-only**
+AVAS probes: four doublet roots, all-valence CAS(13,11), avdz-f12/avtz-f12,
+C-S distances 2, 3.5, 6 and 30 angstrom. Doublet ROHF is the starting reference.
+The live request supplies atom numbering and geometry. The state average is a
+screening choice, not a declaration of four reactive surfaces. No CCSD(T),
+CASPT2 or production active-space approval is part of this screen.
+The [Molpro AVAS manual](https://www.molpro.net/manual/doku.php?id=automated_construction_of_atomic_valence_active_spaces)
+recommends CASCI occupations for initial screening; [MULTI](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi)
+documents the fixed-orbital CAS-CI mode. [CFOUR](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CalculationOfDiagonalBorn-OppenheimerCorrections)
+documents the unchanged CCSD DBOC method/reference support.
+
+Apply this code with one in-place controller replacement and strict reuse:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+git pull --ff-only origin composite
+KB_R7="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+.venv/bin/python -u -m kinbot.run_refresh "$KB_R7" --deduplicate-anl --apply
+.venv/bin/python -m kinbot.run_monitor "$KB_R7"
+BASH
+```
+
+The refresh records recoveries and prospective duplicate cancellations, repeats
+ownership checks with controllers quiesced, archives only proven duplicate
+graphs, and retains other allocated/completed work. The cancellation count is
+live-state dependent; do not cancel hard-coded historical job IDs manually.
+The remote `phase: launched` receipt and subsequent monitor are still required
+to establish that this handoff actually ran. Old controllers cannot hot-load
+this Python source change.
+
+Prepare/start the orbital screen separately (outside the production tree):
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+KB_R7="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+KB_RECON="$HOME/kinbot-runs/r7_ch_h2s_orbital_recon_20261022"
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+.venv/bin/python examples/anl/tools/requested_orbital_recon.py prepare \
+  "$KB_R7/ch3s/471230610040000000002/vrctst/orbital_review/471230610040000000002_hom_sci_1_2/request.json" \
+  "$KB_R7/ch3s/input.json" \
+  examples/anl/ch3s_anl1_f12/orbital_reviews/ch_h2s_cs_screen.json "$KB_RECON"
+.venv/bin/python -u examples/anl/tools/requested_orbital_recon.py run "$KB_RECON"
+BASH
+```
+
+`prepare` refuses to overwrite an existing campaign. To resume an already
+prepared campaign repeat only `run`; `monitor` and `evidence` are the usual
+read-only commands with the same campaign path. The three currently reserved
+review slots supply its cap. The C + SH3 whole-path review remains unresolved:
+both the original and fragment-seeded 2.8/3.0 angstrom optimizations transferred
+H, and continuation at later points does not validate earlier points or permit
+rate assembly. Do not clear that hold automatically.
+
+Focused validation for this morning repair: **413 passed, 1 skipped, 32 subtests passed** in 14.73 seconds. This includes replay of both supplied CFOUR summaries through saved-output recovery with native launching forbidden, native-frame rotation checks for atoms/diatomics/linear/nonlinear molecules, exact-row reference import and strict reuse migration, admission fairness/lease expiry, monitor inventory, and controller-refresh ownership tests. No native production job was run locally.

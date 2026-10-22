@@ -55,6 +55,8 @@ def _read(path):
         raise ValueError('orbital_review_reserve requires manage_pending to drain queued jobs.')
     if 'manage_pending' in value and type(value['manage_pending']) is not bool:
         raise ValueError('manage_pending must be boolean.')
+    if type(value.get('fair_submission', True)) is not bool:
+        raise ValueError('fair_submission must be boolean.')
     if 'minimum_walltime' in value:
         from kinbot.run_walltime import validate_minimum
         validate_minimum(value['minimum_walltime'])
@@ -150,7 +152,7 @@ def _validate_timeout(value):
 
 def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
            timeout_retries=None, timeout_walltime_factor=None, manage_pending=None,
-           optimization_step_retries=None, orbital_review_reserve=None):
+           optimization_step_retries=None, orbital_review_reserve=None, fair_submission=None):
     root = Path(root).resolve(strict=True)
     path = root/NAME
     ancestor = find(root.parent)
@@ -176,6 +178,10 @@ def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
                                  'excluded_nodes': _initial_exclusions(root), 'revision': 0})
         if max_jobs is not None:
             value['max_jobs'] = max_jobs
+        if fair_submission is not None:
+            if type(fair_submission) is not bool:
+                raise ValueError('fair_submission must be boolean.')
+            value['fair_submission'] = fair_submission
         if manage_pending is not None:
             if type(manage_pending) is not bool:
                 raise ValueError('manage_pending must be boolean.')
@@ -214,7 +220,7 @@ def validate_options(options):
     if not isinstance(options, dict) or set(options) - {
             'max_jobs', 'excluded_nodes', 'minimum_walltime',
             'timeout_retries', 'timeout_walltime_factor', 'manage_pending', 'optimization_step_retries',
-            'orbital_review_reserve'}:
+            'orbital_review_reserve', 'fair_submission'}:
         raise ValueError('Invalid queue_live_policy option.')
     if type(options.get('max_jobs')) is not int or options['max_jobs'] < 0:
         raise ValueError('queue_live_policy.max_jobs must be a nonnegative integer.')
@@ -227,6 +233,8 @@ def validate_options(options):
         raise ValueError('Orbital review capacity requires pending-job management.')
     if 'manage_pending' in options and type(options['manage_pending']) is not bool:
         raise ValueError('manage_pending must be boolean.')
+    if type(options.get('fair_submission', True)) is not bool:
+        raise ValueError('fair_submission must be boolean.')
     if 'minimum_walltime' in options:
         from kinbot.run_walltime import validate_minimum
         validate_minimum(options['minimum_walltime'])
@@ -239,6 +247,7 @@ def initialize(directory, options):
         return
     if not find(directory):
         update(directory, max_jobs=options['max_jobs'], exclude=options.get('excluded_nodes', []),
+               fair_submission=options.get('fair_submission'),
                minimum_walltime=options.get('minimum_walltime'),
                timeout_retries=options.get('timeout_retries'),
                optimization_step_retries=options.get('optimization_step_retries'),
@@ -371,7 +380,11 @@ def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime
     if any(c['directory'] == str(directory) and c['command'] == list(command)
            for c in claims.values()):
         raise RuntimeError('A previous pool submission is unconfirmed; reconcile it before resubmitting.')
-    if occupied < policy['max_jobs']:
+    turn = True
+    if policy.get('fair_submission', True):
+        from kinbot.pool_fairness import take_turn
+        turn = take_turn(path.parent, directory, command, max(0, policy['max_jobs']-occupied))
+    if occupied < policy['max_jobs'] and turn:
         if before_submit:
             before_submit()
         override = {}
@@ -439,6 +452,8 @@ def main(argv=None):
     change.add_argument('--optimization-step-retries', type=int, help='Extra same-optimizer step chunks (default 2; zero disables).')
     change.add_argument('--orbital-review-reserve', type=int,
                         help='Temporarily subtract this many slots while VRC orbital review is pending (default 0).')
+    change.add_argument('--fair-submission', action=argparse.BooleanOptionalAction, default=None,
+                        help='Give waiting PES/branches turns at free slots (default enabled).')
     walltime = change.add_mutually_exclusive_group()
     walltime.add_argument('--minimum-walltime', help='Raise future requests up to this time, capped by partition MaxTime.')
     walltime.add_argument('--clear-minimum-walltime', action='store_true')
@@ -450,6 +465,7 @@ def main(argv=None):
                         timeout_retries=args.timeout_retries,
                         optimization_step_retries=args.optimization_step_retries,
                         orbital_review_reserve=args.orbital_review_reserve,
+                        fair_submission=args.fair_submission,
                         timeout_walltime_factor=args.timeout_walltime_factor,
                         minimum_walltime='' if args.clear_minimum_walltime else args.minimum_walltime,
                         exclude=[n for v in args.exclude for n in v.split(',')],

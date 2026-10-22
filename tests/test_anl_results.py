@@ -119,6 +119,59 @@ def test_cfour_selects_hf_dboc_without_confusing_mp1_or_final_energy():
         pytest.approx(0.0026718675)
 
 
+@pytest.mark.parametrize('au,cm,kj,energy', [
+    ('0.0002719305', '59.681843', '0.714', '-0.499549245538159'),
+    ('0.0061713414', '1354.452890', '16.203', '-398.963673362401039'),
+])
+def test_cfour_native_generic_correlated_summary(au, cm, kj, energy, tmp_path, monkeypatch):
+    # Native r7 H and SH excerpts. Input and program declarations must agree;
+    # the word 'correlated' alone does not establish the requested method.
+    output = f'''CALC=CCSD
+BASIS=AUG-PVTZ
+REFERENCE=UHF
+ CCSD energy will be calculated.
+ Total CC energy including DBOC {energy}
+ Summary of diagonal Born-Oppenheimer correction at the correlated level
+ The total diagonal Born-Oppenheimer correction (DBOC) is: {au} a.u.
+ The total diagonal Born-Oppenheimer correction (DBOC) is: {cm} cm-1
+ The total diagonal Born-Oppenheimer correction (DBOC) is: {kj} kJ/mole
+ The final electronic energy is {energy} a.u.
+ This computation required 1.85 seconds (walltime).
+'''
+    result = parse_cfour_dboc(output, level='CCSD', basis='aug-cc-pVTZ', reference='UHF')
+    assert result['selected']['hartree'] == float(au)
+    for bad in (output.replace('CALC=CCSD', 'CALC=MP2'),
+                output.replace('CALC=CCSD\n', '').replace(' CCSD energy will be calculated.\n', ''),
+                output.replace('Total CC energy including DBOC '+energy,
+                               'Total CC energy including DBOC -1.0')):
+        with pytest.raises(ValueError):
+            parse_cfour_dboc(bad, level='CCSD')
+    # Exercise the actual saved-output recovery, with all native launching
+    # forbidden. A successful parser repair must not spend another allocation.
+    import json
+    from kinbot.anl.dispatch import prepare, reparse_failed
+    from kinbot.execution import atomic_json
+    task = dict(id='cfour_dboc', kind='external', backend='cfour',
+        geometry_from='initial', resources=dict(cores=1,memory_mb=4096,walltime='01:00:00'),
+        command=['xcfour'], input_name='ZMAT',
+        input_template='DBOC\n{{CARTESIAN}}\n\n*CFOUR(CALC=CCSD\nBASIS=AUG-PVTZ\nDBOC=ON\nREFERENCE=UHF\nCOORDINATES=CARTESIAN\nUNITS=ANGSTROM\nCHARGE={{CHARGE}}\nMULTIPLICITY={{MULT}})\n',
+        stdout='cfour.out', stderr='cfour.err', required_outputs=['cfour.out'],
+        success_marker=dict(file='cfour.out', contains='The total diagonal Born-Oppenheimer correction (DBOC) is:'),
+        result_parser=dict(kind='cfour_dboc',file='cfour.out',level='CCSD',basis='aug-cc-pVTZ',reference='UHF'))
+    graph = prepare(dict(schema=1,name='saved-dboc',limits=dict(max_nodes=1),tasks=[task],
+        molecule=dict(symbols=['H'],positions=[[0.,0.,0.]],charge=0,multiplicity=2)),tmp_path/'graph')
+    d = graph/'tasks/cfour_dboc'; (d/'cfour.out').write_text(output); (d/'cfour.err').write_text('')
+    state = json.loads((graph/'state.json').read_text())
+    entry = state['tasks']['cfour_dboc']; entry.update(status='failed',error='CFOUR has no CCSD DBOC summary.')
+    atomic_json(graph/'state.json',state)
+    atomic_json(d/'execution.json',dict(schema=1,task_id='cfour_dboc',status='failed',
+        geometry_sha256=entry['geometry_sha256'], error=entry['error'],traceback='parse_result(output, request)'))
+    monkeypatch.setattr('kinbot.anl.dispatch.subprocess.run',lambda *a,**k:pytest.fail('No native rerun'))
+    result = reparse_failed(graph,'cfour_dboc')
+    assert result['details']['reparsed_without_execution']
+    assert result['details']['parsed_result']['selected']['hartree'] == float(au)
+
+
 def test_cfour_rejects_incomplete_and_inconsistent_dboc_output():
     assert parse_cfour_dboc(_CFOUR_CH4, basis='cc-pVTZ')['selected_level'] == 'HF'
     with pytest.raises(ValueError, match='basis'):

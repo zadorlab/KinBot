@@ -56,7 +56,12 @@ class TestSelectedHessian(unittest.TestCase):
     def write_hessian(self, job):
         if self.qc.qc == 'gauss':
             flat = self.hess[np.tril_indices(len(self.hess))]
-            lines = ['Cartesian Force Constants R N= ' + str(len(flat))]
+            from ase.units import Bohr
+            lines = ['Atomic numbers I N= ' + str(len(self.atoms)),
+                     ' '.join(map(str, self.atoms.numbers)),
+                     'Current cartesian coordinates R N= ' + str(3*len(self.atoms)),
+                     ' '.join(map(str, (self.atoms.positions/Bohr).ravel())),
+                     'Cartesian Force Constants R N= ' + str(len(flat))]
             lines += [' '.join(map(str, flat[i:i+5])) for i in range(0, len(flat), 5)]
             Path(job + '.fchk').write_text('\n'.join(lines) + '\n')
             Path(job + '.log').write_text('done\n')
@@ -262,15 +267,15 @@ class TestSelectedHessian(unittest.TestCase):
                 self.qc.qc = backend
                 self.record(self.job)
                 self.write_hessian(self.job)
-                np.testing.assert_allclose(self.qc.read_qc_hess(self.job, len(self.atoms)), self.hess)
+                np.testing.assert_allclose(self.qc.read_qc_hess(self.job, len(self.atoms)), self.hess, atol=1e-14)
                 self.assertEqual(self.qc.hessian_is_massweighted(), backend == 'qchem')
                 own = hessian_record(self.qc, self.job, self.species.geom, self.species.atom)
-                np.testing.assert_allclose(own['hessian'], self.hess)
+                np.testing.assert_allclose(own['hessian'], self.hess, atol=1e-14)
                 self.assertEqual(own['hessian_reference']['hessian_massweighted'], backend == 'qchem')
                 target = 'conf/published_' + backend + '_low'
                 source = list(self.qc.db.select(name=self.job))[-1]
                 self.qc.publish_result(source, target)
-                np.testing.assert_allclose(self.qc.read_qc_hess(target, len(self.atoms)), self.hess)
+                np.testing.assert_allclose(self.qc.read_qc_hess(target, len(self.atoms)), self.hess, atol=1e-14)
 
     def test_missing_native_hessian_recovers_without_optimizing_or_using_parent(self):
         for backend in ('gauss', 'qchem'):
@@ -309,7 +314,7 @@ class TestSelectedHessian(unittest.TestCase):
                 generated.assert_called_once()
                 self.assertEqual(opt.selected_job, recovery)
                 self.assertEqual(self.species.source_job, recovery)
-                np.testing.assert_allclose(self.species.hess, self.hess)
+                np.testing.assert_allclose(self.species.hess, self.hess, atol=1e-14)
                 np.testing.assert_allclose(self.species.geom, self.atoms.positions)
                 self.assertEqual(self.species.freq, self.freq)
                 self.assertEqual(self.qc.db.count(name=self.job), 1)

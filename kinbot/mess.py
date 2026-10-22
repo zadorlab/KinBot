@@ -513,6 +513,7 @@ class MESS:
             'source_row_id': getattr(species, 'source_row_id', None),
             'electronic_energy_hartree': float(species.energy),
             'harmonic_zpe_hartree': float(species.zpe),
+            'hessian_frame_policy': 'selected-geometry-v1',
             'geometry_sha256': _geometry_hash(Atoms(
                 symbols=symbols, positions=positions)),
         }

@@ -47,6 +47,8 @@ STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'kinbot_status.json', 'pes_status.json', 'recovery.json',
                'minimum_recovery.json', 'composite_preflight.json', 'vrc_model_review.json',
                'scan_review.json'}
+INVENTORY_DIRECTORY_LIMIT = 30000
+INVENTORY_LOG_LIMIT = 30000
 REACTION_STAGES = {-999: 'failed/rejected', -1: 'accepted', 0: 'TS search',
                    1: 'barrier/IRC', 2: 'product characterization',
                    3: 'start product/TS optimization', 4: 'product/TS optimization',
@@ -106,7 +108,7 @@ def queue():
 
 def inventory(root, warnings, archives=None):
     """Bound metadata traversal; exclude archives, scratch and sampling payloads."""
-    paths, visited = [], 0
+    paths, visited, log_count = [], 0, 0
     def walk_error(error):
         warnings.append(str(error))
     for directory, dirs, files in os.walk(root, followlinks=False, onerror=walk_error):
@@ -126,18 +128,26 @@ def inventory(root, warnings, archives=None):
             d.startswith('.') or '.stopped.' in d or d.startswith('restart_')
             or d in {'assets', 'orbitals', 'scratch', '__pycache__', 'archive', 'archives'}
             or Path(directory, d).is_symlink()))
-        visited += len(files) + 1
-        if visited > 30000:
-            warnings.append('Monitor inventory capped at 30000 entries; some files omitted.')
+        # Thousands of finite-difference step files in one geometry job must
+        # not hide the state/review records of every subsequent well. Bound
+        # traversal and optional log inventory separately from metadata.
+        visited += 1
+        if visited > INVENTORY_DIRECTORY_LIMIT:
+            warnings.append('Monitor directory inventory capped; some records omitted.')
             break
         for name in files:
             path = Path(directory, name)
-            if (name.endswith(('.execution.json', '.rotdpy.json', '.result.json', '.scf_recovery.json')) or
+            metadata = (name.endswith(('.execution.json', '.rotdpy.json', '.result.json', '.scf_recovery.json', '.exitcode')) or
                     name in LOG_NAMES | STATE_NAMES | {'kinbot_monitor.out', 'pes_summary.txt',
-                'kinbot_optimization_monitor.json'} or
-                    path.suffix in {'.log', '.err', '.stdout', '.stderr', '.exitcode', '.out'}):
+                'kinbot_optimization_monitor.json'})
+            log = path.suffix in {'.log', '.err', '.stdout', '.stderr', '.out'}
+            if metadata or (log and log_count < INVENTORY_LOG_LIMIT):
                 if not path.is_symlink():
                     paths.append(path)
+            if log and not metadata:
+                log_count += 1
+                if log_count == INVENTORY_LOG_LIMIT + 1:
+                    warnings.append('QC log inventory capped; state/review inventory continues.')
         # RotdPy sample trees are very large. Report surface output counts
         # separately, without traversing individual sample/checkpoint files.
         if Path(directory).name.startswith('kb_'):

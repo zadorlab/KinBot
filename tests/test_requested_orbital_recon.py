@@ -81,6 +81,31 @@ def test_wrong_or_accepted_request_cannot_be_prepared(request_tree, field, value
     assert not output.exists()
 
 
+def test_ch_h2s_screen_uses_requested_geometry_and_only_doublet_casci(request_tree):
+    request, case_input, output = request_tree
+    recipe = RECIPE.with_name('ch_h2s_cs_screen.json')
+    positions = [[.7467252173, -.7423275741, -.5474233962],
+        [.1678425237, .4711769182, .5418506859],
+        [1.0595729495, 1.3596853597, 1.1290564624],
+        [.0422254396, -.2114253717, 1.6944421867],
+        [1.1828471196, -.1760172776, -1.3830416653]]
+    data = dict(json.loads(recipe.read_text())['request_match'],
+                schema=1, status='needs_review', positions=positions,
+                smiles='[H][C]=[S]([H])[H]')
+    atomic_json(request, data)
+    result = helper.prepare(request, case_input, recipe, output)
+    assert result['tasks'] == 8
+    assert json.loads((output/'request.json').read_text())['positions'] == positions
+    manifest = json.loads((output/'native/reconnaissance.json').read_text())
+    for job in manifest['jobs']:
+        assert [(s['multiplicity'], s['root']) for s in job['root_states']] == [
+            (2, 1), (2, 2), (2, 3), (2, 4)]
+        deck = (Path(job['directory'])/(job['name']+'.inp')).read_text().lower()
+        assert '{rhf,so-sci,maxit=256;wf,25,1,1;' in deck
+        assert '{multi,cas-ci;' in deck
+        assert 'rs2' not in deck and 'ccsd' not in deck
+
+
 def test_refuse_to_write_into_production_tree(request_tree):
     request, case_input, _ = request_tree
     with pytest.raises(ValueError, match='outside the production'):

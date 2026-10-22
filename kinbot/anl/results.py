@@ -134,6 +134,22 @@ def _level(name):
             'mp1': 'MP1'}.get(folded, name.strip().upper())
 
 
+def _cfour_correlated_dboc_level(output):
+    """Resolve CFOUR's generic summary from native method declarations."""
+    methods = []
+    patterns = (
+        r'^\s*CALC(?:LEVEL)?\s*=\s*([^\s,)]+(?:\([^)]*\))?)\s*[,)]?\s*$',
+        r'^\s*CALCLEVEL\s+\w+\s+(\S+)\s+\[',
+        r'^\s*(\S+)\s+energy will be calculated\.\s*$',
+    )
+    for pattern in patterns:
+        methods.extend(_level(value) for value in re.findall(
+            pattern, output, re.MULTILINE | re.IGNORECASE))
+    if set(methods) != {'CCSD'}:
+        raise ValueError('CFOUR correlated DBOC summary lacks an unambiguous supported native method.')
+    return methods[0]
+
+
 def parse_cfour_dboc(output, *, level='HF', basis=None, reference=None):
     """Select one named DBOC level, preserving separately reported levels.
 
@@ -165,8 +181,12 @@ def parse_cfour_dboc(output, *, level='HF', basis=None, reference=None):
     if not headers:
         raise ValueError('CFOUR output has no named DBOC summary.')
     reported = {}
+    generic_correlated = False
     for index, header in enumerate(headers):
         name = _level(header.group(1))
+        if name in ('CORRELATED', 'THE CORRELATED'):
+            name = _cfour_correlated_dboc_level(output)
+            generic_correlated = True
         if name in reported:
             raise ValueError(f'CFOUR repeated the {name} DBOC summary.')
         end = headers[index + 1].start() if index + 1 < len(headers) else len(output)
@@ -196,6 +216,11 @@ def parse_cfour_dboc(output, *, level='HF', basis=None, reference=None):
     if len(finals) != 1:
         raise ValueError('CFOUR needs exactly one final electronic energy.')
     final = _number(finals[0])
+    if generic_correlated:
+        totals = re.findall(rf'^\s*Total CC energy including DBOC\s+({_NUMBER})\s*$',
+                            output, re.MULTILINE | re.IGNORECASE)
+        if len(totals) != 1 or abs(_number(totals[0]) - final) > 1e-8:
+            raise ValueError('CFOUR final energy disagrees with correlated energy plus DBOC.')
     if requested == 'HF':
         scf_with_dboc = _SCF_WITH_DBOC.findall(output)
         if len(scf_with_dboc) != 1 or abs(_number(scf_with_dboc[0]) - final) > 1e-8:

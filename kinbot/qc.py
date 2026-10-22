@@ -2037,44 +2037,18 @@ class QuantumChemistry:
                 last_row = row
             hess = last_row.data['hess']
         elif self.qc == 'gauss':
-            hess = np.zeros((3 * natom, 3 * natom))
+            from kinbot.gaussian_hessian import read_formatted_hessian
+            if not rows or len(rows[-1].symbols) != natom:
+                raise ValueError('Gaussian Hessian has no matching selected geometry row.')
             fchk = str(job) + '.fchk'
-            if not os.path.exists(fchk):
-                # create the fchk file using formchk
-                if not os.path.exists(job + '.chk'):
+            checkpoint = str(job) + '.chk'
+            if (not os.path.exists(fchk) or (os.path.exists(checkpoint)
+                    and os.path.getmtime(checkpoint) > os.path.getmtime(fchk))):
+                if not os.path.exists(checkpoint):
                     return []
-                subprocess.run(['formchk', job + '.chk', fchk],
+                subprocess.run(['formchk', checkpoint, fchk],
                                check=True, stdout=subprocess.DEVNULL)
-
-            with open(fchk) as f:
-                lines = f.read().split('\n')
-            nvals = 3 * natom * (3 * natom + 1) / 2
-
-            for index, line in enumerate(reversed(lines)):
-                if re.search('Cartesian Force Constants', line) != None:
-                    hess_flat = []
-                    n = 0
-                    while len(hess_flat) < nvals:
-                        hess_flat.extend([float(val) for val in lines[-index + n].split()])
-                        n += 1
-                    n = 0
-                    for i in range(3 * natom):
-                        for j in range(i + 1):
-                            hess[i][j] = hess_flat[n]
-                            hess[j][i] = hess_flat[n]
-                            n += 1
-                    break
-            else:
-                # Try to see if the Hessian is in the database.
-                #db = connect('kinbot.db')
-                for row in self.db.select(name=job):
-                    last_row = row
-                if 'hess' in last_row.data:
-                    hess = last_row.data['hess']
-                    logger.warning(f'Hessian matrix not found on {fchk}. '
-                                   'Reading from kinbot.db database.')
-                else:
-                    raise FileNotFoundError(f'Hessian matrix not found on {fchk}.')
+            hess = read_formatted_hessian(fchk, rows[-1].symbols, rows[-1].positions)
         elif self.qc == 'qchem':
             hess = []
             row = 0

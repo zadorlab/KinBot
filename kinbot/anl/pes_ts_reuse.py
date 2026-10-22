@@ -145,7 +145,15 @@ def history(case, result, current):
     for key, expected in result['records'].items():
         item = items.get(key, result.get('catalog', {}).get(key))
         if item is None or signature(item['record']) != expected:
-            raise ValueError(f'{key}: PES ANL ownership provenance changed.')
+            from kinbot.anl.reference_frequencies import verified_migration
+            old = result.get('catalog', {}).get(key, {}).get('record')
+            if (item is None or old is None or signature(old) != expected
+                    or not verified_migration(old, item['record'])):
+                raise ValueError(f'{key}: PES ANL ownership provenance changed.')
+            result.setdefault('frequency_migrations', {})[key] = {
+                'previous_record': deepcopy(old), 'previous_sha256': expected,
+                'evidence': deepcopy(item['record']['frequency_recovery'])}
+            result['records'][key] = signature(item['record'])
         graph = Path(item['graph']).resolve()
         if not graph.is_relative_to(case.resolve()):
             raise ValueError('PES ANL graph escapes its owning PES.')

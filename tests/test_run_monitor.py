@@ -14,6 +14,23 @@ def put(path, value):
     path.write_text(json.dumps(value) if isinstance(value, dict) else value)
 
 
+def test_payload_and_log_flood_do_not_hide_later_well_metadata(tmp_path, monkeypatch):
+    monkeypatch.setattr(monitor, 'INVENTORY_LOG_LIMIT', 2)
+    for i in range(12):
+        put(tmp_path/f'111/tasks/geometry/step_{i}.wfu', 'payload')
+        put(tmp_path/f'111/tasks/geometry/step_{i}.out', 'output')
+    state = tmp_path/'999/vrctst/scan_review/channel/scan_review.json'
+    result = tmp_path/'999/failed.result.json'
+    put(state, dict(status='needs_review'))
+    put(result, dict(status='failed'))
+    warnings = []
+    paths = monitor.inventory(tmp_path, warnings)
+    assert state in paths and result in paths
+    assert len([p for p in paths if p.suffix == '.out']) == 2
+    assert not any(p.suffix == '.wfu' for p in paths)
+    assert warnings == ['QC log inventory capped; state/review inventory continues.']
+
+
 @pytest.fixture
 def production(tmp_path, monkeypatch):
     root = tmp_path/'runs'

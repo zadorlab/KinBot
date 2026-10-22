@@ -1242,7 +1242,7 @@ def _model_record(model_path, entry, l2_theory):
             'l2_theory': dict(l2_theory),
         },
     }
-    return {
+    record = {
         'schema': 1, 'provider': 'automatic-kinbot-reference-l2',
         'routing_name': model.get('name', _safe_state_directory(
             canonical, entry['charge'], entry['multiplicity'])),
@@ -1257,6 +1257,8 @@ def _model_record(model_path, entry, l2_theory):
         'thermochemistry_model': model,
         'thermochemistry_model_file': str(Path(model_path).resolve()),
     }
+    from kinbot.anl.reference_frequencies import recover
+    return recover(record)
 
 
 def _pid_matches_reference(pid, input_path, directory):
@@ -1722,6 +1724,10 @@ def _reference_thermochemistry_models(reference_entries, sources, graphs):
     for entry in reference_entries:
         key = _state_key(entry['smiles'], entry['charge'],
                          entry['multiplicity'])
+        if sources[key].get('frequency_recovery', {}).get('thermal_spectrum_requires_reexport'):
+            raise ValueError(f'{entry["smiles"]}: legacy Gaussian rotor-reduced thermal model '
+                'requires re-export with the corrected Hessian frame; saved QC remains reusable: '
+                + sources[key]['thermochemistry_model_file'])
         model = dict(sources[key]['thermochemistry_model'])
         graph = graphs.get('stable:' + key)
         if graph is not None:

@@ -1,0 +1,151 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "471230610040000000002",
+    "reaction": "471230610040000000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]"
+      }
+    ]
+  },
+  "reconnaissance": {
+    "title": "ch_h2s_cs_valence_screen",
+    "multiplicity": 2,
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-09,
+    "scf_options": {
+      "solver": "so_sci",
+      "max_iterations": 256
+    },
+    "coordinates": [
+      {
+        "name": "cs",
+        "bond": [
+          1,
+          2
+        ],
+        "distances_angstrom": [
+          2.0,
+          3.5,
+          6.0,
+          30.0
+        ],
+        "fragment_states": [
+          {
+            "atom": 1,
+            "charge": 0,
+            "multiplicity": 2,
+            "smiles": "[CH]"
+          },
+          {
+            "atom": 2,
+            "charge": 0,
+            "multiplicity": 1,
+            "smiles": "S"
+          }
+        ]
+      }
+    ],
+    "probe_active_space": true,
+    "probe_method": "casci",
+    "orbital_initialization": "independent",
+    "avas_reference": "rhf",
+    "probe_definition": {
+      "active_electrons": 13,
+      "active_orbitals": 11,
+      "chemical_note": "Diagnostic all-valence CASCI only: C 2s/2p, S 3s/3p and all three H 1s targets. Doublet ROHF initializes the orbitals. Four equally weighted doublet roots expose the CH frontier orbitals and possible mixing with H2S valence orbitals; additional roots are diagnostic, not additional reactive flux. The actual request supplies the geometry and atom order. Inspect occupations and AO character before selecting a compact production space. No CC or CASPT2 calculation, production approval, or potential validation is implied.",
+      "state_model": {
+        "orbital_selection": {
+          "mode": "avas",
+          "threshold": 0.3,
+          "minao_basis": "minao",
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 3,
+              "orbitals": [
+                "1s"
+              ]
+            },
+            {
+              "atom": 4,
+              "orbitals": [
+                "1s"
+              ]
+            },
+            {
+              "atom": 5,
+              "orbitals": [
+                "1s"
+              ]
+            }
+          ]
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 4,
+            "weights": [
+              0.25,
+              0.25,
+              0.25,
+              0.25
+            ]
+          }
+        ],
+        "selected_roots": {
+          "2": 1
+        },
+        "canonical_orbitals": true
+      }
+    }
+  }
+}

@@ -639,6 +639,11 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             print(f'ANL reuse mappings: local={local}; across wells={shared}; '
                   f'existing duplicate graphs to archive={len(retired)}. '
                   'Allocation cancellations are a separate count.', flush=True)
+            recovered = sum(len(e['mapping'].get('frequency_migrations', {}))
+                            for e in network.get('external_ts', []))
+            if recovered:
+                print(f'ANL reference frequency provenance: {recovered} verified native-row '
+                      'recoveries recorded; original models and QC files retained.', flush=True)
         if deduplicate_vrc:
             from kinbot import vrc_deduplicate
             duplicate = vrc_deduplicate.plan(root, jobs)

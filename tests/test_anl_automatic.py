@@ -1108,7 +1108,7 @@ def test_automatic_vpt2_retry_is_submitted_once_alongside_adopted_job(tmp_path, 
     assert state['tasks']['live_energy']['job_id'] == '111'
     assert state['tasks']['gaussian_vpt2']['job_id'] == '222'
     assert state['tasks']['gaussian_vpt2']['attempt'] == 2
-    assert (graph / 'attempts/gaussian_vpt2/1/vpt2.log').is_file()
+    assert (Path(state['tasks']['gaussian_vpt2']['previous_attempt']) / 'vpt2.log').is_file()
     assert 'Symmetry=(PG=C1)' in (directory / 'vpt2.com').read_text()
     assert (directory / 'geometry.xyz').read_bytes() == geometry
     assert live_hashes == {p.name: file_sha256(p) for p in (graph / 'tasks/live_energy').iterdir() if p.is_file()}

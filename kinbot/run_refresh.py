@@ -297,6 +297,34 @@ def _archive_controllers(root, archive):
                      'kinbot.log', 'kinbot.err', 'kinbot.out', 'kinbot_status.json'):
             run_salvage._save(directory / name, root, archive, move=True)
         run_salvage._save(directory / '.kinbot_post_reaction_branches.json', root, archive)
+        for name in ('chemids', 'pes_exploration.json'):
+            run_salvage._save(directory / name, root, archive)
+
+
+def _restore_discovery(root, archive):
+    """Recover the discovery list lost by older PES startup code, once.
+
+    The preceding handoff's summary predates that truncation. Current order
+    remains a prefix so even an interrupted handoff cannot duplicate workers.
+    Called with all controllers stopped, before launching the replacement.
+    """
+    previous = archive/'previous_refresh.json'
+    if not previous.is_file():
+        return {}
+    record = json.loads(previous.read_text())
+    source = Path(record['archive'])
+    if (record.get('phase') != 'launched' or source.is_symlink()
+            or source.parent != root.parent
+            or not source.name.startswith(root.name+'.controllers.')):
+        raise ValueError('Previous controller archive does not belong to this run.')
+    from kinbot.pes_inventory import restore
+    _, inputs = run_salvage._cases(root)
+    reports = {}
+    for path in inputs:
+        summary = source/path.parent.relative_to(root)/'pes_summary.txt'
+        if summary.is_file():
+            reports[path.parent.name] = restore(path.parent, summary, apply=True)
+    return reports
 
 
 @contextmanager
@@ -720,6 +748,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 journal['jobs'] = _owned_jobs(root)
                 atomic_json(journal_path,journal)
             _archive_controllers(root, archive)
+            journal['discovery_restored'] = _restore_discovery(root, archive)
             history.update(status='prepared', code=str(pin))
             atomic_json(marker, history)
             journal['phase'] = 'prepared'

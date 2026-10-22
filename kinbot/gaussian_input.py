@@ -2,6 +2,14 @@
 import re
 
 
+def has_anharmonic_frequency(text):
+    """Recognize simple or compound Gaussian anharmonic frequency options."""
+    return bool(re.search(
+        r'\bFreq(?:uencies)?\s*(?:=\s*(?:Anharm(?:onic)?\b|'
+        r'\([^)]*\bAnharm(?:onic)?\b)|\([^)]*\bAnharm(?:onic)?\b)',
+        text, re.I))
+
+
 def route_options(value):
     """Accept an optional outer pair; split only top-level commas.
 

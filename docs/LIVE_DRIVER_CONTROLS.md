@@ -412,3 +412,81 @@ already imported Python code. A future controller-code defect can still require
 a controller replacement; unsafe native checkpoints and contradictory scientific
 provenance still require review. No live interface can guarantee every backend
 will converge or implement an unsupported native method.
+
+## Reconcile saved results and known failures without replacing controllers
+
+```bash
+python -m kinbot.run_control reconcile "$KB_RUN"
+python -m kinbot.run_control reconcile "$KB_RUN" --apply
+```
+
+The first command previews current dispatcher graphs. `--select` accepts a
+repeatable graph-path glob relative to the run root, for example
+`'ch3s/*/anl_automatic/states/*/composite'`. The applied command takes each
+unowned graph's existing drive lock, reconciles native results, applies known
+bounded recoveries, and stages eligible tasks. It **does not submit or cancel
+QC jobs**, launch drivers, or release the outer-PES L2 admission gate. An
+actively owned graph is reported as `owned_by_controller` and left to that
+controller. A failed graph is reported as `blocked`; other graphs are still
+processed. Retry archives and journals are excluded from the inventory.
+
+All Gaussian VPT2 dispatcher tasks now use the same native-diagnostic recovery
+rules, regardless of task name, molecule, ANL variant or driver:
+
+- A named old/new framework-group mismatch can receive `Symmetry=None`.
+- A subsequent unassigned old group under `Symmetry=None` can receive one
+  `Symmetry=(PG=<native New group>)` retry. The October 22 CHS case reports
+  `New: CS - Old:` and therefore selects `Symmetry=(PG=CS)`.
+- For verified linear geometries, new VPT2 input rendering retains point-group
+  detection with `NoSymm`. An older unsubmitted input is restaged; a failed
+  old input is retried only for the native `Molecule is non-linear but NTrRo=5`
+  diagnostic. This interface repair is recorded once per task.
+- Simple and compound anharmonic frequency keywords are recognized consistently
+  by input validation, rendering, recovery and the native result reader.
+
+These are finite recovery paths, not a generic segmentation-fault retry.
+Native failure evidence, input/geometry hashes and allocation termination are
+checked. Existing completed/allocated descendants prevent automatic source
+replacement. Interrupted archival resumes through the live-control journal;
+unchanged allocations retain their manifests and files. Legacy allocations
+that lack the manifest read lock defer a workflow edit until they finish.
+Unknown errors or unsupported custom symmetry combinations remain available
+for a reviewed `retry --fallback FILE.json` request. The geometry, electronic
+method, basis and result acceptance criteria are not relaxed by these repairs.
+
+`NoSymm`, `Symmetry=None` and `PG` have different meanings in the
+[Gaussian symmetry manual, distributor-hosted translation](https://conflex.co.jp/gaussian_support/symmetry.php).
+`PG` caps the computational group; it does not prove convergence or impose a
+new accepted chemical structure. Native completion and VPT2 result checks
+remain required after recovery.
+
+## Preserve and restore the discovered-well inventory
+
+PES startup preserves `chemids` instead of resetting it to the initial well.
+Controller handoff also archives `chemids` and `pes_exploration.json`. When
+upgrading a run affected by the older truncation bug, `run_refresh` restores
+verified missing workers from the preceding handoff's `pes_summary.txt` before
+relaunch. `controller_refresh.json: discovery_restored` records the additions.
+Existing worker inputs must match the well name and current run format.
+Discovery restoration does not manufacture L2 completion or submit QC.
+
+An existing exploring owner can also accept an explicit saved inventory:
+
+```bash
+python -m kinbot.pes_inventory "$KB_RUN/ch3s" \
+  --summary /absolute/path/to/saved/pes_summary.txt
+# Inspect added/retained names, then repeat with --apply.
+```
+
+The merge is append-only, atomic and phase-locked. Normal exploration limits
+admit the added workers, and the full L2 selection gate remains enforced.
+Restoring additional wells after a live owner entered downstream planning
+requires the existing exploration-revisit procedure or a controller handoff.
+Stray numeric directories are never treated as accepted discoveries.
+
+Installing these code fixes into an already pinned old controller needs one
+controller replacement. Once installed, known recovery policies, numerical
+keyword/command/environment overrides, resources, explicit retries, and VRC
+review/resubmission use the live interfaces above. A genuinely new software
+defect can still require a software upgrade; arbitrary scientific changes
+must invalidate affected dependents rather than silently reuse them.

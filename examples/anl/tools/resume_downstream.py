@@ -118,9 +118,14 @@ def repair_graph(graph, archive):
         archive.save(outcome)
     # This reconciles calculations which finished after the old controller
     # failed, and recovers SH's native success using the corrected parser.
+    before = dispatch._load(graph)[2]['tasks']
     dispatch.advance(graph, submit=False)
     _, spec, state = dispatch._load(graph)
-    recovered = []
+    recovered = [t['id'] for t in spec['tasks']
+                 if t.get('result_parser', {}).get('kind') == 'gaussian_vpt2'
+                 and state['tasks'].get(t['id'], {}).get('previous_attempt')
+                 and state['tasks'][t['id']]['previous_attempt'] !=
+                 before.get(t['id'], {}).get('previous_attempt')]
     for task in spec['tasks']:
         ident = task['id']
         status = state['tasks'].get(ident, {}).get('status')
@@ -154,7 +159,8 @@ def repair_graph(graph, archive):
         ident = task['id']
         entry = state['tasks'].get(ident, {})
         if (task.get('result_parser', {}).get('kind') != 'gaussian_vpt2'
-                or entry.get('status') in ('complete', 'unavailable')):
+                or entry.get('status') in ('complete', 'unavailable')
+                or task.get('recovery', {}).get('assigned_native_framework')):
             continue
         template, count = re.subn(
             r'(?i)Symmetry\s*=\s*\(\s*PG\s*=\s*C1\s*\)',

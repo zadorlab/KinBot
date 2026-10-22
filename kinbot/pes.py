@@ -415,9 +415,10 @@ def _main():
     phase_record = pes_phase.initialize(Path.cwd(), input_file, routing_name(well0)) if phased else None
     write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
-    # add the initial well to the chemids
-    with open('chemids', 'w') as f:
-        f.write(routing_name(well0) + '\n')
+    # A restart must retain every discovered well, including a well whose
+    # predecessor is still replaying saved QC or waiting on a live allocation.
+    from kinbot.pes_inventory import initialize as initialize_inventory
+    initialize_inventory(Path.cwd(), routing_name(well0))
 
     # create a directory for the L3 single point calculations
     # directory has the name of the code, e.g., molpro

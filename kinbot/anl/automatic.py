@@ -1569,18 +1569,11 @@ def _retry_vpt2_framework_failures(graph, state):
     if not any(e.get('status') in ('failed', 'unavailable')
                for e in state['tasks'].values()):
         return state
-    from kinbot.anl.dispatch import (can_recover_gaussian_vpt2_symmetry,
-                                     recover_gaussian_vpt2_symmetry)
+    from kinbot.anl.dispatch import recover_vpt2_failures
     spec = _load(graph)[1]
-    for task in spec.get('tasks', []):
-        if can_recover_gaussian_vpt2_symmetry(
-                graph, task, state['tasks'].get(task['id'], {})):
-            archive = recover_gaussian_vpt2_symmetry(graph, task['id'])
-            print(f'ANL VPT2 framework retry {task["id"]}: '
-                  f'archived failed attempt at {archive}',
-                  file=sys.stderr, flush=True)
-            state = _load(graph)[2]
-    return state
+    if not spec.get('tasks'):
+        return state
+    return recover_vpt2_failures(graph, spec, state)[1]
 
 
 def _drive_graphs(graphs, max_jobs, interval=20.):

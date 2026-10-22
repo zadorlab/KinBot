@@ -715,13 +715,13 @@ def test_gaussian_framework_recovery_disables_prior_symmetry_retry(prior):
 
         archive = recover_gaussian_vpt2_symmetry(
             run_dir, 'gaussian_vpt2')
-        assert archive.name == '2'
+        assert (archive / 'vpt2.log').is_file()
         assert 'Symmetry=None' not in (archive / 'vpt2.com').read_text()
         assert (directory / 'geometry.xyz').read_bytes() == original_geometry
         recovered = (directory / 'vpt2.com').read_text()
         assert recovered.count('Symmetry=None') == 1
         assert 'Symmetry=(PG=C1)' not in recovered
-        assert 'Freq=Anharmonic Symmetry=None' in recovered
+        assert 'Freq=Anharmonic' in recovered
         workflow = json.loads((run_dir / 'workflow.json').read_text())
         recovered_task = next(item for item in workflow['tasks']
                               if item['id'] == 'gaussian_vpt2')

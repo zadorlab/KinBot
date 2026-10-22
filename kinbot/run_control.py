@@ -38,6 +38,51 @@ def inventory(root):
     return {'targets': rows, 'warnings': warnings}
 
 
+def reconcile(root, selectors=(), *, apply=False):
+    """Reparse/recover saved dispatcher results without QC submission/cancellation.
+
+    A live owner retains its drive lock. Unowned graphs can be reconciled even
+    while the PES admission gate holds new ANL submissions. One graph's error
+    is reported without preventing independent graphs from being reconciled.
+    """
+    import fcntl
+    from fnmatch import fnmatchcase
+    from kinbot.anl import dispatch
+    from kinbot.run_monitor import inventory as scan
+    root = Path(root).resolve(strict=True)
+    warnings, reports = [], []
+    for path in scan(root, warnings):
+        if path.name != 'state.json' or not (path.parent/'workflow.json').is_file():
+            continue
+        graph = path.parent.resolve()
+        if not graph.is_relative_to(root):
+            warnings.append(f'Graph outside run ignored: {path.parent}')
+            continue
+        name = graph.relative_to(root).as_posix()
+        if selectors and not any(fnmatchcase(name, pattern) for pattern in selectors):
+            continue
+        report = dict(graph=name, status='reviewed')
+        reports.append(report)
+        if not apply:
+            continue
+        try:
+            with (graph/'drive.lock').open('a') as handle:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    report['status'] = 'owned_by_controller'
+                    continue
+                before = json.loads(path.read_text()).get('tasks', {})
+                state = dispatch.advance(graph, submit=False)
+                report.update(status='reconciled', changes={
+                    n: {'before': before.get(n, {}).get('status', 'waiting'),
+                        'after': e.get('status'), 'attempt': e.get('attempt', 1)}
+                    for n, e in state['tasks'].items() if before.get(n) != e})
+        except (RuntimeError, ValueError, OSError) as error:
+            report.update(status='blocked', error=str(error))
+    return dict(graphs=reports, warnings=warnings)
+
+
 def pending_time(root, jobs, value, *, delta=False, apply=False):
     """Hold before modifying a pending limit, preserve pre-existing user holds."""
     from kinbot.run_walltime import jobs as owned_jobs, seconds, duration, partition_limits
@@ -138,6 +183,10 @@ def main(argv=None):
     enable = sub.add_parser('enable'); enable.add_argument('root', type=Path)
     enable.add_argument('--hold-failures', action=argparse.BooleanOptionalAction, default=None)
     enable.add_argument('--hold-task-failures', action=argparse.BooleanOptionalAction, default=None)
+    rec = sub.add_parser('reconcile', help='Reconcile saved graph results/recoveries; never submit or cancel QC.')
+    rec.add_argument('root', type=Path)
+    rec.add_argument('--select', action='append', default=[], help='Graph path glob relative to ROOT; default all current graphs.')
+    rec.add_argument('--apply', action='store_true')
     resubmit = sub.add_parser('resubmit', help='Validate an edited PES input; ask its existing owner to apply it.')
     resubmit.add_argument('input', type=Path)
     resubmit.add_argument('--run-directory', type=Path,
@@ -185,7 +234,9 @@ def main(argv=None):
     group.add_argument('--walltime'); group.add_argument('--delta', help='Signed HH:MM:SS, e.g. --delta=-02:00:00')
     wall.add_argument('--apply', action='store_true')
     args = parser.parse_args(argv)
-    if args.action == 'resubmit':
+    if args.action == 'reconcile':
+        result = reconcile(args.root, args.select, apply=args.apply)
+    elif args.action == 'resubmit':
         from kinbot.input_refresh import submit, receipt, owner_directory
         if args.status:
             owner = owner_directory(args.input,directory=args.run_directory,require_live=False)

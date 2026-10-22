@@ -4,6 +4,12 @@ This version changes new ANL graphs. Existing version-1 graphs keep their
 original definitions and are not relabeled as version 2. The r7 handoff starts
 fresh chemistry and copies only the reviewed VRC orbital seeds/settings.
 
+The latest existing-r7 repair is described under
+[common VPT2 recovery and preserved exploration inventory](#october-22-common-vpt2-recovery-and-preserved-exploration-inventory).
+It installs generic known VPT2 fallbacks and restores the discovered-well
+inventory during the same-directory controller handoff. The command below
+also stages verified saved repairs without submitting QC outside the PES gate.
+
 ## Existing r7 native-interface repairs, October 22
 
 This update repairs the **existing r7**, not another fresh campaign. The
@@ -52,6 +58,9 @@ cd "$HOME/KinBot"
 git pull --ff-only origin composite
 .venv/bin/python -u -m kinbot.run_refresh \
   "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" --apply
+.venv/bin/python -m kinbot.run_control reconcile \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" --apply \
+  > "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/reconcile_after_refresh.json"
 .venv/bin/python -m kinbot.run_monitor \
   "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
 BASH
@@ -62,7 +71,7 @@ this repair. The same refresh installs the bounded VRC recovery and live
 scan review controls described in [the VRC handoff](VRC_CHANNEL_HANDOFF_R7.md#bounded-scan-recovery-and-live-review-october-22).
 Local regression checks cannot certify future native convergence; the next
 Blodgett executions provide the native verification of these repairs.
-Final local validation for this update: **2,801 passed, 7 skipped, 435 subtests
+Prior native-interface update validation: **2,801 passed, 7 skipped, 435 subtests
 passed** (112.99 seconds). The one warning is the existing deprecated `imp`
 test import. Coverage includes controller handoff, retained allocations,
 interrupted repair journals, shared admission, interface readers, scan gaps,
@@ -574,3 +583,54 @@ those pathways carefully, not imposing its network as an automatic acceptance
 criterion. The chosen ANL v2 and reviewed VRC models are the user's modified
 prescription; native convergence, active-space adequacy and PES completeness
 remain scientific checks during r7.
+
+## October 22: common VPT2 recovery and preserved exploration inventory
+
+The 00:09 PDT r7 snapshot and subsequent native excerpts identified two
+remaining operational problems:
+
+1. `state_e9209ae729624297/gaussian_vpt2`, CH3S well
+   `471230610040000000002`, allocation **52917484**, failed in Gaussian Link
+   717. The native output reports `New: CS - Old:` after
+   `Inconsistency found in framework group definition`. Its input was
+   B2PLYP-D3BJ/cc-pVTZ, frequency-only VPT2, doublet CHS, with `Symmetry=None`.
+   The installed classifier already selected `Symmetry=(PG=CS)`, but recovery
+   was called only by the automatic ANL driver. All dispatcher owners now
+   share the same bounded recovery, before optional-component skipping.
+   The reader, renderer and validator also accept compound frequency options.
+   This is classified from the native log, not from Gaussian's generic
+   segmentation-violation stderr. A new native retry has not yet been verified.
+2. PES startup rewrote `chemids` with only the initial well. Retained work was
+   not deleted, but later wells could disappear from scheduling until their
+   predecessors rediscovered them. Startup now preserves the discovery order;
+   handoff restores verified missing discoveries from the previous archived
+   summary. This includes the temporarily unlisted C + SH3 well when present
+   in that summary. Its QC files/allocations and the L2 selection gate remain.
+
+Recovery now uses manifest locking and a resumable archival transaction. It
+checks the selected allocation and all descendants, defers edits around old
+workers without the manifest read protocol, and preserves unrelated completed
+and running work. The known linear VPT2 `NTrRo=5` failure is likewise eligible
+through the common dispatcher, with geometry-verified `NoSymm` rendering and
+one recorded interface repair. Unknown native failures still require review.
+
+`kinbot.run_control reconcile ROOT --apply` can reconcile and stage known
+repairs in unowned graphs without submitting jobs or bypassing PES ordering.
+Thus the prior H2 F12 reader and CFOUR augmented-basis repairs need not wait
+for an ANL owner merely to stage their replacements. Actual submission still
+belongs to the normal gated controller and shared pool.
+
+No ANL method/basis, VRC orbital model, scan grid, dividing surface, flux target,
+capacity or node exclusion is changed by this update. The C + SH3 path remains
+flagged for whole-path review after the observed H transfer; bounded fragment
+retries and continuation do not certify earlier points or release rates.
+For operator commands and precise recovery limits, see
+[LIVE_DRIVER_CONTROLS.md](LIVE_DRIVER_CONTROLS.md).
+
+Final local validation of this pass: **2,840 passed, 7 skipped, 435 subtests
+passed** in 112.55 seconds. The existing `imp` deprecation warning remains.
+New regressions exercise multiple native groups and keyword forms, the full
+bounded VPT2 ladder, linear-input restaging, interruption recovery, live and
+legacy allocation fences, mismatched Slurm identity, immutable sibling work,
+non-submitting reconciliation, and append-only discovery restoration. Native
+Gaussian/CFOUR/Molpro retries still require confirmation from Blodgett output.

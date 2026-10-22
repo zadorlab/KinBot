@@ -51,7 +51,11 @@ def test_no_kinbot_cli_forwards_lowestpath_and_species_names(tmp_path,monkeypatc
     monkeypatch.setattr(sys,'argv',['pes','input.json','no-kinbot','lowestpath','a','b'])
     monkeypatch.setattr(pes,'Parameters',lambda *a,**k:SimpleNamespace(par=par))
     monkeypatch.setattr(pes,'config_log',lambda *a,**k:logging.getLogger('test-pes'))
-    monkeypatch.setattr(pes,'write_input',lambda *a,**k:None)
+    def saved_input(*args, **kwargs):
+        import json
+        name = routing_name(reactant)
+        (Path(name)/(name+'.json')).write_text(json.dumps(dict(title=name, pes=1)))
+    monkeypatch.setattr(pes,'write_input',saved_input)
     monkeypatch.setattr(pes,'get_wells',lambda *a:None)
     monkeypatch.setattr(pes,'check_status',lambda *a:False)
     monkeypatch.setattr(pes.time,'sleep',lambda *a:None)

@@ -37,6 +37,7 @@ from kinbot.execution import (atomic_json as _atomic_json,
                               file_sha256 as _file_hash,
                               scheduler_unavailable as _scheduler_unavailable)
 from kinbot.theory import TheoryProfile
+from kinbot.gaussian_input import has_anharmonic_frequency
 
 
 _SAFE_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\Z')
@@ -631,7 +632,7 @@ def _render_input(template, atoms, molecule, resources, backend=None):
 
     rendered = _TOKEN.sub(replace, template)
     if (backend and backend.lower() in ('gaussian', 'gauss')
-            and re.search(r'(?i)\bFreq\s*=\s*Anharmonic\b', rendered)
+            and has_anharmonic_frequency(rendered)
             and len(atoms) > 1):
         # Symmetry=None fixes nonlinear framework-group mismatches, but also
         # suppresses the linear classification needed by Gaussian Link 716.
@@ -640,7 +641,7 @@ def _render_input(template, atoms, molecule, resources, backend=None):
         singular = np.linalg.svd(atoms.positions - atoms.positions.mean(axis=0),
                                  compute_uv=False)
         if singular[1] < 1.e-7:
-            rendered = re.sub(r'(?i)\bSymm(?:etry)?\s*=\s*None\b',
+            rendered = re.sub(r'(?i)\bSymm(?:etry)?\s*=\s*(?:\(\s*None\s*\)|None\b)',
                               'NoSymm', rendered)
     if backend and backend.lower() == 'molpro':
         from kinbot.molpro_diagnostics import ensure_native_printing
@@ -880,6 +881,9 @@ def _verify_execution(run_dir, task, entry, execution):
             or execution.get('geometry_sha256') != entry['geometry_sha256']
             or execution.get('status') not in ('executed', 'failed')):
         raise RuntimeError(f'{ident}: execution record does not match the task.')
+    if (entry.get('job_id') and execution.get('slurm_job_id')
+            and str(entry['job_id']) != str(execution['slurm_job_id'])):
+        raise RuntimeError(f'{ident}: execution record belongs to a different allocation.')
     if execution['status'] == 'failed':
         return None
     artifacts = execution.get('artifacts')
@@ -1962,6 +1966,10 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     The accepted geometry and method remain unchanged. Neither path repeats
     a native success or overrides an unrelated failure.
     """
+    from kinbot.anl import live_control
+    from kinbot.anl.salvage import descendants
+    from kinbot.anl.timeout_recovery import _job_id
+    live_control.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
     task = by_id.get(ident)
@@ -1976,15 +1984,23 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     if entry.get('status') not in ('failed', 'unavailable'):
         raise ValueError(
             f'{ident}: only a failed or unavailable Gaussian VPT2 task can recover.')
-    if entry.get('job_id') and _job_active(entry['job_id']):
+    directory = run_dir / 'tasks' / ident
+    job = _job_id(directory, ident, entry)
+    if job and _job_active(job):
         raise RuntimeError(f'{ident}: Slurm job is still active.')
-    if any(other != ident and other in state['tasks']
-           and state['tasks'][other].get('status') not in ('blocked', 'skipped')
-           and ident in _task_dependencies(other_task)
-           for other, other_task in by_id.items()):
+    children = descendants(spec, ident)
+    if any(state['tasks'].get(other, {}).get('status') not in
+           (None, 'waiting', 'blocked', 'skipped') for other in children):
         raise RuntimeError(f'{ident}: downstream task already exists; review run.')
     _verify_stage_files(run_dir, task, entry)
-    directory = run_dir / 'tasks' / ident
+    outcome = directory/'execution.json'
+    if outcome.is_file():
+        execution = json.loads(outcome.read_text())
+        _verify_execution(run_dir, task, entry, execution)
+        if execution.get('slurm_job_id') and not job:
+            raise VPT2RecoveryUnavailable(f'{ident}: allocation history is ambiguous; reconcile it first.')
+        if execution['status'] != 'failed':
+            raise RuntimeError(f'{ident}: a native success must be reconciled, not retried.')
     native = directory / parser['file']
     if not native.is_file():
         raise RuntimeError(f'{ident}: native Gaussian output is missing.')
@@ -1993,8 +2009,9 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     replacement = deepcopy(task)
     original_template = replacement['input_template']
     symmetry_keyword = (r'(?i)(?<!\S)(?:NoSymm(?:etry)?|'
-                        r'Symm(?:etry)?\s*=\s*None|'
-                        r'Symm(?:etry)?\s*=\s*\(\s*PG\s*=\s*[A-Za-z0-9*]+\s*\))(?!\S)')
+                        r'Symm(?:etry)?\s*=\s*(?:None|\(\s*None\s*\))|'
+                        r'Symm(?:etry)?\s*=\s*(?:PG\s*=\s*[A-Za-z0-9*]+|'
+                        r'\(\s*PG\s*=\s*[A-Za-z0-9*]+\s*\)))(?!\S)')
     occurrences = len(re.findall(symmetry_keyword, original_template))
     if occurrences > 1:
         raise RuntimeError(f'{ident}: input has multiple symmetry keywords.')
@@ -2003,12 +2020,16 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
             symmetry_keyword, keyword,
             original_template, count=1)
     else:
-        template, count = re.subn(
-            r'(?i)(\bFreq\s*=\s*Anharmonic\b)',
-            r'\1 Symmetry=None', original_template, count=1)
-        if count != 1:
+        if re.search(r'(?i)(?<!\S)Symm(?:etry)?\b', original_template):
+            raise VPT2RecoveryUnavailable(f'{ident}: unrecognized symmetry options require a manual fallback.')
+        # Insert on the route line; preserve compound Freq options verbatim.
+        if not has_anharmonic_frequency(original_template):
             raise RuntimeError(
-                f'{ident}: input has no unique Freq=Anharmonic keyword.')
+                f'{ident}: input has no Freq=Anharmonic keyword.')
+        template, count = re.subn(r'(?im)^([ \t]*#(?:[pnt](?=\s))?)(?=\s)',
+                                 lambda m: m[1]+' '+keyword, original_template, count=1)
+        if count != 1:
+            raise RuntimeError(f'{ident}: Gaussian route section is missing.')
     replacement['input_template'] = template
     replacement['recovery'] = {
         'kind': 'gaussian_vpt2_framework_group',
@@ -2021,35 +2042,52 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     assign_partitions(spec)
     validate_spec(spec)
 
-    old = directory
-    attempt = entry.get('attempt', 1)
-    archive = run_dir / 'attempts' / ident / str(attempt)
-    if archive.exists():
-        raise RuntimeError(f'{ident}: retry archive already exists.')
-    archive.parent.mkdir(parents=True, exist_ok=True)
-    old_workflow = (run_dir / 'workflow.json').read_text()
-    old.replace(archive)
-    try:
-        _atomic_json(run_dir / 'workflow.json', spec)
-        state['spec_sha256'] = _file_hash(run_dir / 'workflow.json')
-        _stage_task(run_dir, spec, state, replacement)
-    except Exception:
-        failed_stage = run_dir / 'tasks' / ident
-        if failed_stage.exists():
-            shutil.rmtree(failed_stage)
-        archive.replace(old)
-        (run_dir / 'workflow.json').write_text(old_workflow)
-        state['spec_sha256'] = _file_hash(run_dir / 'workflow.json')
-        state['tasks'][ident] = entry
-        _atomic_json(run_dir / 'state.json', state)
-        raise
-    state['tasks'][ident]['attempt'] = attempt + 1
-    state['tasks'][ident]['previous_attempt'] = str(archive)
+    # Journal before archival and fence concurrent allocated workers with the
+    # manifest lock. A process interruption must not split workflow/state.
+    reset = {ident} | {n for n in children if state['tasks'].get(n, {}).get('status')
+                      in ('blocked', 'skipped')}
+    reason = 'Gaussian VPT2 framework-group recovery with ' + keyword
+    live_control.commit(run_dir, spec, state, reset, {n: reason for n in reset})
+    _, spec, state = _load(run_dir)
+    archive = Path(state['pending_retries'][ident]['previous_attempt'])
+    _stage_task(run_dir, spec, state, replacement)
     state['tasks'][ident]['migration'] = \
         'Gaussian VPT2 framework-group recovery with ' + keyword
     _clear_blocked_tasks(state)
     _atomic_json(run_dir / 'state.json', state)
     return archive
+
+
+def recover_vpt2_failures(run_dir, spec, state):
+    """Apply known framework fallbacks for every Gaussian VPT2 dispatcher task.
+
+    Selection is by parser/backend and native diagnostic, never task name,
+    molecule, ANL variant or the controller that happens to own the graph.
+    """
+    from kinbot.anl.timeout_recovery import _job_id
+    for task in list(spec['tasks']):
+        ident = task['id']
+        entry = state['tasks'].get(ident, {})
+        if not can_recover_gaussian_vpt2_symmetry(run_dir, task, entry):
+            continue
+        job = _job_id(Path(run_dir)/'tasks'/ident, ident, entry)
+        if job and _job_active(job):
+            continue
+        # Commit the latest allocation reconciliation before starting the
+        # journaled migration, whose public API reloads its own manifest.
+        _atomic_json(Path(run_dir)/'state.json', state)
+        try:
+            recover_gaussian_vpt2_symmetry(run_dir, ident)
+        except VPT2RecoveryUnavailable:
+            continue  # Unsupported user keywords remain available for manual recovery.
+        except RuntimeError as error:
+            if 'legacy workers' not in str(error):
+                raise
+            # A legacy allocation cannot take the manifest read lock. Keep it
+            # running and reconsider this recovery at the next dispatcher poll.
+            continue
+        _, spec, state = _load(run_dir)
+    return spec, state
 
 
 def reroute_cfour_higher_order_to_mrcc(
@@ -2405,6 +2443,7 @@ def advance(run_dir, submit=False, submit_only=None):
     if not spec.get('intent', {}).get('vrc_fragment_retry'):
         state = lock_recovery.recover(run_dir, spec, state)
         state = interface_recovery.recover(run_dir, spec, state)
+        spec, state = recover_vpt2_failures(run_dir, spec, state)
         state = optimization_recovery.recover(run_dir, spec, state)
         state = account_recovery.recover(run_dir, spec, state)
         state = scratch_recovery.recover(run_dir, spec, state)

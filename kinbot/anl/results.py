@@ -1048,14 +1048,14 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
     incomplete or inconsistent output, and parser-detected unusable data are
     recorded as blocking warnings.
     """
+    from kinbot.gaussian_input import has_anharmonic_frequency
     lines = output.strip().splitlines()
     if not lines or not lines[-1].lstrip().startswith('Normal termination of Gaussian'):
         raise ValueError('Gaussian output has no final normal termination.')
     route = _gaussian_route(output)
     if (not re.search(rf'\b{re.escape(method)}/{re.escape(basis)}(?![\w-])', route,
                       re.IGNORECASE)
-            or not re.search(r'\bFreq\s*=\s*Anharmonic\b', route,
-                             re.IGNORECASE)):
+            or not has_anharmonic_frequency(route)):
         raise ValueError('Gaussian output does not echo the requested Freq=Anharmonic route.')
     framework_cap = _gaussian_framework_group_cap(route)
     # PG caps computational symmetry; it does not guarantee that Gaussian
@@ -1341,6 +1341,7 @@ def validate_result_parser(request, *, backend, template, outputs,
                      r'^\s*rohfcore\s*=\s*semicanonical\s*$', template,
                      re.IGNORECASE | re.MULTILINE)))
     elif kind == 'gaussian_vpt2':
+        from kinbot.gaussian_input import has_anharmonic_frequency
         valid = (set(request) in ({'kind', 'file', 'method', 'basis'},
                                   {'kind', 'file', 'method', 'basis', 'dispersion'})
                  and backend == 'gaussian'
@@ -1351,8 +1352,7 @@ def validate_result_parser(request, *, backend, template, outputs,
                  and re.search(rf'\b{re.escape(request["method"])}/'
                                rf'{re.escape(request["basis"])}(?![\w-])', template,
                                re.IGNORECASE) is not None
-                 and re.search(r'\bFreq\s*=\s*Anharmonic\b', template,
-                               re.IGNORECASE) is not None
+                 and has_anharmonic_frequency(template)
                  and ((bool(request.get('dispersion'))
                        and _gaussian_dispersion_declaration_count(template) == 1
                        and _gaussian_declares_dispersion(

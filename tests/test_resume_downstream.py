@@ -93,8 +93,9 @@ def test_framework_retry_preserves_geometry_and_finished_siblings(repair, tmp_pa
     assert (graph / 'tasks/gaussian_vpt2/geometry.xyz').read_bytes() == before
     assert 'Symmetry=None' in (graph / 'tasks/gaussian_vpt2/vpt2.com').read_text()
     assert not (graph / 'tasks/gaussian_vpt2/execution.json').exists()
-    assert not (graph / 'attempts').exists()
-    assert list(archive.path.rglob('vpt2.log'))
+    previous = dispatch._load(graph)[2]['tasks']['gaussian_vpt2']['previous_attempt']
+    assert (Path(previous)/'vpt2.log').is_file()
+    assert (graph/'.live_control_transaction.json').is_file()
 
 
 def test_native_reparse_releases_derived_skips_but_not_unrelated_work(tmp_path):
@@ -150,9 +151,11 @@ def test_optional_native_framework_failure_retries_from_unavailable(repair, tmp_
     fail_vpt2(graph, 'ERROR: Inconsistency found in framework group definition:\n'
               'New: CS - Old: C1\nError termination via Lnk1e in l717.exe\n',
               failure_phase='execution')
-    # Production optional components become unavailable after native failure;
-    # the earlier fixture's parser failure had remained simply failed.
-    assert dispatch.advance(graph)['tasks']['gaussian_vpt2']['status'] == 'unavailable'
+    # An older controller may already have made the component unavailable.
+    # The new common dispatcher recovers it before the legacy helper runs.
+    state = dispatch._load(graph)[2]
+    state['tasks']['gaussian_vpt2']['status'] = 'unavailable'
+    atomic_json(graph/'state.json', state)
     accepted = (graph / 'tasks/l3_geometry/execution.json').read_bytes()
     geometry = (graph / 'tasks/gaussian_vpt2/geometry.xyz').read_bytes()
     result = repair.repair_graph(graph, repair.Archive(root))

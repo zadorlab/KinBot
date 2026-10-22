@@ -66,6 +66,35 @@ def _molpro_geometry(task, directory, outcome):
     return 'molpro_ccsd_f12b_final_label_v1'
 
 
+def _gaussian_linearity(task, directory, outcome, molecule):
+    """Restage old linear VPT2 inputs with point-group detection preserved."""
+    if (task.get('kind') != 'external' or task.get('backend') != 'gaussian'
+            or task.get('result_parser', {}).get('kind') != 'gaussian_vpt2'):
+        return None
+    old = (directory/task['input_name']).read_text()
+    none = r'(?i)\bSymm(?:etry)?\s*=\s*(?:\(\s*None\s*\)|None\b)'
+    if not re.search(none, old):
+        return None
+    from kinbot.anl.dispatch import _render_input
+    rendered = _render_input(task['input_template'], read(directory/'geometry.xyz'),
+                             molecule, task['resources'], 'gaussian')
+    # Rendering only makes this substitution for verified linear geometries.
+    # All other native input bytes must match; no changed policy is smuggled
+    # into a restart described as a representation-only interface repair.
+    if rendered != re.sub(none, 'NoSymm', old) or rendered == old:
+        return None
+    if outcome is not None:
+        native = directory/task['result_parser']['file']
+        if not native.is_file() or outcome.get('status') != 'failed':
+            return None
+        text = native.read_text(errors='replace')
+        if ('Molecule is non-linear but NTrRo=5' not in text
+                or 'Error termination via Lnk1e' not in text
+                or 'Normal termination of Gaussian' in text):
+            return None
+    return 'gaussian_vpt2_linear_framework_v1'
+
+
 def recover(graph, spec, state):
     from kinbot.anl import dispatch, live_control
     from kinbot.anl.salvage import descendants
@@ -86,6 +115,7 @@ def recover(graph, spec, state):
         if entry['status'] != 'staged' and outcome is None:
             continue
         kind = (_cfour_alias(task, directory, outcome)
+                or _gaussian_linearity(task, directory, outcome, spec['molecule'])
                 or (_molpro_geometry(task, directory, outcome) if outcome else None))
         if not kind or kind in state.get('native_interface_repairs', {}).get(ident, {}):
             continue

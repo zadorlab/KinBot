@@ -83,11 +83,11 @@ def recover(graph, spec, state):
     from kinbot.anl import dispatch
     from kinbot.anl.salvage import descendants
     from kinbot.anl.timeout_recovery import _job_id
-    budget = 1 + step_retries(graph)
     tasks = {t['id']: t for t in spec['tasks']}
     selected, seeds = [], {}
     for ident, entry in state['tasks'].items():
         task = tasks[ident]
+        budget = 1 + task.get('optimizer', {}).get('step_retries', step_retries(graph))
         if entry['status'] not in ('failed', 'unavailable') or task['kind'] != 'ase_optimize':
             continue
         directory = graph/'tasks'/ident

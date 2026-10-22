@@ -153,11 +153,13 @@ def parse_cfour_dboc(output, *, level='HF', basis=None, reference=None):
         if reference not in allowed or set(x.upper() for x in echoes + assignments) != {reference}:
             raise ValueError('CFOUR DBOC output reference differs from its request.')
     if basis is not None:
+        from kinbot.anl.cfour import basis_keyword
         if not isinstance(basis, str) or not basis:
             raise ValueError('CFOUR DBOC basis is invalid.')
         echoed = re.findall(r'^\s*BASIS\s*=\s*([^\s,)]+)\s*$', output,
                             re.IGNORECASE | re.MULTILINE)
-        if len(echoed) != 1 or echoed[0].casefold() != basis.casefold():
+        if (len(echoed) != 1
+                or basis_keyword(echoed[0]).casefold() != basis_keyword(basis).casefold()):
             raise ValueError(f'CFOUR output does not echo basis {basis}.')
     headers = list(_DBOC_HEADER.finditer(output))
     if not headers:
@@ -235,6 +237,10 @@ def parse_cfour_energy(output, *, method, basis, reference, correlation, core,
             rf'\[\s*[-+]?\d+\s*\]\s+\*{{3}}\s*$', output,
             re.IGNORECASE | re.MULTILINE)
         values = equals + table
+        if keyword == 'BASIS':
+            from kinbot.anl.cfour import basis_keyword
+            values = [basis_keyword(v) for v in values]
+            value = basis_keyword(value)
         if len(values) != 1 or values[0].casefold() != value.casefold():
             raise ValueError(f'CFOUR output does not uniquely echo '
                              f'{keyword}={value}.')
@@ -733,6 +739,12 @@ def parse_molpro_harmonic(output, *, basis, reference=None, method='CCSD(T)',
     if method not in ('CCSD(T)', 'CCSD(T)-F12b') or (legacy and method != 'CCSD(T)'):
         raise ValueError('Unsupported Molpro harmonic method.')
     f12 = method == 'CCSD(T)-F12b'
+    if effective_method is not None:
+        expected = {(1, False): 'HF', (1, True): 'HF',
+                    (2, False): 'CCSD', (2, True): 'CCSD-F12b'}.get(
+                        (rank_exact_electrons, f12))
+        if effective_method != expected:
+            raise ValueError('Molpro harmonic effective method disagrees with excitation rank.')
     command = (_MOLPRO_LEGACY_CCSD_T if legacy else
                {'HF': _MOLPRO_RHF, 'CCSD': _MOLPRO_CCSD,
                 'CCSD-F12b': _MOLPRO_ONE_ELECTRON_F12B}.get(
@@ -781,7 +793,7 @@ def parse_molpro_harmonic(output, *, basis, reference=None, method='CCSD(T)',
         allowed_totals = ({'RHF-UCCSD-F12B'} if effective_method else
                           {'RHF-UCCSD(T)-F12', 'RHF-UCCSD(T)-F12B'})
         if (not totals or totals[-1].upper() not in allowed_totals
-                or not re.search(r'^\s*RHF-UCCSD-F12b\s+energy\s+', pre_frequency,
+                or not re.search(r'^\s*!?RHF-UCCSD-F12b\s+energy\s+', pre_frequency,
                                  re.MULTILINE | re.IGNORECASE)):
             raise ValueError('Molpro harmonic output lacks a final F12b energy before FREQUENCIES.')
         allowed_headings |= {expected_method.removesuffix('B'),
@@ -1113,6 +1125,7 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
 def validate_result_parser(request, *, backend, template, outputs,
                            allow_obsolete=False):
     """Reject a parser whose declared method is inconsistent with its input."""
+    from kinbot.anl.cfour import template_basis_matches
     if not isinstance(request, dict) or not isinstance(request.get('file'), str) \
             or request['file'] not in outputs:
         raise ValueError('invalid result_parser.')
@@ -1132,9 +1145,7 @@ def validate_result_parser(request, *, backend, template, outputs,
                 rf'\bREFERENCE\s*=\s*{request["reference"]}(?=\s*[,\n)])', template,
                 re.IGNORECASE)))
         if valid and 'basis' in request:
-            valid = (isinstance(request['basis'], str) and bool(request['basis'])
-                     and re.search(rf'\bBASIS\s*=\s*{re.escape(request["basis"])}(?=\s*[,\n)])',
-                                   template, re.IGNORECASE) is not None)
+            valid = template_basis_matches(template, request['basis'])
     elif kind == 'cfour_energy':
         method = request.get('method')
         basis = request.get('basis')
@@ -1150,8 +1161,7 @@ def validate_result_parser(request, *, backend, template, outputs,
             and request.get('driver') == 'VCC'
             and re.search(r'\bCALC\s*=\s*CCSDT\(Q\)(?=\s*[,\n)])',
                           template, re.IGNORECASE)
-            and re.search(rf'\bBASIS\s*=\s*{re.escape(basis)}(?=\s*[,\n)])',
-                          template, re.IGNORECASE)
+            and template_basis_matches(template, basis)
             and re.search(r'\bREFERENCE\s*=\s*RHF(?=\s*[,\n)])',
                           template, re.IGNORECASE)
             and len(re.findall(

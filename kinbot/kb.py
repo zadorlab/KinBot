@@ -128,24 +128,29 @@ def _execute_vrc_branch(well, parameters, qc):
             clone = copy.copy(reaction)
             clone.products = copy_fragment_geometries(reaction.products)
             vrc_well.reac_obj.append(clone)
-        vts = VTS(vrc_well, parameters, qc)
         from kinbot.vrc_multistate import SurfaceModelRequired
+        from kinbot.vrc_scan_recovery import review_changed
         from kinbot import live_control, pes_phase
         review = Path('vrc_model_review.json')
-        try:
-            vts.calculate_correction_potentials()
-        except SurfaceModelRequired as error:
-            _atomic_json(review, dict(status='needs_review', error=str(error),
-                                     channels=getattr(vts, 'review_requests', [])))
-            if not live_control.find() or not pes_phase.active_worker(Path.cwd()):
-                raise
-            logger.warning('%s Waiting for a live reviewed-model update.', error)
-            while True:
-                pes_phase.checkpoint()
-                time.sleep(1)
-        else:
-            if review.exists():
-                _atomic_json(review, dict(status='resolved'))
+        while True:
+            vts = VTS(vrc_well, parameters, qc)
+            try:
+                vts.calculate_correction_potentials()
+            except SurfaceModelRequired as error:
+                channels = getattr(vts, 'review_requests', [])
+                _atomic_json(review, dict(status='needs_review', error=str(error), channels=channels))
+                if not live_control.find() or not pes_phase.active_worker(Path.cwd()):
+                    raise
+                logger.warning('%s Waiting for live review/retry input.', error)
+                while True:
+                    pes_phase.checkpoint()
+                    if review_changed(channels):
+                        break  # Reattach/reparse; explicit requests own retries.
+                    time.sleep(1)
+            else:
+                if review.exists():
+                    _atomic_json(review, dict(status='resolved'))
+                break
     finally:
         qc.queue_job_limit = previous_limit
         qc.queue_job_root = previous_root

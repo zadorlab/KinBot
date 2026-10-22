@@ -445,6 +445,10 @@ def read_result(input_file: str | Path,
         raise RuntimeError(f'Cannot read rotdPy result {path}: {error}') from error
     if payload.get('status') != 'complete':
         raise RuntimeError(f'rotdPy result {path} is not complete.')
+    correction = (payload.get('validation') or {}).get('correction') or {}
+    if isinstance(correction.get('source'), str):
+        from kinbot.vrc_scan_recovery import require_ready_for_rates
+        require_ready_for_rates(correction['source'], expected_sha256=correction.get('source_sha256'))
     if (not isinstance(payload.get('surface_count'), int)
             or payload['surface_count'] < 1):
         raise RuntimeError(f'rotdPy result {path} has no sampled surfaces.')

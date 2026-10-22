@@ -321,6 +321,9 @@ def _surface_job(vts, name, stage, state):
     def execute():
         child.do_scan([leaf_name])
         child.energies([leaf_name])
+        if getattr(child, '_scan_review_requests', []):
+            from kinbot.vrc_scan_recovery import ScanReviewRequired
+            raise ScanReviewRequired(child._scan_review_requests)
         correction = Path('vrctst') / f'corr_{leaf_name}.json'
         payload = json.loads(correction.read_text())
         payload['surface_parameters'] = {key: deepcopy(value) for key, value in par.items()
@@ -328,6 +331,8 @@ def _surface_job(vts, name, stage, state):
                                            'rotdpy_dist', '_vrc_dividing_coordinate'}}
         payload['electronic_surface'] = deepcopy(state)
         atomic_json(correction, payload)
+        from kinbot.vrc_scan_recovery import bind_correction_review
+        bind_correction_review(correction)
         return {**state, 'reaction': leaf_name,
                 'correction': str(correction.resolve()),
                 'correction_sha256': file_sha256(correction),
@@ -350,6 +355,7 @@ def calculate_channels(vts, selections, *, limit=None):
     from kinbot import run_policy
     from kinbot.vrc_parallel import run, SurfaceInterrupted
     from kinbot.pes_phase import ExplorationReopened
+    from kinbot.vrc_scan_recovery import ScanReviewRequired
     import logging
     if limit is None:
         limit = vts.par.get('vrc_tst_parallel_surfaces', 4)
@@ -378,7 +384,7 @@ def calculate_channels(vts, selections, *, limit=None):
         atomic_json(status_path, {'schema': 1, 'max_parallel_surfaces': limit,
                                  'surfaces': outcomes})
     publish()
-    values, failures = {}, {}
+    values, failures, reviews = {}, {}, []
     logger.info('Advancing %d reviewed VRC surfaces with up to %d local controllers; '
                 'Slurm jobs use existing admission limits.', len(jobs), limit)
 
@@ -390,8 +396,12 @@ def calculate_channels(vts, selections, *, limit=None):
         name = outcomes[key]['channel']
         if error is not None:
             paused = isinstance(error, (ExplorationReopened, SurfaceInterrupted))
-            outcomes[key].update(status='paused' if paused else 'failed', error=str(error))
-            failures[key] = error
+            held = isinstance(error, ScanReviewRequired)
+            outcomes[key].update(status='paused' if paused else 'needs_review' if held else 'failed', error=str(error))
+            if held:
+                reviews.extend(dict(c, channel=name) for c in error.channels)
+            else:
+                failures[key] = error
             logger.warning('VRC surface %s: %s', key, error)
         else:
             plot = value.pop('_plot', None)
@@ -416,6 +426,8 @@ def calculate_channels(vts, selections, *, limit=None):
     if failures:
         detail = ' | '.join(f'{key}: {error}' for key, error in failures.items())
         raise RuntimeError('VRC surface failure(s); independent work retained: ' + detail) from next(iter(failures.values()))
+    if reviews:
+        raise ScanReviewRequired(reviews)
     return paths
 
 
@@ -516,6 +528,7 @@ def assemble_states(entries, destination, *, baseline_cm_inverse):
 def channel_sources(manifest_file, *, required_profile=None):
     """Revalidate every physical-state source without writing MESS tables."""
     from kinbot.rotdpy import number_of_states_file
+    from kinbot.vrc_scan_recovery import require_ready_for_rates
     path = Path(manifest_file).resolve()
     payload = json.loads(path.read_text())
     if payload.get('kind') != 'multistate' or payload.get('schema') != 1:
@@ -532,6 +545,7 @@ def channel_sources(manifest_file, *, required_profile=None):
         entries = []
         states_seen, inputs_seen = set(), set()
         for state in stage['states']:
+            require_ready_for_rates(state['correction'])
             inp = path.parent / state['input']
             key = (state['multiplicity'], state['root'])
             if key in states_seen or inp.resolve() in inputs_seen:

@@ -134,6 +134,8 @@ def task_options(task, value):
         for k,v in value.get('optimizer',{}).items():
             if isinstance(v,dict): result['optimizer'].setdefault(k,{}).update(v)
             else: result['optimizer'][k]=v
+        if 'optimization_step_retries' in value.get('policy', {}):
+            result['optimizer']['step_retries'] = value['policy']['optimization_step_retries']
     # Operator commands must never run in login-host environment preflight.
     result['runtime_setup']=[*result.get('runtime_setup',[]),*shell_lines(value)]
     if value.get('resources'):

@@ -249,8 +249,11 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
         options = task.get('optimizer', {})
         if (not isinstance(options, dict) or
                 set(options) - {'fmax', 'steps', 'sella_kwargs', 'order',
-                                'constraints', 'minimum_recovery'}):
+                                'constraints', 'minimum_recovery', 'step_retries'}):
             raise ValueError(f'{ident}: invalid optimizer options.')
+        if ('step_retries' in options and (type(options['step_retries']) is not int
+                or not 0 <= options['step_retries'] <= 10)):
+            raise ValueError(f'{ident}: step_retries must be an integer from 0 to 10.')
         if ('sella_kwargs' in options and not isinstance(options['sella_kwargs'], dict)):
             raise ValueError(f'{ident}: sella_kwargs must be an object.')
         if ('fmax' in options and
@@ -1379,7 +1382,8 @@ def _run_ase_optimize(directory, record):
         from kinbot.optimization_budget import run_optimizer, step_retries
         return run_optimizer(optimizer, fmax=options.get('fmax', 0.03),
                              steps=options.get('steps', 100),
-                             chunks=max(1, 1 + step_retries(directory) - used_chunks),
+                             chunks=max(1, 1 + options.get('step_retries',
+                                 step_retries(directory)) - used_chunks),
                              used=used_chunks, report=directory/'optimization_budget.json')
 
     recovery_files = []
@@ -1676,6 +1680,8 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     """
     from kinbot.pes_phase import checkpoint
     checkpoint()
+    from kinbot.anl import live_control
+    live_control.resume(run_dir)
     from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery, lock_recovery, optimization_recovery
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)
@@ -2277,6 +2283,8 @@ def advance(run_dir, submit=False, submit_only=None):
     """Complete finished tasks, stage ready tasks, and optionally submit jobs."""
     from kinbot.anl import account_recovery, scratch_recovery, timeout_recovery, lock_recovery, optimization_recovery
     from kinbot import timeout_retry
+    from kinbot.anl import live_control, interface_recovery
+    live_control.resume(run_dir)
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)
     timeout_recovery.resume(run_dir)
@@ -2394,11 +2402,13 @@ def advance(run_dir, submit=False, submit_only=None):
 
     # Old pinned workers may fail after replacement controllers start. Repair
     # only this recognized startup bug, once, before deriving component skips.
-    state = lock_recovery.recover(run_dir, spec, state)
-    state = optimization_recovery.recover(run_dir, spec, state)
-    state = account_recovery.recover(run_dir, spec, state)
-    state = scratch_recovery.recover(run_dir, spec, state)
-    spec, state = timeout_recovery.recover(run_dir, spec, state)
+    if not spec.get('intent', {}).get('vrc_fragment_retry'):
+        state = lock_recovery.recover(run_dir, spec, state)
+        state = interface_recovery.recover(run_dir, spec, state)
+        state = optimization_recovery.recover(run_dir, spec, state)
+        state = account_recovery.recover(run_dir, spec, state)
+        state = scratch_recovery.recover(run_dir, spec, state)
+        spec, state = timeout_recovery.recover(run_dir, spec, state)
     by_id = {task['id']: task for task in spec['tasks']}
 
     # An optional component that cannot execute is unavailable at this
@@ -2562,6 +2572,11 @@ def advance(run_dir, submit=False, submit_only=None):
             _atomic_json(run_dir / 'state.json', state)
             directory = run_dir / 'tasks' / ident
             submission_options = {}
+            if spec.get('intent', {}).get('vrc_fragment_retry'):
+                from kinbot.run_walltime import seconds, duration
+                manual_time = task.get('manual_fallback', {}).get('options', {}).get('resources', {}).get('walltime')
+                submission_options['walltime_ceiling'] = (manual_time or duration(min(
+                    seconds(task['resources']['walltime']), 7200)))
             if state.get('timeout_retries', {}).get(ident):
                 # SBATCH_* inherited from the controller must not shorten a
                 # verified replacement budget or move it to another partition.

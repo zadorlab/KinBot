@@ -77,8 +77,8 @@ def commit(graph, spec, state, reset, reasons, request_path=None):
     resume(graph)
 
 
-def _ownership(directory, job):
-    r = slurm_job_record(str(job))
+def _ownership(directory, job, *, record=None):
+    r = slurm_job_record(str(job)) if record is None else record
     if (r.get('JobId') != str(job) or not r.get('JobState') or not r.get('WorkDir')
             or Path(r['WorkDir']).resolve() != directory.resolve()):
         raise RuntimeError('Scheduler ownership/state unavailable; no retry will be submitted.')
@@ -89,10 +89,38 @@ def _ownership(directory, job):
     return r
 
 
+def _finished_graph_attempt(directory, job, *, allow_completed):
+    """Prove a saved graph attempt ended even after slurmctld purged it.
+
+    This never cancels a job, infers success, or substitutes for a failed
+    queue query. Ordinary generated workers retain their existing rules.
+    """
+    from kinbot.anl import dispatch
+    directory = Path(directory).resolve()
+    if directory.parent.name != 'tasks' or not (directory/'execution.json').is_file():
+        return False
+    graph, spec, state = dispatch._load(directory.parent.parent)
+    entry = state['tasks'].get(directory.name, {})
+    if (str(entry.get('job_id')) != str(job)
+            or entry.get('status') not in ('failed', 'unavailable', 'complete')):
+        return False
+    outcome = json.loads((directory/'execution.json').read_text())
+    if (str(outcome.get('slurm_job_id')) != str(job)
+            or outcome.get('status') not in ({'failed', 'executed'} if allow_completed else {'failed'})):
+        return False
+    task = next(t for t in spec['tasks'] if t['id'] == directory.name)
+    dispatch._verify_stage_files(graph, task, entry)
+    dispatch._verify_execution(graph, task, entry, outcome)
+    return not dispatch._job_active(str(job))
+
+
 def stop_attempt(directory, job, request_path, record, *, allow_completed=False):
     """An explicit stop is reconciled before any file or ledger can be reset."""
     from kinbot.run_refresh import _cancel_held_pending, _pending_request
-    current = _ownership(directory, job)
+    retained = slurm_job_record(str(job))
+    if not retained and _finished_graph_attempt(directory, job, allow_completed=allow_completed):
+        return True
+    current = _ownership(directory, job, record=retained)
     phase = current['JobState'].split('+')[0]
     if phase == 'COMPLETED' and not allow_completed:
         control.acknowledge(request_path, record, 'retained', detail='Allocation completed before the request was applied; reconcile its result first.')
@@ -144,14 +172,17 @@ def process(graph):
                 control.acknowledge(path, r, 'applied')
                 continue
             entry = state['tasks'].get(ident, {})
-            if entry.get('status') in ('complete', 'submitting'):
+            from kinbot.vrc_scan_recovery import rejected_point
+            rejected = (spec.get('intent', {}).get('vrc_scan_distance_angstrom') is not None
+                        and rejected_point(graph, ident))
+            if entry.get('status') == 'submitting' or (entry.get('status') == 'complete' and not rejected):
                 raise ValueError('Completed or ambiguous submissions cannot be retried through live controls.')
             unsent = (entry.get('status') == 'staged' and not entry.get('job_id')
                       and bool(r.get('fallback')))
-            if entry.get('status') not in ('failed', 'unavailable', 'submitted') and not unsent:
+            if entry.get('status') not in ('failed', 'unavailable', 'submitted') and not unsent and not rejected:
                 raise ValueError('Only failed/unavailable or explicitly stopped allocations can be retried.')
             outcome = target/'execution.json'
-            if outcome.exists() and json.loads(outcome.read_text()).get('status') == 'executed':
+            if outcome.exists() and json.loads(outcome.read_text()).get('status') == 'executed' and not rejected:
                 raise ValueError('A native result exists; reconcile/reparse it before requesting a retry.')
             children = descendants(spec, ident)
             if any(state['tasks'].get(n, {}).get('status') in
@@ -166,16 +197,16 @@ def process(graph):
                                       for t in replacement['tasks']]
             dispatch.validate_spec(replacement)
             if entry.get('job_id'):
-                if not stop_attempt(target, entry['job_id'], path, r):
+                if not stop_attempt(target, entry['job_id'], path, r, allow_completed=rejected):
                     continue
             elif not unsent:
                 from kinbot.anl.timeout_recovery import _job_id
                 job = _job_id(target, ident, entry)
                 if not job:
                     raise ValueError('Failed task has no verifiable allocation ID; reconcile it before retrying.')
-                if not stop_attempt(target, job, path, r):
+                if not stop_attempt(target, job, path, r, allow_completed=rejected):
                     continue
-            if outcome.exists() and json.loads(outcome.read_text()).get('status') == 'executed':
+            if outcome.exists() and json.loads(outcome.read_text()).get('status') == 'executed' and not rejected:
                 control.acknowledge(path,r,'retained',detail='Native completion arrived during retry preparation; reconcile it first.')
                 continue
             control.acknowledge(path, r, 'applying')

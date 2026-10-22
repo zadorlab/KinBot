@@ -45,7 +45,8 @@ LOG_NAMES = {'driver.log', 'pes.log', 'kinbot.log', 'kinbot.err', 'kinbot.out'}
 STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'mess_execution.json', '.kinbot_post_reaction_branches.json',
                'kinbot_status.json', 'pes_status.json', 'recovery.json',
-               'minimum_recovery.json', 'composite_preflight.json', 'vrc_model_review.json'}
+               'minimum_recovery.json', 'composite_preflight.json', 'vrc_model_review.json',
+               'scan_review.json'}
 REACTION_STAGES = {-999: 'failed/rejected', -1: 'accepted', 0: 'TS search',
                    1: 'barrier/IRC', 2: 'product characterization',
                    3: 'start product/TS optimization', 4: 'product/TS optimization',
@@ -253,6 +254,9 @@ def vrc_review_status(path, data, warnings):
         return {}
     channels = data.get('channels')
     if not isinstance(channels, list) or not channels:
+        return {}
+    if any(isinstance(c, dict) and c.get('kind') == 'scan_connectivity' for c in channels):
+        # A model-accepted orbital receipt never resolves a scan-path hold.
         return {}
     try:
         held_at = path.stat().st_mtime_ns

@@ -201,6 +201,7 @@ class VTS:
         """
         from kinbot.pes_phase import checkpoint
         from kinbot.vrc_multistate import SurfaceModelRequired
+        from kinbot.vrc_scan_recovery import ScanReviewRequired
         self.review_requests = []
         deferred = set()
         checkpoint()
@@ -304,10 +305,24 @@ class VTS:
                     if noscan:
                         raise ValueError('State-resolved VRC requires correction scans.')
                     multistate[name] = selection
-            calculate_channels(self, multistate)
+            try:
+                calculate_channels(self, multistate)
+            except ScanReviewRequired as error:
+                self.review_requests.extend(error.channels)
+                deferred.update(c.get('channel', c['reaction']) for c in error.channels)
             if scalar:
-                self.do_scan(scalar, noscan=noscan)
-                self.energies(scalar, noscan=noscan)
+                try:
+                    self.do_scan(scalar, noscan=noscan)
+                except ScanReviewRequired as error:
+                    self.review_requests.extend(error.channels)
+                    deferred.update(c['reaction'] for c in error.channels)
+                ready = [name for name in scalar if name not in deferred]
+                if ready:
+                    self.energies(ready, noscan=noscan)
+                for review in getattr(self, '_scan_review_requests', []):
+                    if review not in self.review_requests:
+                        self.review_requests.append(review)
+                    deferred.add(review['reaction'])
         if set(self.scan_reac)-deferred:
             # A direct KinBot run has all information needed here.  Waiting
             # for a later PES aggregation step left single-well runs without
@@ -330,6 +345,8 @@ class VTS:
             create_rotdpy_inputs(rotd_parameters, barrierless, [],
                                  correction_root='.')
         if deferred:
+            if any(c.get('kind') == 'scan_connectivity' for c in self.review_requests):
+                raise ScanReviewRequired(self.review_requests)
             raise SurfaceModelRequired('Orbital/state review required for: '+', '.join(sorted(deferred)))
         return
 
@@ -721,10 +738,11 @@ class VTS:
 
     def _molpro_multireference_scan_task(
             self, reaction, geom, distance, logical_name, *,
-            state_model_override=None):
+            state_model_override=None, fragment_retry=False):
         """Run one constrained Molpro multireference scan point."""
         from kinbot.anl.dispatch import (
             _load, preflight_until_scheduler_ready)
+        from kinbot.vrc_scan_recovery import ScanPointFailure
 
         constraints = {'fixed_bonds': [list(map(int, reaction.scan_coo))],
                        'minimum_bonds': []}
@@ -795,6 +813,14 @@ class VTS:
             },
             'resources': vrc_dispatch_resources(self.par),
         }
+        if fragment_retry:
+            # A different physical seed gets one separate graph. Do not let
+            # global step extensions or walltime retries multiply this budget.
+            task['optimizer'].update(steps=100, step_retries=0)
+            from kinbot.run_walltime import seconds, duration
+            requested = (None if task['resources']['walltime'] == 'partition_max'
+                         else seconds(task['resources']['walltime']))
+            task['resources']['walltime'] = duration(min(requested or 7200, 7200))
         fingerprint = hashlib.sha256(json.dumps({
             'molecule': molecule, 'task': task,
         }, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -809,15 +835,20 @@ class VTS:
                 'vrc_scan_distance_angstrom': float(distance),
             },
         }
+        if fragment_retry:
+            spec['intent']['vrc_fragment_retry'] = True
         from kinbot.vrc_graph import select_graph
         run_dir = select_graph(Path('vrctst/molpro_scan'), safe_name, spec)
         preflight_until_scheduler_ready(run_dir, interval=20.)
         _, _, state = _load(run_dir)
         # Explicit outage recovery can archive an interrupted attempt before
         # its replacement is staged. The dispatcher owns staging that task.
-        if state['tasks'].get('relaxed_scan', {}).get('status') != 'complete':
+        from kinbot import live_control
+        if (state['tasks'].get('relaxed_scan', {}).get('status') != 'complete'
+                or live_control.requests(run_dir/'tasks', kinds={'task'})):
             returncode, _ = _drive_vrc_dispatch(
-                run_dir, ('relaxed_scan',), interval=20.)
+                run_dir, ('relaxed_scan',), interval=20.,
+                **({'max_attempts': 1} if fragment_retry else {}))
             if returncode:
                 _, _, state = _load(run_dir)
                 error = state['tasks']['relaxed_scan'].get(
@@ -825,33 +856,42 @@ class VTS:
                 execution_path = run_dir / 'tasks' / 'relaxed_scan' / 'execution.json'
                 if execution_path.is_file():
                     error = json.loads(execution_path.read_text()).get('error') or error
-                raise RuntimeError(
+                raise ScanPointFailure(
                     f'Molpro multireference VRC scan failed at {distance:g} '
-                    f'angstrom; inspect {run_dir}: {error}')
+                    f'angstrom; inspect {run_dir}: {error}', run_dir)
         task_dir = run_dir / 'tasks' / 'relaxed_scan'
         execution = json.loads((task_dir / 'execution.json').read_text())
         if execution.get('status') != 'executed':
             raise RuntimeError(f'Incomplete VRC scan execution at {run_dir}.')
         atoms = read(task_dir / 'final.xyz')
+        if (atoms.get_chemical_symbols() != molecule['symbols']
+                or not np.isfinite(atoms.positions).all()):
+            raise RuntimeError(f'Invalid VRC atom identity/coordinates: {run_dir}')
         observed = float(np.linalg.norm(
             atoms.positions[reaction.scan_coo[0]] -
             atoms.positions[reaction.scan_coo[1]]))
         if not np.isclose(observed, distance, atol=0.01, rtol=0.):
-            raise RuntimeError(
+            from kinbot.vrc_scan_recovery import reject_point
+            reject_point(run_dir, 'distance_constraint')
+            raise ScanPointFailure(
                 f'Molpro VRC point lost its distance constraint: '
-                f'{observed:.6f} versus {distance:.6f} angstrom.')
+                f'{observed:.6f} versus {distance:.6f} angstrom.', run_dir)
         # A fixed association coordinate must not be satisfied by breaking an
         # internal fragment bond.  Check the original connectivity after each
         # optimization before publishing the geometry for correction jobs.
         broken = self._broken_scan_fragment_bonds(reaction, atoms.positions)
         if broken:
+            from kinbot.vrc_scan_recovery import reject_point
+            reject_point(run_dir, 'fragment_connectivity')
             detail = ', '.join(
                 f'{first + 1}-{second + 1}: {initial:.4f}->{final:.4f} A'
                 for first, second, initial, final in broken)
-            raise RuntimeError(
+            raise ScanPointFailure(
                 'Molpro VRC relaxed scan broke internal fragment bond(s): '
-                + detail)
+                + detail, run_dir, connectivity=True)
         energy_ev = float(execution['details']['energy_ev'])
+        if not np.isfinite(energy_ev):
+            raise RuntimeError(f'Nonfinite VRC energy: {run_dir}')
         recorded_model = execution.get('details', {}).get(
             'orbital_checkpoint_model')
         if isinstance(recorded_model, dict):
@@ -969,8 +1009,11 @@ class VTS:
 
     def _do_molpro_multireference_scan(self, reactions, noscan=False):
         """Compute a relaxed VRC path with the requested Molpro MR method."""
+        from kinbot.vrc_scan_recovery import ScanPointFailure, ScanProgress, ScanReviewRequired
         Path('vrctst/molpro_scan').mkdir(parents=True, exist_ok=True)
         completed = []
+        reviews = []
+        self._scan_review_requests = []
         for reac in reactions:
             reaction = self.scan_reac[reac]
             settings = roots = None
@@ -1025,9 +1068,34 @@ class VTS:
                 # Preserve the approach orientation and selected distance;
                 # initialize its internal fragment coordinates from the MR limit.
                 geom = self._frozen_scan_geometry(reaction, geom)
+            # A separate immutable seed plan preserves later accepted points
+            # when an earlier gap is repaired through live controls.
+            fragment_model = copy.deepcopy(state_model)
+            fragment_geom = (asymptotic_result[0].positions.copy()
+                             if asymptotic_result is not None else None)
+            context = dict(
+                symbols=list(map(str, reaction.species.atom)),
+                charge=int(reaction.species.charge), multiplicity=int(reaction.species.mult),
+                maps=[list(map(int, m)) for m in reaction.maps],
+                coordinate=list(map(int, reaction.scan_coo)),
+                equiv=[list(map(int, m)) for m in reaction.equiv],
+                fragment_geometry=None if fragment_geom is None else fragment_geom.tolist(),
+                initial_geometry=geom.tolist(), state_model=fragment_model,
+                parameters={key: self.par.get(key) for key in (
+                    'vrc_tst_scan_method', 'vrc_tst_scan_basis', 'vrc_tst_scan_shift',
+                    'vrc_tst_scan_ipea', 'vrc_tst_scan_fmax', 'vrc_tst_scan_gradient',
+                    'vrc_tst_scf_convergence', 'vrc_tst_correlation_convergence')},
+                separation_angstrom=separation)
+            progress = ScanProgress(reac, context)
+            after_gap = False
             distances = ([separation] if noscan else
                          [*map(float, self.par['vrc_tst_scan_points']), separation])
             for step, distance in enumerate(distances):
+                from kinbot.pes_phase import checkpoint
+                checkpoint()
+                if after_gap and fragment_geom is not None:
+                    geom = fragment_geom.copy()
+                    state_model = copy.deepcopy(fragment_model)
                 geom = self._shift_scan_geometry(reaction, geom, distance)
                 base = (f'{reac}_vts_pt_asymptote'
                         if step == len(distances) - 1
@@ -1043,10 +1111,39 @@ class VTS:
                         energy_ev = 0.
                         run_dir = Path('vrctst/molpro_scan/asymptote_identity')
                 else:
+                    # Distance is part of the key: a future explicit grid
+                    # migration cannot silently bind a different point.
+                    seed_key = base + '_d' + format(distance, '.12g')
+                    geom, state_model = progress.seed(seed_key, geom, state_model)
                     kwargs = ({} if state_model is None else
                               {'state_model_override': state_model})
-                    result = self._molpro_multireference_scan_task(
-                        reaction, geom, distance, base, **kwargs)
+                    progress.record(base, distance, 'running')
+                    try:
+                        result = self._molpro_multireference_scan_task(
+                            reaction, geom, distance, base, **kwargs)
+                    except ScanPointFailure as original:
+                        errors = [dict(error=str(original), graph=original.graph,
+                                       connectivity=original.connectivity)]
+                        if original.connectivity and fragment_geom is not None:
+                            progress.record(base, distance, 'fragment_retry', attempts=errors)
+                            retry_geom = self._shift_scan_geometry(reaction, fragment_geom, distance)
+                            try:
+                                result = self._molpro_multireference_scan_task(
+                                    reaction, retry_geom, distance, base + '_fragment_retry',
+                                    state_model_override=copy.deepcopy(fragment_model),
+                                    fragment_retry=True)
+                            except ScanPointFailure as retry_error:
+                                errors.append(dict(error=str(retry_error), graph=retry_error.graph,
+                                                   connectivity=retry_error.connectivity))
+                                result = None
+                        else:
+                            result = None
+                        if result is None:
+                            progress.record(base, distance, 'needs_review', attempts=errors)
+                            logger.warning('%s: scan point held for review; continuing independent '
+                                           'points from validated fragments: %s', base, errors[-1]['error'])
+                            after_gap = True
+                            continue
                     if len(result) == 5:
                         relaxed, energy_ev, run_dir, _, state_model = result
                     else:
@@ -1055,6 +1152,7 @@ class VTS:
                         # checkpoint model.
                         relaxed, energy_ev, run_dir, _ = result
                     geom = relaxed.positions.copy()
+                    after_gap = False
                 self._publish_scan_geometry(
                     reaction, base, relaxed, energy_ev, run_dir, frozen=False)
                 frozen_geom = self._frozen_scan_geometry(
@@ -1068,6 +1166,19 @@ class VTS:
                     self.par['vrc_tst_scan_method'],
                     self.par['vrc_tst_scan_basis'], distance)
                 completed.append(str(run_dir))
+                from kinbot.execution import file_sha256
+                native = Path(run_dir)/'tasks/relaxed_scan'
+                hashes = {str(p.resolve()): file_sha256(p) for p in (
+                    Path(run_dir)/'workflow.json', native/'execution.json', native/'final.xyz')
+                    if p.is_file()}
+                progress.record(base, distance, 'accepted', graph=str(run_dir), hashes=hashes)
+            review = progress.publish(finished=True)
+            if review:
+                self._scan_review_requests.append(review)
+                if any(p['status'] == 'needs_review' for p in progress.points.values()):
+                    reviews.append(review)
+        if reviews:
+            raise ScanReviewRequired(reviews)
         return completed
 
     def energies(self, reactions, noscan=False):
@@ -1310,10 +1421,14 @@ class VTS:
             if model == 'direct' and trusted_cbs is not None:
                 corr['trusted_cbs'] = trusted_cbs
 
-            with open(f'vrctst/corr_{reac}.json', 'w',
-                      encoding='utf-8') as f:
-                json.dump(corr, f, ensure_ascii=False, indent=4,
-                          cls=NpEncoder)
+            path = Path('vrctst') / f'corr_{reac}.json'
+            temporary = path.with_suffix('.json.tmp')
+            # Preserve the legacy serialization/hash when science is unchanged.
+            temporary.write_text(json.dumps(corr, ensure_ascii=False, indent=4,
+                                             cls=NpEncoder), encoding='utf-8')
+            os.replace(temporary, path)
+            from kinbot.vrc_scan_recovery import bind_correction_review
+            bind_correction_review(path)
         return
 
     @staticmethod

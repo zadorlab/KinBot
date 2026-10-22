@@ -44,6 +44,8 @@ def recover(run_dir, spec, state):
     from kinbot.anl import dispatch
     from kinbot.anl.salvage import descendants
 
+    if spec.get('intent', {}).get('vrc_fragment_retry'):
+        return spec, state  # One explicitly bounded diagnostic allocation.
     settings = timeout_retry.policy(run_dir)
     limit = settings.get('timeout_retries', 0)
     if not limit:

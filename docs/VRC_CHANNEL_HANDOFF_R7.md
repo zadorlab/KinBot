@@ -5,6 +5,109 @@ and the three additional orbital selections completed on October 21. Live
 refresh adds accepted channels without replacing existing models. The two
 provisionally screened CH3SS cleavages still await their accepted requests.
 
+## Bounded scan recovery and live review, October 22
+
+The C + SH3 relaxed scan changed chemical connectivity at **C–S = 2.8 A**:
+S(2)–H(4) grew from 1.436 to 2.9422 A while C(1)–H(4) became 1.1099 A.
+The separated, optimized 30 A reference has S(2)–H(4) = 1.4785 A.
+This is an H transfer, not a parser error. Native optimization completion
+does not make that geometry a valid C + SH3 correction point. Passing the
+connectivity check at 2.0–2.6 A also does not prove absence of earlier drift.
+
+The supplied L2 network already contains the corresponding well-to-well
+H-transfer TS, with a 0.689 kcal/mol forward barrier and approximately
+-747 cm^-1 imaginary frequency. The outer PES retains its reverse discovery
+`471230610040000000002_intra_H_migration_2_5` (84.260 kcal/mol reverse
+barrier). The duplicate forward searches are omitted. This supports a
+competing tight-TS rearrangement; it neither proves nor disproves a separate
+C + SH3 dissociation channel. A `hom_sci` label is a channel proposal, not
+proof of the complete barrierless potential.
+
+Production behavior after the controller refresh:
+
+1. Keep the existing 47-point scan and dividing-surface grids, 2–20 A, and
+   the **separate 30 A optimized fragment reference**. No distances, active
+   spaces, methods or convergence thresholds are changed by this repair.
+2. If a Molpro relaxed point breaks an internal fragment bond, preserve the
+   rejected graph and try that distance once with the validated separated
+   fragment geometry and its orbital checkpoint. This is a separate graph,
+   limited to **100 optimizer steps and at most two hours**, or the shorter
+   explicit user walltime. Automatic step extensions and further allocations
+   cannot multiply this retry budget. It uses the existing shared pool,
+   node exclusions and resource requests; its walltime ceiling takes precedence
+   over a pool-wide walltime floor. Explicit later user retries can change
+   that budget.
+3. On success, use the accepted retry geometry/checkpoint as the next seed.
+   If the retry fails, retain a named gap and attempt subsequent distances
+   from the validated fragments. Never publish the rejected point, interpolate
+   across the gap, or silently substitute a frozen-fragment energy.
+4. Persist each point's original geometry/orbital seed before dispatch.
+   Controller refresh and later repair of an earlier gap reattach to later
+   accepted/allocated graphs using their original seeds. A failed automatic
+   retry is not renewed merely because the driver or input is refreshed.
+5. Any connectivity failure holds the **entire affected scan for review**,
+   even if the fragment retry succeeds and the grid completes. Complete
+   flagged grids can finish their correction calculations; their channel
+   assembly/rates remain held. Incomplete grids retain later successful
+   points but cannot become a correction curve. Other surfaces/channels,
+   exploration and ANL continue independently. Final MESS completion still
+   requires resolution of every required channel.
+
+Evidence is written under `vrctst/scan_progress/<leaf>/<context-hash>/` and
+`vrctst/scan_review/<leaf>/scan_review.json`, alongside original native
+files, rejected-attempt markers, fallback graphs, accepted artifact hashes
+and orbital checkpoints. Review history survives replay. The monitor keeps
+this scan-path hold distinct from an already accepted orbital-model receipt.
+ROTD generation and result handoff reject a held scan even when older
+correction/rate files exist.
+Correction-to-scan bindings use sidecar receipts, preserving the existing
+correction bytes/hash when the science is unchanged. Publication is atomic.
+
+The C + SH3 request in r7 is expected at:
+
+```bash
+KB_RUN="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+KB_SCAN_REVIEW="$KB_RUN/ch3s/471430450000000000002-s06a7b4c221beb748/vrctst/scan_review/471430450000000000002-s06a7b4c221beb748_hom_sci_1_2__single_m2_r1/scan_review.json"
+"$HOME/KinBot/.venv/bin/python" -m kinbot.vrc_scan_recovery status "$KB_SCAN_REVIEW"
+```
+
+After this code is installed, ordinary users can request a targeted retry
+through the live owner, without source edits or another controller replacement.
+For example, **after reviewing an unresolved 2.8 A point**, save a schema-1
+fallback JSON such as `{"schema":1,"optimizer":{"steps":200},"resources":{"walltime":"04:00:00"}}`
+and request:
+
+```bash
+"$HOME/KinBot/.venv/bin/python" -m kinbot.vrc_scan_recovery retry \
+  "$KB_SCAN_REVIEW" --distance 2.8 \
+  --reason "Reviewed failed point; retry with the specified optimizer budget" \
+  --fallback /path/to/reviewed-fallback.json
+```
+
+This queues only the last failed attempt at that gap. Existing per-attempt
+fallbacks also support calculator keywords, commands, environment/setup and
+resources within their validation rules. They retain the requested scientific
+identity and parser checks; changing methods, active spaces or atom identity
+requires the corresponding reviewed input migration. Duplicate pending
+requests and attempts to replace an accepted point are rejected.
+For a finished graph whose Slurm record has been purged, a live retry requires
+a matching saved allocation ID, verified stage/output provenance and a
+successful queue query confirming it is absent. Missing accounting alone
+does not force a restart; ambiguous or unavailable scheduler evidence blocks
+the retry without cancelling or resubmitting anything.
+
+Only after **all points are accepted and the complete path has been reviewed**,
+the `approve` action with a substantive `--reason` records approval bound to
+the exact evidence hash. The live owner wakes, revalidates/reuses work and
+continues; no new driver is started. Approval cannot waive a missing point,
+changed artifacts or unresolved orbital review. An optimizer success alone
+is not a sufficient reason to approve this H-transfer-prone path.
+
+Use the [single controller-refresh command](ANL_COMPONENTS_V2_AND_R7.md#existing-r7-native-interface-repairs-october-22)
+once to install this implementation into the current r7 controllers. It
+retains running Slurm work. The new CH + H2S orbital review remains a separate
+requirement; this recovery does not choose an active space for that channel.
+
 ## Additional orbital-only batch, October 21 evening
 
 The plan `examples/anl/orbital_review_batches/r7_additional_20261021/batch.json`

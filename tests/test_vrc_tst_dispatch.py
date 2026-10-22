@@ -390,15 +390,17 @@ def test_molpro_dispatch_normalizes_numpy_charge_and_multiplicity():
 
 
 @pytest.mark.parametrize('fmax', [None, 2.e-4])
+@pytest.mark.parametrize('fragment_retry', [False, True])
+@pytest.mark.parametrize('walltime', ['01:00:00', 'partition_max'])
 def test_relaxed_scan_dispatch_receives_force_and_electronic_thresholds(
-        tmp_path, monkeypatch, fmax):
+        tmp_path, monkeypatch, fmax, fragment_retry, walltime):
     monkeypatch.chdir(tmp_path)
     geom = np.asarray([[0., 0., 0.], [0., 0., 2.5]])
     reaction = SimpleNamespace(
         scan_coo=[0, 1], equiv=[[0], [1]], products=[],
         species=SimpleNamespace(atom=['H', 'H'], charge=0, mult=1))
     par = dict(vrc_tst_scan_method='caspt2(2,2)', vrc_tst_scan_basis='vdz',
-               vrc_tst_walltime='01:00:00', single_point_ppn=4,
+               vrc_tst_walltime=walltime, single_point_ppn=4,
                vrc_tst_min_stack_mw=50, queue_name='short')
     if fmax is not None:
         par['vrc_tst_scan_fmax'] = fmax
@@ -414,13 +416,21 @@ def test_relaxed_scan_dispatch_receives_force_and_electronic_thresholds(
     monkeypatch.setattr('kinbot.anl.dispatch.prepare', prepare)
     with pytest.raises(Prepared):
         VTS(SimpleNamespace(), par, None)._molpro_multireference_scan_task(
-            reaction, geom, 2.5, 'test_point')
+            reaction, geom, 2.5, 'test_point', fragment_retry=fragment_retry)
     task = captured['tasks'][0]
     assert task['optimizer']['fmax'] == (5.e-4 if fmax is None else fmax)
     assert task['optimizer']['constraints']['fixed_bonds'] == [[0, 1]]
     kw = task['profile']['calculator_kwargs']
     assert kw['scf_convergence'] == 1.e-8
     assert kw['correlation_convergence'] == 1.e-7
+    if fragment_retry:
+        from kinbot.run_walltime import seconds
+        assert seconds(task['resources']['walltime']) == (3600 if walltime == '01:00:00' else 7200)
+        assert task['optimizer']['step_retries'] == 0
+        assert task['optimizer']['steps'] == 100
+        assert captured['intent']['vrc_fragment_retry'] is True
+    else:
+        assert task['resources']['walltime'] == walltime
 
 
 def test_molpro_dispatch_surfaces_native_task_failure():

@@ -142,6 +142,12 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
     analytic_caspt2 = analytic_available and gradient_mode != 'numerical'
     if contract is None:
         f12 = requested_method.upper() == 'CCSD(T)-F12B'
+        if effective_method is not None:
+            expected = ('HF' if electron_count == 1 else
+                        ('CCSD-F12b' if f12 else 'CCSD') if electron_count == 2
+                        else None)
+            if effective_method != expected:
+                raise ValueError('Molpro effective method disagrees with electron count.')
         cc_command = ({None: 'uccsd(t)-f12b,scale_trip=1', 'HF': '',
                        'CCSD-F12b': 'uccsd-f12b'} if f12 else
                       {None: 'uccsd(t)', 'HF': '', 'CCSD': 'uccsd'}).get(
@@ -389,7 +395,10 @@ def parse_output(path, *, method='CCSD(T)', effective_method=None,
     if contract is None and method.upper() == 'CCSD(T)-F12B' and effective_method != 'HF':
         assignment = _ENERGY.search(output)
         prefix = output[:assignment.start()] if assignment else output
-        base = re.search(r'^\s*RHF-UCCSD-F12b\s+energy\s+', prefix,
+        # When CCSD-F12b is the final method (two electrons, no triples),
+        # Molpro prefixes its total with !. With triples it is intermediate
+        # and has no !. Both precede the same saved energy variable.
+        base = re.search(r'^\s*!?RHF-UCCSD-F12b\s+energy\s+', prefix,
                          re.MULTILINE | re.IGNORECASE)
         total = re.search(r'^\s*!RHF-UCCSD\(T\)-F12(?:b)?(?:\s+total)?\s+energy\s+',
                           prefix, re.MULTILINE | re.IGNORECASE)

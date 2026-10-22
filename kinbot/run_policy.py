@@ -293,12 +293,12 @@ def _reconcile(root, jobs, claims):
     return sum(jobs.values()) + len(claims)
 
 
-def _submit_once(command, directory, path, kwargs, before_submit=None):
+def _submit_once(command, directory, path, kwargs, before_submit=None, walltime_ceiling=None):
     with _locked(path):
-        return _admit_locked(command, directory, path, kwargs, before_submit)
+        return _admit_locked(command, directory, path, kwargs, before_submit, walltime_ceiling)
 
 
-def submit(command, *, cwd=None, wait=False, before_submit=None, **kwargs):
+def submit(command, *, cwd=None, wait=False, before_submit=None, walltime_ceiling=None, **kwargs):
     """Serialize count + sbatch across threads/processes, retaining ambiguity.
 
     Return None when the pool is full and wait=False. No scheduler submission
@@ -306,12 +306,21 @@ def submit(command, *, cwd=None, wait=False, before_submit=None, **kwargs):
     they are never automatically resubmitted.
     """
     directory = Path(cwd or Path.cwd()).resolve()
+    if walltime_ceiling is not None:
+        import math
+        from kinbot.run_walltime import seconds
+        if not math.isfinite(seconds(walltime_ceiling)) or seconds(walltime_ceiling) <= 0:
+            raise ValueError('Submission walltime ceiling must be a finite positive duration.')
+        if Path(command[0]).name != 'sbatch':
+            raise ValueError('Submission walltime ceiling requires Slurm.')
     path = find(directory)
     if path is None:
         if before_submit:
             before_submit()
         try:
-            return subprocess.run(command, cwd=cwd, **kwargs)
+            actual = ([*command[:-1], '--time='+walltime_ceiling, command[-1]]
+                      if walltime_ceiling is not None else command)
+            return subprocess.run(actual, cwd=cwd, **kwargs)
         except OSError as error:
             error.kinbot_submission_not_started = True
             raise
@@ -327,7 +336,9 @@ def submit(command, *, cwd=None, wait=False, before_submit=None, **kwargs):
     warned = False
     while True:
         try:
-            result = (_submit_once(command, directory, path, kwargs, before_submit)
+            result = (_submit_once(command, directory, path, kwargs, before_submit, walltime_ceiling)
+                      if walltime_ceiling is not None else
+                      _submit_once(command, directory, path, kwargs, before_submit)
                       if before_submit else _submit_once(command, directory, path, kwargs))
         except SchedulerUnavailableError as error:
             if not wait:
@@ -343,7 +354,7 @@ def submit(command, *, cwd=None, wait=False, before_submit=None, **kwargs):
         time.sleep(20)
 
 
-def _admit_locked(command, directory, path, kwargs, before_submit=None):
+def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime_ceiling=None):
     policy = effective(path, _read(path))
     ledger = path.parent/'.kinbot_policy_admissions.json'
     claims = json.loads(ledger.read_text()) if ledger.exists() else {}
@@ -374,6 +385,11 @@ def _admit_locked(command, directory, path, kwargs, before_submit=None):
                 # No sbatch has occurred. A failed partition lookup must not
                 # become an uncertain submission or consume a pool slot.
                 raise SchedulerUnavailableError(f'Cannot resolve walltime policy: {error}') from error
+        if walltime_ceiling is not None:
+            from kinbot.run_walltime import seconds, duration
+            bounded_seconds = min(seconds(walltime_ceiling),
+                            seconds(override['effective']) if override else seconds(walltime_ceiling))
+            override = {**override, 'ceiling': walltime_ceiling, 'effective': duration(bounded_seconds)}
         token = uuid.uuid4().hex
         claim = {'directory': str(directory), 'command': list(command),
                  'created_at': datetime.now(timezone.utc).isoformat(),

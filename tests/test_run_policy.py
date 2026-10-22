@@ -108,6 +108,25 @@ def test_walltime_lookup_outage_does_not_create_an_uncertain_submission(pool, mo
     assert json.loads((pool.root/'.kinbot_policy_admissions.json').read_text()) == {}
 
 
+def test_diagnostic_walltime_ceiling_overrides_pool_floor_but_keeps_admission(pool, monkeypatch):
+    from kinbot import run_walltime
+    monkeypatch.setattr(run_walltime, 'partition_limits', lambda **kw: {'long': 31*86400})
+    policy.update(pool.root, minimum_walltime='7-00:00:00')
+    directory = pool.root/'probe'; directory.mkdir()
+    script = directory/'job.slurm'
+    script.write_text('#!/bin/bash\n#SBATCH --time=02:00:00\n#SBATCH --partition=long\nrun_qc\n')
+    before = file_sha256(script)
+    response = policy.submit(['sbatch', '--parsable', 'job.slurm'], cwd=directory,
+        walltime_ceiling='02:00:00', capture_output=True, text=True)
+    assert response.returncode == 0
+    assert '--time=0-02:00:00' in pool.commands[-1][0]
+    assert '--exclude=bad1' in pool.commands[-1][0]
+    assert file_sha256(script) == before
+    pool.jobs['full'] = 1
+    assert policy.submit(['sbatch', '--parsable', 'job.slurm'], cwd=directory,
+                         walltime_ceiling='02:00:00') is None
+
+
 def test_single_input_walltime_default_can_be_edited_live(tmp_path):
     policy.initialize(tmp_path, {'max_jobs': 3, 'minimum_walltime': '7-00:00:00'})
     policy.update(tmp_path, minimum_walltime='10-00:00:00')

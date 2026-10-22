@@ -1662,6 +1662,8 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
         with open(json_file, 'r') as jf:
             pp_info: dict[str, Any] = json.load(jf)
 
+        from kinbot.vrc_scan_recovery import require_ready_for_rates
+        require_ready_for_rates(json_file)
         if pp_info.get('kind') == 'multistate':
             from kinbot.vrc_multistate import create_inputs
             created.extend(create_inputs(par, pp_info, reactant, products,

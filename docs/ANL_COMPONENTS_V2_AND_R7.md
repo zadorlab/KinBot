@@ -4,6 +4,70 @@ This version changes new ANL graphs. Existing version-1 graphs keep their
 original definitions and are not relabeled as version 2. The r7 handoff starts
 fresh chemistry and copies only the reviewed VRC orbital seeds/settings.
 
+## Existing r7 native-interface repairs, October 22
+
+This update repairs the **existing r7**, not another fresh campaign. The
+October 21 23:44 PDT snapshot has 20/20 shared allocations occupied, CH3S
+postprocessing after outer-L2 selection (10 retained, 19 omitted), and CH3SS
+still exploring. CH3SS ANL must continue waiting for its outer-L2 selection.
+The existing pool cap, exclusions, scientific inputs and active Slurm IDs
+are retained by the controller-only refresh below.
+
+Two native-interface defects were demonstrated in the supplied output:
+
+* H2 `state_3551007628dd3b3d/l3_geometry_tz`, allocation 52917398, produced a
+  valid `!RHF-UCCSD-F12b energy` and precise
+  `KB_GEOM_ENERGY = -1.1740525564275448 AU`. For two electrons triples vanish,
+  so CCSD-F12b is the final method and Molpro prefixes its label with `!`.
+  The reader's additional method check expected the intermediate, unmarked
+  label used before triples in larger molecules. It rejected the output
+  before reading the correct variable. Geometry and harmonic readers now
+  accept both native labels while retaining F12b, convergence, precision,
+  undisplaced-energy, gradient and provenance checks. H/H2+ use HF; H2/He
+  use CCSD(-F12b), without triples or a 0/0 triples scale. Explicit effective
+  methods must agree with the electron count. Tests exercise these rank
+  limits across energy, force and frequency interfaces.
+* CFOUR H-atom DBOC allocations 52917384/52917386 rejected the keyword
+  `BASIS=aug-cc-pVTZ`. The documented CFOUR spelling is `AUG-PVTZ`.
+  Input rendering and result checks now translate documented augmented
+  valence/core-valence aliases consistently; the requested basis itself
+  is unchanged. Unknown/custom GENBAS names are not guessed. Source:
+  [CFOUR correlation-consistent basis manual](https://cfour.uni-mainz.de/cfour/index.php?n=Main.DunningsCorrelation-consistentBasisSets).
+
+The graph owner recognizes these exact defects once, verifies the allocation
+has ended and input/output hashes match, archives that attempt, and restages
+only the affected task and blocked/unstarted dependents. Valid completed or
+active work is not reset. H2's first force evaluation is rerun to resume its
+optimizer; this does not claim to reconstruct an optimizer from a standalone
+gradient. Old, unsubmitted CFOUR inputs are corrected before submission.
+Already allocated old workers remain untouched; if they later exhibit this
+same defect, the new controller can perform the same bounded repair. An
+interrupted repair journal resumes without creating another retry. Generic
+SCF failures and invalid stationary-point orders are not relabeled successful.
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+git pull --ff-only origin composite
+.venv/bin/python -u -m kinbot.run_refresh \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" --apply
+.venv/bin/python -m kinbot.run_monitor \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+BASH
+```
+
+Do not add `--replace-pending` or use the fresh-run/retirement commands for
+this repair. The same refresh installs the bounded VRC recovery and live
+scan review controls described in [the VRC handoff](VRC_CHANNEL_HANDOFF_R7.md#bounded-scan-recovery-and-live-review-october-22).
+Local regression checks cannot certify future native convergence; the next
+Blodgett executions provide the native verification of these repairs.
+Final local validation for this update: **2,801 passed, 7 skipped, 435 subtests
+passed** (112.99 seconds). The one warning is the existing deprecated `imp`
+test import. Coverage includes controller handoff, retained allocations,
+interrupted repair journals, shared admission, interface readers, scan gaps,
+bounded retries, explicit live retry/approval and stale-rate rejection.
+
 ## Atomic product postprocessing repair (October 21)
 
 The first CH3SS worker exited in `frequencies.get_frequencies`, after product

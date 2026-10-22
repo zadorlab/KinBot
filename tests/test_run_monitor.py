@@ -115,6 +115,18 @@ def test_exploration_slot_wait_is_distinct_from_qc_pool(production):
     assert 'Next well waits for an exploring well to finish: b' in text
 
 
+def test_refresh_wait_names_only_branch_owners_without_mutating_them(production):
+    root, case = production
+    put(case/'pes_exploration.json', dict(epoch=2, phase='exploring', quiescing=True,
+        workers={'original': dict(status='vrc'), 'reviewed': dict(status='ready'),
+                 'searching': dict(status='exploring')}))
+    before = (case/'pes_exploration.json').read_bytes()
+    text = monitor.render(monitor.snapshot(root))
+    assert 'PES revision waiting for branch controllers to yield: original.' in text
+    assert 'Existing Slurm jobs are retained.' in text
+    assert (case/'pes_exploration.json').read_bytes() == before
+
+
 def test_archived_failure_is_cached_outcome_but_new_attempt_is_visible(production):
     from kinbot.execution import file_sha256
     root, case = production

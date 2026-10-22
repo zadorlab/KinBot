@@ -58,6 +58,48 @@ def test_prepare_accepts_an_in_memory_workflow():
         assert saved['name'] == 'synthetic-qc-dispatch'
 
 
+@pytest.mark.parametrize('waiting', ['submitted', 'scheduler_unavailable', 'failed_hold'])
+def test_live_review_yields_polling_driver_without_changing_owned_jobs(tmp_path, monkeypatch, waiting):
+    import fcntl
+    from kinbot import pes_phase, live_control
+    from kinbot.anl import dispatch
+    from kinbot.execution import atomic_json
+
+    run_dir = prepare(dispatch_spec(), tmp_path / 'graph')
+    ledger = json.loads((run_dir / 'state.json').read_text())
+    for entry in ledger['tasks'].values():
+        entry.update(status='failed' if waiting == 'failed_hold' else 'submitted', job_id='12345')
+    atomic_json(run_dir / 'state.json', ledger)
+    before = (run_dir / 'state.json').read_bytes()
+    phase_file = tmp_path / pes_phase.NAME
+    atomic_json(phase_file, dict(token='test-owner', epoch=0))
+    monkeypatch.setattr(pes_phase, '_ROOT', tmp_path)
+    monkeypatch.setattr(pes_phase, '_EPOCH', 0)
+    monkeypatch.setenv('KINBOT_PES_PHASE_TOKEN', 'test-owner')
+    calls = []
+
+    def advance_with_new_review(*args, **kwargs):
+        calls.append('poll')
+        assert len(calls) == 1, 'The refreshed epoch must be checked before another poll/control mutation'
+        atomic_json(phase_file, dict(token='test-owner', epoch=1))
+        if waiting == 'scheduler_unavailable':
+            raise SchedulerUnavailableError('test outage')
+        return ledger
+
+    controls = []
+    monkeypatch.setattr('kinbot.anl.live_control.process', lambda *a: controls.append('control'))
+    monkeypatch.setattr(dispatch, 'advance', advance_with_new_review)
+    monkeypatch.setattr(dispatch.time, 'sleep', lambda *a: None)
+    monkeypatch.setattr(live_control, 'holding', lambda *a: True)
+    with pytest.raises(pes_phase.ExplorationReopened):
+        drive_run(run_dir)
+    assert calls == ['poll'] and controls == ['control']
+    assert (run_dir / 'state.json').read_bytes() == before
+    with (run_dir / 'drive.lock').open('r+') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def test_status_reports_workflow_not_prepared_before_handoff(tmp_path):
     assert refresh_status(tmp_path / 'future-run') == {
         'workflow': 'not_prepared'}

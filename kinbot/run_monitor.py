@@ -704,6 +704,12 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             out.append(f'PES exploration: {exploration.get("phase", "unknown")}; '
                        f'epoch={exploration.get("epoch")}; wells={counts}; '
                        f'owner={"present" if owner_alive else "not observed"}')
+            if exploration.get('quiescing'):
+                owners = sorted(n for n, w in exploration.get('workers', {}).items()
+                                if w.get('status') in ('vrc', 'postprocessing'))
+                out.append('PES revision waiting for branch controllers to yield: '
+                           + (', '.join(owners) if owners else 'owner acknowledgment')
+                           + '. Existing Slurm jobs are retained.')
             if 'max_searches' in exploration:
                 exploring = exploration.get('exploring_workers', [])
                 waiting = exploration.get('waiting_workers', [])

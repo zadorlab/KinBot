@@ -211,6 +211,105 @@ and additional analysis. Solver/geometry convergence plus a successful audit
 parser alone does not establish the scientifically intended electronic state.
 Keep the recon directories: their hashed WFU files are runtime seeds.
 
+## Evidence archive coverage and export
+
+The documentation records selections, rationale, geometry provenance and the
+native excerpts supplied in the conversation. It is **not a substitute for the
+full native outputs**. As of the October 21 evening handoff, the new r7 campaign
+files remain on Blodgett and have not yet been imported into the local archive.
+
+| Evidence | Source below `$HOME/kinbot-runs` | Coverage reported by the user |
+|---|---|---|
+| CH2SH -> CH2 + SH orbital screen | `r7_ch2sh_cs_orbital_recon` | Eight completed aDZ/aTZ orbital probes |
+| Optional compact/expanded CH2SH panel | `r7_ch2sh_cs_orbital_validation` | Four executed probes; the other 18 were not submitted. The compact near-point native run completed but its optional CC energy reader rejected the output. Do not resume this panel merely to export it. |
+| C + SH3 and the two prospective CH3SS cleavages | `r7_additional_orbital_recon_20261021` | All 24 orbital-only probes reported complete; prospective channels still require accepted-channel binding |
+
+The original CH3S C-S and CH3SS C-S/S-S selections already have curated native
+archives, individual WFU seeds, hash inventories and review records under
+`examples/anl/{ch3s,ch3ss}_anl1_f12/orbital_reviews`. The two
+`caspt2_native.evidence.tar.gz` archives contain the accepted native evidence;
+their `native_inventory.json` and `orbital_inventory.json` retain original
+locations and hashes. The original WFU sources were in
+`minimum_active_space_molpro_confirmation_20261016_r2` (CH3SS C-S) and
+`minimum_active_space_molpro_confirmation_20261016_r2_recovery` (CH3S C-S and
+CH3SS S-S). The export uses the curated copies, so those older source
+directories need not still exist. Any historical archives present under the
+two review trees are included as well.
+
+The standalone exporter uses only the Python standard library. It includes
+**all regular files** in the three r7 campaign directories, including prepared
+and executed decks, full native outputs, XML, Molden, WFU, orbital audits,
+manifests, failed-attempt evidence and launch records. It also captures the
+curated original evidence, selection recipes, documentation, production inputs,
+saved review requests and live refresh receipts. It does not run an audit that
+rewrites manifests, query Slurm, submit QC, acquire controller locks, or change
+source files. Production QC output trees and node-local scratch are outside
+this orbital-recon export's scope. Keep them separately for the final rate
+calculation audit.
+
+Run on Blodgett after pulling `composite`:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+git pull --ff-only origin composite
+KB_EXPORT="/tmp/kinbot-r7-orbitals-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+nice -n 10 .venv/bin/python examples/anl/tools/export_orbital_evidence.py \
+  examples/anl/orbital_review_batches/r7_additional_20261021/export.json \
+  --repo "$HOME/KinBot" --runs "$HOME/kinbot-runs" \
+  --production "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" \
+  --output-directory "$KB_EXPORT"
+printf 'COPY THIS DIRECTORY: %s\n' "$KB_EXPORT"
+BASH
+```
+
+This can be a multi-GB export because it preserves the wavefunctions. It
+streams each source once, compresses at level 1 and then verifies all archive
+members on the export disk. The output includes `orbital-evidence.tar.gz`, its
+`.sha256` and a readable `.manifest.json` with every source/member/hash/size.
+No existing export is overwritten. Missing required sources, skipped symlinks
+and files changed during their read are explicitly reported; exit status 2
+means inspect that manifest, not that a calculation failed. An interrupted
+archive remains `.partial`. Live metadata is a set of per-file snapshots,
+not an atomic snapshot of the whole running workflow. Transport verification
+does not mean scientific validation or that unsubmitted jobs ran.
+
+Copy the printed directory from a local terminal, then verify its checksum:
+
+```bash
+scp -r hram@blodgett.ca.sandia.gov:/tmp/kinbot-r7-orbitals-TIMESTAMP-PID ./
+cd kinbot-r7-orbitals-TIMESTAMP-PID
+shasum -a 256 -c orbital-evidence.tar.gz.sha256
+```
+
+### Observed refresh wait, October 21 at 18:07 PDT
+
+The C + SH3 revision `38d137b545fa4efba054ebed93fa360f` was published as three
+worker requests but remained unacknowledged in the monitor. The prior CH2SH
+review was already applied: its first production point completed at 18:02:31.
+That worker then yielded; the original CH3S worker remained in VRC with
+retained job 52915984. Both new CH3SS selections still awaited actual accepted
+requests. These are separate from the 750-step exploration failures displayed
+in the same monitor.
+
+The cause of this delay is a missing cooperative epoch check inside the
+dispatcher polling loop. The outer VRC loop and new submissions checked for
+refreshes, but an already submitted point could be polled until it finished
+before the controller surrendered `drive.lock`. PES deliberately grants no
+revision while any branch still owns its graph. The repair checks the epoch
+before every dispatcher poll, including scheduler-outage and failed-task hold
+loops. It releases only controller graph ownership; submitted job IDs and
+native files remain intact for reattachment. Regression tests verify the
+unchanged ledger and released lock. Standalone dispatch has no PES epoch and
+continues as before. The read-only monitor now names the branch controllers
+still awaited when `quiescing` is true, rather than only showing a queued count.
+
+An already running pinned Python controller does not load this code merely
+because the checkout is pulled. Without replacing it, the current queued
+revision can proceed when the remaining point reaches its existing boundary.
+No scan cancellation or recon resubmission is required to let that happen.
+
 ## D1/D2 counting at the MESS boundary
 
 The current single-bottleneck handoff already implements Union's operation:

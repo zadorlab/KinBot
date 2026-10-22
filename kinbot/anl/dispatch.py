@@ -2651,6 +2651,12 @@ def drive_run(run_dir, *, interval=20., submit_only=None, hold_failures=True):
                 'Another driver is already managing this run.') from exc
         scheduler_error = None
         while True:
+            # A live PES review must yield graph ownership even when every
+            # task is already submitted (so _submit is never reached). The
+            # epoch exception releases drive.lock without touching Slurm jobs
+            # or their ledger; the resumed branch reattaches to those IDs.
+            from kinbot.pes_phase import checkpoint
+            checkpoint()
             try:
                 from kinbot.anl.live_control import process as process_controls
                 process_controls(run_dir)

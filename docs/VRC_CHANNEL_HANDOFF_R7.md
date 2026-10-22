@@ -77,7 +77,8 @@ if a tentative reaction is later rejected.
 
 ## Completed additional screens and selected production spaces
 
-All 24 orbital-only probes were reported complete by the user on October 21.
+All 24 orbital-only probes completed on October 21, as confirmed by the
+subsequently imported native archive described below.
 The last aTZ S-S far record confirms the same orbital character as aDZ.
 The following selections use **each screen's own 2 Å natural record 2140.2**
 in each basis. Orbital indices are source-file positions, never a transferable
@@ -215,14 +216,35 @@ Keep the recon directories: their hashed WFU files are runtime seeds.
 
 The documentation records selections, rationale, geometry provenance and the
 native excerpts supplied in the conversation. It is **not a substitute for the
-full native outputs**. As of the October 21 evening handoff, the new r7 campaign
-files remain on Blodgett and have not yet been imported into the local archive.
+full native outputs**. The export captured on October 21 at 18:19:41 PDT was
+subsequently imported into
+`examples/anl/tools/kinbot-r7-orbitals-20261022T011938Z-2923454/`.
+Its 197,101,264-byte `orbital-evidence.tar.gz` has SHA256
+`0396956230d8dabe0b216bd9cf90aa12cce88dcfdbdf86821a26d2c3c5eeff0f`.
+The archive checksum and **all 2,951 member sizes and checksums were verified**;
+the internal and sidecar manifests match exactly, with no collection issues.
+The large archive stays in that local directory, outside Git. The tracked
+[native export inventory](../examples/anl/orbital_review_batches/r7_additional_20261021/native_export_inventory.json)
+records its identity, campaign statuses, native-file hashes, installed seed
+bindings and refresh acknowledgements.
 
-| Evidence | Source below `$HOME/kinbot-runs` | Coverage reported by the user |
+| Evidence | Source below `$HOME/kinbot-runs` | Coverage verified in the archive |
 |---|---|---|
 | CH2SH -> CH2 + SH orbital screen | `r7_ch2sh_cs_orbital_recon` | Eight completed aDZ/aTZ orbital probes |
 | Optional compact/expanded CH2SH panel | `r7_ch2sh_cs_orbital_validation` | Four executed probes; the other 18 were not submitted. The compact near-point native run completed but its optional CC energy reader rejected the output. Do not resume this panel merely to export it. |
-| C + SH3 and the two prospective CH3SS cleavages | `r7_additional_orbital_recon_20261021` | All 24 orbital-only probes reported complete; prospective channels still require accepted-channel binding |
+| C + SH3 and the two prospective CH3SS cleavages | `r7_additional_orbital_recon_20261021` | All 24 orbital-only probes complete; prospective channels still require accepted-channel binding |
+
+The new r7 campaign trees contain **36 native outputs, 36 WFU files and 108
+XML files**: 32 orbital-only screens plus four executed optional validation
+probes. They contain no Molden files. The 18 unsubmitted validation inputs
+are retained as inputs, not counted as completed calculations. For the 35
+jobs with recorded provenance, prepared-input, output, WFU and both orbital
+XML hashes match the archived bytes. All ten WFU seeds referenced by the
+installed production models also match their recorded hashes. The optional
+compact probe's native output and failed validation record are both retained.
+The orbital-screen manifests still say `coverage_refinement_required`;
+preserving their evidence does not turn them into a completed potential
+validation or waive the provisional CH3SS review requirement.
 
 The original CH3S C-S and CH3SS C-S/S-S selections already have curated native
 archives, individual WFU seeds, hash inventories and review records under
@@ -309,6 +331,30 @@ An already running pinned Python controller does not load this code merely
 because the checkout is pulled. Without replacing it, the current queued
 revision can proceed when the remaining point reaches its existing boundary.
 No scan cancellation or recon resubmission is required to let that happen.
+
+The transferred archive contains all six worker acknowledgements for the
+CH2SH and C + SH3 revisions, each `applied` without an error. The 18:22:42 PDT
+monitor confirms this and shows C + SH3's asymptotic geometry job 52916238
+running, alongside CH2SH point 01 and original CH3S point 07. Thus this
+observed refresh wait has cleared; a restart is not needed for these models.
+
+### Current scheduling within a VRC worker
+
+The original CH3SS S–S channel already has its reviewed model. In the
+18:22:42 PDT monitor it has not submitted a scan because the current
+implementation processes channels **serially within each well's worker**.
+`VTS.calculate_correction_potentials` calls `calculate_channel` synchronously
+for each selected reaction; that function completes each electronic leaf's
+scan and correction energies before returning. Consequently CH3SS C–S does
+its asymptotic geometry, pivots, relaxed points and correction assembly before
+S–S begins. CH3S D2 similarly follows D1. Other wells' VRC workers and PES
+exploration can run concurrently under the shared resource cap.
+
+This is an implementation limitation, not a scientific dependency between
+the two bonds or a missing S–S active-space review. All 23 shared allocations
+were occupied in this snapshot, but S–S was not yet a Slurm pending job.
+This handoff documents the serial behavior; it does not implement concurrent
+channel or electronic-leaf dispatch.
 
 ## D1/D2 counting at the MESS boundary
 

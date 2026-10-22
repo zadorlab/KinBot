@@ -1,0 +1,1431 @@
+{
+  "schema": 1,
+  "archive": {
+    "repository_relative_path": "examples/anl/tools/kinbot-r7-orbitals-20261022T011938Z-2923454/orbital-evidence.tar.gz",
+    "sha256": "0396956230d8dabe0b216bd9cf90aa12cce88dcfdbdf86821a26d2c3c5eeff0f",
+    "bytes": 197101264,
+    "captured_utc": "2026-10-22T01:19:41.410093+00:00",
+    "file_count": 2951,
+    "collection_issues": [],
+    "verification": "Archive SHA256 and every member size/SHA256 verified; internal and sidecar manifests equal."
+  },
+  "scope_note": "Native orbital-recon evidence and production metadata snapshots. This is not a scientific acceptance verdict or a final production QC archive. Raw archive remains in the local tools directory, outside Git.",
+  "manifest_hash_checks": {
+    "input_sha256": 35,
+    "output_sha256": 35,
+    "wfu_sha256": 35,
+    "orbital_xml_sha256": 70,
+    "installed_model_seed_sha256": 10
+  },
+  "campaigns": [
+    {
+      "manifest_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/reconnaissance.json",
+      "manifest_sha256": "e788f3a9035e8597fd18cc81c3b7398fad9cca525026bbc7edaf5853b1fc0691",
+      "status": "coverage_refinement_required",
+      "job_status_counts": {
+        "complete": 8
+      },
+      "native_outputs_present": 8,
+      "jobs_with_native_output": [
+        {
+          "name": "adz__cs_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915795",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/adz__cs_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "1ab60e25a8346c49ff431fd8c73fd5c9115ffd1f15eac8b9172857887381430b",
+              "bytes": 1439
+            },
+            ".native.inp": {
+              "sha256": "38f98303a3264335c0f0fd5c95766f5795d83f0aef7b5c5f0261696945049c97",
+              "bytes": 1409
+            },
+            ".out": {
+              "sha256": "89f7d9051f4bc77c21c6175d2a3d052b1fc057a6b6186276552a5b463eb155e8",
+              "bytes": 48635
+            },
+            ".wfu": {
+              "sha256": "e2da05fedad83e7a1e7b035211386ba28498b0103c76a0592d4a819b78ab05da",
+              "bytes": 13863280
+            },
+            ".orbital_audit.json": {
+              "sha256": "5d7df9266e5e7de1b2b51236b578ce3cf1f96d5dcd5706c662939ecc1689ab96",
+              "bytes": 55475
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915805",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/adz__cs_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "df0a815b98ca3bb201a2a15a968676ec852e5220520403c411de9391e789c947",
+              "bytes": 1449
+            },
+            ".native.inp": {
+              "sha256": "9487c7a98d17dfab91ab96ee3024a43207966c126daafa90abc17e77fed20bc9",
+              "bytes": 1417
+            },
+            ".out": {
+              "sha256": "cc0509eccd91bafa08b5ae5616e1f205280be63c46dc5dbb137a256b72c0fc94",
+              "bytes": 43941
+            },
+            ".wfu": {
+              "sha256": "e7f0123cec5bdbefc6a7e667c2dcdde9e50a7c415c94834993d717f35d33a975",
+              "bytes": 13863280
+            },
+            ".orbital_audit.json": {
+              "sha256": "fec28f53466d4fa962762dc6095923e5407d27abc8d03ae8fb3450ade92508c4",
+              "bytes": 42716
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_6",
+          "manifest_status": "complete",
+          "job_id": "52915806",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/adz__cs_r_6",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "4ade536f9037ba734182049de404b25db79a4b690df7b143e966f704432dce76",
+              "bytes": 1438
+            },
+            ".native.inp": {
+              "sha256": "b9cc807e2fddc4ad1aff6d67151f324e3c0b82e50676aa0f0578a409a7f71c0b",
+              "bytes": 1408
+            },
+            ".out": {
+              "sha256": "7f7c2d99f3498c41d64b561fdc1e2fcf5c608cde7a476f64d83f9857a4eef98c",
+              "bytes": 47951
+            },
+            ".wfu": {
+              "sha256": "510f93da0e9822727d9d360e2a713949cdcfa25ba01dc42fa48a0bf978d23aba",
+              "bytes": 13863280
+            },
+            ".orbital_audit.json": {
+              "sha256": "c33b1ff2dd1c575cd10d904a22aa3058ec5f81b91240184dd1dbd97c18acbe84",
+              "bytes": 40854
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915807",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/adz__cs_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "6b262b9f6a4feb4ffeaec8d35639bcc6688f67c4f2ec060937bb68dc849a2ed5",
+              "bytes": 1454
+            },
+            ".native.inp": {
+              "sha256": "4212887e215595d41bcac38ec35be1932d2ba4ad687c793982cad32d3bc64b97",
+              "bytes": 1423
+            },
+            ".out": {
+              "sha256": "8cf82d5cfcfc70884d03aabaedc8600908bff9dd41bd80f1187edccb344b12b0",
+              "bytes": 49574
+            },
+            ".wfu": {
+              "sha256": "4529ea49f91fd17ce3e98907c69eccee4e62b49c2b94f9dc409fbe7a78dc4185",
+              "bytes": 13863280
+            },
+            ".orbital_audit.json": {
+              "sha256": "5743509132c52685c772acbe6c3eca1f42530bcb4da6442f3671c9eb68114ecb",
+              "bytes": 38747
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915811",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/atz__cs_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "59f63a5a3b3ea1f068c3441bc03f14c056eec1c093baf7d91738778a937351e9",
+              "bytes": 1439
+            },
+            ".native.inp": {
+              "sha256": "53489cc3ee83afce4dc6d1a8ee7df395926b1617009d9a88cb0f37f3b15cfc55",
+              "bytes": 1409
+            },
+            ".out": {
+              "sha256": "c4e61318c646465a39dd6aa1e38b15dba00e21c9d88bda83991d94bff2b59551",
+              "bytes": 53158
+            },
+            ".wfu": {
+              "sha256": "1cf26f13c08b166f0b76973dea760e55bfd021c3b72ea0a97f665ef97ddefcaf",
+              "bytes": 16736640
+            },
+            ".orbital_audit.json": {
+              "sha256": "05333d1069c4cc08d97f3f1a5056b2bfca72827fe7deb1cab6635ff0c79442fa",
+              "bytes": 75984
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915814",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/atz__cs_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "b21c54784ef00fa71917ce8b6e252da1f4650f50b4e079f6f9edc3208da278c2",
+              "bytes": 1449
+            },
+            ".native.inp": {
+              "sha256": "587168a33f9e140497b3e40b8400d42535070dcd9659ad871f0e5a9c8a0083fa",
+              "bytes": 1417
+            },
+            ".out": {
+              "sha256": "b8ae6d5f55cbbb8c718e7fc5bd9e863ec62218facf1931cd3b5cc39fb5ee8b8b",
+              "bytes": 47566
+            },
+            ".wfu": {
+              "sha256": "c7c1334add57da0935a4b925d21d2304e886325bddd39cd6460baf9868be352d",
+              "bytes": 16736640
+            },
+            ".orbital_audit.json": {
+              "sha256": "a0433976451b0aaa778050b12343f607be60bbabd9cf3a5bb024a38d464f15bd",
+              "bytes": 61670
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_6",
+          "manifest_status": "complete",
+          "job_id": "52915815",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/atz__cs_r_6",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "a4c4bbf486c28ea35de27b315414cdec130afaddae0a0a3114a94e1bb5d71ea5",
+              "bytes": 1438
+            },
+            ".native.inp": {
+              "sha256": "b64d2b2d0ef6d74342384af1e3c5a73eb2bfd2f163c019919c57011de54ad47c",
+              "bytes": 1408
+            },
+            ".out": {
+              "sha256": "6e571612a10095250a9ff15bad35b8d579301187c08025ff250a76e3576540ec",
+              "bytes": 52802
+            },
+            ".wfu": {
+              "sha256": "3e5cb4cf079fa2e094be778bfa2c92473a2465dea99c0e02318e522a92298cb9",
+              "bytes": 16736640
+            },
+            ".orbital_audit.json": {
+              "sha256": "8214b139863ce1488bbeac331cdc31b1efecca1bdce2ca4735bda769e046d575",
+              "bytes": 53793
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915820",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/atz__cs_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "f139f9c2b8722f2727d7f9e865e91bfb706e9cde0b65221b4b2a4be9f94d041b",
+              "bytes": 1454
+            },
+            ".native.inp": {
+              "sha256": "9e943755644b003671e4b3b91def4194c98adfe168a7403842ca8fe369c086c9",
+              "bytes": 1423
+            },
+            ".out": {
+              "sha256": "e9ea91d1a49c82be39a79945223a08813028d5ce2586a7d03d4839461289c2e9",
+              "bytes": 50361
+            },
+            ".wfu": {
+              "sha256": "afb66b66c8ce30c423401dd401d1ad1e4745b2085bd0f1505cc786ad616e6d6c",
+              "bytes": 16736640
+            },
+            ".orbital_audit.json": {
+              "sha256": "d1b692e66be043a021552f0506c7028cdac873472e89433a76a7763a2582b508",
+              "bytes": 52325
+            }
+          }
+        }
+      ]
+    },
+    {
+      "manifest_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/reconnaissance.json",
+      "manifest_sha256": "45a664c80ae494140dc155c39282318aa9f888eb94a3ca3c54f9fe0fea545a0d",
+      "status": "coverage_refinement_required",
+      "job_status_counts": {
+        "complete": 8
+      },
+      "native_outputs_present": 8,
+      "jobs_with_native_output": [
+        {
+          "name": "adz__cs_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915796",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/adz__cs_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "ce6f5d503d284213fe52e1bc9134c724c47bceb637fdc6258c53e201b1642ba0",
+              "bytes": 1308
+            },
+            ".native.inp": {
+              "sha256": "b5794d45011b1f43b1b4b4c939f48d4e22b514a4e0a9c46ade6ff8e1d599c98f",
+              "bytes": 1277
+            },
+            ".out": {
+              "sha256": "fd67a92cf402e3fc6237fd5c0e23c48a376e414ff62fda43feaaa8670f9be099",
+              "bytes": 45988
+            },
+            ".wfu": {
+              "sha256": "27c1514881f5043fe1e71da7e4222c441086916e027f68dbecb0d1febd1d244d",
+              "bytes": 14911240
+            },
+            ".orbital_audit.json": {
+              "sha256": "631da50dcfa3bc1d3bd0fba11078e23e100de71483ca114a4636751df867ed2f",
+              "bytes": 61099
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915824",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/adz__cs_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "6404df1dba9998cd7dc1e5ac2b8ee4437fed004c43fe4bf5e0c82f81c6ec0641",
+              "bytes": 1318
+            },
+            ".native.inp": {
+              "sha256": "a288748c8051f99228a3e8ec32037036ecc745cf391064f459498c7588e5b40b",
+              "bytes": 1285
+            },
+            ".out": {
+              "sha256": "0bde34bf75ad330702600381b777b3c4a3e1afdf1bb69ef6a9131dcd7fae2504",
+              "bytes": 42842
+            },
+            ".wfu": {
+              "sha256": "71668849ffc0b33b7beac16628d8e4d1ecb5f8bf23ee93388915197f5f46db16",
+              "bytes": 14911240
+            },
+            ".orbital_audit.json": {
+              "sha256": "ec13c7ebe9c37cb31da2dd80caa6f14c8fb62e396b8921dffc304abdef3e4df3",
+              "bytes": 52279
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_6",
+          "manifest_status": "complete",
+          "job_id": "52915830",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/adz__cs_r_6",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "c92c0bfb10530ef3ec065c6aa3714379f680c156f3c25ff9ceaf3e03c3e9ede1",
+              "bytes": 1308
+            },
+            ".native.inp": {
+              "sha256": "ebaecd429cb0b42e290a5aa12f1820f2973db6fa40b0ea7f7daafd3e8c130334",
+              "bytes": 1277
+            },
+            ".out": {
+              "sha256": "92f59b035c155c7e0145858d0538daaddf6bfff68f6c08f0b1ac047c6bab1e05",
+              "bytes": 41346
+            },
+            ".wfu": {
+              "sha256": "f3071651b9fc81716917e4410eb8fe213e01be6e5baddcdb7de4cb24a0099310",
+              "bytes": 14911240
+            },
+            ".orbital_audit.json": {
+              "sha256": "ee79b4564269b6b704d6ca929360aea8380b5256bc055d6ebf1240fe92b020f2",
+              "bytes": 50802
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915835",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/adz__cs_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "27209ed2d09e53e9175128d27304308c6ab8d8174f3370202388438792d5e330",
+              "bytes": 1320
+            },
+            ".native.inp": {
+              "sha256": "59ebf75a5b484e077b65ab4d860079957bddd0d8d2ccb2dfbac42bac4f859409",
+              "bytes": 1288
+            },
+            ".out": {
+              "sha256": "fb57d13ec6d0f600b4d8691b1bfed4391c50bef27c9bb0bd5a28ca85a6dba1b2",
+              "bytes": 42572
+            },
+            ".wfu": {
+              "sha256": "06294b2277a113688e77b5d5030a38208c935db2a0d9e7d45e100ceb849c4641",
+              "bytes": 14911240
+            },
+            ".orbital_audit.json": {
+              "sha256": "26a9cef5318b13a3c315b8a930a401fbe86fd1f4d3409df0317c66d23500def5",
+              "bytes": 49317
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915836",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/atz__cs_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "4fd2db2bd66da38397d3bfb56ce7716969bc1edee90c57282d870163ef328936",
+              "bytes": 1308
+            },
+            ".native.inp": {
+              "sha256": "9779341520ef5d327c77466aebf5b5b7afefd12c10017db5c02ea9083394d9de",
+              "bytes": 1277
+            },
+            ".out": {
+              "sha256": "abbbf4409ed96e5c81239b32563e6ce72dca0e6f3380dc60b41cca0eae35ef3c",
+              "bytes": 50435
+            },
+            ".wfu": {
+              "sha256": "2fbbfeae102e5978e0b393a2c64c6cc8c14fd4b1c5805fbc94ab0bbc35bce603",
+              "bytes": 19938656
+            },
+            ".orbital_audit.json": {
+              "sha256": "64e6e6964f7419f4f0edf0d6cd706f9ff701de42e415e4a87b4b63be9d675f84",
+              "bytes": 82227
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915837",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/atz__cs_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "c01e2bfb966c19655c4715b41f3a38a70094b9edb40b8308e9844dad6803508e",
+              "bytes": 1318
+            },
+            ".native.inp": {
+              "sha256": "d8f0a30f6832b7a13de443d08dece3365a42462bddbf5557fd4eb849bb22be3e",
+              "bytes": 1285
+            },
+            ".out": {
+              "sha256": "e5b270ca4a83db5a202c10c31c641bf26d43612f74573bdb0e91a6722d03a6e1",
+              "bytes": 46086
+            },
+            ".wfu": {
+              "sha256": "5dbc0fd0da4caddd5e3cdfb1a9b789f39ad681770d7e438bee4a5a2e6b5e7919",
+              "bytes": 19938656
+            },
+            ".orbital_audit.json": {
+              "sha256": "02ad1a72a1922333d8bc9f72f1893cb352e7f7dd9e1c6f32727a751abef94054",
+              "bytes": 68157
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_6",
+          "manifest_status": "complete",
+          "job_id": "52915840",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/atz__cs_r_6",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "d96b537cb520afae931aa9086707f675c216b6fb6259c5514a3e85b4e5f1f38d",
+              "bytes": 1308
+            },
+            ".native.inp": {
+              "sha256": "556903bc634022df110dcd6f634f6fee6b9132744994affc073eff395b902651",
+              "bytes": 1277
+            },
+            ".out": {
+              "sha256": "5575d7d72df9f62d39c5f4274f6c9ab38edf76a3bec7616b936bda5b502b871b",
+              "bytes": 44406
+            },
+            ".wfu": {
+              "sha256": "5747baca8c96a7d362fc1b5fa229c9e9fd066623ef24797d0c402d1ea82d42de",
+              "bytes": 19938656
+            },
+            ".orbital_audit.json": {
+              "sha256": "86bcc15dd77ef651c243536330329428b44f61338a0831b5177979a217e9015a",
+              "bytes": 65207
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915866",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_cs/native/atz__cs_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "10c6cfbaee7940eeda1a7d7fb45e4fd6164d4d269ccfda0785d6fffdf0adb544",
+              "bytes": 1320
+            },
+            ".native.inp": {
+              "sha256": "335d639e830923e4e21e16cf5ea2c755550b1084a972d0d0edf8a1203162e00c",
+              "bytes": 1288
+            },
+            ".out": {
+              "sha256": "b1a9ba753bd82718d88bee0ee5162a098e5cd70f4365378e90afea8e19b7dbd9",
+              "bytes": 46392
+            },
+            ".wfu": {
+              "sha256": "7c48cf7f1364ac6915da94f1caab4bccfb1de87bda834f5aa6b89637e2151d49",
+              "bytes": 19938656
+            },
+            ".orbital_audit.json": {
+              "sha256": "f05a5d5f8dde02c5b91b1e34b01f26f18bd867c3fbeba72496d31391af4b05e6",
+              "bytes": 59519
+            }
+          }
+        }
+      ]
+    },
+    {
+      "manifest_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/reconnaissance.json",
+      "manifest_sha256": "eb4671cce63f560f028b8c37c0902e7a8942e6dd926a73bc28b322947f07128a",
+      "status": "coverage_refinement_required",
+      "job_status_counts": {
+        "complete": 8
+      },
+      "native_outputs_present": 8,
+      "jobs_with_native_output": [
+        {
+          "name": "adz__ss_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915797",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/adz__ss_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "0eff0c513f16ffded987c7e3f40b5569c0dc372214f9dadf67e289ff0158c09b",
+              "bytes": 1468
+            },
+            ".native.inp": {
+              "sha256": "a883f4bbab5315026a47d0253a5af79f176c52e18c139e9b37951c39fbb16916",
+              "bytes": 1437
+            },
+            ".out": {
+              "sha256": "436a29377931bcc5eb32d05aaec28e8602ed22948f9d365e7e2ee9f098a38eab",
+              "bytes": 51181
+            },
+            ".wfu": {
+              "sha256": "d56306dd89015909e8eab4e0d12e57c290f97cbd27abfde2b2b545009c367985",
+              "bytes": 14911240
+            },
+            ".orbital_audit.json": {
+              "sha256": "9122b2cdcb58212d307ba0f096a3a7d7eb169f390b8cc36411ecea9693184792",
+              "bytes": 65558
+            }
+          }
+        },
+        {
+          "name": "adz__ss_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915867",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/adz__ss_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "85aedfea91ecb3a6b8f1079acb38aa1089263b57957e3bd140181c227ee2ea42",
+              "bytes": 1479
+            },
+            ".native.inp": {
+              "sha256": "89cbcf548e786352d4a91d6424de119327cf9a69fe98d3b41028684cc4182d6c",
+              "bytes": 1446
+            },
+            ".out": {
+              "sha256": "86921db0965e16c1c6559df2a2adb56a42e87b70fc95b0aad77f9fde6b15ac8e",
+              "bytes": 47749
+            },
+            ".wfu": {
+              "sha256": "76ace1efd153b2ce9164ab798069f687326f73d84d730401d2a764766096a429",
+              "bytes": 14911240
+            },
+            ".orbital_audit.json": {
+              "sha256": "74e6bcdd2ba294fac34696729edf05b96dd6f595a60afc04ae819b4cbf5c1ea1",
+              "bytes": 57544
+            }
+          }
+        },
+        {
+          "name": "adz__ss_r_6",
+          "manifest_status": "complete",
+          "job_id": "52915868",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/adz__ss_r_6",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "e73fe7a56bc5784fd4e5e9fb98c64f476937a621a1d8c5225e065a30b3497530",
+              "bytes": 1469
+            },
+            ".native.inp": {
+              "sha256": "0920e0c065a4ec1511b5d0b7c3d97d4803c3a27715d7a1f3f33f4fb86d64ee5f",
+              "bytes": 1438
+            },
+            ".out": {
+              "sha256": "61b66ebfb60b58550dd6bb47eebd5faf90ff17dcf936c387dc358aca0e933bdc",
+              "bytes": 47611
+            },
+            ".wfu": {
+              "sha256": "79a0a46c7e211ff6859a8c708aae8c4af54b3d8aa8f66f90c0cff23eaeb377a8",
+              "bytes": 14911240
+            },
+            ".orbital_audit.json": {
+              "sha256": "f36777cecf4f0fa1df8c1488d9f4129960d10e3f6f5e722c63cfd976c5bb37c0",
+              "bytes": 54101
+            }
+          }
+        },
+        {
+          "name": "adz__ss_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915870",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/adz__ss_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "caf8f7df4a4baee6b0c2373f45fbf9bfc92535af0b6d19198fdc15265088a368",
+              "bytes": 1477
+            },
+            ".native.inp": {
+              "sha256": "088c44bda9a3d34ea9a3c231a91ead43029b37b1973f0df65b4a3a9411c8eefd",
+              "bytes": 1445
+            },
+            ".out": {
+              "sha256": "484319d58cfc51bc0ff0e58b835b313552446a978e0a9f74342001a8dc432653",
+              "bytes": 59729
+            },
+            ".wfu": {
+              "sha256": "7bdc08b645d655feb42dda9b415ec6358f3ba6e27084f9bdc0642c7819ac571a",
+              "bytes": 14911240
+            },
+            ".orbital_audit.json": {
+              "sha256": "3cd94ece0d2fe88dbc43e425c4e2d5d68ce1036dda8735befdaed4d4af6ccc56",
+              "bytes": 53454
+            }
+          }
+        },
+        {
+          "name": "atz__ss_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915875",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/atz__ss_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "7d099006b85b05220bf77bb3f120122de3de86187a0c79d142d6b7ef64e20242",
+              "bytes": 1468
+            },
+            ".native.inp": {
+              "sha256": "37f8540393d1eb41c90f4d24881cbfef5bd7f8edafb070d7e34a2585e1a7d12c",
+              "bytes": 1437
+            },
+            ".out": {
+              "sha256": "95842d8bb73905376898dcfdec6a32b28d018eff87555b1d9882686a340fe093",
+              "bytes": 56016
+            },
+            ".wfu": {
+              "sha256": "28047971fd0aa588a93643c65b44530552850aa6b4573993af68916e66506819",
+              "bytes": 19938656
+            },
+            ".orbital_audit.json": {
+              "sha256": "e55d4a3746e0cea830aab1cf2c0fe4218c5ec78ccbdfc5881d454a833c730351",
+              "bytes": 88770
+            }
+          }
+        },
+        {
+          "name": "atz__ss_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915886",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/atz__ss_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "fe2bfd90aa8337736bc972f9b2fee1751f1dda7080dd30ecfd382247f5a63848",
+              "bytes": 1479
+            },
+            ".native.inp": {
+              "sha256": "0e1f9a0a630b2a1df9b6c665dae70b75e256f4a5684dbc2d06cb1fa2f36879c2",
+              "bytes": 1446
+            },
+            ".out": {
+              "sha256": "881eabf60e2f1d2d24e295c0a168364084af0b1728b343c012ee55d8f797dd58",
+              "bytes": 52298
+            },
+            ".wfu": {
+              "sha256": "fe8eb64d6ef7c7707cf565619a98fc0ddf44bdba313ea122ad9e0d8a523a6e11",
+              "bytes": 19938656
+            },
+            ".orbital_audit.json": {
+              "sha256": "a450f77523d6643c2a8ac6836fbeb2bddb50615408a02a2e6cf1b96086aa872f",
+              "bytes": 77288
+            }
+          }
+        },
+        {
+          "name": "atz__ss_r_6",
+          "manifest_status": "complete",
+          "job_id": "52915887",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/atz__ss_r_6",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "f35f8552236e720caa5f803d33b1d412b694ffe4d9ec332d890ac8c207260ede",
+              "bytes": 1469
+            },
+            ".native.inp": {
+              "sha256": "29a27a3b0d38b6c86fd69a8dd88c587ef900993bdcc5de0332028de2d1a5af56",
+              "bytes": 1438
+            },
+            ".out": {
+              "sha256": "1ae19428daf91c3cea1451eaf3c6d25ec4dfb3b98349999ba6c719d95c4c52bf",
+              "bytes": 55754
+            },
+            ".wfu": {
+              "sha256": "173b7ee37e5ca8e514c4b541ed1ff00038fea1eb1a5397781f8e5d5b12a10124",
+              "bytes": 19938656
+            },
+            ".orbital_audit.json": {
+              "sha256": "f647ceb83e8b3524decd5f26a044166d90a0b220a190ec30987f2daefaf34b85",
+              "bytes": 74386
+            }
+          }
+        },
+        {
+          "name": "atz__ss_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915905",
+          "directory_member": "runs/r7_additional_orbital_recon_20261021/ch2shs_ss/native/atz__ss_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "f4d43742d1fc53c28edde8658464e3709edcc76e903d9d78f7a34b87108054b1",
+              "bytes": 1477
+            },
+            ".native.inp": {
+              "sha256": "ea31befd2b214acee36ecdf40b95fc43852a936fadea943f485449c919218d93",
+              "bytes": 1445
+            },
+            ".out": {
+              "sha256": "c668993c40071ac69316098051e13aeee77bd9ce41390c3efb8b26f82b1a2ffe",
+              "bytes": 68575
+            },
+            ".wfu": {
+              "sha256": "0379dd0f1d2de9ba5f237cc914c75d03a5e7dd122d604770354cbaab67f04633",
+              "bytes": 19938656
+            },
+            ".orbital_audit.json": {
+              "sha256": "72033f5ae6011c72d12d13265500493e74e5e669da1d4ab924b2f57e3a73c98c",
+              "bytes": 72293
+            }
+          }
+        }
+      ]
+    },
+    {
+      "manifest_member": "runs/r7_ch2sh_cs_orbital_recon/native/reconnaissance.json",
+      "manifest_sha256": "317e4d0be3d15eb428fe85994b5d6a12c3cda549dcff141d2ee567132dcbb217",
+      "status": "coverage_refinement_required",
+      "job_status_counts": {
+        "complete": 8
+      },
+      "native_outputs_present": 8,
+      "jobs_with_native_output": [
+        {
+          "name": "adz__cs_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915386",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_recon/native/adz__cs_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "20fb01f94f5e2a52bdb7416916db344a989d804b5fece5aad5e8f38da8238c87",
+              "bytes": 1353
+            },
+            ".native.inp": {
+              "sha256": "4ff7457122a6c047a87abc3b0b945bb1a87d9ddf970855db2e831b33b842a737",
+              "bytes": 1323
+            },
+            ".out": {
+              "sha256": "8c93bd6c1d9febb24ed06193f9480054f4ead31b9e885a31f7fc197ac0b9d4c1",
+              "bytes": 47511
+            },
+            ".wfu": {
+              "sha256": "45e02996e0704af50f319d0b601b0bcc6223a8bd8272e4bdaf3139384b8e9617",
+              "bytes": 13863280
+            },
+            ".orbital_audit.json": {
+              "sha256": "c3cc9f8c4d6a3deef276bf1154d6d4a17d3074529fa665ee74b9510a537c792a",
+              "bytes": 54462
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915387",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_recon/native/adz__cs_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "55e0af46b6af7d14cc44b1abdaa0756f50804bb059b52a427c46b34c3ce4768c",
+              "bytes": 1364
+            },
+            ".native.inp": {
+              "sha256": "8a3e1269575b028de444b3df7ead773fb0ebb68ef2f9827a1a73a0b976e73c9f",
+              "bytes": 1332
+            },
+            ".out": {
+              "sha256": "427f9bf622bd846d43ab8bf32c3dc95363a5164be1f083249b910030c3e8a6eb",
+              "bytes": 47557
+            },
+            ".wfu": {
+              "sha256": "f587de112845336695139b4ddd8cc7145a22f94996b5ae45460e738263c387c1",
+              "bytes": 13863280
+            },
+            ".orbital_audit.json": {
+              "sha256": "4438a56e8139e9b446633a39e374166f2e3e12687ca1c379dcc6b50d2f32b6c8",
+              "bytes": 47607
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_6",
+          "manifest_status": "complete",
+          "job_id": "52915388",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_recon/native/adz__cs_r_6",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "4853e0a7370701aa6ee169fbbaee0f1cfe96145b4c2557f43debff72a7448b72",
+              "bytes": 1355
+            },
+            ".native.inp": {
+              "sha256": "f315d4b602bd5e5a2b47e94b5873cda71cb0b30f2502a8664d81169099c1fd9b",
+              "bytes": 1325
+            },
+            ".out": {
+              "sha256": "e7aa20104949162475ebb33d1fcee63582e7b08b19632c51aa5b21cd177068f1",
+              "bytes": 45204
+            },
+            ".wfu": {
+              "sha256": "8977b4769c509a18eea4019677ceb22ec43ca326fd3ad2b7425d21be4be8e06b",
+              "bytes": 13863280
+            },
+            ".orbital_audit.json": {
+              "sha256": "5bdef61481db77bee74bea1f2fcf7ff7af8bb03e3fb484c95e16a3598a9d8e13",
+              "bytes": 44672
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915389",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_recon/native/adz__cs_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "51f2f4f8cc128a4e68c38bfbc34bbd1c1b9025194d593579d85340a401eefe8d",
+              "bytes": 1366
+            },
+            ".native.inp": {
+              "sha256": "c0fb58e4971c67424d42ec7dbfb0297fd8406a35ab932f866bf290bcfdb06c23",
+              "bytes": 1335
+            },
+            ".out": {
+              "sha256": "cfb3530adf389f7e23ac070868f56f4e205f259b5e4cd400dd63f6ee6d1abb59",
+              "bytes": 54255
+            },
+            ".wfu": {
+              "sha256": "d33c35dd5472687d2a8f75e12c35103c80910dbc75dd1d46bde478f19425be0e",
+              "bytes": 13863280
+            },
+            ".orbital_audit.json": {
+              "sha256": "57cc9689e67dca0fe4695fc453adc97747b056c5c0033f01f70276f925581d74",
+              "bytes": 39625
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915391",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_recon/native/atz__cs_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "fa2e99fdb1367b52fffbeef89e14e72cb8dcf2b29dc87fbf3a18e982836cf49a",
+              "bytes": 1353
+            },
+            ".native.inp": {
+              "sha256": "3faf446b345202071582be36134fdab2cb4a352c36f51a610385c70d1b610226",
+              "bytes": 1323
+            },
+            ".out": {
+              "sha256": "f3daf2550db9ce9110dfd7026ab0c59e18b5ce390adead26ddc88b670d0a5545",
+              "bytes": 52815
+            },
+            ".wfu": {
+              "sha256": "25b12fc9ddc4de4684007467b190bbcb3b96fb5ec3980223a9231c7a2878631b",
+              "bytes": 16736640
+            },
+            ".orbital_audit.json": {
+              "sha256": "54422fb8e57da5628f02af27da5b0e429325a75d5c8d66f70c47a0cbad9fa6f4",
+              "bytes": 80028
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915392",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_recon/native/atz__cs_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "41669bccb74fb909dd69c8c4331300af00d3f08d4fcaedea043201a63d663204",
+              "bytes": 1364
+            },
+            ".native.inp": {
+              "sha256": "681bb6488ea3e851e1a86f6e43d8c51389d0a61760d06dea39e1df30a2a761df",
+              "bytes": 1332
+            },
+            ".out": {
+              "sha256": "38031abf6472a5e776bd7eb995995d7f547b777217184e926c7a47d92cd55eb1",
+              "bytes": 51918
+            },
+            ".wfu": {
+              "sha256": "3732ff1d8f3e46b662d8ab5c27e6556bffd07de5e7cc1120d2db8d6b75d3dfc3",
+              "bytes": 16736640
+            },
+            ".orbital_audit.json": {
+              "sha256": "920a2c6dc8cd96b7b07e89d709481f5e6cd597838c30fbf874d78100bc922bdb",
+              "bytes": 65383
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_6",
+          "manifest_status": "complete",
+          "job_id": "52915393",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_recon/native/atz__cs_r_6",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "0c95cf89c1043c52d12763628d68cd8940f6fb964a8a96f3c2ba5d50cfffdd6d",
+              "bytes": 1355
+            },
+            ".native.inp": {
+              "sha256": "5705f3144784a420d3f75783c36bd2afac1c56a069bce3a4f50d6ad4a64298b0",
+              "bytes": 1325
+            },
+            ".out": {
+              "sha256": "88d03db44921e081186d85404f8f79fb20f3b7c2fc7489f19d3f9fdade5c2ba2",
+              "bytes": 51766
+            },
+            ".wfu": {
+              "sha256": "9590dbbdf71a10b83f09c716faaa6fd76bdc17120d34f1ac5b62b9570a2389b0",
+              "bytes": 16736640
+            },
+            ".orbital_audit.json": {
+              "sha256": "34c448cf5c5b78ce85ee4fb86eb72a4c65b79d82d70eb3a66549a613276f10e7",
+              "bytes": 65163
+            }
+          }
+        },
+        {
+          "name": "atz__cs_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915395",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_recon/native/atz__cs_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "705bfa5606aeaa97be5f711f59279a998c02c9002336476b85b567af1ab992f3",
+              "bytes": 1366
+            },
+            ".native.inp": {
+              "sha256": "5fd189f78c0c79f2c34638e4bea9c2870c3d81d183e048980a9c9d9fbf0fda22",
+              "bytes": 1335
+            },
+            ".out": {
+              "sha256": "259994dc65ab43e43734ab1776f6089e91bd4bf2680d345c1cf9f28a52df7613",
+              "bytes": 45643
+            },
+            ".wfu": {
+              "sha256": "ea9af9b51adae421bb686be67fc1d176fa0d84d2dd5902384e7c28f4f453096e",
+              "bytes": 16736640
+            },
+            ".orbital_audit.json": {
+              "sha256": "afd756572314f004c23808ff3fdf006009da6c35c73587ef4248e661431fd443",
+              "bytes": 51726
+            }
+          }
+        }
+      ]
+    },
+    {
+      "manifest_member": "runs/r7_ch2sh_cs_orbital_validation/ch2sh_cs_cas5_4/reconnaissance.json",
+      "manifest_sha256": "76f328ad4dd59d35ea5c64cdf5d0ec792558e58097f4b9b8ca09b5d8f8eca374",
+      "status": "failed",
+      "job_status_counts": {
+        "incomplete": 14
+      },
+      "native_outputs_present": 1,
+      "jobs_with_native_output": [
+        {
+          "name": "adz__cs_r_2",
+          "manifest_status": "incomplete",
+          "job_id": "52915454",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_validation/ch2sh_cs_cas5_4/adz__cs_r_2",
+          "validation_errors": [
+            "Single-reference checks lack uniquely matched native F12b/(T) energies."
+          ],
+          "native_files": {
+            ".inp": {
+              "sha256": "c210548f59ef3f8dbea4f9655921c4556654428401a5ab80965e660604af0181",
+              "bytes": 3278
+            },
+            ".native.inp": {
+              "sha256": "328236395be3ab14c2877be867c86b5e859410e9134dbcb5a832e1e54df2b559",
+              "bytes": 3256
+            },
+            ".out": {
+              "sha256": "a41b8f696f83026c980ee30971f3b2c56c7a2fc7e8c85c095971912d941936ac",
+              "bytes": 161990
+            },
+            ".wfu": {
+              "sha256": "7dfc98d96e90c3498a67bbb1f464e51a5ffaaf46ee8a73c3411036e48380fa22",
+              "bytes": 16068912
+            },
+            ".orbital_audit.json": {
+              "sha256": "b305a72aac8d759b5223eaa300d1d5794747d2571db0b5bd42777239c5efc19c",
+              "bytes": 83520
+            }
+          }
+        }
+      ]
+    },
+    {
+      "manifest_member": "runs/r7_ch2sh_cs_orbital_validation/ch2sh_cs_cas7_6/reconnaissance.json",
+      "manifest_sha256": "37cb2ba5560a1e9452d217888e6120b683d2e30eee7d43f0073f173353b1f6ac",
+      "status": "incomplete",
+      "job_status_counts": {
+        "complete": 3,
+        "incomplete": 5
+      },
+      "native_outputs_present": 3,
+      "jobs_with_native_output": [
+        {
+          "name": "adz__cs_r_2",
+          "manifest_status": "complete",
+          "job_id": "52915455",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_validation/ch2sh_cs_cas7_6/adz__cs_r_2",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "dac23efbe712eba497bf7500c89771f329f06be50e291fa621c7b9992119deb5",
+              "bytes": 3155
+            },
+            ".native.inp": {
+              "sha256": "231f99baa9829549b61bc6516b2afb8cdb30c4528bdd05ee81b68d8d910346a5",
+              "bytes": 3133
+            },
+            ".out": {
+              "sha256": "a6348d3259ea673050b9769e6e3ce99b70737961e4d5a6c9024946960dc818ed",
+              "bytes": 214037
+            },
+            ".wfu": {
+              "sha256": "52c6ef83cb7a56dc59dda7619a7d75db9fcb4425c69b4b3d6fe8c5c6093c09c4",
+              "bytes": 14888304
+            },
+            ".orbital_audit.json": {
+              "sha256": "6d7bed4e4794d628e292b09a0340227a21bcb2225f6b680e8a17bdb8ef0338f5",
+              "bytes": 88189
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_3p5",
+          "manifest_status": "complete",
+          "job_id": "52915457",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_validation/ch2sh_cs_cas7_6/adz__cs_r_3p5",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "81b3ac8c7213535d83506deab95bf804dd8223b1d0f594f1e0be0be262d95cb6",
+              "bytes": 3166
+            },
+            ".native.inp": {
+              "sha256": "2570a15bf96c41d2f277005a146bd3a3373746f9dd96d93f7a17282a0e58b126",
+              "bytes": 3142
+            },
+            ".out": {
+              "sha256": "84a80c3d49cc9ea244bb62d6ff608549392cefaa4ead0f45da2224584daf63c6",
+              "bytes": 212084
+            },
+            ".wfu": {
+              "sha256": "a732e42e9a35475274ffa5c59f018477d43f1b86cd26280efada727a69fc5a24",
+              "bytes": 14888304
+            },
+            ".orbital_audit.json": {
+              "sha256": "29cb2b9ffaae4cab9f0ad671fb05d2372e148f9202a83535bb68e4d150686284",
+              "bytes": 77078
+            }
+          }
+        },
+        {
+          "name": "adz__cs_r_30",
+          "manifest_status": "complete",
+          "job_id": "52915458",
+          "directory_member": "runs/r7_ch2sh_cs_orbital_validation/ch2sh_cs_cas7_6/adz__cs_r_30",
+          "validation_errors": [],
+          "native_files": {
+            ".inp": {
+              "sha256": "12c3c6aa54312a13b4d7c688436078822330f23e8f411f7127c19624e8748b8a",
+              "bytes": 3168
+            },
+            ".native.inp": {
+              "sha256": "1bfbd6ef8131bedfc63b2ea3544ae082733d880827856504553a05bf7055d866",
+              "bytes": 3145
+            },
+            ".out": {
+              "sha256": "034a7dc61e27efd3b31edb6f900e1b3ced28261976c942ad258e25f28a4c020f",
+              "bytes": 216493
+            },
+            ".wfu": {
+              "sha256": "bf7d400fab60b6e3d9e4d62cddbe59f9a9afe049cde45049e34ddc68e6c1fa8d",
+              "bytes": 14888304
+            },
+            ".orbital_audit.json": {
+              "sha256": "34bd0ee2f0f1e070cc297e79ebcefac191582082998b6a2eae775bf77cadbce2",
+              "bytes": 65431
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "installed_models": [
+    {
+      "case": "ch3s",
+      "parent": "initial",
+      "bond": [
+        1,
+        2
+      ],
+      "active_space": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "mode": "selected",
+        "source": "Native two-basis CASPT2 confirmation; see orbital_reviews/ACTIVE_SPACE.md"
+      },
+      "reactive_states": [
+        {
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "Common spin-free ground-fragment asymptote. Reactive ground-parent doublet component; no added distance-dependent spin-orbit model.",
+          "multiplicity": 2,
+          "root": 1,
+          "weight": 1.0
+        },
+        {
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "Common spin-free ground-fragment asymptote. Reactive ground-parent doublet component; no added distance-dependent spin-orbit model.",
+          "multiplicity": 2,
+          "root": 2,
+          "weight": 1.0
+        }
+      ],
+      "seeds": [
+        {
+          "basis": "avdz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            11,
+            12,
+            13,
+            14
+          ],
+          "member": "production/ch3s/orbital_reviews/orbitals/ch3s_cs_adz.wfu",
+          "sha256": "098c4e09b1150797a0ffc2f4c7d59b75bdbbac333b4cb6209e0976863a3beb1f"
+        },
+        {
+          "basis": "avtz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            11,
+            12,
+            13,
+            14
+          ],
+          "member": "production/ch3s/orbital_reviews/orbitals/ch3s_cs_atz.wfu",
+          "sha256": "8223e04cbbb7981255bb77b7a12e248e28abcf18bff0a5b959dc40bd11a3a170"
+        }
+      ]
+    },
+    {
+      "case": "ch3s",
+      "parent": "471030810040000000002",
+      "bond": [
+        1,
+        2
+      ],
+      "active_space": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "mode": "selected",
+        "source": "Reviewed 2026-10-21: CASCI natural orbital character at 2 and 30 angstrom in both avdz-f12 and avtz-f12 identifies source orbitals 11-14 as the SH pi pair plus CH2 frontier pair. Completed avdz CASSCF(5,4) retains this character with occupations 1.70808, 1.48606, 1.02341, 0.78245. Expanded CASSCF(7,6) at 2, 3.5 and 30 angstrom leaves the additional SH sigma/sigma-star pair near 1.98/0.02. Select the compact orbital space for production; no claim of completed two-basis correlated-potential or angular validation. Production performs its configured relaxation and spin-splitting calculations."
+      },
+      "reactive_states": [
+        {
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "One reactive nondegenerate ground-parent doublet surface, referenced to the common spin-free ground-fragment asymptote. Additional state-averaged roots are orbital/spin-gap support, not additional reactive flux.",
+          "multiplicity": 2,
+          "root": 1,
+          "weight": 1.0
+        }
+      ],
+      "seeds": [
+        {
+          "basis": "avdz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            11,
+            12,
+            13,
+            14
+          ],
+          "member": "runs/r7_ch2sh_cs_orbital_recon/native/adz__cs_r_2/adz__cs_r_2.wfu",
+          "sha256": "45e02996e0704af50f319d0b601b0bcc6223a8bd8272e4bdaf3139384b8e9617"
+        },
+        {
+          "basis": "avtz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            11,
+            12,
+            13,
+            14
+          ],
+          "member": "runs/r7_ch2sh_cs_orbital_recon/native/atz__cs_r_2/atz__cs_r_2.wfu",
+          "sha256": "25b12fc9ddc4de4684007467b190bbcb3b96fb5ec3980223a9231c7a2878631b"
+        }
+      ]
+    },
+    {
+      "case": "ch3s",
+      "parent": "471430450000000000002-s06a7b4c221beb748",
+      "bond": [
+        1,
+        2
+      ],
+      "active_space": {
+        "active_electrons": 3,
+        "active_orbitals": 4,
+        "mode": "selected",
+        "source": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source orbital 12 is the SH3 frontier orbital and 13-15 span the three carbon 2p directions at separation. Source 11 is principally C 2s (occupation 1.93 near, 1.956 far) and remains inactive. The three active carbon p occupations are about 0.681 each in this state average; the SH3 orbital is about 1.003. Select CAS(3,4) for the three frontier electrons; the summed diagnostic occupations need not be exactly three because the larger space includes correlation. Three doublets and three quartets cover the carbon spatial manifold coupled to the fragment radical. One reactive D1 is a ground-parent surface-model choice, not three reactive channels. These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested."
+      },
+      "reactive_states": [
+        {
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "One reactive ground-parent doublet surface is selected, relative to the common spin-free ground-fragment asymptote. Additional state-averaged roots support orbital optimization and spin gaps; they are not additional reactive flux. No proof of excited-surface accessibility is implied.",
+          "multiplicity": 2,
+          "root": 1,
+          "weight": 1.0
+        }
+      ],
+      "seeds": [
+        {
+          "basis": "avdz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            12,
+            13,
+            14,
+            15
+          ],
+          "member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/adz__cs_r_2/adz__cs_r_2.wfu",
+          "sha256": "e2da05fedad83e7a1e7b035211386ba28498b0103c76a0592d4a819b78ab05da"
+        },
+        {
+          "basis": "avtz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            12,
+            13,
+            14,
+            15
+          ],
+          "member": "runs/r7_additional_orbital_recon_20261021/c_sh3_cs/native/atz__cs_r_2/atz__cs_r_2.wfu",
+          "sha256": "1cf26f13c08b166f0b76973dea760e55bfd021c3b72ea0a97f665ef97ddefcaf"
+        }
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "parent": "initial",
+      "bond": [
+        1,
+        2
+      ],
+      "active_space": {
+        "active_electrons": 7,
+        "active_orbitals": 5,
+        "mode": "selected",
+        "source": "Native two-basis CASPT2 confirmation; see orbital_reviews/ACTIVE_SPACE.md"
+      },
+      "reactive_states": [
+        {
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "Common spin-free ground-fragment asymptote. Reactive ground-parent doublet component; no added distance-dependent spin-orbit model.",
+          "multiplicity": 2,
+          "root": 1,
+          "weight": 1.0
+        }
+      ],
+      "seeds": [
+        {
+          "basis": "avdz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "member": "production/ch3ss/orbital_reviews/orbitals/ch3ss_cs_adz.wfu",
+          "sha256": "be16f61efaf1fcad243696a30b4f471b21538639296e2b38c22ff09449e93b1c"
+        },
+        {
+          "basis": "avtz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "member": "production/ch3ss/orbital_reviews/orbitals/ch3ss_cs_atz.wfu",
+          "sha256": "0397a116407a35cf7e045c974d5e3e3704e032d9894dd46359f0ec8528e50d59"
+        }
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "parent": "initial",
+      "bond": [
+        2,
+        3
+      ],
+      "active_space": {
+        "active_electrons": 7,
+        "active_orbitals": 5,
+        "mode": "selected",
+        "source": "Native two-basis CASPT2 confirmation; see orbital_reviews/ACTIVE_SPACE.md"
+      },
+      "reactive_states": [
+        {
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "Common spin-free ground-fragment asymptote. Reactive ground-parent doublet component; no added distance-dependent spin-orbit model.",
+          "multiplicity": 2,
+          "root": 1,
+          "weight": 1.0
+        }
+      ],
+      "seeds": [
+        {
+          "basis": "avdz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "member": "production/ch3ss/orbital_reviews/orbitals/ch3ss_ss_adz.wfu",
+          "sha256": "9fb0a6daf99e51ba09ef16f2f7bdd16ebdcc78c2eaa9e5f7f1349098d3045e84"
+        },
+        {
+          "basis": "avtz-f12",
+          "record": "2140.2",
+          "active_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "member": "production/ch3ss/orbital_reviews/orbitals/ch3ss_ss_atz.wfu",
+          "sha256": "f498addcbd0b289dc4850e5abcb4e63f16b9f5c492863ab42dece87602c8e14c"
+        }
+      ]
+    }
+  ],
+  "refresh_worker_receipts": [
+    {
+      "member": "production/.kinbot_controls/requests/38d137b545fa4efba054ebed93fa360f_470831050000000000002.json",
+      "id": "38d137b545fa4efba054ebed93fa360f_470831050000000000002",
+      "status": "applied",
+      "error": null
+    },
+    {
+      "member": "production/.kinbot_controls/requests/38d137b545fa4efba054ebed93fa360f_471030810040000000002.json",
+      "id": "38d137b545fa4efba054ebed93fa360f_471030810040000000002",
+      "status": "applied",
+      "error": null
+    },
+    {
+      "member": "production/.kinbot_controls/requests/38d137b545fa4efba054ebed93fa360f_471430450000000000002-s06a7b4c221beb748.json",
+      "id": "38d137b545fa4efba054ebed93fa360f_471430450000000000002-s06a7b4c221beb748",
+      "status": "applied",
+      "error": null
+    },
+    {
+      "member": "production/.kinbot_controls/requests/6469492d994c44ff89eb1204c715f237_470831050000000000002.json",
+      "id": "6469492d994c44ff89eb1204c715f237_470831050000000000002",
+      "status": "applied",
+      "error": null
+    },
+    {
+      "member": "production/.kinbot_controls/requests/6469492d994c44ff89eb1204c715f237_471030810040000000002.json",
+      "id": "6469492d994c44ff89eb1204c715f237_471030810040000000002",
+      "status": "applied",
+      "error": null
+    },
+    {
+      "member": "production/.kinbot_controls/requests/6469492d994c44ff89eb1204c715f237_471430450000000000002-s06a7b4c221beb748.json",
+      "id": "6469492d994c44ff89eb1204c715f237_471430450000000000002-s06a7b4c221beb748",
+      "status": "applied",
+      "error": null
+    }
+  ]
+}

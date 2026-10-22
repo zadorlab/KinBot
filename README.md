@@ -103,6 +103,15 @@ For bimolecular H abstraction, start with the two inputs in
 Add your theory profiles and machine settings before running a copied input in
 a new calculation directory.
 
+The IRC must connect to the requested reactants, including their specified
+stereochemistry. Equivalent transferred hydrogens are recognized. A valid
+pathway to another product is retained in the bimolecular network, and the
+remaining placements are tried for the original H-abstraction target.
+The final IRC determines product stereochemistry; conformers contributing to
+one rate model must belong to that observed product channel. Products outside
+the supported H-abstraction rate model remain in the network with an explicit
+message explaining why no rate was exported.
+
 SMILES inputs use RDKit with a fixed seed to generate the starting geometry.
 The same SMILES and RDKit version give the same starting stereoisomer and
 calculation name. Explicit tetrahedral and double-bond SMILES assignments are

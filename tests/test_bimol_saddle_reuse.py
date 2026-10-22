@@ -35,13 +35,19 @@ def repeated_search(tmp_path, monkeypatch, checks, geometries=None, energies=Non
     return species, run, check
 
 
+def rejected_validation(species):
+    result = validation(species, False)
+    result.update(valid=False, reactant_configuration_matches=False)
+    return result
+
+
 def test_repeated_rejected_saddle_skips_irc_but_distinct_saddle_succeeds(tmp_path, monkeypatch):
     species = reactants()
     shifted = species.geom.copy()
     shifted[5:] += [1., 0., 0.]
     rotated = species.geom[:, [1, 2, 0]] + [3., -2., 1.]
     _, run, check = repeated_search(tmp_path, monkeypatch,
-        [validation(species, False), validation(species)],
+        [rejected_validation(species), validation(species)],
         [species.geom, rotated, shifted, shifted])
     status, _, saved = run()
     assert status == 0 and saved['next_cursor'] == [0, 0, 2, 0]
@@ -55,7 +61,7 @@ def test_repeated_rejected_saddle_skips_irc_but_distinct_saddle_succeeds(tmp_pat
 @pytest.mark.parametrize('problem', ['endpoint', 'irc_exception', 'traceback'])
 def test_incomplete_check_does_not_exclude_a_later_saddle(tmp_path, monkeypatch, problem):
     species = reactants()
-    failed = validation(species, False)
+    failed = rejected_validation(species)
     if problem == 'endpoint':
         failed['endpoints'][0]['converged'] = False
     elif problem == 'irc_exception':
@@ -96,7 +102,7 @@ def test_skipped_saddles_do_not_extend_the_energy_tolerance(tmp_path, monkeypatc
     species = reactants()
     ev = constants.KCALtoHARTREE / constants.EVtoHARTREE
     _, run, check = repeated_search(tmp_path, monkeypatch,
-        [validation(species, False), validation(species)],
+        [rejected_validation(species), validation(species)],
         energies=[-10., -10. + .2 * ev, -10. + .4 * ev, -10.])
     assert run()[2]['next_cursor'] == [0, 0, 2, 0]
     assert check.call_count == 2
@@ -107,7 +113,7 @@ def test_worker_uses_reflection_policy(tmp_path, monkeypatch, allow_reflection):
     species = reactants()
     geom = species.geom + np.random.default_rng(7).normal(0., .13, species.geom.shape)
     _, run, check = repeated_search(tmp_path, monkeypatch,
-        [validation(species, False), validation(species)],
+        [rejected_validation(species), validation(species)],
         geometries=[geom, geom * [-1., 1., 1.], geom, geom])
     status, _, _ = run(search_kwargs=dict(allow_reflection=allow_reflection, bimol_ts_rmsd=.01))
     assert check.call_count == (1 if allow_reflection else 2)

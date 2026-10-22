@@ -104,13 +104,11 @@ def test_configured_product_identities_remain_distinct():
     assert len(selected_ids(network)) == 3
 
 
-@pytest.mark.parametrize('invalid', ['unexpected_products', 'missing_path', 'nonfinite_energy'])
+@pytest.mark.parametrize('invalid', ['missing_path', 'nonfinite_energy'])
 def test_invalid_observation_does_not_replace_a_valid_hir_model(invalid):
     network, original, alternative = network_with_alternative()
     alternative['energy'] = original['energy'] - 10.
-    if invalid == 'unexpected_products':
-        alternative['product_matches_expected'] = False
-    elif invalid == 'missing_path':
+    if invalid == 'missing_path':
         del alternative['species'].stereopath_metadata
     else:
         alternative['energy'] = float('nan')
@@ -120,6 +118,15 @@ def test_invalid_observation_does_not_replace_a_valid_hir_model(invalid):
     assert alternative['hir_selection']['representative'] is None
     assert alternative['hir_selection']['reason']
     assert alternative in network.transitions
+
+
+def test_observed_other_product_can_supply_the_selected_hir_model():
+    network, original, alternative = network_with_alternative()
+    alternative['energy'] = original['energy'] - .1
+    alternative['product_matches_expected'] = False
+    network._select_hir_models()
+    assert alternative['id'] in selected_ids(network)
+    assert original['id'] not in selected_ids(network)
 
 
 def test_mc_and_harmonic_runs_keep_their_existing_selection():

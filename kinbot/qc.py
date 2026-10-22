@@ -952,6 +952,7 @@ class QuantumChemistry:
         conformers_b = species.fragB.conformer_geom or [species.fragB.geom]
         values = self._bimol_template_values(job, species)
         values.update(reaction.get_bimol_search_data())
+        values['search_kwargs']['equivalent_bond_changes'] = values.get('equivalent_bond_changes', [])
         values.update({
             'reaction_name': reaction.instance_name,
             'reactant_geom': np.asarray(species.geom).tolist(),
@@ -977,6 +978,7 @@ class QuantumChemistry:
         job = validation_job(workdir)
         values = self._bimol_template_values(job, species)
         values.update(reaction.get_bimol_search_data())
+        values['search_kwargs']['equivalent_bond_changes'] = values.get('equivalent_bond_changes', [])
         values.update({
             'geom': candidate['candidate']['geometry'],
             'geom_a': np.asarray(species.fragA.geom).tolist(),

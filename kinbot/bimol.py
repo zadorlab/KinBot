@@ -306,6 +306,8 @@ def build_bimolecular_ts(reaction, qc):
         raise ValueError(f'Missing configured L0 endpoints for {reaction.instance_name}.')
     from kinbot.reaction_path import prepare_stereopath
     prepare_stereopath(ts, *endpoints)
+    # The final IRC, including after a rotor refinement, determines products.
+    ts.bimol_reactant_only = True
     reaction.ts = ts
     return ts
 
@@ -367,6 +369,47 @@ def update_ts_topology_from_irc(reaction):
                    for second in range(first + 1, ts.natom)
                    if ts.reac_bond[first][second] < 0],
     }
+    assign_observed_site(reaction)
+
+
+def assign_observed_site(reaction):
+    """Use observed reacting atoms for grouping, retaining the search target."""
+    if not hasattr(reaction, 'get_bimol_search_data'):
+        return
+    def edges(pairs):
+        return {tuple(sorted(pair)) for pair in pairs}
+    actual = reaction.actual_bond_changes
+    templates = reaction.species.reac_obj or [reaction]
+    for template in templates:
+        if not getattr(template, 'bimol_search', False):
+            continue
+        data = template.get_bimol_search_data()
+        choices = [dict(instance=list(template.instance), **{
+            key: data[key] for key in ('formed_bonds', 'broken_bonds')})]
+        choices.extend(data.get('equivalent_bond_changes', []))
+        for choice in choices:
+            if (edges(actual['formed']) != edges(choice['formed_bonds'])
+                    or edges(actual['broken']) != edges(choice['broken_bonds'])):
+                continue
+            if not matches_expected_product(reaction.species, reaction.irc_prod.geom,
+                    choice['formed_bonds'], choice['broken_bonds']):
+                continue
+            observed = dict(instance=list(choice['instance']), family_name=template.family_name)
+            for name in ('stereopath_id', 'site_degeneracy', 'site_members', 'site_relations'):
+                if hasattr(template, name):
+                    observed[name] = copy.deepcopy(getattr(template, name))
+            reaction.observed_site = observed
+            return
+    # A different reaction has no demonstrated multiplicity of equivalent
+    # sites. Count its observed route once, rather than borrowing the target's.
+    atoms = sorted({atom for kind in actual.values() for pair in kind for atom in pair})
+    if not atoms:
+        atoms = list(range(reaction.ts.natom))  # A stereo-only reaction changes no bonds.
+    members = {f'atom_{i}': [atom] for i, atom in enumerate(atoms)}
+    reaction.observed_site = dict(instance=atoms, family_name='bimolecular',
+        stereopath_id='observed:' + reaction.ts.stereopath_id,
+        site_degeneracy=1, site_members=members,
+        site_relations={role: 'singleton' for role in members})
 
 
 def _l0_endpoint_identities(reaction, validation=None):
@@ -1096,6 +1139,14 @@ def _refine_candidate(candidate, charge, mult, calculator, settings,
     return result, atoms
 
 
+def matches_expected_product(species, geom, formed_bonds, broken_bonds, alternatives=()):
+    """Recognize H transfer at the enumerated site or its equivalent atoms."""
+    graph = _bond_graph(Atoms(species.atom, positions=geom))
+    choices = [dict(formed_bonds=formed_bonds, broken_bonds=broken_bonds), *alternatives]
+    return any(graph == _expected_graphs(species, choice['formed_bonds'], choice['broken_bonds'])[1]
+               for choice in choices)
+
+
 def validate_candidate(species, geom, formed_bonds, broken_bonds, calculator,
                        workdir, search_kwargs=None):
     """Validate one unique L0 saddle by following both IRC directions."""
@@ -1108,6 +1159,15 @@ def validate_candidate(species, geom, formed_bonds, broken_bonds, calculator,
     expected += (formed_bonds, broken_bonds)
     endpoints = _irc_endpoints(
         atoms, calculator, settings, expected, workdir)
+    for endpoint in endpoints:
+        if endpoint['state'] == 'reactant':
+            if _requested_reactant_configuration(species, {'endpoints': [endpoint]},
+                    settings.get('optical_population', 'specified')):
+                continue
+            endpoint['state'] = 'unexpected'
+        matched = matches_expected_product(species, endpoint['geometry_angstrom'],
+            formed_bonds, broken_bonds, settings.get('equivalent_bond_changes', ()))
+        endpoint['state'] = 'product' if matched else 'unexpected'
     states = [endpoint['state'] for endpoint in endpoints]
     observed_product = next((endpoint for endpoint in endpoints
                              if endpoint['state'] != 'reactant'), None)
@@ -1167,7 +1227,7 @@ def find_ts_candidates(species, conformers_a, conformers_b, instance,
 
     Returns:
         ``(status, geometries, metadata)``. Sequential mode returns the first
-        saddle with the intended IRC and a cursor for the remaining trials.
+        saddle connected to the requested reactant and a cursor for the remaining trials.
         Exhaustive mode returns every locally refined first-order saddle.
     """
     settings = _search_settings(search_kwargs)
@@ -1178,7 +1238,7 @@ def find_ts_candidates(species, conformers_a, conformers_b, instance,
                'sequential': sequential, 'start_after': start_after,
                'conformer_pair_shape': [len(conformers_a), len(conformers_b)],
                'sampling_complete': False,
-               'sampling_policy': ('first intended IRC-validated pose; TS conformers sampled subsequently'
+               'sampling_policy': ('first reactant-connected IRC-validated pose; TS conformers sampled subsequently'
                                    if sequential else 'all encounter poses')}
     if sequential and start_after is not None and (workdir / 'search.json').is_file():
         saved = json.loads((workdir / 'search.json').read_text())
@@ -1291,7 +1351,6 @@ def find_ts_candidates(species, conformers_a, conformers_b, instance,
                                     validation_source=str(validation_dir), cursor=cursor)
                                 summary['observations'].append(observation)
                                 if not (validation.get('valid')
-                                        and validation.get('product_matches_expected')
                                         and validation.get('reactant_configuration_matches')):
                                     continue
                             saddles.append(observation)
@@ -1504,7 +1563,7 @@ def _initialize_pose_searches(species, par):
         species.reac_ts_done[index] = -998
     if species.bimol_pose_searches:
         logger.info('Bimolecular poses will be tried sequentially for each reaction site. '
-                    'One intended L0 IRC-validated TS starts each TS conformer search; '
+                    'One reactant-connected L0 IRC-validated TS starts each TS conformer search; '
                     'remaining poses are kept for failed refinement or final IRC.')
         if not par.get('conformer_search'):
             logger.warning('Sequential poses with conformer_search=0 select one TS structure '
@@ -1531,7 +1590,7 @@ def _promote_pose(species, par, qc, state, candidate):
     variant.pose_search_attempt = state['attempt']
     variant.pose_search_cursor = candidate['cursor']
     variant.pose_search_policy = {
-        'mode': 'sequential intended-IRC gate',
+        'mode': 'sequential reactant-connected IRC gate',
         'attempt': state['attempt'], 'accepted_cursor': candidate['cursor'],
         'remaining_poses': 'available for failed refinement or final IRC',
         'ts_conformer_search': bool(par.get('conformer_search')),
@@ -1567,15 +1626,18 @@ def advance_pose_searches(species, par, qc):
             previous = species.reac_obj[index]
             ts_rejected = getattr(previous, 'bimol_final_status', None) in {
                 'final_barrier_rejected', 'ts_frequency_failed'}
-            if status != -999 or (getattr(previous, 'final_irc_processed', False)
-                                  and not ts_rejected):
+            unexpected = (getattr(previous, 'final_irc_processed', False)
+                          and not getattr(previous, 'product_matches_expected', True))
+            if not unexpected and (status != -999 or (
+                    getattr(previous, 'final_irc_processed', False) and not ts_rejected)):
                 # A later fragment/HIR failure does not justify another TS search.
                 state['done'] = True
                 continue
             state['attempt'] += 1
             state['active'] = None
-            logger.info('Trying remaining poses for %s after %s failed.',
-                        state['reaction'].instance_name, previous.instance_name)
+            logger.info('Trying remaining poses for %s after %s %s.',
+                        state['reaction'].instance_name, previous.instance_name,
+                        'found another product' if unexpected else 'failed')
         reaction = state['reaction']
         job = search_job(reaction.instance_name, state['attempt'], sequential=True)
         status = qc.check_qc(job)
@@ -1590,14 +1652,14 @@ def advance_pose_searches(species, par, qc):
         candidates = search.get('candidates', [])
         if status != 'normal' or not candidates:
             state['done'] = True
-            logger.warning('No further intended TS found for %s (%s).', reaction.instance_name,
+            logger.warning('No further reactant-connected TS found for %s (%s).', reaction.instance_name,
                            'poses exhausted' if search.get('exhausted') else 'search worker failed')
             continue
         candidate = candidates[0]
         validation = candidate.get('validation', {})
-        if not all(validation.get(key) for key in ('valid', 'product_matches_expected',
+        if not all(validation.get(key) for key in ('valid',
                                                    'reactant_configuration_matches')):
-            logger.warning('Saved pose search %s lacks intended-IRC validation; '
+            logger.warning('Saved pose search %s lacks requested-reactant IRC validation; '
                            'this pathway is not promoted. Use a fresh directory for the new policy.', job)
             state['done'] = True
             continue

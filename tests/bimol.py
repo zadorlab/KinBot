@@ -371,9 +371,9 @@ class TestBimol(unittest.TestCase):
         species = combined(self.hydroxyl, self.methane)
         endpoints = [
             {'direction': 'forward', 'state': 'reactant',
-             'converged': True, 'bonds': []},
+             'converged': True, 'bonds': [], 'geometry_angstrom': species.geom.tolist()},
             {'direction': 'reverse', 'state': 'unexpected',
-             'converged': True, 'bonds': [[0, 2]]},
+             'converged': True, 'bonds': [[0, 2]], 'geometry_angstrom': species.geom.tolist()},
         ]
         with TemporaryDirectory() as directory, patch.object(
                 bimol, '_irc_endpoints', return_value=endpoints):

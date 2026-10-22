@@ -74,8 +74,8 @@ class Parameters:
             'l0_qc_command': '',
             'l0_calc_kwargs': {},
             # Overrides for the artificial-force bimolecular TS search.
-            # sequential defaults to True: stop at intended L0 IRC validation
-            # and resume remaining poses on TS refinement/final IRC failure.
+            # sequential defaults to True: stop at a reactant-connected L0 saddle
+            # and resume remaining poses if refinement fails or finds another product.
             # Set sequential=False to explore all poses before L1 selection.
             'bimol_search_kwargs': {},
             # Structural clustering thresholds for bimolecular networks

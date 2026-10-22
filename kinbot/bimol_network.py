@@ -85,6 +85,9 @@ def symmetry_rmsd(first, second, first_geom=None, second_geom=None,
     if (first.natom != second.natom or first.charge != second.charge
             or first.mult != second.mult):
         return np.inf
+    if first_instance is not None and (second_instance is None
+            or len(first_instance) != len(second_instance)):
+        return np.inf
     left = first.geom if first_geom is None else np.asarray(first_geom)
     right = second.geom if second_geom is None else np.asarray(second_geom)
     matcher = nx.algorithms.isomorphism.GraphMatcher(
@@ -125,6 +128,9 @@ def geometry_signature(species, geom=None):
 
 
 def _species_data(species):
+    if getattr(species, 'bimol_reactant_only', False):
+        species = copy.copy(species)
+        species.bimol_reactant_only = False
     data = {
         'atom': [str(atom) for atom in species.atom],
         'geometry': np.asarray(species.geom).tolist(),
@@ -341,6 +347,17 @@ class BimolecularNetwork:
         })
 
     def _cluster_transitions(self, reactions):
+        # Keep the original search target available for sequential retries.
+        # Network grouping and site counting describe the bonds actually found.
+        observed = []
+        for reaction in reactions:
+            if getattr(reaction, 'observed_site', None):
+                reaction = copy.copy(reaction)
+                for key, value in reaction.observed_site.items():
+                    setattr(reaction, key, copy.deepcopy(value))
+                reaction.search_instances = [list(reaction.instance)]
+            observed.append(reaction)
+        reactions = observed
         groups = []
         ordered = sorted(reactions, key=lambda reaction: (
             reaction.family_name, geometry_signature(reaction.ts),
@@ -544,8 +561,6 @@ class BimolecularNetwork:
             selection = {'selected': False, 'representative': None}
             transition['hir_selection'] = selection
             try:
-                if not transition['product_matches_expected']:
-                    raise ValueError('Final IRC does not give the intended products.')
                 endpoints = (reaction.reactant_asymptote_id, reaction.product_asymptote_id)
                 if any(node not in self.nodes for node in endpoints):
                     raise ValueError('Configured reactant or product identity is missing.')

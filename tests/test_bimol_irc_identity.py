@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from kinbot.irc import IRC, BimolecularIRCResult
+from kinbot import bimol
 from kinbot.stereo_identity import canonical_identity
 from test_bimol_stereo_integration import donor_and_hydrogen, abstraction
 
@@ -35,3 +36,28 @@ def test_irc_allows_a_reacting_chiral_centre_to_lose_its_configuration():
     result = IRC(reaction, {'bimol': 1, 'optical_population': 'specified'}).irc2stationary_pt()
     assert isinstance(result, BimolecularIRCResult)
     assert result.product_matches_expected
+
+
+def test_stereoisomer_product_is_retained_when_requested_reactant_connects(tmp_path, monkeypatch):
+    species = donor_and_hydrogen('CC[C@H](O)C')
+    reaction = abstraction(species)
+    mirror = species.geom * [-1., 1., 1.]
+    reaction.qc.for_level = lambda level: reaction.qc
+    reaction.qc.get_qc_geom = lambda name, *args, **kwargs: (
+        0, species.geom if '_IRC_F_' in name else mirror)
+    result = IRC(reaction, {'bimol': 1, 'optical_population': 'specified'}).irc2stationary_pt()
+    assert isinstance(result, BimolecularIRCResult)
+    assert not result.product_matches_expected
+    assert canonical_identity(result.reactant)['id'] == canonical_identity(species)['id']
+    assert canonical_identity(result.product)['id'] == canonical_identity(species)['mirror_id']
+
+    # Connectivity alone initially calls both endpoints reactants. Their
+    # configurations identify the specified entrance and a different product.
+    endpoints = [dict(state='reactant', converged=True, geometry_angstrom=geom.tolist())
+                 for geom in (species.geom, mirror)]
+    monkeypatch.setattr(bimol, '_irc_endpoints', lambda *args: endpoints)
+    data = reaction.get_bimol_search_data()
+    checked = bimol.validate_candidate(species, species.geom,
+        data['formed_bonds'], data['broken_bonds'], None, tmp_path)
+    assert checked['valid'] and not checked['product_matches_expected']
+    assert [end['state'] for end in checked['endpoints']] == ['reactant', 'unexpected']

@@ -12,6 +12,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from kinbot import bimol, postprocess
+from kinbot.counting_contract import counting_view
 from kinbot.parameters import Parameters
 from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_path import (path_geometry_allowed, reaction_path_id,
@@ -120,7 +121,10 @@ def test_bimolecular_diastereotopic_sites_keep_distinct_ts_guards(tmp_path):
         path_keys.append(reaction_path_id(reaction))
         swapped = ts.geom.copy()
         swapped[hydrogens] = swapped[hydrogens[::-1]]
-        assert not path_geometry_allowed(ts, swapped)
+        # A working TS may lead to another product configuration. The final
+        # IRC assigns that channel; rate counting keeps its products separate.
+        assert path_geometry_allowed(ts, swapped)
+        assert not path_geometry_allowed(counting_view(ts), swapped)
         assert path_geometry_allowed(ts, ts.geom)
     assert len(set(site_keys)) == len(set(path_keys)) == 2
 

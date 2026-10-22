@@ -53,6 +53,7 @@ def atom_order(target, source):
 def ensemble(points, population):
     """Count all observed conformers together; retain each proper duplicate once."""
     reference = copy.copy(min(points, key=lambda p: p.energy + p.zpe))
+    reference.bimol_reactant_only = False
     records = []
     for point in points:
         order = atom_order(reference, point)
@@ -142,9 +143,6 @@ def prepare_models(network):
     groups = {}
     for original_transition in network.transitions:
         transition = dict(original_transition)
-        if not transition['product_matches_expected']:
-            warnings.append(f"{transition['id']}: final IRC does not give the intended products.")
-            continue
         reaction = transition['reaction']
         try:
             path = reaction_path_id(reaction)

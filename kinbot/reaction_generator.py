@@ -89,8 +89,11 @@ class ReactionGenerator:
         result = (0 if self.par['bimol'] and 'error' in irc_status
                   else reaction.irc.irc2stationary_pt())
         if result == 0:
-            logger.info('\tNo expected product found for %s',
-                        reaction.instance_name)
+            if self.par['bimol']:
+                logger.info('\tIRC did not establish a connection from the requested reactants for %s',
+                            reaction.instance_name)
+            else:
+                logger.info('\tNo expected product found for %s', reaction.instance_name)
             self.species.reac_ts_done[index] = -999
             if self.par['bimol']:
                 from kinbot.bimol import update_bimol_status
@@ -99,13 +102,6 @@ class ReactionGenerator:
                     final_status='final_irc_failed')
             return
         if self.par['bimol']:
-            if (getattr(reaction, 'sequential_pose_search', False)
-                    and not result.product_matches_expected):
-                self.species.reac_ts_done[index] = -999
-                self._record_bimol_status(reaction, final_irc_valid=False,
-                    product_matches_expected=False, final_status='final_irc_wrong_product',
-                    observed_product_geometry=np.asarray(result.product.geom).tolist())
-                return
             reaction.irc_reactant = result.reactant
             reaction.irc_reactant_direction = result.reactant_direction
             reaction.irc_prod = result.product

@@ -94,10 +94,10 @@ class IRC:
 
             st_pts[i] = temp
             if self.par['bimol']:
-                from kinbot.bimol import _expected_graphs
+                from kinbot.bimol import _expected_graphs, matches_expected_product
 
                 search = self.rxn.get_bimol_search_data()
-                reactant_graph, product_graph = _expected_graphs(
+                reactant_graph, _ = _expected_graphs(
                     self.rxn.species, search['formed_bonds'],
                     search['broken_bonds'])
                 graph = {
@@ -106,19 +106,16 @@ class IRC:
                     for second in range(first + 1, temp.natom)
                     if temp.bond01[first][second]
                 }
-                if graph == reactant_graph:
-                    if not identity_matches(
-                            reference_identity, require_supported_identity(temp),
-                            self.par.get('optical_population', 'specified')):
-                        logger.info(
-                            '\tIRC reactant configuration differs from the requested '
-                            'population for %s.', instance_name)
-                        return 0
+                if graph == reactant_graph and identity_matches(
+                        reference_identity, require_supported_identity(temp),
+                        self.par.get('optical_population', 'specified')):
                     ini_well_hits += 1
                     ini_well_hit = i
                 else:
                     prod_hit = i
-                    product_matches_expected = graph == product_graph
+                    product_matches_expected = matches_expected_product(
+                        self.rxn.species, temp.geom, search['formed_bonds'],
+                        search['broken_bonds'], search.get('equivalent_bond_changes', ()))
             else:
                 matches = identity_matches(reference_identity, require_supported_identity(temp),
                                            self.par.get('optical_population', 'specified'))

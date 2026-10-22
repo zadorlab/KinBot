@@ -1,4 +1,4 @@
-"""Stop pose exploration at intended IRC evidence and resume failed pathways."""
+"""Retain reactant-connected saddles and continue unresolved attachment searches."""
 import copy
 import json
 from pathlib import Path
@@ -64,19 +64,20 @@ def search_fixture(tmp_path, monkeypatch, validations):
     return species, run, force
 
 
-def test_wrong_product_does_not_stop_search_and_resume_keeps_remaining_pose(tmp_path, monkeypatch):
+def test_other_product_is_promoted_and_resume_keeps_remaining_pose(tmp_path, monkeypatch):
     species = reactants()
     _, run, force = search_fixture(tmp_path, monkeypatch,
         [validation(species, False), validation(species), validation(species)])
     status, geometries, saved = run()
     assert status == 0 and len(geometries) == 1
-    assert saved['next_cursor'] == [0, 0, 1, 0]
-    assert len(saved['observations']) == 2
-    assert force.call_count == 2
+    assert saved['next_cursor'] == [0, 0, 0, 0]
+    assert not saved['candidates'][0]['validation']['product_matches_expected']
+    assert len(saved['observations']) == 1
+    assert force.call_count == 1
     _, _, resumed = run(start_after=saved['next_cursor'])
-    assert resumed['next_cursor'] == [0, 0, 2, 0]
+    assert resumed['next_cursor'] == [0, 0, 1, 0]
     # Saved seeds avoid repeating the force search at the previous pose.
-    assert force.call_count == 3
+    assert force.call_count == 2
 
 
 def test_resume_uses_the_remaining_candidate_in_the_same_pose(tmp_path, monkeypatch):
@@ -228,24 +229,33 @@ def test_post_irc_product_failure_does_not_repeat_ts_search(tmp_path, monkeypatc
     qc.qc_bimol_search.assert_not_called()
 
 
-def test_final_wrong_product_is_saved_and_reopens_the_pose_search(tmp_path, monkeypatch):
+def test_final_other_product_is_retained_and_reopens_the_pose_search(tmp_path, monkeypatch):
     from kinbot import reaction_generator
     species, par, qc, finish, statuses = controller(tmp_path, monkeypatch, count=1)
-    par['bimol'] = 1
+    par.update(bimol=1, rotor_scan=0)
     finish(0)
     bimol.advance_pose_searches(species, par, qc)
     reaction = species.reac_obj[1]
     species.reac_ts_done[1] = 7
-    result = NS(product_matches_expected=False, product=NS(geom=species.geom.copy()))
+    result = NS(product_matches_expected=False, product=NS(geom=species.geom.copy()),
+                reactant=NS(), reactant_direction='R', product_direction='F')
+    reaction.ts = NS(geom=species.geom.copy())
+    reaction.actual_bond_changes = {'formed': [[5, 2]], 'broken': [[2, 0]]}
+    monkeypatch.setattr(bimol, 'update_ts_topology_from_irc', Mock())
+    monkeypatch.setattr('kinbot.symmetry.calculate_symmetry', Mock())
+    monkeypatch.setattr('kinbot.stereochemistry.assign_optical_metadata', Mock(return_value={}))
+    monkeypatch.setattr('kinbot.stereochemistry.conformer_symmetry', Mock(return_value=[]))
     monkeypatch.setattr(reaction_generator, 'IRC', Mock(return_value=NS(
         check_irc=lambda: ['normal', 'normal'], irc2stationary_pt=lambda: result)))
     generator = reaction_generator.ReactionGenerator(species, par, qc, 'input.json')
+    generator._finish_bimol_hir = Mock(side_effect=lambda *args: species.reac_ts_done.__setitem__(1, -1))
     generator._advance_irc(1, reaction, 10.)
-    assert species.reac_ts_done[1] == -999
-    assert reaction.bimol_final_status == 'final_irc_wrong_product'
+    assert species.reac_ts_done[1] == -1
+    assert reaction.final_irc_processed and reaction.irc_prod is result.product
+    assert reaction.bimol_final_status == 'final_irc_valid'
     saved = json.loads(Path('bimol/validated_l0/index.json').read_text())['validated_l0'][0]
-    assert saved['final_status'] == 'final_irc_wrong_product'
-    np.testing.assert_allclose(saved['observed_product_geometry'], result.product.geom)
+    assert saved['final_status'] == 'final_irc_valid'
+    assert not saved['product_matches_expected']
     assert bimol.advance_pose_searches(species, par, qc)
     assert qc.qc_bimol_search.call_args.kwargs == dict(attempt=1, start_after=[0, 0, 0, 0])
 
@@ -271,14 +281,21 @@ def test_failed_final_irc_ignores_old_endpoint_and_reopens_pose_search(tmp_path,
 
 
 @pytest.mark.parametrize('change', ['same', 'rotate_translate', 'equivalent_hydrogens'])
-def test_equivalent_retry_skips_l1_and_preserves_failed_evidence(tmp_path, monkeypatch,
-                                                              caplog, change):
+@pytest.mark.parametrize('outcome', ['failed', 'other_product'])
+def test_equivalent_retry_skips_l1_and_preserves_completed_evidence(tmp_path, monkeypatch,
+                                                                 caplog, change, outcome):
     species, par, qc, finish, statuses = controller(tmp_path, monkeypatch, count=1)
     finish(0)
     bimol.advance_pose_searches(species, par, qc)
     first = species.reac_obj[1]
-    species.reac_ts_done[1] = -999
-    bimol.update_bimol_status(first, l1_valid=False, final_status='l1_refinement_rejected')
+    completed_status = -999 if outcome == 'failed' else -1
+    species.reac_ts_done[1] = completed_status
+    if outcome == 'failed':
+        bimol.update_bimol_status(first, l1_valid=False, final_status='l1_refinement_rejected')
+    else:
+        first.final_irc_processed, first.product_matches_expected = True, False
+        bimol.update_bimol_status(first, final_irc_valid=True, product_matches_expected=False,
+                                 final_status='final_irc_valid')
     index = Path('bimol/validated_l0/index.json')
     before = index.read_bytes()
     bimol.advance_pose_searches(species, par, qc)
@@ -291,7 +308,7 @@ def test_equivalent_retry_skips_l1_and_preserves_failed_evidence(tmp_path, monke
     with caplog.at_level('INFO', logger='KinBot'):
         assert bimol.advance_pose_searches(species, par, qc)
     assert 'already promoted to L1' in caplog.text
-    assert species.reac_ts_done == [-998, -999]
+    assert species.reac_ts_done == [-998, completed_status]
     assert index.read_bytes() == before
     assert len(list(Path('bimol/unique_candidates').glob('candidate_*'))) == 1
     state = species.bimol_pose_searches[0]

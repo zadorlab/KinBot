@@ -78,11 +78,22 @@ class Abstraction(BimolecularReaction):
 
     def get_bimol_search_data(self):
         """Return abstraction-specific placement and connectivity data."""
+        members = getattr(self, 'site_members', {})
+        equivalent = []
+        for abstractor in members.get('abstractor', []):
+            for hydrogen in members.get('transferred_atom', []):
+                donors = np.flatnonzero(self.species.bond01[hydrogen])
+                if len(donors) == 1:
+                    donor = int(donors[0])
+                    equivalent.append(dict(instance=[int(abstractor), int(hydrogen), donor],
+                        formed_bonds=[[int(abstractor), int(hydrogen)]],
+                        broken_bonds=[[int(hydrogen), donor]]))
         return {
             'family_module': __name__,
             'encounter_function': 'generate_encounters',
             'formed_bonds': [self.instance[:2]],
             'broken_bonds': [self.instance[1:3]],
+            'equivalent_bond_changes': equivalent,
         }
 
     def get_bimol_site(self, instance):

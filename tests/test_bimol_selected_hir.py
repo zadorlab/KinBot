@@ -358,13 +358,11 @@ def test_lower_ts_scan_point_uses_shared_refinement_and_checks_new_irc(
     assert parent.reac_ts_done == [7]
     irc.do_irc_calculations.assert_called_once()
     generator._advance_irc(0, reaction, 10.)
-    assert parent.reac_ts_done == ([-999] if outcome == 'wrong_product' else [2])
-    if outcome == 'accepted':
-        np.testing.assert_array_equal(reaction.final_irc_geometry, refined)
-        assert reaction.final_irc_processed
-        reaction.prepare_hir_rotors.assert_called_once()
-    else:
-        assert generator._record_bimol_status.call_args.kwargs['final_status'] == 'final_irc_wrong_product'
+    assert parent.reac_ts_done == [2]
+    np.testing.assert_array_equal(reaction.final_irc_geometry, refined)
+    assert reaction.final_irc_processed
+    assert reaction.product_matches_expected == (outcome != 'wrong_product')
+    reaction.prepare_hir_rotors.assert_called_once()
     assert constructor.call_count == 2
     species.confs.check_conformers.assert_not_called()
 

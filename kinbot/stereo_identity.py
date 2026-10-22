@@ -151,13 +151,14 @@ def log_input_stereochemistry(species, parameters, logger):
         smiles, '; '.join(graphs), population, included)
 
 
-def endpoint_configuration_allowed(endpoint, reference_geom, observed_geom):
+def endpoint_configuration_allowed(endpoint, reference_geom, observed_geom, *, definite_only=False):
     """Compare configurations present in an endpoint and the discovery TS.
 
     Atom order and graph are fixed here. A centre becoming planar may lose its
     tag; it is not required to retain a fictitious R/S assignment. A definite
     opposite assignment still belongs to another configured endpoint channel.
     """
+    from rdkit import Chem
     actual = _molecules(endpoint, endpoint.geom)
     reference = _molecules(endpoint, reference_geom)
     observed = _molecules(endpoint, observed_geom)
@@ -169,6 +170,8 @@ def endpoint_configuration_allowed(endpoint, reference_geom, observed_geom):
                     return False
         for a, b, c in zip(stable.GetBonds(), before.GetBonds(), after.GetBonds()):
             tags = tuple(int(bond.GetStereo()) for bond in (a, b, c))
+            if definite_only and Chem.BondStereo.STEREOANY in tags:
+                continue
             if all(tags) and tags[1] != tags[2]:
                 return False
     return True
@@ -235,6 +238,8 @@ def optical_scope(species, population='specified'):
             f'{identity.get("reason", "no assigned identity")}')
     mirror_allowed = population == 'racemic' or not identity['is_chiral_configuration']
     endpoints = getattr(species, 'ts_endpoint_identities', ())
+    if getattr(species, 'bimol_reactant_only', False):
+        endpoints = endpoints[:1]
     for side in endpoints:
         for item in side:
             if item.get('status') != 'assigned':

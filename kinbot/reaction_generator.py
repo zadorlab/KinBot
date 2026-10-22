@@ -65,6 +65,19 @@ class ReactionGenerator:
                         reaction.instance_name,
                         ', '.join(f'{float(value):.3f}' for value in frequencies))
 
+    def _record_bimol_product_failure(self, reaction, job):
+        """Record the product failure without invalidating its completed IRC."""
+        if not self.par['bimol']:
+            return
+        rows = list(self.qc.db.select(name=job))
+        data = rows[-1].data if rows else {}
+        error = data.get('error') or 'Product optimization failed; check the worker output.'
+        spectrum = data.get('frequencies')
+        values = [] if spectrum is None else [float(value) for value in spectrum]
+        logger.info('%s: %s Frequencies (cm-1): %s', job, error, values)
+        self._record_bimol_status(reaction, final_status='product_optimization_failed',
+            error=error, failed_product_job=job, failed_product_frequencies=values)
+
     def _advance_irc(self, index, reaction, barrier):
         """Advance an IRC and assign its endpoints when both jobs finish."""
         if (self.par['bimol']
@@ -621,6 +634,8 @@ class ReactionGenerator:
                                                'Omitting this channel; saved calculations retained.',
                                                obj.instance_name, error)
                                 self.species.reac_ts_done[index] = -999
+                                self._record_bimol_status(obj,
+                                    final_status='product_reuse_failed', error=str(error))
                                 product_cache_failed = True
                                 break
                             suffix = '_well' if getattr(frag, '_initial_product_complete', False) else '_product'
@@ -660,6 +675,7 @@ class ReactionGenerator:
                             if e < 0:
                                 logger.info(f'\tProduct optimization failed for {obj.instance_name}, product {frag.chemid}')
                                 self.species.reac_ts_done[index] = -999
+                                self._record_bimol_product_failure(obj, source_job)
                                 ndone += 1
                             elif e == 1:
                                 break

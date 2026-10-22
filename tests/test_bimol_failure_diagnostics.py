@@ -10,7 +10,7 @@ import pytest
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 
-from kinbot import bimol, frequencies, kb_path, reaction_generator
+from kinbot import bimol, frequencies, kb, kb_path, reaction_generator
 from kinbot.reactions.reac_bimol import BimolecularReaction
 
 
@@ -125,3 +125,91 @@ def test_controller_reports_current_error_on_failure_and_restart(
     else:
         retry.assert_not_called()
         assert ('had error status on previous round' if restart else 'Invalid geometry') in caplog.text
+
+
+@pytest.mark.parametrize('bimolecular', [False, True])
+@pytest.mark.parametrize('order,spectrum', [(0, [-213., 100., 300.]),
+                                          (1, [-600., -80., 200.])])
+def test_fairchem_well_template_records_failed_spectrum(tmp_path, monkeypatch,
+                                                       bimolecular, order, spectrum):
+    monkeypatch.chdir(tmp_path)
+
+    class CalculatorStub(Calculator):
+        implemented_properties = ['energy', 'forces']
+
+        def calculate(self, atoms=None, properties=('energy',), system_changes=all_changes):
+            super().calculate(atoms, properties, system_changes)
+            self.results.update(energy=-10., forces=np.zeros((len(atoms), 3)))
+
+    class OptimizerStub:
+        def __init__(self, atoms, **kwargs):
+            self.atoms = atoms
+
+        def run(self, **kwargs):
+            self.atoms.calc.calculate(self.atoms)
+            return True
+
+    core = ModuleType('fairchem.core')
+    core.FAIRChemCalculator = lambda *args, **kwargs: CalculatorStub()
+    package = ModuleType('fairchem')
+    package.core = core
+    monkeypatch.setitem(sys.modules, 'fairchem', package)
+    monkeypatch.setitem(sys.modules, 'fairchem.core', core)
+    monkeypatch.setattr('kinbot.fairchem_utils.load_predictor', lambda *args, **kwargs: None)
+    monkeypatch.setattr('sella.Sella', OptimizerStub)
+    monkeypatch.setattr('ase.io.read', lambda *args, **kwargs: [Atoms('H3')])
+    monkeypatch.setattr(frequencies, 'calc_vibrations',
+                        lambda *args: (np.asarray(spectrum), .01, np.eye(9)))
+    script = Path(kb_path, 'tpl/ase_fc_opt_well.tpl.py').read_text().format(
+        label='reactant', atom=['H'] * 3, geom=[[-1., 0., 0.], [0., 0., 0.], [1., 0., 0.]],
+        kwargs={'charge': 0, 'mult': 2}, fc_model_path='test-model', fc_device='cpu',
+        fc_compile=False, fc_task_name='omol', sella_kwargs={'internal': False},
+        fmax=.01, steps=10, bimol=bimolecular, order=order, optimizer='sella')
+    exec(compile(script, 'reactant.py', 'exec'), {})
+    with Path('reactant.pkl').open('rb') as handle:
+        data = pickle.load(handle)['data']
+    assert data['status'] == 'error'
+    assert Path('reactant_sella.log').read_text().endswith('done\n')
+    if bimolecular:
+        assert data['converged']
+        assert data['error'] == f'Frequency check failed (order={order}).'
+        np.testing.assert_array_equal(data['frequencies'], spectrum)
+    else:
+        assert data == {'status': 'error'}
+
+
+def test_reactant_preparation_error_reports_frequency_and_nonzero_exit(caplog):
+    qc = SimpleNamespace(db=SimpleNamespace(select=lambda **kwargs: iter([
+        SimpleNamespace(data={'error': 'obsolete reason'}),
+        SimpleNamespace(data={'error': 'Frequency check failed (order=0).',
+                              'frequencies': [-213., 100., 200.]})])))
+    with caplog.at_level('ERROR', logger='KinBot'), pytest.raises(SystemExit) as error:
+        kb._bimol_preparation_failed(qc, 'propene_well', 'Reactant preparation failed')
+    assert error.value.code == 1
+    assert 'Frequency check failed (order=0).' in caplog.text
+    assert '-213.000, 100.000, 200.000' in caplog.text
+    assert 'obsolete reason' not in caplog.text
+
+
+@pytest.mark.parametrize('bimolecular', [False, True])
+def test_product_failure_preserves_the_completed_irc(tmp_path, monkeypatch, caplog,
+                                                   bimolecular):
+    monkeypatch.chdir(tmp_path)
+    reaction = SimpleNamespace(instance_name='candidate', search_parent='addition',
+                               final_irc_processed=True)
+    qc = SimpleNamespace(db=SimpleNamespace(select=lambda **kwargs: iter([
+        SimpleNamespace(data={'error': 'Frequency check failed (order=0).',
+                              'frequencies': [-78., 100., 200.]})])))
+    generator = reaction_generator.ReactionGenerator(None, {'bimol': bimolecular}, qc, 'input.json')
+    record = Mock()
+    monkeypatch.setattr(bimol, 'update_bimol_status', record)
+    with caplog.at_level('INFO', logger='KinBot'):
+        generator._record_bimol_product_failure(reaction, 'propyl_product')
+    assert reaction.final_irc_processed
+    if bimolecular:
+        record.assert_called_once_with(reaction, final_status='product_optimization_failed',
+            error='Frequency check failed (order=0).', failed_product_job='propyl_product',
+            failed_product_frequencies=[-78., 100., 200.])
+        assert '-78.0' in caplog.text
+    else:
+        record.assert_not_called()

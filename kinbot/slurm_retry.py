@@ -35,6 +35,44 @@ def retry_limit(env=None):
     return int(value)
 
 
+def completion_receipt(identity, job_id, root=None):
+    """Read an ended allocation's current wrapper receipt without editing it.
+
+    The caller must first establish scheduler inactivity. A requeued allocation
+    keeps its ID, so only its latest recorded incarnation can prove completion.
+    This supplements a missing marker, never the native result validation.
+    """
+    if not re.fullmatch(r'[0-9]+', str(job_id)):
+        return None
+    token = hashlib.sha256(identity.encode()).hexdigest()[:20]
+    folder = Path(root or Path.cwd())/'.kinbot_slurm_io_retries'/token/str(job_id)
+    try:
+        with (folder/'lock').open('r') as lock:
+            fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            restarts = [(0, folder)]
+            for child in folder.glob('restart-*'):
+                match = re.fullmatch(r'restart-([0-9]+)', child.name)
+                if match is None or not child.is_dir():
+                    return None
+                restarts.append((int(match[1]), child))
+            restart, current = max(restarts, key=lambda item: item[0])
+            record = json.loads((current/'execution.json').read_text())
+            if (record.get('schema') != 1 or record.get('identity') != identity
+                    or str(record.get('slurm_job_id')) != str(job_id)
+                    or record.get('slurm_restart_count', 0) != restart
+                    or record.get('status') not in ('complete', 'failed')):
+                return None
+            last = record['attempts'][-1]
+            code, failed = last['returncode'], last['failed_result']
+            if type(code) is not int or type(failed) is not bool:
+                return None
+            if record['status'] == 'complete':
+                return (0, True) if code == 0 and not failed else None
+            return (code or 1, True) if code or failed else None
+    except (OSError, ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
 def io_failure(text):
     """Match actual OS/native I/O diagnostics, not an arbitrary failed job."""
     lower = text.lower()

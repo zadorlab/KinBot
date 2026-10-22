@@ -55,6 +55,7 @@ def test_review_then_apply_retains_evidence_and_repeat_never_relaunches(fresh):
     assert (Path(result['archive'])/'ch3s/native.out').read_text() == 'expensive evidence'
     inputs = json.loads((f.root/'ch3s/input.json').read_text())
     assert inputs['vdW_detection'] == 0 and inputs['anl_augmented'] is True
+    assert inputs['anl_ts_reuse'] == {}
     assert inputs['queue_live_policy']['max_jobs'] == 2
     assert inputs['queue_live_policy']['orbital_review_reserve'] == 3
     assert inputs['queue_live_control'] == {'hold_failures': False, 'hold_task_failures': True}
@@ -91,6 +92,7 @@ def test_r7_scan_and_sampling_controls_reach_all_reviewed_surfaces(fresh):
         source = PACKAGE.parent/f'{case}_anl1_f12'/f'{case}.json'
         original = Parameters(str(source), show_warnings=False).par
         par = Parameters(str(f.root/case/'input.json'), show_warnings=False).par
+        assert par['anl_ts_reuse'] == {}
         assert par['rotdpy_flux_parameters'] == dict(
             original['rotdpy_flux_parameters'], flux_rel_err=5)
         assert par['vrc_tst_scan_points'] == expected

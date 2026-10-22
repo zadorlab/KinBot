@@ -742,6 +742,19 @@ class Parameters:
             raise ValueError('vrc_tst_surface_models must map species selectors to reviewed surface models.')
         if self.par['pes_phase_policy'] not in ('auto', 'exploration_first', 'legacy'):
             raise ValueError('pes_phase_policy must be auto, exploration_first or legacy.')
+        # Outer-PES pathway selection and cross-well species/TS ownership are
+        # separate operations. A phased automatic PES must opt into both by
+        # default, including when its input did not spell out the reuse option.
+        # Preserve legacy runs and explicit user choices; generated worker
+        # inputs serialize this resolved setting.
+        if (self.par['pes'] and self.par['pes_phase_policy'] != 'legacy'
+                and automatic_cbh_anl_requested(self.par)):
+            if 'anl_ts_reuse' not in self.user_keys:
+                self.par['anl_ts_reuse'] = {}
+            elif self.par['anl_ts_reuse'] is False:
+                logger.warning('ANL cross-well reuse is explicitly disabled; outer-PES '
+                               'L2 selection alone does not deduplicate stable-species '
+                               'or CBH calculations in different well directories.')
         if self.par['anl_ts_reuse'] is not False:
             from kinbot.anl.ts_reuse import options
             options(self.par['anl_ts_reuse'])

@@ -634,3 +634,56 @@ bounded VPT2 ladder, linear-input restaging, interruption recovery, live and
 legacy allocation fences, mismatched Slurm identity, immutable sibling work,
 non-submitting reconciliation, and append-only discovery restoration. Native
 Gaussian/CFOUR/Molpro retries still require confirmation from Blodgett output.
+
+## October 22: cross-well ANL ownership and interrupted QC handoff
+
+The subsequent r7 comparison confirmed that outer-PES L2 pathway selection
+was enabled while `anl_ts_reuse` was false in the worker inputs. These are
+separate gates: pathway selection does not itself consolidate stable-species
+and CBH graphs created in different well directories. Phased automatic PES
+inputs now enable strict ANL reuse by default when the option is omitted;
+the fresh-run recipe also specifies it explicitly. An explicit false remains
+an override and emits a warning.
+
+The two running `state_074fcc5ef5188035` C=[SH] TZ geometries (allocations
+52917415 and 52917344) have matching scientific settings and pass the existing
+comparison: RMSD 0.000003302 A, energy difference approximately 1e-11 Eh,
+identical ZPE and maximum frequency difference 0.0217 cm-1. The third staged
+copy fails the existing 0.0005 A geometry tolerance and is not automatically
+merged. The stopped-controller `--deduplicate-anl` migration chooses an owner,
+archives verified duplicate graphs, cancels only their verified allocations,
+and enables reuse for subsequent submissions. No tolerance is broadened.
+
+Exploration allocation 52917532 finished with a successful allocation-specific
+wrapper receipt and a Sella `done` record, but its `.exitcode` was absent.
+The controller previously deleted the old completion files before waiting for
+capacity to submit a replacement constrained step. An interruption during
+that wait could erase the completed generation's handoff. Cleanup now happens
+when the new batch worker actually starts. After confirmed Slurm inactivity,
+the reader can also recover a missing marker from the matching, locked,
+latest-requeue wrapper receipt, while still requiring a valid native QC result.
+It cannot override an explicit different-generation marker or a live worker.
+
+Install this code once using an in-place controller replacement:
+
+```bash
+cd "$HOME/KinBot"
+git pull --ff-only origin composite
+.venv/bin/python -u -m kinbot.run_refresh \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" \
+  --deduplicate-anl --apply
+.venv/bin/python -m kinbot.run_monitor \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+```
+
+This preserves unrelated allocated and completed work. Previously staged QC
+repairs remain eligible through their normal controllers. The CH + H2S
+orbital-review hold and C + SH3 whole-path review remain scientific holds;
+independent paths continue. No methods, bases, grids, active spaces or resource
+limits change. Successful launch must be confirmed from the remote refresh
+receipt and monitor; this is not a guarantee of future native convergence.
+
+Focused local validation: **201 passed, 1 skipped, 17 subtests passed** in
+7.45 seconds, covering refresh, strict three-graph retirement, defaults,
+allocation receipt recovery, requeue/lock fencing and interrupted admission.
+The full suite was not repeated for this expedited handoff.

@@ -149,6 +149,20 @@ class TestBackendWarnings(unittest.TestCase):
         self.assertEqual(parameters['vrc_tst_max_nodes'], 3)
         self.assertEqual(parameters['rotdpy_max_jobs'], 5)
 
+    def test_phased_automatic_pes_enables_cross_well_reuse_unless_explicit(self):
+        for policy in ('auto', 'exploration_first'):
+            self.assertEqual(self.read_parameters(pes=1, composite_method='ANL1-F12',
+                             pes_phase_policy=policy)['anl_ts_reuse'], {})
+        for options in ({'pes': 0}, {'pes_phase_policy': 'legacy'},
+                        {'anl_ts_reuse': False}):
+            values = dict(pes=1, composite_method='ANL1-F12')
+            values.update(options)
+            self.assertIs(self.read_parameters(**values)['anl_ts_reuse'], False)
+        self.assertIs(self.read_parameters(pes=1)['anl_ts_reuse'], False)
+        self.assertEqual(self.read_parameters(pes=1, composite_method='ANL1-F12',
+                         anl_ts_reuse={'energy_hartree': 1.e-8})['anl_ts_reuse'],
+                         {'energy_hartree': 1.e-8})
+
     def test_reaction_selection_fails_closed_on_invalid_input(self):
         for selected in ([], {'initial': {}},
                          {'initial': {'hom_sci': []}},

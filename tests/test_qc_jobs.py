@@ -617,7 +617,7 @@ class TestSchedulerJobs(unittest.TestCase):
         clean_files(qc='fc', diagnostic=True)
         self.assertTrue(Path('diagnostic.pkl').is_file())
 
-    def test_replacement_submission_removes_only_its_stale_handoff(self):
+    def test_replacement_submission_defers_handoff_cleanup_until_worker_start(self):
         Path('replacement.pkl').write_bytes(b'stale')
         Path('unrelated.pkl').write_bytes(b'pending')
         qc = SimpleNamespace(
@@ -632,7 +632,9 @@ class TestSchedulerJobs(unittest.TestCase):
                 patch('kinbot.qc.subprocess.run', return_value=discovery), \
                 patch.dict('kinbot.qc._SLURM_WALLTIME_CACHE', {}, clear=True):
             QuantumChemistry.submit_qc(qc, 'replacement', 1)
-        self.assertFalse(Path('replacement.pkl').exists())
+        self.assertTrue(Path('replacement.pkl').exists())
+        self.assertIn('"$kinbot_exit_tmp" replacement.pkl',
+                      Path('replacement.sbatch').read_text())
         self.assertTrue(Path('unrelated.pkl').exists())
 
 

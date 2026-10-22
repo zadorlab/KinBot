@@ -1598,13 +1598,11 @@ class QuantumChemistry:
         if self.queue_job_limit > 0 and not shared_pool:
             self.limit_jobs()
 
-        # A status file belongs to one scheduler submission.  Never let a
-        # previous attempt prove success or failure for a replacement job.
-        for suffix in ('.exitcode', '.pkl'):
-            try:
-                os.remove(f'{job}{suffix}')
-            except FileNotFoundError:
-                pass
+        # Keep the completed generation's handoff while waiting for admission
+        # or a scheduler response. Deleting it here loses completed work if a
+        # controller is replaced before the next allocation is submitted.
+        # The batch body clears these files only when the new worker starts;
+        # generation-tagged status checks fence the old marker in the meantime.
 
         try:
             if jobtype == 'am1' and self.par['q_temp_am1']:
@@ -2389,6 +2387,7 @@ class QuantumChemistry:
         # submission of the same script.
         current_job_id = (self.job_ids.get(job)
                           if self.queuing in ('slurm', 'pbs') else None)
+        receipt_finished = False
         generation_tagged = getattr(
             self, 'job_generation_tagged', {}).get(job, True)
         if current_job_id and generation_tagged:
@@ -2436,7 +2435,19 @@ class QuantumChemistry:
             # otherwise an older constrained-path step can be mistaken for
             # the replacement on a lagging shared filesystem.
             if not current_finished:
-                return 0
+                # Older controllers could delete the completed generation's
+                # exit marker while waiting to submit its next constrained
+                # step. The allocation-specific wrapper receipt is a second
+                # completion record, but only after Slurm confirms inactivity.
+                if self.queuing == 'slurm' and not os.path.exists(f'{job}.exitcode'):
+                    from kinbot.slurm_retry import completion_receipt
+                    receipt = completion_receipt(job, current_job_id)
+                    if receipt is not None:
+                        if receipt[0]:
+                            return 'error'
+                        receipt_finished = True
+                if not receipt_finished:
+                    return 0
 
         loaded_data = self.ingest_pkl(job)
         if loaded_data is not None:
@@ -2464,8 +2475,8 @@ class QuantumChemistry:
 
         logger.debug('Checking job {}'.format(job))
         exit_file = f'{job}.exitcode'
-        worker_finished = False
-        if os.path.isfile(exit_file):
+        worker_finished = receipt_finished
+        if not receipt_finished and os.path.isfile(exit_file):
             try:
                 worker_exit = _worker_exit_status(exit_file, current_job_id)
             except (OSError, ValueError):
@@ -2482,6 +2493,15 @@ class QuantumChemistry:
         database_status = QuantumChemistry._database_qc_status(
             self, job, worker_finished=worker_finished)
         if database_status is not None:
+            if receipt_finished and database_status == 'normal':
+                notices = getattr(self, '_receipt_completion_notices', set())
+                key = (job, str(current_job_id))
+                if key not in notices:
+                    logger.info('%s: recovered missing completion handoff for Slurm job %s '
+                                'from its completed wrapper receipt and normal QC result.',
+                                job, current_job_id)
+                    notices.add(key)
+                    self._receipt_completion_notices = notices
             return database_status
 
         # The batch wrapper publishes the exit file only after the worker has

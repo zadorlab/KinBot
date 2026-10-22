@@ -242,3 +242,57 @@ def test_migration_cancels_only_proven_duplicate_and_archives_without_touching_o
     assert (tmp_path/'archive/duplicate_ts'/duplicate.relative_to(tmp_path)/'workflow.json').exists()
     assert old=={p:file_sha256(p) for p in old}
     assert reuse.load(a)['forward']['graph']==canonical
+
+
+def test_disabled_stable_reuse_migration_keeps_owner_and_nonmatching_third_graph(tmp_path, monkeypatch):
+    from kinbot import network_revisit as nr, run_salvage, run_refresh, vrc_restart
+    from kinbot.anl import dispatch
+    from kinbot.execution import file_sha256
+    from tests.anl_fixture import dispatch_spec, molpro_task
+
+    a, b = fixture(tmp_path/'case')
+    case = a.parent.parent
+    for base in (a, b):
+        add_minimum(base)
+        plan = json.loads((base/'network_request.json').read_text())
+        molecule = plan['cbh']['calculated_states'][0]['network_record']['molecule']
+        molecule['symbols'].append('H')
+        molecule['positions'].append([1., 1., 1.])
+        atomic_json(base/'network_request.json', plan)
+    c = case/'333/anl_automatic'
+    third = json.loads((b/'network_request.json').read_text())
+    third['cbh']['calculated_states'][0]['network_record']['molecule']['positions'][0][0] += .1
+    atomic_json(c/'network_request.json', third)
+    for base in (a, b, c):
+        atomic_json(base.parent/(base.parent.name+'.json'), {'anl_ts_reuse': False})
+    atomic_json(case/'input.json', {'anl_ts_reuse': False})
+    prepared = dict(inputs=[str(case/'input.json')],sha256={})
+    atomic_json(tmp_path/'prepared.json', prepared)
+    monkeypatch.setattr(run_salvage, '_cases', lambda root: (prepared,[case/'input.json']))
+    items = {v['base']:v for v in reuse.catalog(case).values() if v['kind']=='stable'}
+    graphs, jobs = [], []
+    for base, ident in ((a,'41'), (b,'42'), (c,'43')):
+        item = items[str(base.relative_to(case))]
+        graph = Path(item['graph']); graphs.append(graph)
+        spec = dispatch_spec(); spec['molecule'] = item['record']['molecule']
+        spec['tasks'] = [molpro_task('l3_geometry_tz','rhf\n',geometry_from='initial')]
+        dispatch.prepare(spec,graph)
+        state = dispatch._load(graph)[2]
+        state['tasks']['l3_geometry_tz'].update(status='submitted',job_id=ident)
+        atomic_json(graph/'state.json',state)
+        jobs.append(dict(job_id=ident,directory=str(graph/'tasks/l3_geometry_tz'),state='RUNNING'))
+    before = {p:file_sha256(p) for graph in (graphs[0],graphs[2]) for p in graph.rglob('*') if p.is_file()}
+    plan = nr.plan(tmp_path,jobs,nr.settings(deduplicate=True))
+    assert plan['selected_jobs'] == [jobs[1]]
+    cancelled = []
+    monkeypatch.setattr(vrc_restart,'cancel_scans',lambda record,*a:cancelled.extend(record['selected_jobs']))
+    monkeypatch.setattr(run_refresh,'_owned_jobs',lambda root:[jobs[0],jobs[2]])
+    journal = {'network_revision':plan}; marker=tmp_path/'journal.json'; atomic_json(marker,journal)
+    nr.apply(tmp_path,plan,tmp_path/'archive',journal,marker)
+    assert cancelled == [jobs[1]] and not graphs[1].exists()
+    assert before == {p:file_sha256(p) for p in before}
+    assert (tmp_path/'archive/duplicate_ts'/graphs[1].relative_to(tmp_path)/'state.json').exists()
+    assert reuse.load(b)['stable:C[S]|0|2']['graph'] == graphs[0]
+    assert 'stable:C[S]|0|2' not in reuse.load(c)
+    for base in (a,b,c):
+        assert json.loads((base.parent/(base.parent.name+'.json')).read_text())['anl_ts_reuse'] == {}

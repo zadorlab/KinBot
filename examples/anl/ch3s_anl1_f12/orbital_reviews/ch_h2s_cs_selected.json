@@ -1,0 +1,129 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "review_note": "Reviewed 2026-10-22 from eight completed all-valence CASCI probes and user-supplied native natural-orbital AO coefficients at 2 and 30 angstrom in avdz-f12 and avtz-f12. Select the 2 angstrom source indices 8,12,13,14: the sulfur p-type lone-pair donor (two electrons) and the CH sigma/frontier-pair subspace (three electrons). The donor is source 8 at 2 angstrom but source 7 at 30 angstrom; these are geometry-specific indices, not a common energy window. Near selected occupations are 1.97918,1.48472,0.99467,0.50273 (DZ) and 1.97918,1.48447,0.99490,0.50297 (TZ). Far character-matched occupations are 1.99881,1.47041,0.76629,0.76595 (DZ) and 1.99881,1.47035,0.76637,0.76594 (TZ). Retain four equally weighted doublet roots for orbital optimization; only D1 is selected as ground-parent reactive flux. The CH doublet plus H2S singlet ground-fragment channel has no quartet spin coupling; use direct CASPT2-F12 correction with the inherited DZ/TZ basis policy, not a quartet CC spin-gap anchor. Source 15 is mainly H2S S-H antibonding with occupation 0.08577/0.08553 at 2 angstrom, not the missing sulfur lone-pair donor. Its exclusion is a compact-space modeling choice, not demonstrated quantitative convergence; inspect S-H connectivity and orbital character in production and retain all scan-review guards. No optimized compact-CASSCF, correlated-potential, angular or asymptotic-plateau validation is claimed; no additional reconnaissance calculations are requested.",
+  "request_match": {
+    "parent": "471230610040000000002",
+    "reaction": "471230610040000000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 5,
+    "active_orbitals": 4,
+    "source": "Reviewed 2026-10-22 from eight completed all-valence CASCI probes and user-supplied native natural-orbital AO coefficients at 2 and 30 angstrom in avdz-f12 and avtz-f12. Select the 2 angstrom source indices 8,12,13,14: the sulfur p-type lone-pair donor (two electrons) and the CH sigma/frontier-pair subspace (three electrons). The donor is source 8 at 2 angstrom but source 7 at 30 angstrom; these are geometry-specific indices, not a common energy window. Near selected occupations are 1.97918,1.48472,0.99467,0.50273 (DZ) and 1.97918,1.48447,0.99490,0.50297 (TZ). Far character-matched occupations are 1.99881,1.47041,0.76629,0.76595 (DZ) and 1.99881,1.47035,0.76637,0.76594 (TZ). Retain four equally weighted doublet roots for orbital optimization; only D1 is selected as ground-parent reactive flux. The CH doublet plus H2S singlet ground-fragment channel has no quartet spin coupling; use direct CASPT2-F12 correction with the inherited DZ/TZ basis policy, not a quartet CC spin-gap anchor. Source 15 is mainly H2S S-H antibonding with occupation 0.08577/0.08553 at 2 angstrom, not the missing sulfur lone-pair donor. Its exclusion is a compact-space modeling choice, not demonstrated quantitative convergence; inspect S-H connectivity and orbital character in production and retain all scan-review guards. No optimized compact-CASSCF, correlated-potential, angular or asymptotic-plateau validation is claimed; no additional reconnaissance calculations are requested."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__cs_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        8,
+        12,
+        13,
+        14
+      ]
+    },
+    "avtz-f12": {
+      "job": "atz__cs_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        8,
+        12,
+        13,
+        14
+      ]
+    }
+  },
+  "state_model": {
+    "state_average": [
+      {
+        "multiplicity": 2,
+        "roots": 4,
+        "weights": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ]
+      }
+    ],
+    "selected_roots": {
+      "2": 1
+    },
+    "canonical_orbitals": true,
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    },
+    "casscf_options": {
+      "solver": "so_sci",
+      "quasi_newton": true,
+      "exact_diagonalization": true,
+      "energy_convergence": 1e-08,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999
+    }
+  },
+  "coordinate": "reactive",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One ground-parent adiabatic doublet path D1, referenced to its spin-free CH + H2S ground-fragment asymptote. The CH ground orbital pair is represented in the state average; it does not by itself establish a second reactive path into this well. Additional averaged roots are not extra flux; no claim that excited-path contributions vanish is implied."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(5,4)",
+    "vrc_tst_sample_method": "caspt2-f12(5,4)",
+    "vrc_tst_high_method": "caspt2-f12(5,4)",
+    "vrc_tst_state_average_roots": {
+      "2": 4
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1
+    },
+    "vrc_tst_correction_model": "direct"
+  },
+  "required_complete_jobs": [
+    "adz__cs_r_2",
+    "adz__cs_r_3p5",
+    "adz__cs_r_6",
+    "adz__cs_r_30",
+    "atz__cs_r_2",
+    "atz__cs_r_3p5",
+    "atz__cs_r_6",
+    "atz__cs_r_30"
+  ]
+}

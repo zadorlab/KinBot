@@ -147,11 +147,11 @@ def test_screen_monitor_reads_registry_without_pilot_or_manifest_writes(request_
     assert all(p.read_bytes() == value for p, value in before.items())
 
 
-def completed_screen(request_tree):
+def completed_screen(request_tree, recipe=RECIPE):
     """Synthetic native artifacts exercise provenance, never native chemistry."""
     from kinbot.execution import file_sha256
     request, case_input, output = request_tree
-    helper.prepare(request, case_input, RECIPE, output)
+    helper.prepare(request, case_input, recipe, output)
     manifest = output/'native/reconnaissance.json'
     state = json.loads(manifest.read_text())
     for j in state['jobs']:
@@ -334,6 +334,77 @@ def test_review_publishes_only_selected_parent_and_reuses_basis_specific_seeds(r
     atomic_json(live_request,dict(helper._read(live_request),status='model_accepted',surface_model={}))
     helper.review(source,case_input,SELECTION,apply=True)
     assert len(calls)==6 and helper._read(case_input)==proposed
+
+
+def test_ch_h2s_selection_repacks_donor_and_uses_doublet_direct_cbs(request_tree, monkeypatch):
+    from kinbot import input_refresh
+    from kinbot.molpro import _render_vrc_state_model
+    from kinbot.vrc_correction import correction_components, expected_levels
+    from kinbot.vrc_multistate import state_parameters
+    _, case_input, output = request_tree
+    recipe = RECIPE.with_name('ch_h2s_cs_screen.json')
+    selected = RECIPE.with_name('ch_h2s_cs_selected.json')
+    choice = helper._read(selected)
+    match = choice['request_match']
+    request = case_input.parent/match['parent']/'vrctst/orbital_review'/match['reaction']/'request.json'
+    atomic_json(request, dict(match, schema=1, status='needs_review',
+        smiles='[H][C]=[S]([H])[H]', positions=[
+        [.7467252173, -.7423275741, -.5474233962],
+        [.1678425237, .4711769182, .5418506859],
+        [1.0595729495, 1.3596853597, 1.1290564624],
+        [.0422254396, -.2114253717, 1.6944421867],
+        [1.1828471196, -.1760172776, -1.3830416653]]))
+    source = completed_screen((request,case_input,output), recipe)
+    prior_channel = dict(schema=1, reviewed=True, review_note='Existing channel',
+        channels=[dict(bond=[1,2], combination='single', bottlenecks=[dict(
+            name='single', coordinate='reactive', distances_angstrom=[2.,3.,4.],
+            parameters={}, states=choice['states'])])])
+    previous = dict(helper._read(case_input), rotdpy_dist=[2.,3.,4.],
+        vrc_tst_surface_models={'existing_parent':prior_channel},
+        vrc_tst_scan_basis='avdz-f12', vrc_tst_sample_basis='avdz-f12',
+        vrc_tst_high_basis=['avdz-f12','avtz-f12'], vrc_tst_high_extrapolation_power=3.7,
+        vrc_tst_correction_model='spin_splitting',
+        vrc_tst_spin_splitting={'reference_multiplicity':4},
+        vrc_tst_state_average_roots={'2':3,'4':3}, vrc_tst_selected_roots={'2':1,'4':1})
+    atomic_json(case_input, previous)
+    before = {p:p.read_bytes() for p in source.rglob('*') if p.is_file()}
+    monkeypatch.setattr(input_refresh, 'owner_directory', lambda _:case_input.parent)
+    monkeypatch.setattr(helper.subprocess, 'run', lambda *a,**k:pytest.fail('No new QC or driver'))
+    publications = []
+    def submit(path, **kw):
+        if kw.get('apply'):
+            publications.append(kw['proposal'])
+            atomic_json(path, kw['proposal'])
+        return dict(status='queued', drivers_started=0)
+    monkeypatch.setattr(input_refresh, 'submit', submit)
+    result = helper.review(source, case_input, selected, apply=True)
+    assert result['drivers_started'] == result['reconnaissance_jobs_submitted'] == 0
+    proposed = helper._read(case_input)
+    assert {k for k in previous.keys()|proposed.keys() if previous.get(k)!=proposed.get(k)} == {'vrc_tst_surface_models'}
+    assert proposed['vrc_tst_surface_models']['existing_parent'] == prior_channel
+    stage = proposed['vrc_tst_surface_models'][match['parent']]['channels'][0]['bottlenecks'][0]
+    assert len(stage['states']) == 1 and stage['states'][0]['root'] == 1
+    leaf = state_parameters(proposed, stage, stage['states'][0], [2,1])
+    assert leaf['vrc_tst_correction_model'] == 'direct'
+    assert leaf['vrc_tst_selected_roots'] == {'2':1}
+    components = correction_components(leaf, symbols=match['symbols'], state_roots={2:4})
+    assert [c['role'] for c in components] == ['sampling','trusted:0','trusted:1']
+    for component in components:
+        assert component['method'] == 'caspt2-f12(5,4)'
+        model = component['state_model']
+        assert model['state_average'] == [dict(multiplicity=2,roots=4,weights=[.25]*4)]
+        assert model['orbital_selection']['active_indices'] == [8,12,13,14]
+        assert '__cs_r_2.wfu' in model['orbital_selection']['path']
+        _, deck, _ = _render_vrc_state_model(model, nelectron=25, active_electrons=5, active_orbitals=4, spin=1)
+        assert 'closed,10' in deck and 'occ,14' in deck and 'wf,25,1,3' not in deck
+        assert 'rotate,8.1,11.1,0' in deck or 'rotate,11.1,8.1,0' in deck
+    levels = expected_levels(leaf, symbols=match['symbols'], state_roots={2:4})
+    assert levels['trusted_correction']['basis'] == previous['vrc_tst_high_basis']
+    assert levels['trusted_correction']['extrapolation_power'] == 3.7
+    assert stage['distances_angstrom'] == previous['rotdpy_dist']
+    assert all(p.read_bytes()==value for p,value in before.items())
+    helper.review(source, case_input, selected, apply=True)
+    assert publications == [proposed,proposed]
 
 
 @pytest.mark.parametrize('failure',['unreviewed','wrong_request','changed_wfu','changed_output','wrong_basis','no_owner'])

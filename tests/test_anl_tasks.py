@@ -100,3 +100,24 @@ def test_no_same_program_or_same_reference_constraint_is_encoded():
     lower = {'backend': 'molpro', 'reference': 'RHF'}
     assert (high['backend'], lower['backend']) == ('mrcc', 'molpro')
     assert high['result_parser']['method'] == 'CCSDT(Q)'
+
+
+@pytest.mark.parametrize('method,count,effective', [
+    (method, count, effective)
+    for method in ('CCSDT(Q)', 'CCSDTQ(P)')
+    for count, effective in [(1, 'HF'), (2, 'CCSD'), (3, 'CCSDT'),
+                              (4, 'CCSDTQ' if method == 'CCSDTQ(P)' else method),
+                              (5, method), (6, method)]
+])
+def test_higher_order_rank_plan_preserves_requested_method(method, count, effective):
+    task = higher_order_task('probe', method, 'cc-pVDZ',
+                             multiplicity=2 if count % 2 else 1, electron_count=count)
+    assert f'calc={effective}\n' in task['input_template']
+    parser = task['result_parser']
+    assert parser['method'] == method
+    if effective != method:
+        assert parser['rank_exact_electrons'] == count
+        assert parser['effective_method'] == effective
+    else:
+        assert 'effective_method' not in parser
+    _validate(task)

@@ -59,6 +59,140 @@ Total CCSDT(Q)/B energy [au]: -39.716241160157
 Normal termination of mrcc.
 """
 
+_MRCC_CARBON_RANK_EXACT = """basis=aug-cc-pVDZ
+calc=CCSDTQ(P)
+ccprog=mrcc
+scftype=ROHF
+rohftype=semicanonical
+rohfcore=semicanonical
+core=frozen
+Number of electrons: 6
+Number of core electrons: 2
+Number of alpha electrons: 3
+Number of beta electrons: 1
+CCSDTQ calculation
+Number of alpha electrons: 3
+Number of beta  electrons: 1
+Iteration has converged in 15 steps.
+Final results:
+Total CCSDTQ energy [au]: -37.765267479485
+Normal termination of mrcc.
+"""
+
+
+def test_mrcc_four_correlated_electrons_have_no_pentuples():
+    result = parse_mrcc_energy(
+        _MRCC_CARBON_RANK_EXACT, method='CCSDTQ(P)', basis='aug-cc-pVDZ',
+        reference='ROHF', correlation='unrestricted', core='frozen', program='mrcc')
+    assert result['method'] == 'CCSDTQ(P)'
+    assert result['energy_hartree'] == -37.765267479485
+    assert result['program_variant'] == 'ROHF-UCCSDTQ'
+    assert result['rank_exact'] == dict(
+        electron_count=6, frozen_core_electrons=2, correlated_electrons=4,
+        alpha_electrons=3, beta_electrons=1, effective_method='CCSDTQ',
+        absent_excitation_rank=5, correction_hartree=0.)
+
+
+def test_mrcc_three_correlated_electrons_have_no_quadruples():
+    native = (_MRCC_CARBON_RANK_EXACT.replace('CCSDTQ(P)', 'CCSDT(Q)')
+              .replace('CCSDTQ calculation', 'CCSDT calculation')
+              .replace('Total CCSDTQ energy', 'Total CCSDT energy')
+              .replace('electrons: 6', 'electrons: 5').replace('electrons: 3', 'electrons: 2'))
+    result = parse_mrcc_energy(
+        native, method='CCSDT(Q)', basis='aug-cc-pVDZ', reference='ROHF',
+        correlation='unrestricted', core='frozen', program='mrcc')
+    assert result['rank_exact']['correlated_electrons'] == 3
+    assert result['rank_exact']['effective_method'] == 'CCSDT'
+    assert result['rank_exact']['absent_excitation_rank'] == 4
+
+
+@pytest.mark.parametrize('old,new', [
+    ('Number of core electrons: 2', ''),
+    ('Number of core electrons: 2', 'Number of core electrons: 0'),
+    ('Number of electrons: 6', 'Number of electrons: 7'),
+    ('Number of beta  electrons: 1', 'Number of beta  electrons: 2'),
+    ('Number of electrons: 6', 'Number of electrons: 6\nNumber of electrons: 7'),
+    ('Iteration has converged in 15 steps.', ''),
+    ('CCSDTQ calculation', 'CCSDT calculation'),
+    ('Normal termination of mrcc.', 'Error at the termination of mrcc.'),
+    ('calc=CCSDTQ(P)', 'calc=CCSDTQ'),
+    ('Total CCSDTQ energy [au]: -37.765267479485',
+     'Total CCSDTQ energy [au]: -37.765267479485\nTotal CCSDTQ energy [au]: -37.765267479485'),
+])
+def test_mrcc_rank_exact_requires_native_proof(old, new):
+    with pytest.raises(ValueError):
+        parse_mrcc_energy(
+            _MRCC_CARBON_RANK_EXACT.replace(old, new), method='CCSDTQ(P)',
+            basis='aug-cc-pVDZ', reference='ROHF', correlation='unrestricted',
+            core='frozen', program='mrcc')
+
+
+def test_mrcc_five_correlated_electrons_cannot_omit_pentuples():
+    native = (_MRCC_CARBON_RANK_EXACT.replace('electrons: 6', 'electrons: 7')
+              .replace('electrons: 1', 'electrons: 2'))
+    with pytest.raises(ValueError, match='excitation-rank exactness'):
+        parse_mrcc_energy(
+            native, method='CCSDTQ(P)', basis='aug-cc-pVDZ', reference='ROHF',
+            correlation='unrestricted', core='frozen', program='mrcc')
+
+
+@pytest.mark.parametrize('requested', ['CCSDT(Q)', 'CCSDTQ(P)'])
+@pytest.mark.parametrize('count,parent', [(1, 'HF'), (2, 'CCSD'), (3, 'CCSDT')])
+@pytest.mark.parametrize('planned', [False, True])
+def test_mrcc_lower_rank_native_and_planned_results(requested, count, parent, planned):
+    native = (_MRCC_CARBON_RANK_EXACT.replace('calc=CCSDTQ(P)',
+               'calc=' + (parent if planned else requested))
+              .replace('Number of electrons: 6', f'Number of electrons: {count}')
+              .replace('Number of core electrons: 2', 'Number of core electrons: 0')
+              .replace('alpha electrons: 3', f'alpha electrons: {(count+1)//2}')
+              .replace('beta electrons: 1', f'beta electrons: {count//2}')
+              .replace('beta  electrons: 1', f'beta  electrons: {count//2}'))
+    native = native.replace('CCSDTQ calculation', parent+' calculation')
+    native = native.replace('Total CCSDTQ energy', 'Total '+parent+' energy')
+    if parent == 'HF':
+        native = native.replace('Iteration has converged in 15 steps.',
+                                'THE SCF ITERATION HAS CONVERGED!')
+        native = native.replace('Total HF energy [au]: -37.765267479485',
+                                '***FINAL HARTREE-FOCK ENERGY: -0.4998 [AU]')
+    options = dict(effective_method=parent, rank_exact_electrons=count) if planned else {}
+    result = parse_mrcc_energy(native, method=requested, basis='aug-cc-pVDZ',
+                              reference='ROHF', correlation='unrestricted', core='frozen',
+                              program='mrcc', **options)
+    assert result['method'] == requested
+    assert result['rank_exact']['effective_method'] == parent
+    assert result['rank_exact']['correlated_electrons'] == count
+    request = dict(kind='mrcc_energy', file='native.out', method=requested,
+                   basis='aug-cc-pVDZ', reference='ROHF', correlation='unrestricted',
+                   core='frozen', program='mrcc', **options)
+    assert parse_result(native, request) == result
+    if planned:
+        with pytest.raises(ValueError, match='native electron count disagrees'):
+            parse_mrcc_energy(native.replace(f'Number of electrons: {count}',
+                                             f'Number of electrons: {count+2}')
+                                    .replace('Number of core electrons: 0',
+                                             'Number of core electrons: 2'),
+                              method=requested, basis='aug-cc-pVDZ', reference='ROHF',
+                              correlation='unrestricted', core='frozen', program='mrcc', **options)
+
+
+def test_mrcc_four_electrons_cannot_replace_perturbative_q_by_iterative_q():
+    with pytest.raises(ValueError, match='excitation-rank exactness'):
+        parse_mrcc_energy(_MRCC_CARBON_RANK_EXACT.replace('calc=CCSDTQ(P)', 'calc=CCSDT(Q)'),
+                          method='CCSDT(Q)', basis='aug-cc-pVDZ', reference='ROHF',
+                          correlation='unrestricted', core='frozen', program='mrcc')
+
+
+def test_mrcc_planned_reduction_can_further_reduce_from_native_frozen_core():
+    native = (_MRCC_CARBON_RANK_EXACT.replace('calc=CCSDTQ(P)', 'calc=CCSDTQ')
+              .replace('electrons: 6', 'electrons: 4').replace('alpha electrons: 3', 'alpha electrons: 1')
+              .replace('CCSDTQ calculation', 'CCSD calculation')
+              .replace('Total CCSDTQ energy', 'Total CCSD energy'))
+    result = parse_mrcc_energy(
+        native, method='CCSDTQ(P)', effective_method='CCSDTQ', rank_exact_electrons=4,
+        basis='aug-cc-pVDZ', reference='ROHF', correlation='unrestricted', core='frozen', program='mrcc')
+    assert result['rank_exact']['effective_method'] == 'CCSD'
+    assert result['rank_exact']['correlated_electrons'] == 2
+
 _CFOUR_CCSDTQ = """CALC_LEVEL       ICALC       CCSDT(Q)    [ 54]    ***
 BASIS            IBASIS      cc-pVTZ     [ 14]    ***
 REFERENCE        IREF        RHF         [  0]    ***

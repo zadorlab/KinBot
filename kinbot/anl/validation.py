@@ -532,17 +532,17 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
             **common),
         higher_order_task(
             'ccsdtq_tz', 'CCSDT(Q)', 'cc-pVTZ',
-            multiplicity=multiplicity,
+            multiplicity=multiplicity, electron_count=_electron_count(molecule),
             walltime='partition_max',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ',
-            multiplicity=multiplicity,
+            multiplicity=multiplicity, electron_count=_electron_count(molecule),
             walltime='partition_max',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtqp_dz', 'CCSDTQ(P)', 'cc-pVDZ',
-            multiplicity=multiplicity,
+            multiplicity=multiplicity, electron_count=_electron_count(molecule),
             walltime='partition_max',
             max_cores=8, command=mrcc_command, **common),
     ]

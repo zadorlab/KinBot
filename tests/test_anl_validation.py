@@ -522,6 +522,25 @@ def test_one_and_two_electron_graphs_stop_at_possible_excitation_rank():
             assert 'ccsdtq(p)' not in template
 
 
+@pytest.mark.parametrize('count', [3, 4])
+def test_higher_order_small_electron_plans_reduce_only_exact_terms(count):
+    molecule = dict(symbols=['H']*count, positions=[[0., 0., float(i)] for i in range(count)],
+                    charge=0, multiplicity=2 if count == 3 else 1)
+    spec = higher_order_validation_spec(molecule)
+    for task in spec['tasks']:
+        task['resources'].update(cores=1, memory_mb=16000, walltime='01:00:00', partition='test')
+    validate_spec(spec)
+    tasks = {t['id']: t for t in spec['tasks']}
+    high = tasks['ccsdtqp_dz']['result_parser']
+    assert high['effective_method'] == ('CCSDT' if count == 3 else 'CCSDTQ')
+    low = tasks['ccsdtq_dz']['result_parser']
+    if count == 3:
+        assert low['effective_method'] == 'CCSDT'
+    else:
+        assert 'effective_method' not in low  # The Q correction remains necessary.
+    assert spec['intent']['rank_exact_higher_order'] is None
+
+
 def test_post_geometry_audit_requires_and_combines_both_groups(monkeypatch):
     spec = post_geometry_validation_spec(_molecule())
     spec['molecule']['source'] = {'geometry_sha256': '4' * 64}

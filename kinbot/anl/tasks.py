@@ -174,19 +174,40 @@ MEMORY_SIZE={{{{WORK_MEMORY_MB}}}})
     }
 
 
+def mrcc_rank_method(method, electrons):
+    """Exact rank reduction; an upper bound on correlated electrons suffices."""
+    if method not in ('CCSDT(Q)', 'CCSDTQ(P)'):
+        raise ValueError(f'Unsupported MRCC method {method!r}.')
+    if type(electrons) is not int or electrons < 1:
+        raise ValueError('MRCC electron count must be a positive integer.')
+    if electrons <= 3:
+        return {1: 'HF', 2: 'CCSD', 3: 'CCSDT'}[electrons]
+    if electrons == 4 and method == 'CCSDTQ(P)':
+        return 'CCSDTQ'
+    return method
+
+
 def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
               geometry_from='l3_geometry', walltime='partition_max',
               max_cores=8, partition=None, command='dmrcc',
-              scf_convergence=1.e-10, cc_convergence=1.e-8):
+              scf_convergence=1.e-10, cc_convergence=1.e-8,
+              electron_count=None):
     """Build a direct MRCC higher-order task.
 
     Direct ``dmrcc`` uses RHF for a closed shell and semicanonical ROHF for an
     open shell.  The correlation treatment remains unrestricted.  One process
     uses OpenMP threads selected from node memory and the explicit performance
     cap; MRCC's replicated-memory MPI mode is not enabled.
+
+    A supplied total electron count bounds the possible rank without guessing
+    the program's frozen core. Further reductions are accepted only from
+    unambiguous native total/core and correlated-spin counts by the reader.
     """
     if method not in ('CCSDT(Q)', 'CCSDTQ(P)'):
         raise ValueError(f'Unsupported MRCC method {method!r}.')
+    effective = method if electron_count is None else mrcc_rank_method(method, electron_count)
+    rank_parser = ({'rank_exact_electrons': electron_count, 'effective_method': effective}
+                   if effective != method else {})
     if isinstance(multiplicity, bool) or not isinstance(multiplicity, int) \
             or multiplicity < 1:
         raise ValueError('MRCC multiplicity must be a positive integer.')
@@ -207,7 +228,7 @@ def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
             if reference == 'ROHF' else '')
     output = f'{ident}.out'
     template = f"""basis={basis}
-calc={method}
+calc={effective}
 ccprog=mrcc
 scftype={reference}
 {rohf}core=frozen
@@ -244,6 +265,7 @@ geom=xyz
             'method': method, 'basis': basis,
             'reference': reference, 'correlation': 'unrestricted',
             'core': 'frozen', 'program': 'mrcc',
+            **rank_parser,
         },
     }
 
@@ -251,7 +273,8 @@ geom=xyz
 def higher_order_task(ident, method, basis, *, multiplicity, reference=None,
                       geometry_from='l3_geometry', walltime='partition_max',
                       max_cores=8, partition=None, command='dmrcc',
-                      scf_convergence=1.e-10, cc_convergence=1.e-8):
+                      scf_convergence=1.e-10, cc_convergence=1.e-8,
+                      electron_count=None):
     """Select the pinned ANL higher-order backend for one electronic state.
 
     Every CCSDT(Q) and CCSDTQ(P) calculation uses direct MRCC.  Closed shells
@@ -264,7 +287,7 @@ def higher_order_task(ident, method, basis, *, multiplicity, reference=None,
         geometry_from=geometry_from, walltime=walltime,
         max_cores=max_cores, partition=partition, command=command,
         scf_convergence=scf_convergence,
-        cc_convergence=cc_convergence)
+        cc_convergence=cc_convergence, electron_count=electron_count)
     if method in ('CCSDT(Q)', 'CCSDTQ(P)'):
         return mrcc_task(
             ident, method, basis, multiplicity=multiplicity,

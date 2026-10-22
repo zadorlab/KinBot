@@ -10,6 +10,8 @@ import re
 
 from ase.units import Hartree, invcm, kJ, mol
 
+from kinbot.anl.tasks import mrcc_rank_method
+
 
 _NUMBER = r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[DdEe][+-]?\d+)?'
 _DBOC_HEADER = re.compile(
@@ -657,11 +659,95 @@ def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
     return result
 
 
+def _mrcc_rank_exact_parent(output, method, *, effective_method=None,
+                            rank_exact_electrons=None):
+    """Accept a converged parent only when native counts exclude the next rank.
+
+    MRCC can omit (Q)/(P) altogether when fewer than four/five electrons are
+    correlated. Frozen-core counts and the CC alpha/beta counts must agree;
+    a successful parent energy alone is insufficient evidence.
+    """
+    maximum = {'CCSDT(Q)': 3, 'CCSDTQ(P)': 4}[method]
+
+    def count(label):
+        values = {int(n) for n in re.findall(
+            rf'^\s*Number of\s+{label}\s*:\s*(\d+)\s*$', output,
+            re.I | re.M)}
+        if len(values) != 1:
+            raise ValueError('MRCC rank-exact result needs unambiguous native electron counts.')
+        return values.pop()
+    electrons, frozen = count('electrons'), count(r'core\s+electrons')
+    alpha, beta = count(r'alpha\s+electrons'), count(r'beta\s+electrons')
+    correlated = electrons - frozen
+    if not (0 <= frozen < electrons and 0 < correlated <= maximum
+            and alpha + beta == correlated):
+        raise ValueError('MRCC native electron counts do not establish excitation-rank exactness.')
+    if rank_exact_electrons is not None and electrons != rank_exact_electrons:
+        raise ValueError('MRCC native electron count disagrees with the planned state.')
+    # Accept only an iterative level that includes every possible excitation.
+    # In particular CCSD(T) is NOT exact for three correlated electrons, and
+    # CCSDT(Q) is NOT generally CCSDTQ for four correlated electrons.
+    native_maximum = {'HF': 1, 'CCSD': 2, 'CCSDT': 3, 'CCSDTQ': 4}.get(
+        effective_method, maximum)
+    parent = None
+    for candidate, rank in (('CCSDTQ', 4), ('CCSDT', 3), ('CCSD', 2)):
+        if correlated <= rank <= native_maximum and re.search(
+                rf'^\s*Total\s+{candidate}\s+energy\s*\[au\]\s*:', output, re.I | re.M):
+            parent = candidate
+            break
+    if parent is None and correlated == 1:
+        parent = 'HF'
+    if parent is None:
+        raise ValueError('MRCC has no excitation-rank-exact parent energy.')
+    normal = re.search(r'^\s*Normal termination of mrcc\.\s*$', output, re.I | re.M)
+    if parent == 'HF':
+        # Frozen-core one-electron problems can retain orbital relaxation;
+        # the bare HF fallback is restricted to a true one-electron state.
+        if electrons != 1 or frozen != 0:
+            raise ValueError('MRCC HF fallback requires one total electron and no frozen core.')
+        scf = list(re.finditer(
+            rf'^\s*\*+FINAL HARTREE-FOCK ENERGY:\s*({_NUMBER})\s*\[AU\]\s*$',
+            output, re.I | re.M))
+        if len(scf) != 1 or not re.search(
+                r'THE SCF ITERATION HAS CONVERGED!', output[:scf[0].start()], re.I):
+            raise ValueError('MRCC one-electron HF result lacks unique converged SCF evidence.')
+        total = scf[0]
+    else:
+        total = _mrcc_converged_parent(output, parent)
+    if normal is None or total.start() >= normal.start():
+        raise ValueError('MRCC parent energy must precede normal termination.')
+    return _number(total[1]), dict(
+        electron_count=electrons, frozen_core_electrons=frozen,
+        correlated_electrons=correlated, alpha_electrons=alpha,
+        beta_electrons=beta, effective_method=parent,
+        absent_excitation_rank=maximum + 1, correction_hartree=0.)
+
+
+def _mrcc_converged_parent(output, parent):
+    """Locate one explicitly converged iterative CC result."""
+    blocks = list(re.finditer(rf'^\s*{parent}\s+calculation\s*$', output, re.I | re.M))
+    totals = list(re.finditer(
+        rf'^\s*Total\s+{parent}\s+energy\s*\[au\]\s*:\s*({_NUMBER})\s*$',
+        output, re.I | re.M))
+    if len(totals) != 1:
+        raise ValueError(f'Expected exactly one MRCC rank-exact {parent} total energy.')
+    if len(blocks) != 1 or not re.search(
+            r'Iteration has converged in\s+\d+\s+steps\.',
+            output[blocks[0].end():totals[0].start()], re.I):
+        raise ValueError('MRCC rank-exact parent calculation lacks explicit convergence.')
+    return totals[0]
+
+
 def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
-                      program):
+                      program, effective_method=None, rank_exact_electrons=None):
     """Read one final total energy from a direct MRCC calculation."""
     if method not in _MRCC_METHODS:
         raise ValueError(f'Unsupported direct MRCC method {method!r}.')
+    if effective_method is not None or rank_exact_electrons is not None:
+        if (effective_method is None or rank_exact_electrons is None
+                or effective_method == method
+                or mrcc_rank_method(method, rank_exact_electrons) != effective_method):
+            raise ValueError('MRCC effective method disagrees with excitation rank.')
     if (reference not in ('RHF', 'ROHF', 'UHF')
             or correlation != 'unrestricted' or core != 'frozen'
             or program != 'mrcc'):
@@ -676,9 +762,10 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
     if not re.search(rf'^\s*basis\s*=\s*{re.escape(basis)}\s*$', output,
                      re.IGNORECASE | re.MULTILINE):
         raise ValueError(f'MRCC output does not echo basis {basis}.')
-    if not re.search(rf'^\s*calc\s*=\s*{re.escape(method)}\s*$', output,
+    native_method = effective_method or method
+    if not re.search(rf'^\s*calc\s*=\s*{re.escape(native_method)}\s*$', output,
                      re.IGNORECASE | re.MULTILINE):
-        raise ValueError(f'MRCC output does not echo calc={method}.')
+        raise ValueError(f'MRCC output does not echo calc={native_method}.')
     if not re.search(r'^\s*ccprog\s*=\s*mrcc\s*$', output,
                      re.IGNORECASE | re.MULTILINE):
         raise ValueError('MRCC output does not echo ccprog=mrcc.')
@@ -720,7 +807,14 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
     # MRCC interfaces for the requested unsuffixed method.  Preserve both
     # native values so this scientifically meaningful selection is explicit.
     selected_variant = None
-    if variants:
+    rank_exact = None
+    if effective_method is not None:
+        if totals or variants:
+            raise ValueError('MRCC reduced task unexpectedly reports the unreduced method.')
+        energy, rank_exact = _mrcc_rank_exact_parent(
+            output, method, effective_method=effective_method,
+            rank_exact_electrons=rank_exact_electrons)
+    elif variants:
         if set(variants) != {'A', 'B'}:
             missing = sorted({'A', 'B'} - set(variants))
             raise ValueError(
@@ -733,11 +827,14 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
         selected_variant = 'B'
         energy = variants[selected_variant]
     else:
-        if len(totals) != 1:
+        if not totals:
+            energy, rank_exact = _mrcc_rank_exact_parent(output, method)
+        elif len(totals) != 1:
             raise ValueError(
                 f'Expected exactly one MRCC {method} total energy; '
                 f'found {len(totals)}.')
-        energy = _number(totals[0])
+        else:
+            energy = _number(totals[0])
 
     result = {
         'kind': 'mrcc_energy', 'method': method, 'basis': basis,
@@ -751,6 +848,10 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
             'selected_perturbative_variant': selected_variant,
             'program_variant': f'{reference}-U{method}/{selected_variant}',
         })
+    if rank_exact is not None:
+        result.update(rank_exact=rank_exact,
+                      program_variant=(reference if rank_exact['effective_method'] == 'HF'
+                                       else f'{reference}-U{rank_exact["effective_method"]}'))
     return result
 
 
@@ -1338,14 +1439,23 @@ def validate_result_parser(request, *, backend, template, outputs,
         correlation = request.get('correlation')
         core = request.get('core')
         program = request.get('program')
-        valid = (set(request) == {'kind', 'file', 'method', 'basis',
-                                  'reference', 'correlation', 'core', 'program'}
+        required = {'kind', 'file', 'method', 'basis',
+                    'reference', 'correlation', 'core', 'program'}
+        optional = {'effective_method', 'rank_exact_electrons'}
+        effective = request.get('effective_method')
+        valid = (required <= set(request) <= required | optional
+                 and (not (set(request) & optional) or (optional <= set(request)
+                      and method in _MRCC_METHODS
+                      and type(request['rank_exact_electrons']) is int
+                      and request['rank_exact_electrons'] > 0
+                      and effective != method
+                      and mrcc_rank_method(method, request['rank_exact_electrons']) == effective))
                  and backend == 'mrcc' and method in _MRCC_METHODS
                  and reference in ('RHF', 'ROHF', 'UHF')
                  and correlation == 'unrestricted' and core == 'frozen'
                  and program == 'mrcc'
                  and isinstance(basis, str) and bool(basis)
-                 and re.search(rf'^\s*calc\s*=\s*{re.escape(method)}\s*$',
+                 and re.search(rf'^\s*calc\s*=\s*{re.escape(effective or method)}\s*$',
                                template, re.IGNORECASE | re.MULTILINE)
                  and re.search(r'^\s*ccprog\s*=\s*mrcc\s*$', template,
                                re.IGNORECASE | re.MULTILINE)
@@ -1466,7 +1576,9 @@ def parse_result(output, request):
                                  reference=request['reference'],
                                  correlation=request['correlation'],
                                  core=request['core'],
-                                 program=request['program'])
+                                 program=request['program'],
+                                 effective_method=request.get('effective_method'),
+                                 rank_exact_electrons=request.get('rank_exact_electrons'))
     if kind == 'gaussian_vpt2':
         return parse_gaussian_vpt2(output, method=request['method'],
                                    basis=request['basis'],

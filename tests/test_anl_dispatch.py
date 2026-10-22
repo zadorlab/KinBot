@@ -1139,15 +1139,33 @@ def test_parser_failure_can_be_recovered_without_rerunning_native_job():
             'Total CCSDTQ(P)/B energy [au]: -39.716252675414\n',
             -39.716252675414,
         ),
+        (
+            'ccsdtqp_dz', 'CCSDTQ(P)',
+            'Number of electrons: 6\nNumber of core electrons: 2\n'
+            'Number of alpha electrons: 3\nNumber of beta electrons: 1\n'
+            'CCSDTQ calculation\nIteration has converged in 15 steps.\n'
+            'Total CCSDTQ energy [au]: -37.765267479485\n',
+            -37.765267479485,
+        ),
+        (
+            'ccsdtqp_dz', 'CCSDTQ(P)',
+            'Number of electrons: 3\nNumber of core electrons: 0\n'
+            'Number of alpha electrons: 2\nNumber of beta electrons: 1\n'
+            'CCSDT calculation\nIteration has converged in 10 steps.\n'
+            'Total CCSDT energy [au]: -1.5\n',
+            -1.5,
+        ),
     ),
 )
 def test_advance_automatically_reparses_old_successful_mrcc_output(
         ident, method, native_results, expected):
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
+        carbon = 'Number of electrons: 6' in native_results
+        three = 'Number of electrons: 3' in native_results
         task = mrcc_task(
-            ident, method, 'cc-pVDZ', multiplicity=2,
-            reference='ROHF', geometry_from='initial')
+            ident, method, 'cc-pVDZ', multiplicity=3 if carbon else 2,
+            reference='ROHF', geometry_from='initial', electron_count=3 if three else None)
         task['resources'].update(
             cores=1, memory_mb=4096, partition='test', walltime='01:00:00')
         spec = {
@@ -1160,11 +1178,15 @@ def test_advance_automatically_reparses_old_successful_mrcc_output(
             },
             'limits': {'max_nodes': 1}, 'tasks': [task],
         }
+        if carbon:
+            spec['molecule'].update(symbols=['C'], positions=[[0., 0., 0.]], multiplicity=3)
+        if three:
+            spec['molecule'].update(symbols=['H']*3, positions=[[0., 0., float(i)] for i in range(3)])
         run_dir = prepare(_write_spec(root, spec), root / 'run')
         directory = run_dir / 'tasks' / ident
         output = f"""Input file:
 basis=cc-pVDZ
-calc={method}
+calc={task['result_parser'].get('effective_method', method)}
 ccprog=mrcc
 scftype=ROHF
 rohftype=semicanonical
@@ -1195,7 +1217,15 @@ core=frozen
         execution = json.loads((directory / 'execution.json').read_text())
         parsed = execution['details']['parsed_result']
         assert parsed['energy_hartree'] == pytest.approx(expected)
-        assert parsed['selected_perturbative_variant'] == 'B'
+        if carbon or three:
+            assert parsed['rank_exact']['correlated_electrons'] == (4 if carbon else 3)
+            from kinbot.anl.workflow import task_component
+            component = task_component(run_dir, ident, key='hoe_dz_high', state_id='carbon')
+            assert component.method == 'CCSDTQ(P)'
+            assert component.value_hartree == expected
+            assert component.settings['rank_exact']['effective_method'] == ('CCSDTQ' if carbon else 'CCSDT')
+        else:
+            assert parsed['selected_perturbative_variant'] == 'B'
         assert json.loads(
             (directory / 'execution.failed.json').read_text()) == failed
 
@@ -2222,6 +2252,62 @@ def test_vpt2_empty_framework_gets_one_native_group_retry(tmp_path, group):
     (graph/'state.json').write_text(json.dumps(state))
     with pytest.raises(RuntimeError, match='already attempted'):
         recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+
+
+def test_vpt2_native_framework_sequence_is_bounded_and_preserves_geometry(tmp_path):
+    spec = dispatch_spec()
+    task = next(t for t in spec['tasks'] if t['id'] == 'gaussian_vpt2')
+    task['input_template'] = task['input_template'].replace('NoSymm', 'Symmetry=None')
+    task.pop('depends_on')
+    spec['tasks'] = [spec['tasks'][0], task]
+    graph = prepare(spec, tmp_path/'graph')
+    _mock_execution(graph, 'l2_geometry', geometry='final.xyz')
+    advance(graph)
+    directory = graph/'tasks/gaussian_vpt2'
+    geometry = (directory/'geometry.xyz').read_bytes()
+
+    def fail(new, old):
+        native = ('ERROR: Inconsistency found in framework group definition:\n'
+                  f'New: {new} - Old: {old}\nError termination via Lnk1e in l717.exe\n')
+        (directory/'vpt2.log').write_text(native)
+        state = json.loads((graph/'state.json').read_text())
+        state['tasks']['gaussian_vpt2']['status'] = 'failed'
+        (graph/'state.json').write_text(json.dumps(state))
+        return native
+
+    first = fail('CS', '')
+    first_archive = recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+    second = fail('C2V', 'CS')
+    second_archive = recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+    assert first_archive != second_archive
+    assert (first_archive/'vpt2.log').read_text() == first
+    assert (second_archive/'vpt2.log').read_text() == second
+    assert (directory/'geometry.xyz').read_bytes() == geometry
+    assert 'Symmetry=(PG=C2V)' in (directory/'vpt2.com').read_text()
+    changed = json.loads((graph/'workflow.json').read_text())['tasks'][-1]
+    assert changed['recovery']['attempted_framework_groups'] == ['CS', 'C2V']
+    assert changed['recovery']['geometry_changed'] is False
+    fail('CS', 'C2V')
+    with pytest.raises(RuntimeError, match='already attempted'):
+        recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+    fail('D2H', 'C2V')
+    with pytest.raises(RuntimeError, match='retries exhausted'):
+        recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+    assert (directory/'geometry.xyz').read_bytes() == geometry
+
+
+def test_vpt2_legacy_receipt_allows_only_a_new_matching_native_group():
+    from kinbot.anl.dispatch import _vpt2_framework_recovery, VPT2RecoveryUnavailable
+    task = dict(id='gaussian_vpt2', input_template='#p Freq=Anharmonic Symmetry=(PG=CS)',
+                recovery=dict(assigned_native_framework=True, change='Symmetry=(PG=CS)'))
+    native = ('ERROR: Inconsistency found in framework group definition:\n'
+              'New: C2V - Old: CS\nError termination via Lnk1e in l717.exe\n')
+    assert _vpt2_framework_recovery(task, native)[:2] == ('Symmetry=(PG=C2V)', True)
+    for bad in (native.replace('Old: CS', 'Old: C1'),
+                native + 'Normal termination of Gaussian',
+                native.replace('New: C2V', 'New: CS')):
+        with pytest.raises(VPT2RecoveryUnavailable):
+            _vpt2_framework_recovery(task, bad)
 
 
 def test_native_output_alias_keeps_original_and_rejects_ambiguity(tmp_path):

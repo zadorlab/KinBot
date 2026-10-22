@@ -1909,8 +1909,23 @@ class VPT2RecoveryUnavailable(RuntimeError):
     """No untried, diagnostic-specific VPT2 framework recovery applies."""
 
 
+def _vpt2_framework_history(task):
+    """Include legacy receipts and the current PG in the no-repeat fence."""
+    recovery = task.get('recovery', {})
+    groups = recovery.get('attempted_framework_groups', [])
+    if (not isinstance(groups, list) or any(not isinstance(g, str)
+            or not re.fullmatch(r'[A-Za-z0-9*]+', g) for g in groups)):
+        raise VPT2RecoveryUnavailable('Invalid VPT2 framework recovery history.')
+    current = re.search(r'(?i)Symm(?:etry)?\s*=\s*\(?\s*PG\s*=\s*([A-Za-z0-9*]+)',
+                        task['input_template'])
+    groups = list(dict.fromkeys(g.upper() for g in groups))
+    if current and current[1].upper() not in groups:
+        groups.append(current[1].upper())
+    return groups, current[1].upper() if current else None
+
+
 def _vpt2_framework_recovery(task, output):
-    """Recognize only the two documented framework failures, without edits."""
+    """Recognize native framework failures with a bounded, noncycling retry."""
     ident = task['id']
     required = (
         'ERROR: Inconsistency found in framework group definition:',
@@ -1929,15 +1944,27 @@ def _vpt2_framework_recovery(task, output):
     original_template = task['input_template']
     prior_none = re.search(r'(?i)Symm(?:etry)?\s*=\s*\(?\s*None\b',
                            original_template)
+    groups, current = _vpt2_framework_history(task)
+    new, old = (framework_change[n].upper() for n in (1, 2))
+    assigned = task.get('recovery', {}).get('assigned_native_framework')
     # Do not undo the general None workaround. Only an explicit *new native
     # failure* with an unassigned old group permits its complementary retry.
     if prior_none and framework_change.group(2):
         raise VPT2RecoveryUnavailable(f'{ident}: None retry requires an unassigned old framework group.')
-    if task.get('recovery', {}).get('assigned_native_framework'):
-        raise VPT2RecoveryUnavailable(f'{ident}: native framework retry was already attempted.')
-    keyword = (f'Symmetry=(PG={framework_change.group(1)})'
-               if prior_none else 'Symmetry=None')
-    return keyword, bool(prior_none), framework_change.group(0)
+    if prior_none or assigned:
+        if new in groups:
+            raise VPT2RecoveryUnavailable(f'{ident}: native framework retry was already attempted.')
+        # A second Eckart reassignment (e.g. CS -> C2V) is eligible only if
+        # the failed native old group agrees with the current input. Never
+        # reset to None here: that would cycle the earlier workaround.
+        if assigned and (not current or old != current):
+            raise VPT2RecoveryUnavailable(f'{ident}: native old framework disagrees with the attempted group.')
+        if len(groups) >= 2:
+            raise VPT2RecoveryUnavailable(f'{ident}: bounded native framework retries exhausted.')
+        keyword = f'Symmetry=(PG={new})'
+    else:
+        keyword = 'Symmetry=None'
+    return keyword, bool(prior_none or assigned), framework_change.group(0)
 
 
 def can_recover_gaussian_vpt2_symmetry(run_dir, task, entry):
@@ -1962,7 +1989,9 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
 
     Named old/new mismatches use the established Symmetry=None bypass.
     If that bypass itself leaves an empty old group and Link 717 rejects it,
-    one retry selects the group reported by Gaussian after Eckart rotation.
+    a retry selects the group reported by Gaussian after Eckart rotation.
+    A subsequent changed group can be tried once; two distinct named groups
+    exhaust the budget and previously attempted groups are never repeated.
     The accepted geometry and method remain unchanged. Neither path repeats
     a native success or overrides an unrelated failure.
     """
@@ -2005,7 +2034,10 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     if not native.is_file():
         raise RuntimeError(f'{ident}: native Gaussian output is missing.')
     output = native.read_text(errors='replace')
-    keyword, prior_none, framework_change = _vpt2_framework_recovery(task, output)
+    keyword, assigned_native, framework_change = _vpt2_framework_recovery(task, output)
+    groups, _ = _vpt2_framework_history(task)
+    if assigned_native:
+        groups.append(re.search(r'PG=([A-Za-z0-9*]+)', keyword)[1])
     replacement = deepcopy(task)
     original_template = replacement['input_template']
     symmetry_keyword = (r'(?i)(?<!\S)(?:NoSymm(?:etry)?|'
@@ -2034,7 +2066,8 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     replacement['recovery'] = {
         'kind': 'gaussian_vpt2_framework_group',
         'change': keyword,
-        'assigned_native_framework': bool(prior_none),
+        'assigned_native_framework': assigned_native,
+        'attempted_framework_groups': groups,
         'observed_framework_change': framework_change,
         'geometry_changed': False,
     }

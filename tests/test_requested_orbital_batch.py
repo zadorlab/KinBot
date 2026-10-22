@@ -135,3 +135,119 @@ def test_provisional_never_installs_model_and_can_bind_only_matching_live_reques
     assert not helper._saved(child)['provisional']
     assert helper._saved(output)['reviews']  # parent registry remains resumable
     assert json.loads((child/'provisional_request.json').read_text())==original
+
+
+def selected_batch(batch_tree):
+    """Synthetic files test binding/refresh, not native chemical validity."""
+    from kinbot.execution import file_sha256
+    root,output=batch_tree
+    helper.batch(root,PLAN,output)
+    for child in ('c_sh3_cs','ch2shs_cs','ch2shs_ss'):
+        manifest=output/child/'native/reconnaissance.json'
+        m=helper._read(manifest)
+        for j in m['jobs']:
+            d=Path(j['directory']);wfu=d/(j['name']+'.wfu');out=d/(j['name']+'.out')
+            wfu.write_bytes(b'synthetic checkpoint '+j['name'].encode())
+            out.write_text('Synthetic native output fixture.\n')
+            j.update(status='complete',wfu=str(wfu),wfu_sha256=file_sha256(wfu),output_sha256=file_sha256(out))
+        atomic_json(manifest,m)
+    for case in ('ch3s','ch3ss'):
+        p=root/case/'input.json'
+        atomic_json(p,dict(helper._read(p),rotdpy_dist=[2.,3.,4.]))
+    return root,output
+
+
+def live_cases(root):
+    import os
+    from kinbot import pes_phase,live_control
+    live_control.configure(root)
+    for case,parent in (('ch3s',CS),('ch3ss',SS)):
+        c=root/case; inp=c/'input.json';worker=c/parent
+        atomic_json(worker/(parent+'.json'),helper._read(inp))
+        pes_phase.initialize(c,inp);pes_phase.register(c,parent,os.getpid())
+        m=helper._read(c/pes_phase.NAME);m['workers'][parent]['status']='exploring'
+        atomic_json(c/pes_phase.NAME,m)
+
+
+def accepted_requests(root,output):
+    for child in ('ch2shs_cs','ch2shs_ss'):
+        request=helper._read(output/child/'request.json')
+        request.pop('provisional');request.pop('note')
+        path=root/'ch3ss'/SS/'vrctst/orbital_review'/request['reaction']/'request.json'
+        path.parent.mkdir(parents=True,exist_ok=True);atomic_json(path,request)
+
+
+def test_review_batch_groups_case_channels_and_preserves_existing_work(batch_tree):
+    from kinbot import input_refresh,pes_phase
+    from kinbot.molpro import _render_vrc_state_model
+    root,output=selected_batch(batch_tree)
+    accepted_requests(root,output)
+    # Keep original well input so provisional-source validation still applies.
+    original=(root/'ch3ss'/SS/(SS+'.json')).read_bytes()
+    live_cases(root)
+    (root/'ch3ss'/SS/(SS+'.json')).write_bytes(original)
+    before={case:(root/case/'input.json').read_bytes() for case in ('ch3s','ch3ss')}
+    plan=PLAN.parent/'selections.json'
+    preview=helper.review_batch(root,output,plan)
+    assert all(r['status']=='reviewed' for r in preview['cases'].values())
+    assert all((root/c/'input.json').read_bytes()==v for c,v in before.items())
+    assert helper._saved(output/'ch2shs_cs')['provisional']
+    result=helper.review_batch(root,output,plan,apply=True)
+    assert all(r['status']=='queued' for r in result['cases'].values())
+    assert len(result['cases']['ch3ss']['channels'])==2
+    assert not helper._saved(output/'ch2shs_cs')['provisional']
+    ids={case:input_refresh.receipt(root/case)['id'] for case in before}
+    helper.review_batch(root,output,plan,apply=True)
+    assert ids=={case:input_refresh.receipt(root/case)['id'] for case in before}
+    for case,parent,ne,closed,nroot in [('ch3s',CS,3,11,3),('ch3ss',SS,5,18,2)]:
+        data=helper._read(root/case/'input.json')
+        channels=data['vrc_tst_surface_models'][parent]['channels']
+        assert len(channels)==(1 if case=='ch3s' else 2)
+        for ch in channels:
+            par=ch['bottlenecks'][0]['parameters']
+            assert par['vrc_tst_scan_method']==f'caspt2-f12({ne},4)'
+            assert len(ch['bottlenecks'][0]['states'])==1
+            for model in par['vrc_tst_state_model']['basis_models'].values():
+                _,deck,_=_render_vrc_state_model(model,nelectron=25 if case=='ch3s' else 41,
+                    active_electrons=ne,active_orbitals=4,spin=1)
+                assert f'closed,{closed}' in deck and f'occ,{closed+4}' in deck
+                assert 'start,2140.2,type=natural' in deck
+        pes_phase.tick(root/case,[parent],max_searches=1)
+        assert helper._read(root/case/input_refresh.SNAPSHOT)==data
+
+
+def test_review_batch_waits_for_request_and_native_completion_without_new_qc(batch_tree,monkeypatch):
+    from kinbot import input_refresh
+    root,output=selected_batch(batch_tree)
+    monkeypatch.setattr(input_refresh,'owner_directory',lambda p:Path(p).parent)
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**kw:pytest.fail('No QC or submission'))
+    calls=[]
+    def submit(p,**kw):
+        calls.append(kw)
+        if kw.get('apply'):atomic_json(p,kw['proposal'])
+        return dict(status='queued',drivers_started=0)
+    monkeypatch.setattr(input_refresh,'submit',submit)
+    mpath=output/'c_sh3_cs/native/reconnaissance.json';m=helper._read(mpath)
+    m['jobs'][-1]['status']='submitted';atomic_json(mpath,m)
+    before={p:p.read_bytes() for p in root.rglob('*.json')}
+    result=helper.review_batch(root,output,PLAN.parent/'selections.json',apply=True)
+    assert result['cases']['ch3s']['status']=='waiting'
+    assert result['cases']['ch3ss']['status']=='waiting'
+    assert not calls and all(p.read_bytes()==v for p,v in before.items())
+
+
+def test_review_batch_does_not_replace_an_older_pending_input(batch_tree):
+    from kinbot import input_refresh
+    root,output=selected_batch(batch_tree)
+    original=(root/'ch3ss'/SS/(SS+'.json')).read_bytes()
+    live_cases(root);(root/'ch3ss'/SS/(SS+'.json')).write_bytes(original)
+    # A previous scientific revision is still queued, with no orbital channels.
+    inp=root/'ch3s/input.json'
+    # Use a valid additive surface from the input-refresh test fixture.
+    from test_input_refresh import surface
+    before=helper._read(inp);changed=dict(before,vrc_tst_surface_models={'old':surface()})
+    input_refresh.submit(inp,apply=True,proposal=changed,expected=before)
+    saved=inp.read_bytes();journal=(inp.parent/input_refresh.JOURNAL).read_bytes()
+    result=helper.review_batch(root,output,PLAN.parent/'selections.json',apply=True)
+    assert result['cases']['ch3s']['status']=='waiting_for_previous_refresh'
+    assert inp.read_bytes()==saved and (inp.parent/input_refresh.JOURNAL).read_bytes()==journal

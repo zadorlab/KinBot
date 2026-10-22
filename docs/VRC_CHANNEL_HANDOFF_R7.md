@@ -1,10 +1,9 @@
 # r7 VRC channel and orbital handoff, 2026-10-21
 
-This describes the three initial reviewed channels in the source r7 inputs
-and the new CH2SH review recipe. The live refresh adds the latter to the
-existing CH3S case input; it does not replace the initial channels. Additional
-channels discovered elsewhere in the PES require their own review. This
-document does not invent active spaces for them.
+This records the three initial reviewed channels, the applied CH2SH selection,
+and the three additional orbital selections completed on October 21. Live
+refresh adds accepted channels without replacing existing models. The two
+provisionally screened CH3SS cleavages still await their accepted requests.
 
 ## Additional orbital-only batch, October 21 evening
 
@@ -75,6 +74,142 @@ change production. A reviewed selection recipe still goes through `review
 --apply`, which uses the existing live refresh. S–S binding uses the
 `ch2shs_ss` child and `hom_sci_2_3` request. Native evidence remains separate
 if a tentative reaction is later rejected.
+
+## Completed additional screens and selected production spaces
+
+All 24 orbital-only probes were reported complete by the user on October 21.
+The last aTZ S-S far record confirms the same orbital character as aDZ.
+The following selections use **each screen's own 2 Å natural record 2140.2**
+in each basis. Orbital indices are source-file positions, never a transferable
+label across different molecules or dissociation channels.
+
+| Channel | Selected CAS and source indices | Frontier content | Orbital average | Reactive leaves |
+|---|---|---|---|---|
+| C + SH3 | (3,4), 12–15 | C three 2p orbitals / two electrons, SH3 radical / one electron | 3 doublets + 3 quartets | D1 |
+| CH2 + HSS | (5,4), 19–22 | CH2 two frontier orbitals / two electrons, HSS frontier pair / three electrons | 2 doublets + 2 quartets | D1 |
+| CH2SH + S | (5,4), 19–22 | CH2SH radical / one electron, S three 3p orbitals / four electrons | 3 doublets + 3 quartets | D1 |
+
+The explicitly reviewed recipes are
+`examples/anl/orbital_review_batches/r7_additional_20261021/*_selected.json`;
+`selections.json` groups them by production case. Each root has equal weight
+within its spin block (1/3 or 1/2); the two blocks have equal total weight.
+These orbital-optimization weights are not electronic statistical weights.
+Molpro's [MULTI documentation](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi)
+describes the WF/STATE/WEIGHT declarations. D1 is the chosen ground-parent
+reactive path; additional averaged roots support the orbitals and spin-gap
+calculations. Degeneracy of an atomic fragment does not by itself prescribe
+additional reactive parent paths. These new selections keep explicit Q1 for
+the MR reference, as did the preceding CH2SH selection. The original three
+channels retain their separately reviewed quartet selectors.
+
+The evidence supplied for these selections is:
+
+- **C + SH3:** far orbital 11 is carbon 2s, occupation 1.9559; it is closed.
+  Orbital 12 has the SH3 S/H coefficients and occupation 1.0030. Orbitals
+  13–15 span three carbon p directions with occupations about 0.6814 each.
+  Near occupations of 12–15 are 1.2420, 0.6900, 0.6855, 0.4532. Both bases
+  agree. The fractional sum in this larger correlated space is not an integer
+  electron-count prescription; the compact CAS contains the three frontier
+  electrons. Retaining C 2s would instead be a five-electron/five-orbital
+  expansion, not the earlier CH3S CAS(5,4).
+- **CH2 + HSS:** far 19/20 are on both sulfurs, about 1.5095/1.5050, while
+  21/22 are carbon-centered with occupation 1 each. Near values are 1.7403,
+  1.5040, 1.1602, 0.6081, consistently across bases. The 18/23 pair is largely
+  filled/empty (far 1.958/0.049). The two diagnostic asymptotic roots differ
+  by about 0.017 Eh: the averaged 1.5 occupations do **not** prove a doubly
+  degenerate HSS ground state. The second root remains explicit diagnostic
+  orbital support, not a second counted reaction.
+- **CH2SH + S:** far 19–21 are entirely the departing S p directions with
+  occupations 1.33333 each; 22 has carbon/bound-S radical character and
+  occupation 1.0062. The last aTZ record agrees. Near aTZ occupations are
+  1.57253, 1.53627, 1.36968, 0.60832. The 18/23 spectator pair is about
+  1.977/0.027 far. This is a different fragment frontier space from the
+  initial CH3SS -> CH3S + S channel's CAS(7,5).
+
+This is orbital assignment from the larger-space CASCI evidence, **not** a
+completed optimized compact-CAS, angular-potential or rate-accuracy
+validation. Normal production performs the compact CASSCF/CASPT2 calculations.
+Do not resume an extra CC or correlated validation campaign for this handoff.
+
+### Geometry provenance and the live refresh
+
+The previous CH2SH review used the actual accepted request's atom ordering
+and parent geometry. Its live-refresh receipt was reported **applied** for
+all three participating workers. The C + SH3 request was rechecked against
+the new recon snapshot: identical parent, bond, symbols, charge, spin and
+products, with zero change in pair distances. These requests contain the
+accepted L2 parent geometry: B2PLYP-D3(BJ)/cc-pVTZ for r7. Recon rigidly moves
+one connected fragment to 2, 3.5, 6 and 30 Å, preserving intrafragment
+coordinates. It does not claim these are independently relaxed MR points.
+
+The CH3SS screens used the saved well-input geometry before its two accepted
+review requests existed. The 17:49 monitor and subsequent filesystem check
+still had no such requests. **Keep those selections prepared.** The helper
+will bind them only when actual requests appear and their parent, atom
+ordering/connectivity, bond, fragment identities, charges and spins agree.
+It saves both geometries and reports the maximum pair-distance change.
+A changed molecular identity is refused. A changed geometry is evidence to
+inspect, not proof that the electronic state must remain the same.
+
+The original CH3S and two CH3SS seeds retain their own historical near/far,
+angular and expansion evidence and separate DZ/TZ WFU inventories. They were
+not generated from every current r7 coordinate. This is legitimate seed reuse:
+production opens FILE,2 **before** declaring the current geometry, basis and
+spin, so the WFU's stored geometry cannot replace the requested structure.
+The shared renderer, ASE calculator and sampling regression tests cover that
+ordering. The current production geometry is optimized with the reviewed MR
+method; a recon geometry is never installed as a converged production result.
+
+Run this after pulling the repair; it starts no driver or recon calculation:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+git pull --ff-only origin composite
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
+.venv/bin/python examples/anl/tools/requested_orbital_recon.py review-batch \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" \
+  "$HOME/kinbot-runs/r7_additional_orbital_recon_20261021" \
+  examples/anl/orbital_review_batches/r7_additional_20261021/selections.json \
+  --apply
+BASH
+```
+
+At the reported state, this adds C + SH3 to CH3S and reports CH3SS as
+`waiting_for_accepted_channel`. Rerun the same command when those reviews
+appear. It reuses all saved recon evidence, groups ready additions into one
+revision per case, and reconciles repeated submissions. If an older refresh
+is pending it reports `waiting_for_previous_refresh` without overwriting that
+input or receipt. No existing model is replaced, no QC is cancelled, and the
+input's current grids, basis policies, sampling accuracy and resource limits
+remain intact. It uses the existing pinned driver's live-refresh protocol;
+loading this command does not require replacing the running driver.
+
+The refresh repair adds an atomic proposal API: the publisher validates the
+expected input, owner, workers and prior revision while holding its existing
+control/phase locks, **before** writing an edited input. A separate helper
+lock serializes channel additions. Tests cover stale writers, pending
+revisions, identical resubmissions, joint channel additions, provisional
+binding and inheritance by existing workers without duplicate driver startup.
+
+### Evidence retained during production
+
+Scan/asymptote steps retain executed input, native output, actual geometry,
+optimizer history, basis-specific WFU/checkpoint provenance and
+`*.orbital_audit.json`. Generated MR correction and sampling decks also
+request native orbital/CI diagnostics. Reports include OCC/CLOSED, spins,
+roots, weights, selected energies, natural occupations, AO coefficients,
+CI/reference evidence, geometry/basis records and input/output hashes.
+See [native diagnostic details](MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md).
+
+Printed AO/CI coefficients have the configurable default magnitude cutoff
+0.05. They are not a complete overlap matrix or automatic proof against root
+flipping. Quantitative state/subspace continuity can need the retained WFU
+and additional analysis. Solver/geometry convergence plus a successful audit
+parser alone does not establish the scientifically intended electronic state.
+Keep the recon directories: their hashed WFU files are runtime seeds.
 
 ## D1/D2 counting at the MESS boundary
 
@@ -296,8 +431,10 @@ CASPT2 uses IPEA 0.25 Eh, real shift 0.1 Eh and the reviewed same-spin
 state-average reference policy. The earlier three channels have separate
 DZ/TZ WFU files already in their case directories. The new recipe points to
 the completed reconnaissance's two hashed seeds. The source configuration
-therefore has four reviewed chemical channels and five reactive leaves after
-this addition; it does not describe every channel future exploration may find.
+therefore had four reviewed chemical channels and five reactive leaves after
+the CH2SH addition. C + SH3 adds one channel/leaf; the two provisional CH3SS
+selections can each add another after their actual requests appear. This does
+not describe every channel future exploration may find.
 
 The live command preserves the actual input's grids, levels, numerical and
 resource controls rather than reinstalling defaults. Existing scratch-first,

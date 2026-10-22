@@ -294,3 +294,33 @@ def test_review_wait_releases_on_reopen_and_restores_qc_limits(tmp_path,monkeypa
         kb._execute_vrc_branch(SimpleNamespace(reac_obj=[]),{'vrc_tst_branch_slots':3},qc)
     assert qc.queue_job_limit==10
     assert json.loads(Path('vrc_model_review.json').read_text())['status']=='needs_review'
+
+
+def test_prepared_proposal_checks_pending_before_writing_input(run):
+    root,inp,original=run
+    proposal=deepcopy(original)
+    proposal['vrc_tst_surface_models']['456']=surface((2,3))
+    assert refresh.submit(inp,proposal=proposal,expected=original)['status']=='reviewed'
+    assert json.loads(inp.read_text())==original
+    first=refresh.submit(inp,apply=True,proposal=proposal,expected=original)
+    assert json.loads(inp.read_text())==proposal
+    before=inp.read_bytes(); journal=(root/refresh.JOURNAL).read_bytes()
+    second=deepcopy(proposal);second['vrc_tst_surface_models']['789']=surface()
+    with pytest.raises(ValueError,match='still pending'):
+        refresh.submit(inp,apply=True,proposal=second,expected=proposal)
+    assert inp.read_bytes()==before and (root/refresh.JOURNAL).read_bytes()==journal
+    assert refresh.submit(inp,apply=True,proposal=proposal,expected=proposal)['id']==first['id']
+    phase.tick(root,['123','456'],max_searches=1)
+    assert json.loads((root/refresh.SNAPSHOT).read_text())==proposal
+
+
+def test_prepared_proposal_rejects_stale_editor_and_bad_science_without_writes(run):
+    root,inp,original=run
+    changed=change(inp,original)
+    before=inp.read_bytes()
+    with pytest.raises(ValueError,match='changed during'):
+        refresh.submit(inp,apply=True,proposal=original,expected=original)
+    bad=dict(changed,method='different')
+    with pytest.raises(ValueError,match='Unsupported'):
+        refresh.submit(inp,apply=True,proposal=bad,expected=changed)
+    assert inp.read_bytes()==before and not (root/refresh.JOURNAL).exists()

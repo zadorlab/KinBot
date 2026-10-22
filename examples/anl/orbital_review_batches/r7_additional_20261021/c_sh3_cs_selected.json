@@ -1,0 +1,139 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "review_note": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source orbital 12 is the SH3 frontier orbital and 13-15 span the three carbon 2p directions at separation. Source 11 is principally C 2s (occupation 1.93 near, 1.956 far) and remains inactive. The three active carbon p occupations are about 0.681 each in this state average; the SH3 orbital is about 1.003. Select CAS(3,4) for the three frontier electrons; the summed diagnostic occupations need not be exactly three because the larger space includes correlation. Three doublets and three quartets cover the carbon spatial manifold coupled to the fragment radical. One reactive D1 is a ground-parent surface-model choice, not three reactive channels. These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested.",
+  "request_match": {
+    "parent": "471430450000000000002-s06a7b4c221beb748",
+    "reaction": "471430450000000000002-s06a7b4c221beb748_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 3,
+        "smiles": "[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][S]([H])[H]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 3,
+    "active_orbitals": 4,
+    "source": "Reviewed 2026-10-21 from user-supplied native occupations and AO coefficients. CASCI evidence at 2 and 30 angstrom in both bases: source orbital 12 is the SH3 frontier orbital and 13-15 span the three carbon 2p directions at separation. Source 11 is principally C 2s (occupation 1.93 near, 1.956 far) and remains inactive. The three active carbon p occupations are about 0.681 each in this state average; the SH3 orbital is about 1.003. Select CAS(3,4) for the three frontier electrons; the summed diagnostic occupations need not be exactly three because the larger space includes correlation. Three doublets and three quartets cover the carbon spatial manifold coupled to the fragment radical. One reactive D1 is a ground-parent surface-model choice, not three reactive channels. These are orbital selections for normal production optimization, not a completed compact-CASSCF or correlated-potential validation. Production performs relaxation and spin splitting; no additional recon calculations are requested."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__cs_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    "avtz-f12": {
+      "job": "atz__cs_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        12,
+        13,
+        14,
+        15
+      ]
+    }
+  },
+  "state_model": {
+    "state_average": [
+      {
+        "multiplicity": 4,
+        "roots": 3,
+        "weights": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ]
+      },
+      {
+        "multiplicity": 2,
+        "roots": 3,
+        "weights": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ]
+      }
+    ],
+    "selected_roots": {
+      "4": 1,
+      "2": 1
+    },
+    "canonical_orbitals": true,
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    },
+    "casscf_options": {
+      "solver": "so_sci",
+      "quasi_newton": true,
+      "exact_diagonalization": true,
+      "energy_convergence": 1e-08,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999
+    }
+  },
+  "coordinate": "reactive",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One reactive ground-parent doublet surface is selected, relative to the common spin-free ground-fragment asymptote. Additional state-averaged roots support orbital optimization and spin gaps; they are not additional reactive flux. No proof of excited-surface accessibility is implied."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(3,4)",
+    "vrc_tst_sample_method": "caspt2-f12(3,4)",
+    "vrc_tst_high_method": "caspt2-f12(3,4)",
+    "vrc_tst_state_average_roots": {
+      "2": 3,
+      "4": 3
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1,
+      "4": 1
+    }
+  },
+  "required_complete_jobs": [
+    "adz__cs_r_2",
+    "adz__cs_r_3p5",
+    "adz__cs_r_6",
+    "adz__cs_r_30",
+    "atz__cs_r_2",
+    "atz__cs_r_3p5",
+    "atz__cs_r_6",
+    "atz__cs_r_30"
+  ]
+}

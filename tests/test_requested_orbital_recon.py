@@ -275,7 +275,9 @@ def test_review_publishes_only_selected_parent_and_reuses_basis_specific_seeds(r
     calls=[]
     def submit(path,**kw):
         calls.append((path,kw))
-        assert path==case_input and kw==dict(apply=True)
+        assert path==case_input and kw['expected']==helper._read(path)
+        if kw.get('apply'):
+            atomic_json(path,kw['proposal'])
         return dict(status='queued',drivers_started=0)
     monkeypatch.setattr(input_refresh,'submit',submit)
     assert helper.review(source,case_input,SELECTION)['status']=='reviewed'
@@ -302,11 +304,11 @@ def test_review_publishes_only_selected_parent_and_reuses_basis_specific_seeds(r
     # Reapplication reconciles the journal, never recreates jobs or overwrites
     # another parent. JSON int/string key normalization must be idempotent.
     helper.review(source,case_input,SELECTION,apply=True)
-    assert len(calls)==2 and helper._read(case_input)==proposed
+    assert len(calls)==4 and helper._read(case_input)==proposed
     live_request=Path(helper._read(source/'review_launch.json')['request'])
     atomic_json(live_request,dict(helper._read(live_request),status='model_accepted',surface_model={}))
     helper.review(source,case_input,SELECTION,apply=True)
-    assert len(calls)==3 and helper._read(case_input)==proposed
+    assert len(calls)==6 and helper._read(case_input)==proposed
 
 
 @pytest.mark.parametrize('failure',['unreviewed','wrong_request','changed_wfu','changed_output','wrong_basis','no_owner'])

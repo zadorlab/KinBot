@@ -79,7 +79,13 @@ def validate_models(previous, current, base, *, scope=None):
     return new
 
 
-def submit(source, *, apply=False, directory=None):
+def submit(source, *, apply=False, directory=None, proposal=None, expected=None):
+    """Submit an on-disk input, or atomically install a prepared proposal.
+
+    Programmatic editors provide both proposal and expected. Validation and
+    the pending-revision check then precede any input write under the same
+    control/phase locks used by publication. CLI file resubmission is unchanged.
+    """
     from kinbot import pes_phase as phase, live_control as control
     source = Path(source).resolve(strict=True)
     root = owner_directory(source, directory=directory)
@@ -92,10 +98,14 @@ def submit(source, *, apply=False, directory=None):
         m = json.loads((root/phase.NAME).read_text())
         if m.get('input_file') != str(source) or not phase.owner_alive(m):
             raise ValueError('No live PES owner for this input; no driver was launched.')
-        proposed = json.loads(source.read_text())
+        current = json.loads(source.read_text())
+        if proposal is not None and (expected is None or current != expected):
+            raise ValueError('Case input changed during review preparation; no input was overwritten.')
+        proposed = deepcopy(proposal) if proposal is not None else current
         prior = json.loads((root/SNAPSHOT).read_text())
         old = json.loads((root/JOURNAL).read_text()) if (root/JOURNAL).exists() else None
-        if old and old['token']==m['token'] and old['source_sha256']==file_sha256(source):
+        if (old and old['token']==m['token'] and proposed == current
+                and old['source_sha256']==file_sha256(source)):
             return receipt(root)
         if old and old['token']==m['token'] and receipt(root)['status'] not in ('applied', 'blocked'):
             raise ValueError('An input revision is still pending; inspect its receipt first.')
@@ -153,6 +163,12 @@ def submit(source, *, apply=False, directory=None):
             values=json.loads(resolved.read_text())
             record['resolved']=dict(before=file_sha256(resolved), after=dict(values,**options))
         if apply:
+            if proposal is not None and proposed != current:
+                # Detect edits by tools which do not take these locks too.
+                if json.loads(source.read_text()) != expected:
+                    raise ValueError('Case input changed during review preparation; no input was overwritten.')
+                atomic_json(source, proposed)
+                record['source_sha256'] = file_sha256(source)
             if old:
                 atomic_json(root/'.kinbot_input_history'/(old['id']+'.json'), old)
             atomic_json(root/JOURNAL, record)

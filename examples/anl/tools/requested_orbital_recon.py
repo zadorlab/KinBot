@@ -364,7 +364,7 @@ def batch(production, plan, output):
         production_model_accepted=False)
 
 
-def bind(source, request):
+def bind(source, request, *, apply=True):
     """Attach a completed provisional screen to a subsequently accepted channel.
 
     This only binds evidence. The separate reviewed selection and live refresh
@@ -397,13 +397,14 @@ def bind(source, request):
             p.characterize(); molecules.append(p)
         if not np.array_equal(molecules[0].bond01,molecules[1].bond01):
             raise ValueError('Parent atom connectivity/order changed; review cannot reuse this screen.')
-        atomic_json(source/'provisional_request.json',old)
-        atomic_json(source/'request.json',current)
-        record.update(provisional=False,request=str(request),
-                      binding=dict(geometry_changed=old['positions']!=current['positions']))
-        for name in ('provisional_request.json','request.json'):
-            record['files'][name]=file_sha256(source/name)
-        atomic_json(source/'review_launch.json',record)
+        if apply:
+            atomic_json(source/'provisional_request.json',old)
+            atomic_json(source/'request.json',current)
+            record.update(provisional=False,request=str(request),
+                          binding=dict(geometry_changed=old['positions']!=current['positions']))
+            for name in ('provisional_request.json','request.json'):
+                record['files'][name]=file_sha256(source/name)
+            atomic_json(source/'review_launch.json',record)
     return dict(status='bound_for_review',request=str(request),production_model_accepted=False)
 
 
@@ -499,19 +500,34 @@ def review(source, case_input, recipe, *, apply=False):
 
 
 def _review(source, case_input, recipe, *, apply):
+    previous = _read(case_input)
+    proposed, summary, chosen = _selection(source, case_input, recipe, previous)
+    if not apply:
+        return summary
+    return _publish_selection(case_input, previous, proposed, chosen, summary)
+
+
+def _selection(source, case_input, recipe, previous, *, bind_request=None):
     from kinbot import input_refresh
     from kinbot.molpro import validate_vrc_state_model
     from kinbot.vrc_multistate import validate_surface_model, extend_surface_model
     source = Path(source).expanduser().resolve(strict=True)
     case_input = Path(case_input).expanduser().resolve(strict=True)
     saved = _saved(source, allow_accepted=True)
-    if saved.get('provisional'):
+    if saved.get('provisional') and bind_request is None:
         raise ValueError('Bind the completed screen to the actual VRC review request before selection.')
-    request, chosen = _read(source/'request.json'), _read(recipe)
+    request = _read(bind_request or source/'request.json')
+    chosen = _read(recipe)
     if (chosen.get('schema') != 1 or chosen.get('reviewed') is not True
             or not chosen.get('review_note') or not chosen.get('request_match')):
         raise ValueError('An explicit reviewed selection and chemistry note are required.')
-    if any(request.get(k) != v for k,v in chosen['request_match'].items()):
+    from kinbot.electronic_states import _canonical_smiles
+    def match_value(k, value):
+        if k == 'products':
+            return sorted((_canonical_smiles(p['smiles']), p['charge'], p['multiplicity']) for p in value)
+        return value
+    if any(match_value(k, request.get(k)) != match_value(k, v)
+           for k,v in chosen['request_match'].items()):
         raise ValueError('Selected orbital recipe does not match this review request.')
     if case_input.parent not in Path(saved['request']).parents:
         raise ValueError('Case input does not belong to this review request.')
@@ -519,6 +535,12 @@ def _review(source, case_input, recipe, *, apply):
         raise ValueError('Select one source screen with basis-specific orbital records.')
     manifest = _read(saved['systems'][0]['manifest'])
     jobs = {j['name']: j for j in manifest['jobs']}
+    for name in chosen.get('required_complete_jobs', []):
+        job = jobs[name]
+        if (job['status'] != 'complete' or job.get('validation_errors')
+                or file_sha256(job['wfu']) != job['wfu_sha256']
+                or file_sha256(Path(job['directory'])/(name+'.out')) != job['output_sha256']):
+            raise ValueError(f'Required orbital evidence is incomplete or changed: {name}.')
     active = deepcopy(chosen['active_space'])
     basis_models = {}
     for basis, selection in chosen['basis_seeds'].items():
@@ -534,7 +556,6 @@ def _review(source, case_input, recipe, *, apply):
         basis_models[basis] = validate_vrc_state_model(model,
             active_electrons=active['active_electrons'], active_orbitals=active['active_orbitals'],
             nelectron=manifest['electron_count'], atom_count=len(request['symbols']))
-    previous = _read(case_input)
     parameters = deepcopy(chosen.get('parameters', {}))
     parameters.update(vrc_tst_active_space=active, vrc_tst_state_model_file='', vrc_tst_state_model=dict(
         schema=2, molecule=dict(symbols=request['symbols'], charge=request['charge']),
@@ -562,11 +583,25 @@ def _review(source, case_input, recipe, *, apply):
     input_refresh.validate_models(previous, proposed, case_input.parent)
     if input_refresh.owner_directory(case_input) is None:
         raise ValueError('No live PES owner for this input; no driver was launched.')
+    config = _read(saved['systems'][0]['configuration'])
+    a = np.asarray(config['geometry_angstrom'], dtype=float)
+    b = np.asarray(request['positions'], dtype=float)
+    distances = lambda xyz: np.linalg.norm(xyz[:, None]-xyz[None, :], axis=2)
     summary = dict(status='reviewed', parent=parent, active_space=active,
         basis_seeds={b:m['orbital_selection'] for b,m in basis_models.items()},
+        source_screen=str(source), request=str(bind_request or saved['request']),
+        geometry_provenance=dict(coordinates_equal=bool(np.array_equal(a, b)),
+            max_pair_distance_change_angstrom=float(np.max(abs(distances(a)-distances(b)))),
+            note='Source is a fixed-geometry orbital screen; production reoptimizes the current geometry.'),
         drivers_started=0, reconnaissance_jobs_submitted=0)
-    if not apply:
-        return summary
+    return proposed, summary, chosen
+
+
+def _publish_selection(case_input, previous, proposed, chosen, summary):
+    from kinbot import input_refresh
+    # Validate with the real publisher before making even an archived proposal.
+    # Its apply call repeats validation under locks before writing the input.
+    input_refresh.submit(case_input, proposal=proposed, expected=previous)
     if previous != proposed:
         import hashlib
         digest = hashlib.sha256(json.dumps(proposed,sort_keys=True).encode()).hexdigest()
@@ -580,14 +615,85 @@ def _review(source, case_input, recipe, *, apply):
             if path.exists() and _read(path) != payload:
                 raise ValueError('Existing review archive differs; nothing was overwritten.')
             atomic_json(path,payload)
-        if _read(case_input) != previous:
-            raise ValueError('Case input changed during review preparation; retry from its new contents.')
-        atomic_json(case_input,proposed)
     # Uses the existing journaled live-refresh path, which validates the owner,
     # accepted input, worker state and additive models. It never starts a driver.
-    # A blocked submission leaves a recoverable input proposal and its backup.
-    refresh = input_refresh.submit(case_input,apply=True)
+    refresh = input_refresh.submit(case_input,apply=True,proposal=proposed,expected=previous)
     return dict(summary, refresh=refresh, status=refresh['status'])
+
+
+def review_batch(production, campaign, plan, *, apply=False):
+    """Install ready, explicitly selected channels once per case, without QC.
+
+    Provisional screens can bind only after actual accepted review requests
+    appear. Waiting cases do not block independent ready cases. Re-running
+    reconciles receipts and never starts a driver or a reconnaissance job.
+    """
+    from contextlib import ExitStack
+    from kinbot import input_refresh
+    production = Path(production).expanduser().resolve(strict=True)
+    campaign = Path(campaign).expanduser().resolve(strict=True)
+    plan = Path(plan).expanduser().resolve(strict=True)
+    controls = _read(plan)
+    if controls.get('schema') != 1 or not controls.get('selections'):
+        raise ValueError('Expected an explicit selection plan.')
+    cases = {}
+    names = set()
+    for item in controls['selections']:
+        name, case = item['name'], item['case']
+        if not recon._SAFE.fullmatch(name) or not recon._SAFE.fullmatch(case) or name in names:
+            raise ValueError('Selection names/cases must be safe and distinct.')
+        names.add(name)
+        cases.setdefault(case, []).append(item)
+    results = {}
+    for case, items in cases.items():
+        case_input = production/case/'input.json'
+        with ExitStack() as stack:
+            if apply:
+                handle = stack.enter_context((case_input.parent/'.kinbot_orbital_review.lock').open('a+'))
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            previous = _read(case_input)
+            proposed = deepcopy(previous)
+            selections, summaries, bindings, waiting = [], [], [], []
+            for item in items:
+                source = campaign/item['name']
+                saved = _saved(source, allow_accepted=True)
+                request = _read(source/'request.json')
+                actual = case_input.parent/request['parent']/'vrctst/orbital_review'/request['reaction']/'request.json'
+                if saved.get('provisional') and not actual.is_file():
+                    waiting.append(dict(channel=item['name'], reason='waiting_for_accepted_channel', request=str(actual)))
+                    continue
+                manifest = _read(saved['systems'][0]['manifest'])
+                if any(j['status'] != 'complete' for j in manifest['jobs']):
+                    waiting.append(dict(channel=item['name'], reason='waiting_for_native_completion'))
+                    continue
+                binding = actual if saved.get('provisional') else None
+                if binding:
+                    bind(source, binding, apply=False)
+                    bindings.append((source, binding))
+                proposed, summary, chosen = _selection(source, case_input,
+                    plan.parent/item['recipe'], proposed, bind_request=binding)
+                selections.append(chosen); summaries.append(summary)
+            if not summaries:
+                results[case] = dict(status='waiting', waiting=waiting)
+                continue
+            summary = dict(status='reviewed', channels=summaries, waiting=waiting,
+                           drivers_started=0, reconnaissance_jobs_submitted=0)
+            # A preceding revision must remain byte-for-byte intact until
+            # consumed. Do not edit its input and then discover it was pending.
+            try:
+                input_refresh.submit(case_input, proposal=proposed, expected=previous)
+            except ValueError as error:
+                if 'input revision is still pending' not in str(error):
+                    raise
+                results[case] = dict(summary, status='waiting_for_previous_refresh', error=str(error))
+                continue
+            if apply:
+                for source, actual in bindings:
+                    bind(source, actual)
+                summary = _publish_selection(case_input, previous, proposed,
+                                              dict(selections=selections), summary)
+            results[case] = summary
+    return dict(cases=results, drivers_started=0, reconnaissance_jobs_submitted=0)
 
 
 def main():
@@ -609,6 +715,10 @@ def main():
     for name in ('source', 'case_input', 'recipe'):
         review_cmd.add_argument(name)
     review_cmd.add_argument('--apply', action='store_true')
+    reviews_cmd = commands.add_parser('review-batch', help='Publish ready selections once per case, without new QC.')
+    for name in ('production', 'campaign', 'plan'):
+        reviews_cmd.add_argument(name)
+    reviews_cmd.add_argument('--apply', action='store_true')
     for name in ('run', 'monitor', 'evidence'):
         commands.add_parser(name).add_argument('output')
     args = parser.parse_args()
@@ -622,6 +732,8 @@ def main():
         result = candidates(args.source, args.recipe, args.output)
     elif args.action == 'review':
         result = review(args.source, args.case_input, args.recipe, apply=args.apply)
+    elif args.action == 'review-batch':
+        result = review_batch(args.production, args.campaign, args.plan, apply=args.apply)
     elif args.action == 'run':
         result = run(args.output)
     elif args.action == 'evidence':

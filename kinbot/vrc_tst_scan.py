@@ -256,7 +256,7 @@ class VTS:
                 raise ValueError(
                     'VRC scan coordinate is unavailable for: '
                     + ', '.join(invalid))
-            from kinbot.vrc_multistate import channel_for_reaction, calculate_channel
+            from kinbot.vrc_multistate import channel_for_reaction, calculate_channels
             scalar = []
             selections = {}
             for name in reactions:
@@ -295,6 +295,7 @@ class VTS:
             self.save_products(approved)
             self.find_scan_coos(approved)
             self.find_equiv(approved)
+            multistate = {}
             for name, selection in selections.items():
                 checkpoint()
                 if selection is None:
@@ -302,7 +303,8 @@ class VTS:
                 else:
                     if noscan:
                         raise ValueError('State-resolved VRC requires correction scans.')
-                    calculate_channel(self, name, selection)
+                    multistate[name] = selection
+            calculate_channels(self, multistate)
             if scalar:
                 self.do_scan(scalar, noscan=noscan)
                 self.energies(scalar, noscan=noscan)
@@ -949,14 +951,16 @@ class VTS:
         charges = np.zeros(len(atoms))
         charges[0] = int(reaction.species.charge)
         atoms.set_initial_charges(charges)
-        connect('kinbot.db').write(atoms, name=f'vrctst/{name}', data={
-            'energy': float(energy_ev), 'status': 'normal',
-            'vrc_scan_backend': 'molpro',
-            'vrc_scan_method': str(self.par['vrc_tst_scan_method']),
-            'vrc_scan_basis': str(self.par['vrc_tst_scan_basis']),
-            'vrc_scan_role': 'frozen' if frozen else 'relaxed',
-            'vrc_scan_dispatch': str(run_dir),
-        })
+        from kinbot.vrc_parallel import guard
+        with guard('kinbot.db.vrc-write'):
+            connect('kinbot.db').write(atoms, name=f'vrctst/{name}', data={
+                'energy': float(energy_ev), 'status': 'normal',
+                'vrc_scan_backend': 'molpro',
+                'vrc_scan_method': str(self.par['vrc_tst_scan_method']),
+                'vrc_scan_basis': str(self.par['vrc_tst_scan_basis']),
+                'vrc_scan_role': 'frozen' if frozen else 'relaxed',
+                'vrc_scan_dispatch': str(run_dir),
+            })
         path = Path('vrctst') / f'{name}.log'
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
@@ -1236,12 +1240,12 @@ class VTS:
                         np.where(self.scan_reac[reac].maps[i] == j)[0][0])
 
             if not noscan:
-                create_matplotlib_graph(x=dist,
-                                        data=ens,
-                                        name=f'{reac}',
-                                        x_label=f"{reac}",
-                                        y_label="Energy (kcal/mol)",
-                                        data_legends=['sample', 'high'])
+                plot = dict(x=dist, data=ens, name=reac, x_label=reac,
+                            y_label='Energy (kcal/mol)', data_legends=['sample', 'high'])
+                if getattr(self, '_surface_name', None):
+                    self._vrc_plot = plot  # Matplotlib remains on the caller thread.
+                else:
+                    create_matplotlib_graph(**plot)
 
             smallest = np.linalg.norm(
                 self.well.geom[self.scan_reac[reac].equiv[0][0]] -
@@ -1327,9 +1331,6 @@ class VTS:
 
     def _dispatch_molpro_corrections(self, pending):
         """Execute missing VRC correction points with the ANL dispatcher."""
-        from kinbot.anl.dispatch import (
-            _load, preflight_until_scheduler_ready, prepare)
-
         first = next(iter(pending.values()))
         molecule = {
             'symbols': list(first.atom),
@@ -1372,23 +1373,21 @@ class VTS:
             },
         }
         base_dir = Path('vrctst/molpro').resolve()
-        run_dir = base_dir / 'dispatch'
-        if not run_dir.exists():
-            prepare(spec, run_dir)
-        else:
-            _, stored, _ = _load(run_dir)
-            wanted = {task['id']: task['input_template'] for task in tasks}
-            present = {task['id']: task['input_template']
-                       for task in stored['tasks']}
-            if present != wanted:
-                digest = hashlib.sha256(json.dumps(
-                    wanted, sort_keys=True).encode()).hexdigest()[:12]
-                run_dir = base_dir / f'dispatch_{digest}'
-                if not run_dir.exists():
-                    prepare(spec, run_dir)
-        (base_dir / 'current_dispatch.json').write_text(json.dumps({
-            'schema': 1, 'run_dir': str(run_dir),
-        }, indent=2) + '\n')
+        from kinbot.vrc_graph import select_correction_graph
+        from kinbot.vrc_parallel import guard
+        from kinbot.execution import atomic_json
+        run_dir = select_correction_graph(base_dir, spec)
+        with guard(base_dir / '.correction_selection'):
+            pointer = base_dir / 'current_dispatch.json'
+            current = json.loads(pointer.read_text()) if pointer.exists() else {}
+            mapping = current.get('run_dirs', {})
+            mapping[getattr(self, '_surface_name', 'legacy')] = str(run_dir)
+            atomic_json(pointer, {'schema': 1, 'run_dir': str(run_dir), 'run_dirs': mapping})
+        with guard(run_dir / '.vrc_controller'):
+            self._finish_molpro_corrections(run_dir, pending, base_dir)
+
+    def _finish_molpro_corrections(self, run_dir, pending, base_dir):
+        from kinbot.anl.dispatch import _load, preflight_until_scheduler_ready
         preflight_until_scheduler_ready(run_dir, interval=20.)
         returncode, _ = _drive_vrc_dispatch(
             run_dir, pending, interval=20.)

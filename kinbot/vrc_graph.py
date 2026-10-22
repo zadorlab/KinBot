@@ -79,6 +79,12 @@ def select_graph(parent, prefix, spec):
     constraints, convergence and every native input remain exact comparisons.
     Existing graph manifests and staged inputs are never rewritten here.
     """
+    from kinbot.vrc_parallel import guard
+    with guard(Path(parent) / '.graph_selection'):
+        return _select_graph(parent, prefix, spec)
+
+
+def _select_graph(parent, prefix, spec):
     from kinbot.anl.dispatch import _load, prepare
     parent = Path(parent).resolve()
     key = identity(spec)
@@ -107,3 +113,41 @@ def select_graph(parent, prefix, spec):
         prepare(spec, graph)
     bind(parent, spec, graph)
     return graph
+
+
+def select_correction_graph(parent, spec):
+    """Reuse a legacy correction batch even if some outputs were copied back.
+
+    The remaining input names/decks must all match. Never create a new batch
+    for a subset of the same allocated work just because other tasks finished.
+    The old absolute directory and Slurm task records remain authoritative.
+    """
+    from kinbot.anl.dispatch import _load, prepare
+    from kinbot.vrc_parallel import guard
+    parent = Path(parent).resolve()
+    wanted = {t['id']: t for t in scientific_spec(spec)['tasks']}
+    context = {k: v for k, v in spec['molecule'].items() if k != 'positions'}
+    geometry_tokens = ('{{CARTESIAN}}', '{{XYZ}}', '{{MRCC_XYZ}}')
+    uses_initial_geometry = any(token in t['input_template']
+                                for t in wanted.values() for token in geometry_tokens)
+    with guard(parent / '.correction_selection'):
+        matches = []
+        for path in sorted(parent.glob('dispatch*/workflow.json')):
+            graph, saved, state = _load(path.parent)
+            present = {t['id']: t for t in scientific_spec(saved)['tasks']}
+            same_context = context == {k: v for k, v in saved['molecule'].items() if k != 'positions'}
+            same_geometry = (not uses_initial_geometry or
+                             saved['molecule']['positions'] == spec['molecule']['positions'])
+            if (same_context and same_geometry
+                    and all(present.get(key) == value for key, value in wanted.items())):
+                matches.append((graph, saved, state))
+        if matches:
+            return min(matches, key=_rank)[0]
+        graph = parent / 'dispatch'
+        if graph.exists():
+            digest = identity(spec)[:16]
+            graph = parent / f'dispatch_{digest}'
+        if graph.exists():
+            raise RuntimeError(f'VRC correction identity collision: {graph}')
+        prepare(spec, graph)
+        return graph

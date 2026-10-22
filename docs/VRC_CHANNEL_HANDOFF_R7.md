@@ -338,7 +338,7 @@ monitor confirms this and shows C + SH3's asymptotic geometry job 52916238
 running, alongside CH2SH point 01 and original CH3S point 07. Thus this
 observed refresh wait has cleared; a restart is not needed for these models.
 
-### Current scheduling within a VRC worker
+### Serial scheduling observed before the parallel-channel update
 
 The original CH3SS S–S channel already has its reviewed model. In the
 18:22:42 PDT monitor it has not submitted a scan because the current
@@ -350,11 +350,76 @@ its asymptotic geometry, pivots, relaxed points and correction assembly before
 S–S begins. CH3S D2 similarly follows D1. Other wells' VRC workers and PES
 exploration can run concurrently under the shared resource cap.
 
-This is an implementation limitation, not a scientific dependency between
+This was an implementation limitation, not a scientific dependency between
 the two bonds or a missing S–S active-space review. All 23 shared allocations
 were occupied in this snapshot, but S–S was not yet a Slurm pending job.
-This handoff documents the serial behavior; it does not implement concurrent
-channel or electronic-leaf dispatch.
+The following update removes that serialization for shared-pool runs.
+
+### Parallel channels and electronic surfaces
+
+Reviewed MR channels now advance through a bounded pool of in-process surface
+controllers. The default `vrc_tst_parallel_surfaces: 4` permits both initial
+CH3SS bonds and both CH3S doublet surfaces to progress independently. This
+controls local surface orchestration, **not additional Slurm allocations**.
+The existing shared resource policy continues to enforce the common limit,
+node exclusions and orbital-review reserve. Without a shared resource policy,
+execution remains serial so independent graphs cannot multiply a legacy
+per-graph node cap. Setting the input value to 1 also selects serial execution.
+
+Each surface still runs its MR asymptotic geometry, fixed-geometry pivots,
+ordered relaxed points and correction energies in dependency order. Every
+point uses its own preceding geometry/WFU checkpoint. Review-held channels
+are omitted until their model is accepted; approved channels can proceed.
+A native failure is recorded per surface while independent surfaces continue.
+The main controller assembles a channel's correction manifest only after all
+its required surfaces succeed. ROTD generation/execution and plotting remain
+on the main thread; this update does not change Monte Carlo or MESS ordering.
+
+Graph identities, surface names, geometry inputs, methods, bases, roots and
+statistical weights are unchanged. The in-place refresh adopts completed and
+allocated graphs through their existing bindings. Identical pivot requests
+share one graph controller; graph creation, database publication and correction
+batch metadata have serialized access. A partially copied-back correction
+batch now reattaches its remaining tasks to the matching existing graph,
+including its Slurm IDs, instead of preparing a duplicate subset batch.
+Live PES refresh waits for **every** surface controller to release its graph
+lock before a revised model can be applied; it does not cancel QC allocations.
+
+`vrctst/parallel_surfaces.json` records queued/running/complete/failed/paused
+surface-controller states. Here `running` means the controller is advancing
+the surface; its QC task may still be waiting for shared-pool capacity.
+`run_progress` includes all current correction batches without double-counting
+a batch reused by two surfaces. The ordinary monitor continues to report the
+actual Slurm tasks and their states.
+
+Install this code with one full **controller-only** refresh of r7:
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+git pull --ff-only origin composite
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  .venv/bin/python -u -m kinbot.run_refresh \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" --apply
+BASH
+```
+
+This command uses the same run directories and preserves running/pending QC,
+completed results, review models and the resource policy. It does not request
+pending-job replacement or a scientific migration. The new source snapshot
+applies to replacement PES/KB controllers; previously allocated QC keeps its
+original verified worker code. After `phase: launched`, retained Slurm IDs
+should still appear and the initial CH3SS S–S and CH3S D2 asymptotes become
+eligible alongside the existing surfaces. A full shared pool can still delay
+their allocations until other jobs finish.
+
+Regression coverage includes simultaneous bonds/roots, independent coordinates,
+per-surface failures, main-thread plotting, shared-pivot reuse, concurrent graph
+creation, partially completed correction-batch adoption, unchanged allocated
+ledgers on epoch refresh, and joining all controllers if thread startup fails.
+Native electronic-structure inputs are unchanged; these are orchestration and
+restart tests, not a new Blodgett native calculation.
 
 ## D1/D2 counting at the MESS boundary
 

@@ -43,6 +43,9 @@ def copy_fragment_geometries(products):
 
 
 def validate_fragment_controls(parameters):
+    parallel = parameters.get('vrc_tst_parallel_surfaces', 4)
+    if type(parallel) is not int or parallel < 1:
+        raise ValueError('vrc_tst_parallel_surfaces must be a positive integer.')
     if parameters.get('vrc_tst_fragment_geometry', 'legacy') not in ('legacy', 'asymptotic_scan'):
         raise ValueError('vrc_tst_fragment_geometry must be legacy or asymptotic_scan.')
     if parameters.get('vrc_tst_pivot_level', 'L2') not in ('L2', 'custom'):
@@ -199,10 +202,19 @@ def validate_cube_geometry(cube, atoms):
 
 
 def prepare_fixed_pivot(product, parameters, destination, geometry_evidence):
+    from kinbot.vrc_graph import identity
+    from kinbot.vrc_parallel import guard
+    spec = fixed_pivot_spec(product, parameters)
+    # Equivalent fragments can share a graph even across different leaves.
+    # Hold through preflight/drive, so exactly one local controller owns it.
+    with guard(Path('vrctst/molpro_pivots') / identity(spec)):
+        return _prepare_fixed_pivot(product, parameters, destination, geometry_evidence, spec)
+
+
+def _prepare_fixed_pivot(product, parameters, destination, geometry_evidence, spec):
     from kinbot.anl.dispatch import _load, preflight_until_scheduler_ready
     from kinbot.vrc_tst_scan import _drive_vrc_dispatch
     from kinbot.execution import atomic_json, file_sha256
-    spec = fixed_pivot_spec(product, parameters)
     destination = Path(destination)
     from kinbot.vrc_graph import select_graph
     graph = select_graph(Path('vrctst/molpro_pivots'), destination.name+'_fixed', spec)

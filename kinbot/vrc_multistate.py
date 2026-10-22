@@ -298,50 +298,125 @@ def state_parameters(parameters, stage, state, fragment_multiplicities):
     return par
 
 
-def calculate_channel(vts, name, selection):
-    """Compute separate MR paths/corrections for all reviewed state leaves."""
+def _surface_job(vts, name, stage, state):
+    """Own coordinates and parameters; retain only read-only QC services."""
     from kinbot.vrc_tst_scan import VTS
     from kinbot.molpro import vrc_multireference_energy_contract
     from kinbot.vrc_orbitals import copy_fragment_geometries
-    channel, provenance = selection
     reaction = vts.scan_reac[name]
-    stages = []
-    for stage in channel['bottlenecks']:
-        leaves = []
-        for state in stage['states']:
-            par = state_parameters(vts.par, stage, state,
-                                   [int(product.mult) for product in reaction.products])
-            if vrc_multireference_energy_contract(par['vrc_tst_scan_method']) is None:
-                raise ValueError('State-resolved VRC requires an explicit Molpro MR scan method.')
-            leaf_name = f'{name}__{stage["name"]}_m{state["multiplicity"]}_r{state["root"]}'
-            clone = copy(reaction)
-            clone.products = copy_fragment_geometries(reaction.products)
-            clone.species = copy(reaction.species)
-            clone.species.mult = state['multiplicity']
-            clone.instance_name = leaf_name
-            child = VTS(vts.well, par, vts.qc)
-            child.scan_reac[leaf_name] = clone
-            child.do_scan([leaf_name])
-            child.energies([leaf_name])
-            correction = Path('vrctst') / f'corr_{leaf_name}.json'
-            payload = json.loads(correction.read_text())
-            # Persist only the resolved scalar controls needed by generation,
-            # avoiding installation-specific transient parser objects.
-            payload['surface_parameters'] = {key: deepcopy(value) for key, value in par.items()
-                if key in _OVERRIDES or key in {'vrc_tst_selected_roots', 'mult',
-                                               'rotdpy_dist', '_vrc_dividing_coordinate'}}
-            payload['electronic_surface'] = deepcopy(state)
-            atomic_json(correction, payload)
-            leaves.append({**state, 'reaction': leaf_name,
-                           'correction': str(correction.resolve()),
-                           'correction_sha256': file_sha256(correction)})
-        stages.append({**deepcopy(stage), 'states': leaves})
-    master = {'schema': 1, 'kind': 'multistate', 'reaction': name,
-              'surface_model': provenance, 'combination': channel['combination'],
-              'equilibration': channel.get('equilibration'), 'bottlenecks': stages}
-    path = Path('vrctst') / f'corr_{name}.json'
-    atomic_json(path, master)
-    return path
+    par = state_parameters(vts.par, stage, state,
+                           [int(product.mult) for product in reaction.products])
+    if vrc_multireference_energy_contract(par['vrc_tst_scan_method']) is None:
+        raise ValueError('State-resolved VRC requires an explicit Molpro MR scan method.')
+    leaf_name = f'{name}__{stage["name"]}_m{state["multiplicity"]}_r{state["root"]}'
+    clone = copy(reaction)
+    clone.products = copy_fragment_geometries(reaction.products)
+    clone.species = copy(reaction.species)
+    clone.species.mult = state['multiplicity']
+    clone.instance_name = leaf_name
+    child = VTS(vts.well, par, vts.qc)
+    child._surface_name = leaf_name
+    child.scan_reac[leaf_name] = clone
+
+    def execute():
+        child.do_scan([leaf_name])
+        child.energies([leaf_name])
+        correction = Path('vrctst') / f'corr_{leaf_name}.json'
+        payload = json.loads(correction.read_text())
+        payload['surface_parameters'] = {key: deepcopy(value) for key, value in par.items()
+            if key in _OVERRIDES or key in {'vrc_tst_selected_roots', 'mult',
+                                           'rotdpy_dist', '_vrc_dividing_coordinate'}}
+        payload['electronic_surface'] = deepcopy(state)
+        atomic_json(correction, payload)
+        return {**state, 'reaction': leaf_name,
+                'correction': str(correction.resolve()),
+                'correction_sha256': file_sha256(correction),
+                '_plot': getattr(child, '_vrc_plot', None)}
+    return leaf_name, execute
+
+
+def calculate_channel(vts, name, selection):
+    """Compatibility entry point for a single, serial channel."""
+    return calculate_channels(vts, {name: selection}, limit=1)[name]
+
+
+def calculate_channels(vts, selections, *, limit=None):
+    """Advance independent reviewed leaves; keep each orbital chain serial.
+
+    The same leaf names, input specifications and graph bindings are retained.
+    Shared Slurm admission, not the number of controller threads, limits QC.
+    Only the caller assembles channel records and subsequently launches ROTD.
+    """
+    from kinbot import run_policy
+    from kinbot.vrc_parallel import run, SurfaceInterrupted
+    from kinbot.pes_phase import ExplorationReopened
+    import logging
+    if limit is None:
+        limit = vts.par.get('vrc_tst_parallel_surfaces', 4)
+        if type(limit) is not int or limit < 1:
+            raise ValueError('vrc_tst_parallel_surfaces must be a positive integer.')
+        if run_policy.find() is None:
+            limit = 1  # Independent graphs otherwise have independent node caps.
+    logger = logging.getLogger('KinBot')
+    jobs, stages, paths, outcomes = [], {}, {}, {}
+    for name, (channel, provenance) in selections.items():
+        stages[name] = []
+        for stage in channel['bottlenecks']:
+            keys = []
+            for state in stage['states']:
+                key, execute = _surface_job(vts, name, stage, state)
+                if key in outcomes:
+                    raise ValueError(f'Duplicate VRC surface identity: {key}')
+                outcomes[key] = {'channel': name, 'status': 'queued'}
+                jobs.append((key, execute))
+                keys.append(key)
+            stages[name].append((stage, keys))
+    if not jobs:
+        return paths
+    status_path = Path('vrctst/parallel_surfaces.json')
+    def publish():
+        atomic_json(status_path, {'schema': 1, 'max_parallel_surfaces': limit,
+                                 'surfaces': outcomes})
+    publish()
+    values, failures = {}, {}
+    logger.info('Advancing %d reviewed VRC surfaces with up to %d local controllers; '
+                'Slurm jobs use existing admission limits.', len(jobs), limit)
+
+    def started(key):
+        outcomes[key].update(status='running')
+        publish()
+
+    def completed(key, value, error):
+        name = outcomes[key]['channel']
+        if error is not None:
+            paused = isinstance(error, (ExplorationReopened, SurfaceInterrupted))
+            outcomes[key].update(status='paused' if paused else 'failed', error=str(error))
+            failures[key] = error
+            logger.warning('VRC surface %s: %s', key, error)
+        else:
+            plot = value.pop('_plot', None)
+            if plot is not None:
+                from kinbot.utils import create_matplotlib_graph
+                create_matplotlib_graph(**plot)
+            values[key] = value
+            outcomes[key].update(status='complete')
+            if all(k in values for _, keys in stages[name] for k in keys):
+                channel, provenance = selections[name]
+                assembled = [{**deepcopy(stage), 'states': [values[k] for k in keys]}
+                             for stage, keys in stages[name]]
+                master = {'schema': 1, 'kind': 'multistate', 'reaction': name,
+                          'surface_model': provenance, 'combination': channel['combination'],
+                          'equilibration': channel.get('equilibration'), 'bottlenecks': assembled}
+                path = Path('vrctst') / f'corr_{name}.json'
+                atomic_json(path, master)
+                paths[name] = path
+        publish()
+
+    run(jobs, limit=limit, completed=completed, started=started)
+    if failures:
+        detail = ' | '.join(f'{key}: {error}' for key, error in failures.items())
+        raise RuntimeError('VRC surface failure(s); independent work retained: ' + detail) from next(iter(failures.values()))
+    return paths
 
 
 def create_inputs(par, payload, reactant, products, barrier, folder, correction_file):

@@ -439,6 +439,9 @@ class Parameters:
             'vrc_tst_noscan': {},
             # Maximum concurrent exclusive nodes for Molpro correction jobs
             'vrc_tst_max_nodes': 1,
+            # Independent reviewed MR leaves per well, under shared admission.
+            # Without a shared resource policy retain serial legacy behavior.
+            'vrc_tst_parallel_surfaces': 4,
             # Per-job budget for MR scans/asymptotes and correction jobs;
             # numerical gradients can require many native calculations.
             'vrc_tst_walltime': 'partition_max',

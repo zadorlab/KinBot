@@ -82,6 +82,23 @@ def test_current_graph_pointer_only_and_no_retry_archives(campaign):
     assert w['correction_graph']['tasks'][0]['task'] == 'dispatch_new'
 
 
+def test_parallel_correction_batches_all_reported_once(campaign):
+    root, worker, _ = campaign
+    paths = [worker/'vrctst/molpro'/name for name in ('dispatch_cs', 'dispatch_ss')]
+    for path in paths:
+        put(path/'workflow.json', {'tasks': [{'id': path.name}]})
+        put(path/'state.json', {'tasks': {path.name: {'status': 'submitted'}}})
+    put(worker/'vrctst/molpro/current_dispatch.json', {
+        'run_dir': str(paths[-1]),
+        'run_dirs': {'cs': str(paths[0]), 'cs_alias': str(paths[0]), 'ss': str(paths[1])}})
+    before = snapshot(root)
+    report = run_progress.collect(root, scheduler=([], None))
+    w = report['cases'][0]['workers'][0]
+    assert len(w['correction_graphs']) == 2
+    assert w['correction_graph']['directory'] == str(paths[-1])
+    assert before == snapshot(root)
+
+
 def test_bounded_native_reads_and_scheduler_failure(campaign):
     root, worker, graph = campaign
     native = graph/'tasks/l3_geometry/step.live.log'

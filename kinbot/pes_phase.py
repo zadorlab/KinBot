@@ -116,6 +116,8 @@ def active_worker(directory):
 
 def checkpoint():
     """Called at safe owner polling boundaries, outside native QC processes."""
+    from kinbot.vrc_parallel import checkpoint as surface_checkpoint
+    surface_checkpoint()
     if _EPOCH is None:
         return
     m = _read()

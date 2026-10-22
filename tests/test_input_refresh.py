@@ -265,7 +265,7 @@ def test_mixed_reviewed_and_new_vrc_channels_continue_independently(tmp_path,mon
         if reaction is vts.scan_reac['new']: raise multistate.SurfaceModelRequired('new needs review')
         return ('reviewed',{})
     monkeypatch.setattr(multistate,'channel_for_reaction',selection)
-    monkeypatch.setattr(multistate,'calculate_channel',lambda v,n,s:calls.append(('calculated',n)))
+    monkeypatch.setattr(multistate,'calculate_channels',lambda v,s:calls.extend(('calculated',n) for n in s))
     monkeypatch.setattr(pes,'create_rotdpy_inputs',lambda p,rows,*a,**k:calls.append(('rotd',[r[1] for r in rows])))
     with pytest.raises(multistate.SurfaceModelRequired,match='new'):
         vts.calculate_correction_potentials()

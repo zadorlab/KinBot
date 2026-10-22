@@ -206,20 +206,29 @@ def collect(root, *, scheduler=None):
                 groups[name] = [graph(reader, p.parent, jobs,
                                      retired=str(p.parent.resolve()) in retired_scans)
                                 for p in sorted(directory.glob(pattern))]
-            # Use the current correction dispatcher pointer, avoiding obsolete
-            # dispatch directories from older input fingerprints.
+            # One current batch per surface; retain the old single-batch field
+            # for readers of earlier reports, without counting a graph twice.
             pointer = reader.json(directory/'vrctst/molpro/current_dispatch.json')
             correction_graph = None
-            if pointer.get('run_dir'):
-                current = Path(pointer['run_dir']).resolve()
+            correction_graphs = []
+            paths = set(pointer.get('run_dirs', {}).values())
+            if not paths and pointer.get('run_dir'):
+                paths.add(pointer['run_dir'])
+            for path in sorted(paths):
+                current = Path(path).resolve()
                 if current.is_relative_to(root):
-                    correction_graph = graph(reader, current, jobs)
+                    current_graph = graph(reader, current, jobs)
+                    correction_graphs.append(current_graph)
+                    if str(current) == pointer.get('run_dir'):
+                        correction_graph = current_graph
                 else:
                     reader.errors.append(f'Correction graph outside run: {current}')
             workers.append(dict(worker=directory.name, **groups,
                 surface_plan=surface_plan(params), controls={k: params.get(k) for k in KEYS},
                 branches=reader.json(directory/'.kinbot_post_reaction_branches.json'),
                 correction_graph=correction_graph,
+                correction_graphs=correction_graphs,
+                parallel_surfaces=reader.json(directory/'vrctst/parallel_surfaces.json'),
                 correction_files=[str(p.relative_to(directory))
                                   for p in sorted(directory.glob('vrctst/corr_*.json'))],
                 network_request=reader.json(directory/'anl_automatic/network_request.json'),
@@ -281,9 +290,9 @@ def render(report):
             out.extend(active[:4])
             if len(active) > 4:
                 out.append(f'    {len(active)-4} additional scan records in JSON')
-            correction = worker['correction_graph']
+            corrections = worker.get('correction_graphs', [])
             out.append('  Correction task records: ' + str(dict(Counter(
-                t['status'] for t in correction['tasks'])) if correction else 'not materialized')
+                t['status'] for g in corrections for t in g['tasks'])) if corrections else 'not materialized')
                 + f'; correction JSON files={len(worker["correction_files"])}')
         out.append('  PES: ' + ' | '.join(case['pes_summary'].splitlines()[:4]))
         out.append(f'  PES ROTD inputs={len(case["rotd_inputs"])}; results={len(case["rotd_results"])}')

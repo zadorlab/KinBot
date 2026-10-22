@@ -19,6 +19,8 @@ def state_records(model, multiplicity):
 
 
 def natural_cards(model, multiplicity):
+    # MULTI NATORB's SPIN is 2S; DENSITY/LOAD's SPIN is S. Do not share
+    # that keyword between these two interfaces (Molpro manual).
     return ''.join(f'natorb,{record},state={root}.1,spin={multiplicity-1}\n'
                    for root, record in state_records(model, multiplicity).items())
 
@@ -27,11 +29,30 @@ def export_deck(stem, model, multiplicity):
     """Run immediately after ROHF, before CC can replace its density."""
     matrices = [('s', 's'), ('cas', 'orb,2140.2,natural'),
                 ('hf', 'orb,2150.2'), ('dhf', 'den,2150.2')]
-    matrices += [(f'dr{root}', f'den,{record},state={root}.1,spin={multiplicity-1}')
+    matrices += [(f'dr{root}', f'den,{record},state={root}.1,ms2={multiplicity-1}')
                  for root, record in state_records(model, multiplicity).items()]
     return '{matrop\n' + ''.join(
         f'load,{name},{source}\nwrite,{name},{stem}.identity_{name}.out,new,scientific\n'
         for name, source in matrices) + '}\n'
+
+
+def repair_legacy_selectors(text):
+    """Repair only our paired NATORB/identity-export cards, not user densities.
+
+    Keep prepared inputs immutable; the executed input and receipt record the
+    correction. NATORB still uses its documented SPIN=2S convention.
+    """
+    repairs = []
+    pattern = r'(?im)^load,dr(\d+),den,(\d+\.2),state=(\d+\.1),spin=(\d+)\s*$'
+    def replace(match):
+        root, record, state, ms2 = match.groups()
+        if (record != f'{3000+int(root)}.2' or state != root+'.1'
+                or not re.search(r'(?im)^natorb,'+re.escape(record)+',state='
+                                 +re.escape(state)+',spin='+ms2+r'\s*$', text)):
+            return match[0]
+        repairs.append(dict(record=record, state=state, ms2=int(ms2)))
+        return f'load,dr{root},den,{record},state={state},ms2={ms2}'
+    return re.sub(pattern, replace, text), repairs
 
 
 def matrix(path):

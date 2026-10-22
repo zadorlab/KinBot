@@ -4,6 +4,41 @@ This panel runs new native calculations before the proposed CH + H2S refresh.
 It does not accept a model, change production inputs, replace a controller,
 cancel work, or clear any scan-review hold. Native results are still pending.
 
+## Native export repair, October 22 morning
+
+The first panel returned nine native failures at MATROP and five unsubmitted
+candidate points. These were diagnostic-input failures, not failed chemical
+state comparisons. MULTI `NATORB,SPIN=3` correctly selects a quartet, but the
+general density selector interprets `SPIN=3` as S=3 and requests MS2=6.
+The export now explicitly uses `MS2=3`. See the separate conventions in the
+[MULTI manual](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi)
+and [density selection manual](https://www.molpro.com/manual/doku.php?id=general_program_structure).
+Old prepared decks receive only this paired diagnostic-card correction in
+their executed `.native.inp`; the execution receipt records the repaired
+selectors and native-input hash. Prepared inputs retain their original hashes.
+
+The four missing CH3SS points were skipped because the independent VRC branch
+had no ANL `network_request.json` yet. Staging can now use the hash-bound
+separated fragment geometry/maps and the current explicit electronic-state
+models. It uses production's own perception and state-model functions, requires
+exact fragment-map agreement and refuses undeclared states or charged
+fragmentation. It does not infer a quartet merely from electron parity.
+
+For the already-staged panel, run these before restarting its controller:
+
+```bash
+python examples/anl/tools/requested_orbital_recon.py retry-reference-exports PANEL
+python examples/anl/tools/requested_orbital_recon.py production-checks PRODUCTION PANEL --extend
+```
+
+Both commands require an idle panel and hold its campaign/manifest locks.
+The first archives only known legacy density-export failures via the existing
+retry machinery. The second fills missing interior/asymptote roles, preserving
+all existing point selections and attempts. Review the returned skipped list;
+a missing point never counts as verified. Resume using the usual `run PANEL`
+command. No production refresh is required for this repair. The corrected
+native export still needs confirmation on Blodgett; local tests do not run Molpro.
+
 ## What runs
 
 * CH + H2S: six fixed-geometry jobs, at 2, 3.5 and 30 A in aDZ-F12 and aTZ-F12.

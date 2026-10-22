@@ -19,7 +19,38 @@ def read(path):
     return json.loads(Path(path).read_text())
 
 
-def leaf_parameters(well, leaf):
+def context_fragment_multiplicities(parameters, saved):
+    """Resolve explicit fragment states without waiting for ANL finalization.
+
+    Use the same geometry perception/state-model functions as production, but
+    refuse undeclared spins or charged fragmentation rather than guessing.
+    """
+    from kinbot.electronic_states import apply_electronic_state_model
+    from kinbot.stationary_pt import StationaryPoint
+    from kinbot.vrc_scan_recovery import digest
+    context = saved['context']
+    if digest(context) != saved.get('context_sha256'):
+        raise ValueError('Fragment context hash is missing or changed.')
+    if context['charge'] != 0 or context.get('fragment_geometry') is None:
+        raise ValueError('Need explicit fragment records for charged/unseparated channels.')
+    parent = StationaryPoint('reference_fragments', context['charge'], context['multiplicity'],
+        atom=np.array(context['symbols']), geom=np.array(context['fragment_geometry']))
+    parent.characterize()
+    products, maps = parent.start_multi_molecular()
+    actual = {tuple(sorted(map(int, m))): p for p, m in zip(products, maps)}
+    expected = [tuple(sorted(m)) for m in context['maps']]
+    if len(products) != 2 or len(actual) != 2 or set(actual) != set(expected):
+        raise ValueError('Separated fragment connectivity differs from the saved atom maps.')
+    result = []
+    for mapping in expected:
+        product = actual[mapping]
+        if apply_electronic_state_model(product, parameters) is None:
+            raise ValueError('No explicit electronic-state model for fragment '+product.smiles)
+        result.append(int(product.mult))
+    return result
+
+
+def leaf_parameters(well, leaf, saved=None):
     """Resolve actual accepted products and the current declared scalar leaf."""
     source = well/(well.name+'.json')
     par = read(source)
@@ -34,11 +65,13 @@ def leaf_parameters(well, leaf):
     requested = well/'vrctst/orbital_review'/reaction/'request.json'
     if requested.is_file():
         fragments = [p['multiplicity'] for p in read(requested)['products']]
-    else:
+    elif (well/'anl_automatic/network_request.json').is_file():
         network = read(well/'anl_automatic/network_request.json')['network']
         rx = next(r for r in network['reactions'] if r['name'] == reaction)
         species = {s['routing_name']: s for s in network['stable_species']}
         fragments = [species[p]['molecule']['multiplicity'] for p in rx['products']]
+    else:
+        fragments = context_fragment_multiplicities(par, saved or {})
     surface = load_surface_model(par)
     if surface is None:
         raise ValueError('No declared production surface model.')
@@ -85,7 +118,7 @@ def prepare_configs(production, template):
             skipped.append(dict(channel=leaf, reason='Need accepted interior and separated-reference points.'))
             continue
         try:
-            par, fragments, target, target_root = leaf_parameters(well, leaf)
+            par, fragments, target, target_root = leaf_parameters(well, leaf, saved)
             if par.get('vrc_tst_correction_model') != 'spin_splitting':
                 raise ValueError('This finite CC/MR panel requires a spin-splitting production contract.')
             spin = spin_splitting_settings(par, parent_multiplicity=target, fragment_multiplicities=fragments)

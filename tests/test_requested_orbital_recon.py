@@ -136,6 +136,7 @@ def test_ch_h2s_reference_panel_uses_six_matched_jobs_and_production_seed(reques
         assert 'wf,25,1,1\nstate,4' in deck and 'wf,25,1,3\nstate,1' in deck
         assert deck.count('{rs2-f12,') == 5 and deck.count('{uccsd(t)-f12b,') == 1
         assert 'natorb,3001.2,state=1.1,spin=3' in deck
+        assert 'load,dr1,den,3001.2,state=1.1,ms2=3' in deck
         assert deck.index('natorb,3001.2') < deck.index('canonical,2141.2')
         assert deck.index('load,dhf,den,2150.2') < deck.index('{uccsd(t)-f12b,')
         assert 'wf,25,1,3;occ,14;closed,11;orbital,2150.2' in deck
@@ -690,3 +691,65 @@ def test_production_checks_run_actual_saved_models_under_one_cap(request_tree, m
     helper.run(output)
     assert len(calls) == 1 and len(calls[0][0]) == len(record['systems'])
     assert calls[0][1] == dict(keep_going=True,max_jobs=3,allocation_retries=2)
+
+    # Extending an idle panel fills missing roles but must not duplicate or
+    # rewrite the two already prepared production geometries/checkpoints.
+    from types import SimpleNamespace
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:SimpleNamespace(stdout=''))
+    original = [helper._read(s['manifest']) for s in record['systems']]
+    extended = helper.production_checks(production,output,extend=True)
+    assert extended['added_tasks'] == 2 and extended['total_tasks'] == result['total_tasks']
+    assert [helper._read(s['manifest']) for s in record['systems']] == original
+    path = Path(record['systems'][0]['manifest']); m=helper._read(path)
+    m['jobs'][0]['job_id']='42'; atomic_json(path,m)
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:SimpleNamespace(stdout='42\n'))
+    with pytest.raises(RuntimeError,match='allocations'):
+        helper.production_checks(production,output,extend=True)
+
+
+@pytest.mark.parametrize('maps', [[[0,3,4,5],[1,2]], [[0,1,3,4,5],[2]]])
+def test_ch3ss_fragment_states_are_available_before_anl_network(maps):
+    from kinbot.vrc_reference_probes import context_fragment_multiplicities
+    from kinbot.vrc_scan_recovery import digest
+    parameters = helper._read(ROOT/'examples/anl/ch3ss_anl1_f12/ch3ss.json')
+    xyz = np.array([[1.0521,.0814,-.0820],[.4164,-.6196,-1.6231],
+                    [1.1718,.6443,-3.0156],[.7032,-.5284,.7560],
+                    [.6877,1.1027,.0633],[2.1461,.0805,-.0733]])
+    xyz[maps[1]] += [30.,0.,0.]
+    context = dict(symbols=['C','S','S','H','H','H'],charge=0,multiplicity=2,
+                   maps=maps,fragment_geometry=xyz.tolist())
+    saved = dict(context=context,context_sha256=digest(context))
+    assert context_fragment_multiplicities(parameters,saved) == [2,3]
+    with pytest.raises(ValueError,match='explicit electronic-state'):
+        context_fragment_multiplicities({},saved)
+    context['maps'] = [[0],[1,2,3,4,5]]
+    saved['context_sha256'] = digest(context)
+    with pytest.raises(ValueError,match='connectivity'):
+        context_fragment_multiplicities(parameters,saved)
+
+
+def test_reference_export_retry_preserves_input_and_failed_evidence(request_tree, monkeypatch):
+    from types import SimpleNamespace
+    from kinbot.execution import file_sha256
+    source = completed_screen(request_tree)
+    output = source.parent/'retry-panel'
+    helper.candidates(source,CANDIDATES,output)
+    record=helper._saved(output); path=Path(record['systems'][0]['manifest'])
+    m=helper._read(path); j=m['jobs'][0]; d=Path(j['directory'])
+    inp=d/(j['name']+'.inp')
+    inp.write_text(inp.read_text()+'\nnatorb,3001.2,state=1.1,spin=3\n'
+                   '{matrop\nload,dr1,den,3001.2,state=1.1,spin=3\n}\n')
+    j.update(input_sha256=file_sha256(inp),job_id='42',status='incomplete')
+    atomic_json(path,m)
+    failed = '?REQUESTED DENSITY NOT FOUND IN RECORD    3001.2 FOR STATE= SYM= 1 MS2= 6\n'
+    (d/(j['name']+'.out')).write_text(failed)
+    atomic_json(d/'execution.json',dict(status='failed',error=failed,input_sha256=j['input_sha256']))
+    original = inp.read_bytes()
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:SimpleNamespace(stdout='',stderr='',returncode=0))
+    result=helper.retry_reference_exports(output)
+    assert result['manifests'][0]['retry_ready'] == [j['name']]
+    after=helper._read(path)['jobs'][0]
+    assert after['attempt'] == 2 and 'job_id' not in after
+    assert inp.read_bytes() == original
+    assert (d/'attempts/1'/(j['name']+'.out')).read_text() == failed
+    assert helper.retry_reference_exports(output)['manifests'] == []

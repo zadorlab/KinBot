@@ -5,6 +5,7 @@ Scientific choices live in the supplied recipe. Only the explicit ``review
 input. It uses live refresh and never starts/restarts a production driver.
 """
 import argparse
+from contextlib import ExitStack
 from copy import deepcopy
 import fcntl
 import json
@@ -413,27 +414,83 @@ def bind(source, request, *, apply=True):
     return dict(status='bound_for_review',request=str(request),production_model_accepted=False)
 
 
-def production_checks(production, output):
+def _idle_panel(record):
+    """Call with the campaign and all existing manifest locks held."""
+    live = set(subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+        text=True, check=True, timeout=30).stdout.split())
+    for system in record['systems']:
+        manifest = _read(system['manifest'])
+        for job in manifest['jobs'] + manifest.get('excluded_jobs', []):
+            if str(job.get('job_id')) in live or job.get('submission_status') == 'submitting':
+                raise RuntimeError('Wait for panel allocations/submissions to finish before repair or extension.')
+    return live
+
+
+def retry_reference_exports(output):
+    """Archive only known density-selector failures; leave scientific failures alone."""
+    from kinbot.molpro_reference_identity import repair_legacy_selectors
+    root = Path(output).expanduser().resolve(strict=True)
+    with recon._manifest_lock(root), ExitStack() as locks:
+        record = _saved(root)
+        paths = [Path(s['manifest']) for s in record['systems']]
+        for parent in sorted({p.parent for p in paths}):
+            locks.enter_context(recon._manifest_lock(parent))
+        live = _idle_panel(record)
+        selected = {}
+        for path in paths:
+            selected[path] = set()
+            for job in _read(path)['jobs']:
+                d = Path(job['directory']); inp = d/(job['name']+'.inp')
+                if file_sha256(inp) != job['input_sha256']:
+                    raise ValueError('Prepared native input changed: '+str(inp))
+                _, repairs = repair_legacy_selectors(inp.read_text())
+                receipt = d/'execution.json'
+                if not repairs or not receipt.exists() or not job.get('job_id'):
+                    continue
+                execution = _read(receipt)
+                out = d/(job['name']+'.out')
+                text = out.read_text(errors='replace') if out.exists() else ''
+                if (execution.get('status') == 'failed'
+                        and re.search(r'REQUESTED DENSITY NOT FOUND IN RECORD\s+300\d+\.2', text)):
+                    selected[path].add(str(job['job_id']))
+        results = [recon._retry_failed(p, job_ids=ids, live_job_ids=live)
+                   for p, ids in selected.items() if ids]
+    return dict(status='retry_ready', manifests=results, production_model_accepted=False)
+
+
+def production_checks(production, output, *, extend=False):
     """Append fixed-geometry native checks to one unstarted shared-cap panel."""
     from kinbot.vrc_reference_probes import prepare_configs
     root = Path(output).expanduser().resolve(strict=True)
     production = Path(production).expanduser().resolve(strict=True)
     if root.is_relative_to(production):
         raise ValueError('Keep reference checks outside production.')
-    with recon._manifest_lock(root):
+    with recon._manifest_lock(root), ExitStack() as locks:
         record = _saved(root)
         if Path(record['production_policy']).parent != production:
             raise ValueError('The panel and production must share one resource policy.')
-        if record.get('production_checks'):
+        if record.get('production_checks') and not extend:
             return dict(status='already_prepared', **record['production_checks'])
-        for system in record['systems']:
-            state = _read(system['manifest'])
-            if any(j.get('job_id') or j.get('status', 'prepared') != 'prepared' for j in state['jobs']):
-                raise ValueError('Append production checks before starting this panel.')
+        if extend:
+            for parent in sorted({Path(s['manifest']).parent for s in record['systems']}):
+                locks.enter_context(recon._manifest_lock(parent))
+            _idle_panel(record)
+        else:
+            for system in record['systems']:
+                state = _read(system['manifest'])
+                if any(j.get('job_id') or j.get('status', 'prepared') != 'prepared' for j in state['jobs']):
+                    raise ValueError('Append production checks before starting this panel.')
         template = _read(record['systems'][0]['configuration'])
         configurations, skipped = prepare_configs(production, template)
-        if not configurations:
+        if not configurations and not extend:
             raise ValueError('No eligible production points: '+json.dumps(skipped))
+        # Preserve the original interior/far selection even if production has
+        # advanced. An extension fills missing roles, never adds a second near
+        # point or changes a previously prepared model/checkpoint.
+        def key(p):
+            return p['channel'], '_vts_fragments_asymptote_' in Path(p['graph']).name
+        existing = {key(s['production_probe']) for s in record['systems'] if s.get('production_probe')}
+        configurations = [(d, p) for d, p in configurations if key(p) not in existing]
         policy = run_policy.read(production) or {}
         # Preflight every native deck before publishing the new systems.
         with tempfile.TemporaryDirectory(prefix='kinbot-production-probe-') as tmp:
@@ -457,7 +514,7 @@ def production_checks(production, output):
             record['systems'].append(dict(title=data['title'], configuration=str(path),
                                          manifest=str(manifest), production_probe=provenance))
         record['max_jobs'] = min(3, record['max_jobs'])
-        record['production_checks'] = dict(added_tasks=len(configurations), skipped=skipped,
+        record['production_checks'] = dict(added_tasks=sum(bool(s.get('production_probe')) for s in record['systems']), skipped=skipped,
             total_tasks=sum(len(_read(s['manifest'])['jobs']) for s in record['systems']),
             max_jobs=record['max_jobs'], production_model_accepted=False)
         atomic_json(root/'review_launch.json', record)
@@ -993,6 +1050,8 @@ def main():
     production_cmd = commands.add_parser('production-checks', help='Append native production CC/MR identity probes.')
     for name in ('production', 'output'):
         production_cmd.add_argument(name)
+    production_cmd.add_argument('--extend', action='store_true', help='Add missing roles only after every panel allocation has stopped.')
+    commands.add_parser('retry-reference-exports', help='Archive known legacy density-selector failures for retry.').add_argument('output')
     batch_cmd = commands.add_parser('batch',help='Prepare one shared-cap orbital-only campaign.')
     for name in ('production','plan','output'):
         batch_cmd.add_argument(name)
@@ -1019,7 +1078,9 @@ def main():
     elif args.action == 'candidates':
         result = candidates(args.source, args.recipe, args.output)
     elif args.action == 'production-checks':
-        result = production_checks(args.production, args.output)
+        result = production_checks(args.production, args.output, extend=args.extend)
+    elif args.action == 'retry-reference-exports':
+        result = retry_reference_exports(args.output)
     elif args.action == 'review':
         result = review(args.source, args.case_input, args.recipe, apply=args.apply)
     elif args.action == 'review-batch':

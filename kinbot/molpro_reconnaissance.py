@@ -1151,6 +1151,8 @@ def _execute(job):
                          r'put,xml,\1.orbitals.xml', inp.read_text())
     native_text = compact_molpro_titles(native_text)
     native_text, energy_repairs = _repair_legacy_energy_selectors(native_text)
+    from kinbot.molpro_reference_identity import repair_legacy_selectors
+    native_text, identity_repairs = repair_legacy_selectors(native_text)
     vectors = job.get('retry_max_reference_vectors')
     iterations = job.get('retry_max_reference_iterations')
     native_text = _reference_solver_override(native_text, vectors, iterations)
@@ -1200,6 +1202,8 @@ def _execute(job):
                  'native_input_sha256': file_sha256(native),
                  'input_transform': 'native_xml_mr_state_energy_v4', 'orbital_exports': exports,
                  'legacy_mr_energy_selectors_repaired': energy_repairs}
+    if identity_repairs:
+        execution['reference_density_selectors_repaired'] = identity_repairs
     for key in ('retry_max_reference_vectors', 'retry_max_reference_iterations'):
         if job.get(key) is not None:
             execution[key] = job[key]

@@ -7,6 +7,25 @@ from kinbot.molpro_reference_identity import compare, matrix, report
 from kinbot.execution import atomic_json, file_sha256
 
 
+@pytest.mark.parametrize('multiplicity', [1, 2, 3, 4, 5])
+def test_native_spin_conventions_and_legacy_repair(multiplicity):
+    from kinbot.molpro_reference_identity import natural_cards, export_deck, repair_legacy_selectors
+    model = {'state_average': [{'multiplicity':multiplicity, 'roots':2}]}
+    ms2 = multiplicity-1
+    cards = natural_cards(model, multiplicity)
+    deck = cards+export_deck('probe', model, multiplicity)
+    assert f'natorb,3001.2,state=1.1,spin={ms2}' in deck
+    assert f'load,dr1,den,3001.2,state=1.1,ms2={ms2}' in deck
+    assert f'load,dr2,den,3002.2,state=2.1,ms2={ms2}' in deck
+    legacy = deck.replace(',ms2=', ',spin=')
+    # A general/user MATROP selector really means S and must not be rewritten.
+    unrelated = '\nload,user,den,2140.2,state=1.1,spin=1\n'
+    fixed, repairs = repair_legacy_selectors(legacy+unrelated)
+    assert fixed == deck+unrelated
+    assert [r['ms2'] for r in repairs] == [ms2, ms2]
+    assert repair_legacy_selectors(fixed) == (fixed, [])
+
+
 def test_native_density_matching_detects_wrong_root_and_is_rotation_invariant(tmp_path):
     # Four occupied spatial orbitals, five electrons, quartet. Reference has
     # its three SOMOs inside the CAS; root 2, not labelled root 1, matches it.

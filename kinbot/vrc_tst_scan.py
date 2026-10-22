@@ -1009,7 +1009,8 @@ class VTS:
 
     def _do_molpro_multireference_scan(self, reactions, noscan=False):
         """Compute a relaxed VRC path with the requested Molpro MR method."""
-        from kinbot.vrc_scan_recovery import ScanPointFailure, ScanProgress, ScanReviewRequired
+        from kinbot.vrc_scan_recovery import (
+            ScanPointFailure, ScanProgress, ScanReviewRequired, redundant_fragment_retry)
         Path('vrctst/molpro_scan').mkdir(parents=True, exist_ok=True)
         completed = []
         reviews = []
@@ -1124,22 +1125,28 @@ class VTS:
                     except ScanPointFailure as original:
                         errors = [dict(error=str(original), graph=original.graph,
                                        connectivity=original.connectivity)]
+                        retry_note = {}
+                        result = None
                         if original.connectivity and fragment_geom is not None:
-                            progress.record(base, distance, 'fragment_retry', attempts=errors)
                             retry_geom = self._shift_scan_geometry(reaction, fragment_geom, distance)
-                            try:
-                                result = self._molpro_multireference_scan_task(
-                                    reaction, retry_geom, distance, base + '_fragment_retry',
-                                    state_model_override=copy.deepcopy(fragment_model),
-                                    fragment_retry=True)
-                            except ScanPointFailure as retry_error:
-                                errors.append(dict(error=str(retry_error), graph=retry_error.graph,
-                                                   connectivity=retry_error.connectivity))
-                                result = None
-                        else:
-                            result = None
+                            if redundant_fragment_retry(base, geom, state_model,
+                                                        retry_geom, fragment_model,
+                                                        primary_graph=original.graph):
+                                retry_note['fragment_retry_skipped'] = 'identical_geometry_and_state_model'
+                                logger.info('%s: primary already used the fragment seed; '
+                                            'not repeating the rejected connectivity calculation.', base)
+                            else:
+                                progress.record(base, distance, 'fragment_retry', attempts=errors)
+                                try:
+                                    result = self._molpro_multireference_scan_task(
+                                        reaction, retry_geom, distance, base + '_fragment_retry',
+                                        state_model_override=copy.deepcopy(fragment_model),
+                                        fragment_retry=True)
+                                except ScanPointFailure as retry_error:
+                                    errors.append(dict(error=str(retry_error), graph=retry_error.graph,
+                                                       connectivity=retry_error.connectivity))
                         if result is None:
-                            progress.record(base, distance, 'needs_review', attempts=errors)
+                            progress.record(base, distance, 'needs_review', attempts=errors, **retry_note)
                             logger.warning('%s: scan point held for review; continuing independent '
                                            'points from validated fragments: %s', base, errors[-1]['error'])
                             after_gap = True

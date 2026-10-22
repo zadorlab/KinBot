@@ -30,13 +30,18 @@ def scan(tmp_path, monkeypatch):
         vrc_tst_scan_method='caspt2(2,2)', vrc_tst_scan_basis='avdz-f12',
         vrc_tst_scan_points=[2.5, 2.7, 2.9], vrc_tst_asymptote_distance=30.)
     fixture = SimpleNamespace(calls=[], retry_fails=False, repair_primary=False, interrupt=None,
+                              extra_failures=set(),
                               results={}, original=deepcopy(reaction))
     def optimize(reaction, geom, distance, logical_name, **kwargs):
         fixture.calls.append((logical_name, np.array(geom), deepcopy(kwargs)))
         if fixture.interrupt and logical_name.endswith('pt02'):
             raise fixture.interrupt
         graph = tmp_path/'vrctst/molpro_scan'/logical_name
+        task = graph/'tasks/relaxed_scan'; task.mkdir(parents=True, exist_ok=True)
+        atomic_json(task/'task.json', {'task': {'id': 'relaxed_scan'}})
         if logical_name.endswith('pt01') and not fixture.repair_primary:
+            raise recovery.ScanPointFailure('H transfer', graph, connectivity=True)
+        if logical_name in fixture.extra_failures:
             raise recovery.ScanPointFailure('H transfer', graph, connectivity=True)
         if logical_name.endswith('fragment_retry') and fixture.retry_fails:
             raise recovery.ScanPointFailure('still H transfer', graph, connectivity=True)
@@ -44,7 +49,6 @@ def scan(tmp_path, monkeypatch):
         a.positions[0] = a.positions[1] - [0, 0, .8 if distance == 30. else .81]
         a.positions[3] = a.positions[2] + [0, 0, .82 if distance == 30. else .83]
         model = {'seed': logical_name}
-        task = graph/'tasks/relaxed_scan'; task.mkdir(parents=True, exist_ok=True)
         write(task/'final.xyz', a)
         atomic_json(task/'execution.json', {'status': 'executed'})
         atomic_json(graph/'workflow.json', {'name': logical_name})
@@ -106,6 +110,73 @@ def test_later_successful_seed_is_retained_when_earlier_gap_is_repaired(scan):
     assert after[1] == pytest.approx(before[1])
     assert after[2] == before[2]
     assert vts._scan_review_requests  # Prior connectivity event cannot disappear.
+
+
+def test_after_gap_fragment_primary_does_not_repeat_identical_retry(scan):
+    scan.retry_fails = True
+    scan.extra_failures.add('r_vts_pt02')
+    with pytest.raises(recovery.ScanReviewRequired):
+        scan.make().do_scan(['r'])
+    names = [c[0] for c in scan.calls]
+    assert names[-1] == 'r_vts_pt02'
+    assert 'r_vts_pt01_fragment_retry' in names  # This was a different seed.
+    assert 'r_vts_pt02_fragment_retry' not in names
+    record = json.loads(scan.review.read_text())
+    point = record['points']['r_vts_pt02']
+    assert point['status'] == 'needs_review'
+    assert point['fragment_retry_skipped'] == 'identical_geometry_and_state_model'
+    assert len(point['attempts']) == 1
+    assert not record['complete_grid']
+    with pytest.raises(ValueError, match='complete accepted grid'):
+        recovery.approve(scan.review, 'A skipped duplicate cannot waive the gap.')
+    scan.calls.clear()
+    with pytest.raises(recovery.ScanReviewRequired):
+        scan.make().do_scan(['r'])
+    assert 'r_vts_pt02_fragment_retry' not in [c[0] for c in scan.calls]
+
+
+def test_existing_same_seed_retry_is_reattached_even_without_progress_receipt(scan):
+    scan.retry_fails = True
+    scan.extra_failures.add('r_vts_pt02')
+    directory = Path('vrctst/molpro_scan/r_vts_pt02_fragment_retry_legacy')
+    directory.mkdir(parents=True)
+    state = directory/'state.json'
+    state.write_text('{"tasks":{"relaxed_scan":{"status":"submitted","job_id":"42"}}}')
+    original = state.read_bytes()
+    with pytest.raises(recovery.ScanReviewRequired):
+        scan.make().do_scan(['r'])
+    assert 'r_vts_pt02_fragment_retry' in [c[0] for c in scan.calls]
+    assert state.read_bytes() == original
+    record = json.loads(scan.review.read_text())
+    assert len(record['points']['r_vts_pt02']['attempts']) == 2
+
+
+def test_retry_seed_comparison_preserves_changed_geometry_or_orbitals(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    a = np.array([[0., 0., 0.], [0., 0., 1.]])
+    model = {'selected_roots': {'2': 1}, 'orbital_selection': {'sha256': 'original'}}
+    assert recovery.redundant_fragment_retry('r', a, model, a.copy(), deepcopy(model))
+    b = a.copy(); b[1, 2] += 1.e-9
+    assert not recovery.redundant_fragment_retry('r', a, model, b, model)
+    changed = deepcopy(model); changed['orbital_selection']['sha256'] = 'different'
+    assert not recovery.redundant_fragment_retry('r', a, model, a, changed)
+    changed = deepcopy(model); changed['selected_roots']['2'] = 2
+    assert not recovery.redundant_fragment_retry('r', a, model, a, changed)
+    b[0, 0] = np.nan
+    assert not recovery.redundant_fragment_retry('r', b, model, b, model)
+
+
+def test_explicit_primary_fallback_is_not_deduplicated_from_logical_seed(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    graph = tmp_path/'primary'
+    a = [[0., 0., 0.]]
+    model = {'seed': 'fragment'}
+    # Missing native task provenance is also insufficient for suppression.
+    assert not recovery.redundant_fragment_retry('r', a, model, a, model, primary_graph=graph)
+    task = graph/'tasks/relaxed_scan'; task.mkdir(parents=True)
+    atomic_json(task/'task.json', {'task': {'id': 'relaxed_scan', 'manual_fallback': {
+        'options': {'calculator_kwargs': {'correlation_convergence': 1.e-9}}}}})
+    assert not recovery.redundant_fragment_retry('r', a, model, a, model, primary_graph=graph)
 
 
 def test_refresh_interrupt_is_not_a_point_failure_and_seed_plan_survives(scan):

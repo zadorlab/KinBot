@@ -152,3 +152,33 @@ the CH + H2S worker acknowledges its model, expect capacity 23 unless another
 current channel needs orbital review. A launched handoff is not evidence that
 the serial diagnostic or a VPT2 retry has converged; inspect their current
 execution receipts separately.
+
+## C + SH3 and serial follow-up at 13:25 PDT
+
+The new geometry audit shows all three S-H bonds retained at 2.0-2.6 A:
+the shortest C-H distance grows from 2.4290 to 2.8746 A. At 2.8, 3.0 and
+3.2 A, both the primary and fragment-seeded attempts instead form C-H near
+1.1098-1.1099 A and stretch the corresponding S-H to 2.9422-3.2559 A.
+The running 3.4 A trajectory has C-H 1.1099 A and S-H 3.4108 A already.
+These are rejected H-transfer structures, not usable C + SH3 scan points.
+No grid, dividing surface, orbital model or review approval is changed.
+The earlier intact geometries are not thereby certified as constrained
+minima or as a complete physical dissociation path.
+
+After a gap the primary already starts from validated asymptotic fragments.
+Previously a connectivity rejection could trigger another optimization from
+that same geometry and orbital/state seed. The scan now suppresses that
+redundant fallback, records `fragment_retry_skipped`, and continues subsequent
+points while retaining the gap and whole-path review. Geometry comparison
+uses native input precision, with the complete state model required to match.
+A different seed still gets its bounded retry. Existing retry directories
+remain eligible for normal reattachment (including interrupted preparations,
+allocated jobs and explicit live retries); explicit primary-task fallbacks
+are not deduplicated from their original logical seed.
+
+Serial job 52919565 remains active with no new failure receipt in this read.
+Its maximum force decreased from 11.2188 to 0.0080 eV/A by step 12, with
+CH3 intact, but the requested threshold is 0.0005 eV/A. The last three
+completed central energy evaluations identify RSPT2 STATE 2.1 and agree with
+the saved high-precision energy. This does not yet establish convergence,
+displaced-state continuity, or the cause of the earlier MPI abort.

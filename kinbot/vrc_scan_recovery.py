@@ -30,6 +30,40 @@ def digest(value):
                                     separators=(',', ':')).encode()).hexdigest()
 
 
+def redundant_fragment_retry(base, geometry, model, fragment_geometry, fragment_model,
+                             *, primary_graph=None):
+    """Do not launch a second topology attempt with the same physical seed.
+
+    After a gap, the primary attempt already uses the asymptotic coordinates
+    and orbitals. A smaller execution budget cannot repair its converged
+    connectivity change. Compare coordinates at the native input precision
+    and the complete orbital/state contract, without a geometry tolerance or
+    orbital-equivalence assumption. Existing retry directories must still be
+    revisited: they may own an allocation, a result, or an explicit live retry.
+    This conservative legacy fence also covers interruptions before progress
+    recorded the retry graph. An explicit primary-task fallback may have
+    changed its actual calculator/optimizer settings; do not infer equivalence
+    from that graph's original logical seed.
+    """
+    if primary_graph is not None:
+        try:
+            task = json.loads((Path(primary_graph)/'tasks/relaxed_scan/task.json').read_text())['task']
+        except (OSError, ValueError, KeyError):
+            return False
+        if task.get('manual_fallback'):
+            return False
+    safe = re.sub(r'[^A-Za-z0-9_.-]', '_', base + '_fragment_retry')
+    root = Path('vrctst/molpro_scan')
+    if root.exists() and any(
+            p.is_dir() and (p.name == safe or p.name.startswith(safe + '_'))
+            for p in root.iterdir()):
+        return False
+    a, b = np.asarray(geometry, dtype=float), np.asarray(fragment_geometry, dtype=float)
+    return (a.shape == b.shape and np.isfinite(a).all() and np.isfinite(b).all()
+            and np.array_equal(np.round(a, 12), np.round(b, 12))
+            and digest(model) == digest(fragment_model))
+
+
 class ScanProgress:
     """One owner per surface; persist seeds BEFORE dispatch for replay safety.
 

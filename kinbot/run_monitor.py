@@ -663,7 +663,10 @@ def render_status_summary(case):
             continue
         if item.get('previous_controller'):
             if item.get('branches'):
-                out.append('Branch report belongs to the previous controller; '
+                worker = str(Path(item['path']).parent)
+                stage = case.get('exploration', {}).get('workers', {}).get(worker, {}).get('status')
+                out.append(f'Branch report for {worker} belongs to the previous controller; '
+                           + (f'current PES stage={stage}; ' if stage else '') +
                            'current outcomes not reported yet (--details retains history).')
             continue
         if item.get('branches'):
@@ -744,13 +747,17 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
     # never make the other run invisible on a terminal/watch display.
     for case in report['cases']:
         branches = [item for item in case['artifacts'] if item.get('branches')]
-        states = '; '.join(f'{name}=' + ('not_reported_yet' if item.get('previous_controller')
-                           else value.get('status', 'unknown'))
-                           for item in branches for name, value in item['branches'].items())
         out.append(f'OVERVIEW {case["name"]}: '
                    f'jobs={len(case["jobs"]) if not report["scheduler_error"] else "UNKNOWN"}; '
-                   f'controllers={len(case["processes"]) if not report["process_error"] else "UNKNOWN"}; '
-                   + (states or 'no post-reaction branch record yet'))
+                   f'controllers={len(case["processes"]) if not report["process_error"] else "UNKNOWN"}'
+                   + ('' if branches else '; no post-reaction branch record yet'))
+        for item in branches:
+            worker = str(Path(item['path']).parent)
+            states = '; '.join(f'{name}=' + ('not_reported_yet' if item.get('previous_controller')
+                               else value.get('status', 'unknown'))
+                               for name, value in item['branches'].items())
+            stage = case.get('exploration', {}).get('workers', {}).get(worker, {}).get('status')
+            out.append(f'  {worker}: {states}' + (f'; PES stage={stage}' if stage else ''))
     for case in report['cases']:
         out += ['', f'=== {case["name"]} ===']
         exploration = case.get('exploration', {})

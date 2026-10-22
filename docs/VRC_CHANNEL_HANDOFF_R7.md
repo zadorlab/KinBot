@@ -666,3 +666,8 @@ outstanding or unconfirmed reviews. The original aggregate status/error is
 retained in `--json` and `--details`. Model acceptance does not certify QC
 completion. This display correction takes effect on the next monitor
 invocation after pulling; existing drivers and jobs need no refresh.
+
+The overview labels each branch pair by its well and, when available, shows
+that well's current PES stage. `not_reported_yet` means a retained branch
+report predates the replacement controller; an `exploring` worker can
+legitimately keep that label until it reaches post-reaction dispatch.

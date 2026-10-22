@@ -240,6 +240,25 @@ def test_new_branch_report_replaces_startup_history(production):
     assert 'previous controller' not in text
 
 
+def test_overview_labels_each_well_and_current_exploration_stage(production):
+    root, case = production
+    put(case/'pes_status.json', {'status': 'running', 'started_utc': '2026-10-21T17:32:53+00:00'})
+    put(case/'pes_exploration.json', {'phase': 'exploring', 'workers': {
+        'ready_well': {'status': 'vrc'}, 'searching_well': {'status': 'exploring'}}})
+    for name in ('ready_well', 'searching_well'):
+        marker = case/name/'.kinbot_post_reaction_branches.json'
+        put(marker, {'branches': {'vrc_tst': {'status': 'running'}}})
+        written = monitor.datetime.fromisoformat(
+            '2026-10-21T17:40:00+00:00' if name == 'ready_well'
+            else '2026-10-21T17:00:00+00:00').timestamp()
+        os.utime(marker, (written, written))
+    text = monitor.render(monitor.snapshot(root), width=200)
+    overview = text.split('=== example ===')[0]
+    assert 'ready_well: vrc_tst=running; PES stage=vrc' in overview
+    assert 'searching_well: vrc_tst=not_reported_yet; PES stage=exploring' in overview
+    assert 'Branch report for searching_well belongs to the previous controller; current PES stage=exploring' in text
+
+
 def review_records(case, names=('reviewed',)):
     worker = case/'well'
     aggregate = worker/'vrc_model_review.json'

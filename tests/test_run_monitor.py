@@ -65,6 +65,66 @@ def test_retired_vrc_graph_hidden_only_when_unchanged_and_not_live(production, m
     assert 'RETIRED FAILURE' in json.dumps(monitor.snapshot(root))
 
 
+def test_root_diagnostics_and_other_allocations_are_not_hidden(production, monkeypatch):
+    root, case = production
+    graph = root/'diagnostics/vrc_branch_probes/probe_test'
+    put(graph/'workflow.json', {'tasks': [{'id': 'relaxed_scan'}]})
+    put(graph/'state.json', {'tasks': {'relaxed_scan': {'status': 'submitted', 'job_id': '51'}}})
+    put(graph/'tasks/relaxed_scan/optimization.log',
+        'Sella  21 14:02:45 -11896.519999 0.0026 0.0 0.0002 10.7610 21\n')
+    def job(ident, directory):
+        return dict(job_id=ident, directory=str(directory), state='RUNNING', nodes='node32',
+                    elapsed='20:00', limit='1:00:00', cpus='8', memory='104000M',
+                    excluded_nodes='node1', name='kb-relaxed_scan', reason='None')
+    jobs = [job('51', graph/'tasks/relaxed_scan'), job('52', root/'unlisted'),
+            job('99', root.parent/'another-run')]
+    monkeypatch.setattr(monitor, 'queue', lambda: (jobs, None))
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert [j['job_id'] for j in report['jobs']] == ['51', '52']
+    assert [j['job_id'] for j in report['other_jobs']] == ['52']
+    assert 'Allocations under monitored root: 2' in text
+    assert 'OVERVIEW diagnostics: jobs=1' in text
+    assert 'diagnostic results require review before production use' in text
+    assert 'OTHER ALLOCATION 52 RUNNING: unlisted' in text
+    assert 'Sella  21' in text
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    monkeypatch.setattr(monitor, 'queue', lambda: ([], 'scheduler unavailable'))
+    text = monitor.render(monitor.snapshot(root))
+    assert 'Allocations under monitored root: UNKNOWN' in text
+    assert 'OVERVIEW diagnostics: jobs=UNKNOWN' in text
+
+
+def test_scan_replay_distinguishes_current_acceptance_from_saved_history(production):
+    root, case = production
+    put(case/'123/vrctst/scan_review/channel/scan_review.json', dict(
+        reaction='channel_r2', status='running', complete_grid=False,
+        history={'pt13': {'status': 'accepted', 'distance_angstrom': 4.6},
+                 'pt14': {'status': 'accepted', 'distance_angstrom': 4.8}},
+        points={'pt13': {'status': 'accepted', 'distance_angstrom': 4.6},
+                'pt14': {'status': 'running', 'distance_angstrom': 4.8}}))
+    report = monitor.snapshot(root)
+    scan = next(a['scan'] for a in report['cases'][0]['artifacts'] if a.get('scan'))
+    assert scan['current_counts'] == {'accepted': 1, 'running': 1}
+    assert scan['saved_counts'] == {'accepted': 1, 'running': 1}
+    assert scan['last_accepted']['point'] == 'pt13'
+    assert scan['pending'] == [dict(point='pt14', distance_angstrom=4.8, status='running')]
+    text = monitor.render(report)
+    assert 'SCAN channel_r2: running' in text
+    assert 'pt14: running (4.8 A)' in text
+    assert 'may be reused' in text
+
+
+def test_single_case_root_does_not_double_count_diagnostics(production, monkeypatch):
+    root, case = production
+    graph = case/'diagnostics/vrc_branch_probes/probe_test'
+    put(graph/'state.json', {'tasks': {'relaxed_scan': {'status': 'complete'}}})
+    report = monitor.snapshot(case)
+    assert len(report['cases']) == 1
+    assert sum('tasks' in a for a in report['cases'][0]['artifacts']) == 1
+
+
 def test_initial_failure_visible_even_without_accounting_or_driver_output(production):
     root, case = production
     put(case/'driver.log', 'Copyright ...\n')

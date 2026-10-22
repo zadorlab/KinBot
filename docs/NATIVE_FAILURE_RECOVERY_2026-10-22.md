@@ -208,3 +208,25 @@ at that orientation/model; it does not establish a barrierless channel or
 active-space completeness. A transfer or budget failure likewise does not prove
 that no intact solution exists. Keep the production path under review until
 the branch and electronic-state continuity are established.
+
+### Serial result and monitoring after reattachment
+
+Job 52919565 subsequently completed and its original graph was marked
+`complete`. The saved final projected force was 0.0002543938466342233 eV/A,
+below the requested 0.0005, with constraint residual 4.688294197308227e-10.
+This verifies the serial workaround at this point; it does not identify the
+earlier MPI abort's root cause. Sella's printed final force can lag the final
+convergence check, so the saved final force/constraint test is authoritative.
+
+Dispatcher completion and VRC acceptance are separate. The scan must still
+validate connectivity and its orbital checkpoint, publish the geometry, and
+record the point as `accepted`. The r1 log is not evidence of acceptance or
+continuation on r2. Resource-only retries retain their graph identity and
+do not change the default resources for subsequent points.
+
+The standard monitor now includes `diagnostics` alongside the prepared PES
+cases, lists allocations elsewhere under the monitored root, and displays
+current-pass versus saved scan progress. Replayed acceptance can reuse QC;
+it is not a count of new calculations. Diagnostic convergence remains
+separate from production-model acceptance. Updating this read-only monitor
+requires a code pull, not replacement of the running controllers.

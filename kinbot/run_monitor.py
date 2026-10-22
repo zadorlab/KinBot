@@ -338,6 +338,21 @@ def artifacts(paths, root, warnings):
             item.update(branches=data.get('branches'), mess_gate=data.get('mess_gate'),
                         final_solver=data.get('final_solver'))
             item['previous_controller'] = previous_controller_record(path, root, warnings)
+        elif path.name == 'scan_review.json':
+            # A restarted controller replays the grid. Keep this pass distinct
+            # from saved acceptance; neither means that new QC ran this pass.
+            points = data.get('points', {})
+            saved = {**data.get('history', {}), **points}
+            accepted = [dict(point=k, distance_angstrom=v.get('distance_angstrom'))
+                        for k, v in points.items() if v.get('status') == 'accepted']
+            item['scan'] = dict(reaction=data.get('reaction'),
+                current_counts=dict(Counter(v.get('status', 'unknown') for v in points.values())),
+                saved_counts=dict(Counter(v.get('status', 'unknown') for v in saved.values())),
+                last_accepted=accepted[-1] if accepted else None,
+                pending=[dict(point=k, distance_angstrom=v.get('distance_angstrom'),
+                              status=v.get('status')) for k, v in points.items()
+                         if v.get('status') != 'accepted'],
+                complete_grid=data.get('complete_grid', False))
         elif path.name == 'composite_preflight.json':
             item['previous_controller'] = previous_controller_record(path, root, warnings)
             item['preflight'] = {key: data.get(key) for key in (
@@ -505,6 +520,10 @@ def snapshot(root, *, include_all=False, log_lines=4):
     directories = [Path(p).parent.resolve() for p in prepared.get('inputs', [])] or [root]
     if any(not inside(d, root) for d in directories):
         raise ValueError('Prepared input directory is outside the monitored tree.')
+    diagnostics = root/'diagnostics'
+    if (diagnostics.is_dir() and inside(diagnostics, root)
+            and not any(inside(diagnostics, d) for d in directories)):
+        directories.append(diagnostics.resolve())
     jobs, queue_error = queue()
     process_error = None
     try:
@@ -521,14 +540,19 @@ def snapshot(root, *, include_all=False, log_lines=4):
         controls = control_summary(root)
     except (OSError, ValueError) as error:
         controls = {'error': str(error)}
+    cases = [case_snapshot(d, jobs, processes, now,
+                log_limit=200 if include_all else 40, log_lines=log_lines) for d in directories]
+    for case in cases:
+        case['kind'] = 'diagnostics' if Path(case['directory']) == diagnostics.resolve() else 'production'
+    root_jobs = [j for j in jobs if inside(j['directory'], root)]
     return {'time': datetime.fromtimestamp(now).astimezone().isoformat(timespec='seconds'),
             'timestamp': now,
             'shared_policy': policy,
             'live_controls': controls,
             'shared_policy_root': str(policy_root.parent) if policy_root else None,
             'directory': str(root), 'scheduler_error': queue_error, 'process_error': process_error,
-            'warnings': warnings, 'cases': [case_snapshot(d, jobs, processes, now,
-                log_limit=200 if include_all else 40, log_lines=log_lines) for d in directories]}
+            'warnings': warnings, 'cases': cases, 'jobs': root_jobs,
+            'other_jobs': [j for j in root_jobs if not any(inside(j['directory'], d) for d in directories)]}
 
 
 def age(seconds):
@@ -668,6 +692,18 @@ def render_status_summary(case):
                    '  '.join(f'{k}={v}' for k, v in sorted(counts.items())))
     for item in case['artifacts']:
         label = display_path(item['path'], case['directory'])
+        if item.get('scan'):
+            scan = item['scan']
+            out.append(f'  SCAN {scan["reaction"]}: {item["status"]}; '
+                       f'current pass={scan["current_counts"]}; saved={scan["saved_counts"]}')
+            if scan['last_accepted']:
+                point = scan['last_accepted']
+                out.append(f'    Last accepted in this pass: {point["point"]} '
+                           f'({point["distance_angstrom"]} A; may be reused).')
+            for point in scan['pending'][:3]:
+                out.append(f'    {point["point"]}: {point["status"]} ({point["distance_angstrom"]} A)')
+            if len(scan['pending']) > 3:
+                out.append(f'    {len(scan["pending"])-3} more unresolved points in --json.')
         if item.get('stale_review_hold'):
             out.append(f'  VRC REVIEW {label}: listed channel models accepted; '
                        'old aggregate hold superseded (not a QC completion verdict).')
@@ -763,6 +799,12 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
         out.append('New-submission exclusions: '+(','.join(shared['excluded_nodes']) or '(none)'))
     elif same_exclusions:
         out.append('Configured exclusions: '+(','.join(common_exclusions) or '(none)'))
+    if 'jobs' in report:
+        count = 'UNKNOWN' if report['scheduler_error'] else len(report['jobs'])
+        out.append(f'Allocations under monitored root: {count} (includes diagnostic jobs).')
+    for job in report.get('other_jobs', []):
+        out.append(f'OTHER ALLOCATION {job["job_id"]} {job["state"]}: '
+                   + relative_path(job['directory'], report['directory']))
     # Show every PES before expanding either one; a long failed QC log must
     # never make the other run invisible on a terminal/watch display.
     for case in report['cases']:
@@ -770,7 +812,9 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
         out.append(f'OVERVIEW {case["name"]}: '
                    f'jobs={len(case["jobs"]) if not report["scheduler_error"] else "UNKNOWN"}; '
                    f'controllers={len(case["processes"]) if not report["process_error"] else "UNKNOWN"}'
-                   + ('' if branches else '; no post-reaction branch record yet'))
+                   + ('; diagnostic results require review before production use'
+                      if case.get('kind') == 'diagnostics' else
+                      ('' if branches else '; no post-reaction branch record yet')))
         for item in branches:
             worker = str(Path(item['path']).parent)
             states = '; '.join(f'{name}=' + ('not_reported_yet' if item.get('previous_controller')
@@ -930,7 +974,7 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                 continue  # Already in the WORKER row above.
             historical = ' [previous controller]' if item.get('previous_controller') else ''
             out.append(f'RECORD {item["path"]}{historical}: {item["status"]}')
-            for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error',
+            for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error', 'scan',
                         'review_channels', 'recorded_status', 'recorded_error'):
                 if item.get(key) is not None:
                     value = item[key]

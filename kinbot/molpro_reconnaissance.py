@@ -569,19 +569,43 @@ def _correlation_labels(checks, states, state_model=None):
 
 
 def _validate_cc_check_energies(output, labels, values):
-    """Cross-check F12b markers against the native B energy and unscaled (T)."""
+    """Match each F12b marker within its native CC program's A/B summaries.
+
+    UCCSD(T)-F12 prints both approximations, including a triples contribution
+    for each. A whole-file triples count therefore is not a count of checks.
+    Keep the native variant labels and ordered totals together; never accept
+    an F12a marker or an inconsistent total merely because the job exited zero.
+    """
     indices = [index for index, label in enumerate(labels, 1)
                if label['method'].lower() == 'uccsd(t)-f12b']
     if not indices:
         return
     from kinbot.anl.results import validate_molpro_triples
     number = r'([-+0-9.]+(?:[EDed][-+]?\d+)?)'
-    bases = [float(s.replace('D', 'E').replace('d', 'e')) for s in re.findall(
-        r'(?im)^\s*!?RHF-UCCSD-F12b energy\s+' + number + r'\s*$', output)]
-    triples = validate_molpro_triples(output, scaled=False)
-    if len(bases) != len(indices) or len(triples) != len(indices):
+    headers = list(re.finditer(r'(?im)^\s*PROGRAM\s*\*\s*([^\r\n]+)', output))
+    native = []
+    for pos, header in enumerate(headers):
+        if not re.match(r'CCSD\b', header[1], re.I):
+            continue
+        block = output[header.end():headers[pos+1].start() if pos+1 < len(headers) else len(output)]
+        bases = re.findall(r'(?im)^\s*!?RHF-UCCSD-F12([ab]) energy\s+' + number + r'\s*$', block)
+        if not bases:
+            continue
+        triples = validate_molpro_triples(block, scaled=False)
+        totals = re.findall(r'(?im)^\s*!RHF-UCCSD\(T\)-F12(?: total)? energy\s+' + number + r'\s*$', block)
+        if ([variant.lower() for variant, _ in bases] not in (['b'], ['a', 'b'])
+                or len(bases) != len(triples) or len(bases) != len(totals)):
+            raise ValueError('Single-reference checks lack uniquely matched native F12a/F12b/(T) summaries.')
+        for (variant, base), trip, total in zip(bases, triples, totals):
+            base, total = [float(v.replace('D', 'E').replace('d', 'e')) for v in (base, total)]
+            if not np.isfinite([base, trip, total]).all() or abs(total - base - trip) > 2e-9:
+                raise ValueError('Single-reference native F12 total differs from its CCSD plus (T) energy.')
+            if variant.lower() == 'b':
+                native.append(total)
+    if len(native) != len(indices):
         raise ValueError('Single-reference checks lack uniquely matched native F12b/(T) energies.')
-    if any(abs(values[i] - base - trip) > 1e-7 for i, base, trip in zip(indices, bases, triples)):
+    if any(not np.isfinite(values[i]) or abs(values[i] - total) > 1e-7
+           for i, total in zip(indices, native)):
         raise ValueError('Single-reference marker differs from the native F12b plus (T) energy.')
 
 

@@ -1,153 +1,88 @@
-# CH2SH C–S orbital review, 2026-10-21
+# CH2SH C–S orbital selection and live refresh, 2026-10-21
 
-The r7 request is `471030810040000000002_hom_sci_1_2`, from the
-`471030810040000000002` well. The saved request identifies neutral doublet
-CH2SH, atom 1 C and atom 2 S, dissociating to triplet CH2 and doublet SH.
-This is different from the approved initial CH3S -> CH3 + S channel.
+The reviewed r7 request is `471030810040000000002_hom_sci_1_2`: neutral
+doublet CH2SH, atom 1 C and atom 2 S, dissociating to triplet CH2 and doublet
+SH. This differs from the initial CH3S -> CH3 + S channel.
 
-## Candidate spaces and state identities
+**Select CAS(5,4). Do not resume the 22-job validation panel.** The user
+requested orbital assignment using the completed evidence, with production
+KinBot responsible for the subsequent potential and spin-splitting energies.
+The optional CC calculation was unnecessary for assigning these orbitals.
+Four candidate calculations have native results; eighteen remain unsubmitted.
+This handoff neither submits them nor treats the entire panel as validated.
 
-The first compact candidate is CAS(5,4): two CH2 radical orbitals/electrons
-plus both SH pi orbitals with three electrons. SH has a ground 2Pi term;
-both spatial components belong in the separated-fragment orbital space.
-The C–S sigma/sigma-star pair forms by mixing the fragment orbitals already
-counted here. Adding that pair again would double-count the orbital degrees
-of freedom. CAS(3,5) does not automatically include the occupied SH pi partner:
-adding virtual orbitals alone cannot replace its two active electrons.
+## Chemical selection and evidence
 
-The first expansion candidate is CAS(7,6), adding the S–H sigma/sigma-star
-pair. These are chemically motivated candidates, not selected production
-spaces. Actual orbital coefficients, occupations, state character and
-correlated potentials must establish which orbitals are retained and whether
-other expansions are needed.
+The compact space contains the two CH2 frontier orbitals with two electrons
+and the two SH pi orbitals with three electrons. The forming C–S bond and
+antibond are combinations within that four-orbital span. Adding a separate
+sigma/sigma-star pair would count those degrees of freedom twice.
 
-The initial screening recipe runs full-valence CASCI(13,11), including C
-2s/2p, S 3s/3p and all three H 1s targets. Its purpose is orbital discovery,
-not production sampling. Quartet ROHF supplies a high-spin starting guess;
-the production parent's doublet multiplicity is untouched. The CASCI lists
-two quartet and four doublet roots. The extra doublets allow inspection of
-other nearby states, including possible singlet-CH2-derived character;
-their integer energy ranks do not prove their dissociation identities and
-do not authorize additional reactive flux surfaces.
+The eight completed fixed-geometry CASCI(13,11) probes cover 2, 3.5, 6 and
+30 angstrom in avdz-f12 and avtz-f12. Their natural-orbital AO coefficients
+identify source orbitals 11–14 as the intended frontier space in both bases.
+At 30 angstrom, 11/12 are principally sulfur pi with occupations about
+1.4997 each; 13/14 are carbon-centered frontier orbitals, about 1.206/0.794.
+Both carbon orbitals remain active when their order/character exchanges
+between near and far geometries. The deeper sulfur 3s and C–H bonds are
+inactive. Orbitals 10/15 are the additional S–H sigma/sigma-star pair tested
+in CAS(7,6).
 
-There are eight independent calculations: 2.0, 3.5, 6.0 and 30.0 angstrom
-at avdz-f12 and avtz-f12. Only the fragment separation changes; these are
-fixed-geometry probes, not fragment optimizations or relaxed scans. A first
-native job must validate before the remaining jobs can use the three-slot
-cap. The gate reuses that job's result: no duplicate pilot calculation.
+The completed optimized-orbital comparison supplied by the user is:
 
-Molpro recommends an initial AVAS/CASCI occupation inspection before manual
-space reduction. Occupations alone are insufficient; retain chemical and
-state-character evidence as described in the general review procedure.
-References: [Molpro AVAS manual](https://www.molpro.net/manual/doku.php?id=automated_construction_of_atomic_valence_active_spaces),
-[SH ground-state terms](https://arxiv.org/abs/1909.02646),
-[general review procedure](ORBITAL_REVIEW_WORKFLOW.md).
-
-## Execution and continuation
-
-`examples/anl/tools/requested_orbital_recon.py prepare` takes four arguments:
-the live request, its case input, a screening recipe, and a fresh output
-directory outside the production pool. It verifies the intended request,
-checks all prepared native decks, snapshots the geometry/electronic context,
-and inherits the current partition and exclusions. Preparation never submits.
-Repeating preparation into the same directory fails without overwriting it.
-
-`run OUTPUT` uses the existing journaled reconnaissance controller, at most
-three jobs and no more than the currently configured review reserve. Each
-job is exclusive, uses eight Molpro ranks with 1000 MW/rank and requests
-104000 MB total, and defaults to the partition maximum walltime. Native
-execution uses the existing checked node-local scratch workspace. Only
-site setup / executable discovery and scheduler queries run on the login
-node. Two allocation-recovery attempts are enabled for recoverable
-infrastructure failures. Scientific failures remain failures for review.
-
-`monitor OUTPUT` is read-only and shows the scheduler, native logs and saved
-validation results. Both controller entry paths use the existing manifest
-lock, so repeating `run` cannot create a second set of allocations.
-
-The prepared recipe and existing native transformations were checked locally.
-The completed native CASCI screen is recorded below; a production active space
-has not yet been validated. After the screen:
-
-1. Inspect basis-specific orbitals and assign the proposed compact spaces.
-2. Compare optimized compact/expanded CASSCF models, independent starts,
-   root character and representative angular configurations.
-3. Confirm CASPT2-F12 with the production shift/IPEA, both bases, spin gaps
-   and matched interaction-energy references. Expand checks if warranted.
-4. Add only the reviewed new-parent entry to `vrc_tst_surface_models` in the
-   existing case input, then use `kinbot.run_control resubmit ... --apply`.
-
-This screen does not accept a model, release the review hold, change the
-production input, or restart either PES driver. Existing approved VRC paths
-and exploration continue throughout. The review reserve is an admission
-limit, not a hardware reservation against other cluster users.
-
-## Completed CASCI screen and next comparison
-
-The user supplied eight completed native records on 2026-10-21. All passed
-the controller's checks without warnings. The state-averaged natural table
-and labeled AO coefficients identify the following **source** record indices
-in both bases (record 2140.2, C1):
-
-| Candidate | Source indices | Content |
+| Calculation | Occupations of the compact four orbitals | Added S–H sigma / sigma-star |
 |---|---|---|
-| CAS(5,4) | 11–14 | SH pi pair and CH2 frontier pair |
-| CAS(7,6) | 10–15 | Same space plus S–H sigma/sigma-star (10 and 15) |
+| CASSCF(5,4), aDZ, 2 Å | 1.70808, 1.48606, 1.02341, 0.78245 | Not active |
+| CASSCF(7,6), aDZ, 2 Å | 1.71600, 1.47410, 1.02155, 0.78185 | 1.97595 / 0.03055 |
+| CASSCF(7,6), aDZ, 3.5 Å | 1.51514, 1.50002, 1.18344, 0.80096 | 1.97625 / 0.02419 |
+| CASSCF(7,6), aDZ, 30 Å | 1.49978, 1.49978, 1.20253, 0.79747 | 1.97629 / 0.02414 |
 
-At 30 angstrom the SH pi occupations are approximately 1.4997 each;
-the CH2 pair has approximately 1.206/0.794 occupations in this diagnostic
-state average. The source orbitals 13 and 14 exchange character between
-near and far geometries; the selected *subspace* includes both. No individual
-orbital identity follows from occupation order. The lowest two doublets
-match their respective quartet partners at separation to printed precision.
-The two spatial partners are not exactly degenerate in the unoptimized
-CASCI screen; this is a reason to examine optimized orbitals, not to assign
-an asymptotic splitting to production.
+Compact CASSCF AO coefficients retain the two sulfur-dominated and two
+carbon/bonding frontier combinations. The expansion leaves the added pair
+near 2/0 without qualitatively changing the frontier occupations. This
+supports the selected orbital space. It does not establish complete
+two-basis correlated-potential agreement, angular accuracy or a rate-error
+bound; those are not claimed as completed reconnaissance.
 
-`coverage_refinement_required` is not native failure. With only 2, 3.5, 6,
-and 30 angstrom anchors, the generic three-point plateau check includes
-3.5 angstrom. Its suggested 42 angstrom extension does not establish that
-30 angstrom is too short. The candidate panel below instead adds 20 angstrom
-and the requested 2.75 angstrom midpoint. It remains a finite diagnostic,
-not automatic scientific acceptance or exhaustive orientation coverage.
+The recipe uses the original complete CASCI screen's **separate DZ and TZ**
+2 Å WFU records, `2140.2,type=natural`, indices 11–14. Production CASSCF
+optimizes this selected space (`CLOSED,10; OCC,14`, 25 total electrons).
+It does not transplant a DZ checkpoint into TZ or require a new TZ probe.
+Keep `r7_ch2sh_cs_orbital_recon`: its hashed checkpoints remain runtime seeds.
 
-`ch2sh_cs_candidates.json` specifies 22 new fixed-geometry electronic-structure
-calculations: CAS(5,4) at 2, 2.75, 3.5, 6, 20 and 30 angstrom in both bases
-(12), and CAS(7,6) at matched 2, 3.5 and 30 angstrom in both bases (6).
-Both candidates also test a 30-degree rigid rotation of SH about the C–S
-axis at 3.5 angstrom in both bases (4). This preserves fragment bond lengths
-and C–S separation and checks sensitivity to one changed approach orientation.
-Every job starts from a basis-specific saved CASCI record; the new midpoint
-and rotated geometry use the 3.5 angstrom seed, and 20 angstrom uses the
-30 angstrom seed. Only electronic orbitals are optimized in these probes.
-No completed screen is rerun or overwritten. Both candidates use the same
-two-quartet/four-doublet state average to isolate the space comparison.
+State averaging retains four doublets and two quartets from the diagnostic
+screen. Weights are 1/4 per doublet and 1/2 per quartet before normalization,
+so each spin block has half the total orbital-optimization weight. The extra
+doublets allow inspection of other configurations, including possible
+singlet-CH2-derived character; no such character is assigned solely by energy
+rank. Only doublet root 1 is a reactive VRC surface. Quartet root 1 supplies
+the MR reference side of its spin gap. The averaging weights are neither
+Boltzmann populations nor reactive-flux weights.
 
-Each job checks CASPT2-F12 using the production 0.1-hartree real shift,
-0.25-hartree IPEA shift and state-averaged reference policy. The compact
-panel also checks the quartet ROHF-UCCSD(T)-F12b reference. The expanded
-panel does not repeat that identical single-reference calculation. Compare
-interaction energies against each candidate's own asymptote and spin gaps;
-different active spaces' absolute energies are not an accuracy metric.
+## Parser correction
 
-Prepare using `requested_orbital_recon.py candidates SOURCE RECIPE OUTPUT`.
-Preparation checks saved input hashes, request identity, active counts,
-WFU/output hashes and every generated deck before publishing. The common
-`run OUTPUT` controller manages both candidate manifests under **one** cap
-of three allocations, retaining each manifest's submission lock and native
-first-job gate. `monitor OUTPUT` and `evidence OUTPUT` are read-only.
-There is no automatic model approval, production-input edit, or driver restart.
+The compact aDZ native calculation terminated normally. Its optional CC
+check printed both F12a and F12b summaries, while the reconnaissance parser
+incorrectly required a single unscaled triples contribution in the whole
+output. The parser now pairs base, triples and total energies within each
+CC program and verifies the recorded selector against **F12b**. It still
+rejects F12a selection, scaled triples, missing/ambiguous summaries and
+inconsistent totals. This changes no native energy or production method.
 
-Once the optimized/correlated comparison and required orbital/state/angle
-checks support a choice, the live update will add a new parent entry under
-`vrc_tst_surface_models["471030810040000000002"]` with basis-specific
-WFU hashes, the chosen CAS, state average and selected reactive root(s).
-Use `kinbot.run_control resubmit` on the existing case input; it publishes
-an additive review revision to the running PES owner. The native comparison
-must finish before this final active-space selection is supplied.
+The native F12b total was `-437.333094348795` Eh; the saved marker was
+`-437.33309435` Eh. The tests retain the user's printed base/total values;
+their synthetic triples lines are explicitly labeled as total-minus-base
+format fixtures. No native re-run was performed for this repair.
 
-Run the candidate panel on Blodgett (a repeated invocation reuses the
-prepared panel; the manifest locks reject a concurrent second controller):
+## Apply the reviewed selection to the running driver
+
+`review` is a generic recipe-driven operation. It checks request identity,
+geometry provenance, complete basis-matched seed records and WFU/output
+hashes; preserves existing channels; validates the new model; and requires
+a live PES owner. `--apply` archives the input, atomically adds the model to
+the same input file, and uses the existing journaled resubmission path.
+Concurrent helper invocations cannot edit the input together. Reapplication
+reconciles the same revision, including after the request is marked accepted.
 
 ```bash
 bash <<'BASH'
@@ -156,28 +91,34 @@ cd "$HOME/KinBot"
 git pull --ff-only origin composite
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
-KB_PY="$PWD/.venv/bin/python"
-KB_TOOL="$PWD/examples/anl/tools/requested_orbital_recon.py"
-KB_SOURCE="$HOME/kinbot-runs/r7_ch2sh_cs_orbital_recon"
-KB_OUT="$HOME/kinbot-runs/r7_ch2sh_cs_orbital_validation"
-if [ ! -f "$KB_OUT/review_launch.json" ]; then
-  "$KB_PY" "$KB_TOOL" candidates "$KB_SOURCE" \
-    "$PWD/examples/anl/ch3s_anl1_f12/orbital_reviews/ch2sh_cs_candidates.json" "$KB_OUT"
-fi
-nohup "$KB_PY" -u "$KB_TOOL" run "$KB_OUT" \
-  >>"$KB_OUT/controller.log" 2>&1 </dev/null &
-printf 'Review controller PID: %s\nLog: %s/controller.log\n' "$!" "$KB_OUT"
+"$PWD/.venv/bin/python" "$PWD/examples/anl/tools/requested_orbital_recon.py" review \
+  "$HOME/kinbot-runs/r7_ch2sh_cs_orbital_recon" \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/ch3s/input.json" \
+  "$PWD/examples/anl/ch3s_anl1_f12/orbital_reviews/ch2sh_cs_selected.json" \
+  --apply
 BASH
 ```
 
-Monitor the panel without changing it:
+Omit `--apply` for a read-only selection preview. This operation adds only
+the reviewed CH2SH channel under `vrc_tst_surface_models`. It preserves the
+current scan/sampling grids, bases, extrapolation, flux target, scratch and
+resource settings. No production driver is launched or restarted and no
+reconnaissance calculation is submitted. Existing QC allocations remain
+owned by the running drivers. The new VRC work starts when the owner and
+worker consume the revision at their normal safe polling boundaries.
 
 ```bash
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-"$HOME/KinBot/.venv/bin/python" \
-"$HOME/KinBot/examples/anl/tools/requested_orbital_recon.py" monitor \
-"$HOME/kinbot-runs/r7_ch2sh_cs_orbital_validation"
+"$HOME/KinBot/.venv/bin/python" -m kinbot.run_control resubmit \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/ch3s/input.json" --status
 ```
 
-When it finishes, replace `monitor` with `evidence` to print the saved
-CASSCF/CASPT2 energies, active occupations and validation flags for review.
+Expect `queued`, then `published`/`applied`, with `drivers_started: 0`.
+`applied` records acceptance of the input revision, not completion of VRC.
+If submission is blocked, the edited input remains a recoverable proposal
+and the previous input is saved under `ch3s/orbital_reviews/live_refresh`;
+the live owner's accepted snapshot is unchanged until publication.
+
+The [complete channel handoff](VRC_CHANNEL_HANDOFF_R7.md) explains how this
+selection relates to the three earlier reviewed channels. The historical
+screen/candidate commands remain available for deliberate new studies but
+are not steps in this production continuation.

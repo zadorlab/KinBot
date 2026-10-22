@@ -15,6 +15,7 @@ helper = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(helper)
 RECIPE = ROOT/'examples/anl/ch3s_anl1_f12/orbital_reviews/ch2sh_cs_screen.json'
 CANDIDATES = RECIPE.with_name('ch2sh_cs_candidates.json')
+SELECTION = RECIPE.with_name('ch2sh_cs_selected.json')
 
 
 @pytest.fixture
@@ -253,3 +254,131 @@ def test_saved_evidence_is_read_only_and_labels_theory(request_tree, monkeypatch
     assert 'CORRELATED Eh caspt2-f12(5,4):m2r1=-437.1000000000' in report
     assert 'no production model has been accepted' in report
     assert all(p.read_bytes()==v for p,v in before.items())
+
+
+def test_review_publishes_only_selected_parent_and_reuses_basis_specific_seeds(request_tree, monkeypatch):
+    from kinbot import input_refresh
+    from kinbot.molpro import _render_vrc_state_model
+    source=completed_screen(request_tree)
+    _,case_input,_=request_tree
+    selection=helper._read(SELECTION)
+    existing=dict(schema=1,reviewed=True,review_note='Existing approved channel',channels=[dict(
+        bond=[1,2],combination='single',bottlenecks=[dict(name='single',coordinate='reactive',
+        distances_angstrom=[2.,3.,4.],parameters={},states=selection['states'])])])
+    previous=helper._read(case_input)
+    previous.update(rotdpy_dist=[2.,3.,4.],vrc_tst_surface_models={'initial_parent':existing},
+                    vrc_tst_scan_basis='avdz-f12',rotdpy_flux_parameters={'pot_smp_max':1000})
+    atomic_json(case_input,previous)
+    source_before={p:p.read_bytes() for p in source.rglob('*') if p.is_file()}
+    monkeypatch.setattr(input_refresh,'owner_directory',lambda _:case_input.parent)
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:pytest.fail('No scheduler or QC launch'))
+    calls=[]
+    def submit(path,**kw):
+        calls.append((path,kw))
+        assert path==case_input and kw==dict(apply=True)
+        return dict(status='queued',drivers_started=0)
+    monkeypatch.setattr(input_refresh,'submit',submit)
+    assert helper.review(source,case_input,SELECTION)['status']=='reviewed'
+    assert helper._read(case_input)==previous and not calls
+    result=helper.review(source,case_input,SELECTION,apply=True)
+    assert result['reconnaissance_jobs_submitted']==0 and result['drivers_started']==0
+    proposed=helper._read(case_input)
+    assert {k for k in previous.keys()|proposed.keys() if previous.get(k)!=proposed.get(k)}=={'vrc_tst_surface_models'}
+    assert proposed['vrc_tst_surface_models']['initial_parent']==existing
+    new=proposed['vrc_tst_surface_models'][selection['request_match']['parent']]
+    stage=new['channels'][0]['bottlenecks'][0]
+    assert stage['distances_angstrom']==previous['rotdpy_dist']
+    assert len(stage['states'])==1 and stage['states'][0]['root']==1
+    assert stage['parameters']['vrc_tst_state_model_file']==''
+    for basis,model in stage['parameters']['vrc_tst_state_model']['basis_models'].items():
+        seed=selection['basis_seeds'][basis]
+        assert seed['job'] in model['orbital_selection']['path']
+        assert model['orbital_selection']['active_indices']==[11,12,13,14]
+        _,deck,_=_render_vrc_state_model(model,nelectron=25,active_electrons=5,active_orbitals=4,spin=1)
+        assert 'closed,10' in deck and 'occ,14' in deck
+    assert all(p.read_bytes()==v for p,v in source_before.items())
+    backups=list((case_input.parent/'orbital_reviews/live_refresh').glob('*/input_before.json'))
+    assert len(backups)==1 and helper._read(backups[0])==previous
+    # Reapplication reconciles the journal, never recreates jobs or overwrites
+    # another parent. JSON int/string key normalization must be idempotent.
+    helper.review(source,case_input,SELECTION,apply=True)
+    assert len(calls)==2 and helper._read(case_input)==proposed
+    live_request=Path(helper._read(source/'review_launch.json')['request'])
+    atomic_json(live_request,dict(helper._read(live_request),status='model_accepted',surface_model={}))
+    helper.review(source,case_input,SELECTION,apply=True)
+    assert len(calls)==3 and helper._read(case_input)==proposed
+
+
+@pytest.mark.parametrize('failure',['unreviewed','wrong_request','changed_wfu','changed_output','wrong_basis','no_owner'])
+def test_review_rejects_invalid_selection_before_input_write(request_tree,monkeypatch,failure):
+    from kinbot import input_refresh
+    source=completed_screen(request_tree)
+    _,case_input,_=request_tree
+    atomic_json(case_input,dict(helper._read(case_input),rotdpy_dist=[2.,3.,4.]))
+    before=case_input.read_bytes()
+    recipe=helper._read(SELECTION)
+    job=helper._read(source/'native/reconnaissance.json')['jobs'][0]
+    if failure=='unreviewed': recipe['reviewed']=False
+    elif failure=='wrong_request': recipe['request_match']['parent']='different'
+    elif failure=='changed_wfu': Path(job['wfu']).write_text('changed')
+    elif failure=='changed_output': (Path(job['directory'])/(job['name']+'.out')).write_text('changed')
+    elif failure=='wrong_basis': recipe['basis_seeds']['avtz-f12']['job']=job['name']
+    recipe_path=source.parent/'selection.json'
+    atomic_json(recipe_path,recipe)
+    monkeypatch.setattr(input_refresh,'owner_directory',lambda _:None if failure=='no_owner' else case_input.parent)
+    monkeypatch.setattr(input_refresh,'submit',lambda *a,**kw:pytest.fail('Invalid selection'))
+    with pytest.raises(ValueError): helper.review(source,case_input,recipe_path,apply=True)
+    assert case_input.read_bytes()==before
+
+
+def test_review_serializes_concurrent_input_edits(request_tree):
+    import fcntl
+    _,case_input,source=request_tree
+    before=case_input.read_bytes()
+    with (case_input.parent/'.kinbot_orbital_review.lock').open('a+') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(ValueError,match='Another orbital review'):
+            helper.review(source,case_input,SELECTION,apply=True)
+    assert case_input.read_bytes()==before
+
+
+@pytest.mark.parametrize('worker_status',['exploring','ready'])
+def test_review_reaches_existing_owner_and_preserves_native_work(request_tree,worker_status):
+    import os
+    from types import SimpleNamespace
+    from kinbot import input_refresh, pes_phase, live_control
+    source=completed_screen(request_tree)
+    _,case_input,_=request_tree
+    root=case_input.parent
+    previous=dict(helper._read(case_input),rotdpy_dist=[2.,3.,4.])
+    atomic_json(case_input,previous)
+    live_control.configure(root.parent)
+    pes_phase.initialize(root,case_input)
+    parent=helper._read(SELECTION)['request_match']['parent']
+    worker=root/parent
+    atomic_json(worker/(parent+'.json'),previous)
+    native=worker/'expensive.out';native.write_bytes(b'existing expensive work')
+    pes_phase.register(root,parent,os.getpid())
+    record=helper._read(root/pes_phase.NAME)
+    record['workers'][parent]['status']=worker_status
+    atomic_json(root/pes_phase.NAME,record)
+    result=helper.review(source,case_input,SELECTION,apply=True)
+    assert result['status']=='queued' and result['drivers_started']==0
+    assert helper._read(root/input_refresh.SNAPSHOT)==previous
+    pes_phase.tick(root,[parent],max_searches=1)
+    proposed=helper._read(case_input)
+    assert helper._read(root/input_refresh.SNAPSHOT)==proposed
+    if worker_status=='exploring':
+        generator=SimpleNamespace(inp=str(worker/(parent+'.json')),par=previous.copy())
+        input_refresh.inherit_models(root,generator)
+        assert generator.par['vrc_tst_surface_models']==proposed['vrc_tst_surface_models']
+        assert helper._read(worker/(parent+'.json'))==proposed
+    else:
+        requests=live_control.requests(worker,kinds={'network'})
+        assert len(requests)==1
+        request=requests[0][1]
+        assert not request['cancel_running']
+        assert request['options']['vrc_tst_surface_models']==proposed['vrc_tst_surface_models']
+    helper.review(source,case_input,SELECTION,apply=True)
+    assert len(live_control.requests(worker,kinds={'network'}))==int(worker_status=='ready')
+    assert native.read_bytes()==b'existing expensive work'

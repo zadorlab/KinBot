@@ -1,10 +1,12 @@
 """Prepare/run a finite orbital screen for an existing VRC review request.
 
-Scientific choices live in the supplied recipe. This tool never accepts a
-production model, edits a PES input, or starts/restarts a production driver.
+Scientific choices live in the supplied recipe. Only the explicit ``review
+--apply`` command installs a human-reviewed selection in an existing PES
+input. It uses live refresh and never starts/restarts a production driver.
 """
 import argparse
 from copy import deepcopy
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -22,12 +24,18 @@ def _read(path):
     return json.loads(Path(path).read_text())
 
 
-def _saved(root):
+def _saved(root, *, allow_accepted=False):
     record = _read(root/'review_launch.json')
     for name, digest in record['files'].items():
         if file_sha256(root/name) != digest:
             raise ValueError(f'Prepared evidence changed: {name}.')
-    if _read(record['request']) != _read(root/'request.json'):
+    live, original = _read(record['request']), _read(root/'request.json')
+    if allow_accepted and live.get('status') == 'model_accepted':
+        # Acceptance changes only bookkeeping. A repeated review must still
+        # match the saved chemistry/geometry and the installed channel below.
+        live.pop('surface_model', None)
+        live['status'] = original.get('status')
+    if live != original:
         raise ValueError('Live review request changed; inspect before continuing this review.')
     return record
 
@@ -307,6 +315,115 @@ def evidence(output):
     return '\n'.join(lines)
 
 
+def review(source, case_input, recipe, *, apply=False):
+    """Publish an explicitly reviewed orbital selection to the existing owner.
+
+    Selection is supplied by a human-reviewed recipe, never inferred from
+    occupations or correlation energies. No reconnaissance jobs are launched.
+    """
+    case_input = Path(case_input).expanduser().resolve(strict=True)
+    if not apply:
+        return _review(source, case_input, recipe, apply=False)
+    # Serialize helper invocations before reading/modifying the shared input;
+    # otherwise two simultaneous channel additions could overwrite each other.
+    with (case_input.parent/'.kinbot_orbital_review.lock').open('a+') as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError('Another orbital review is editing this input; retry after it finishes.') from error
+        return _review(source, case_input, recipe, apply=True)
+
+
+def _review(source, case_input, recipe, *, apply):
+    from kinbot import input_refresh
+    from kinbot.molpro import validate_vrc_state_model
+    from kinbot.vrc_multistate import validate_surface_model, extend_surface_model
+    source = Path(source).expanduser().resolve(strict=True)
+    case_input = Path(case_input).expanduser().resolve(strict=True)
+    saved = _saved(source, allow_accepted=True)
+    request, chosen = _read(source/'request.json'), _read(recipe)
+    if (chosen.get('schema') != 1 or chosen.get('reviewed') is not True
+            or not chosen.get('review_note') or not chosen.get('request_match')):
+        raise ValueError('An explicit reviewed selection and chemistry note are required.')
+    if any(request.get(k) != v for k,v in chosen['request_match'].items()):
+        raise ValueError('Selected orbital recipe does not match this review request.')
+    if case_input.parent not in Path(saved['request']).parents:
+        raise ValueError('Case input does not belong to this review request.')
+    if len(saved['systems']) != 1:
+        raise ValueError('Select one source screen with basis-specific orbital records.')
+    manifest = _read(saved['systems'][0]['manifest'])
+    jobs = {j['name']: j for j in manifest['jobs']}
+    active = deepcopy(chosen['active_space'])
+    basis_models = {}
+    for basis, selection in chosen['basis_seeds'].items():
+        job = jobs[selection['job']]
+        if (job['status'] != 'complete' or job['basis'] != basis
+                or file_sha256(job['wfu']) != job['wfu_sha256']
+                or file_sha256(Path(job['directory'])/(job['name']+'.out')) != job['output_sha256']):
+            raise ValueError('Selected native seed is not unchanged, complete and basis matched.')
+        model = deepcopy(chosen['state_model'])
+        model['orbital_selection'] = dict(mode='molpro_record', path=job['wfu'],
+            sha256=job['wfu_sha256'], record=selection['record'], orbital_type='natural',
+            align_active_orbitals=False, active_indices=selection['active_indices'])
+        basis_models[basis] = validate_vrc_state_model(model,
+            active_electrons=active['active_electrons'], active_orbitals=active['active_orbitals'],
+            nelectron=manifest['electron_count'], atom_count=len(request['symbols']))
+    previous = _read(case_input)
+    parameters = deepcopy(chosen.get('parameters', {}))
+    parameters.update(vrc_tst_active_space=active, vrc_tst_state_model_file='', vrc_tst_state_model=dict(
+        schema=2, molecule=dict(symbols=request['symbols'], charge=request['charge']),
+        active_space=active, state_average_policy='reviewed', basis_models=basis_models))
+    stage = dict(name='single', coordinate=chosen['coordinate'],
+        distances_angstrom=deepcopy(previous[chosen['distances_parameter']]),
+        states=deepcopy(chosen['states']), parameters=parameters)
+    # Match JSON's string keys on repeat application (selected_roots is
+    # normalized to integer keys by the state-model validator).
+    channel = json.loads(json.dumps(dict(bond=request['bond'], combination='single', bottlenecks=[stage])))
+    parent = request['parent']
+    models = deepcopy(previous.get('vrc_tst_surface_models', {}))
+    prior = models.get(parent)
+    model = deepcopy(prior) if prior else dict(schema=1, reviewed=True,
+        review_note=chosen['review_note'], channels=[])
+    matches = [c for c in model['channels'] if sorted(c['bond']) == sorted(channel['bond'])]
+    if matches and matches != [channel]:
+        raise ValueError('This channel already has different settings; use a scientific migration.')
+    if not matches and _read(saved['request']).get('status') == 'model_accepted':
+        raise ValueError('Accepted review has no matching channel in this input; inspect its provenance.')
+    if not matches:
+        model['channels'].append(channel)
+    models[parent] = extend_surface_model(prior, validate_surface_model(model))
+    proposed = dict(previous, vrc_tst_surface_models=models)
+    input_refresh.validate_models(previous, proposed, case_input.parent)
+    if input_refresh.owner_directory(case_input) is None:
+        raise ValueError('No live PES owner for this input; no driver was launched.')
+    summary = dict(status='reviewed', parent=parent, active_space=active,
+        basis_seeds={b:m['orbital_selection'] for b,m in basis_models.items()},
+        drivers_started=0, reconnaissance_jobs_submitted=0)
+    if not apply:
+        return summary
+    if previous != proposed:
+        import hashlib
+        digest = hashlib.sha256(json.dumps(proposed,sort_keys=True).encode()).hexdigest()
+        archive = case_input.parent/'orbital_reviews/live_refresh'/digest
+        archive.mkdir(parents=True, exist_ok=True)
+        # Preserve the exact pre-edit input once. A retry may find the proposal
+        # already installed; submit() reconciles its existing receipt then.
+        for name, payload in [('input_before.json',previous), ('input_after.json',proposed),
+                              ('selection.json',chosen)]:
+            path = archive/name
+            if path.exists() and _read(path) != payload:
+                raise ValueError('Existing review archive differs; nothing was overwritten.')
+            atomic_json(path,payload)
+        if _read(case_input) != previous:
+            raise ValueError('Case input changed during review preparation; retry from its new contents.')
+        atomic_json(case_input,proposed)
+    # Uses the existing journaled live-refresh path, which validates the owner,
+    # accepted input, worker state and additive models. It never starts a driver.
+    # A blocked submission leaves a recoverable input proposal and its backup.
+    refresh = input_refresh.submit(case_input,apply=True)
+    return dict(summary, refresh=refresh, status=refresh['status'])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='action', required=True)
@@ -316,6 +433,10 @@ def main():
     candidate_cmd = commands.add_parser('candidates')
     for name in ('source', 'recipe', 'output'):
         candidate_cmd.add_argument(name)
+    review_cmd = commands.add_parser('review', help='Apply an explicitly reviewed orbital selection without QC submissions.')
+    for name in ('source', 'case_input', 'recipe'):
+        review_cmd.add_argument(name)
+    review_cmd.add_argument('--apply', action='store_true')
     for name in ('run', 'monitor', 'evidence'):
         commands.add_parser(name).add_argument('output')
     args = parser.parse_args()
@@ -323,6 +444,8 @@ def main():
         result = prepare(args.request, args.case_input, args.recipe, args.output)
     elif args.action == 'candidates':
         result = candidates(args.source, args.recipe, args.output)
+    elif args.action == 'review':
+        result = review(args.source, args.case_input, args.recipe, apply=args.apply)
     elif args.action == 'run':
         result = run(args.output)
     elif args.action == 'evidence':

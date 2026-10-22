@@ -198,12 +198,55 @@ def test_cc_anchor_rejects_failed_scf_and_wrong_f12_selector():
     job = {'probe_method': 'casscf', 'correlation_checks': [{'method': 'uccsd(t)-f12b', 'multiplicity': 4}]}
     output = ('PROGRAM * MULTI\n CONVERGENCE REACHED!\n'
               'PROGRAM * Restricted Hartree-Fock\n NO CONVERGENCE!\n'
-              'PROGRAM * CCSD\n RHF-UCCSD-F12b energy -20.0\n Triples (T) contribution -0.1\n')
+              'PROGRAM * CCSD\n RHF-UCCSD-F12b energy -20.0\n Triples (T) contribution -0.1\n'
+              ' !RHF-UCCSD(T)-F12 energy -20.1\n')
     assert any('Single-reference' in error for error in recon.convergence_diagnostics(output, job)['errors'])
     labels = recon._correlation_labels(job['correlation_checks'], [])
     recon._validate_cc_check_energies(output, labels, {1: -20.1})
     with pytest.raises(ValueError, match='differs'):
         recon._validate_cc_check_energies(output, labels, {1: -20.2})
+
+
+# Energy summaries from the user's 2026-10-21 native CH2SH output. Triples
+# contributions below reproduce total-minus-base; this is a compact format
+# regression, not a substitute for a complete native calculation fixture.
+_CC_AB_SUMMARIES = '''PROGRAM * CCSD (Unrestricted open-shell coupled cluster)
+ Number of N-1 electron functions: 12
+ Triples (T) contribution -0.010527243362
+ RHF-UCCSD-F12a energy -437.331899925386
+ !RHF-UCCSD(T)-F12 energy -437.342427168748
+ Triples (T) contribution -0.010527243362
+ RHF-UCCSD-F12b energy -437.322567105433
+ !RHF-UCCSD(T)-F12 energy -437.333094348795
+ SETTING RECONC7 = -437.33309435 AU
+ Molpro calculation terminated
+'''
+
+
+def test_cc_check_matches_b_summary_when_native_prints_both_approximations():
+    labels = [{'method':'caspt2-f12(5,4)'}]*6 + [{'method':'uccsd(t)-f12b'}]
+    recon._validate_cc_check_energies(_CC_AB_SUMMARIES, labels, {7:-437.33309435})
+    with pytest.raises(ValueError, match='marker differs'):
+        recon._validate_cc_check_energies(_CC_AB_SUMMARIES, labels, {7:-437.34242717})
+    # Multiple explicit checks must match their own program, not a global sum.
+    recon._validate_cc_check_energies(_CC_AB_SUMMARIES*2,
+        [{'method':'uccsd(t)-f12b'}]*2, {1:-437.33309435,2:-437.33309435})
+
+
+@pytest.mark.parametrize('damage', ['triples','total','base','scaled','duplicate','missing','zero'])
+def test_cc_check_rejects_ambiguous_or_inconsistent_native_summaries(damage):
+    text = _CC_AB_SUMMARIES
+    if damage=='triples':
+        text=text.replace('Triples (T) contribution -0.010527243362',
+                          'Triples (T) contribution -0.02',1)
+    elif damage=='total': text=text.replace('-437.333094348795','-437.333194348795')
+    elif damage=='base': text=text.replace('-437.322567105433','-437.322667105433')
+    elif damage=='scaled': text=text.replace('Triples (T) contribution','Triples (T) contribution (scaled)')
+    elif damage=='duplicate': text=text.replace('RHF-UCCSD-F12a','RHF-UCCSD-F12b')
+    elif damage=='missing': text=text.replace('RHF-UCCSD-F12b','RHF-UCCSD-F12a')
+    else: text=text.replace('-0.010527243362','0.000000000000')
+    with pytest.raises(ValueError):
+        recon._validate_cc_check_energies(text,[{'method':'uccsd(t)-f12b'}],{1:-437.33309435})
 
 
 def test_followup_preparation_keeps_new_basis_fresh_and_uses_basis_specific_seeds(

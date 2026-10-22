@@ -3,6 +3,7 @@ import sys
 import datetime
 import copy
 import logging
+import json
 
 from os.path import isfile
 
@@ -22,6 +23,19 @@ from kinbot.config_log import config_log
 from kinbot.run_format import ensure_current_run
 from kinbot.stereo_identity import require_supported_identity, log_input_stereochemistry, UnsupportedStereochemistry
 from kinbot.stereo_routing import StereoRoutingError
+
+
+def _bimol_preparation_failed(qc, job, reason):
+    """Make a failed reactant calculation visible to the calling script."""
+    log = logging.getLogger('KinBot')
+    rows = list(qc.db.select(name=job))
+    data = rows[-1].data if rows else {}
+    log.error('%s: %s', reason, data.get('error') or 'see the worker output')
+    spectrum = data.get('frequencies')
+    if spectrum is not None and len(spectrum):
+        log.error('Frequencies for %s (cm-1): %s', job,
+                  ', '.join(f'{float(value):.3f}' for value in spectrum))
+    raise SystemExit(1)
 
 
 def main():
@@ -255,24 +269,27 @@ def _main():
             err, frag.geom = qc.get_qc_geom(routing_name(frag) + '_well',
                                             frag.natom, wait=1)
             if err < 0:
-                logger.error(f'Error with initial structure optimization of {frag.name}.')
-                return
+                _bimol_preparation_failed(qc, routing_name(frag) + '_well',
+                    f'Reactant preparation failed for {frag.name}; reaction search was not started')
             err, frag.freq = qc.get_qc_freq(routing_name(frag) + '_well',
                                             frag.natom, wait=1)
+            if err < 0:
+                _bimol_preparation_failed(qc, routing_name(frag) + '_well',
+                    f'Cannot read reactant frequencies for {frag.name}')
             if frag.freq and frag.freq[0] <= 0. and frag.freq[0] >= -20.:
                 logger.warning(f'Found imaginary frequency {frag.freq[0]} for {frag.name}. It is flipped.')
                 frag.freq[0] *= -1.
             elif frag.freq and frag.freq[0] < -20.:
                 logger.error(f'Found imaginary frequency {frag.freq[0]} for {frag.name}.')
-                return
+                raise SystemExit(1)
             if len(frag.freq) > 1 and frag.freq[1] <= 0:
                 logger.error(f'Found two imaginary frequencies {frag.freq[1]} for {frag.name}.')
-                return
+                raise SystemExit(1)
             # characterize again and look for differences
             frag.characterize()
             if frag.name != routing_name(frag):
                 logger.error(f'Reactant {frag} optimized to a structure different from the input.')
-                return
+                raise SystemExit(1)
 
         well0.energy = 0.
         well0.zpe = 0.
@@ -289,7 +306,13 @@ def _main():
             frag_opt.do_optimization()
             if frag_opt.shigh == -999:
                 logger.error(f'Error with high level optimization for {frag.name}.')
-                return
+                raise SystemExit(1)
+            from kinbot.bimol import load_selected_species_properties
+            try:
+                load_selected_species_properties(frag_opt, qc)
+            except ValueError as exc:
+                logger.error('%s', exc)
+                raise SystemExit(1)
 
         well0.fragA = fragments['frag_a']  # update
         well0.fragB = fragments['frag_b']  # update
@@ -307,7 +330,15 @@ def _main():
             rg.generate()
 
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
-        mess = MESS(par, well0)
+        if par['bimol']:
+            from kinbot.bimol_mess import BimolecularMESS
+            if not par['reaction_search']:
+                from kinbot.bimol_network import BimolecularNetwork
+                BimolecularNetwork(well0, par).write_json()
+            with open('bimol_network.json') as handle:
+                mess = BimolecularMESS(par, json.load(handle))
+        else:
+            mess = MESS(par, well0)
         mess.write_input(qc)
 
     # Preserve the completed search even if the separate rate calculation fails.

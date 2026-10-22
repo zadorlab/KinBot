@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import logging
+from dataclasses import dataclass
 from shutil import copyfile
 
 from kinbot.utils import plain_symbols, plain_geometry
@@ -9,6 +10,17 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import require_supported_identity, identity_matches
 
 logger = logging.getLogger('KinBot')
+
+
+@dataclass
+class BimolecularIRCResult:
+    """Optimized endpoints connected by a bimolecular transition state."""
+
+    reactant: StationaryPoint
+    product: StationaryPoint
+    reactant_direction: str
+    product_direction: str
+    product_matches_expected: bool
 
 
 class IRC:
@@ -23,7 +35,19 @@ class IRC:
 
     @property
     def qc(self):
+        # A final bimolecular IRC validates the selected TS on its own surface.
+        if self.par['bimol'] and getattr(self.rxn, 'final_irc_name', None):
+            source = getattr(getattr(self.rxn, 'ts', None), 'source_job', None)
+            if source:
+                return self.rxn.qc.for_job(source)
+            level = 'l2' if self.par['high_level'] else 'l1'
+            return self.rxn.qc.for_level(level)
         return self.rxn.qc.for_level('l1')
+
+    def _job_name(self):
+        if self.par['bimol']:
+            return getattr(self.rxn, 'final_irc_name', self.rxn.instance_name)
+        return self.rxn.instance_name
 
     def irc2stationary_pt(self):
         """
@@ -38,15 +62,16 @@ class IRC:
            KinBot found either an identical reaction
            or the ts is not correct
         """
-        instance_name = self.rxn.instance_name
+        instance_name = self._job_name()
 
         directions = ['Forward', 'Reverse']
 
         ini_well_hits = 0
+        ini_well_hit = None
         prod_hit = None
+        product_matches_expected = False
         st_pts = [None, None]
-        reference_identity = (require_supported_identity(self.rxn.species)
-                              if not self.par['bimol'] else None)
+        reference_identity = require_supported_identity(self.rxn.species)
         for i, direction in enumerate(directions):
             irc_name = '{}_IRC_{}_prod'.format(instance_name, direction[0])
             err, geom = self.qc.get_qc_geom(irc_name,
@@ -69,17 +94,28 @@ class IRC:
 
             st_pts[i] = temp
             if self.par['bimol']:
-                fragments, maps = temp.start_multi_molecular()
-                if len(fragments) == 1 or len(fragments) > 2:
+                from kinbot.bimol import _expected_graphs, matches_expected_product
+
+                search = self.rxn.get_bimol_search_data()
+                reactant_graph, _ = _expected_graphs(
+                    self.rxn.species, search['formed_bonds'],
+                    search['broken_bonds'])
+                graph = {
+                    (first, second)
+                    for first in range(temp.natom)
+                    for second in range(first + 1, temp.natom)
+                    if temp.bond01[first][second]
+                }
+                if graph == reactant_graph and identity_matches(
+                        reference_identity, require_supported_identity(temp),
+                        self.par.get('optical_population', 'specified')):
+                    ini_well_hits += 1
+                    ini_well_hit = i
+                else:
                     prod_hit = i
-                elif len(fragments) == 2:
-                    fragments[0].characterize()
-                    fragments[1].characterize()
-                    if (fragments[0].chemid == self.rxn.species.fragA.chemid and fragments[1].chemid == self.rxn.species.fragB.chemid) or \
-                       (fragments[1].chemid == self.rxn.species.fragA.chemid and fragments[0].chemid == self.rxn.species.fragB.chemid):
-                        ini_well_hits += 1
-                    else:
-                        prod_hit = i
+                    product_matches_expected = matches_expected_product(
+                        self.rxn.species, temp.geom, search['formed_bonds'],
+                        search['broken_bonds'], search.get('equivalent_bond_changes', ()))
             else:
                 matches = identity_matches(reference_identity, require_supported_identity(temp),
                                            self.par.get('optical_population', 'specified'))
@@ -103,6 +139,19 @@ class IRC:
         else:
             # ircs OK: well and product found
             logger.info('\tIRCs successful for {}'.format(instance_name))
+            if self.par['bimol']:
+                if not product_matches_expected:
+                    logger.info(
+                        '\tIRC for %s found an unexpected product; retaining '
+                        'the saddle and characterizing the observed pathway.',
+                        instance_name)
+                return BimolecularIRCResult(
+                    reactant=st_pts[ini_well_hit],
+                    product=st_pts[prod_hit],
+                    reactant_direction=directions[ini_well_hit][0],
+                    product_direction=directions[prod_hit][0],
+                    product_matches_expected=product_matches_expected,
+                )
             return st_pts[prod_hit]
 
     def problem_in_geom(self, geom):
@@ -115,21 +164,38 @@ class IRC:
         return 0
 
     def check_irc(self):
-        instance_name = self.rxn.instance_name
+        instance_name = self._job_name()
         directions = ['Forward', 'Reverse']
         status = [-1, -1]
         for i, direction in enumerate(directions):
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
             status[i] = self.qc.check_qc(irc_name)
+            if (self.par['bimol'] and status[i] == 'normal'
+                    and getattr(self.qc, 'qc', None) == 'gauss'
+                    and not getattr(self.qc, 'use_sella', False)):
+                # Old workers could mark failed corrector trials as normal.
+                # Require the same native path evidence on saved jobs too.
+                from kinbot import reader_gauss
+                try:
+                    _, accepted, _, _ = reader_gauss.read_all_irc_geoms(irc_name + '.log')
+                except OSError:
+                    accepted = None
+                if accepted is None:
+                    logger.warning('%s: no accepted Gaussian IRC points; saved endpoint '
+                                   'does not validate this path.', irc_name)
+                    status[i] = 'error'
         return status
 
     def do_irc_calculations(self):
         """
         Carry out the IRC calculation.
         """
-        instance_name = self.rxn.instance_name
-        err, geom = self.qc.get_qc_geom(instance_name,
-                                            self.rxn.species.natom)
+        instance_name = self._job_name()
+        if self.par['bimol'] and getattr(self.rxn, 'ts', None) is not None:
+            geom = np.asarray(self.rxn.ts.geom)
+        else:
+            err, geom = self.qc.get_qc_geom(
+                self.rxn.instance_name, self.rxn.species.natom)
         directions = ['Forward', 'Reverse']
         for direction in directions:
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
@@ -143,7 +209,9 @@ class IRC:
                 code = 'gaussian'  # Sella
                 Code = 'Gaussian'  # Sella
                 # copy the chk file
-                if os.path.exists(instance_name + '.chk'):
+                if self.par['bimol'] and getattr(self.rxn, 'final_irc_name', None):
+                    start_from_geometry = 1
+                elif os.path.exists(instance_name + '.chk'):
                     copyfile(instance_name + '.chk', irc_name + '.chk')
                 else:
                     start_from_geometry = 1
@@ -165,6 +233,11 @@ class IRC:
                                                   self.rxn.species.nel,
                                                   irc=direction.lower(),
                                                   start_from_geom=start_from_geometry)
+            if self.par['bimol'] and start_from_geometry and self.qc.qc == 'gauss':
+                # The final bimolecular IRC uses the selected TS coordinates,
+                # not the discovery checkpoint and its force constants.
+                kwargs['irc'] = ','.join(option for option in kwargs['irc'].split(',')
+                                         if option.upper() != 'RCFC')
             prod_kwargs = self.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge, self.rxn.species.nel)
             if self.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
@@ -178,7 +251,11 @@ class IRC:
                 kwargs.pop('guess', None)
                 prod_kwargs.pop('opt', None)
                 prod_kwargs.pop('freq', None)
-                template_file = f'{kb_path}/tpl/ase_sella_irc.tpl.py'
+                if self.par['bimol']:
+                    template_file = (
+                        f'{kb_path}/tpl/ase_sella_bimol_irc.tpl.py')
+                else:
+                    template_file = f'{kb_path}/tpl/ase_sella_irc.tpl.py'
             else:
                 template_file = f'{kb_path}/tpl/ase_{self.qc.qc}_irc.tpl.py'
             template = open(template_file, 'r').read()
@@ -198,10 +275,13 @@ class IRC:
                                        sella_kwargs=self.qc.par['sella_kwargs'],  # Sella
                                        fmax=self.qc.par['sella_fmax'],
                                        steps=self.qc.par['sella_steps'],
+                                       irc_maxpoints=(self.par['irc_maxpoints']
+                                                      if self.par['bimol'] else 100),
                                        fc_model_path=self.qc.par['fc_model_path'],
                                        fc_task_name=self.qc.par['fc_task_name'],
                                        fc_device=self.qc.par['fc_device'],
                                        fc_compile=self.qc.par.get('fc_compile', False),
+                                       bimol=bool(self.par['bimol']),
                                        )
 
             with open('{}.py'.format(irc_name), 'w') as f:

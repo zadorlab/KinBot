@@ -52,7 +52,9 @@ if converged:
 else:
     data={{'status': 'error'}}
 
-mol_pkl = {{'sym': mol.symbols, 
+if {bimol}:
+    data.update(backend='fc', method='{fc_model_path}', basis=None)
+mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions, 
             'calc': 'fairchemcalculator', 
             'name': '{label}', 

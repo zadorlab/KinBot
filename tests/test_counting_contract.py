@@ -19,6 +19,24 @@ from tests.conformer_fixtures import record_conformers
 
 
 class TestCountingContract(unittest.TestCase):
+    def test_atomic_mc_fragment_has_one_optical_state_without_vibrational_conformers(self):
+        atom = StationaryPoint('H', 0, 2, atom=['H'], geom=np.zeros((1, 3)))
+        atom.characterize()
+        atom.freq, atom.reduced_freqs = [], []
+        atom.energy, atom.zpe = -.5, 0.
+        atom.conformer_representation = 'MC-RRHO'
+        atom.conformer_index = [0]
+        atom.conformer_geom = [atom.geom.tolist()]
+        atom.conformer_zeroenergy = [-.5]
+        atom.conformer_freq = [None]
+        evidence = thermochemistry_evidence(atom)
+        self.assertIsNone(evidence['conformer_counting_error'])
+        self.assertEqual(evidence['optical_counting']['remaining_multiplier'], 1.)
+        self.assertEqual(evidence['raw_harmonic_frequencies_cm-1'], [])
+        self.assertEqual(evidence['conformer_representation'], 'selected conformer')
+        self.assertEqual(atom.conformer_representation, 'MC-RRHO')
+        self.assertEqual(atom.conformer_freq, [None])
+
     def methyl(self):
         return saved_point(methanol_data()['saddles'][0])
 

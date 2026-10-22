@@ -11,6 +11,15 @@ from kinbot.stereo_identity import UnsupportedStereochemistry
 def counting_view(species):
     """Evaluate current MC arrays without changing selection or writing files."""
     view = copy.copy(species)
+    if hasattr(view, 'bimol_reactant_only'):
+        # Working refinements can discover other products. Rate contributions
+        # must be classified against the endpoints of the completed IRC.
+        view.bimol_reactant_only = False
+    if species.natom == 1:
+        # Atomic fragments have no vibrational conformers. The optimizer can
+        # leave a [None] frequency entry under the global MC option.
+        view.conformer_representation = 'selected conformer'
+        return view
     if getattr(view, 'conformer_representation', None) == 'MC-RRHO':
         try:
             indices = getattr(view, 'conformer_index', [])

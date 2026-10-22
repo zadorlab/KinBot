@@ -38,7 +38,7 @@ elif '{label}'.endswith('R'):
 
 # run
 try:
-    converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
+    converged_irc = irc.run(fmax=0.01, steps={irc_maxpoints}, direction=direction)
 except RuntimeError:
     pass
 # write xyz
@@ -52,6 +52,8 @@ e = mol.get_potential_energy()
 del mol.calc.results['forces']
 
 data={{'energy': e, 'status': 'normal'}}
+if {bimol}:
+    data.update(backend='fc', method='{fc_model_path}', basis=None)
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,
             'calc': 'fairchemcalculator',
@@ -73,6 +75,8 @@ opt = Sella(mol,
             logfile='{label}_prod_sella.log',
             **sella_kwargs)
 
+if {bimol}:
+    converged_opt = False
 try:
     converged_opt = opt.run(fmax={fmax}, steps={steps})
 except RuntimeError:
@@ -90,6 +94,9 @@ data={{'energy': e,
        'hess': hessian, 
        'status': 'normal'}}
 
+if {bimol}:
+    data.update(backend='fc', method='{fc_model_path}', basis=None,
+                endpoint_converged=bool(converged_opt))
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,
             'calc': 'fairchemcalculator',

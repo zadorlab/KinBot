@@ -4,6 +4,7 @@ import sys
 import subprocess
 import logging
 import re
+import shlex
 import time
 from datetime import datetime
 import copy
@@ -397,6 +398,7 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_hir.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   bimol=bool(self.par['bimol']),
                                    optimizer=self.optimizer,
                                    profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
@@ -497,7 +499,7 @@ class QuantumChemistry:
         self._prepare_stereochemistry(species)
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
-                                       ts=species.wellorts, step=1, max_step=1, 
+                                       ts=species.wellorts, step=1, max_step=1,
                                        hir=1)
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
@@ -529,6 +531,7 @@ class QuantumChemistry:
         skw['internal'] = False
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   bimol=bool(self.par['bimol']),
                                    optimizer=self.optimizer,
                                    profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
@@ -588,9 +591,10 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            # Native MC conformers need their own existing Hessian for the
-            # optical check. Sella already stores it in the database.
-            if not ((getattr(self, 'theory_level', None) is not None and self.use_sella)
+            # Gaussian MC conformers need their own existing Hessian for the
+            # optical check; bimolecular saddles also retain their IRC source.
+            if not ((self.par['bimol'] and species.wellorts)
+                    or (getattr(self, 'theory_level', None) is not None and self.use_sella)
                     or (self.par.get('multi_conf_tst') and not self.use_sella and not semi_emp)):
                 kwargs.pop('chk', None)
         elif self.qc == 'qchem':
@@ -620,6 +624,7 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   bimol=bool(self.par['bimol']),
                                    optimizer=self.optimizer,
                                    profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
@@ -734,6 +739,46 @@ class QuantumChemistry:
 
         return 0
 
+    def qc_product_spin(self, species, geom):
+        """Calculate one bimolecular product state at its fixed IRC geometry."""
+        from kinbot.calculation import array_fingerprint
+        if not self.par.get('bimol'):
+            raise ValueError('Product spin single points require a bimolecular calculation.')
+        # Atomic numbers retain the atom ordering as well as the coordinates.
+        identity = np.column_stack(([constants.znumber[a] for a in species.atom], geom))
+        job = (f'product_spin/{routing_name(species)}_q{species.charge}_'
+               f'{array_fingerprint(identity)}_l1')
+        if self.check_qc(job) in ('normal', 'error', 'running'):
+            return job
+        kwargs = self.merge_kwargs(self.get_qc_arguments(
+            job, species.mult, species.charge, species.nel))
+        # A single point must not optimize or read a different geometry from a
+        # checkpoint, even when those keywords were supplied for normal wells.
+        for key in list(kwargs):
+            if key.lower() in ('opt', 'freq', 'geom'):
+                kwargs.pop(key)
+        if self.qc == 'qchem':
+            kwargs['jobtype'] = 'sp'
+        elif self.qc == 'orca':
+            if re.search(r'\b(?:opt\w*|freq\w*|numfreq)\b', kwargs['orcasimpleinput'], re.I):
+                raise ValueError('Remove optimization/frequency keywords from ORCA spin single-point settings.')
+            kwargs['directory'] = job
+            kwargs['orcasimpleinput'] = re.sub(r'\bEnGrad\b', '', kwargs['orcasimpleinput'], flags=re.I)
+        code, name = {'gauss': ('gaussian', 'Gaussian'), 'qchem': ('qchem', 'QChem'),
+                      'orca': ('orca', 'ORCA'), 'fc': ('', '')}[self.qc]
+        values = dict(label=job, atom=plain_symbols(species.atom), geom=plain_geometry(geom),
+                      kwargs=kwargs, qc=self.qc, code=code, Code=name,
+                      qc_command=self.qc_command, ppn=min(species.nel, self.ppn),
+                      charge=species.charge, mult=species.mult,
+                      method=(self.par['fc_model_path'] if self.qc == 'fc'
+                              else kwargs.get('method', self.method)),
+                      basis=None if self.qc == 'fc' else kwargs.get('basis', self.basis),
+                      model=self.par['fc_model_path'], task=self.par['fc_task_name'],
+                      device=self.par['fc_device'], fc_compile=self.par.get('fc_compile', False),
+                      working_dir=os.getcwd())
+        self._write_bimol_job(job, 'ase_product_spin.tpl.py', values, species)
+        return job
+
     def qc_opt(self, species, geom, high_level=0, mp2=0, ext=None, 
                fdir=None, do_vdW=False, initial_product=False):
         '''
@@ -810,6 +855,7 @@ class QuantumChemistry:
         
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   bimol=bool(self.par['bimol']),
                                    optimizer=self.optimizer,
                                    profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
@@ -837,6 +883,110 @@ class QuantumChemistry:
 
         self.submit_qc(job, min(species.nel, self.ppn))
         return 0
+
+    def _bimol_template_values(self, job, species):
+        """Return calculator and convergence settings for both L0 worker types."""
+        settings = self.par['bimol_search_kwargs'].copy()
+        settings.update({
+            'sella_fmax': self.par['sella_fmax'],
+            'sella_steps': self.par['sella_steps'],
+            'optical_population': self.par.get('optical_population', 'specified'),
+        })
+        kwargs = self.get_qc_arguments(
+            job, species.mult, species.charge, species.nel)
+        kwargs.pop('freq', None)
+        kwargs.pop('opt', None)
+        if self.qc == 'qchem':
+            kwargs['jobtype'] = None
+        kwargs = self.merge_kwargs(kwargs)
+        module, code = {
+            'gauss': ('kinbot.ase_modules.calculators.gaussian', 'Gaussian'),
+            'qchem': ('kinbot.ase_modules.calculators.qchem', 'QChem'),
+            'orca': ('kinbot.ase_modules.calculators.orca', 'ORCA'),
+            'fc': ('', ''),
+        }[self.qc]
+        values = {
+            'label': job,
+            'done_file': job + '.done',
+            'atom': list(species.atom),
+            'atom_a': list(species.fragA.atom),
+            'atom_b': list(species.fragB.atom),
+            'charge': species.charge,
+            'mult': species.mult,
+            'charge_a': species.fragA.charge,
+            'mult_a': species.fragA.mult,
+            'charge_b': species.fragB.charge,
+            'mult_b': species.fragB.mult,
+            'l0_qc': self.qc,
+            'calculator_module': module,
+            'calculator_class': code,
+            'calculator_kwargs': kwargs,
+            'qc_command': self.qc_command,
+            'ppn': min(species.nel, self.ppn),
+            'model': self.par['fc_model_path'],
+            'task': self.par['fc_task_name'],
+            'device': self.par['fc_device'],
+            'fc_compile': self.par.get('fc_compile', False),
+            'search_kwargs': settings,
+        }
+        return values
+
+    def _write_bimol_job(self, job, template_name, values, species):
+        os.makedirs(os.path.dirname(job), exist_ok=True)
+        os.makedirs(os.path.join('perm', os.path.dirname(job)), exist_ok=True)
+        template_file = f'{kb_path}/tpl/{template_name}'
+        with open(template_file) as handle:
+            template = handle.read().format(**values)
+        with open(f'{job}.py', 'w') as handle:
+            handle.write(template)
+        return self.submit_qc(job, min(species.nel, self.ppn))
+
+    def qc_bimol_search(self, reaction, attempt=0, start_after=None):
+        """Submit an L0 candidate search for a bimolecular channel."""
+        from kinbot.bimol import search_job
+
+        species = reaction.species
+        sequential = self.par['bimol_search_kwargs'].get('sequential', True)
+        job = search_job(reaction.instance_name, attempt, sequential=sequential)
+        conformers_a = species.fragA.conformer_geom or [species.fragA.geom]
+        conformers_b = species.fragB.conformer_geom or [species.fragB.geom]
+        values = self._bimol_template_values(job, species)
+        values.update(reaction.get_bimol_search_data())
+        values['search_kwargs']['equivalent_bond_changes'] = values.get('equivalent_bond_changes', [])
+        values.update({
+            'reaction_name': reaction.instance_name,
+            'reactant_geom': np.asarray(species.geom).tolist(),
+            'instance': list(reaction.instance),
+            'conformers_a': np.asarray(conformers_a).tolist(),
+            'conformers_b': np.asarray(conformers_b).tolist(),
+            'start_after': start_after,
+        })
+        values['search_kwargs'].update({
+            'bimol_ts_rmsd': self.par['bimol_ts_rmsd'],
+            'bimol_energy_tolerance': self.par['bimol_energy_tolerance'],
+            'allow_reflection': getattr(reaction, 'allow_reflection', True),
+        })
+        return self._write_bimol_job(
+            job, 'ase_bimol_search.tpl.py', values, species)
+
+    def qc_bimol_irc(self, reaction, candidate):
+        """Submit L0 IRC validation for one unique saddle candidate."""
+        from kinbot.bimol import validation_job
+
+        species = reaction.species
+        workdir = candidate['validation_directory']
+        job = validation_job(workdir)
+        values = self._bimol_template_values(job, species)
+        values.update(reaction.get_bimol_search_data())
+        values['search_kwargs']['equivalent_bond_changes'] = values.get('equivalent_bond_changes', [])
+        values.update({
+            'geom': candidate['candidate']['geometry'],
+            'geom_a': np.asarray(species.fragA.geom).tolist(),
+            'geom_b': np.asarray(species.fragB.geom).tolist(),
+            'workdir': workdir,
+        })
+        return self._write_bimol_job(
+            job, 'ase_bimol_irc.tpl.py', values, species)
 
     def qc_opt_ts(self, species, geom, high_level=0, ext=None, fdir=None):
         '''Creates a ts optimization input and runs it
@@ -881,6 +1031,7 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   bimol=bool(self.par['bimol']),
                                    optimizer=self.optimizer,
                                    profiled=getattr(self, 'theory_level', None) is not None,
                                    kwargs=kwargs,
@@ -1087,6 +1238,10 @@ class QuantumChemistry:
         previous = [row.data.get('nconf') for row in rows if row.data.get('nconf')]
         if previous and 'nconf' not in data:
             data['nconf'] = previous[-1]
+        # toatoms() retains calculated properties but loses ASE method settings.
+        if self.par.get('bimol'):
+            from kinbot.calculation import calculation_details
+            data.update(calculation_details(source))
         data.update(copied_from_job=source.name, copied_from_row_id=source.id)
         keys = dict(source.key_value_pairs, name=target)
         result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)
@@ -1148,12 +1303,18 @@ class QuantumChemistry:
                 return -1
 
         template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
-        if self.qc == 'orca':
+        # These workers keep their inputs and results below the calculation
+        # directory, including when a custom queue header changes directory.
+        root_worker = self.par.get('bimol') and job.startswith(('bimol/', 'product_spin/'))
+        if self.qc == 'orca' and not root_worker:
             python_file = f'{os.path.basename(job)}.py'
         else:
             python_file = f'{job}.py'
-        job_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
-        if self.qc == 'orca': 
+        job_template = open(template_head_file, 'r').read()
+        if root_worker:
+            job_template += '\ncd ' + shlex.quote(os.getcwd()) + ' || exit 1\n'
+        job_template += open(template_file, 'r').read()
+        if self.qc == 'orca' and not root_worker:
             if 'hir' not in job: 
                 job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
             else:
@@ -1549,12 +1710,21 @@ class QuantumChemistry:
             logger.info(f'{job}: job {key[1]} has left the queue; waiting up to '
                         '60 s for its complete result.')
         deadline = self._completion_deadlines[key]
+        bimol_worker = (self.par.get('bimol')
+                        and job.startswith(('bimol/', 'product_spin/')))
         if deadline is not None:
             if now < deadline:
                 return 'running'
             self._completion_deadlines[key] = None
             logger.warning(f'{job}: complete result is still unavailable '
                            '60 s after the job left the queue.')
+            if bimol_worker:
+                logger.warning(f'{job}: bimolecular calculation failed. Incomplete '
+                               'files were kept; this run will not submit the job again.')
+        # A killed worker has no final result. Returning the unsubmitted status
+        # repeats pose searches from the beginning or leaves spin selection waiting.
+        if bimol_worker:
+            return 'error'
         return status
 
     def _check_qc(self, job):
@@ -1643,8 +1813,10 @@ class QuantumChemistry:
                 # kinds of job run, so take the Sella log when it is there.
                 if getattr(self, 'use_sella', False) and os.path.exists(job + '_sella.log'):
                     log_file = job + '_sella.log'
+                done_marker = (self.par.get('bimol') and job.startswith(('bimol/', 'product_spin/'))
+                               and os.path.exists(job + '.done'))
                 log_file_exists = os.path.exists(log_file)
-                if log_file_exists:
+                if log_file_exists and not done_marker:
                     with open(log_file, 'r') as f:
                         try:
                             last_line = f.readlines()[-1]
@@ -1660,6 +1832,8 @@ class QuantumChemistry:
                                 return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
+                elif done_marker:
+                    pass
                 else:
                     if self.queuing == 'local' and not self.par['error_missing_local']:
                         return 'error'

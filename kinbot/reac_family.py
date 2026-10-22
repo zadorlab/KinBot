@@ -6,7 +6,6 @@ from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
 from kinbot.profiled_qc import MissingL1Result
-from kinbot.reactions.reac_abstraction import abstraction_align
 from kinbot.utils import get_unique_list_of_lists, plain_symbols, plain_geometry
 
 logger = logging.getLogger('KinBot')
@@ -19,9 +18,13 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     scan: boolean which tells if this is part of an energy scan along a bond 
         length coordinate
     """
+    if bimol and hasattr(rxn, 'carry_out_reaction'):
+        return rxn.carry_out_reaction(step)
+
     qc = rxn.qc.for_level('l1')
     worker_par = qc.par
     command = qc.qc_command
+
     ts = True
     reuse_only = worker_par.get('profiled_l1_reuse_only', 0)
     if reuse_only:
@@ -61,20 +64,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         if rxn.skip and len(rxn.instance) < 4:
             step = 12
         geom = rxn.species.geom
-        if bimol:
-            if rxn.family_name == 'abstraction':
-                # gives the reactant and product geometry guesses
-                geom, _, _ = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
     elif step == rxn.max_step and rxn.scan:
         err, geom = qc.get_qc_geom(rxn.instance_name, rxn.species.natom,
                                        allow_error=1, previous=1)
     else:
         err, geom = qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
-        if bimol:
-            if rxn.family_name == 'abstraction':
-                # gives the reactant and product geometry guesses
-                _, geom_prod, geom_ts = abstraction_align(geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
     step, fix, change, release = rxn.get_constraints(step, geom)
     logger.debug(f'status of constraints step {step} fix {fix} chage {change} release {release}')
@@ -125,17 +120,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} F\n"
             for reli in release:
                 kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
-        elif bimol and step == 1 and not qc.use_sella:
-            kwargs['addsec'] = f'{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
-            # here addsec needs to contain the product and ts geometries and all the rest of the fluff
-            kwargs['addsec'] += f'product geometry guess\n\n{rxn.species.charge} {rxn.species.mult}\n'
-            for ii, at in enumerate(rxn.species.atom):
-                kwargs['addsec'] += f'{at} {geom_prod[ii][0]} {geom_prod[ii][1]} {geom_prod[ii][2]}\n'
-            kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
-            kwargs['addsec'] += f'ts geometry guess\n\n{rxn.species.charge} {rxn.species.mult}\n'
-            for ii, at in enumerate(rxn.species.atom):
-                kwargs['addsec'] += f'{at} {geom_ts[ii][0]} {geom_ts[ii][1]} {geom_ts[ii][2]}\n'
-            kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
     elif qc.qc == 'qchem':
         code = 'qchem'
         Code = 'QChem'
@@ -182,13 +166,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         template = open(template_file,'r').read()
         skw = worker_par['sella_kwargs'].copy()
         skw['internal'] = False
-        template = template.format(label=rxn.instance_name,
+        template = template.format(label=rxn.instance_name, bimol=bimol,
                                 frequency_mode=qc.frequency_mode, optimizer=qc.optimizer,
                                 profiled=qc.theory_level is not None,
                                 kwargs=kwargs,
                                 atom=plain_symbols(rxn.species.atom),
                                 geom=plain_geometry(geom),
-                                bimol=bimol,
                                 ppn=min(rxn.species.nel, qc.ppn),
                                 qc_command=command,
                                 working_dir=os.getcwd(),
@@ -215,7 +198,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             template_file = f'{kb_path}/tpl/ase_{qc.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
     
-        template = template.format(label=rxn.instance_name,
+        template = template.format(label=rxn.instance_name, bimol=bimol,
                                 frequency_mode=qc.frequency_mode, optimizer=qc.optimizer,
                                 profiled=qc.theory_level is not None,
                                    kwargs=kwargs,

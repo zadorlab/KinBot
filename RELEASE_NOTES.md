@@ -2,6 +2,11 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+Bimolecular FairChem TS failures now retain the optimization convergence flag
+and checked frequencies. The log distinguishes failed optimization from rejected
+frequencies instead of reporting both as an invalid geometry; acceptance checks
+and retries are unchanged.
+
 ## Conformer restart shortcut for every QC code
 
 A finished conformer search is recognised on restart by the output file
@@ -52,8 +57,13 @@ results remain usable if this option changes on restart.
   extend the same interface to `l0_profile`. Each level can select its own
   calculator, method, basis, command or FairChem model/task/device.
 - Use assigned profile settings in TS and IRC workers as well as well workers.
-  Read results and Hessians through their recorded level. Global submission
-  resources and L3 remain unchanged.
+  Read results and Hessians through their recorded level; final bimolecular
+  IRCs use the selected TS surface. Global submission resources and L3 remain
+  unchanged.
+- Include the selected L1/L2 level in final bimolecular IRC job names. An L2
+  refinement with unchanged TS coordinates must not reuse an L1 IRC. Earlier
+  geometry-only IRC files are kept, but restarting requests new IRC jobs with
+  the level in their names, even when the requested level has not changed.
 - Standardize preliminary conformer controls on lowercase `l0_*`, retaining
   all previous input aliases, including `semi_emp_confomer_threshold`.
   Ordinary inputs without profiles keep their existing calculator and command.
@@ -184,6 +194,92 @@ reports missing force-field parameters or incomplete refinement; QC can still
 use the generated coordinates. Disconnected fragments are placed apart so
 the generated coordinates do not create false bonds between them. OpenBabel
 remains in use for other helpers.
+
+## Bimolecular worker startup and endpoint properties
+
+ORCA L0 search and validation scripts now launch the complete worker path
+from the calculation directory, including with a queue header that changes
+directory. Product-spin workers use the same directory treatment.
+
+At L1, FairChem endpoints must have a successful endpoint optimization before
+KinBot can retain them as bound complexes. Missing or false convergence records
+omit the optional complex; they do not change the allowance for early IRC
+termination.
+
+Q-Chem's own bimolecular IRC worker now calculates harmonic frequencies and
+ZPE at each optimized endpoint before publishing a complete result. Failed
+endpoint optimizations or frequency calculations remain errors. Ordinary
+unimolecular Q-Chem workers retain their existing behavior.
+
+Start new calculation directories after this rebase: master uses calculation
+format v4. Existing energy-only Q-Chem endpoint records are not supplemented
+automatically; rerun them in a fresh directory to obtain complex properties.
+
+## Bimolecular H-abstraction rates
+
+- Write MESS models directly from saved final calculations. Reuse the shared
+  geometry, frequency, symmetry and HIR conventions. No QC output names are
+  reconstructed by the rate writer.
+- Use one PST entrance per accepted reactant pair with a bound complex.
+  Retain the actual inner abstraction TS. With `me_skip_vdW: 0`, include the
+  accepted RC and PC wells and their PST surfaces. The PST potential remains
+  `-0.6/R^6` in atomic units.
+- With `me_skip_vdW: 1`, omit both VDW wells from bimolecular rate calculations.
+  Compare the reactant and product separated-fragment energies, including
+  ZPE. Keep the PST surface on the higher-energy side and combine it with the inner
+  TS using MESS's statistical two-transition-state model. This choice is an
+  approximation, not a test of which surface controls the rate. The other
+  outer PST surface is omitted; its effect is not calculated.
+  Forward and reverse rates use the same surfaces. Both lowest complex
+  energies still set the inner Eckart depths. No complex frequencies or
+  partition functions are needed. Collisional stabilization is not included.
+- Add MC conformer states before the two-surface calculation. Pathways with
+  the same chosen capture surface share it once. MESS calculates state counts
+  and rates; KinBot supplies the sums and separates product contributions.
+  The selected side and its separated-fragment energy are written in the
+  inputs and job list. Complex binding depths do not select the PST side.
+  Each two-TS calculation uses its selected separated-fragment energy as
+  zero. This keeps the PST threshold on the MESS energy grid.
+  This change does not alter the unimolecular meaning of `me_skip_vdW`.
+- Select only the lowest electronic energy plus ZPE reactant complex and
+  product complex per configured fragment pair, also with MC-TST. Treat each
+  selected complex as one harmonic conformer. Retain other complex geometries
+  as observations. A separate complex conformer search is not added.
+  This is an approximation: no complex HIR is included, and a harmonic
+  model does not describe large relative motion of weakly bound fragments.
+  On restart, read completed IRC and endpoint calculations even when their
+  TS is now a duplicate. This keeps an already calculated lower complex in
+  the selection without starting IRC jobs for uncalculated duplicates.
+  Reuse converged L2 IRC endpoints that already contain energy, ZPE and
+  frequencies at the selected level. Retain the existing endpoint calculation
+  when properties or evidence of convergence are missing.
+- Sum retained TS conformers for MC. Keep distinct stereochemical pathways
+  with either HIR or MC. Remove duplicate observations before the conformer
+  sum. Do not add a second site or optical multiplier.
+- Keep specified and racemic populations separate. Reuse complete reflected
+  calculations and preserve different relative configurations when grouping
+  racemic pathways.
+- Use the Argonne MESS abstraction companion for direct TST when there is no
+  entrance complex and the TS is above both separated endpoints. The new
+  `mess_abstraction_command` option selects this executable. Forward and
+  reverse rates use the same MESS model and tunneling calculation.
+- Split unconnected complex networks into separate MESS jobs. Record ready
+  jobs and omitted models in `me/bimol_models.json`. Invalid optional
+  complexes do not remove unrelated pathways.
+
+The new adapter retains the existing electronic-energy-plus-harmonic-ZPE
+reference. It does not add rotor ground energy a second time. It uses MESS
+translation and concentration units. No unimolecular MESS or stereochem-branch
+model is changed by these additions.
+
+## Bimolecular Gaussian IRC calculations
+
+- Use only accepted Gaussian IRC points to start endpoint optimization.
+  Corrector trial geometries do not establish a reaction path. If no point
+  was accepted, retry from the original TS with a smaller step and a fresh
+  Hessian. Keep a second failure as a failed path. A usable partial IRC can
+  still supply its last accepted point. An old endpoint calculation cannot
+  override a failed IRC; the bimolecular search can try another pose.
 
 ## Stereochemistry and symmetry
 

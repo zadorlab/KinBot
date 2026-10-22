@@ -38,6 +38,7 @@ class Conformers:
         semi_emp: is this search at L0 or at L1. The latter is the default.
         """
         self.species = species
+        self.bimol = bool(par.get('bimol'))
         self.optical_population = par.get('optical_population', 'specified')
         self.strict_counting = bool(par.get('multi_conf_tst', 0))
         if not getattr(species, 'wellorts', 0):
@@ -108,6 +109,48 @@ class Conformers:
         self.selected_job = None
         self.selected_conf = None
         self.calculation_records = {}
+        self.hir_restart_count = 0
+
+    def _published_hir_result(self):
+        """Keep an accepted L1 HIR refinement when revisiting older samples.
+
+        Publication already saves the complete result and its source under
+        ``conf/..._low``. An ordinary conformer or an L2 result is not evidence
+        of an L1 HIR refinement.
+        """
+        if not self.bimol or self.semi_emp or self.strict_counting:
+            return None
+        name = str(self.get_name())
+        rows = list(self.db.select(name=f'conf/{name}_low'))
+        if not rows:
+            return None
+        row = rows[-1]
+        parent = name if self.species.wellorts else name + '_well'
+        match = re.fullmatch(re.escape(parent) + r'_hir_restart_(\d+)(?:_freq_recovery_\d+)?',
+                             row.data.get('copied_from_job', ''))
+        if not match or row.data.get('status') != 'normal':
+            return None
+        if (list(row.symbols) != list(self.species.atom)
+                or not configured_geometry_allowed(
+                    self.species, row.positions, self.optical_population)):
+            return None
+        for key in ('energy', 'zpe', 'frequencies'):
+            value = row.data.get(key)
+            if value is None or not np.all(np.isfinite(value)):
+                return None
+        if self.species.natom > 1 and not len(row.data['frequencies']):
+            return None
+        self.hir_restart_count = int(match[1])
+        return row
+
+    def _keep_hir_result(self, row, energy, zpe):
+        if (row is None or row.data['energy'] * constants.EVtoHARTREE
+                + row.data['zpe'] > energy + zpe):
+            return False
+        self.selected_job, self.selected_conf = row.name, 'low'
+        logger.info('Keeping accepted HIR-refined calculation %s from %s.',
+                    row.name, row.data['copied_from_job'])
+        return True
 
     def generate_ring_conformers(self, cart):
         """
@@ -452,8 +495,16 @@ class Conformers:
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
                 frequencies = []
+                accepted_hir = self._published_hir_result()
 
                 if all(status) and not self.semi_emp:
+                    if accepted_hir is not None:
+                        parent_energy = (last_row.data['energy'] * constants.EVtoHARTREE
+                                         if parent_allowed else np.inf)
+                        if self._keep_hir_result(accepted_hir, parent_energy, last_row.data['zpe']):
+                            return (1, 'low', accepted_hir.positions,
+                                    accepted_hir.data['energy'] * constants.EVtoHARTREE,
+                                    final_geoms, totenergies, frequencies, status)
                     if not parent_allowed:
                         from kinbot.stereo_routing import StereoRoutingError
                         raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
@@ -536,10 +587,10 @@ class Conformers:
                                 else:
                                     logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                     err = -1
-                            if err == 0 and not self.semi_emp:
+                            if not self.bimol and err == 0 and not self.semi_emp:
                                 lowest_energy = energy
                                 lowest_zpe = zpe
-                        if energy + zpe <= lowest_energy + lowest_zpe:
+                        if (not self.bimol or err == 0) and energy + zpe <= lowest_energy + lowest_zpe:
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
                             # job fails if conformers freq array is empty
@@ -595,7 +646,7 @@ class Conformers:
                 l1energy += l1_last_row.data.get('zpe')
                 parent_allowed = configured_geometry_allowed(
                     self.species, l1_last_row.positions, self.optical_population)
-                if not parent_allowed and not np.isfinite(lowest_energy):
+                if not parent_allowed and not np.isfinite(lowest_energy) and accepted_hir is None:
                     from kinbot.stereo_routing import StereoRoutingError
                     raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
                 if parent_allowed and (not np.isfinite(lowest_energy) or not any([abs(en - l1energy) < self.diffthrs * constants.KCALtoHARTREE for en in totenergies])): # 0.1 kcal/mol
@@ -610,6 +661,13 @@ class Conformers:
                     # This return field is electronic energy in Hartree;
                     # only totenergies and the comparison above include ZPE.
                     lowest_energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
+                    if self.bimol:
+                        lowest_zpe = l1_last_row.data['zpe']
+
+                if self.bimol and self._keep_hir_result(accepted_hir, lowest_energy, lowest_zpe):
+                    return (1, 'low', accepted_hir.positions,
+                            accepted_hir.data['energy'] * constants.EVtoHARTREE,
+                            final_geoms, totenergies, frequencies, status)
                 
                 low_row = None
                 low_rows = self.db.select(name='conf/{}_low'.format(name))

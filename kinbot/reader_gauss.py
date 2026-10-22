@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 import numpy as np
 import copy
 from kinbot import constants
@@ -46,12 +47,15 @@ def read_all_energies(outfile, from_line=0):
 
     return energy
 
-def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0):
+def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0,
+              keep_input=False):
     """
     Read the final geometry from a Gaussian file.
     max2frag: if set to true, the last geometry is taken where
               the structure has max 2 fragments
               This is to avoid "exploding" IRC_prod trajectories.
+    keep_input: retain input coordinates if a bimolecular endpoint calculation
+                stopped before Gaussian printed a geometry table.
     """
 
     with open(outfile) as f:
@@ -59,19 +63,22 @@ def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0)
 
     start = from_line  # start reading here
     while 1:
-        geom = np.zeros((len(mol), 3))
+        geom = (np.array(mol.positions, copy=True) if keep_input
+                else np.zeros((len(mol), 3)))
         if start == 0:
             data = lines
         else:
             data = lines[:-start]
+        found = False
         for index, line in enumerate(reversed(data)):
             if 'Input orientation:' in line:
                 for n in range(len(mol)):
                     geom[n][0:3] = np.array(data[-index+4+n].split()[3:6]).astype(float)
                 start += index  # mark end for next loop if there is
+                found = True
                 break
 
-        if not max2frag:
+        if not max2frag or (keep_input and not found):
             break
         else:
             from kinbot.stationary_pt import StationaryPoint
@@ -229,6 +236,18 @@ def read_lowest_geom_energy(outfile, mol):
 
                 return e, geom
 
+
+def read_bimol_retry_geom_energy(outfile, mol):
+    """Keep actual coordinates when a bimolecular endpoint fails before SCF."""
+    try:
+        result = read_lowest_geom_energy(outfile, mol)
+    except IndexError:
+        result = None  # Gaussian stopped within its optimization summary.
+    if result is not None:
+        return result
+    return read_energy(outfile), read_geom(outfile, mol, keep_input=True)
+
+
 def constraint(mol, fix, change):
     """
     Convert constraints into ASE constraints.
@@ -332,35 +351,68 @@ def read_all_irc_geoms(outfile):
     with open(outfile) as f:
         lines = f.readlines()
 
-    start = True
-    all_geoms = None
+    geometries = []
     atom = None
+    charge = mult = None
     for index, line in enumerate(lines):
         if 'Charge = ' in line:
             charge = line.split()[2]
             mult = line.split()[5]
         if 'CURRENT STRUCTURE' in line:
-            geom = np.array([])
-            atom = np.array([])
-            natom = 0
-            while True:
-                current_line = lines[index+6+natom]
-                if '-------' in current_line:
-                    geom = np.reshape(geom, (-1, 3))
-                    if start:
-                        all_geoms = np.array([copy.deepcopy(geom)])
-                        start = False
-                    else:
-                        all_geoms = np.vstack((all_geoms, geom[None]))
+            # Corrector trial orientations are not accepted IRC points. Keep
+            # complete CURRENT STRUCTURE tables even if the last is truncated.
+            numbers, geom = [], []
+            for row in lines[index + 6:]:
+                if '-------' in row:
+                    if (numbers and np.all(np.isfinite(geom)) and
+                            (atom is None or numbers == atom.tolist())):
+                        atom = np.asarray(numbers, dtype=int)
+                        geometries.append(geom)
                     break
-                atom = np.append(atom, int(current_line.split()[1]))
-                g = np.array(current_line.split()[2:5]).astype(float)
-                geom = np.append(geom, g)
-                natom += 1
-    return atom, all_geoms, charge, mult
+                fields = row.split()
+                try:
+                    if len(fields) != 5 or int(fields[0]) != len(numbers) + 1:
+                        break
+                    numbers.append(int(fields[1]))
+                    geom.append([float(v) for v in fields[2:5]])
+                except ValueError:
+                    break
+    return atom, np.asarray(geometries) if geometries else None, charge, mult
 
 
-def correct_kwargs(outfile, kwargs):
+def irc_retry_kwargs(kwargs):
+    """Retry from the original TS, with a fresh Hessian and smaller IRC step."""
+    result = kwargs.copy()
+    options = [value.strip() for value in result['irc'].split(',')]
+    step = next((int(value.split('=')[1]) for value in options
+                 if value.lower().startswith('stepsize=')), 10)
+    cycles = next((int(value.split('=')[1]) for value in options
+                   if value.lower().startswith('maxcycle=')), 20)
+    options = [value for value in options if value.lower() not in ('rcfc', 'calcfc', 'restart')
+               and not value.lower().startswith(('stepsize=', 'maxcycle='))]
+    options += ['CalcFC', f'StepSize={max(1, step // 2)}', f'MaxCycle={max(100, cycles)}']
+    result['irc'] = ','.join(options)
+    result.pop('geom', None)
+    result.pop('guess', None)
+    return result
+
+
+def write_irc_trajectory(outfile, destination):
+    """Export available native IRC points without blocking endpoint recovery."""
+    from ase import Atoms
+    from ase.io import write
+    try:
+        atoms, geometries, _, _ = read_all_irc_geoms(outfile)
+        if geometries is not None and len(geometries):
+            write(destination, [Atoms(numbers=np.asarray(atoms, dtype=int), positions=geom)
+                                for geom in geometries])
+            return True
+    except (OSError, ValueError, IndexError, TypeError) as error:
+        logging.getLogger('KinBot').warning('Could not export IRC trajectory %s: %s', outfile, error)
+    return False
+
+
+def correct_kwargs(outfile, kwargs, bimol=False):
     """Function to correct errors by modifying the kwargs of the ase calculator.
 
     @param outfile: Output file of gaussian (.log file)
@@ -372,14 +424,19 @@ def correct_kwargs(outfile, kwargs):
 
     from kinbot.utils import tail
     outf_end = tail(outfile, 10)
+    # Bimolecular retries must not append the same Cartesian option repeatedly.
+    def has_cartesian():
+        options = kwargs['opt'].lower() if bimol else kwargs['opt']
+        return 'cartesian' in options
+
     # Use cartesian coordinates when internal ones fail.
     if 'Error in internal coordinate system' in outf_end \
-            and 'cartesian' not in kwargs['opt']:
+            and not has_cartesian():
         kwargs['opt'] += ', cartesian'
     elif 'Error termination request processed by link 9999.' in outf_end:
         kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'CalcAll')
         kwargs.pop('freq', None)
-        if 'cartesian' not in kwargs['opt']:
+        if not has_cartesian():
             kwargs['opt'] += ',Cartesian'
 
     return kwargs

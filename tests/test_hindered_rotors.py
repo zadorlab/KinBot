@@ -284,6 +284,37 @@ class TestHIRStatus(unittest.TestCase):
             self.assertEqual(source.name, expected)
             self.assertEqual(target, optimization.log_name(0))
 
+    def test_hir_can_wait_for_final_connectivity_then_resume(self):
+        from kinbot.calculation import geometry_reference
+        hir = completed_hir()
+        hir.scan_reference = geometry_reference(hir.species)
+        hir.scan_reference['dihedrals'] = copy.deepcopy(hir.species.dihed)
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = hir.species
+        optimization.name = hir.species.name
+        optimization.qc = SimpleNamespace(
+            read_qc_hess=Mock(return_value=np.eye(3 * hir.species.natom)),
+            hessian_is_massweighted=lambda job=None: False)
+        optimization.par = {'conformer_search': 0, 'rotation_restart': 0, 'high_level': 0,
+                            'rotor_scan': 1, 'multi_conf_tst': 0, 'L3_calc': 0, 'rigid_hir': 0}
+        optimization.shir, optimization.shigh = -1, 1
+        optimization.restart, optimization.wait = 0, 0
+        optimization.just_high, optimization.defer_hir = False, True
+        optimization.log_name = lambda *args, **kw: 'test'
+        hir.species.freq = [100.] * (3 * hir.species.natom - 6)
+        with patch('kinbot.optimize.HIR', return_value=hir) as constructor, \
+                patch.object(hir, 'generate_hir_geoms') as generate, \
+                patch.object(hir, 'check_hir', return_value=1), \
+                patch('kinbot.optimize.symmetry.calculate_symmetry'), \
+                patch('kinbot.optimize.frequencies.get_frequencies', return_value=([], [])):
+            optimization.do_optimization()
+            self.assertEqual(optimization.shir, 1)
+            constructor.assert_not_called()
+            optimization.qc.read_qc_hess.assert_not_called()
+            optimization.defer_hir, optimization.shir = False, -1
+            optimization.do_optimization()
+            generate.assert_called_once()
+            self.assertEqual(optimization.shir, 1)
 
 
     def test_successful_rotors_keep_the_original_restart_reference(self):

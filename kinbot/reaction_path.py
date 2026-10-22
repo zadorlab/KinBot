@@ -191,6 +191,16 @@ def path_geometry_allowed(species, geom, population=None):
         return configured_geometry_allowed(species, geom, population)
     population = population or getattr(species, 'optical_population', 'specified')
     mirror_allowed = optical_scope(species, population)['mirror_allowed']
+    if getattr(species, 'bimol_reactant_only', False):
+        # Refinement may discover another product. Only the requested entrance
+        # configuration constrains a working bimolecular TS; its IRC assigns products.
+        from kinbot.stereo_identity import endpoint_configuration_allowed
+        references = [species.ts_reference_geometry]
+        if mirror_allowed:
+            references.append(species.ts_reference_geometry * [-1., 1., 1.])
+        return any(endpoint_configuration_allowed(species.ts_endpoint_graphs[0], reference, geom,
+                                                  definite_only=True)
+                   for reference in references)
     reference = getattr(species, 'configuration_reference', None)
     if reference is not None:
         own, _ = _configured_pair(species.configuration_endpoints, geom)
@@ -204,7 +214,8 @@ def path_geometry_allowed(species, geom, population=None):
         references = [species.ts_reference_geometry]
         if mirror_allowed:
             references.append(species.ts_reference_geometry * [-1., 1., 1.])
-        if not any(all(endpoint_configuration_allowed(endpoint, reference, geom)
+        if not any(all(endpoint_configuration_allowed(endpoint, reference, geom,
+                           definite_only=hasattr(species, 'bimol_reactant_only'))
                        for endpoint in species.ts_endpoint_graphs) for reference in references):
             return False
     if hasattr(species, 'stereopath_reference'):

@@ -2,14 +2,17 @@
 import ast
 import json
 import os
+import runpy
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
 import numpy as np
 from ase import Atoms
 from ase.build import molecule
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from kinbot import constants, frequencies
 from kinbot.calculation import load_calculation_record
@@ -145,6 +148,71 @@ class TestSelectedHessian(unittest.TestCase):
             load_calculation_record(self.species, self.qc, self.job)
         self.assertEqual(self.species.freq, self.freq)
         self.assertEqual(self.species.hess, [])
+
+    def test_saved_native_method_survives_selected_result_copy(self):
+        self.par['bimol'] = 1
+        for backend, saved_backend in (('gauss', 'gaussian'), ('qchem', 'qchem')):
+            with self.subTest(backend=backend):
+                self.qc.qc = backend
+                self.atoms.calc = SinglePointCalculator(self.atoms, energy=-100. / constants.EVtoHARTREE)
+                self.atoms.calc.name = saved_backend
+                self.atoms.calc.parameters.update(method='M062X', basis='6-311G(d,p)')
+                row_id = self.record(self.job)
+                source = self.qc.db.get(id=row_id)
+                target = f'conf/{backend}_low'
+                self.qc.publish_result(source, target)
+                for job in (self.job, target):
+                    load_calculation_record(self.species, self.qc, job)
+                    description = thermochemistry_evidence(self.species)['calculation_provenance']
+                    self.assertEqual(description['backend'], backend)
+                    self.assertEqual(description['method'], 'M062X')
+                    self.assertEqual(description['basis'], '6-311G(d,p)')
+                    self.assertEqual(self.species.freq, self.freq)
+                    self.assertAlmostEqual(self.species.energy, -100.)
+
+    def test_fairchem_worker_saves_the_model_it_actually_used(self):
+        self.par['bimol'] = 1
+        self.qc.qc = 'fc'
+        self.par['sella_kwargs']['internal'] = True
+        for formula in ('H', 'H2O'):
+            with self.subTest(formula=formula):
+                atoms = molecule(formula)
+                point = StationaryPoint(formula, 0, 2 if formula == 'H' else 1,
+                    atom=atoms.get_chemical_symbols(), geom=atoms.positions)
+                point.characterize()
+                model = 'uma-s-1p1'
+                self.par['fc_model_path'] = model
+                self.qc.qc_opt(point, point.geom)
+                job = self.qc.submit_qc.call_args.args[0]
+                # No model loading, GPU work or optimization is needed to check
+                # the worker -> pickle -> database -> selected-result handoff.
+                calculator = SinglePointCalculator(Atoms(point.atom, positions=point.geom),
+                    energy=-10., forces=np.zeros((len(atoms), 3)))
+                raw = [] if len(atoms) == 1 else [500., 1000., 1500.]
+                with patch.dict('sys.modules', {'fairchem.core': SimpleNamespace(
+                            FAIRChemCalculator=Mock(return_value=calculator))}), \
+                        patch('kinbot.fairchem_utils.load_predictor', return_value=object()) as predictor, \
+                        patch('sella.Sella') as optimizer, \
+                        patch('ase.io.read', return_value=[atoms]), patch('ase.io.write'), \
+                        patch('kinbot.frequencies.calc_vibrations',
+                              return_value=(raw, .01, np.eye(3 * len(atoms)))):
+                    optimizer.return_value.run.return_value = True
+                    if len(atoms) == 1:
+                        with self.assertRaises(SystemExit) as exit_status:
+                            runpy.run_path(job + '.py')
+                        self.assertEqual(exit_status.exception.code, 0)
+                    else:
+                        runpy.run_path(job + '.py')
+                    self.assertEqual(predictor.call_args.args[0], model)
+                self.par['fc_model_path'] = 'a-different-current-model'
+                self.assertEqual(self.qc._check_qc(job), 'normal')
+                load_calculation_record(point, self.qc, job)
+                description = thermochemistry_evidence(point)['calculation_provenance']
+                self.assertEqual(description['backend'], 'fc')
+                self.assertEqual(description['method'], model)
+                self.assertIsNone(description['basis'])
+                self.assertAlmostEqual(point.energy, -10. * constants.EVtoHARTREE)
+                self.assertEqual(point.freq, raw)
 
     def test_harmonic_optimizer_uses_its_stored_hessian_for_midpoint_counting(self):
         from test_optical_evaluator import ethanol_near_planar

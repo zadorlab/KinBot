@@ -113,7 +113,25 @@ def create_summary_file(species, qc, par):
             s.append(f'# WARNING: omitted channel {reaction.instance_name}: {reason}. '
                      'Reaction network is incomplete.')
 
+    promoted_parents = {getattr(reaction, 'search_parent', None)
+                        for reaction in species.reac_obj} if par.get('bimol') else set()
+    if par.get('bimol'):
+        promoted_parents.update(member['reaction'] for reaction in species.reac_obj
+                                for member in getattr(reaction, 'search_members', []))
     for index in range(len(species.reac_inst)):
+        reaction = species.reac_obj[index]
+        if par.get('bimol'):
+            # A search that supplied an L1 candidate is not a failed reaction.
+            # Keep searches without any candidate visible as failures.
+            if (getattr(reaction, 'pose_search_template', False)
+                    and reaction.instance_name in promoted_parents):
+                continue
+            representative = getattr(reaction, 'final_representative', None)
+            if species.reac_ts_done[index] == -998 and representative:
+                status = ('CONFORMER' if getattr(reaction, 'final_conformer_role', '')
+                          == 'archived conformer' else 'DUPLICATE')
+                s.append(f'# {status} {reaction.instance_name}; represented by {representative}')
+                continue
         if species.reac_ts_done[index] == -1:
             path_line = summary_path_line(species.reac_obj[index])
             if path_line:
@@ -189,6 +207,13 @@ def createPESViewerInput(species, qc, par):
     """
     Write an input file for the PESViewer code
     """
+    if par['bimol']:
+        from kinbot.bimol_network import BimolecularNetwork
+        species.bimol_network = BimolecularNetwork(species, par)
+        species.bimol_network.write_json()
+        species.bimol_network.write_pesviewer()
+        return
+
     # make the directory for the well and bimolecular xyz files
     dir_xyz = 'xyz/'
     if not os.path.exists(dir_xyz):

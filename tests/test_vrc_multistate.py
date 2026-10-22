@@ -175,6 +175,34 @@ def test_flux_sum_aligns_thresholds_counts_spin_once_and_does_not_extrapolate(tm
     assert data[-1, 0] == 300.  # no extrapolation of the doublet beyond its grid
 
 
+def test_doublet_components_have_union_temperature_weights_not_an_extra_degeneracy(tmp_path):
+    """An analytic shifted ramp has Laplace weight T^2 exp(-threshold/T).
+
+    Different thresholds must produce a temperature-dependent contribution;
+    equal thresholds must sum two doublets, never average or multiply twice.
+    Integration uses cm^-1 energy and kT in the same units.
+    """
+    energy = np.arange(0., 40001., 1.)
+    source = tmp_path/'ramp.out'
+    np.savetxt(source, np.column_stack((energy,energy)))
+    target = tmp_path/'sum.out'
+    entries = [dict(source=source,multiplicity=2,energy_offset_cm_inverse=offset)
+               for offset in (0.,500.)]
+    info = assemble_states(entries,target,baseline_cm_inverse=0.)
+    values = np.loadtxt(target)
+    for temperature in (100.,300.,1000.,2000.):
+        kt = .69503476*temperature
+        # Common fragment vibration/rotor factors multiply both sides and
+        # cancel in this comparison; the two state averages are irrelevant.
+        measured = np.trapezoid(values[:,1]*np.exp(-values[:,0]/kt),values[:,0])
+        expected = 2*kt**2*(1+np.exp(-500./kt))
+        assert measured == pytest.approx(expected,rel=3e-5)
+    entries[1]['energy_offset_cm_inverse']=0.
+    assemble_states(entries,target,baseline_cm_inverse=0.)
+    assert np.loadtxt(target)[100,1] == pytest.approx(4*100.)
+    assert info['electronic_assembly']=='sum_of_shifted_microcanonical_fluxes'
+
+
 def test_si_level_convention_counts_resolved_degeneracy_instead_of_extra_spin(tmp_path):
     contract = json.loads((Path(__file__).parents[1] / 'docs/NH2O_SI_verification.json').read_text())
     assert contract['status'] == 'passed'
@@ -264,6 +292,21 @@ def test_staging_selects_corrected_variant_and_revalidates_all_native_sources(tm
     table.write_text('0 0\n100 999\n')
     with pytest.raises(RuntimeError, match='hash changed'):
         stage_channel(manifest, tmp_path / 'me')
+
+
+@pytest.mark.parametrize('duplicate_input',[False,True])
+def test_flux_manifest_cannot_count_a_surface_twice(tmp_path,duplicate_input):
+    manifest=_completed_channel(tmp_path)
+    payload=json.loads(manifest.read_text())
+    states=payload['bottlenecks'][0]['states']
+    if duplicate_input:
+        states[1]['input']=states[0]['input']
+        states[1]['input_sha256']=states[0]['input_sha256']
+    else:
+        states.append(deepcopy(states[0]))
+    manifest.write_text(json.dumps(payload))
+    with pytest.raises(ValueError,match='Duplicate electronic surface'):
+        stage_channel(manifest,tmp_path/'me')
 
 
 def test_mess_handoff_uses_unit_electronic_degeneracy_for_summed_flux(tmp_path, monkeypatch):

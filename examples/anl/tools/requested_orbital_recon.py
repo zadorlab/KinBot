@@ -29,6 +29,18 @@ def _saved(root, *, allow_accepted=False):
     for name, digest in record['files'].items():
         if file_sha256(root/name) != digest:
             raise ValueError(f'Prepared evidence changed: {name}.')
+    if record.get('reviews'):
+        for child in record['reviews']:
+            saved = _saved(Path(child), allow_accepted=allow_accepted)
+            if saved['production_policy'] != record['production_policy']:
+                raise ValueError('Batch reviews no longer share one resource policy.')
+        return record
+    if record.get('provisional'):
+        original = _read(root/'provisional_source.json')
+        current = _read(record['request'])
+        if any(current.get(k) != original.get(k) for k in ('structure', 'charge', 'mult')):
+            raise ValueError('Provisional parent structure/spin changed; inspect the saved screen.')
+        return record
     live, original = _read(record['request']), _read(root/'request.json')
     if allow_accepted and live.get('status') == 'model_accepted':
         # Acceptance changes only bookkeeping. A repeated review must still
@@ -180,11 +192,29 @@ def candidates(source, recipe, output):
                 production_model_accepted=False)
 
 
-def prepare(request, case_input, recipe, output):
+def prepare(request, case_input, recipe, output, *, provisional=False):
     request, case_input, recipe = [Path(p).expanduser().resolve(strict=True)
                                     for p in (request, case_input, recipe)]
     output = Path(output).expanduser().resolve()
     evidence, controls = _read(request), _read(recipe)
+    preliminary = None
+    if provisional:
+        if request.name != request.parent.name+'.json':
+            raise ValueError('Provisional screening requires the existing well input.')
+        preliminary = deepcopy(evidence)
+        structure = evidence.get('structure', [])
+        if not structure or len(structure) % 4:
+            raise ValueError('Provisional well input needs explicit atom coordinates.')
+        match = controls.get('request_match', {})
+        evidence = dict(schema=1, status='needs_review',
+            parent=request.parent.name, reaction=match.get('reaction'), bond=match.get('bond'),
+            symbols=structure[::4], positions=[structure[i+1:i+4] for i in range(0,len(structure),4)],
+            charge=evidence.get('charge'), multiplicity=evidence.get('mult'),
+            products=match.get('products'), smiles=evidence.get('smiles', ''),
+            provisional=True, note='Orbital screen only; reaction/product acceptance remains pending.')
+        if (evidence['reaction'] != evidence['parent']+'_hom_sci_'+'_'.join(map(str,evidence['bond'] or []))
+                or not evidence['products']):
+            raise ValueError('Provisional recipe must explicitly identify the cleavage and fragment states.')
     if evidence.get('schema') != 1 or evidence.get('status') != 'needs_review':
         raise ValueError('Expected a current, unaccepted VRC orbital review request.')
     if controls.get('schema') != 1 or not controls.get('request_match'):
@@ -192,6 +222,11 @@ def prepare(request, case_input, recipe, output):
     for key, value in controls['request_match'].items():
         if evidence.get(key) != value:
             raise ValueError(f'Request differs from the reviewed recipe: {key}.')
+    if provisional:
+        monitor = request.parent/'kinbot_monitor.out'
+        rows = [s.split() for s in monitor.read_text().splitlines()] if monitor.exists() else []
+        if not any(len(s)>=3 and s[2]==evidence['reaction'] and s[0]!='-999' for s in rows):
+            raise ValueError('Provisional cleavage is not an active/accepted search in this well.')
     if case_input.parent not in request.parents:
         raise ValueError('The case input must belong to the requested calculation tree.')
     policy_file = run_policy.find(request.parent)
@@ -226,6 +261,8 @@ def prepare(request, case_input, recipe, output):
     atomic_json(output/'request.json', evidence)
     atomic_json(output/'electronic_context.json', context)
     atomic_json(output/'recipe.json', controls)
+    if preliminary is not None:
+        atomic_json(output/'provisional_source.json', preliminary)
     config['kinbot_input'] = str(output/'electronic_context.json')
     atomic_json(output/'input.json', config)
     manifest = recon.prepare(output/'input.json', output/'native')
@@ -238,10 +275,136 @@ def prepare(request, case_input, recipe, output):
                          ('request.json', 'recipe.json', 'electronic_context.json', 'input.json')},
                   systems=[dict(title=config['title'], configuration=str(output/'input.json'),
                                 manifest=str(manifest))])
+    if provisional:
+        record['provisional'] = True
+        record['files']['provisional_source.json'] = file_sha256(output/'provisional_source.json')
     atomic_json(output/'review_launch.json', record)
     return dict(directory=str(output), tasks=len(state['jobs']), max_jobs=record['max_jobs'],
                 active_space=loaded['_probe_space'], states=state['jobs'][0]['root_states'],
                 partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
+
+
+def batch(production, plan, output):
+    """Stage independent orbital-only screens with one shared submission cap.
+
+    Paths and scientific settings are explicit in the plan/recipes. Existing
+    review selections are skipped; no rejected or imaginary future channel is
+    manufactured. A provisional source can never directly approve production.
+    """
+    production = Path(production).expanduser().resolve(strict=True)
+    plan = Path(plan).expanduser().resolve(strict=True)
+    output = Path(output).expanduser().resolve()
+    spec = _read(plan)
+    entries = spec.get('screens', [])
+    if (spec.get('schema') != 1 or not entries or type(spec.get('max_jobs')) is not int
+            or spec['max_jobs'] < 1):
+        raise ValueError('Batch plan requires schema 1, screens and positive max_jobs.')
+    if output.exists():
+        raise FileExistsError('Batch already exists; use run to resume without duplicate preparation.')
+    if production == output or production in output.parents:
+        raise ValueError('Keep reconnaissance outside the production run directory.')
+    pending, skipped, names, policies = [], [], set(), set()
+    for item in entries:
+        name = item['name']
+        if not recon._SAFE.fullmatch(name) or name in names:
+            raise ValueError('Batch screen names must be safe and distinct.')
+        names.add(name)
+        case = (production/item['case']).resolve(strict=True)
+        if case.parent != production:
+            raise ValueError('Batch case must be directly inside the production directory.')
+        recipe = (plan.parent/item['recipe']).resolve(strict=True)
+        control = _read(recipe)
+        config = control['reconnaissance']
+        if config.get('correlation_checks') or config.get('probe_method') != 'casci':
+            raise ValueError('This batch command stages orbital-only CASCI screens.')
+        match = control['request_match']
+        parent, reaction = match['parent'], match['reaction']
+        if not all(recon._SAFE.fullmatch(x) for x in (parent,reaction)):
+            raise ValueError('Unsafe parent/reaction in batch recipe.')
+        context = _read(case/'input.json')
+        model = context.get('vrc_tst_surface_models', {}).get(parent, {})
+        if any(sorted(c['bond'])==sorted(match['bond']) for c in model.get('channels', [])):
+            skipped.append(dict(name=name, reason='channel already supplied in case input'))
+            continue
+        request = case/parent/'vrctst/orbital_review'/reaction/'request.json'
+        provisional = not request.exists()
+        if provisional:
+            if not item.get('allow_provisional', False):
+                raise ValueError(f'{name}: no live orbital review request yet.')
+            request = case/parent/(parent+'.json')
+        policy_file = run_policy.find(case)
+        if policy_file is None:
+            raise ValueError('Every batch case needs a production resource policy.')
+        policies.add(str(policy_file))
+        pending.append((name,request,case/'input.json',recipe,provisional))
+    if not pending:
+        return dict(status='nothing_to_prepare', skipped=skipped, tasks=0)
+    if len(policies)!=1:
+        raise ValueError('A batch requires one shared production resource policy.')
+    # Preflight the entire batch first, so a bad later recipe cannot publish a
+    # partially usable campaign. This performs no scheduler/native calls.
+    with tempfile.TemporaryDirectory(prefix='kinbot-batch-preflight-') as tmp:
+        for name,request,case_input,recipe,provisional in pending:
+            prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional)
+    output.mkdir(parents=True, exist_ok=False)
+    systems, reviews, caps = [], [], []
+    for name,request,case_input,recipe,provisional in pending:
+        child = output/name
+        prepare(request,case_input,recipe,child,provisional=provisional)
+        saved = _saved(child)
+        systems.extend(saved['systems']); reviews.append(str(child)); caps.append(saved['max_jobs'])
+    atomic_json(output/'plan.json',spec)
+    record = dict(schema=1,status='prepared', request=str(pending[0][1]),
+        production_policy=next(iter(policies)),max_jobs=min(spec['max_jobs'],*caps),
+        systems=systems,reviews=reviews,skipped=skipped,
+        files={'plan.json':file_sha256(output/'plan.json')})
+    atomic_json(output/'review_launch.json',record)
+    return dict(directory=str(output),screens=len(reviews),skipped=skipped,
+        tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),max_jobs=record['max_jobs'],
+        production_model_accepted=False)
+
+
+def bind(source, request):
+    """Attach a completed provisional screen to a subsequently accepted channel.
+
+    This only binds evidence. The separate reviewed selection and live refresh
+    remain required. Geometry changes are recorded; atom order/connectivity,
+    fragment spin/charge, parent and bond must agree.
+    """
+    from kinbot.electronic_states import _canonical_smiles
+    from kinbot.stationary_pt import StationaryPoint
+    source = Path(source).expanduser().resolve(strict=True)
+    request = Path(request).expanduser().resolve(strict=True)
+    with recon._manifest_lock(source/'native'):
+        record = _saved(source)
+        if not record.get('provisional'):
+            raise ValueError('Only a provisional screen needs binding.')
+        if not all(j['status']=='complete' for j in _read(record['manifest'])['jobs']):
+            raise ValueError('Finish the orbital screen before binding its evidence.')
+        old, current = _read(source/'request.json'), _read(request)
+        if (current.get('status')!='needs_review' or
+                any(current.get(k)!=old.get(k) for k in ('parent','reaction','symbols','bond','charge','multiplicity'))
+                or request != Path(record['request']).parent/'vrctst/orbital_review'/old['reaction']/'request.json'):
+            raise ValueError('Live review request does not match the provisional channel.')
+        def products(m):
+            return sorted((_canonical_smiles(p['smiles']),p['charge'],p['multiplicity']) for p in m['products'])
+        if products(old)!=products(current):
+            raise ValueError('Accepted fragments differ from the provisional fragment states.')
+        molecules=[]
+        for m in (old,current):
+            p=StationaryPoint('screen',m['charge'],m['multiplicity'],
+                             atom=np.array(m['symbols']),geom=np.array(m['positions']))
+            p.characterize(); molecules.append(p)
+        if not np.array_equal(molecules[0].bond01,molecules[1].bond01):
+            raise ValueError('Parent atom connectivity/order changed; review cannot reuse this screen.')
+        atomic_json(source/'provisional_request.json',old)
+        atomic_json(source/'request.json',current)
+        record.update(provisional=False,request=str(request),
+                      binding=dict(geometry_changed=old['positions']!=current['positions']))
+        for name in ('provisional_request.json','request.json'):
+            record['files'][name]=file_sha256(source/name)
+        atomic_json(source/'review_launch.json',record)
+    return dict(status='bound_for_review',request=str(request),production_model_accepted=False)
 
 
 def run(output):
@@ -271,8 +434,9 @@ def run(output):
     previous = Path.cwd()
     try:
         os.chdir(root)
+        options = {'keep_going': True} if record.get('reviews') else {}
         result = recon.run_many(manifests, max_jobs=min(record['max_jobs'], slots),
-                               allocation_retries=2)
+                               allocation_retries=2, **options)
     finally:
         os.chdir(previous)
     statuses = sorted({r['status'] for r in result})
@@ -341,6 +505,8 @@ def _review(source, case_input, recipe, *, apply):
     source = Path(source).expanduser().resolve(strict=True)
     case_input = Path(case_input).expanduser().resolve(strict=True)
     saved = _saved(source, allow_accepted=True)
+    if saved.get('provisional'):
+        raise ValueError('Bind the completed screen to the actual VRC review request before selection.')
     request, chosen = _read(source/'request.json'), _read(recipe)
     if (chosen.get('schema') != 1 or chosen.get('reviewed') is not True
             or not chosen.get('review_note') or not chosen.get('request_match')):
@@ -433,6 +599,12 @@ def main():
     candidate_cmd = commands.add_parser('candidates')
     for name in ('source', 'recipe', 'output'):
         candidate_cmd.add_argument(name)
+    batch_cmd = commands.add_parser('batch',help='Prepare one shared-cap orbital-only campaign.')
+    for name in ('production','plan','output'):
+        batch_cmd.add_argument(name)
+    bind_cmd = commands.add_parser('bind',help='Bind preliminary evidence to an actual review request.')
+    for name in ('source','request'):
+        bind_cmd.add_argument(name)
     review_cmd = commands.add_parser('review', help='Apply an explicitly reviewed orbital selection without QC submissions.')
     for name in ('source', 'case_input', 'recipe'):
         review_cmd.add_argument(name)
@@ -442,6 +614,10 @@ def main():
     args = parser.parse_args()
     if args.action == 'prepare':
         result = prepare(args.request, args.case_input, args.recipe, args.output)
+    elif args.action == 'batch':
+        result = batch(args.production,args.plan,args.output)
+    elif args.action == 'bind':
+        result = bind(args.source,args.request)
     elif args.action == 'candidates':
         result = candidates(args.source, args.recipe, args.output)
     elif args.action == 'review':

@@ -402,6 +402,9 @@ def assemble_states(entries, destination, *, baseline_cm_inverse):
     Linear interpolation is bounded by the shared available upper energy;
     it never holds a final sample constant or extrapolates an unsampled tail.
     """
+    # This is MESS Union algebra before the common conserved-mode convolution,
+    # not an average of canonical rate coefficients. Temperature dependence
+    # follows from integrating the aligned N(E); no extra 1/n or spin factor.
     tables = []
     for entry in entries:
         levels = entry.get('electronic_levels', [
@@ -429,7 +432,10 @@ def assemble_states(entries, destination, *, baseline_cm_inverse):
     return {'source_sha256': file_sha256(destination),
             'ground_cm_inverse': number_of_states_ground(destination),
             'upper_energy_cm_inverse': float(upper), 'baseline_cm_inverse': baseline_cm_inverse,
-            'spin_counting': 'explicit_levels_or_multiplicity_in_flux; MESS_electronic_degeneracy=1'}
+            'spin_counting': 'explicit_levels_or_multiplicity_in_flux; MESS_electronic_degeneracy=1',
+            'electronic_assembly': 'sum_of_shifted_microcanonical_fluxes',
+            'conserved_modes': 'common_fragment_modes_convolved_once_after_sum',
+            'temperature_weighting': 'MESS integrates the combined N(E); no state-average weights'}
 
 
 def channel_sources(manifest_file, *, required_profile=None):
@@ -449,8 +455,14 @@ def channel_sources(manifest_file, *, required_profile=None):
     stages = []
     for stage in payload['bottlenecks']:
         entries = []
+        states_seen, inputs_seen = set(), set()
         for state in stage['states']:
             inp = path.parent / state['input']
+            key = (state['multiplicity'], state['root'])
+            if key in states_seen or inp.resolve() in inputs_seen:
+                raise ValueError('Duplicate electronic surface or reused scalar input in VRC flux manifest.')
+            states_seen.add(key)
+            inputs_seen.add(inp.resolve())
             if (inp.parent.resolve() != path.parent or file_sha256(inp) != state['input_sha256']
                     or file_sha256(state['correction']) != state['correction_sha256']):
                 raise ValueError('State input or correction changed after multistate assembly.')

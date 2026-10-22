@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791671580700000000002-s36f1e2b924862f12",
+    "reaction": "791671580700000000002-s36f1e2b924862f12_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 3,
+        "smiles": "[H][C][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][S][S]"
+      }
+    ]
+  },
+  "reconnaissance": {
+    "title": "ch2shs_cs_orbital_screen",
+    "multiplicity": 4,
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-9,
+    "scf_options": {
+      "solver": "so_sci",
+      "max_iterations": 256
+    },
+    "coordinates": [
+      {
+        "name": "cs",
+        "bond": [
+          1,
+          2
+        ],
+        "distances_angstrom": [
+          2,
+          3.5,
+          6,
+          30
+        ],
+        "fragment_states": [
+          {
+            "atom": 1,
+            "charge": 0,
+            "multiplicity": 3,
+            "smiles": "[H][C][H]"
+          },
+          {
+            "atom": 2,
+            "charge": 0,
+            "multiplicity": 2,
+            "smiles": "[H][S][S]"
+          }
+        ]
+      }
+    ],
+    "probe_active_space": true,
+    "probe_method": "casci",
+    "orbital_initialization": "independent",
+    "avas_reference": "rhf",
+    "probe_definition": {
+      "active_electrons": 19,
+      "active_orbitals": 12,
+      "chemical_note": "Provisional orbital-only heavy-atom valence CASCI(19,12): all valence electrons, C 2s/2p and both S 3s/3p AVAS targets. Triplet CH2 plus doublet HSS permits doublet/quartet coupling. Two roots each are a diagnostic screen, not two prescribed reactive paths. H antibonding targets are not included; expand if orbital character calls for them. Final L2 product acceptance and human orbital review remain required.",
+      "state_model": {
+        "orbital_selection": {
+          "mode": "avas",
+          "threshold": 0.3,
+          "minao_basis": "minao",
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 3,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            }
+          ]
+        },
+        "state_average": [
+          {
+            "multiplicity": 4,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          },
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ],
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "canonical_orbitals": true
+      }
+    }
+  }
+}

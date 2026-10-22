@@ -6,6 +6,111 @@ existing CH3S case input; it does not replace the initial channels. Additional
 channels discovered elsewhere in the PES require their own review. This
 document does not invent active spaces for them.
 
+## Additional orbital-only batch, October 21 evening
+
+The plan `examples/anl/orbital_review_batches/r7_additional_20261021/batch.json`
+stages these **three screens, eight jobs each**, under **one shared cap of
+three allocations** (reduced if the current production review reserve is
+smaller). Each uses independent ROHF/AVAS CASCI at 2, 3.5, 6 and 30 angstrom
+in aDZ-F12 and aTZ-F12. There are no CCSD(T), CASPT2, geometry optimization,
+or potential-validation calculations in this batch. Printed roots and
+natural-orbital AO coefficients/occupations support subsequent human selection.
+
+| Screen | Source | Diagnostic space | Averaged doublet/quartet roots |
+|---|---|---|---|
+| C + SH3, C–S cleavage | Actual new review for `471430450000000000002-s06a7b4c221beb748` | CASCI(13,11), C/S valence plus all H 1s targets | 3 / 3 |
+| CH2 + HSS, C–S cleavage | Provisional search at `791671580700000000002-s36f1e2b924862f12` | CASCI(19,12), C 2s/2p and both S 3s/3p | 2 / 2 |
+| CH2SH + S, S–S cleavage | Same provisional parent, separate bond/record | CASCI(19,12), same target classes, independently generated orbitals | 3 / 3 |
+
+These larger **diagnostic spaces are not production active-space choices**.
+The CH3SS spaces retain all valence electrons in heavy-atom AVAS targets;
+they do not include independent H-antibonding targets. If the printed
+character indicates those are needed, expand the diagnostic space before
+selecting production orbitals. The roots are diagnostic averages, not an
+instruction to count that many reactive surfaces. C(3P) and S(3P) motivate
+three spatial components per coupled spin; CH2 + HSS uses one extra
+diagnostic root per spin beyond its nondegenerate ground-fragment channel.
+
+Preparation reads current requests and well inputs and writes only the
+separate recon directory. A provisional channel must already be an active
+or accepted `hom_sci` search in `kinbot_monitor.out`; rejected searches are
+not staged. Known CH2SH orbital work is not in this plan. Channels already
+supplied in the case input are skipped, including a published refresh that
+has not yet removed its old review marker. Repeating preparation refuses an
+existing campaign; repeating `run` resumes its manifests and validated
+outputs. Manifest locks prevent a second controller submitting those jobs.
+Independent screens continue if one screen fails. Startup/allocation retries,
+node exclusions, exclusive jobs, local scratch and partition-maximum walltime
+come from the existing recon execution path.
+
+Run from the cluster checkout (no production-controller restart):
+
+```bash
+cd "$HOME/KinBot"
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
+KB_BATCH="$HOME/kinbot-runs/r7_additional_orbital_recon_20261021"
+if [ ! -f "$KB_BATCH/review_launch.json" ]; then
+  .venv/bin/python examples/anl/tools/requested_orbital_recon.py batch \
+    "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7" \
+    examples/anl/orbital_review_batches/r7_additional_20261021/batch.json "$KB_BATCH"
+fi
+.venv/bin/python -u examples/anl/tools/requested_orbital_recon.py run "$KB_BATCH"
+```
+
+Use the same helper's `monitor "$KB_BATCH"` and `evidence "$KB_BATCH"`.
+When a provisional channel gets its actual review request, bind its completed
+evidence before selecting orbitals:
+
+```bash
+.venv/bin/python examples/anl/tools/requested_orbital_recon.py bind \
+  "$KB_BATCH/ch2shs_cs" \
+  "$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/ch3ss/791671580700000000002-s36f1e2b924862f12/vrctst/orbital_review/791671580700000000002-s36f1e2b924862f12_hom_sci_1_2/request.json"
+```
+
+Binding checks parent, atom ordering/connectivity, bond, charge, spin and
+separated fragment identities. A change in optimized coordinates is recorded
+and both geometries retained. Binding does not approve an active space or
+change production. A reviewed selection recipe still goes through `review
+--apply`, which uses the existing live refresh. S–S binding uses the
+`ch2shs_ss` child and `hom_sci_2_3` request. Native evidence remains separate
+if a tentative reaction is later rejected.
+
+## D1/D2 counting at the MESS boundary
+
+The current single-bottleneck handoff already implements Union's operation:
+
+`N(E) = sum_i weight_i * g_i * N_i(E - offset_i)`.
+
+Each surface contributes once, with `g_i=2` for an unsplit doublet. Explicit
+fine-structure levels, if supplied for a surface, replace that default spin
+factor. State-averaging weights do not enter. Conserved fragment vibrations
+and rotor factors are shared by these surfaces and convolved once after
+the sum; MESS receives `ElectronicLevels 0 1` for this combined barrier.
+The CH3S well's separate electronic-level partition function is retained.
+
+MESS `Union` likewise sums constituent microcanonical state counts and
+Boltzmann-shifted canonical weights: see the
+[official manual, section 6.3](https://tcg.cse.anl.gov/papr/codes/mess/messmanual_3_23_16.pdf)
+and `UnionSpecies::states` / `UnionSpecies::weight` in the
+[official source](https://github.com/Auto-Mech/MESS/blob/master/src/libmess/model.cc).
+An additional Union of the two leaves **and** the already summed table
+would double count. Replacing this valid sum with a second aggregation is
+not required. Tests integrate unequal-threshold doublet fluxes at four
+temperatures and verify the analytic Union weights; identical doublets
+contribute four spin-resolved states, not eight and not their average.
+The manifest reader now also rejects duplicate spin/root entries or a
+repeated scalar input within one bottleneck.
+
+This equivalence assumes the configured common conserved-mode model and
+the shared sampled energy range. Distinct state-specific fragment vibrational
+models would require separate convolutions before summation. It does not
+add distance-dependent spin-orbit or nonadiabatic coupling; those remain
+limitations of the selected spin-free adiabatic model, not problems solved
+by writing `Union`. Existing stereochemical barrier Unions remain separate:
+they combine distinct spatial reaction pathways after their own duplicate
+classification.
+
 ## Ground terms, surfaces and averaging are different quantities
 
 CH3S has a ground electronic term X²E. At C3v and without spin–orbit

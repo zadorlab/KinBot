@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "471430450000000000002-s06a7b4c221beb748",
+    "reaction": "471430450000000000002-s06a7b4c221beb748_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 3,
+        "smiles": "[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][S]([H])[H]"
+      }
+    ]
+  },
+  "reconnaissance": {
+    "title": "c_sh3_cs_orbital_screen",
+    "multiplicity": 4,
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-9,
+    "scf_options": {
+      "solver": "so_sci",
+      "max_iterations": 256
+    },
+    "coordinates": [
+      {
+        "name": "cs",
+        "bond": [
+          1,
+          2
+        ],
+        "distances_angstrom": [
+          2,
+          3.5,
+          6,
+          30
+        ],
+        "fragment_states": [
+          {
+            "atom": 1,
+            "charge": 0,
+            "multiplicity": 3,
+            "smiles": "[C]"
+          },
+          {
+            "atom": 2,
+            "charge": 0,
+            "multiplicity": 2,
+            "smiles": "[H][S]([H])[H]"
+          }
+        ]
+      }
+    ],
+    "probe_active_space": true,
+    "probe_method": "casci",
+    "orbital_initialization": "independent",
+    "avas_reference": "rhf",
+    "probe_definition": {
+      "active_electrons": 13,
+      "active_orbitals": 11,
+      "chemical_note": "Diagnostic orbital-only all-valence CASCI(13,11). Atomic C(3P) supplies three spatial components coupled to doublet SH3, so screen three doublets and three quartets. Include all three H 1s targets to inspect hypervalent S-H bonding. This is not acceptance of a minimum, barrierless path, active space, or rate.",
+      "state_model": {
+        "orbital_selection": {
+          "mode": "avas",
+          "threshold": 0.3,
+          "minao_basis": "minao",
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 3,
+              "orbitals": [
+                "1s"
+              ]
+            },
+            {
+              "atom": 4,
+              "orbitals": [
+                "1s"
+              ]
+            },
+            {
+              "atom": 5,
+              "orbitals": [
+                "1s"
+              ]
+            }
+          ]
+        },
+        "state_average": [
+          {
+            "multiplicity": 4,
+            "roots": 3,
+            "weights": [
+              0.3333333333333333,
+              0.3333333333333333,
+              0.3333333333333333
+            ]
+          },
+          {
+            "multiplicity": 2,
+            "roots": 3,
+            "weights": [
+              0.3333333333333333,
+              0.3333333333333333,
+              0.3333333333333333
+            ]
+          }
+        ],
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "canonical_orbitals": true
+      }
+    }
+  }
+}

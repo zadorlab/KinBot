@@ -343,13 +343,17 @@ class VTS:
                     reactant, name,
                     [routing_name(product) for product in reaction.products],
                     0.0])
-            # Full-PES aggregation owns sampling after all worker corrections
-            # are ready. A worker must not run a duplicate ROTD campaign.
             rotd_parameters = dict(self.par)
-            if self.par.get('pes'):
+            from kinbot.rotdpy_campaign import managed_worker, ready
+            if managed_worker(self.par):
+                ready(self, [row[1] for row in barrierless])
+            else:
                 rotd_parameters['rotdpy_run'] = 0
-            create_rotdpy_inputs(rotd_parameters, barrierless, [],
-                                 correction_root='.')
+                # A single-well run retains its existing synchronous behavior.
+                if not self.par.get('pes'):
+                    rotd_parameters['rotdpy_run'] = self.par.get('rotdpy_run', 0)
+                create_rotdpy_inputs(rotd_parameters, barrierless, [],
+                                     correction_root='.')
         if deferred:
             if any(c.get('kind') == 'scan_connectivity' for c in self.review_requests):
                 raise ScanReviewRequired(self.review_requests)

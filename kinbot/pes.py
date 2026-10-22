@@ -125,8 +125,11 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
         raise ValueError('rotdpy_walltime must be partition_max, '
                          'D-HH:MM:SS, or HH:MM:SS.')
     folder = Path(folder).resolve()
+    # Ready workers can publish scheduler files while another campaign reads
+    # them. Replace whole files atomically, and leave identical files alone.
+    from kinbot.execution import atomic_text
     site_setup = folder / 'site_setup.sh'
-    site_setup.write_text(render_site_setup({'molpro': {'molpro'}}))
+    atomic_text(site_setup, render_site_setup({'molpro': {'molpro'}}))
     site_setup.chmod(site_setup.stat().st_mode | stat.S_IXUSR)
     template = Path(f'{kb_path}/tpl/rotdPy_slurm.tpl').read_text()
     from kinbot.qc import _slurm_exclude_directive
@@ -145,7 +148,7 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
     from kinbot.slurm_retry import wrap_script
     rendered = wrap_script(rendered, identity='surf{surf_id}_face{face_id}_samp{samp_id}',
                            prefixes=['surf{surf_id}_face{face_id}_samp{samp_id}'], template=True)
-    path.write_text(rendered)
+    atomic_text(path, rendered)
     return str(path)
 
 
@@ -1635,6 +1638,9 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
         # A failed or interrupted earlier reaction must not leak fragment names
         # into the next generated rotdPy input.
         Fragment._instances = []
+        # Surface numbering belongs to one input, not the order in which
+        # independent workers happened to finish their correction curves.
+        VRC_TST_Surface.__id__ = 0
         reactant, reac_name, products, barrier = reac
         selected = lambda settings: matches_name(
             reac_name, settings.get(reactant, settings.get(connectivity_name(reactant), [])))
@@ -1834,14 +1840,18 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
             'from kinbot.rotdpy_molpro import KinBotMultiSample as MultiSample')
 
         input_file = f"{folder}/{reac_name}.py"
-        with open(input_file, 'w') as f:
-            f.write(new_input)
+        from kinbot.rotdpy import write_input
+        write_input(input_file, new_input)
         created.append(input_file)
 
         if par.get('rotdpy_run'):
-            from kinbot.rotdpy import run
             logger.info(f'Running rotdPy for reaction {reac_name}.')
-            run(input_file)
+            from kinbot.rotdpy_campaign import receipt, ensure
+            if receipt(input_file).exists():
+                ensure(input_file)
+            else:
+                from kinbot.rotdpy import run
+                run(input_file)
 
         # Erase the fragments for this reaction
         Fragment._instances = []

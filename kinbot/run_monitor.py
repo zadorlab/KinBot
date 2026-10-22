@@ -137,7 +137,7 @@ def inventory(root, warnings, archives=None):
             break
         for name in files:
             path = Path(directory, name)
-            metadata = (name.endswith(('.execution.json', '.rotdpy.json', '.result.json', '.scf_recovery.json', '.exitcode')) or
+            metadata = (name.endswith(('.execution.json', '.rotdpy.json', '.campaign.json', '.result.json', '.scf_recovery.json', '.exitcode')) or
                     name in LOG_NAMES | STATE_NAMES | {'kinbot_monitor.out', 'pes_summary.txt',
                 'kinbot_optimization_monitor.json'})
             log = path.suffix in {'.log', '.err', '.stdout', '.stderr', '.out'}
@@ -494,12 +494,25 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
                         'status': status, 'events': log.get('events', []),
                         'reactions': rows, 'optimizations': optimization.get('reactions', [])})
     sampling = []
+    campaigns = []
     for path in files:
+        if path.name.endswith('.campaign.json'):
+            record = read_json(path, warnings)
+            inp = Path(record.get('input', str(path.with_name(path.name[:-len('.campaign.json')]+'.py'))))
+            from kinbot.rotdpy import execution_path
+            execution = read_json(execution_path(inp), warnings)
+            identity = record.get('owner_identity') or {}
+            owner = any(p['pid'] == identity.get('pid') and
+                        str(p.get('starttime')) == str(identity.get('start')) for p in processes)
+            campaigns.append(dict(input=str(inp), status=execution.get('status', record.get('status')),
+                owner_present=owner, error=execution.get('error') or record.get('error'),
+                correction_review=('accepted' if record.get('accepted_input_sha256') == record.get('input_sha256')
+                    else 'required before MESS' if record.get('review_required') else 'not requested')))
         if path.name.startswith('kb_') and path.is_dir():
             sampling.append({'directory': str(path.relative_to(root)),
                 'surface_directories': len(list(path.glob('Surface_*'))),
                 'surface_output_files': len(list(path.glob('output/surface_*.dat')))})
-    return {'directory': str(root), 'name': root.name, 'sampling': sampling,
+    return {'directory': str(root), 'name': root.name, 'sampling': sampling, 'campaigns': campaigns,
             'exploration': read_json(root/'pes_exploration.json', warnings),
             'anl_selection': read_json(root/'pes_l2_selection.json', warnings),
             'allocation_cap': par.get('queue_job_limit'), 'configured_exclusions': par.get('slurm_exclude_nodes', []),
@@ -994,6 +1007,12 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                 if blocked:
                     blockers = {k: v for t in blocked for k, v in t['blocked_by'].items()}
                     out.append(f'  {len(blocked)} dependent tasks waiting for={blockers}')
+        for campaign in case.get('campaigns', []):
+            out.append(f'ROTD CAMPAIGN {Path(campaign["input"]).stem}: {campaign["status"]}; '
+                       f'owner={"present" if campaign["owner_present"] else "absent"}; '
+                       f'correction review={campaign["correction_review"]}')
+            if campaign.get('error'):
+                out.append('  '+campaign['error'])
         for sampling in case['sampling']:
             out.append(f'ROTD {sampling["directory"]}: {sampling["surface_output_files"]}/'
                        f'{sampling["surface_directories"]} surface output files; '

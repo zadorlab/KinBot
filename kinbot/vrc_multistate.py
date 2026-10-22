@@ -437,6 +437,12 @@ def calculate_channels(vts, selections, *, limit=None):
                 create_matplotlib_graph(**plot)
             values[key] = value
             outcomes[key].update(status='complete')
+            from kinbot.rotdpy_campaign import ready_leaf
+            try:
+                ready_leaf(vts, name, value)
+            except Exception as launch_error:
+                outcomes[key]['sampling_error'] = str(launch_error)
+                logger.exception('Cannot start ready ROTD surface %s', key)
             if all(k in values for _, keys in stages[name] for k in keys):
                 channel, provenance = selections[name]
                 assembled = [{**deepcopy(stage), 'states': [values[k] for k in keys]}
@@ -447,6 +453,14 @@ def calculate_channels(vts, selections, *, limit=None):
                 path = Path('vrctst') / f'corr_{name}.json'
                 atomic_json(path, master)
                 paths[name] = path
+                from kinbot.rotdpy_campaign import ready
+                try:
+                    ready(vts, [name])
+                except Exception as launch_error:
+                    # Preserve all other surface work; final channel staging
+                    # will report this error again rather than omit a channel.
+                    outcomes[key]['sampling_error'] = str(launch_error)
+                    logger.exception('Cannot start ready ROTD channel %s', name)
         publish()
 
     run(jobs, limit=limit, completed=completed, started=started)

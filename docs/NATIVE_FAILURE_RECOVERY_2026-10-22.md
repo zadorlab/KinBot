@@ -266,3 +266,132 @@ Validation: 82 tests passed across VRC dispatch, scan recovery, parallel
 channels and branch probes. The regressions cover an exhausted native
 fragment retry under a global hold, continuation to the next point without
 accepting the gap, and preservation of ordinary task holds.
+
+### Independent sampling and live recovery
+
+Managed PES workers now launch each complete VRC surface from the case's
+canonical `rotdpy_directory`, including an individual physical root whose
+sibling remains under review. The complete correction and its scan gates are
+required before launch. Every sampling owner uses the existing shared pool.
+The final PES aggregator generates the identical input and adopts the same
+campaign. Surface numbering is local to each input, independent of completion
+order. Changed inputs or correction hashes cannot overwrite existing samples.
+
+The monitor displays each campaign, its executor status and its correction
+review status. For a generated production input, native curve/state review
+can occur while sampling runs. Approval records the exact input/correction
+contract and does not stop or restart sampling:
+
+```bash
+python -m kinbot.rotdpy_campaign accept /path/to/case/rotdPy/SURFACE.py \
+  --note 'Describe the completed native correction and state-continuity review'
+```
+
+This approval is required before the sampled number-of-states table enters
+MESS. It is not a substitute for successful QC, resolved scan points, correct
+connectivity, the production profile, or valid native sampling statistics.
+If review changes the scientific model, the old samples are retained and a
+new sampling directory is required. Approval of unchanged evidence does not
+interrupt the running executor.
+
+An exhausted or failed sampling owner can be resumed without replacing PES
+or KB controllers:
+
+```bash
+python -m kinbot.rotdpy_campaign status /path/to/case/rotdPy/SURFACE.py
+python -m kinbot.rotdpy_campaign retry /path/to/case/rotdPy/SURFACE.py
+```
+
+The existing bounded native sample retries and shared I/O retries remain
+automatic. `retry` above resumes the same hash-bound database after those
+budgets are exhausted, never starts another live owner, and never loops on
+unclassified failures. The final aggregator waits for live recovery when
+`hold_task_failures` or `hold_failures` is enabled. It always waits for required
+correction review. Existing `run_control retry` task/QC/reaction/conformer
+requests continue to be consumed by their live owners.
+
+Dispatcher-managed Molpro force jobs now have one automatic serial resource
+fallback for a recorded communication-error/MPI-abort combination, with the
+same method, orbital model, geometry and optimizer settings. Stage/execution
+provenance and inactive allocation are checked, and the failed attempt is
+archived. Generic aborts, explicit I/O/OOM/convergence failures, used fallback
+budgets and deliberately bounded fragment probes do not trigger this rule.
+The already accepted r7 serial result is retained. VPT2 framework recovery,
+MRCC exact-rank parsing, timeout recovery and optimizer continuation retain
+their existing evidence checks and finite budgets.
+
+### Reconciliation of search rejections supplied after 15:04 PDT
+
+CH3S's 35 rejected searches consist of 15 wrong-IRC-endpoint searches,
+8 returning to the initial well, 7 invalid path geometries, 2 exhausted
+750-step optimizations, 2 high-level TS identity mismatches and 1 failed
+stationary-point frequency check. CH3SS's initial well has 13 rejected
+searches: 3 wrong-endpoint, 9 initial-well returns and 1 exhausted optimizer.
+Other CH3SS wells were still exploring; these are not final PES totals.
+
+The seven previously highlighted unsuccessful production attempts overlap
+these counts: five belong to CH3S's 35 (one frequency rejection, two exhausted
+optimizations, two invalid H2-elimination path guesses), one belongs to
+CH3SS's 13, and one is a failed TS conformer rather than a whole-reaction
+rejection. Successful sibling conformers must still pass normal validation.
+These search outcomes do not block unrelated calculations. An inconclusive
+search is not evidence that its proposed physical channel cannot exist.
+
+The ad-hoc shell extraction compared each exit receipt against the literal
+`0`, incorrectly labeling successful `JOB_ID 0` receipts as failures. The
+maintained `run_pes_audit` now uses the authoritative generation-aware worker
+receipt parser, includes conformer failures, and reports explicit rejection
+categories. Its JSON retains the individual log evidence. Reports remain
+read-only with respect to the run and are written outside it.
+
+The C+SH3 well's two tight H-transfer discoveries have the same path class,
+near-identical energies and imaginary modes around -747 cm^-1. Outer PES L2
+selection retains the reverse discovery
+`471230610040000000002_intra_H_migration_2_5`; the tight path is represented.
+That path is distinct from dissociation to C + SH3. The separate 6 A probe's
+last frame retains S-H distances 1.32892, 1.47851 and 1.47848 A, with all C-H
+distances above 6 A. It exhausted its 50-step optimization budget. This is
+evidence of intact geometry at that saved iterate, not a converged outer
+branch, nor evidence that C + SH3 is absent. The production channel remains
+held while independent surfaces may sample.
+
+### Read-only CH3SS comparison with the paper
+
+`python -m kinbot.paper_pes_check ROOT` compares the current CH3SS discovery
+records with Fig. 6 of [DOI 10.1039/d4cp04873c](https://pubs.rsc.org/en/content/articlehtml/2026/cp/d4cp04873c).
+Add `--json` for the complete per-search evidence. It prints to stdout, reads
+existing files and ASE databases in read-only mode, and does not call Slurm,
+dispatch, recovery, or a QC program. It can be run before or after a controller
+refresh, and does not need controllers to be restarted.
+
+The comparison covers W1-W4, P1-P4, TS1-TS6, entrance association and W4
+scission. It matches element/H connectivity and unordered endpoints, with
+separate tight-TS versus homolytic-scission classifications. The paper's W2
+has C-S-S connectivity and two hydrogens on carbon; W3 has S-C-S connectivity.
+Bond-order, spin and conformer identity are not inferred from this match.
+Paper energies are reference labels, not numerical acceptance thresholds.
+
+Accepted searches, pending candidates, rejected candidates and outer-PES
+selection are reported separately. Current monitor acceptance takes precedence
+over older plans. Product identities missing from manifests can be reconstructed
+from existing native well geometries; the latest failed cache row never revives
+an older success. W1 requires a recorded complex, and its particular paper
+orientation remains unverified. Separated CH2S + SH alone does not establish W1,
+and matching net endpoints does not prove that the same paper TS was found.
+
+Additional accepted species/connections and unfinished extra wells/candidates
+are listed separately. Multiple searches are retained as evidence, not counted
+as unique saddles. Missing or changing files and unmapped endpoints remain
+visible; a snapshot with such gaps cannot establish that a paper feature is
+absent. Normal search rejections do not become new MESS approval requirements.
+
+Within the configured L1/L2 discovery protocol, rejected candidates and failed
+individual conformers are terminal search outcomes. They do not each require
+repair before assembling the retained network. Required ANL components,
+selected unresolved VRC channels, correction review and valid sampling results
+remain explicit completion requirements for that network.
+
+Validation: the controller/recovery regression suite passed 420 tests with one
+skip. Ten additional paper-comparison tests cover connectivity, reverse paths,
+complex versus separated fragments, path type, stale selection, missing records,
+duplicate searches, unfinished candidates, and read-only native cache access.

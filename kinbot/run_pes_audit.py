@@ -12,6 +12,7 @@ from itertools import combinations
 import json
 import math
 from pathlib import Path
+import re
 import sqlite3
 
 from kinbot.anl import ts_reuse
@@ -112,10 +113,12 @@ def database_record(database, name, inp, label):
 
 def failure_inventory(worker, errors):
     """Bounded reads of recorded outcomes; an exit marker is not a live status."""
+    from kinbot.qc import _worker_exit_status
     failures = []
-    for p in sorted(worker.glob('*.exitcode')):
+    for p in sorted([*worker.glob('*.exitcode'), *worker.glob('conf/*.exitcode')]):
         try:
-            if int(p.read_text().strip()) == 0:
+            marker = _worker_exit_status(p)
+            if marker is None or marker[0] == 0:
                 continue
             result = read(p.with_suffix('.result.json'),errors)
             reason = result.get('error','')
@@ -127,14 +130,67 @@ def failure_inventory(worker, errors):
                 reasons = [s for s in lines if 'Worker failure:' in s]
                 if reasons:
                     reason = reasons[-1].split('Worker failure:',1)[1].strip()
-            failures.append(dict(job=p.stem,source=str(p),recorded_reason=reason or 'native diagnostic required'))
+            failures.append(dict(job=p.stem,source=str(p),returncode=marker[0],
+                                 recorded_reason=reason or 'native diagnostic required'))
         except (OSError, ValueError) as error:
             errors.append(dict(file=str(p),error=str(error)))
     return failures
 
 
+def rejected_searches(worker, monitor_text, errors):
+    """Evidence categories, not a verdict that an unexplored channel is absent."""
+    log = worker/'kinbot.log'
+    lines, truncated = [], False
+    try:
+        if log.exists():
+            with log.open('rb') as f:
+                truncated = log.stat().st_size > 8*1024*1024
+                f.seek(max(0, log.stat().st_size-8*1024*1024))
+                lines = f.read().decode(errors='replace').splitlines()
+    except OSError as error:
+        errors.append(dict(file=str(log), error=str(error)))
+    failures = failure_inventory(worker, errors)
+    result = []
+    for line in monitor_text.splitlines():
+        fields = line.split()
+        if len(fields) < 3 or fields[0] != '-999':
+            continue
+        name = fields[2]
+        evidence = [s.strip() for s in lines if name in s and re.search(
+            r'fail|error|identical|No product|barrier|imaginar|connect|reject|same|IRC', s, re.I)][-6:]
+        native = [f for f in failures if f['job'] == name or f['job'].startswith(name+'_')]
+        joined = '\n'.join(evidence)
+        native_text = '\n'.join(f['recorded_reason'] for f in native)
+        # Explicit endpoint evidence may explain a search even when an older
+        # conformer attempt failed. Keep both records visible to the reviewer.
+        if re.search(r'Both IRCs lead to the initial well|identical reaction found', joined, re.I):
+            category = 'returned_to_initial_well'
+        elif 'Neither IRC leads to the initial well' in joined:
+            category = 'wrong_irc_endpoints'
+        elif 'Invalid geometry' in joined or 'coordinate modification did not reach' in joined:
+            category = 'invalid_path_geometry'
+        elif ('optimization failed: transition_state' in joined
+              and re.search(r'high level rmsd:.*same:\s*0', joined)):
+            category = 'transition_state_identity_mismatch'
+        elif 'Frequency validation failed' in native_text:
+            category = 'stationary_point_validation_failed'
+        elif 'Optimization did not converge' in native_text:
+            category = 'optimization_not_converged'
+        elif native or re.search(r'optimization failed|gaussian error|error status|search failed', joined, re.I):
+            category = 'unsuccessful_calculation_or_path_search'
+        elif 'No product found' in joined:
+            category = 'no_product_reported; inspect_IRC_reason'
+        else:
+            category = 'reason_requires_review'
+        result.append(dict(name=name, category=category, log_evidence=evidence,
+                           native_failures=native, current_log_truncated=truncated,
+                           proves_channel_absent=False))
+    return result
+
+
 def audit_case(case, *, use_database=False):
     errors, labels, workers, reactions, records, failures, soft = [], {}, [], [], {}, [], []
+    rejected = []
     local_aliases = {}
     registered = read(case/'pes_anl_reuse.json', errors)
     for inp_path in sorted(case.glob('[0-9]*/*.json')):
@@ -173,6 +229,8 @@ def audit_case(case, *, use_database=False):
                 rows.append(dict(name=a[2],reactant=worker.name,products=sorted(a[3:]),
                     transition_state=None if '_hom_sci_' in a[2] else a[2],
                     source='live_monitor', worker=worker.name))
+        rejected.extend(dict(worker=worker.name, **r) for r in
+                        rejected_searches(worker, before.decode(errors='replace'), errors))
         # Summary/plan alone does not overwrite the current acceptance status.
         by_name = {r['name']: r for r in network.get('reactions',[])}
         snap_rows = {r['name']:r for r in saved.get('network',{}).get('reactions',[])}
@@ -266,7 +324,8 @@ def audit_case(case, *, use_database=False):
         accepted_search_routes=len(reactions), endpoint_pair_count=len(groups),
         local_aliases=local_aliases,pes_aliases=registered.get('aliases',{}),
         owners=len(registered.get('owners',[])),comparison_counts=dict(decisions),
-        comparisons=comparisons,soft_saddles=soft,recorded_worker_failures=failures,errors=errors)
+        comparisons=comparisons,soft_saddles=soft,recorded_worker_failures=failures,
+        rejected_searches=rejected, errors=errors)
 
 
 def summary(report):
@@ -291,6 +350,8 @@ def summary(report):
                        json.dumps(p['diagnostic_differences'],sort_keys=True))
         out.append(f"Read/consistency errors={len(c['errors'])}; match candidates={len(candidates)}")
         causes = Counter(f['recorded_reason'] for f in c.get('recorded_worker_failures',[]))
+        out.append('Rejected-search evidence: '+json.dumps(dict(Counter(
+            r['category'] for r in c.get('rejected_searches', []))), sort_keys=True))
         out.append(f"Recorded nonzero worker exits={sum(causes.values())} (may precede retries)")
         for reason,count in causes.most_common(3):
             out.append(f'  {count}x '+reason[:220])

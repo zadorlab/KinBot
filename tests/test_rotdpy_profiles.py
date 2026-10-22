@@ -149,6 +149,16 @@ def test_real_surface_builder_covers_r7_grid_and_custom_output_directory(tmp_pat
     assert list(Path('custom_rotd').glob('S_*_F_*.xyz'))
     assert not Path('rotdPy').exists()
     assert not re.search(r'\b(?:nan|inf)\b', text, re.I)
+    # Re-rendering after other channels used the class counter must retain
+    # the exact campaign input; the final PES join can adopt its samples.
+    from kinbot.execution import atomic_json
+    from kinbot.rotdpy import execution_path
+    atomic_json(execution_path(generated[0]), {'status': 'running'})
+    from kinbot.vrc_tst_surfaces import VRC_TST_Surface
+    VRC_TST_Surface.__id__ = 999
+    create_rotdpy_inputs(par,
+        [['parent', 'parent_hom_sci_1_2', ['methyl', 'sulfur'], 0.]], [], correction_root=tmp_path)
+    assert Path(generated[0]).read_text() == text
 
 
 @pytest.mark.parametrize('height', [0., .3, -.3])

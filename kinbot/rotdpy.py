@@ -19,10 +19,23 @@ import subprocess
 import sys
 import time
 
-from kinbot.execution import file_sha256 as _sha256
+from kinbot.execution import file_sha256 as _sha256, atomic_json, atomic_text
 
 
 SUPPORTED_REVISION = 'f3352c8eea9d51d26f631d3238e24e304b5be7de'
+
+
+def write_input(path, text):
+    """Never overwrite the contract of an existing sampling campaign."""
+    path = Path(path)
+    if path.exists() and path.read_text() == text:
+        return
+    if (path.with_suffix('.campaign.json').exists() or execution_path(path).exists()
+            or (path.parent/f'kb_{path.stem}'/'.kinbot_input.sha256').exists()
+            or (path.parent/f'kb_{path.stem}'/'rotdPy_restart.db').exists()):
+        raise RuntimeError(f'{path.stem}: generated input differs from existing samples; '
+                           'restore the contract or select a fresh rotdpy_directory.')
+    atomic_text(path, text)
 
 
 def validate_mess_handoff(parameters):
@@ -501,6 +514,8 @@ def number_of_states_file(input_file: str | Path, energy_index: int = -1,
         raise ValueError(
             'ROTD_py MESS energy index must be -1 or a nonnegative integer.')
     input_file = Path(input_file).resolve()
+    from kinbot.rotdpy_campaign import require_review
+    require_review(input_file)
     payload = read_result(input_file, required_profile=required_profile)
     candidates = {}
     for relative in payload['result_files']:
@@ -654,7 +669,7 @@ def _guard_slurm_template(path):
     stem = 'surf{surf_id}_face{face_id}_samp{samp_id}'
     contents = contents.replace(' ' + stem + '.py\n', ' -m kinbot.rotdpy_worker ' + stem + '\n')
     contents = wrap_script(contents, identity=stem, prefixes=[stem], template=True)
-    path.write_text(contents)
+    atomic_text(path, contents)
 
 
 def run(input_file: str | Path, python: str | Path | None = None) -> dict:
@@ -668,6 +683,9 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
     if not input_file.is_file():
         raise FileNotFoundError(input_file)
     with _controller_lock(input_file):
+        from kinbot.rotdpy_campaign import receipt, validate
+        if receipt(input_file).exists():
+            validate(input_file, json.loads(receipt(input_file).read_text()))
         provenance = ensure_available()
         if not input_file.with_name('qu.tpl').is_file():
             raise RuntimeError(
@@ -702,6 +720,8 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
         from kinbot.run_policy import find as find_resource_policy
         if find_resource_policy(input_file.parent):
             command = [str(python or sys.executable), '-m', 'kinbot.rotdpy_policy', input_file.name]
+        atomic_json(record_file, dict(schema=1, status='running', input=input_file.name,
+                                     input_sha256=input_hash, command=command))
         completed = _run_controller(command, input_file.parent)
         stdout_file.write_text(completed.stdout)
         stderr_file.write_text(completed.stderr)
@@ -734,7 +754,7 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
                 error = str(caught)
         if error:
             record['error'] = error
-        record_file.write_text(json.dumps(record, indent=2) + '\n')
+        atomic_json(record_file, record)
         if error:
             raise RuntimeError(f'{input_file.stem}: {error}')
         return record

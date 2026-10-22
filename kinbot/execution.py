@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 
 
 SLURM_TERMINAL_STATES = {
@@ -61,6 +62,21 @@ def atomic_json(path, payload):
     temporary.write_text(json.dumps(
         payload, indent=2, sort_keys=True) + '\n')
     os.replace(temporary, path)
+    return path
+
+
+def atomic_text(path, text):
+    """Publish shared text without truncating files read by other owners."""
+    path = Path(path)
+    if path.is_file() and path.read_text() == text:
+        return path
+    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as f:
+        temporary = Path(f.name)
+        f.write(text)
+    try:
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
     return path
 
 

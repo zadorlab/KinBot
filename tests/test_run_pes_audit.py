@@ -128,3 +128,43 @@ def test_failure_inventory_is_recorded_evidence_not_a_live_status(tmp_path):
     found = audit.failure_inventory(tmp_path,[])
     assert found[0]['recorded_reason'].startswith('Optimization did not converge')
     assert 'status' not in found[0]
+
+
+def test_generation_markers_do_not_turn_successes_into_failures(tmp_path):
+    (tmp_path/'good.exitcode').write_text('52920059 0\n')
+    (tmp_path/'legacy.exitcode').write_text('0\n')
+    (tmp_path/'conf').mkdir()
+    (tmp_path/'conf/bad.exitcode').write_text('52916910 1\n')
+    atomic_json(tmp_path/'conf/bad.result.json', {'error': 'Frequency validation failed'})
+    (tmp_path/'malformed.exitcode').write_text('job bad receipt\n')
+    before = {p: p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    errors = []
+    found = audit.failure_inventory(tmp_path, errors)
+    assert [(f['job'], f['returncode']) for f in found] == [('bad', 1)]
+    assert found[0]['recorded_reason'] == 'Frequency validation failed'
+    assert len(errors) == 1 and errors[0]['file'].endswith('malformed.exitcode')
+    assert before == {p: p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+
+
+def test_rejected_searches_separate_endpoint_evidence_from_inconclusive_searches(tmp_path):
+    reasons = {
+        'same': 'Both IRCs lead to the initial well, identical reaction found',
+        'wrong': 'Neither IRC leads to the initial well',
+        'geometry': 'Reaction search failed: Invalid geometry.',
+        'moved': 'high level rmsd: 0.67, same(0.15): 0, corr: 0.73, same: 0\n'
+                 'rx_moved optimization failed: transition_state',
+        'freq': 'had error status on previous round',
+        'budget': 'had error status on previous round',
+    }
+    (tmp_path/'kinbot.log').write_text('\n'.join('rx_'+n+' '+v for n, v in reasons.items()))
+    for name, cause in [('freq', 'Frequency validation failed for transition state'),
+                        ('budget', 'Optimization did not converge within 750 steps')]:
+        (tmp_path/f'rx_{name}.exitcode').write_text('52916910 1\n')
+        atomic_json(tmp_path/f'rx_{name}.result.json', {'error': cause})
+    errors = []
+    result = audit.rejected_searches(tmp_path, '\n'.join('-999 0 rx_'+n for n in reasons), errors)
+    assert [r['category'] for r in result] == [
+        'returned_to_initial_well', 'wrong_irc_endpoints', 'invalid_path_geometry',
+        'transition_state_identity_mismatch', 'stationary_point_validation_failed',
+        'optimization_not_converged']
+    assert not errors and all(r['proves_channel_absent'] is False for r in result)

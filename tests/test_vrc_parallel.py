@@ -76,7 +76,9 @@ def test_failed_surface_does_not_stop_other_channel_and_plotting_stays_on_caller
     monkeypatch.chdir(tmp_path)
     vts, choices = surfaces(tmp_path)
     caller = threading.get_ident()
-    plots = []
+    plots, launched = [], []
+    monkeypatch.setattr('kinbot.rotdpy_campaign.ready_leaf',
+                        lambda v, n, s: launched.append((n, s['reaction'], threading.get_ident())))
     def scan(child, names):
         if names[0].startswith('cs'):
             raise RuntimeError('Native state validation failed')
@@ -92,6 +94,7 @@ def test_failed_surface_does_not_stop_other_channel_and_plotting_stays_on_caller
     assert not Path('vrctst/corr_cs.json').exists()
     assert Path('vrctst/corr_ss.json').exists()
     assert plots == [caller, caller]
+    assert len(launched) == 2 and all(n == 'ss' and thread == caller for n, _, thread in launched)
     status = json.loads(Path('vrctst/parallel_surfaces.json').read_text())['surfaces']
     assert sum(v['status'] == 'failed' for v in status.values()) == 2
     assert sum(v['status'] == 'complete' for v in status.values()) == 2
@@ -109,6 +112,29 @@ def test_parallel_default_requires_shared_admission(tmp_path, monkeypatch):
     vts.par['vrc_tst_parallel_surfaces'] = 1
     vrc_multistate.calculate_channels(vts, choices)
     assert seen == [1, 4, 1]
+
+
+def test_ready_leaf_launches_while_other_roots_are_still_blocked(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    vts, choices = surfaces(tmp_path)
+    launched = threading.Event()
+    held = []
+    def scan(child, names):
+        if names[0] != 'cs__inner_m2_r1':
+            # The ready root must notify sampling before the sibling can exit.
+            assert launched.wait(timeout=5), 'Ready surface waited for sibling roots'
+            held.append(names[0])
+            from kinbot.vrc_scan_recovery import ScanReviewRequired
+            raise ScanReviewRequired([{'reaction': names[0], 'kind': 'scan_connectivity'}])
+    def energies(child, names):
+        Path(f'vrctst/corr_{names[0]}.json').write_text('{}')
+    monkeypatch.setattr(VTS, 'do_scan', scan)
+    monkeypatch.setattr(VTS, 'energies', energies)
+    monkeypatch.setattr('kinbot.rotdpy_campaign.ready_leaf', lambda *args: launched.set())
+    from kinbot.vrc_scan_recovery import ScanReviewRequired
+    with pytest.raises(ScanReviewRequired):
+        vrc_multistate.calculate_channels(vts, choices, limit=4)
+    assert len(held) == 3 and launched.is_set()
 
 
 def test_epoch_refresh_joins_all_drivers_releases_locks_and_keeps_allocations(tmp_path, monkeypatch):

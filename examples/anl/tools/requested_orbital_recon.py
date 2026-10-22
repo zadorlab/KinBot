@@ -527,6 +527,41 @@ def run(output):
         return _run(root)
 
 
+def _reference_preflight(record, manifests):
+    """Validate one complete native export before allowing panel fan-out.
+
+    Reuse one existing singleton production probe, never stage extra QC. The
+    other manifests still count against capacity and are not submitted here.
+    Re-audit on resume rather than trusting a stale 'passed' receipt.
+    """
+    from kinbot.molpro_reference_identity import report, state_records
+    system = next((s for s in record['systems'] if s.get('production_probe')), None)
+    if system is None:
+        raise ValueError('Reference panel needs a singleton production probe for native preflight.')
+    path = Path(system['manifest'])
+    manifest = _read(path)
+    if len(manifest['jobs']) != 1:
+        raise ValueError('Reference preflight must contain exactly one existing probe.')
+    print('Native reference-export preflight: '+system['title']+'; remaining probes wait.', flush=True)
+    result = recon.run_many([path], max_jobs=1, allocation_retries=2,
+                            capacity_manifests=[p for p in manifests if p != path])
+    manifest = result[0]; job = manifest['jobs'][0]
+    if job.get('status') != 'complete':
+        raise RuntimeError('Native reference preflight has not completed validation.')
+    mult = next(c['multiplicity'] for c in job['correlation_checks']
+                if c['method'].lower() == 'uccsd(t)-f12b')
+    receipt = _read(Path(job['directory'])/'execution.json')
+    keys = {'s', 'cas', 'hf', 'dhf'} | {f'dr{r}' for r in state_records(job['state_model'], mult)}
+    expected = {job['name']+'.identity_'+k+'.out' for k in keys}
+    if set(receipt.get('reference_identity_matrices', {})) != expected:
+        raise RuntimeError('Native reference preflight lacks the complete set of root-density exports.')
+    result = report(job['directory'], job['name'], job['probe_active_space'],
+                    manifest['electron_count'], mult)
+    if result.get('verdict') == 'unavailable':
+        raise RuntimeError('Native reference preflight has no valid matrices.')
+    print('Native export/energy preflight passed; state identity still requires scientific review.', flush=True)
+
+
 def _run(output):
     root = Path(output).expanduser().resolve(strict=True)
     record = _saved(root)
@@ -554,6 +589,8 @@ def _run(output):
     previous = Path.cwd()
     try:
         os.chdir(root)
+        if record.get('production_checks'):
+            _reference_preflight(record, manifests)
         options = {'keep_going': True} if record.get('reviews') or record.get('production_checks') else {}
         result = recon.run_many(manifests, max_jobs=min(record['max_jobs'], slots),
                                allocation_retries=2, **options)

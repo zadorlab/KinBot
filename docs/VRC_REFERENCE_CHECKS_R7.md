@@ -13,9 +13,27 @@ general density selector interprets `SPIN=3` as S=3 and requests MS2=6.
 The export now explicitly uses `MS2=3`. See the separate conventions in the
 [MULTI manual](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi)
 and [density selection manual](https://www.molpro.com/manual/doku.php?id=general_program_structure).
-Old prepared decks receive only this paired diagnostic-card correction in
+Old prepared decks receive paired diagnostic-card corrections in
 their executed `.native.inp`; the execution receipt records the repaired
 selectors and native-input hash. Prepared inputs retain their original hashes.
+
+The next native attempt confirmed MS2=3 but again failed to find the density.
+The first repair was incomplete: per-root NATORB cards do not save each root's
+AO density to its own orbital record. In state-averaged MULTI, explicit `DM`
+is needed to save the individual densities, and they share the record selected
+by `ORBITAL`. The corrected diagnostic block uses `ORBITAL,3000.2; DM` and
+loads every root from 3000.2 with explicit STATE/MS2 selectors. The normal
+SA canonical/natural orbital records remain 2141.2/2140.2. Both prior generated
+input versions are repaired in the executed copy, preserving original inputs
+and archiving failed attempts. This is a diagnostic export change only.
+
+Before panel fan-out, `run` now executes one existing singleton production
+probe under a one-job cap. All other panel manifests count against capacity
+but receive no submissions. Full native energies, all requested density
+exports, hashes, MO orthonormality, electron traces and ROHF occupations must
+validate before the remaining panel starts. A preflight failure stops there.
+Successful execution does not automatically approve the chemical state match.
+This native preflight is still pending on Blodgett; local tests use fixtures.
 
 The four missing CH3SS points were skipped because the independent VRC branch
 had no ANL `network_request.json` yet. Staging can now use the hash-bound
@@ -84,12 +102,12 @@ repeating `run` resumes the same manifests. Keep this panel outside r7.
 
 ## What identity is actually tested
 
-For each CC reference multiplicity, Molpro saves a natural-orbital/density
-record for **each individual CASSCF reference root**. Immediately after the
+MULTI `DM` saves **all individual CASSCF reference-root densities** to the
+explicit diagnostic `ORBITAL,3000.2` record. Immediately after the
 independent ROHF calculation, before CC, MATROP exports the AO overlap, SA-CAS
 orbitals, ROHF orbitals/density and the state-specific MR densities. Native
 matrix files are hashed in `execution.json`. The commands use Molpro's
-[per-state NATORB selection](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi)
+[individual density saving and selection](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi)
 and [MATROP matrix export](https://www.molpro.net/manual/doku.php?id=matrix_operations).
 
 The read-only report checks MO orthonormality, electron traces and the ROHF

@@ -15,14 +15,21 @@ from kinbot.execution import file_sha256
 def state_records(model, multiplicity):
     roots = next(e['roots'] for e in model['state_average']
                  if e['multiplicity'] == multiplicity)
-    return {r: f'{3000 + r}.2' for r in range(1, roots + 1)}
+    # MULTI DM saves all individual state densities to ONE explicitly named
+    # ORBITAL record. NATORB records are not separate per-root density stores.
+    return {r: '3000.2' for r in range(1, roots + 1)}
 
 
 def natural_cards(model, multiplicity):
-    # MULTI NATORB's SPIN is 2S; DENSITY/LOAD's SPIN is S. Do not share
-    # that keyword between these two interfaces (Molpro manual).
-    return ''.join(f'natorb,{record},state={root}.1,spin={multiplicity-1}\n'
-                   for root, record in state_records(model, multiplicity).items())
+    """Save individual AO densities without changing SA orbitals/weights.
+
+    Explicit ORBITAL avoids dependence on which NATORB/CANONICAL card occurs
+    first. Keep the production SA canonical/natural exports on 2141/2140.
+    """
+    state_records(model, multiplicity)  # Require the reference spin manifold.
+    if sum(e['roots'] for e in model['state_average']) + 1 > 50:
+        raise ValueError('MULTI supports at most 50 saved density matrices.')
+    return 'orbital,3000.2\ndm\n'
 
 
 def export_deck(stem, model, multiplicity):
@@ -37,22 +44,30 @@ def export_deck(stem, model, multiplicity):
 
 
 def repair_legacy_selectors(text):
-    """Repair only our paired NATORB/identity-export cards, not user densities.
+    """Repair both generations of our failed per-root density export decks.
 
     Keep prepared inputs immutable; the executed input and receipt record the
-    correction. NATORB still uses its documented SPIN=2S convention.
+    correction. General user density selectors are never rewritten.
     """
     repairs = []
-    pattern = r'(?im)^load,dr(\d+),den,(\d+\.2),state=(\d+\.1),spin=(\d+)\s*$'
-    def replace(match):
-        root, record, state, ms2 = match.groups()
-        if (record != f'{3000+int(root)}.2' or state != root+'.1'
-                or not re.search(r'(?im)^natorb,'+re.escape(record)+',state='
-                                 +re.escape(state)+',spin='+ms2+r'\s*$', text)):
-            return match[0]
-        repairs.append(dict(record=record, state=state, ms2=int(ms2)))
-        return f'load,dr{root},den,{record},state={state},ms2={ms2}'
-    return re.sub(pattern, replace, text), repairs
+    pattern = r'(?im)^load,dr(\d+),den,(\d+\.2),state=(\d+\.1),(?:spin|ms2)=(\d+)[ \t]*$'
+    for match in list(re.finditer(pattern, text)):
+        root, old_record, state, ms2 = match.groups()
+        card = f'natorb,{old_record},state={state},spin={ms2}'
+        blocks = [b for b in re.finditer(r'(?is)\{multi\b[^{}]*\}', text)
+                  if re.search(r'(?im)^'+re.escape(card)+r'[ \t]*$', b[0])]
+        if old_record != f'{3000+int(root)}.2' or state != root+'.1' or len(blocks) != 1:
+            continue
+        block = blocks[0][0]
+        if re.search(r'(?im)^orbital,', block) and 'orbital,3000.2\ndm\n' not in block:
+            raise ValueError('Unexpected diagnostic MULTI output record; inspect before repair.')
+        replacement = '' if 'orbital,3000.2\ndm\n' in block else 'orbital,3000.2\ndm'
+        updated = re.sub(r'(?im)^'+re.escape(card)+r'[ \t]*$', replacement, block)
+        text = text.replace(block, updated, 1)
+        text = text.replace(match[0], f'load,dr{root},den,3000.2,state={state},ms2={ms2}', 1)
+        repairs.append(dict(record='3000.2', previous_record=old_record,
+                            state=state, ms2=int(ms2), saved_individual_densities=True))
+    return text, repairs
 
 
 def matrix(path):

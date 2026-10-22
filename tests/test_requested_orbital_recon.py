@@ -135,9 +135,9 @@ def test_ch_h2s_reference_panel_uses_six_matched_jobs_and_production_seed(reques
         assert 'rotate,8.1,11.1,0' in deck and 'closed,10' in deck and 'occ,14' in deck
         assert 'wf,25,1,1\nstate,4' in deck and 'wf,25,1,3\nstate,1' in deck
         assert deck.count('{rs2-f12,') == 5 and deck.count('{uccsd(t)-f12b,') == 1
-        assert 'natorb,3001.2,state=1.1,spin=3' in deck
-        assert 'load,dr1,den,3001.2,state=1.1,ms2=3' in deck
-        assert deck.index('natorb,3001.2') < deck.index('canonical,2141.2')
+        assert 'orbital,3000.2\ndm\n' in deck
+        assert 'load,dr1,den,3000.2,state=1.1,ms2=3' in deck
+        assert deck.index('orbital,3000.2') < deck.index('canonical,2141.2')
         assert deck.index('load,dhf,den,2150.2') < deck.index('{uccsd(t)-f12b,')
         assert 'wf,25,1,3;occ,14;closed,11;orbital,2150.2' in deck
         assert '.reference_c6_m4.molden' in deck
@@ -674,8 +674,8 @@ def test_production_checks_run_actual_saved_models_under_one_cap(request_tree, m
         assert system['production_probe']['distance_angstrom'] in (4.,30.)
         deck = (Path(j['directory'])/(j['name']+'.inp')).read_text()
         assert 'rotate,' not in deck and 'diab,' not in deck and 'force' not in deck
-        assert 'natorb,3001.2,state=1.1,spin=3' in deck
-        assert 'natorb,3002.2,state=2.1,spin=3' in deck
+        assert 'orbital,3000.2\ndm\n' in deck
+        assert 'load,dr2,den,3000.2,state=2.1,ms2=3' in deck
         assert '{uccsd(t)-f12b,thrden=1.d-7,thrvar=1.d-10}' in deck
     assert helper.production_checks(production,output)['status'] == 'already_prepared'
     assert all(p.read_bytes()==value for p,value in before.items())
@@ -688,6 +688,7 @@ def test_production_checks_run_actual_saved_models_under_one_cap(request_tree, m
         return [dict(status='complete_review_required',jobs=helper._read(p)['jobs']) for p in paths]
     monkeypatch.setattr(helper.recon,'run_many',launch)
     monkeypatch.chdir(output)
+    monkeypatch.setattr(helper, '_reference_preflight', lambda *a: None)
     helper.run(output)
     assert len(calls) == 1 and len(calls[0][0]) == len(record['systems'])
     assert calls[0][1] == dict(keep_going=True,max_jobs=3,allocation_retries=2)
@@ -728,7 +729,8 @@ def test_ch3ss_fragment_states_are_available_before_anl_network(maps):
         context_fragment_multiplicities(parameters,saved)
 
 
-def test_reference_export_retry_preserves_input_and_failed_evidence(request_tree, monkeypatch):
+@pytest.mark.parametrize('selector', ['spin', 'ms2'])
+def test_reference_export_retry_preserves_input_and_failed_evidence(request_tree, monkeypatch, selector):
     from types import SimpleNamespace
     from kinbot.execution import file_sha256
     source = completed_screen(request_tree)
@@ -737,8 +739,8 @@ def test_reference_export_retry_preserves_input_and_failed_evidence(request_tree
     record=helper._saved(output); path=Path(record['systems'][0]['manifest'])
     m=helper._read(path); j=m['jobs'][0]; d=Path(j['directory'])
     inp=d/(j['name']+'.inp')
-    inp.write_text(inp.read_text()+'\nnatorb,3001.2,state=1.1,spin=3\n'
-                   '{matrop\nload,dr1,den,3001.2,state=1.1,spin=3\n}\n')
+    inp.write_text(inp.read_text()+'\n{multi;\nnatorb,3001.2,state=1.1,spin=3\n}\n'
+                   f'{{matrop\nload,dr1,den,3001.2,state=1.1,{selector}=3\n}}\n')
     j.update(input_sha256=file_sha256(inp),job_id='42',status='incomplete')
     atomic_json(path,m)
     failed = '?REQUESTED DENSITY NOT FOUND IN RECORD    3001.2 FOR STATE= SYM= 1 MS2= 6\n'
@@ -753,3 +755,41 @@ def test_reference_export_retry_preserves_input_and_failed_evidence(request_tree
     assert inp.read_bytes() == original
     assert (d/'attempts/1'/(j['name']+'.out')).read_text() == failed
     assert helper.retry_reference_exports(output)['manifests'] == []
+
+
+@pytest.mark.parametrize('failure', [None, 'native', 'missing_root', 'bad_density'])
+def test_reference_preflight_uses_one_job_and_checks_native_matrices(tmp_path, monkeypatch, failure):
+    from kinbot.execution import file_sha256
+    from kinbot import molpro_reconnaissance as recon
+    path = tmp_path/'one/reconnaissance.json'
+    other = tmp_path/'other/reconnaissance.json'
+    d = path.parent/'probe'; d.mkdir(parents=True)
+    job = dict(name='probe', status='complete', directory=str(d),
+        correlation_checks=[dict(method='uccsd(t)-f12b',multiplicity=4)],
+        state_model={'state_average':[dict(multiplicity=4,roots=2)]},
+        probe_active_space=dict(active_electrons=3,active_orbitals=3))
+    manifest = dict(jobs=[job],electron_count=5)
+    atomic_json(path,manifest)
+    record = {'systems':[dict(title='one',manifest=str(path),production_probe={'channel':'test'})]}
+    matrices = {k:np.eye(4) for k in ('s','cas','hf')}
+    matrices.update({k:np.diag([2.,1.,1.,1.]) for k in ('dhf','dr1','dr2')})
+    if failure == 'missing_root': matrices.pop('dr2')
+    if failure == 'bad_density': matrices['dr1'][0,0] = 0.
+    files = {}
+    for key, value in matrices.items():
+        p=d/('probe.identity_'+key+'.out')
+        p.write_text('BEGIN_DATA\n'+'\n'.join(' '.join(map(str,row)) for row in value)+'\nEND_DATA\n')
+        files[p.name]=file_sha256(p)
+    atomic_json(d/'execution.json',dict(reference_identity_matrices=files))
+    calls=[]
+    def launch(paths, **kwargs):
+        calls.append((paths,kwargs))
+        if failure == 'native': raise recon.ProbeFailure('native failure')
+        return [manifest]
+    monkeypatch.setattr(recon,'run_many',launch)
+    if failure:
+        with pytest.raises((RuntimeError, ValueError)):
+            helper._reference_preflight(record,[path,other])
+    else:
+        helper._reference_preflight(record,[path,other])
+    assert calls == [([path],dict(max_jobs=1,allocation_retries=2,capacity_manifests=[other]))]

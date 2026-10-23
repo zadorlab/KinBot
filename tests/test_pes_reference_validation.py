@@ -143,12 +143,16 @@ def test_native_product_cache_is_read_only_and_latest_failure_wins(tmp_path):
     (worker/'kinbot_monitor.out').write_text('-1 23 300_new_products 999 31\n')
     database = worker/'kinbot.db'
     db = connect(database)
-    db.write(Atoms('H', positions=[[0., 0., 0.]]), name='999_well_high', data={'status': 'normal'})
+    db.write(Atoms('H', positions=[[0., 0., 0.]]), name='999_well_high',
+             data={'status': 'normal', 'energy': -13.6, 'zpe': 0., 'frequencies': []})
     before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in case.rglob('*') if p.is_file()}
     report = check.snapshot(case, reference=REFERENCE)
     assert not report['errors']
     assert index(report, 'reference_connections')['TS5']['status'] == 'accepted_endpoint_and_path_type_match'
     assert report['cache_identity_evidence']['999']['source_row_id'] == 1
+    native = report['native_records']['300/product_cache/999']['record']
+    assert native['molecule']['multiplicity'] is None
+    assert native['molecule']['charge'] is None
     assert before == {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in case.rglob('*') if p.is_file()}
     db.write(Atoms('H', positions=[[0., 0., 0.]]), name='999_well_high', data={'status': 'error'})
     report = check.snapshot(case, reference=REFERENCE)

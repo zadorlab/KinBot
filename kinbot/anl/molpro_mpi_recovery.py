@@ -26,7 +26,8 @@ def evidence(task, directory, outcome):
         return None
     if record.get('returncode') != int(match[2]) or record.get('explicit_io_failure'):
         return None
-    text = '\n'.join(v.get('tail', '') for v in record.get('files', {}).values())
+    text = '\n'.join(v.get('error_context', '') + '\n' + v.get('tail', '')
+                     for v in record.get('files', {}).values())
     # A generic MPI_Abort/SIGKILL can be a consequence of a scientific error,
     # timeout, or OOM. Require the actual communication error and exclude the
     # recognizable alternate causes rather than retrying every exit 255.
@@ -34,6 +35,7 @@ def evidence(task, directory, outcome):
             or not re.search(r'MPI_Abort', text, re.I)
             or re.search(r'out.of.memory|oom.kill|time limit|insufficient memory|'
                          r'not enough memory|no space left|no convergence|'
+                         r'catastrophic failure in diagonalization|expansion set has become singular|'
                          r'failed to converge|\?\s*(?:ERROR|INSUFFICIENT)', text, re.I)):
         return None
     return {'file': path.name, 'host': record.get('host'), 'returncode': record['returncode']}

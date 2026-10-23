@@ -477,7 +477,8 @@ def launch(root):
         path = Path(filename)
         case = path.parent
         launch_file = case / 'launch.json'
-        processes = _processes(case)
+        from kinbot.rotdpy_campaign import replacement_processes
+        processes = replacement_processes(case, _processes(case))
         if processes:
             if not launch_file.exists():
                 raise RuntimeError(f'{case}: unknown live controller; no duplicate launched.')

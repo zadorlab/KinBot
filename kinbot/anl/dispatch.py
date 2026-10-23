@@ -2493,8 +2493,9 @@ def advance(run_dir, submit=False, submit_only=None):
     if not spec.get('intent', {}).get('vrc_fragment_retry') and not refining:
         state = lock_recovery.recover(run_dir, spec, state)
         state = interface_recovery.recover(run_dir, spec, state)
-        from kinbot.anl import molpro_mpi_recovery
+        from kinbot.anl import molpro_mpi_recovery, molpro_solver_recovery
         spec, state = molpro_mpi_recovery.recover(run_dir, spec, state)
+        spec, state = molpro_solver_recovery.recover(run_dir, spec, state)
         spec, state = recover_vpt2_failures(run_dir, spec, state)
         state = optimization_recovery.recover(run_dir, spec, state)
         state = account_recovery.recover(run_dir, spec, state)

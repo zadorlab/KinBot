@@ -1,5 +1,29 @@
 # October 22 geometry/VPT2 repair handoff
 
+Latest correction: the subsequent refinement refresh failed before replacing
+controllers because an independently running ROTD campaign was classified as
+an unknown child. The old `controller_refresh.json` still described the earlier
+successful refresh. The queued requests were not consumed or lost.
+
+Refresh now retains verified campaign owners, their descendants and their
+pool-owned allocations. It checks input hashes and process start identities,
+and coordinates with the pool submission lock before stopping PES/KB owners.
+Unregistered children and allocations still prevent a handoff.
+
+Native `hsdel` / singular-expansion failures now have at most two automatic
+retries in generated Molpro geometry tasks: a changed primary P-space, then a
+smaller internal expansion workspace and tighter energy/coefficient convergence.
+The active space, requested roots, weights, NSTATI, CASPT2 shift and IPEA remain
+unchanged. The failed attempt is archived; successful energies and gradients
+must still pass the original validators. Unknown errors and a user-specified
+P-space do not trigger this automatic ladder. Deliberately bounded fragment
+probes retain their explicit retry budgets.
+
+The affected production scan is CH3S -> CH3 + S, doublet root 2, point 16
+(5.2 A), not C + SH3. Root 1 already has a resolved 48-point scan. Cached L2
+fragment energies in the supplied audit give a provisional harmonic D0 of
+69.00945 kcal/mol, not a completed root-2 variational barrier.
+
 The previous 16:08 background controller refresh did launch the new PES/KB
 owners in the supplied 16:29 monitor. Existing QC was retained and two independent
 ROTD campaigns launched. Their then-current 0/116 counts did not yet demonstrate
@@ -41,10 +65,10 @@ geometry. These data do not distinguish numerical curvature error from a real
 change of stationary-point order at L3. The paired retry tests that question;
 it does not presume the answer or label the channel a fake reaction.
 
-## Refresh and request the paired retry
+## Refresh with the already queued retries
 
-Run on Blodgett. The distinct refinement request kind is ignored by older
-controllers, so it can be queued before the single code refresh. Requests are
+Run on Blodgett. The TS refinement and 12-hour fragment retry are already
+queued; do not publish either request again. Requests are
 consumed by the owning graph when admitted; they do not bypass PES admission
 or shared capacity. Only affected allocations may be cancelled by this explicit
 request; the refresh itself retains native QC allocations.
@@ -57,17 +81,15 @@ git pull --ff-only origin composite
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 KB_RUN="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
 KB_PY="$HOME/KinBot/.venv/bin/python"
-"$KB_PY" -m kinbot.run_control refine "$KB_RUN" \
-  --target ch3s/471030810040000000002/anl_automatic/states/ts_0450141d9a891e9c/composite/tasks/harmonic_tz \
-  --fmax 0.0001 --scf 1e-11 --cc 1e-11 --cancel-running \
-  --reason 'Paired geometry/Hessian refinement after TZ stationary-point validation failure' --apply
+KB_LOG="$KB_RUN/controller_refresh_$(date -u +%Y%m%dT%H%M%SZ).log"
 nohup "$KB_PY" -u -m kinbot.run_refresh "$KB_RUN" --apply \
-  > "$KB_RUN/refinement_controller_refresh.log" 2>&1 < /dev/null &
-printf 'Refresh PID: %s\nLog: %s\n' "$!" "$KB_RUN/refinement_controller_refresh.log"
+  > "$KB_LOG" 2>&1 < /dev/null &
+printf 'Refresh PID: %s\nLog: %s\n' "$!" "$KB_LOG"
 BASH
 ```
 
-Once the refresh reports `phase: launched`, the new VPT2 recovery is automatic.
+Once the new refresh reports `phase: launched`, VPT2 and the native singularity
+recovery are automatic when their owning graphs are polled.
 It need not receive a hardcoded C2V retry command. The current native evidence
 is exactly the diagnostic accepted by the new general rule. Neither retry has
 been executed remotely from the development checkout; native convergence is
@@ -87,9 +109,9 @@ because a task generation changed, inspect the new state and preview a new
 request. A queued receipt is not a submitted calculation; an applied receipt
 records archival/reset, and the subsequent task state supplies the new job ID.
 
-## Explicit budget for the timed-out fragment attempt
+## Explicit budget for the timed-out fragment attempt (already queued)
 
-After the refreshed controllers are loaded, this queues one retry of the
+Request 897941f10f974b7a94e2fbbef40b49dd already queues one retry of the
 recorded failed point with 12 hours and at most 300 optimizer steps, retaining
 its original force tolerance and scientific model. The old attempt had only
 2 hours and stopped at step 98, before convergence. This starts from its
@@ -137,6 +159,37 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   --reference validation/data/d4cp04873c_fig6.json --evidence
 ```
 
-An unfinished/unmapped snapshot cannot prove a channel absent. Endpoint matches
-are reported separately from paper saddle/conformer identity, especially the
-W1 van der Waals complex. A full numerical comparison still awaits this output.
+The supplied 17:18 read-only snapshot has accepted W2 and W4 connectivity,
+the W4-W2/TS4 endpoint and path-type match, and W4-P4 scission. W3 has been
+discovered, with current acceptance unavailable. W2-P1 is a candidate in
+progress; this does not establish the paper's W1 complex or TS2. W1, P2, P3,
+and TS1/2/3/5/6 are not established in the current accepted records. The two
+accepted TS4 search names have essentially identical energies/frequencies and
+must not be counted as two distinct physical mechanisms from their names.
+
+Additional accepted connections outside Figure 6 are W4 -> CH3S + S and
+W4 -> [H][C]([H])=[S]([H])[S]. The latter is an additional H-shift isomer.
+Further candidates are still in progress. There were 5 accepted searches,
+33 rejections, 141 searches in progress and one unavailable worker monitor.
+
+Provisional harmonic L2 E0 values relative to cached CH2S + SH (kcal/mol):
+
+| Point | Current L2 | Paper Figure 6 |
+|---|---:|---:|
+| W2 | -18.03 | -18.46 |
+| W3 (acceptance pending) | -22.85 | -22.82 |
+| W4 | -43.88 | -43.02 |
+| TS4 | 7.63 | 7.38 |
+| P4 | -0.28 | 3.57 |
+
+These values use the supplied native electronic energies plus harmonic ZPE,
+with P1 = -835.934570239890 hartree. They are not final ANL/L3 values; the
+paper uses a different composite protocol. P4 differs by 3.85 kcal/mol and
+requires checking at the final tier. The additional isomer is at +11.01,
+its connecting TS at +26.85, and CH3S + S at +30.52 kcal/mol on this same
+provisional zero. Product cache rows without saved calculator parameters do
+not establish spin/theory metadata; the audit now prints unknown rather than
+inventing a default singlet. No result is fitted to the paper.
+
+An unfinished/unmapped snapshot cannot prove a channel absent. Endpoint
+matches do not establish exact saddle/conformer identity, particularly W1.

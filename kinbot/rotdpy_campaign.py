@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import time
@@ -58,6 +59,82 @@ def validate(inp, record):
         raise RuntimeError(f'{Path(inp).stem}: campaign scientific contract changed; '
                            'restore it or use a fresh rotdpy_directory.')
     return current
+
+
+def retained_processes(root, processes):
+    """Identify independent campaign owners and their current descendants.
+
+    Refresh may retain only a hash-bound campaign with the exact live process
+    identity. A module name or a directory alone is not ownership evidence.
+    Cleanup deliberately does not use this filter.
+    """
+    from kinbot.pes_phase import process_identity
+    root = Path(root).resolve()
+    retained = set()
+    for process in processes:
+        args = shlex.split(process['command'])
+        if '-m' not in args:
+            continue
+        suffix = args[args.index('-m') + 1:]
+        if len(suffix) != 3 or suffix[:2] != ['kinbot.rotdpy', 'run']:
+            continue
+        inp = (Path(process['cwd']) / suffix[2]).resolve()
+        if not inp.is_relative_to(root):
+            continue
+        saved = json.loads(receipt(inp).read_text())
+        identity = saved.get('owner_identity')
+        if (saved.get('input') != str(inp) or inp.parent != Path(process['cwd']).resolve()
+                or not identity or identity.get('pid') != process['pid']
+                or identity.get('start') != process['starttime']
+                or process_identity(process['pid']) != identity):
+            raise RuntimeError(f'{inp}: independent campaign process identity changed.')
+        validate(inp, saved)
+        retained.add(process['pid'])
+    while True:
+        children = {p['pid'] for p in processes if p.get('ppid') in retained}
+        if children <= retained:
+            return retained
+        retained.update(children)
+
+
+def replacement_processes(root, processes):
+    retained = retained_processes(root, processes)
+    return [p for p in processes if p['pid'] not in retained]
+
+
+def owns_job(root, job):
+    """Match a ROTD surface allocation to its campaign and pool receipt."""
+    from kinbot import run_policy
+    root = Path(root).resolve()
+    directory = Path(job['directory']).resolve()
+    if not directory.is_relative_to(root):
+        return False
+    for folder in directory.parents:
+        if not folder.is_relative_to(root):
+            break
+        if not folder.name.startswith('kb_'):
+            continue
+        inp = folder.with_name(folder.name[3:] + '.py')
+        if not receipt(inp).is_file():
+            continue
+        saved = json.loads(receipt(inp).read_text())
+        if saved.get('input') != str(inp):
+            raise RuntimeError(f'{inp}: campaign input identity changed.')
+        validate(inp, saved)
+        policy = run_policy.find(directory)
+        if policy is None:
+            return False
+        path = policy.parent/'.kinbot_policy_submissions'/f'{job["job_id"]}.json'
+        if not path.is_file():
+            return False
+        claim = json.loads(path.read_text())
+        command = claim.get('command', [])
+        return (claim.get('job_id') == job['job_id']
+                and claim.get('status') == 'submitted'
+                and claim.get('directory') == str(directory)
+                and len(command) == 2 and command[0] == 'sbatch'
+                and (directory/command[-1]).is_file())
+    return False
 
 
 def active(inp, record):

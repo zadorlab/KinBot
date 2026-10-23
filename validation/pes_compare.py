@@ -97,7 +97,7 @@ def _cached_labels(worker, names, errors):
                     found[name] = dict(smiles=label, source=str(database), source_job=name+suffix,
                                        source_row_id=row.id, identity='geometry_connectivity_only')
                     found[name]['record'] = database_record(database, name+suffix,
-                        dict(charge=parameters.get('charge', 0), mult=parameters.get('mult', 1)), label)
+                        dict(charge=parameters.get('charge'), mult=parameters.get('mult')), label)
                     if found[name]['record'] is not None:
                         found[name]['record']['cache_level'] = 'L2' if suffix == '_well_high' else 'L1'
                 break

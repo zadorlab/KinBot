@@ -760,10 +760,20 @@ def validate_mr_correlation_options(options):
     """
     allowed = {'max_iterations', 'max_reference_iterations', 'max_reference_vectors',
                'max_external_vectors', 'reference_policy', 'cabs_singles', 'state_policy',
-               'energy_convergence', 'coefficient_convergence', 'denominator_shifts'}
+               'energy_convergence', 'coefficient_convergence', 'denominator_shifts', 'pspace'}
     if not isinstance(options, dict) or set(options) - allowed:
         raise ValueError('Unknown reviewed correlation_options.')
     for key, value in options.items():
+        if key == 'pspace':
+            if (not isinstance(value, dict)
+                    or set(value) != {'energy_threshold', 'minimum_configurations'}
+                    or type(value['energy_threshold']) not in (int, float)
+                    or not math.isfinite(value['energy_threshold']) or value['energy_threshold'] < 0
+                    or type(value['minimum_configurations']) is not int
+                    or value['minimum_configurations'] < 1):
+                raise ValueError('correlation_options.pspace requires a nonnegative energy_threshold '
+                                 'and positive integer minimum_configurations.')
+            continue
         if key == 'denominator_shifts':
             if (not isinstance(value, dict) or not value
                     or set(value) - {'pairs', 'singles', 'internal'}
@@ -844,6 +854,10 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         ('max_iterations', 'maxit'), ('max_reference_iterations', 'maxiti'),
         ('max_reference_vectors', 'maxvi'), ('max_external_vectors', 'maxdav')) if key in controls]
     iteration_card = 'option,' + ','.join(iteration_options) + ';' if iteration_options else ''
+    if 'pspace' in controls:
+        pspace = controls['pspace']
+        iteration_card += (f'pspace,{pspace["energy_threshold"]:g},'
+                           f'{pspace["minimum_configurations"]};')
     reference_card = ''
     if (family == 'mrci' and f12 and selected_root is not None and selected_root > 1
             and controls.get('reference_policy', 'selected_root') != 'state_average'):

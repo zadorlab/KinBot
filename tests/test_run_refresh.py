@@ -23,6 +23,65 @@ PIN_CODE = run_salvage._pin_code
 
 
 @pytest.fixture
+def sampling_tree(live_tree, monkeypatch):
+    from kinbot import rotdpy_campaign, run_policy
+    t = live_tree
+    directory = t.root/'ch3s'/'sampling'
+    directory.mkdir()
+    inp = directory/'channel.py'
+    inp.write_text('validation_metadata = {}\n')
+    identity = dict(host=socket.gethostname(), pid=700, start='7000', boot='test')
+    monkeypatch.setattr('kinbot.pes_phase.process_identity', lambda pid: identity if pid == 700 else None)
+    atomic_json(rotdpy_campaign.receipt(inp), dict(input=str(inp), owner_identity=identity,
+                status='launched', **rotdpy_campaign.contract(inp)))
+    t.processes.extend([
+        dict(pid=700, ppid=101, starttime='7000', cwd=str(directory), state='S',
+             command=f'/python -u -m kinbot.rotdpy run {inp}'),
+        dict(pid=701, ppid=700, starttime='7010', cwd=str(directory), state='S',
+             command='/python -m kinbot.rotdpy_policy channel.py'),
+        dict(pid=702, ppid=701, starttime='7020', cwd=str(directory), state='S',
+             command='/python -m kinbot.run_policy submit job.sh')])
+    jobs = directory/'kb_channel/Surface_0/jobs'; jobs.mkdir(parents=True)
+    (jobs/'job.sh').write_text('#!/bin/sh\n')
+    atomic_json(t.root/run_policy.NAME, {})
+    atomic_json(t.root/'.kinbot_policy_submissions/800.json', dict(job_id='800',
+                directory=str(jobs), command=['sbatch', 'job.sh'], status='submitted'))
+    t.jobs.append(dict(job_id='800', directory=str(jobs), state='RUNNING'))
+    t.campaign = inp
+    return t
+
+
+def test_refresh_preserves_campaign_tree_and_allocations(sampling_tree):
+    t = sampling_tree
+    before = t.campaign.with_suffix('.campaign.json').read_bytes()
+    result = run_refresh.refresh(t.root, apply=True)
+    assert result['phase'] == 'launched'
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    assert not any(pid in {700, 701, 702} for pid, sig in t.signals)
+    assert t.campaign.with_suffix('.campaign.json').read_bytes() == before
+    assert len(t.launches) == 2
+    assert any(j['job_id'] == '800' for j in t.jobs)
+
+
+@pytest.mark.parametrize('fault', ['owner', 'input', 'claim', 'orphan'])
+def test_refresh_refuses_unproven_campaign_before_signalling(sampling_tree, fault):
+    t = sampling_tree
+    if fault == 'owner':
+        p = t.campaign.with_suffix('.campaign.json')
+        record = json.loads(p.read_text()); record['owner_identity']['start'] = 'wrong'
+        atomic_json(p, record)
+    elif fault == 'input':
+        t.campaign.write_text('validation_metadata = {"changed": True}\n')
+    elif fault == 'claim':
+        (t.root/'.kinbot_policy_submissions/800.json').unlink()
+    else:
+        t.processes[:] = [p for p in t.processes if p['pid'] != 700]
+    with pytest.raises(RuntimeError):
+        run_refresh.refresh(t.root, apply=True)
+    assert not t.signals and not t.launches
+
+
+@pytest.fixture
 def live_tree(tmp_path, monkeypatch):
     root = tmp_path / 'run'; root.mkdir()
     pin = root / '.salvage_code.new'; pin.mkdir()

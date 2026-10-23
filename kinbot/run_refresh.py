@@ -7,6 +7,7 @@ running allocations and completed calculations are retained.
 """
 import argparse
 from contextlib import ExitStack, contextmanager
+from contextvars import ContextVar
 import ctypes
 from datetime import datetime, timezone
 import errno
@@ -25,6 +26,8 @@ import time
 
 from kinbot.execution import atomic_json
 from kinbot import run_cleanup, run_salvage
+
+_POOL_GUARDED = ContextVar('refresh_pool_guarded', default=False)
 
 
 def _pidfd_syscall(number, *args):
@@ -93,7 +96,7 @@ def _controllers(root):
                 host = json.loads(marker.read_text()).get('host')
                 if host and host.split('.')[0] != socket.gethostname().split('.')[0]:
                     raise RuntimeError(f'Run controller refresh on {host}, not this host.')
-    records = run_cleanup._processes(root)
+    records = _replacement_processes(root)
     for record in records:
         directory = Path(record['cwd']).resolve()
         role = roles.get(directory)
@@ -107,6 +110,37 @@ def _controllers(root):
         if saved.get('pid') != record['pid']:
             raise RuntimeError(f'{marker}: controller PID does not match; nothing stopped.')
     return records
+
+
+def _replacement_processes(root):
+    from kinbot.rotdpy_campaign import replacement_processes
+    return replacement_processes(root, run_cleanup._processes(root))
+
+
+@contextmanager
+def _submission_guard(root):
+    """Do not freeze a pool-lock holder, or race a retained sampler's sbatch."""
+    from kinbot import run_policy
+    policy = run_policy.find(root)
+    if policy is None or _POOL_GUARDED.get():
+        yield
+        return
+    # Bounded acquisition also works during recovery from an interrupted stop.
+    with (policy.parent/'.kinbot_resource_policy.lock').open('a') as stream:
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('Pool submission is still in flight; repeat refresh after it finishes.')
+                time.sleep(.05)
+        token = _POOL_GUARDED.set(True)
+        try:
+            yield
+        finally:
+            _POOL_GUARDED.reset(token)
 
 
 def _graphs(root):
@@ -183,6 +217,11 @@ def _ordinary_job_owners(root):
 
 
 def _owned_jobs(root):
+    with _submission_guard(root):
+        return _owned_jobs_guarded(root)
+
+
+def _owned_jobs_guarded(root):
     """Verify composite, VRC and profiled L1/L2 ownership without resetting it."""
     from kinbot.anl import dispatch
     jobs = run_cleanup._jobs(root)  # A query failure must abort the handoff.
@@ -221,8 +260,11 @@ def _owned_jobs(root):
                     not Path(str(target)+'.sbatch').is_file()):
                 raise RuntimeError(f'Job {ident}: ordinary QC directory/worker/script does not match its route.')
         elif owned.get(ident) != directory:
+            from kinbot.rotdpy_campaign import owns_job
+            if owns_job(root, job):
+                continue
             raise RuntimeError(f'Live Slurm job {job["job_id"]} lacks matching '
-                               'dispatcher or profiled QC ownership; nothing reset.')
+                               'dispatcher, profiled QC or campaign ownership; nothing reset.')
     return jobs
 
 
@@ -365,7 +407,7 @@ def _worker_locks(root, *, timeout=30.):
 
 def _unchanged_stopped_handoff(root, journal):
     """Allow fixed code at the lock boundary, before any scheduler/input edits."""
-    if journal.get('phase') != 'stopped' or run_cleanup._processes(root):
+    if journal.get('phase') != 'stopped' or _replacement_processes(root):
         return False
     if any(journal.get(key) for key in (
             'pending_holds', 'pending_cancel_acknowledged', 'pending_plans',
@@ -696,7 +738,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
     if journal['phase'] in ('preparing', 'stopping'):
         records = _controllers(root)
         print('Quiescing only PES/KB controllers; Slurm jobs remain running.', flush=True)
-        with _freeze(root, records) as handles:
+        with _submission_guard(root), _freeze(root, records) as handles:
             jobs = _owned_jobs(root)  # No thread can submit/write while checked.
             if journal.get('replace_pending'):
                 _check_pending_scope(root, jobs)
@@ -724,14 +766,14 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 except ProcessLookupError:
                     pass
             deadline = time.monotonic() + 5
-            while run_cleanup._processes(root):
+            while _replacement_processes(root):
                 if time.monotonic() >= deadline:
                     raise RuntimeError('Controller exit pending; repeat the same refresh command.')
                 time.sleep(.05)
         journal['phase'] = 'stopped'
         atomic_json(journal_path, journal)
     if journal['phase'] == 'stopped':
-        if run_cleanup._processes(root):
+        if _replacement_processes(root):
             raise RuntimeError('Unexpected local processes after controller stop; refusing edits.')
         # Disappearing from /proc need not coincide with filesystem lock
         # availability. Hold all original inodes before changing anything.

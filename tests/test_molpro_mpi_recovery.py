@@ -49,7 +49,7 @@ def test_once_resource_only_transaction_archives_and_restages(failed):
     assert dispatch.advance(failed)['molpro_serial_retries'] == result['molpro_serial_retries']
 
 
-@pytest.mark.parametrize('reason', ['oom', 'io', 'active', 'budget', 'unproven', 'wrong_generation'])
+@pytest.mark.parametrize('reason', ['oom', 'io', 'active', 'budget', 'unproven', 'wrong_generation', 'singular'])
 def test_does_not_retry_unproven_or_other_failures(failed, monkeypatch, reason):
     graph, spec, state = dispatch._load(failed)
     d = graph/'tasks/l3_geometry'
@@ -57,6 +57,8 @@ def test_does_not_retry_unproven_or_other_failures(failed, monkeypatch, reason):
     data = json.loads(p.read_text())
     if reason == 'oom': data['files']['work/error.stderr']['tail'] += '\nout of memory'
     if reason == 'io': data['explicit_io_failure'] = True
+    if reason == 'singular':
+        data['files']['work/error.stderr']['error_context'] = 'The expansion set has become singular'
     if reason == 'unproven': data['files']['work/error.stderr']['tail'] = 'KILLED BY SIGNAL: 9'
     if reason == 'active': monkeypatch.setattr(dispatch, '_job_active', lambda job: True)
     if reason == 'budget': spec['intent'] = {'vrc_fragment_retry': True}

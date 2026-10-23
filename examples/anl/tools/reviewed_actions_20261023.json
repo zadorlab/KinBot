@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "description": "Reviewed morning diagnostic, 2026-10-23; applies only to these exact generations and correction hashes.",
+  "retries": [
+    {
+      "target": "ch3s/471030810040000000002/anl_automatic/states/state_358d011bcfb05a75/composite/tasks/anl1_5z",
+      "expected": {
+        "attempt": null,
+        "job_id": "52924115",
+        "task_sha256": "ae0ba7558180e5a4c8b3338dd6aeb401660304747374f4dad1a9637395e7cc59"
+      },
+      "reason": "Explicit unchanged-task retry after reviewed loss before worker output; original exit unknown. Verify admission, unchanged stage, purged scheduler ID and healthy absent queue under the owning driver."
+    },
+    {
+      "target": "ch3s/471030810040000000002/anl_automatic/states/state_358d011bcfb05a75/composite/tasks/anl1_6z",
+      "expected": {
+        "attempt": null,
+        "job_id": "52924122",
+        "task_sha256": "d1dd9f5dc507b7f5f2fdc66bda9e9fd4eff6f96c2ead51d96c4d1b7856877f22"
+      },
+      "reason": "Explicit unchanged-task retry after reviewed loss before worker output; original exit unknown. Verify admission, unchanged stage, purged scheduler ID and healthy absent queue under the owning driver."
+    },
+    {
+      "target": "ch3s/471030810040000000002/anl_automatic/states/state_358d011bcfb05a75/composite/tasks/ccsdt_dz",
+      "expected": {
+        "attempt": null,
+        "job_id": "52924141",
+        "task_sha256": "fefef050cb5d9b6f94cf09df20317247e40bdf7f2ffea96b2bf300754a32dfab"
+      },
+      "reason": "Explicit unchanged-task retry after reviewed loss before worker output; original exit unknown. Verify admission, unchanged stage, purged scheduler ID and healthy absent queue under the owning driver."
+    },
+    {
+      "target": "ch3s/471030810040000000002/anl_automatic/states/state_358d011bcfb05a75/composite/tasks/ccsdt_tz",
+      "expected": {
+        "attempt": null,
+        "job_id": "52924156",
+        "task_sha256": "bceb0d7457015b6026cda85b757e366fe20afde9c893fc7ddeeb046350df2fe0"
+      },
+      "reason": "Explicit unchanged-task retry after reviewed loss before worker output; original exit unknown. Verify admission, unchanged stage, purged scheduler ID and healthy absent queue under the owning driver."
+    },
+    {
+      "target": "ch3s/471430450000000000002-s06a7b4c221beb748/anl_automatic/states/state_510789b37f85f761/composite/tasks/rel_nonrel_5z",
+      "expected": {
+        "attempt": null,
+        "job_id": "52924118",
+        "task_sha256": "6b99cff1edc21affac502da77658aad860555327fd90e1d8664ca63701a092f9"
+      },
+      "reason": "Explicit unchanged-task retry after reviewed loss before worker output; original exit unknown. Verify admission, unchanged stage, purged scheduler ID and healthy absent queue under the owning driver."
+    },
+    {
+      "target": "ch3s/471430450000000000002-s06a7b4c221beb748/anl_automatic/states/state_510789b37f85f761/composite/tasks/rel_nonrel_qz",
+      "expected": {
+        "attempt": null,
+        "job_id": "52924126",
+        "task_sha256": "3d89de8cf35a82104ace51f1f9dbccbb6d633117dba76b28381241c56ddddc9f"
+      },
+      "reason": "Explicit unchanged-task retry after reviewed loss before worker output; original exit unknown. Verify admission, unchanged stage, purged scheduler ID and healthy absent queue under the owning driver."
+    }
+  ],
+  "reviews": [
+    {
+      "input": "ch3s/rotdPy/470831050000000000002_hom_sci_1_2__single_m2_r1.py",
+      "input_sha256": "03908adaddb4e3f2f282b0d653112413678d013c191239555eba99a49f546182",
+      "correction_sha256": "2dad5df7d86b93f43b2d91a82e2c706749ae8d852f3feee7d7178493d077964e",
+      "note": "Radial correction reviewed from full native-component diagnostic 2026-10-23: 48 accepted scan points, direct CASPT2-F12 DZ/TZ CBS (power 3.7), component/CBS reconstruction and asymptote subtraction consistent, finite monotone approach to the asymptote, matching surface root and model provenance. No approval of unfinished sampling statistics or other channels."
+    },
+    {
+      "input": "ch3s/rotdPy/470831050000000000002_hom_sci_1_2__single_m2_r2.py",
+      "input_sha256": "ba84b0ec773cfd6420a9128dc949d6c6710ff59e8e0bdba1f885989613f0e896",
+      "correction_sha256": "2ba03060b4ef8e16350f2fb20be16e774a3ac9048134f7c3dcf8f990b4c0fb47",
+      "note": "Radial correction reviewed from full native-component diagnostic 2026-10-23: 48 accepted scan points, direct CASPT2-F12 DZ/TZ CBS (power 3.7), component/CBS reconstruction and asymptote subtraction consistent, finite monotone approach to the asymptote, matching surface root and model provenance. No approval of unfinished sampling statistics or other channels."
+    },
+    {
+      "input": "ch3s/rotdPy/471030810040000000002_hom_sci_1_2__single_m2_r1.py",
+      "input_sha256": "29f98f2bded40b09729a71d12908c951f32f55d18c65ffccde483b475aa06232",
+      "correction_sha256": "c641b07579c3fcc0fd3b3275d799539d990bd5f7734ee472dd433eb6e61921b2",
+      "note": "Radial correction reviewed from full native-component diagnostic 2026-10-23: 48 accepted scan points, direct CASPT2-F12 DZ/TZ CBS (power 3.7), component/CBS reconstruction and asymptote subtraction consistent, finite monotone approach to the asymptote, matching surface root and model provenance. No approval of unfinished sampling statistics or other channels."
+    }
+  ]
+}

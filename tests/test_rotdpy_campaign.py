@@ -52,6 +52,17 @@ def test_completed_unreviewed_sampling_cannot_enter_mess(inp, monkeypatch):
         rotdpy.number_of_states_file(inp)
 
 
+def test_accept_fences_the_reviewed_contract_under_its_lock(inp):
+    current = campaign.contract(inp)
+    atomic_json(campaign.receipt(inp), dict(schema=1, **current))
+    before = campaign.receipt(inp).read_bytes()
+    with pytest.raises(RuntimeError, match='changed after review'):
+        campaign.accept(inp, 'Reviewed an older input', expected={**current, 'input_sha256':'old'})
+    assert campaign.receipt(inp).read_bytes() == before
+    campaign.accept(inp, 'Reviewed exact input', expected=current)
+    campaign.require_review(inp)
+
+
 def test_launch_failure_is_visible_and_requires_explicit_retry(inp, monkeypatch):
     def fail(*args, **kwargs):
         raise OSError('Unable to start executor')

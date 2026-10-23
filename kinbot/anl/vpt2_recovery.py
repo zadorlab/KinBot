@@ -19,7 +19,7 @@ _ROUTE = re.compile(r'(?m)^[ \t]*#[^\n]*(?:\n[^\S\n]*[^\s\n][^\n]*)*')
 _SYMMETRY = re.compile(
     r'(?i)(?<!\S)(?:NoSymm(?:etry)?|Symm(?:etry)?\s*=\s*'
     r'(?:\([^)]*\)|PG\s*=\s*[A-Za-z0-9*]+|None))(?!\S)')
-_PG = re.compile(r'PG=([A-Z0-9*]+)(,LOOSE)?\Z')
+_PG = re.compile(r'PG=([A-Z0-9*]+)(,LOOSE)?(,CENTEROFMASS)?\Z')
 
 
 def symmetry(text):
@@ -118,6 +118,8 @@ def plan(task, output, *, history=(), linear=False):
 
     Prefer the symmetry bypass, then up to two native-reported groups and one
     corroborated Loose detection attempt, then the minimal C1 cap if untried.
+    A persistent, corroborated Eckart/mass-framework mismatch can then try
+    mass-centered orientation and NoSymm once each. Neither changes coordinates.
     Linear geometries retain group detection via NoSymm instead of None/C1.
     """
     required = ('ERROR: Inconsistency found in framework group definition:',
@@ -158,6 +160,22 @@ def plan(task, output, *, history=(), linear=False):
         return f'Symmetry=(PG={new},Loose)', True, change[0]
     if not linear and 'PG=C1' not in tried:
         return 'Symmetry=(PG=C1)', False, change[0]
+    # PG is a cap on computational symmetry, not an override of the nuclear
+    # framework. G16 can read PG=C1 yet retain another framework in Link 202.
+    # Only a corroborated change at the Eckart handoff justifies trying the
+    # documented alternative orientation center (default is nuclear charge).
+    corroborated = (old and re.search(
+        r'(?im)^\s*Full point group\s+' + re.escape(old) + r'\s', output)
+        and re.search(r'(?im)^\s*Framework definition based on atomic masses:\s*'
+                      + re.escape(new) + r'\s*$', output)
+        and re.search(r'(?i)system is set in Eckart orientation', output))
+    if not linear and corroborated:
+        if not any('CENTEROFMASS' in s for s in tried):
+            return f'Symmetry=(PG={new},Loose,CenterOfMass)', True, change[0]
+        # Unlike None, NoSymm retains group detection but avoids initial
+        # reorientation. This is a distinct, finite orientation alternative.
+        if 'NOSYMM' not in tried:
+            return 'NoSymm', False, change[0]
     raise VPT2RecoveryUnavailable(
         f'{task["id"]}: applicable symmetry settings already attempted; '
         'bounded framework retries exhausted.')

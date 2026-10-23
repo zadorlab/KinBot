@@ -128,6 +128,19 @@ def stop_attempt(directory, job, request_path, record, *, allow_completed=False)
     retained = slurm_job_record(str(job))
     if not retained and _finished_graph_attempt(directory, job, allow_completed=allow_completed):
         return True
+    if not retained and not allow_completed and record.get('kind') == 'task':
+        # This is restricted to an explicit request; never automatically
+        # replace arbitrary vanished allocations or reinterpret native errors.
+        from kinbot.anl import dispatch, lost_job
+        if Path(directory).parent.name == 'tasks':
+            _, spec, state = dispatch._load(Path(directory).parent.parent)
+            task = next(t for t in spec['tasks'] if t['id'] == Path(directory).name)
+            proof = lost_job.evidence(directory, job, task,
+                                      state['tasks'].get(task['id'], {}))
+            if proof is not None:
+                record['lost_job_evidence'] = proof
+                atomic_json(request_path, record)
+                return True
     current = _ownership(directory, job, record=retained)
     phase = current['JobState'].split('+')[0]
     if phase == 'COMPLETED' and not allow_completed:

@@ -1991,7 +1991,9 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
         'attempted_framework_groups': groups,
         'attempted_symmetry_settings': list(dict.fromkeys(history)),
         'observed_framework_change': framework_change,
-        'symmetry_detection': 'loose' if ',Loose)' in keyword else 'default',
+        'symmetry_detection': 'loose' if ',Loose' in keyword else 'default',
+        'orientation': ('center_of_mass' if 'CenterOfMass' in keyword
+                        else 'input' if keyword == 'NoSymm' else 'default'),
         'geometry_changed': False,
     }
     if 'manual_fallback' in replacement:

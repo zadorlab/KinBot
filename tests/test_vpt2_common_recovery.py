@@ -365,3 +365,56 @@ def test_route_edit_preserves_title_and_refuses_unrecognized_controls():
     for value in ('Symmetry=(PG=C3V,Follow)', 'NoSymm Symmetry=None'):
         with pytest.raises(VPT2RecoveryUnavailable):
             replace_symmetry('#p Freq=Anharmonic ' + value, 'Symmetry=None')
+
+
+@pytest.mark.parametrize('new,old', [('C2V', 'C2'), ('C3V', 'C3')])
+def test_persistent_eckart_mismatch_orientation_retries_are_bounded(tmp_path, monkeypatch, new, old):
+    root = graph(tmp_path, symmetry='Symmetry=(PG=C1)')
+    _, spec, state = dispatch._load(root)
+    task = next(t for t in spec['tasks'] if t['id'] == 'custom_anharmonic')
+    task['recovery'] = dict(attempted_symmetry_settings=[
+        'NONE', f'PG={new}', f'PG={new},LOOSE', 'PG=C1'])
+    # Restage the synthetic pre-existing history through the same transaction.
+    live_control.commit(root, spec, state, {'custom_anharmonic'}, {'custom_anharmonic': 'fixture'})
+    dispatch.advance(root)
+    _mock_execution(root, 'done')
+    state = dispatch._load(root)[2]
+    state['tasks']['live'].update(status='submitted', job_id='43')
+    atomic_json(root/'state.json', state)
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: job == '43')
+    native = (f'Symm: InNGrp=C1 InAxis=0\nFull point group {old} NOp 2\n'
+              f'Framework definition based on atomic masses: {new}\n'
+              'NOTE: The system is set in Eckart orientation for the anharmonic treatment.\n'
+              'ERROR: Inconsistency found in framework group definition:\n'
+              f'New: {new} - Old: {old}\nError termination via Lnk1e in l717.exe\n')
+    d = fail(root, native)
+    geometry = (d/'geometry.xyz').read_bytes()
+    siblings = {p: file_sha256(p) for n in ('live','done')
+                for p in (root/'tasks'/n).iterdir() if p.is_file()}
+    for keyword in (f'Symmetry=(PG={new},Loose,CenterOfMass)', 'NoSymm'):
+        state = dispatch.advance(root)
+        assert state['tasks']['custom_anharmonic']['status'] == 'staged'
+        assert keyword in (d/'vpt2.com').read_text()
+        assert (d/'geometry.xyz').read_bytes() == geometry
+        assert siblings == {p: file_sha256(p) for p in siblings}
+        fail(root, native)
+    before = len(list((root/'attempts').glob('live_*')))
+    assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'failed'
+    assert len(list((root/'attempts').glob('live_*'))) == before
+
+
+@pytest.mark.parametrize('missing', ['mass', 'full', 'eckart', 'success', 'linear'])
+def test_orientation_retry_requires_corroborated_native_mismatch(missing):
+    from kinbot.anl.vpt2_recovery import plan, VPT2RecoveryUnavailable
+    task = dict(id='generic', input_template='#p Freq=Anharmonic Symmetry=(PG=C1)',
+                recovery=dict(attempted_symmetry_settings=['NONE', 'PG=C2V', 'PG=C2V,LOOSE']))
+    lines = dict(full='Full point group C2 NOp 2\n',
+                 mass='Framework definition based on atomic masses: C2V\n',
+                 eckart='The system is set in Eckart orientation for the anharmonic treatment.\n')
+    lines.pop(missing, None)
+    native = ''.join(lines.values()) + ('ERROR: Inconsistency found in framework group definition:\n'
+                                       'New: C2V - Old: C2\nError termination via Lnk1e\n')
+    if missing == 'success':
+        native += 'Normal termination of Gaussian\n'
+    with pytest.raises(VPT2RecoveryUnavailable):
+        plan(task, native, history=['NOSYMM'], linear=missing == 'linear')

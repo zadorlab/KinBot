@@ -460,6 +460,29 @@ method, basis and result acceptance criteria are not relaxed by these repairs.
 new accepted chemical structure. Native completion and VPT2 result checks
 remain required after recovery.
 
+If the complete native log still shows a different initial full point group
+and mass-based framework at the Eckart handoff after the existing alternatives,
+the common procedure permits two more orientation trials, once each:
+`Symmetry=(PG=<native New group>,Loose,CenterOfMass)` and then `NoSymm`.
+The first selects the documented mass center instead of the default charge
+center; the second retains group detection without initial reorientation.
+Both require the specific framework mismatch, preserve the submitted geometry
+and theory, and retain native validation. These are bounded recovery attempts,
+not a guarantee that Gaussian will complete. No particular molecule or group
+is used to choose them.
+
+Explicit task retries also support a narrow lost-before-output case when
+Slurm has purged the allocation and accounting is unavailable. The owner
+requires the original admission receipt, unchanged staged files, expiry of
+the result-publication grace, no worker or scheduler output, an explicit
+`scontrol` invalid-ID response, and a successful queue query with that job
+absent. An empty best-effort query or a scheduler outage is insufficient.
+The request retains this evidence and records the original exit as unknown;
+it does not synthesize a failed native result or infer a node failure. This
+path requires an explicit generation-fenced request and does not create an
+automatic repeated-resubmission loop. Partial native work needs its own
+diagnosis. Existing descendant and archival safeguards still apply.
+
 ## Preserve and restore the discovered-well inventory
 
 PES startup preserves `chemids` instead of resetting it to the initial well.

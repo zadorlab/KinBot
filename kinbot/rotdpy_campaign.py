@@ -198,12 +198,14 @@ def require_review(inp):
                            'Use kinbot.rotdpy_campaign accept after inspecting its native evidence.')
 
 
-def accept(inp, note):
+def accept(inp, note, *, expected=None):
     inp = Path(inp).resolve()
     with locked(inp):
         path = receipt(inp)
         record = json.loads(path.read_text())
         current = validate(inp, record)
+        if expected is not None and current != expected:
+            raise RuntimeError('Campaign changed after review; inspect the current evidence.')
         record.update(accepted_input_sha256=current['input_sha256'], review_note=note)
         atomic_json(path, record)
     return record

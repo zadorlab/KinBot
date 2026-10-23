@@ -103,6 +103,69 @@ def test_input_write_is_idempotent_and_preserves_bound_samples(inp):
     assert inp.read_text() == original
 
 
+def test_scan_hold_defers_one_resume_and_owner_staging_consumes_it(tmp_path, monkeypatch):
+    from kinbot import vrc_scan_recovery as scans
+    inp = tmp_path/'surface.py'
+    correction = tmp_path/'corr_surface.json'
+    atomic_json(correction, {})
+    inp.write_text('validation_metadata = '+repr(dict(name='production', correction={
+        'source':str(correction), 'source_sha256':file_sha256(correction)}))+'\n')
+    saved = dict(schema=1, input=str(inp), launches=2, **campaign.contract(inp))
+    atomic_json(campaign.receipt(inp), saved)
+    review = tmp_path/'scan_review/surface/scan_review.json'
+    evidence = dict(context_sha256='context', points={'point':dict(status='accepted')})
+    record = dict(reaction='surface', **evidence, evidence_sha256=scans.digest(evidence),
+                  status='running', complete_grid=False)
+    atomic_json(review, record)
+    calls = []
+    monkeypatch.setattr(campaign.subprocess, 'Popen', lambda *args, **kw:
+                        calls.append(args) or SimpleNamespace(pid=42))
+    monkeypatch.setattr(campaign, 'active', lambda *args: False)
+    monkeypatch.setattr('kinbot.pes_phase.process_identity', lambda pid: {'pid':pid})
+    campaign.validate(inp, saved, require_ready=False)
+    with pytest.raises(scans.ScanReviewRequired):
+        campaign.validate(inp, saved)
+    with pytest.raises(scans.ScanReviewRequired):
+        campaign.launch(inp, retry=True)  # An ordinary retry never waives a hold.
+    held = campaign.launch(inp, retry=True, defer_scan_review=True)
+    assert held['resume_requested'] and held['launches'] == 2 and not calls
+    assert campaign.launch(inp, retry=True, defer_scan_review=True) == held
+    with pytest.raises(scans.ScanReviewRequired):
+        campaign.require_review(inp)
+    record.update(status='resolved', complete_grid=True)
+    atomic_json(review, record)
+    # A finished scan without its bound correction is not permission to launch.
+    with pytest.raises(ValueError, match='not bound'):
+        campaign.launch(inp)
+    assert not calls
+    scans.bind_correction_review(correction)
+    resumed = campaign.launch(inp)  # Replacement owner's normal staging call.
+    assert len(calls) == 1 and resumed['launches'] == 3
+    assert not resumed.get('resume_requested') and not resumed.get('resume_hold')
+    campaign.launch(inp)
+    assert len(calls) == 1
+    correction.write_text('{"changed": true}')
+    with pytest.raises(RuntimeError, match='correction changed'):
+        campaign.validate(inp, resumed, require_ready=False)
+
+
+def test_operator_rejection_is_possible_during_scan_hold(inp, tmp_path, monkeypatch):
+    from kinbot import run_policy, run_walltime, vrc_scan_recovery as scans
+    saved = dict(schema=1, input=str(inp), **campaign.contract(inp))
+    atomic_json(campaign.receipt(inp), saved)
+    def held(*args):
+        raise scans.ScanReviewRequired([{'reaction':inp.stem}])
+    monkeypatch.setattr(scans, 'require_ready_for_rates', held)
+    monkeypatch.setattr(campaign, 'active', lambda *args: False)
+    monkeypatch.setattr(run_walltime, 'jobs', lambda *args: [])
+    run_policy.update(tmp_path, max_jobs=2)
+    assert campaign.stop_for_rejection(inp, tmp_path/'archive', dict(id='decision', reason='Reject path'))
+    assert json.loads(campaign.receipt(inp).read_text())['operator_rejected']['request'] == 'decision'
+    campaign.launch(inp, retry=True)
+    with pytest.raises(RuntimeError, match='rejected by the operator'):
+        campaign.require_review(inp)
+
+
 def test_early_leaf_and_final_pes_generate_one_identical_campaign(tmp_path, monkeypatch):
     from kinbot.pes import create_rotdpy_inputs
     from tests.test_rotdpy_profiles import sulfur_correction

@@ -63,6 +63,29 @@ def test_refresh_preserves_campaign_tree_and_allocations(sampling_tree):
     assert any(j['job_id'] == '800' for j in t.jobs)
 
 
+def test_refresh_preserves_owned_sampling_while_scan_is_being_readopted(sampling_tree):
+    from kinbot import rotdpy_campaign as campaign, vrc_scan_recovery as scans
+    t = sampling_tree
+    correction = t.campaign.parent/'corr_channel.json'
+    atomic_json(correction, {})
+    t.campaign.write_text('validation_metadata = '+repr(dict(name='production', correction={
+        'source':str(correction), 'source_sha256':file_sha256(correction)}))+'\n')
+    path = campaign.receipt(t.campaign)
+    saved = json.loads(path.read_text())
+    saved.update(campaign.contract(t.campaign))
+    atomic_json(path, saved)
+    atomic_json(correction.parent/'scan_review/channel/scan_review.json',
+                dict(reaction='channel', status='running', complete_grid=False))
+    with pytest.raises(scans.ScanReviewRequired):
+        campaign.validate(t.campaign, saved)
+    result = run_refresh.refresh(t.root, apply=True)
+    assert result['phase'] == 'launched'
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    assert not any(pid in {700, 701, 702} for pid, sig in t.signals)
+    assert json.loads(path.read_text()) == saved
+    assert any(j['job_id'] == '800' for j in t.jobs)
+
+
 def test_refresh_imports_terminal_search_outcomes_before_replacement(live_tree):
     from kinbot import search_state
     t = live_tree

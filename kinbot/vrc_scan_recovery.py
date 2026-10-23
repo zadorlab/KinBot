@@ -167,7 +167,9 @@ def require_ready_for_rates(correction, *, expected_sha256=None):
     if (record.get('reaction') != name or record.get('status') != 'resolved'
             or not record.get('complete_grid') or digest(evidence) != record.get('evidence_sha256')):
         raise ScanReviewRequired([dict(kind='scan_connectivity', reaction=name,
-            request=str(review), error='Scan must finish and any path review must be resolved before rates.')])
+            request=str(review), status=record.get('status'), complete_grid=record.get('complete_grid'),
+            error=record.get('error') or
+            'Scan must finish and any path review must be resolved before sampling or using its results.')])
     binding = correction.with_suffix('.scan.json')
     payload = json.loads(binding.read_text()) if binding.is_file() else {}
     current_sha256 = file_sha256(correction)

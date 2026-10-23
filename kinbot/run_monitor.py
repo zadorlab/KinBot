@@ -516,9 +516,12 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
             owner = any(p['pid'] == identity.get('pid') and
                         str(p.get('starttime')) == str(identity.get('start')) for p in processes)
             campaigns.append(dict(input=str(inp), status=('operator_rejected' if record.get('operator_rejected')
+                else 'waiting_for_scan' if record.get('resume_requested') and not owner
                 else execution.get('status', record.get('status'))),
                 owner_present=owner, error=execution.get('error') or record.get('error'),
-                correction_review='scan evidence checked on adoption; no separate correction approval'))
+                resume_requested=bool(record.get('resume_requested')),
+                scan_hold=record.get('resume_hold'),
+                correction_review='scan evidence checked before sampling/result use; no separate correction approval'))
         if path.name.startswith('kb_') and path.is_dir():
             sampling.append({'directory': str(path.relative_to(root)),
                 'surface_directories': len(list(path.glob('Surface_*'))),

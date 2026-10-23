@@ -227,6 +227,7 @@ def test_real_workers_run_vrc_early_and_anl_during_vrc_hold(root, slots):
     import time
     record = phase.initialize(root)
     child = '''from pathlib import Path
+from types import SimpleNamespace
 import time
 from kinbot import pes_phase as p, kb
 from kinbot.anl import automatic
@@ -250,7 +251,8 @@ if Path.cwd().name == 'a':
     kb._execute_vrc_branch = vrc
     kb._execute_automatic_branch = anl
     p.wait_for_exploration(allow_vrc=True)
-    kb._post_reaction_branches(object(), dict(queue_job_limit=SLOTS,
+    well = SimpleNamespace(reac_obj=[], reac_ts_done=[])
+    kb._post_reaction_branches(well, dict(queue_job_limit=SLOTS,
         vrc_tst_scan={'a':['scission']}, vrc_tst_max_nodes=SLOTS,
         rotdpy_max_jobs=SLOTS), object(), 'input.json', True)
 else:
@@ -280,6 +282,10 @@ p.assembled()
                 assert (root/'b/explored').exists()
                 assert status == 'postprocessing'
                 (root/'release_vrc').touch()
+            join = root/'a/.kinbot_post_reaction_branches.json'
+            if join.exists():
+                branches = json.loads(join.read_text())['branches']
+                assert all(b['status'] != 'failed' for b in branches.values()), branches
             if len(processes)==2 and all(p.poll() is not None for p in processes.values()):
                 break
             time.sleep(.03)

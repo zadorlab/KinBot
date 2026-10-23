@@ -26,6 +26,16 @@ automatic retries without submitting QC itself. It checks PES owner health
 before and after reconciliation and writes a timestamped reconciliation report.
 Review holds and scientific validation remain in force. The cap is a maximum,
 not a guarantee of a fixed number of idle nodes.
+Sampling ownership is checked independently of current scan readiness: replay
+of saved scan points can temporarily publish `running` during replacement.
+A live, hash-bound campaign is retained through that interval. An absent owner
+waits for a complete, resolved scan and its correction binding before launch;
+the handoff records `resume_requested` so normal VRC owner staging consumes
+that request once readiness returns. A real review hold remains held and is
+reported in `sampling_resume.json`; it does not abort other campaigns or the
+reconciliation and health checks. Completed sampling files stay in place even
+when their use is held. Input/correction changes and ownership mismatches still
+stop the handoff, rather than authorize reuse of different science.
 If an earlier handoff is still active, pass its PID and exact stdout-log path as
 the third and fourth arguments. The script waits for the verified process and
 any existing reconciliation writer; it does not terminate an I/O-blocked writer.
@@ -107,7 +117,8 @@ For a direct correction the arithmetic remains
 [E_sample,frozen(R) - E_sample,frozen(infinity)]`.
 Both curves use the same separation grid; each has its own asymptotic reference.
 The sampling level may itself contain multiple CBS components. Relaxed-scan
-readiness and immutable correction/input provenance gate ROTD adoption; an
+readiness and immutable correction/input provenance gate new ROTD sampling and
+use of sampling results; an
 additional manual approval of the assembled correction is not required.
 Actual converged sampling results are still required before rate integration.
 

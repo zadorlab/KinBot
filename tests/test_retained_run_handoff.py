@@ -14,7 +14,7 @@ import sys
 import pytest
 
 from kinbot import live_control, rotdpy, rotdpy_campaign, run_policy
-from kinbot.execution import atomic_json
+from kinbot.execution import atomic_json, file_sha256
 from tests.test_pes_selection import evidence
 
 
@@ -55,16 +55,23 @@ def request(*args, **kwargs):
     return record
 live_control.request = request
 rotdpy_campaign.active = lambda inp, record: record.get('fixture_active', False)
-def launch(inp, *, retry=False):
-    assert retry
+original_spawn = rotdpy_campaign.subprocess.Popen
+def spawn(args, **kwargs):
+    if args[1:5] != ['-u', '-m', 'kinbot.rotdpy', 'run']:
+        return original_spawn(args, **kwargs)
     assert reaction_decisions.rejected(root/'first/123', '123_channel')
+    inp = Path(args[-1])
     record = json.loads(rotdpy_campaign.receipt(inp).read_text())
     assert not record.get('operator_rejected') and not record.get('fixture_active')
-    record.update(fixture_active=True, owner_identity={'pid':1234})
-    atomic_json(rotdpy_campaign.receipt(inp), record)
+    # The real launcher obtains this identity and records it after spawning.
+    from types import SimpleNamespace
     event('resume:'+inp.stem)
-    return record
-rotdpy_campaign.launch = launch
+    return SimpleNamespace(pid=1234)
+rotdpy_campaign.subprocess.Popen = spawn
+pes_phase.process_identity = lambda pid: {'pid':1234} if pid == 1234 else None
+original_active = rotdpy_campaign.active
+rotdpy_campaign.active = lambda inp, record: (original_active(inp, record)
+    or record.get('owner_identity') == {'pid':1234})
 rotdpy.read_result = lambda inp: event('completed:'+inp.stem)
 def reconcile(args):
     assert args == ['reconcile', str(root), '--apply']
@@ -188,4 +195,58 @@ def test_invalid_decision_batch_stops_before_policy_or_controller_changes(handof
     assert result.returncode != 0
     assert (root/run_policy.NAME).read_bytes() == before
     assert not (root/'events.jsonl').exists()
+    assert all(p.read_bytes() == old for p,old in retained.items())
+
+
+@pytest.mark.parametrize('state', ['running', 'needs_review'])
+def test_scan_hold_preserves_campaigns_and_allows_full_handoff_and_later_resume(handoff, state):
+    from kinbot import vrc_scan_recovery as scans
+    root, _, retained, run = handoff
+    native = root/'first/123/native.xyz'
+    native.write_text('unchanged accepted geometry')
+    evidence = dict(context_sha256='context', points={'pt':dict(status='accepted',
+        hashes={str(native):file_sha256(native)})})
+    reviews = []
+    for name in ('active', 'absent', 'complete', 'rejected'):
+        inp = root/'first/rotdPy'/(name+'.py')
+        correction = root/'first/123/vrctst'/('corr_'+name+'.json')
+        atomic_json(correction, {})
+        inp.write_text('validation_metadata = '+repr(dict(name='production', correction={
+            'source':str(correction), 'source_sha256':file_sha256(correction)}))+'\n')
+        path = rotdpy_campaign.receipt(inp)
+        record = json.loads(path.read_text())
+        record.update(rotdpy_campaign.contract(inp))
+        atomic_json(path, record)
+        review = correction.parent/'scan_review'/name/'scan_review.json'
+        atomic_json(review, dict(schema=1, kind='scan_connectivity', reaction=name,
+            **evidence, evidence_sha256=scans.digest(evidence), complete_grid=state!='running',
+            status=state))
+        atomic_json(correction.with_suffix('.scan.json'), dict(schema=1,
+            scan_evidence_sha256=scans.digest(evidence), correction_sha256=file_sha256(correction)))
+        reviews.append(review)
+        retained[inp] = inp.read_bytes()
+    result = run()
+    assert result.returncode == 0, result.stdout+result.stderr
+    events = [json.loads(s) for s in (root/'events.jsonl').read_text().splitlines()]
+    assert events == ['refresh', 'decision_applied', 'reconcile', 'monitor']
+    assert 'ROTD OWNER RETAINED active.py' in result.stdout
+    assert 'ROTD CHANNEL EXCLUDED rejected.py' in result.stdout
+    assert 'ROTD HELD: SCAN NOT READY absent.py' in result.stdout
+    assert 'ROTD HELD: SCAN NOT READY complete.py' in result.stdout
+    assert 'Handoff finished.' in result.stdout
+    receipt = rotdpy_campaign.receipt(root/'first/rotdPy/absent.py')
+    pending = json.loads(receipt.read_text())
+    assert pending['resume_requested'] and pending['resume_hold']
+    result = run()
+    assert result.returncode == 0, result.stdout+result.stderr
+    assert json.loads(receipt.read_text()) == pending
+    for review in reviews:
+        record = json.loads(review.read_text())
+        record.update(status='resolved', complete_grid=True)
+        atomic_json(review, record)
+    result = run()
+    assert result.returncode == 0, result.stdout+result.stderr
+    events = [json.loads(s) for s in (root/'events.jsonl').read_text().splitlines()]
+    assert events.count('resume:absent') == events.count('completed:complete') == 1
+    assert not json.loads(receipt.read_text()).get('resume_requested')
     assert all(p.read_bytes() == old for p,old in retained.items())

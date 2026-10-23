@@ -150,7 +150,7 @@ def _apply(worker, decisions, path, request):
                     raise ValueError('Channel has live work; specify --cancel-running to reject it.')
     for _, decision, inp in campaign_list:
         record = json.loads(campaigns.receipt(inp).read_text())
-        campaigns.validate(inp, record)
+        campaigns.validate(inp, record, require_ready=False)
         if decision == 'reject' and campaigns.active(inp, record) and not request['cancel_running']:
             raise ValueError('Channel has a live sampling owner; specify --cancel-running.')
     control.acknowledge(path, request, 'applying', archive=str(archive))

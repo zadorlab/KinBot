@@ -142,26 +142,17 @@ PY
 "$KB_PY" -B -u - <<'PY'
 from pathlib import Path
 import json, os
-from kinbot import rotdpy, rotdpy_campaign as campaigns
+from kinbot import rotdpy_campaign as campaigns
+from kinbot.execution import atomic_json
 root = Path(os.environ['KB_RUN']).resolve()
-for p in sorted(root.glob('*/rotdPy/*.campaign.json')):
-    saved = json.loads(p.read_text())
-    inp = Path(saved['input']).resolve(strict=True)
-    if not inp.is_relative_to(root) or campaigns.receipt(inp) != p:
-        raise RuntimeError(f'Campaign ownership mismatch: {p}')
-    campaigns.validate(inp, saved)
-    if saved.get('operator_rejected'):
-        print('ROTD CHANNEL EXCLUDED', inp.name)
-        continue
-    execution = rotdpy.execution_path(inp)
-    if execution.exists() and json.loads(execution.read_text()).get('status') == 'complete':
-        rotdpy.read_result(inp)
-        print('ROTD COMPLETE RETAINED', inp.name)
-    elif campaigns.active(inp, saved):
-        print('ROTD OWNER RETAINED', inp.name)
-    else:
-        result = campaigns.launch(inp, retry=True)
-        print('ROTD OWNER RESUMED', inp.name, result.get('owner_identity'))
+rows = campaigns.resume_retained(root)
+atomic_json(root/'sampling_resume.json', dict(schema=1, campaigns=rows))
+labels = dict(excluded='CHANNEL EXCLUDED', owner_retained='OWNER RETAINED',
+              owner_resumed='OWNER RESUMED', complete_retained='COMPLETE RETAINED',
+              held='HELD: SCAN NOT READY')
+for row in rows:
+    print('ROTD', labels[row['status']], Path(row['input']).name,
+          json.dumps({k:v for k,v in row.items() if k not in ('input','status')}), flush=True)
 PY
 
 check_owners() {

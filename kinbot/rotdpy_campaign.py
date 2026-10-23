@@ -36,8 +36,12 @@ def locked(inp):
         yield
 
 
-def contract(inp):
-    """Read generated literal metadata without importing/executing an input."""
+def contract(inp, *, require_ready=True):
+    """Read immutable metadata; optionally enforce current scan readiness.
+
+    Ownership survives a scan hold. New sampling and result use still require
+    the current complete, reviewed scan and its correction binding.
+    """
     inp = Path(inp).resolve()
     tree = ast.parse(inp.read_text())
     meta = next((ast.literal_eval(n.value) for n in tree.body
@@ -47,14 +51,15 @@ def contract(inp):
     if correction.get('source'):
         if file_sha256(correction['source']) != correction.get('source_sha256'):
             raise RuntimeError(f'{inp.stem}: correction changed since input generation.')
-        from kinbot.vrc_scan_recovery import require_ready_for_rates
-        require_ready_for_rates(correction['source'])
+        if require_ready:
+            from kinbot.vrc_scan_recovery import require_ready_for_rates
+            require_ready_for_rates(correction['source'])
     return dict(input_sha256=file_sha256(inp), correction=correction,
                 review_required=meta.get('name') == 'production')
 
 
-def validate(inp, record):
-    current = contract(inp)
+def validate(inp, record, *, require_ready=True):
+    current = contract(inp, require_ready=require_ready)
     if any(record.get(k) != v for k, v in current.items()):
         raise RuntimeError(f'{Path(inp).stem}: campaign scientific contract changed; '
                            'restore it or use a fresh rotdpy_directory.')
@@ -88,7 +93,7 @@ def retained_processes(root, processes):
                 or identity.get('start') != process['starttime']
                 or process_identity(process['pid']) != identity):
             raise RuntimeError(f'{inp}: independent campaign process identity changed.')
-        validate(inp, saved)
+        validate(inp, saved, require_ready=False)
         retained.add(process['pid'])
     while True:
         children = {p['pid'] for p in processes if p.get('ppid') in retained}
@@ -120,7 +125,7 @@ def owns_job(root, job):
         saved = json.loads(receipt(inp).read_text())
         if saved.get('input') != str(inp):
             raise RuntimeError(f'{inp}: campaign input identity changed.')
-        validate(inp, saved)
+        validate(inp, saved, require_ready=False)
         policy = run_policy.find(directory)
         if policy is None:
             return False
@@ -155,21 +160,38 @@ def active(inp, record):
     return False
 
 
-def launch(inp, *, retry=False):
+def launch(inp, *, retry=False, defer_scan_review=False):
     from kinbot.pes_phase import process_identity
+    from kinbot.vrc_scan_recovery import ScanReviewRequired
     inp = Path(inp).resolve()
     with locked(inp):
         path = receipt(inp)
         old = json.loads(path.read_text()) if path.exists() else None
         if old:
-            validate(inp, old)
+            validate(inp, old, require_ready=False)
             if old.get('operator_rejected'):
                 return old
-            if active(inp, old) or (not retry and not old.get('operator_reinclude')):
+            if active(inp, old):
+                if old.pop('resume_requested', None):
+                    old.pop('resume_hold', None)
+                    atomic_json(path, old)
                 return old
-        current = contract(inp)
+            if not retry and not old.get('operator_reinclude') and not old.get('resume_requested'):
+                return old
+        try:
+            current = contract(inp)
+        except ScanReviewRequired as error:
+            if not defer_scan_review or old is None:
+                raise
+            # The replacement VRC owner calls launch again when this same
+            # bound correction is ready. Persist one request, not a retry loop.
+            old.update(resume_requested=True, resume_hold=error.channels)
+            atomic_json(path, old)
+            return old
         record = dict(old or {}, schema=1, input=str(inp), **current)
         record.pop('operator_reinclude', None)
+        record.pop('resume_requested', None)
+        record.pop('resume_hold', None)
         # Save the contract before spawning, including on a launch failure.
         # An interrupted handoff cannot silently create another generation.
         record.update(status='launching', launches=record.get('launches', 0)+1)
@@ -188,6 +210,50 @@ def launch(inp, *, retry=False):
         record.update(status='launched', owner_identity=process_identity(process.pid))
         atomic_json(path, record)
         return record
+
+
+def resume_retained(root):
+    """Adopt each bound campaign independently during a controller handoff.
+
+    Scan holds are reported and never waived. Integrity/ownership errors stay
+    fatal; only an absent owner of an unchanged, ready input may be launched.
+    """
+    from kinbot import rotdpy
+    from kinbot.vrc_scan_recovery import ScanReviewRequired
+    root = Path(root).resolve()
+    outcomes = []
+    for path in sorted(root.glob('*/rotdPy/*.campaign.json')):
+        saved = json.loads(path.read_text())
+        inp = Path(saved['input']).resolve(strict=True)
+        if not inp.is_relative_to(root) or receipt(inp) != path:
+            raise RuntimeError(f'Campaign ownership mismatch: {path}')
+        validate(inp, saved, require_ready=False)
+        row = dict(input=str(inp))
+        if saved.get('operator_rejected'):
+            row['status'] = 'excluded'
+        elif active(inp, saved):
+            row['status'] = 'owner_retained'
+        else:
+            execution = rotdpy.execution_path(inp)
+            complete = (execution.exists()
+                        and json.loads(execution.read_text()).get('status') == 'complete')
+            try:
+                if complete:
+                    validate(inp, saved)
+                    rotdpy.read_result(inp)
+                    row['status'] = 'complete_retained'
+                else:
+                    result = launch(inp, retry=True, defer_scan_review=True)
+                    if result.get('operator_rejected'):
+                        row['status'] = 'excluded'
+                    elif result.get('resume_requested'):
+                        row.update(status='held', channels=result['resume_hold'], resume_requested=True)
+                    else:
+                        row.update(status='owner_resumed', owner_identity=result.get('owner_identity'))
+            except ScanReviewRequired as error:
+                row.update(status='held', channels=error.channels, resume_requested=False)
+        outcomes.append(row)
+    return outcomes
 
 
 def require_review(inp):
@@ -215,7 +281,7 @@ def stop_for_rejection(inp, archive, request):
     with locked(inp):
         path = receipt(inp)
         record = json.loads(path.read_text())
-        validate(inp, record)
+        validate(inp, record, require_ready=False)
         saved = Path(archive)/'campaigns'/path.name
         if not saved.exists():
             atomic_json(saved, record)

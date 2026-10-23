@@ -38,6 +38,11 @@ from kinbot.execution import (atomic_json as _atomic_json,
                               scheduler_unavailable as _scheduler_unavailable)
 from kinbot.theory import TheoryProfile
 from kinbot.gaussian_input import has_anharmonic_frequency
+from kinbot.anl.vpt2_recovery import (
+    VPT2RecoveryUnavailable,
+    framework_history as _vpt2_framework_history,
+    plan as _vpt2_framework_recovery,
+)
 
 
 _SAFE_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\Z')
@@ -1905,79 +1910,6 @@ def retry_failed(run_dir, ident):
     return archive
 
 
-class VPT2RecoveryUnavailable(RuntimeError):
-    """No untried, diagnostic-specific VPT2 framework recovery applies."""
-
-
-def _vpt2_framework_history(task):
-    """Include legacy receipts and the current PG in the no-repeat fence."""
-    recovery = task.get('recovery', {})
-    groups = recovery.get('attempted_framework_groups', [])
-    if (not isinstance(groups, list) or any(not isinstance(g, str)
-            or not re.fullmatch(r'[A-Za-z0-9*]+', g) for g in groups)):
-        raise VPT2RecoveryUnavailable('Invalid VPT2 framework recovery history.')
-    current = re.search(r'(?i)Symm(?:etry)?\s*=\s*\(?\s*PG\s*=\s*([A-Za-z0-9*]+)',
-                        task['input_template'])
-    groups = list(dict.fromkeys(g.upper() for g in groups))
-    if current and current[1].upper() not in groups:
-        groups.append(current[1].upper())
-    return groups, current[1].upper() if current else None
-
-
-def _vpt2_framework_recovery(task, output):
-    """Recognize native framework failures with a bounded, noncycling retry."""
-    ident = task['id']
-    required = (
-        'ERROR: Inconsistency found in framework group definition:',
-        'Error termination via Lnk1e',
-    )
-    framework_change = re.search(
-        r'New:[ \t]*([A-Za-z0-9*]+)[ \t]*-[ \t]*Old:[ \t]*([A-Za-z0-9*]*)',
-        output, re.IGNORECASE)
-    if (not all(marker in output for marker in required)
-            or framework_change is None
-            or framework_change.group(1).casefold()
-            == framework_change.group(2).casefold()
-            or 'Normal termination of Gaussian' in output):
-        raise VPT2RecoveryUnavailable(
-            f'{ident}: native output is not the framework-group VPT2 failure.')
-    original_template = task['input_template']
-    prior_none = re.search(r'(?i)Symm(?:etry)?\s*=\s*\(?\s*None\b',
-                           original_template)
-    groups, current = _vpt2_framework_history(task)
-    new, old = (framework_change[n].upper() for n in (1, 2))
-    assigned = task.get('recovery', {}).get('assigned_native_framework')
-    # PG is a ceiling on detected symmetry, not an instruction to force that
-    # group. A native mass-framework assignment can therefore still disagree
-    # with initial detection. Try the documented Loose detection tolerance
-    # once, only when both native assignments corroborate this exact case.
-    # No species/group name, geometry adjustment or parser waiver is involved.
-    if (assigned and current == new and old and old != new
-            and not re.search(r'(?i)\bLoose\b', original_template)
-            and re.search(r'(?im)^\s*Full point group\s+'+re.escape(old)+r'\s', output)
-            and re.search(r'(?im)^\s*Framework definition based on atomic masses:\s*'
-                          +re.escape(new)+r'\s*$', output)):
-        return f'Symmetry=(PG={new},Loose)', True, framework_change.group(0)
-    # Do not undo the general None workaround. Only an explicit *new native
-    # failure* with an unassigned old group permits its complementary retry.
-    if prior_none and framework_change.group(2):
-        raise VPT2RecoveryUnavailable(f'{ident}: None retry requires an unassigned old framework group.')
-    if prior_none or assigned:
-        if new in groups:
-            raise VPT2RecoveryUnavailable(f'{ident}: native framework retry was already attempted.')
-        # A second Eckart reassignment (e.g. CS -> C2V) is eligible only if
-        # the failed native old group agrees with the current input. Never
-        # reset to None here: that would cycle the earlier workaround.
-        if assigned and (not current or old != current):
-            raise VPT2RecoveryUnavailable(f'{ident}: native old framework disagrees with the attempted group.')
-        if len(groups) >= 2:
-            raise VPT2RecoveryUnavailable(f'{ident}: bounded native framework retries exhausted.')
-        keyword = f'Symmetry=(PG={new})'
-    else:
-        keyword = 'Symmetry=None'
-    return keyword, bool(prior_none or assigned), framework_change.group(0)
-
-
 def can_recover_gaussian_vpt2_symmetry(run_dir, task, entry):
     """Read-only eligibility check; recovery still verifies hashes/ownership."""
     if (entry.get('status') not in ('failed', 'unavailable')
@@ -1989,27 +1921,25 @@ def can_recover_gaussian_vpt2_symmetry(run_dir, task, entry):
     if not native.is_file():
         return False
     try:
-        _vpt2_framework_recovery(task, native.read_text(errors='replace'))
+        from kinbot.anl.vpt2_recovery import context
+        history, linear = context(run_dir, task, entry)
+        _vpt2_framework_recovery(task, native.read_text(errors='replace'),
+                                 history=history, linear=linear)
     except VPT2RecoveryUnavailable:
         return False
     return True
 
 
 def recover_gaussian_vpt2_symmetry(run_dir, ident):
-    """Retry a proven framework-group failure, retaining earlier workarounds.
+    """Apply the common, history-aware symmetry plan under the graph owner.
 
-    Named old/new mismatches use the established Symmetry=None bypass.
-    If that bypass itself leaves an empty old group and Link 717 rejects it,
-    a retry selects the group reported by Gaussian after Eckart rotation.
-    A subsequent changed group can be tried once; two distinct named groups
-    exhaust that budget. If initial group detection still contradicts the
-    requested and mass-derived group, one Loose detection retry is allowed.
-    The accepted geometry and method remain unchanged. Neither path repeats
-    a native success or overrides an unrelated failure.
+    Preserve geometry, theory and validators; archive only the failed task
+    and affected blocked descendants. Native successes are reconciled first.
     """
     from kinbot.anl import live_control
     from kinbot.anl.salvage import descendants
     from kinbot.anl.timeout_recovery import _job_id
+    from kinbot.anl.vpt2_recovery import context, replace_symmetry, symmetry
     live_control.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
@@ -2046,46 +1976,30 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     if not native.is_file():
         raise RuntimeError(f'{ident}: native Gaussian output is missing.')
     output = native.read_text(errors='replace')
-    keyword, assigned_native, framework_change = _vpt2_framework_recovery(task, output)
-    groups, _ = _vpt2_framework_history(task)
-    if assigned_native:
-        group = re.search(r'PG=([A-Za-z0-9*]+)', keyword)[1]
-        if group not in groups:
-            groups.append(group)
+    history, linear = context(run_dir, task, entry)
+    keyword, assigned_native, framework_change = _vpt2_framework_recovery(
+        task, output, history=history, linear=linear)
+    history.append(symmetry('#p ' + keyword)[0])
+    groups = list(dict.fromkeys(s.split('=', 1)[1].split(',')[0]
+                               for s in history if s.startswith('PG=')))
     replacement = deepcopy(task)
-    original_template = replacement['input_template']
-    symmetry_keyword = (r'(?i)(?<!\S)(?:NoSymm(?:etry)?|'
-                        r'Symm(?:etry)?\s*=\s*(?:None|\(\s*None\s*\))|'
-                        r'Symm(?:etry)?\s*=\s*(?:PG\s*=\s*[A-Za-z0-9*]+|'
-                        r'\(\s*PG\s*=\s*[A-Za-z0-9*]+\s*\)))(?!\S)')
-    occurrences = len(re.findall(symmetry_keyword, original_template))
-    if occurrences > 1:
-        raise RuntimeError(f'{ident}: input has multiple symmetry keywords.')
-    if occurrences == 1:
-        template = re.sub(
-            symmetry_keyword, keyword,
-            original_template, count=1)
-    else:
-        if re.search(r'(?i)(?<!\S)Symm(?:etry)?\b', original_template):
-            raise VPT2RecoveryUnavailable(f'{ident}: unrecognized symmetry options require a manual fallback.')
-        # Insert on the route line; preserve compound Freq options verbatim.
-        if not has_anharmonic_frequency(original_template):
-            raise RuntimeError(
-                f'{ident}: input has no Freq=Anharmonic keyword.')
-        template, count = re.subn(r'(?im)^([ \t]*#(?:[pnt](?=\s))?)(?=\s)',
-                                 lambda m: m[1]+' '+keyword, original_template, count=1)
-        if count != 1:
-            raise RuntimeError(f'{ident}: Gaussian route section is missing.')
-    replacement['input_template'] = template
+    replacement['input_template'] = replace_symmetry(task['input_template'], keyword)
     replacement['recovery'] = {
         'kind': 'gaussian_vpt2_framework_group',
         'change': keyword,
         'assigned_native_framework': assigned_native,
         'attempted_framework_groups': groups,
+        'attempted_symmetry_settings': list(dict.fromkeys(history)),
         'observed_framework_change': framework_change,
         'symmetry_detection': 'loose' if ',Loose)' in keyword else 'default',
         'geometry_changed': False,
     }
+    if 'manual_fallback' in replacement:
+        # Keep an operator fallback's original binding and all its other edits.
+        # Validate its receipt before extending it with this automatic recovery.
+        from kinbot.manual_fallback import logical_task, digest
+        logical_task(task)
+        replacement['manual_fallback']['patched_sha256'] = digest(replacement)
     spec['tasks'][spec['tasks'].index(task)] = replacement
     assign_partitions(spec)
     validate_spec(spec)

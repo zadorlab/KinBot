@@ -68,10 +68,16 @@ def test_common_dispatch_recovers_any_task_and_native_group(tmp_path, monkeypatc
     assert state['tasks']['done']['status'] == 'complete'
     assert state['tasks']['live']['job_id'] == '43'
     assert hashes == {p:file_sha256(p) for p in hashes}
-    # Repeating the native failure cannot create an unbounded retry loop.
+    # The shared C1 fallback is tried once if the native assignment was not C1.
     fail(root)
+    if group != 'C1':
+        assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'staged'
+        assert 'Symmetry=(PG=C1)' in (d/'vpt2.com').read_text()
+        fail(root)
     assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'failed'
-    assert len(list((root/'attempts').glob('live_*'))) == 1
+    assert len(list((root/'attempts').glob('live_*'))) == (1 if group == 'C1' else 2)
+    assert (d/'geometry.xyz').read_bytes() == geometry
+    assert hashes == {p:file_sha256(p) for p in hashes}
 
 
 @pytest.mark.parametrize('route', ['#', '#P', '#n', '#t'])
@@ -256,8 +262,12 @@ def test_native_detection_disagreement_gets_one_loose_retry(tmp_path, monkeypatc
     task = next(t for t in dispatch._load(root)[1]['tasks'] if t['id'] == 'custom_anharmonic')
     assert task['recovery']['symmetry_detection'] == 'loose'
     fail(root, diagnostic)
+    assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'staged'
+    assert 'Symmetry=(PG=C1)' in (d/'vpt2.com').read_text()
+    assert (d/'geometry.xyz').read_bytes() == geometry
+    fail(root, diagnostic)
     assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'failed'
-    assert len(list((root/'attempts').glob('live_*'))) == 2
+    assert len(list((root/'attempts').glob('live_*'))) == 3
 
 
 def test_loose_retry_requires_both_native_framework_assignments(tmp_path, monkeypatch):
@@ -266,4 +276,92 @@ def test_loose_retry_requires_both_native_framework_assignments(tmp_path, monkey
     fail(root)
     dispatch.advance(root)
     fail(root, 'ERROR: Inconsistency found in framework group definition:\nNew: CS - Old: C1\nError termination via Lnk1e\n')
+    assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'staged'
+    text = (root/'tasks/custom_anharmonic/vpt2.com').read_text()
+    assert 'Loose' not in text and 'Symmetry=(PG=C1)' in text
+
+
+def test_legacy_loose_receipt_uses_untried_general_fallback():
+    from kinbot.anl.vpt2_recovery import plan, VPT2RecoveryUnavailable
+    task = dict(id='any_name', input_template='#p Freq=Anharmonic Symmetry=(PG=C3V,Loose)',
+                recovery=dict(assigned_native_framework=True,
+                              attempted_framework_groups=['CS', 'C3V']))
+    output = ('Full point group C3 NOp 3\nFramework definition based on atomic masses: C3V\n'
+              'ERROR: Inconsistency found in framework group definition:\n'
+              'New: C3V - Old: C3\nError termination via Lnk1e\n')
+    assert plan(task, output)[0] == 'Symmetry=(PG=C1)'
+    with pytest.raises(VPT2RecoveryUnavailable, match='already attempted'):
+        plan(task, output, history=['PG=C1'])
+
+
+def test_manual_retry_archive_prevents_automatic_repeat(tmp_path, monkeypatch):
+    from kinbot import live_control as control
+    from tests.test_live_control import allocation
+    from kinbot.anl.vpt2_recovery import context
+    control.configure(tmp_path)
+    root = graph(tmp_path, symmetry='Symmetry=(PG=C1)')
+    d = fail(root)
+    geometry = (d/'geometry.xyz').read_bytes()
+    monkeypatch.setattr(dispatch, '_job_active', lambda _: False)
+    monkeypatch.setattr(live_control, 'slurm_job_record', lambda job: allocation(d, job))
+    # An explicit operator retry predates the new automatic strategy receipt.
+    request = control.request(tmp_path, d, reason='Reviewed symmetry retry', fallback=dict(schema=1, input_edits=[
+        dict(old='Symmetry=(PG=C1)', new='Symmetry=None')]))
+    live_control.process(root)
+    dispatch.advance(root)
+    fail(root)
+    dispatch.advance(root)  # Empty old group -> native CS.
+    _, spec, state = dispatch._load(root)
+    task = next(t for t in spec['tasks'] if t['id'] == 'custom_anharmonic')
+    history, _ = context(root, task, state['tasks']['custom_anharmonic'])
+    assert {'PG=C1', 'NONE', 'PG=CS'} <= set(history)
+    assert 'Symmetry=(PG=CS)' in (d/'vpt2.com').read_text()
+    # Automatic edits preserve the manual fallback's original scientific binding.
+    from kinbot.manual_fallback import logical_task
+    assert 'Symmetry=(PG=C1)' in logical_task(task)['input_template']
+    fail(root)
     assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'failed'
+    assert (d/'geometry.xyz').read_bytes() == geometry
+    assert json.loads((tmp_path/'.kinbot_controls/requests'/f'{request["id"]}.json').read_text())['status'] == 'applied'
+    assert len(list((root/'attempts').glob('live_*'))) == 2
+
+
+def test_native_success_after_general_fallback_cannot_trigger_another_retry(tmp_path, monkeypatch):
+    from tests.test_anl_results import _GAUSSIAN_VPT2
+    root = graph(tmp_path)
+    monkeypatch.setattr(dispatch, '_job_active', lambda _: False)
+    d = fail(root)
+    dispatch.advance(root)  # native CS
+    fail(root)
+    dispatch.advance(root)  # C1
+    # A native-success parser recovery must run before any further symmetry retry.
+    fail(root, _GAUSSIAN_VPT2)
+    assert not dispatch.can_recover_gaussian_vpt2_symmetry(
+        root, next(t for t in dispatch._load(root)[1]['tasks'] if t['id'] == 'custom_anharmonic'),
+        dispatch._load(root)[2]['tasks']['custom_anharmonic'])
+    assert len(list((root/'attempts').glob('live_*'))) == 2
+
+
+def test_linear_framework_failure_does_not_cycle_none_or_c1(tmp_path, monkeypatch):
+    root = graph(tmp_path, linear=True)
+    d = fail(root, 'ERROR: Inconsistency found in framework group definition:\n'
+             'New: C*V - Old: C1\nError termination via Lnk1e\n')
+    monkeypatch.setattr(dispatch, '_job_active', lambda _: False)
+    assert 'NoSymm' in (d/'vpt2.com').read_text()
+    # The unchanged template says None, but rendering has already tried NoSymm.
+    assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'staged'
+    assert 'Symmetry=(PG=C*V)' in (d/'vpt2.com').read_text()
+    fail(root, 'ERROR: Inconsistency found in framework group definition:\n'
+         'New: C*V - Old: C1\nError termination via Lnk1e\n')
+    assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'failed'
+    assert len(list((root/'attempts').glob('live_*'))) == 1
+
+
+def test_route_edit_preserves_title_and_refuses_unrecognized_controls():
+    from kinbot.anl.vpt2_recovery import replace_symmetry, VPT2RecoveryUnavailable
+    source = '#p Freq=(Anharmonic,VibRot)\n Symm=(PG=C3V, Loose)\n\nTitle Symmetry=None\n\n0 1\n'
+    changed = replace_symmetry(source, 'Symmetry=(PG=C1)')
+    assert changed == source.replace('Symm=(PG=C3V, Loose)', 'Symmetry=(PG=C1)')
+    for value in ('Symmetry=(PG=C3V,Follow)', 'NoSymm Symmetry=None'):
+        with pytest.raises(VPT2RecoveryUnavailable):
+            replace_symmetry('#p Freq=Anharmonic ' + value, 'Symmetry=None')

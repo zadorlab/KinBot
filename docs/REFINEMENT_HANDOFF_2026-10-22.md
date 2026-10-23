@@ -1,5 +1,12 @@
 # October 22 geometry/VPT2 repair handoff
 
+Follow-up: the native C2V,Loose attempt also failed. The extended
+[general VPT2 procedure](VPT2_RECOVERY.md) now shares a complete strategy history,
+including archived operator attempts, and considers an untried PG=C1 cap after
+the native-group alternatives. Load it with one code refresh using the command
+below; subsequent eligible retries are automatic. This is a recovery-policy
+update, not a claim that the unresolved native calculation has succeeded.
+
 Latest correction: the subsequent refinement refresh failed before replacing
 controllers because an independently running ROTD campaign was classified as
 an unknown child. The old `controller_refresh.json` still described the earlier

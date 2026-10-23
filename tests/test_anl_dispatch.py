@@ -2250,6 +2250,13 @@ def test_vpt2_empty_framework_gets_one_native_group_retry(tmp_path, group):
     state = json.loads((graph/'state.json').read_text())
     state['tasks']['gaussian_vpt2']['status'] = 'failed'
     (graph/'state.json').write_text(json.dumps(state))
+    if group != 'C1':
+        recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+        assert 'Symmetry=(PG=C1)' in (directory/'vpt2.com').read_text()
+        (directory/'vpt2.log').write_text(native)
+        state = json.loads((graph/'state.json').read_text())
+        state['tasks']['gaussian_vpt2']['status'] = 'failed'
+        (graph/'state.json').write_text(json.dumps(state))
     with pytest.raises(RuntimeError, match='already attempted'):
         recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
 
@@ -2288,9 +2295,12 @@ def test_vpt2_native_framework_sequence_is_bounded_and_preserves_geometry(tmp_pa
     assert changed['recovery']['attempted_framework_groups'] == ['CS', 'C2V']
     assert changed['recovery']['geometry_changed'] is False
     fail('CS', 'C2V')
+    recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+    assert 'Symmetry=(PG=C1)' in (directory/'vpt2.com').read_text()
+    fail('CS', 'C1')
     with pytest.raises(RuntimeError, match='already attempted'):
         recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
-    fail('D2H', 'C2V')
+    fail('D2H', 'C1')
     with pytest.raises(RuntimeError, match='retries exhausted'):
         recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
     assert (directory/'geometry.xyz').read_bytes() == geometry
@@ -2303,8 +2313,9 @@ def test_vpt2_legacy_receipt_allows_only_a_new_matching_native_group():
     native = ('ERROR: Inconsistency found in framework group definition:\n'
               'New: C2V - Old: CS\nError termination via Lnk1e in l717.exe\n')
     assert _vpt2_framework_recovery(task, native)[:2] == ('Symmetry=(PG=C2V)', True)
-    for bad in (native.replace('Old: CS', 'Old: C1'),
-                native + 'Normal termination of Gaussian',
+    # Uncorroborated group promotion falls through to the generic C1 cap.
+    assert _vpt2_framework_recovery(task, native.replace('Old: CS', 'Old: C1'))[:2] == ('Symmetry=(PG=C1)', False)
+    for bad in (native + 'Normal termination of Gaussian',
                 native.replace('New: C2V', 'New: CS')):
         with pytest.raises(VPT2RecoveryUnavailable):
             _vpt2_framework_recovery(task, bad)

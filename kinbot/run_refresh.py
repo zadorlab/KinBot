@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import errno
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -28,6 +29,19 @@ from kinbot.execution import atomic_json
 from kinbot import run_cleanup, run_salvage
 
 _POOL_GUARDED = ContextVar('refresh_pool_guarded', default=False)
+
+
+class RefreshBusyError(RuntimeError):
+    """A local process must finish naturally before replacing its owners."""
+
+    def __init__(self, record):
+        self.record = dict(record)
+        super().__init__(
+            f'Local child/process {record["pid"]} is active; '
+            f'ppid={record.get("ppid")} start={record.get("starttime")} '
+            f'state={record.get("state")} cwd={record["cwd"]} '
+            f'command={record["command"]!r}. '
+            'Leave it running; refresh can wait with --wait-idle SECONDS.')
 
 
 def _pidfd_syscall(number, *args):
@@ -103,8 +117,7 @@ def _controllers(root):
         args = shlex.split(record['command'])
         module = args[args.index('-m') + 1] if '-m' in args and args.index('-m') + 1 < len(args) else None
         if role is None or module != role[0]:
-            raise RuntimeError(f'Local child/process {record["pid"]} is active; '
-                               'leave it running and repeat refresh after it exits.')
+            raise RefreshBusyError(record)
         marker = directory / role[1]
         saved = json.loads(marker.read_text()) if marker.exists() else {}
         if saved.get('pid') != record['pid']:
@@ -875,10 +888,34 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
     return journal
 
 
+def refresh_when_idle(root, *, wait_idle=0., poll_interval=10., **options):
+    """Wait only for the local-process guard; retain every other refusal.
+
+    Each attempt rebuilds the full process/ownership inventory. Never ignore
+    a process, infer that a reused PID exited, or signal a non-controller.
+    A freeze race unwinds its context and resumes owners before this wait.
+    """
+    if (not math.isfinite(wait_idle) or wait_idle < 0
+            or not math.isfinite(poll_interval) or poll_interval <= 0):
+        raise ValueError('Idle wait must be finite/nonnegative and polling finite/positive.')
+    deadline = time.monotonic() + wait_idle
+    while True:
+        try:
+            return refresh(root, **options)
+        except RefreshBusyError as error:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+            print(f'WAIT: {error} Rechecking all owners; {remaining:.0f}s remain.', flush=True)
+            time.sleep(min(poll_interval, remaining))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('root', type=Path)
     parser.add_argument('--apply', action='store_true', help='Replace controllers and launch with current code.')
+    parser.add_argument('--wait-idle', type=float, default=0., metavar='SECONDS',
+                        help='Wait at most this long for local children to finish; never signal them.')
     parser.add_argument('--replace-pending', action='store_true',
                         help='Archive and replace pending allocations; preserve running allocations.')
     parser.add_argument('--deduplicate-vrc', action='store_true',
@@ -909,7 +946,8 @@ def main(argv=None):
         from kinbot.network_revisit import settings as network_settings
         network_options = (network_settings(args.vdw_detection,args.revisit_rejected,args.deduplicate_ts,args.barrier_threshold_l2)
                            if args.vdw_detection is not None or args.revisit_rejected or args.deduplicate_ts or args.barrier_threshold_l2 is not None else None)
-        result = refresh(root, apply=args.apply, replace_pending=args.replace_pending,
+        result = refresh_when_idle(root, wait_idle=args.wait_idle,
+            apply=args.apply, replace_pending=args.replace_pending,
             vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,
                                  args.vrc_reference_basis, args.vrc_reference_power,
                                  direct_caspt2_cbs=args.vrc_direct_caspt2_cbs,

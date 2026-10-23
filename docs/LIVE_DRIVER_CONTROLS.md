@@ -30,6 +30,13 @@ If an earlier handoff is still active, pass its PID and exact stdout-log path as
 the third and fourth arguments. The script waits for the verified process and
 any existing reconciliation writer; it does not terminate an I/O-blocked writer.
 Use `nohup` with an explicit log to keep this handoff running after logout.
+The complete handoff also gives local child processes up to 30 minutes to finish
+before controller replacement. `run_refresh --wait-idle SECONDS` exposes this
+bounded wait directly. Each retry inventories all owners again and logs the
+blocking PID, parent, start time, state, command and working directory. It never
+signals the child or bypasses a scientific/ownership validation failure. If a
+child appears during quiescence, controllers resume before waiting. A persistent
+blocker ends the wait with a diagnostic and leaves the guarded work intact.
 
 ## Enable and inspect
 

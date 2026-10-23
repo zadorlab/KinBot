@@ -76,7 +76,7 @@ policy = run_policy.update(root, max_jobs=int(os.environ['KB_CAP']), exclude=bad
 print('POOL', policy['max_jobs'], 'EXCLUDED', ','.join(policy['excluded_nodes']), flush=True)
 PY
 
-"$KB_PY" -B -u -m kinbot.run_refresh "$KB_RUN" --apply
+"$KB_PY" -B -u -m kinbot.run_refresh "$KB_RUN" --apply --wait-idle 1800
 KB_PIN="$("$KB_PY" -B -c 'import json,sys; from pathlib import Path; print(json.loads((Path(sys.argv[1])/"controller_refresh.json").read_text())["code"])' "$KB_RUN")"
 export PYTHONPATH="$KB_PIN"
 cd "$KB_RUN"  # Keep the checkout cwd from taking precedence over the code snapshot.

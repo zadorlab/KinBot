@@ -939,6 +939,69 @@ def test_submission_race_after_stop_resumes_original_controllers(live_tree, monk
     assert not t.launches
 
 
+@pytest.mark.parametrize('during_freeze', [False, True])
+def test_idle_wait_resumes_only_after_local_child_finishes(live_tree, monkeypatch, during_freeze):
+    t = live_tree
+    blocker = dict(pid=800, ppid=101, starttime='8000', state='S',
+                   cwd=str(t.root/'ch3s/123'), command='/bin/sbatch job.slurm')
+    clock = [0.]
+    sleeps = []
+    if during_freeze:
+        original_send = t.send
+        def send(fd, sig):
+            original_send(fd, sig)
+            if sig == signal.SIGSTOP and not sleeps and blocker not in t.processes:
+                t.processes.append(blocker)
+        monkeypatch.setattr(run_refresh.signal, 'pidfd_send_signal', send)
+    else:
+        t.processes.append(blocker)
+    def sleep(seconds):
+        assert all(p['state'] == 'S' for p in t.processes)
+        assert not any(sig == signal.SIGKILL for _, sig in t.signals)
+        assert not any(pid == 800 for pid, _ in t.signals)
+        sleeps.append(seconds)
+        clock[0] += seconds
+        t.processes.remove(blocker)
+    monkeypatch.setattr(run_refresh.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(run_refresh.time, 'sleep', sleep)
+    before = scientific_files(t.root)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30., poll_interval=5.)
+    assert sleeps == [5.]
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    assert scientific_files(t.root) == before
+    assert not any(pid == 800 for pid, _ in t.signals)
+    assert all(j['state'] == 'RUNNING' for j in t.jobs)
+
+
+def test_idle_wait_rechecks_reused_pid_and_stops_at_deadline(live_tree, monkeypatch, capsys):
+    t = live_tree
+    blocker = dict(pid=800, ppid=101, starttime='8000', state='S',
+                   cwd=str(t.root/'ch3s/123'), command='/bin/sbatch first.slurm')
+    t.processes.append(blocker)
+    clock = [0.]
+    def sleep(seconds):
+        clock[0] += seconds
+        blocker.update(starttime='reused', command='/bin/sbatch second.slurm')
+    monkeypatch.setattr(run_refresh.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(run_refresh.time, 'sleep', sleep)
+    with pytest.raises(run_refresh.RefreshBusyError, match='second.slurm') as error:
+        run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=10., poll_interval=5.)
+    assert error.value.record['starttime'] == 'reused'
+    output = capsys.readouterr().out
+    assert 'first.slurm' in output and 'second.slurm' in output
+    assert clock[0] == 10.
+    assert not t.signals and not t.launches
+
+
+def test_idle_wait_does_not_retry_other_validation_failures(live_tree, monkeypatch):
+    def refuse(*args, **kwargs):
+        raise RuntimeError('Scientific input changed')
+    monkeypatch.setattr(run_refresh, 'refresh', refuse)
+    monkeypatch.setattr(run_refresh.time, 'sleep', lambda _: pytest.fail('Must not wait on invalid input'))
+    with pytest.raises(RuntimeError, match='Scientific input changed'):
+        run_refresh.refresh_when_idle(live_tree.root, apply=True, wait_idle=30.)
+
+
 def test_pid_reuse_does_not_receive_any_signal(live_tree, monkeypatch):
     monkeypatch.setattr(run_refresh, '_starttime', lambda pid: 'reused')
     with pytest.raises(RuntimeError, match='identity changed'):

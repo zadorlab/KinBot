@@ -2293,6 +2293,9 @@ def advance(run_dir, submit=False, submit_only=None):
     lock_recovery.resume(run_dir)
     optimization_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
+    from kinbot.reaction_decisions import graph_rejected
+    if graph_rejected(run_dir):
+        return state
     from kinbot.anl.refinement import pending as pending_refinement
     refining = pending_refinement(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
@@ -2413,6 +2416,8 @@ def advance(run_dir, submit=False, submit_only=None):
         spec, state = molpro_mpi_recovery.recover(run_dir, spec, state)
         spec, state = molpro_solver_recovery.recover(run_dir, spec, state)
         spec, state = recover_vpt2_failures(run_dir, spec, state)
+        from kinbot.anl import vpt2_refinement
+        spec, state = vpt2_refinement.recover(run_dir, spec, state)
         spec, state = molpro_gradient_recovery.recover(run_dir, spec, state)
         state = optimization_recovery.recover(run_dir, spec, state)
         state = account_recovery.recover(run_dir, spec, state)
@@ -2492,7 +2497,8 @@ def advance(run_dir, submit=False, submit_only=None):
         from kinbot.live_control import holding
         sources = set(_task_dependencies(task)) | set(task.get('fallback_on', ()))
         held_sources = [n for n in sources if state['tasks'].get(n,{}).get('status')
-                        in ('failed','unavailable') and holding(run_dir/'tasks'/n)]
+                        in ('failed','unavailable') and not state['tasks'][n].get('vpt2_refinement_exhausted')
+                        and holding(run_dir/'tasks'/n)]
         if held_sources and (entry is None or entry.get('status')=='blocked'):
             state['tasks'][ident] = dict(status='blocked',blocked_by=held_sources,
                                         reason='Upstream failure is held for operator review.')
@@ -2715,7 +2721,8 @@ def drive_run(run_dir, *, interval=20., submit_only=None, hold_failures=True):
                 'complete', 'failed', 'blocked', 'unavailable', 'skipped'}
             if all(value in terminal for value in summary.values()):
                 from kinbot.live_control import holding
-                if hold_failures and any(value in ('failed','unavailable') and holding(
+                if hold_failures and any(value in ('failed','unavailable')
+                        and not state['tasks'].get(name, {}).get('vpt2_refinement_exhausted') and holding(
                         run_dir/'tasks'/name) for name,value in summary.items()):
                     time.sleep(float(interval))
                     continue

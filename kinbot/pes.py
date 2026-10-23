@@ -684,6 +684,9 @@ def postprocess(par, jobs, task, names, mass):
                     vdW_well = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
                 if matches_name(reaction_name, par['skip_reactions']):
                     continue
+                from kinbot.reaction_decisions import rejected
+                if rejected(ji, reaction_name):
+                    continue
 
                 reactant = ji
                 #products this is the chemid of the product

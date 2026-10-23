@@ -347,6 +347,12 @@ def artifacts(paths, root, warnings):
             # A restarted controller replays the grid. Keep this pass distinct
             # from saved acceptance; neither means that new QC ran this pass.
             points = data.get('points', {})
+            from kinbot.reaction_decisions import read as decisions, owns
+            worker = path.parents[3]
+            excluded = next((r for n,r in decisions(worker)['reactions'].items()
+                             if r.get('decision') == 'reject' and owns(data.get('reaction', ''), n)), None)
+            if excluded:
+                item.update(status='operator_rejected', decision=excluded)
             saved = {**data.get('history', {}), **points}
             accepted = [dict(point=k, distance_angstrom=v.get('distance_angstrom'))
                         for k, v in points.items() if v.get('status') == 'accepted']
@@ -509,10 +515,10 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
             identity = record.get('owner_identity') or {}
             owner = any(p['pid'] == identity.get('pid') and
                         str(p.get('starttime')) == str(identity.get('start')) for p in processes)
-            campaigns.append(dict(input=str(inp), status=execution.get('status', record.get('status')),
+            campaigns.append(dict(input=str(inp), status=('operator_rejected' if record.get('operator_rejected')
+                else execution.get('status', record.get('status'))),
                 owner_present=owner, error=execution.get('error') or record.get('error'),
-                correction_review=('accepted' if record.get('accepted_input_sha256') == record.get('input_sha256')
-                    else 'required before MESS' if record.get('review_required') else 'not requested')))
+                correction_review='scan evidence checked on adoption; no separate correction approval'))
         if path.name.startswith('kb_') and path.is_dir():
             sampling.append({'directory': str(path.relative_to(root)),
                 'surface_directories': len(list(path.glob('Surface_*'))),

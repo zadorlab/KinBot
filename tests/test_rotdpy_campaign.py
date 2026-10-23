@@ -41,9 +41,10 @@ def test_launch_once_adopt_and_live_retry_preserve_review_and_contract(inp, monk
         campaign.launch(inp, retry=True)
 
 
-def test_completed_unreviewed_sampling_cannot_enter_mess(inp, monkeypatch):
+def test_sampling_completion_still_required_without_a_second_correction_vote(inp, monkeypatch):
     atomic_json(campaign.receipt(inp), dict(schema=1, **campaign.contract(inp)))
-    with pytest.raises(RuntimeError, match='requires review'):
+    campaign.require_review(inp)
+    with pytest.raises(RuntimeError, match='did not write'):
         rotdpy.number_of_states_file(inp)
     campaign.accept(inp, 'Reviewed')
     campaign.require_review(inp)

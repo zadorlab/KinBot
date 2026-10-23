@@ -236,6 +236,14 @@ def main(argv=None):
                          help='Read additional reviewed models from this worker input JSON.')
     revisit.add_argument('--reason', required=True)
     revisit.add_argument('--apply', action='store_true')
+    decision = sub.add_parser('decide-reaction')
+    decision.add_argument('root', type=Path)
+    decision.add_argument('--worker', required=True)
+    decision.add_argument('--reaction', required=True)
+    decision.add_argument('--decision', choices=['reject', 'include'], required=True)
+    decision.add_argument('--reason', required=True)
+    decision.add_argument('--cancel-running', action='store_true')
+    decision.add_argument('--apply', action='store_true')
     wall = sub.add_parser('pending-time'); wall.add_argument('root', type=Path)
     group = wall.add_mutually_exclusive_group(required=True)
     group.add_argument('--job', action='append'); group.add_argument('--all-pending', action='store_true')
@@ -297,6 +305,18 @@ def main(argv=None):
     elif args.action == 'resources':
         values = {k:getattr(args,k) for k in ('cores','memory_mb','walltime') if getattr(args,k) is not None}
         result = control.resources(args.root, args.name, args.select, values, remove=args.remove)
+    elif args.action == 'decide-reaction':
+        from kinbot.reaction_decisions import validate
+        root = args.root.resolve(strict=True)
+        worker = (root/args.worker).resolve(strict=True)
+        if not worker.is_relative_to(root):
+            raise ValueError('Worker must be inside ROOT.')
+        choices = validate(worker, {args.reaction: args.decision})
+        result = dict(target=str(worker), options={'reaction_decisions': choices},
+                      expected=control.generation(worker, 'network'))
+        if args.apply:
+            result = control.request(root, worker, kind='network', reason=args.reason,
+                expected=result['expected'], options=result['options'], cancel_running=args.cancel_running)
     elif args.action == 'revisit':
         root = args.root.resolve(strict=True)
         target = (root/args.worker).resolve(strict=True)

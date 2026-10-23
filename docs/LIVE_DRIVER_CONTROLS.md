@@ -30,6 +30,12 @@ If an earlier handoff is still active, pass its PID and exact stdout-log path as
 the third and fourth arguments. The script waits for the verified process and
 any existing reconciliation writer; it does not terminate an I/O-blocked writer.
 Use `nohup` with an explicit log to keep this handoff running after logout.
+An optional `KB_DECISIONS_FILE=/absolute/path/decisions.json` adds owner-applied
+reaction decisions after loading the replacement code. The JSON is a list of
+objects with exactly `worker` (relative to ROOT), `reaction` (exact accepted
+name), `decision` (`reject` or `include`), `reason`, and boolean `cancel_running`.
+The handoff waits for these receipts before resuming absent sampling owners and
+running the full reconciliation. Re-running a completed decision is idempotent.
 The complete handoff also gives local child processes up to 30 minutes to finish
 before controller replacement. `run_refresh --wait-idle SECONDS` exposes this
 bounded wait directly. Each retry inventories all owners again and logs the
@@ -37,6 +43,70 @@ blocking PID, parent, start time, state, command and working directory. It never
 signals the child or bypasses a scientific/ownership validation failure. If a
 child appears during quiescence, controllers resume before waiting. A persistent
 blocker ends the wait with a diagnostic and leaves the guarded work intact.
+
+## Persistent reaction selection
+
+Once these controls are loaded, a user decision requires no controller restart:
+
+```bash
+python -m kinbot.run_control decide-reaction "$KB_RUN" \
+  --worker case/worker --reaction exact_accepted_reaction_name \
+  --decision reject --cancel-running --reason 'Reviewed relaxed path changes fragments' --apply
+```
+
+Omit `--apply` for a read-only preview. The network owner waits for its branch
+barrier, archives the previous selection and affected dispatch ledgers, cancels
+only verified dedicated VRC tasks/sampling allocations, then excludes the
+channel from VRC and final PES selection. Shared fragment and ANL calculations
+remain available. Native scan evidence and raw accepted L2 chemistry stay in
+place. A partial correction batch retires only that channel's tasks.
+An interrupted cancellation remains an applying request until its allocations
+finish. Search checkpoints, including rejected searches, are not reset.
+
+`--decision include` removes this operator exclusion and restores the saved
+task ledger for reconciliation. It does not accept failed or unknown chemistry,
+waive scan validation, or invent a converged result. Previously cancelled work
+may still need an ordinary explicit task retry. Operator-excluded sampling
+owners cannot restart through the campaign launcher or retained-run refresh.
+
+## VPT2 geometry recovery and correction-energy reuse
+
+The shared Gaussian VPT2 framework recovery exhausts its applicable symmetry
+settings using native evidence and saved attempt history. For a declared minimum
+with a supported generated Gaussian route, it then makes one isolated tighter
+L2 geometry branch at the same method, basis, dispersion and integration grid.
+The force criterion is at most `1e-5` eV/angstrom (at least ten times tighter than
+an explicitly declared source criterion), and SCF convergence is at least 10.
+A separate ordinary L2 harmonic job must produce the complete positive spectrum
+before regular VPT2 starts at that geometry. The fresh geometry generation gets
+its own full symmetry ladder, including applicable native-group/Loose, C1,
+NoSymm and mass-centered alternatives. Exhaustion then marks VPT2 unavailable
+even when the general task-failure hold is enabled. Unknown failures and failed
+refinement/Hessian validation remain held for diagnosis.
+
+The old L2 geometry and all L3 geometries/single points keep their inputs and
+ownership. The L2-only fallback uses the refined electronic energy and harmonic
+ZPE together; existing L3-SP@L2 components retain their original geometry and
+harmonic reference. ANL/CBH profile assembly sees an unavailable anharmonic
+component explicitly and uses its existing common harmonic fallback machinery.
+No anharmonic term is silently replaced by zero in an anharmonic recipe.
+
+VRC assembly can reuse a completed relaxed-scan central energy for any matching
+correction component. Matching includes geometry/atom order, method, basis,
+charge, multiplicity, electronic model, shift/IPEA, and the hash-bound propagated
+orbital lineage. Native final input/output, final geometry and execution records
+are retained as the component provenance. A different frozen geometry requires
+its own sampling-level calculation. Already dispatched single points are
+adopted, and existing completed outputs take precedence over reuse.
+
+For a direct correction the arithmetic remains
+`[E_high,relaxed(R) - E_high,relaxed(infinity)] -
+[E_sample,frozen(R) - E_sample,frozen(infinity)]`.
+Both curves use the same separation grid; each has its own asymptotic reference.
+The sampling level may itself contain multiple CBS components. Relaxed-scan
+readiness and immutable correction/input provenance gate ROTD adoption; an
+additional manual approval of the assembled correction is not required.
+Actual converged sampling results are still required before rate integration.
 
 ## Enable and inspect
 

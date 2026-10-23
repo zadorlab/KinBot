@@ -214,7 +214,9 @@ def test_default_multireference_scan_publishes_only_caspt2_geometries():
 
 
 @pytest.mark.parametrize('fragment_mults', [(3, 2), (2, 1)])
-def test_energy_anchor_geometry_cbs_and_nonzero_asymptotic_gap(tmp_path, monkeypatch, fragment_mults):
+@pytest.mark.parametrize('model', ['spin_splitting', 'direct'])
+@pytest.mark.parametrize('reuse', [False, True])
+def test_energy_anchor_geometry_cbs_and_nonzero_asymptotic_gap(tmp_path, monkeypatch, fragment_mults, model, reuse):
     """Synthetic energies exercise the actual dispatcher/assembler, not QC."""
     from kinbot import constants
     from kinbot.anl.extrapolation import two_point_cbs
@@ -237,7 +239,10 @@ def test_energy_anchor_geometry_cbs_and_nonzero_asymptotic_gap(tmp_path, monkeyp
     products = [SimpleNamespace(atom=[symbols[i] for i in mapping],
         geom=geom[mapping], mult=mult) for mapping,mult in zip(product_maps,fragment_mults)]
     parameters = dict(vrc_tst_scan_points=distances[:-1], vrc_tst_scan_molpro_key='MYENERGY',
-        vrc_tst_correction_model='spin_splitting',
+        vrc_tst_correction_model=model,
+        vrc_tst_high_method='caspt2-f12(5,4)',
+        vrc_tst_high_basis=['avdz-f12','avtz-f12'],
+        vrc_tst_high_extrapolation_power=3.7,
         vrc_tst_sample_method='caspt2-f12(5,4)', vrc_tst_sample_basis='avdz-f12',
         vrc_tst_state_average_roots={'2':4,'4':1},
         vrc_tst_spin_splitting={'reference_multiplicity':4,
@@ -256,7 +261,20 @@ def test_energy_anchor_geometry_cbs_and_nonzero_asymptotic_gap(tmp_path, monkeyp
         'gap:cas:target:1': [-9.99,-9.965,-9.95,-9.92],
         'gap:cas:reference:0': [-9.60,-9.58,-9.57,-9.55],
         'gap:cas:reference:1': [-9.70,-9.68,-9.67,-9.65]}
+    values['trusted:0'] = values['gap:cas:target:0']
+    values['trusted:1'] = values['gap:cas:target:1']
     saved = {}
+    reused_jobs, dispatched = [], []
+    reuse_role = 'trusted:0' if model == 'direct' else 'gap:cas:target:0'
+    def accepted(row, component, species):
+        if not reuse or component['role'] != reuse_role:
+            return None
+        # The source validator is tested separately against native hash-bound
+        # artifacts. Exercise its contract with the actual correction assembly.
+        job = row.name.removeprefix('vrctst/').removesuffix('_fr') + component['suffix']
+        reused_jobs.append(job)
+        return dict(source_kind='accepted_relaxed_scan', energy_hartree=saved[job])
+    monkeypatch.setattr('kinbot.vrc_energy_reuse.accepted_energy', accepted)
     class Native:
         def __init__(self, species, par): self.species = species
         def create_molpro_input(self, name, VTS, sample, vrc_level):
@@ -271,6 +289,8 @@ def test_energy_anchor_geometry_cbs_and_nonzero_asymptotic_gap(tmp_path, monkeyp
     def dispatch(pending):
         from kinbot.input_refresh import file_sha256
         for name in pending:
+            assert name not in reused_jobs
+            dispatched.append(name)
             p = Path('vrctst/molpro')/name
             p.with_suffix('.out').write_text('Synthetic converged energy fixture')
             p.with_suffix('.input.sha256').write_text(file_sha256(p.with_suffix('.inp')))
@@ -281,13 +301,27 @@ def test_energy_anchor_geometry_cbs_and_nonzero_asymptotic_gap(tmp_path, monkeyp
     def cbs(role):
         return np.array([two_point_cbs(a,b,upper_cardinal=3,power=3.7)
                          for a,b in zip(values[role+':0'],values[role+':1'])])
-    high = cbs('reference') + cbs('gap:cas:target') - cbs('gap:cas:reference')
+    high = (cbs('trusted') if model == 'direct' else
+            cbs('reference') + cbs('gap:cas:target') - cbs('gap:cas:reference'))
     assert correction['e_inf_high'] == pytest.approx(high[-1])
     assert correction['e_high'] == pytest.approx((high-high[-1])*constants.AUtoKCAL)
     assert correction['e_samp'] == pytest.approx((np.array(values['sampling'])+10.)*constants.AUtoKCAL)
     assert correction['frags_mult'] == list(fragment_mults)
     assert correction['vrc_molecule']['multiplicity'] == 2
-    assert len(saved) == 28
+    expected = 12 if model == 'direct' else 28
+    assert len(saved) == expected
+    assert len(reused_jobs) == (4 if reuse else 0)
+    assert len(dispatched) == expected - len(reused_jobs)
+    # Separate frozen sampling energies must still be evaluated at every R.
+    assert all(any(n.startswith('r_vts_pt'+suffix) for n in dispatched)
+               for suffix in ('00', '01', '02', '_asymptote'))
+    # A second pass adopts every completed single point and the same proven
+    # reuse sources without submitting any duplicate allocation.
+    dispatched.clear()
+    reused_jobs.clear()
+    vts.energies(['r'])
+    assert dispatched == []
+    assert json.loads(Path('vrctst/corr_r.json').read_text()) == correction
 
 
 def test_explicit_gaussian_scan_keeps_legacy_qc_route():

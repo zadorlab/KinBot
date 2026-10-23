@@ -189,6 +189,10 @@ def revise_network(generator):
                 raise ValueError('Worker input changed after network revisit was requested.')
             options=r['options']
             species=generator.species
+            if 'reaction_decisions' in options:
+                from kinbot.reaction_decisions import apply
+                if not apply(Path.cwd(), options['reaction_decisions'], path, r):
+                    continue
             models=options.get('vrc_tst_surface_models')
             if models is not None:
                 from kinbot.vrc_multistate import extend_surface_model, normalize_inline_model_paths, load_surface_model
@@ -244,7 +248,7 @@ def revise_network(generator):
                     generator.search_checkpoint = SearchState(generator)
             control.acknowledge(path,r,'applied',detail=(
                 'Replaying cached accepted searches and retrying selected failures.' if replay
-                else 'Reviewed VRC models accepted; existing searches retained.'))
+                else 'Network selection updated; existing searches and accepted chemistry retained.'))
         except OSError:
             # Keep the applying receipt for reconciliation. Do not continue a
             # partially persisted scientific edit as though it were rejected.

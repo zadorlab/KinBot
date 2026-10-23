@@ -1087,6 +1087,16 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
             tuple(key for key in components if key != 'electronic')),
              'l3_sp_l2.json')
 
+    # A VPT2-only refinement must not rebind old L3-SP@L2 energies. The L2
+    # fallback itself uses the new electronic energy and Hessian as a pair.
+    refined = next((t.get('vpt2_geometry_refinement') for t in spec['tasks']
+                    if t['id'] == 'gaussian_vpt2'), None)
+    if refined and all(statuses.get(refined[k]) == 'complete'
+                       for k in ('geometry_task', 'harmonic_task')):
+        source_electronic = _ase_energy_component(run_dir, refined['geometry_task'],
+            key='electronic', method=l2_method, basis=theory['basis'], state_id=state_id)
+        source_harmonic = task_component(run_dir, refined['harmonic_task'],
+            key='harmonic_zpe', state_id=state_id)
     harmonic_components = {
         'electronic': source_electronic, 'harmonic_zpe': source_harmonic}
     harmonic_label = f'L2:{l2_label}:harmonic-ZPE'
@@ -1639,7 +1649,7 @@ def _drive_graphs_locked(graphs, max_jobs, interval):
             runnable = any(e['status'] == 'staged'
                            for state in states.values() for e in state['tasks'].values())
             from kinbot.live_control import holding
-            held = any(e['status'] in ('failed','unavailable') and holding(
+            held = any(e['status'] in ('failed','unavailable') and not e.get('vpt2_refinement_exhausted') and holding(
                 Path(graphs[name])/'tasks'/task) for name,state in states.items()
                 for task,e in state['tasks'].items())
             from kinbot.live_control import find as live_controls

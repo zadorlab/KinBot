@@ -685,7 +685,10 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
     with _controller_lock(input_file):
         from kinbot.rotdpy_campaign import receipt, validate
         if receipt(input_file).exists():
-            validate(input_file, json.loads(receipt(input_file).read_text()))
+            campaign = json.loads(receipt(input_file).read_text())
+            validate(input_file, campaign)
+            if campaign.get('operator_rejected'):
+                raise RuntimeError('Sampling channel was rejected by the operator.')
         provenance = ensure_available()
         if not input_file.with_name('qu.tpl').is_file():
             raise RuntimeError(

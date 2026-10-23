@@ -174,9 +174,12 @@ def request(root, target, *, kind='task', action='retry', cancel_running=False,
             raise ValueError('Refinement scope changed before publication; preview it again.')
     if kind == 'network':
         from kinbot.network_revisit import settings
-        if not isinstance(options, dict) or set(options)-{'vdW_detection','rejected','vrc_tst_surface_models'} or action!='retry':
+        if not isinstance(options, dict) or set(options)-{'vdW_detection','rejected','vrc_tst_surface_models','reaction_decisions'} or action!='retry':
             raise ValueError('Network revisit accepts vdW_detection, rejected and reviewed VRC models.')
         settings(options.get('vdW_detection'),options.get('rejected',False))
+        if 'reaction_decisions' in options:
+            from kinbot.reaction_decisions import validate
+            validate(target, options['reaction_decisions'])
         if 'vrc_tst_surface_models' in options:
             from kinbot.vrc_multistate import normalize_inline_model_paths, validate_surface_model
             normalize_inline_model_paths(options,target)

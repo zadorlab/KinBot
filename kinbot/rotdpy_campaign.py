@@ -163,10 +163,13 @@ def launch(inp, *, retry=False):
         old = json.loads(path.read_text()) if path.exists() else None
         if old:
             validate(inp, old)
-            if active(inp, old) or not retry:
+            if old.get('operator_rejected'):
+                return old
+            if active(inp, old) or (not retry and not old.get('operator_reinclude')):
                 return old
         current = contract(inp)
         record = dict(old or {}, schema=1, input=str(inp), **current)
+        record.pop('operator_reinclude', None)
         # Save the contract before spawning, including on a launch failure.
         # An interrupted handoff cannot silently create another generation.
         record.update(status='launching', launches=record.get('launches', 0)+1)
@@ -188,14 +191,68 @@ def launch(inp, *, retry=False):
 
 
 def require_review(inp):
+    """Verify scan readiness and immutable sampling input, without a second vote.
+
+    contract() checks the relaxed-scan evidence and correction binding. The
+    legacy acceptance receipt remains audit history, not a new MESS gate.
+    """
     path = receipt(inp)
     if not path.exists():
         return
     record = json.loads(path.read_text())
-    current = validate(inp, record)
-    if current['review_required'] and record.get('accepted_input_sha256') != current['input_sha256']:
-        raise ReviewRequired(f'{Path(inp).stem}: completed correction requires review before MESS. '
-                           'Use kinbot.rotdpy_campaign accept after inspecting its native evidence.')
+    if record.get('operator_rejected'):
+        raise RuntimeError(f'{Path(inp).stem}: channel was rejected by the operator.')
+    validate(inp, record)
+
+
+def stop_for_rejection(inp, archive, request):
+    """Stop exactly one bound sampling owner and its verified allocations."""
+    import signal
+    from kinbot import run_refresh, run_walltime, run_policy
+    from kinbot.pes_phase import process_identity
+    from kinbot.anl.live_control import stop_attempt
+    inp = Path(inp).resolve()
+    with locked(inp):
+        path = receipt(inp)
+        record = json.loads(path.read_text())
+        validate(inp, record)
+        saved = Path(archive)/'campaigns'/path.name
+        if not saved.exists():
+            atomic_json(saved, record)
+        record['operator_rejected'] = dict(request=request['id'], reason=request['reason'])
+        atomic_json(path, record)  # Fence restart before signalling the owner.
+        if active(inp, record):
+            identity = record.get('owner_identity')
+            if not identity or process_identity(identity['pid']) != identity:
+                raise ValueError('Sampling owner identity unavailable; no process signalled.')
+            try:
+                fd = run_refresh._pidfd_open(identity['pid'])
+            except ProcessLookupError:
+                return False
+            try:
+                if process_identity(identity['pid']) != identity:
+                    return False
+                run_refresh._pidfd_send_signal(fd, signal.SIGTERM)
+            finally:
+                os.close(fd)
+            return False  # Re-enter after its forwarding/cleanup handlers exit.
+        policy = run_policy.find(inp.parent)
+        if policy is None:
+            raise ValueError('Sampling cancellation requires the shared allocation ledger.')
+        sample_root = inp.with_name('kb_'+inp.stem)
+        pending = False
+        for job in run_walltime.jobs(policy.parent):
+            directory = Path(job['directory']).resolve()
+            if not directory.is_relative_to(sample_root):
+                continue
+            claim = dict(job_id=job['id'], directory=str(directory))
+            if not owns_job(policy.parent, claim):
+                raise ValueError('Sampling allocation ownership is unverified; retained.')
+            cancel_path = saved.parent/(job['id']+'.cancel.json')
+            cancel = (json.loads(cancel_path.read_text()) if cancel_path.exists()
+                      else dict(request, kind='reaction_decision', cancel_requested=False))
+            pending |= not stop_attempt(directory, job['id'], cancel_path, cancel, allow_completed=True)
+        return not pending
 
 
 def accept(inp, note, *, expected=None):
@@ -218,6 +275,8 @@ def ensure(inp, *, interval=15):
     launch(inp)
     last_error = None
     while True:
+        from kinbot.pes_phase import checkpoint
+        checkpoint()
         record = json.loads(receipt(inp).read_text())
         validate(inp, record)
         execution = rotdpy.execution_path(inp)

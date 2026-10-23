@@ -81,6 +81,65 @@ KB_PIN="$("$KB_PY" -B -c 'import json,sys; from pathlib import Path; print(json.
 export PYTHONPATH="$KB_PIN"
 cd "$KB_RUN"  # Keep the checkout cwd from taking precedence over the code snapshot.
 
+# Optional operator decisions are consumed by the replacement owners. Never
+# publish new control semantics to old pinned drivers before replacement.
+"$KB_PY" -B -u - <<'PY'
+from pathlib import Path
+import json, os, time
+from kinbot import live_control as control
+from kinbot.reaction_decisions import validate, read
+from kinbot.pes_phase import active_worker
+source = os.environ.get('KB_DECISIONS_FILE')
+if source:
+    root = Path(os.environ['KB_RUN']).resolve()
+    decisions = json.loads(Path(source).read_text())
+    if not isinstance(decisions, list) or not decisions:
+        raise ValueError('KB_DECISIONS_FILE must contain a nonempty list.')
+    requests = []
+    for item in decisions:
+        if set(item) != {'worker','reaction','decision','reason','cancel_running'} or type(item['cancel_running']) is not bool:
+            raise ValueError('Invalid reaction decision fields.')
+        worker = (root/item['worker']).resolve(strict=True)
+        if not worker.is_relative_to(root):
+            raise ValueError('Reaction worker must be inside the run.')
+        choices = validate(worker, {item['reaction']:item['decision']})
+        if read(worker)['reactions'].get(item['reaction'], {}).get('decision') == item['decision']:
+            print('REACTION DECISION RETAINED', item['reaction'], item['decision'], flush=True)
+            continue
+        pending = [(p,r) for p,r in control.requests(worker, kinds={'network'})
+                   if r['target'] == str(worker) and r['options'].get('reaction_decisions') == choices]
+        if pending:
+            requests.append(pending[0][0])
+            continue
+        deadline = time.monotonic()+1800
+        while not active_worker(worker):
+            status = worker.parent/'pes_status.json'
+            owner = json.loads(status.read_text()) if status.exists() else {}
+            if owner.get('status') == 'failed' or time.monotonic() > deadline:
+                raise RuntimeError('Decision needs a live replacement worker: '+str(worker))
+            print('WAIT: replacement worker registration', worker.name, flush=True)
+            time.sleep(10)
+        record = control.request(root, worker, kind='network', reason=item['reason'],
+            options={'reaction_decisions':choices}, cancel_running=item['cancel_running'])
+        requests.append(root/'.kinbot_controls/requests'/(record['id']+'.json'))
+        print('REACTION DECISION QUEUED', record['id'], item['reaction'], item['decision'], flush=True)
+    deadline = time.monotonic()+1800
+    while requests:
+        for path in requests[:]:
+            record = json.loads(path.read_text())
+            if record['status'] == 'applied':
+                print('REACTION DECISION APPLIED', record['id'], flush=True)
+                requests.remove(path)
+            elif record['status'] not in ('queued','applying'):
+                raise RuntimeError('Reaction decision needs attention: '+json.dumps(record))
+        if not requests:
+            break
+        if time.monotonic() > deadline:
+            raise RuntimeError('Decision remains owned/queued; inspect run_control show before another refresh.')
+        print('WAIT: replacement drivers are applying reaction decisions.', flush=True)
+        time.sleep(15)
+PY
+
 # Resume independent campaigns before a potentially slow, whole-run result sweep.
 "$KB_PY" -B -u - <<'PY'
 from pathlib import Path
@@ -93,6 +152,9 @@ for p in sorted(root.glob('*/rotdPy/*.campaign.json')):
     if not inp.is_relative_to(root) or campaigns.receipt(inp) != p:
         raise RuntimeError(f'Campaign ownership mismatch: {p}')
     campaigns.validate(inp, saved)
+    if saved.get('operator_rejected'):
+        print('ROTD CHANNEL EXCLUDED', inp.name)
+        continue
     execution = rotdpy.execution_path(inp)
     if execution.exists() and json.loads(execution.read_text()).get('status') == 'complete':
         rotdpy.read_result(inp)

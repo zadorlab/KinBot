@@ -15,7 +15,7 @@ from kinbot.anl.ts_reuse import digest
 NAME = 'pes_l2_selection.json'
 
 
-def choose(snapshots):
+def choose(snapshots, decisions=None):
     """Use the same endpoint/pathway rule as final PES assembly, at L2 E+ZPE."""
     from kinbot.pes import select_summary_reaction
     paths, candidates, owners = {}, [], {}
@@ -30,6 +30,8 @@ def choose(snapshots):
             if name in owners:
                 raise ValueError(f'{name}: reaction name occurs in multiple workers.')
             owners[name] = worker
+            if (decisions or {}).get(worker, {}).get(name, {}).get('decision') == 'reject':
+                continue
             if row['barrierless']:
                 records = [stable[p] for p in row['products']]
             else:
@@ -60,6 +62,9 @@ def choose(snapshots):
             selected=sorted(names & selected), omitted={},
             complexes=sorted({r['product_complex'] for r in evidence['network']['reactions']
                               if r['name'] in selected and r.get('product_complex')}))
+        for name, record in (decisions or {}).get(worker, {}).items():
+            if name in names and record.get('decision') == 'reject':
+                result[worker]['omitted'][name] = dict(record, reason='operator_rejected', operator_reason=record.get('reason'))
         for candidate in candidates:
             if owners[candidate[1]] != worker or candidate[1] in selected:
                 continue
@@ -104,7 +109,8 @@ def publish(root, phase, workers):
             if evidence.get('generation') != dict(token=phase['token'], epoch=phase['epoch']):
                 raise ValueError(f'{name}: L2 snapshot belongs to another exploration generation.')
             snapshots[name] = evidence
-        result = choose(snapshots)
+        from kinbot.reaction_decisions import read as read_decisions
+        result = choose(snapshots, {name: read_decisions(root/name)['reactions'] for name in managed})
     except (OSError, ValueError, KeyError, TypeError) as error:
         # A bad ANL input must not close the independent VRC review/execution
         # path. ANL fails at its planning boundary, before submitting QC.
@@ -123,7 +129,13 @@ def selected_view(species, parameters):
     from kinbot import pes_phase
     phase = pes_phase._read()
     if phase is None or not parameters.get('composite_method'):
-        return species
+        from kinbot.reaction_decisions import rejected
+        view = copy(species)
+        view.reac_ts_done = list(species.reac_ts_done)
+        for i, reaction in enumerate(species.reac_obj):
+            if view.reac_ts_done[i] == -1 and rejected(Path.cwd(), reaction.instance_name):
+                view.reac_ts_done[i] = -2
+        return view
     root, worker = pes_phase._ROOT, pes_phase._WORKER
     selection = json.loads((root/NAME).read_text())
     if (selection.get('token'), selection.get('epoch')) != (phase['token'], phase['epoch']):

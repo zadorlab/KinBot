@@ -15,6 +15,10 @@ class VPT2RecoveryUnavailable(RuntimeError):
     """No untried, diagnostic-specific framework recovery applies."""
 
 
+class VPT2RecoveryExhausted(VPT2RecoveryUnavailable):
+    """The supported ladder has finished for this geometry generation."""
+
+
 _ROUTE = re.compile(r'(?m)^[ \t]*#[^\n]*(?:\n[^\S\n]*[^\s\n][^\n]*)*')
 _SYMMETRY = re.compile(
     r'(?i)(?<!\S)(?:NoSymm(?:etry)?|Symm(?:etry)?\s*=\s*'
@@ -100,7 +104,8 @@ def context(run_dir, task, entry):
         prior = record.get('task', {})
         if (record.get('geometry_sha256') != entry.get('geometry_sha256')
                 or prior.get('id') != task['id']
-                or prior.get('result_parser') != task.get('result_parser')):
+                or prior.get('result_parser') != task.get('result_parser')
+                or prior.get('vpt2_geometry_refinement') != task.get('vpt2_geometry_refinement')):
             continue
         tried.extend(settings(prior))
         native = path.parent / prior['input_name']
@@ -177,6 +182,6 @@ def plan(task, output, *, history=(), linear=False):
     if not linear and corroborated:
         if not any('CENTEROFMASS' in s for s in tried):
             return f'Symmetry=(PG={new},Loose,CenterOfMass)', True, change[0]
-    raise VPT2RecoveryUnavailable(
+    raise VPT2RecoveryExhausted(
         f'{task["id"]}: applicable symmetry settings already attempted; '
         'bounded framework retries exhausted.')

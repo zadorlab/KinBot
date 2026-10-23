@@ -192,11 +192,13 @@ def process(graph):
             if r['action'] == 'release':
                 control.acknowledge(path, r, 'applied')
                 continue
+            entry = state['tasks'].get(ident, {})
+            if entry.get('manual_rejection'):
+                raise ValueError('Reaction is excluded; include its channel before requesting a task retry.')
             if r['kind'] == 'refinement':
                 from kinbot.anl.refinement import process as refine
                 refine(graph, path, r, spec, state)
                 continue
-            entry = state['tasks'].get(ident, {})
             from kinbot.vrc_scan_recovery import rejected_point
             rejected = (spec.get('intent', {}).get('vrc_scan_distance_angstrom') is not None
                         and rejected_point(graph, ident))
@@ -280,6 +282,8 @@ def resource_spec(graph, spec, state, only=None):
     changed_baseline = False
     for task in result['tasks']:
         ident = task['id']
+        if state['tasks'].get(ident, {}).get('manual_rejection'):
+            continue
         if only is not None and ident not in only:
             continue
         if only is None and state['tasks'].get(ident, {}).get('status') not in (None, 'staged', 'blocked', 'skipped'):

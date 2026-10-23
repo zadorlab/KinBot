@@ -1164,6 +1164,29 @@ def _gaussian_fundamental_bands(output):
     return [row[1] for row in modes], harmonic, anharmonic
 
 
+def parse_gaussian_harmonic(output, *, method, basis, dispersion='', natoms):
+    """Validate the separate minimum Hessian used by VPT2 geometry recovery."""
+    from kinbot.gaussian_input import has_anharmonic_frequency
+    route = _gaussian_route(output)
+    if (not output.strip() or not output.strip().splitlines()[-1].lstrip().startswith('Normal termination of Gaussian')
+            or has_anharmonic_frequency(route)
+            or not re.search(r'\bFreq(?:uencies)?\b', route, re.I)
+            or not re.search(rf'\b{re.escape(method)}/{re.escape(basis)}(?![\w-])', route, re.I)):
+        raise ValueError('Gaussian harmonic output lacks the requested successful frequency calculation.')
+    if ((dispersion and not _gaussian_declares_dispersion(output, dispersion))
+            or (not dispersion and _gaussian_has_any_dispersion(output))):
+        raise ValueError('Gaussian harmonic dispersion differs from the requested level.')
+    frequencies = [float(v.replace('D', 'E')) for line in re.findall(
+        r'^\s*Frequencies\s+--\s*(.*)$', output, re.M) for v in line.split()]
+    if len(frequencies) not in {3*natoms-6, 3*natoms-5} or any(not math.isfinite(v) or v <= 0 for v in frequencies):
+        raise ValueError('Refined L2 minimum requires a complete positive harmonic spectrum.')
+    zpe = _one_number(output, rf'Zero-point correction=\s*({_NUMBER})', 'Gaussian harmonic ZPE')
+    if abs(zpe-sum(frequencies)*.5*invcm/Hartree) > 2.e-6:
+        raise ValueError('Gaussian harmonic ZPE and frequencies disagree.')
+    return dict(kind='gaussian_harmonic', method=method, basis=basis, dispersion=dispersion,
+                frequencies_cm_inverse=frequencies, zpe={'hartree': zpe}, review_required=False)
+
+
 def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
     """Read VPT2 ZPE and fundamentals under the ANL warning policy.
 
@@ -1474,9 +1497,11 @@ def validate_result_parser(request, *, backend, template, outputs,
                  and (reference != 'ROHF' or re.search(
                      r'^\s*rohfcore\s*=\s*semicanonical\s*$', template,
                      re.IGNORECASE | re.MULTILINE)))
-    elif kind == 'gaussian_vpt2':
+    elif kind in ('gaussian_vpt2', 'gaussian_harmonic'):
         from kinbot.gaussian_input import has_anharmonic_frequency
-        valid = (set(request) in ({'kind', 'file', 'method', 'basis'},
+        declaration = dict(request)
+        natoms = declaration.pop('natoms', None)
+        valid = (set(declaration) in ({'kind', 'file', 'method', 'basis'},
                                   {'kind', 'file', 'method', 'basis', 'dispersion'})
                  and backend == 'gaussian'
                  and isinstance(request.get('method'), str)
@@ -1486,7 +1511,10 @@ def validate_result_parser(request, *, backend, template, outputs,
                  and re.search(rf'\b{re.escape(request["method"])}/'
                                rf'{re.escape(request["basis"])}(?![\w-])', template,
                                re.IGNORECASE) is not None
-                 and has_anharmonic_frequency(template)
+                 and (natoms is None and has_anharmonic_frequency(template) if kind == 'gaussian_vpt2'
+                      else type(natoms) is int and natoms >= 2
+                      and bool(re.search(r'\bFreq(?:uencies)?\b', template, re.I))
+                      and not has_anharmonic_frequency(template))
                  and ((bool(request.get('dispersion'))
                        and _gaussian_dispersion_declaration_count(template) == 1
                        and _gaussian_declares_dispersion(
@@ -1582,6 +1610,9 @@ def parse_result(output, request):
         return parse_gaussian_vpt2(output, method=request['method'],
                                    basis=request['basis'],
                                    dispersion=request.get('dispersion', ''))
+    if kind == 'gaussian_harmonic':
+        return parse_gaussian_harmonic(output, method=request['method'], basis=request['basis'],
+                                      dispersion=request.get('dispersion', ''), natoms=request['natoms'])
     raise ValueError(f'Unsupported result parser {kind!r}.')
 
 

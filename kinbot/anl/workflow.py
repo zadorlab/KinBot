@@ -88,11 +88,15 @@ def task_component(run_dir, task_id, *, key, state_id):
         if (settings.get('reference') in ('RHF', 'ROHF')
                 and settings.get('correlation') == 'unrestricted'):
             settings['reference_convention'] = 'RHF/ROHF-UCC'
-    elif kind == 'molpro_harmonic':
+    elif kind in ('molpro_harmonic', 'gaussian_harmonic'):
         quantity = 'zpe'
         value = parsed['zpe']['hartree']
         method = parsed['method']
         basis = parsed['basis']
+        if kind == 'gaussian_harmonic':
+            settings['dispersion'] = parsed['dispersion']
+            if parsed['dispersion'] == 'GD3BJ':
+                method += '-D3BJ'
         if method == 'CCSD(T)-F12b':
             settings['scale_trip'] = 1
         if 'reference' in parsed:

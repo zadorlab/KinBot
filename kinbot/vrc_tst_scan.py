@@ -361,8 +361,10 @@ class VTS:
         return
 
     def configured_reactions(self, reactions):
+        from kinbot.reaction_decisions import rejected
         return [reaction.instance_name for reaction in self.well.reac_obj
-                if matches_name(reaction.instance_name, reactions)]
+                if matches_name(reaction.instance_name, reactions)
+                and not rejected(Path.cwd(), reaction.instance_name)]
 
     def opt_products(self, reactions, *, submit=True):
         """
@@ -1209,6 +1211,10 @@ class VTS:
         db = connect('kinbot.db')
         records = {}
         pending = {}
+        # Adopt already dispatched single points through their existing owner.
+        assigned = set()
+        for ledger in Path('vrctst/molpro').glob('dispatch*/state.json'):
+            assigned.update(json.loads(ledger.read_text()).get('tasks', {}))
         model = correction_model(self.par)
         components_by_reaction = {}
         context_by_reaction = {}
@@ -1283,10 +1289,16 @@ class VTS:
                             name=f'{job}', VTS=True)
                     else:
                         e_stat, e = 0, -1.
+                    reused = None
+                    if not e_stat and job not in assigned:
+                        from kinbot.vrc_energy_reuse import accepted_energy
+                        reused = accepted_energy(last_row, component, scan_spec)
+                        if reused is not None:
+                            e_stat, e = 1, reused['energy_hartree']
                     logger.debug(f'{job}, {e_stat}, {e}')
                     if not e_stat:
                         pending[job] = scan_spec
-                    records[reac].append((component['role'], job, molp))
+                    records[reac].append((component['role'], job, molp, reused))
 
         if pending:
             self._dispatch_molpro_corrections(pending)
@@ -1308,7 +1320,11 @@ class VTS:
             energies = {component['role']: [] for component in components}
             native_components = {component['role']: []
                                  for component in components}
-            for role, job, molp in records[reac]:
+            for role, job, molp, reused in records[reac]:
+                if reused is not None:
+                    energies[role].append(reused['energy_hartree'])
+                    native_components[role].append(dict(reused, job=job))
+                    continue
                 e_stat, energy = molp.get_molpro_energy(
                     key=self.par['vrc_tst_scan_molpro_key'], name=job,
                     VTS=True)

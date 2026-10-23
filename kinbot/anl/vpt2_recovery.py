@@ -117,9 +117,9 @@ def plan(task, output, *, history=(), linear=False):
     """Use established alternatives once each, only for the native mismatch.
 
     Prefer the symmetry bypass, then up to two native-reported groups and one
-    corroborated Loose detection attempt, then the minimal C1 cap if untried.
-    A persistent, corroborated Eckart/mass-framework mismatch can then try
-    mass-centered orientation and NoSymm once each. Neither changes coordinates.
+    corroborated Loose detection attempt, then the minimal C1 cap and NoSymm.
+    A persistent, corroborated Eckart/mass-framework mismatch can additionally
+    try mass-centered orientation once. Submitted coordinates stay unchanged.
     Linear geometries retain group detection via NoSymm instead of None/C1.
     """
     required = ('ERROR: Inconsistency found in framework group definition:',
@@ -160,6 +160,11 @@ def plan(task, output, *, history=(), linear=False):
         return f'Symmetry=(PG={new},Loose)', True, change[0]
     if not linear and 'PG=C1' not in tried:
         return 'Symmetry=(PG=C1)', False, change[0]
+    # NoSymm is an independent, established framework alternative for both
+    # linear and nonlinear geometries. Do not make it depend on the extra
+    # mass/Eckart diagnostics needed to justify a CenterOfMass trial.
+    if not linear and 'NOSYMM' not in tried:
+        return 'NoSymm', False, change[0]
     # PG is a cap on computational symmetry, not an override of the nuclear
     # framework. G16 can read PG=C1 yet retain another framework in Link 202.
     # Only a corroborated change at the Eckart handoff justifies trying the
@@ -172,10 +177,6 @@ def plan(task, output, *, history=(), linear=False):
     if not linear and corroborated:
         if not any('CENTEROFMASS' in s for s in tried):
             return f'Symmetry=(PG={new},Loose,CenterOfMass)', True, change[0]
-        # Unlike None, NoSymm retains group detection but avoids initial
-        # reorientation. This is a distinct, finite orientation alternative.
-        if 'NOSYMM' not in tried:
-            return 'NoSymm', False, change[0]
     raise VPT2RecoveryUnavailable(
         f'{task["id"]}: applicable symmetry settings already attempted; '
         'bounded framework retries exhausted.')

@@ -2257,6 +2257,12 @@ def test_vpt2_empty_framework_gets_one_native_group_retry(tmp_path, group):
         state = json.loads((graph/'state.json').read_text())
         state['tasks']['gaussian_vpt2']['status'] = 'failed'
         (graph/'state.json').write_text(json.dumps(state))
+    recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+    assert 'NoSymm' in (directory/'vpt2.com').read_text()
+    (directory/'vpt2.log').write_text(native)
+    state = json.loads((graph/'state.json').read_text())
+    state['tasks']['gaussian_vpt2']['status'] = 'failed'
+    (graph/'state.json').write_text(json.dumps(state))
     with pytest.raises(RuntimeError, match='already attempted'):
         recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
 
@@ -2297,6 +2303,9 @@ def test_vpt2_native_framework_sequence_is_bounded_and_preserves_geometry(tmp_pa
     fail('CS', 'C2V')
     recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
     assert 'Symmetry=(PG=C1)' in (directory/'vpt2.com').read_text()
+    fail('CS', 'C1')
+    recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')
+    assert 'NoSymm' in (directory/'vpt2.com').read_text()
     fail('CS', 'C1')
     with pytest.raises(RuntimeError, match='already attempted'):
         recover_gaussian_vpt2_symmetry(graph, 'gaussian_vpt2')

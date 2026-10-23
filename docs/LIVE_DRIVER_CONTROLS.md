@@ -460,12 +460,13 @@ method, basis and result acceptance criteria are not relaxed by these repairs.
 new accepted chemical structure. Native completion and VPT2 result checks
 remain required after recovery.
 
-If the complete native log still shows a different initial full point group
-and mass-based framework at the Eckart handoff after the existing alternatives,
-the common procedure permits two more orientation trials, once each:
-`Symmetry=(PG=<native New group>,Loose,CenterOfMass)` and then `NoSymm`.
-The first selects the documented mass center instead of the default charge
-center; the second retains group detection without initial reorientation.
+For nonlinear framework-group failures, the established sequence includes
+`NoSymm` after `PG=C1`, even when the log lacks the additional mass/Eckart
+diagnostics. It retains group detection without initial reorientation. If the
+complete native log still shows a different initial full point group and
+mass-based framework at the Eckart handoff, one additional
+`Symmetry=(PG=<native New group>,Loose,CenterOfMass)` trial is applicable.
+This selects the documented mass center instead of the default charge center.
 Both require the specific framework mismatch, preserve the submitted geometry
 and theory, and retain native validation. These are bounded recovery attempts,
 not a guarantee that Gaussian will complete. No particular molecule or group

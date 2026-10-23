@@ -342,6 +342,7 @@ def artifacts(paths, root, warnings):
         elif path.name == '.kinbot_post_reaction_branches.json':
             item.update(branches=data.get('branches'), mess_gate=data.get('mess_gate'),
                         final_solver=data.get('final_solver'))
+            item['vrc_tst_scope'] = 'scan/correction preparation and sampling handoff; RotdPy is reported separately'
             item['previous_controller'] = previous_controller_record(path, root, warnings)
         elif path.name == 'scan_review.json':
             # A restarted controller replays the grid. Keep this pass distinct
@@ -352,7 +353,8 @@ def artifacts(paths, root, warnings):
             excluded = next((r for n,r in decisions(worker)['reactions'].items()
                              if r.get('decision') == 'reject' and owns(data.get('reaction', ''), n)), None)
             if excluded:
-                item.update(status='operator_rejected', decision=excluded)
+                item.update(status='operator_rejected', decision=excluded,
+                            recorded_status=data.get('status'), recorded_error=data.get('error'))
             saved = {**data.get('history', {}), **points}
             accepted = [dict(point=k, distance_angstrom=v.get('distance_angstrom'))
                         for k, v in points.items() if v.get('status') == 'accepted']
@@ -383,7 +385,7 @@ def artifacts(paths, root, warnings):
             item['recovery'] = {k: data.get(k) for k in ('reason', 'original_scf', 'retry_scf')}
         elif path.name == 'execution.json' and data.get('status') not in ('failed', 'unavailable'):
             continue  # Per-task successful execution is covered by state.json.
-        if data.get('error'):
+        if data.get('error') and item['status'] != 'operator_rejected':
             item['error'] = str(data['error'])
         if path.name == 'vrc_model_review.json':
             item.update(vrc_review_status(path, data, warnings))
@@ -506,6 +508,9 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
                         'reactions': rows, 'optimizations': optimization.get('reactions', [])})
     sampling = []
     campaigns = []
+    # Bind sampling to a well through its saved correction source, not its
+    # filename prefix. Independently owned campaigns can outlive a KB driver.
+    branch_workers = {root/Path(a['path']).parent for a in task_records if a.get('branches')}
     for path in files:
         if path.name.endswith('.campaign.json'):
             record = read_json(path, warnings)
@@ -515,9 +520,14 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
             identity = record.get('owner_identity') or {}
             owner = any(p['pid'] == identity.get('pid') and
                         str(p.get('starttime')) == str(identity.get('start')) for p in processes)
+            source = (record.get('correction') or {}).get('source')
+            worker = next((w for w in sorted(branch_workers, key=lambda p: len(p.parts), reverse=True)
+                           if isinstance(source, str) and Path(source).is_absolute()
+                           and inside(source, w/'vrctst')), None)
             campaigns.append(dict(input=str(inp), status=('operator_rejected' if record.get('operator_rejected')
                 else 'waiting_for_scan' if record.get('resume_requested') and not owner
                 else execution.get('status', record.get('status'))),
+                worker=str(worker.relative_to(root)) if worker else None,
                 owner_present=owner, error=execution.get('error') or record.get('error'),
                 resume_requested=bool(record.get('resume_requested')),
                 scan_hold=record.get('resume_hold'),
@@ -721,6 +731,10 @@ def render_status_summary(case):
         label = display_path(item['path'], case['directory'])
         if item.get('scan'):
             scan = item['scan']
+            if item['status'] == 'operator_rejected':
+                out.append(f'  SCAN {scan["reaction"]}: operator_rejected; '
+                           'excluded from production; old points/errors retained in --details / --json.')
+                continue
             out.append(f'  SCAN {scan["reaction"]}: {item["status"]}; '
                        f'current pass={scan["current_counts"]}; saved={scan["saved_counts"]}')
             if scan['last_accepted']:
@@ -844,9 +858,15 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                       ('' if branches else '; no post-reaction branch record yet')))
         for item in branches:
             worker = str(Path(item['path']).parent)
-            states = '; '.join(f'{name}=' + ('not_reported_yet' if item.get('previous_controller')
+            states = '; '.join(f'{"vrc_scans/corrections" if name == "vrc_tst" else name}=' +
+                               ('not_reported_yet' if item.get('previous_controller')
                                else value.get('status', 'unknown'))
                                for name, value in item['branches'].items())
+            if 'vrc_tst' in item['branches']:
+                sampling = Counter(c.get('status') or 'unknown' for c in case.get('campaigns', [])
+                                   if c.get('worker') == worker)
+                states += '; rotdpy=' + (', '.join(f'{s} ({n})' for s, n in sorted(sampling.items()))
+                                        if sampling else 'no linked campaign record')
             stage = case.get('exploration', {}).get('workers', {}).get(worker, {}).get('status')
             out.append(f'  {worker}: {states}' + (f'; PES stage={stage}' if stage else ''))
     for case in report['cases']:
@@ -1002,7 +1022,7 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             historical = ' [previous controller]' if item.get('previous_controller') else ''
             out.append(f'RECORD {item["path"]}{historical}: {item["status"]}')
             for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error', 'scan',
-                        'review_channels', 'recorded_status', 'recorded_error'):
+                        'vrc_tst_scope', 'decision', 'review_channels', 'recorded_status', 'recorded_error'):
                 if item.get(key) is not None:
                     value = item[key]
                     if key == 'recovery' and not details and 'curvature_checks' in value:

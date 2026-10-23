@@ -132,6 +132,79 @@ def test_scan_replay_distinguishes_current_acceptance_from_saved_history(product
     assert 'may be reused' in text
 
 
+@pytest.mark.parametrize('decision', ['reject', 'include'])
+def test_excluded_scan_errors_are_history_only_until_reincluded(production, decision):
+    from kinbot.reaction_decisions import NAME
+    root, case = production
+    worker = case/'well'
+    put(worker/NAME, dict(schema=1, reactions={
+        'channel': {'decision': decision, 'reason': 'operator choice'}}))
+    put(worker/'vrctst/scan_review/channel/scan_review.json', dict(
+        reaction='channel__single_m2_r1', status='running', error='OLD CONNECTIVITY ERROR',
+        points={'pt04': {'status': 'needs_review', 'distance_angstrom': 2.8}}))
+    # Similar names must not inherit this decision.
+    put(worker/'vrctst/scan_review/channel_other/scan_review.json', dict(
+        reaction='channel_other', status='failed', error='UNRELATED FAILURE'))
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    item = next(a for a in report['cases'][0]['artifacts']
+                if a.get('scan', {}).get('reaction') == 'channel__single_m2_r1')
+    text = monitor.render(report, width=200)
+    assert 'UNRELATED FAILURE' in text
+    if decision == 'reject':
+        assert item['status'] == 'operator_rejected'
+        assert item['recorded_error'] == 'OLD CONNECTIVITY ERROR'
+        assert not item.get('error')
+        assert 'OLD CONNECTIVITY ERROR' not in text
+        assert 'pt04: needs_review' not in text
+        assert 'Failures: 1 tasks/records' in text
+        assert 'OLD CONNECTIVITY ERROR' in monitor.render(report, details=True)
+    else:
+        assert item['status'] == 'running'
+        assert 'OLD CONNECTIVITY ERROR' in text
+        assert 'pt04: needs_review' in text
+        assert 'Failures: 2 tasks/records' in text
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+
+@pytest.mark.parametrize('statuses', [('running', 'running'), ('complete', 'running'),
+                                    ('complete', 'complete'), ('waiting_for_scan', 'failed'), ()])
+def test_overview_separates_vrc_preparation_from_sampling(production, statuses):
+    root, case = production
+    for well in ('well', 'well_other'):
+        put(case/well/'.kinbot_post_reaction_branches.json',
+            {'branches': {'vrc_tst': {'status': 'complete'}}})
+    for i, status in enumerate(statuses):
+        # Filename resembles another worker: correction source is the evidence.
+        inp = case/'rotdPy'/f'well_other_{i}.py'
+        put(inp.with_suffix('.campaign.json'), dict(input=str(inp), status='launched',
+            resume_requested=status == 'waiting_for_scan',
+            correction={'source': str(case/'well/vrctst'/f'corr_{i}.json')}))
+        put(inp.with_suffix('.execution.json'), {'status': status})
+    # Missing or external source must not be guessed from the input filename.
+    for i, correction in enumerate(({}, {'source': str(root/'elsewhere/vrctst/corr.json')})):
+        put(case/'rotdPy'/f'well_unlinked_{i}.campaign.json', dict(
+            status='complete', correction=correction))
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    overview = monitor.render(report, width=250).split('=== example ===')[0]
+    well_line = next(line for line in overview.splitlines() if line.startswith('  well:'))
+    assert 'vrc_scans/corrections=complete' in well_line
+    assert 'vrc_tst=complete' not in overview
+    for status in set(statuses):
+        assert f'{status} ({statuses.count(status)})' in well_line
+    if not statuses:
+        assert 'rotdpy=no linked campaign record' in well_line
+    assert 'well_other: vrc_scans/corrections=complete; rotdpy=no linked campaign record' in overview
+    campaigns = report['cases'][0]['campaigns']
+    assert sum(c['worker'] == 'well' for c in campaigns) == len(statuses)
+    assert sum(c['worker'] is None for c in campaigns) == 2
+    branch = next(a for a in report['cases'][0]['artifacts'] if a.get('branches'))
+    assert branch['branches']['vrc_tst']['status'] == 'complete'
+    assert 'RotdPy is reported separately' in branch['vrc_tst_scope']
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+
 def test_single_case_root_does_not_double_count_diagnostics(production, monkeypatch):
     root, case = production
     graph = case/'diagnostics/vrc_branch_probes/probe_test'
@@ -300,7 +373,7 @@ def test_previous_branch_report_is_not_a_new_failure(production, worker_status):
     before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
     report = monitor.snapshot(root)
     text = monitor.render(report)
-    assert 'vrc_tst=not_reported_yet' in text
+    assert 'vrc_scans/corrections=not_reported_yet' in text
     assert 'cbh_anl=not_reported_yet' in text
     assert 'OLD BOUND GRAPH FAILURE' not in text
     assert 'MESS gate: blocked' not in text
@@ -327,7 +400,7 @@ def test_current_branch_failure_remains_visible_after_controller_exits(productio
                                       'started_utc': started})
     report = monitor.snapshot(root)
     text = monitor.render(report)
-    assert 'vrc_tst=failed' in text and 'CURRENT FAILURE' in text
+    assert 'vrc_scans/corrections=failed' in text and 'CURRENT FAILURE' in text
     assert 'MESS gate: blocked' in text
     assert 'previous controller' not in text
 
@@ -343,7 +416,7 @@ def test_new_branch_report_replaces_startup_history(production):
     written = monitor.datetime.fromisoformat('2026-10-21T02:31:59+00:00').timestamp()
     os.utime(branch, (written, written))
     text = monitor.render(monitor.snapshot(root))
-    assert 'cbh_anl=running; vrc_tst=running' in text
+    assert 'cbh_anl=running; vrc_scans/corrections=running' in text
     assert 'MESS gate: waiting' in text
     assert 'previous controller' not in text
 
@@ -362,8 +435,8 @@ def test_overview_labels_each_well_and_current_exploration_stage(production):
         os.utime(marker, (written, written))
     text = monitor.render(monitor.snapshot(root), width=200)
     overview = text.split('=== example ===')[0]
-    assert 'ready_well: vrc_tst=running; PES stage=vrc' in overview
-    assert 'searching_well: vrc_tst=not_reported_yet; PES stage=exploring' in overview
+    assert 'ready_well: vrc_scans/corrections=running; rotdpy=no linked campaign record; PES stage=vrc' in overview
+    assert 'searching_well: vrc_scans/corrections=not_reported_yet; rotdpy=no linked campaign record; PES stage=exploring' in overview
     assert 'Branch report for searching_well belongs to the previous controller; current PES stage=exploring' in text
 
 

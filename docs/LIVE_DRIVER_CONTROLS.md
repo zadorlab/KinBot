@@ -138,6 +138,14 @@ python -m kinbot.run_control show "$KB_RUN"
 `kinbot.run_monitor` shows a compact control summary. Reading these reports does
 not apply requests, submit calculations, or cancel allocations.
 
+The monitor labels the driver's `vrc_tst` branch as `vrc_scans/corrections`:
+completion there means preparation and sampling handoff have finished. It lists
+RotdPy campaign statuses separately, linked to each worker by the saved correction
+source. Missing campaign evidence is not reported as completed sampling. An
+operator-rejected scan's old errors and unresolved points remain in `--details`
+and `--json`, but are excluded from active scan failure/review summaries. These
+display changes require only an updated monitor, not replacement controllers.
+
 Defaults can also live in the ordinary single KinBot JSON input:
 
 ```json

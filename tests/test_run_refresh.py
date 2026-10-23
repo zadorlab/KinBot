@@ -1002,6 +1002,133 @@ def test_idle_wait_does_not_retry_other_validation_failures(live_tree, monkeypat
         run_refresh.refresh_when_idle(live_tree.root, apply=True, wait_idle=30.)
 
 
+@pytest.mark.parametrize('boundary', ['submitting', 'staging', 'graph_preparation'])
+@pytest.mark.parametrize('during_freeze', [False, True])
+def test_idle_wait_allows_owner_to_finish_bookkeeping(live_tree, monkeypatch, capsys, boundary, during_freeze):
+    t = live_tree
+    graph = t.graphs[0]
+    ledger = graph/'state.json'
+    original = json.loads(ledger.read_text())
+    before = scientific_files(t.root)
+    partial = t.root/'ch3s/123/vrctst/molpro_scan/new'
+    def start():
+        if boundary == 'submitting':
+            pending = deepcopy(original)
+            pending['tasks']['energy'].update(status='submitting')
+            pending['tasks']['energy'].pop('job_id')
+            atomic_json(ledger, pending)
+        elif boundary == 'staging':
+            (graph/'tasks/uncommitted').mkdir()
+        else:
+            partial.mkdir()
+    sleeps, clock = [], [0.]
+    if during_freeze:
+        original_send = t.send
+        def send(fd, sig):
+            original_send(fd, sig)
+            if sig == signal.SIGSTOP and not sleeps and all(p['state'] == 'T' for p in t.processes):
+                start()
+        monkeypatch.setattr(run_refresh.signal, 'pidfd_send_signal', send)
+    else:
+        start()
+    def sleep(seconds):
+        # The old owners must be free to publish their results before waiting.
+        assert all(p['state'] == 'S' for p in t.processes)
+        assert not any(sig == signal.SIGKILL for _, sig in t.signals)
+        sleeps.append(seconds)
+        clock[0] += seconds
+        if boundary == 'submitting':
+            atomic_json(ledger, original)  # owner publishes the retained job ID
+        elif boundary == 'staging':
+            (graph/'tasks/uncommitted').rmdir()  # owner rolls back unsubmitted staging
+        else:
+            spec = dispatch_spec()
+            spec['tasks'] = [molpro_task('new_task', 'rhf\n', geometry_from='initial')]
+            partial.rmdir()
+            dispatch.prepare(spec, partial)
+    monkeypatch.setattr(run_refresh.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(run_refresh.time, 'sleep', sleep)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30., poll_interval=5.)
+    assert sleeps == [5.]
+    assert 'WAIT:' in capsys.readouterr().out
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    after = scientific_files(t.root)
+    assert {p: after[p] for p in before} == before
+    assert all(j['state'] == 'RUNNING' for j in t.jobs)
+    assert {j['job_id'] for j in result['jobs']} == {j['job_id'] for j in t.jobs}
+    assert json.loads(ledger.read_text()) == original
+    # Re-entry cannot replace controllers or submit allocations a second time.
+    run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30.)
+    assert len(t.launches) == 2
+
+
+def test_unresolved_submission_is_never_reset_or_resubmitted(live_tree, monkeypatch, capsys):
+    t = live_tree
+    path = t.graphs[0]/'state.json'
+    state = json.loads(path.read_text())
+    state['tasks']['energy'].update(status='submitting')
+    state['tasks']['energy'].pop('job_id')
+    atomic_json(path, state)
+    before = scientific_files(t.root)
+    clock = [0.]
+    monkeypatch.setattr(run_refresh.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(run_refresh.time, 'sleep', lambda seconds: clock.__setitem__(0, clock[0]+seconds))
+    with pytest.raises(run_refresh.RefreshTransientError, match='submission bookkeeping'):
+        run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=10., poll_interval=5.)
+    assert clock[0] == 10.
+    assert not t.signals and not t.launches
+    assert scientific_files(t.root) == before
+    assert not (t.root/'controller_refresh.json').exists()
+    assert 'No ambiguous task was reset' in capsys.readouterr().err
+
+
+def test_pool_lock_wait_releases_before_retry_and_retains_sampling(sampling_tree, monkeypatch):
+    t = sampling_tree
+    clock, sleeps = [0.], []
+    monkeypatch.setattr(run_refresh.time, 'monotonic', lambda: clock[0])
+    with (t.root/'.kinbot_resource_policy.lock').open('a') as busy:
+        fcntl.flock(busy, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        def sleep(seconds):
+            clock[0] += seconds
+            assert not t.signals  # Never freeze a controller holding admission.
+            if seconds > .05:
+                sleeps.append(seconds)
+                fcntl.flock(busy, fcntl.LOCK_UN)
+        monkeypatch.setattr(run_refresh.time, 'sleep', sleep)
+        result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30., poll_interval=5.)
+    assert sleeps == [5.]
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    assert all(j['state'] == 'RUNNING' for j in t.jobs)
+
+
+@pytest.mark.parametrize('boundary', ['pidfd_open', 'starttime'])
+def test_controller_exit_during_inventory_is_rechecked_without_signalling_reused_pid(live_tree, monkeypatch, boundary):
+    t = live_tree
+    departing = t.processes[0]
+    original = run_refresh._pidfd_open if boundary == 'pidfd_open' else run_refresh._starttime
+    def race(pid):
+        if pid == departing['pid'] and departing in t.processes:
+            t.processes.remove(departing)
+            raise (ProcessLookupError() if boundary == 'pidfd_open' else FileNotFoundError())
+        return original(pid)
+    monkeypatch.setattr(run_refresh, '_'+boundary, race)
+    monkeypatch.setattr(run_refresh.time, 'sleep', lambda _: None)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30.)
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    assert not any(pid == departing['pid'] for pid, _ in t.signals)
+    assert all(j['state'] == 'RUNNING' for j in t.jobs)
+
+
+def test_missing_scientific_file_after_freeze_is_not_treated_as_process_race(live_tree):
+    t = live_tree
+    with pytest.raises(FileNotFoundError, match='scientific artifact'):
+        with run_refresh._freeze(t.root, deepcopy(t.processes)):
+            raise FileNotFoundError('scientific artifact')
+    assert all(p['state'] == 'S' for p in t.processes)
+    assert not any(sig == signal.SIGKILL for _, sig in t.signals)
+
+
 def test_pid_reuse_does_not_receive_any_signal(live_tree, monkeypatch):
     monkeypatch.setattr(run_refresh, '_starttime', lambda pid: 'reused')
     with pytest.raises(RuntimeError, match='identity changed'):

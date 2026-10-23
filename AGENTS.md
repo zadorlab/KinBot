@@ -14,3 +14,7 @@
   Distinguish implemented/tested recovery logic from a successful native retry.
 - Keep paper comparisons and example-specific validation outside installed
   production code. Examples can provide regression evidence, not assumed answers.
+- Before providing a controller-refresh handoff, test the complete orchestration
+  as well as the changed helper: transient submission/staging races, preservation
+  of live work, decision application, sampling adoption, and repeated invocation.
+  Distinguish local simulated-site validation from a verified remote handoff.

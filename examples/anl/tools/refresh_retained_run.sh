@@ -23,6 +23,10 @@ from kinbot.pes_phase import process_identity
 root = Path(os.environ['KB_RUN']).resolve(strict=True)
 if not (root/'prepared.json').is_file() or int(os.environ['KB_CAP']) < 0:
     raise ValueError('Expected a prepared run and nonnegative job cap.')
+if os.environ.get('KB_DECISIONS_FILE'):
+    from kinbot.reaction_decisions import load_batch
+    load_batch(root, os.environ['KB_DECISIONS_FILE'])
+print('Handoff input preflight passed.', flush=True)
 pid = int(os.environ['KB_WAIT_PID'] or 0)
 identity = process_identity(pid) if pid else None
 if identity:
@@ -87,22 +91,16 @@ cd "$KB_RUN"  # Keep the checkout cwd from taking precedence over the code snaps
 from pathlib import Path
 import json, os, time
 from kinbot import live_control as control
-from kinbot.reaction_decisions import validate, read
+from kinbot.reaction_decisions import load_batch, read
 from kinbot.pes_phase import active_worker
 source = os.environ.get('KB_DECISIONS_FILE')
 if source:
     root = Path(os.environ['KB_RUN']).resolve()
-    decisions = json.loads(Path(source).read_text())
-    if not isinstance(decisions, list) or not decisions:
-        raise ValueError('KB_DECISIONS_FILE must contain a nonempty list.')
+    decisions = load_batch(root, source)
     requests = []
     for item in decisions:
-        if set(item) != {'worker','reaction','decision','reason','cancel_running'} or type(item['cancel_running']) is not bool:
-            raise ValueError('Invalid reaction decision fields.')
         worker = (root/item['worker']).resolve(strict=True)
-        if not worker.is_relative_to(root):
-            raise ValueError('Reaction worker must be inside the run.')
-        choices = validate(worker, {item['reaction']:item['decision']})
+        choices = {item['reaction']:item['decision']}
         if read(worker)['reactions'].get(item['reaction'], {}).get('decision') == item['decision']:
             print('REACTION DECISION RETAINED', item['reaction'], item['decision'], flush=True)
             continue

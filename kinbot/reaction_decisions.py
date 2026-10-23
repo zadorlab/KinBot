@@ -48,6 +48,39 @@ def validate(worker, decisions):
     return decisions
 
 
+def load_batch(root, source):
+    """Validate an entire handoff decision batch before changing any owners."""
+    root = Path(root).resolve(strict=True)
+    path = Path(source)
+    if not path.is_absolute():
+        raise ValueError('Reaction decision file must use an absolute path.')
+    items = json.loads(path.read_text())
+    fields = {'worker', 'reaction', 'decision', 'reason', 'cancel_running'}
+    if not isinstance(items, list) or not items:
+        raise ValueError('Reaction decision file must contain a nonempty list.')
+    seen = set()
+    for item in items:
+        if (not isinstance(item, dict) or set(item) != fields
+                or type(item['cancel_running']) is not bool
+                or not isinstance(item['worker'], str)
+                or not isinstance(item['reaction'], str)
+                or not isinstance(item['decision'], str)
+                or not isinstance(item['reason'], str) or not item['reason'].strip()):
+            raise ValueError('Invalid reaction decision fields.')
+        relative = Path(item['worker'])
+        if relative.is_absolute() or '..' in relative.parts:
+            raise ValueError('Reaction worker must be relative to the run.')
+        worker = (root/relative).resolve(strict=True)
+        if not worker.is_relative_to(root) or worker == root:
+            raise ValueError('Reaction worker must be inside the run.')
+        validate(worker, {item['reaction']: item['decision']})
+        key = (worker, item['reaction'])
+        if key in seen:
+            raise ValueError('Duplicate or conflicting reaction decisions in one handoff.')
+        seen.add(key)
+    return items
+
+
 def owns(name, channel):
     return name == channel or name.startswith(channel+'__') or name.startswith(channel+'_vts_')
 

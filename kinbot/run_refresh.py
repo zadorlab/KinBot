@@ -31,7 +31,11 @@ from kinbot import run_cleanup, run_salvage
 _POOL_GUARDED = ContextVar('refresh_pool_guarded', default=False)
 
 
-class RefreshBusyError(RuntimeError):
+class RefreshTransientError(RuntimeError):
+    """A handoff boundary is busy; release all guards before trying again."""
+
+
+class RefreshBusyError(RefreshTransientError):
     """A local process must finish naturally before replacing its owners."""
 
     def __init__(self, record):
@@ -147,7 +151,8 @@ def _submission_guard(root):
                 break
             except BlockingIOError:
                 if time.monotonic() >= deadline:
-                    raise RuntimeError('Pool submission is still in flight; repeat refresh after it finishes.')
+                    raise RefreshTransientError(
+                        'Pool admission is busy; waiting for its submission bookkeeping to finish.')
                 time.sleep(.05)
         token = _POOL_GUARDED.set(True)
         try:
@@ -174,7 +179,7 @@ def _graphs(root):
         if not graph.resolve().is_relative_to(root.resolve()):
             raise RuntimeError(f'{graph}: dispatcher directory is outside this run; refusing ownership.')
         if not all((graph / name).is_file() for name in ('workflow.json', 'state.json')):
-            raise RuntimeError(f'{graph}: graph preparation is incomplete; repeat later.')
+            raise RefreshTransientError(f'{graph}: graph preparation is incomplete; waiting for its owner.')
         yield graph / 'state.json'
 
 
@@ -244,10 +249,12 @@ def _owned_jobs_guarded(root):
         tasks = {task['id']: task for task in spec['tasks']}
         for directory in (graph / 'tasks').iterdir():
             if directory.is_dir() and directory.name not in state['tasks']:
-                raise RuntimeError(f'{directory}: task staging is in flight; repeat later.')
+                raise RefreshTransientError(f'{directory}: task staging is in flight; waiting for its owner.')
         for ident, entry in state['tasks'].items():
             if entry['status'] == 'submitting':
-                raise RuntimeError(f'{path}/{ident}: submission is in flight; repeat later.')
+                raise RefreshTransientError(
+                    f'{path}/{ident}: submission bookkeeping is unfinished; waiting for its owner. '
+                    'An unresolved submission will not be reset or resubmitted by refresh.')
             if entry.get('task_sha256'):
                 # Also detect interrupted staging/retry writes, before their
                 # new in-memory entry reaches the atomic state ledger.
@@ -297,12 +304,13 @@ def _freeze(root, records):
     """Use Linux pidfds so neither STOP, KILL nor CONT can target a reused PID."""
     handles = []
     stopped = []
+    frozen = False
     try:
         for record in records:
             fd = _pidfd_open(record['pid'])
             handles.append((record, fd))
             if _starttime(record['pid']) != record['starttime']:
-                raise RuntimeError('Controller identity changed; retry inventory.')
+                raise RefreshTransientError('Controller identity changed; rechecking inventory before signalling.')
             _pidfd_send_signal(fd, 0)
         # Open/check every handle before pausing even the first controller.
         for _, fd in handles:
@@ -311,14 +319,20 @@ def _freeze(root, records):
         deadline = time.monotonic() + 5
         while not all(_stopped(record['pid']) for record, _ in handles):
             if time.monotonic() >= deadline:
-                raise RuntimeError('Controllers did not quiesce; original processes resumed.')
+                raise RefreshTransientError('Controllers did not quiesce; original processes resumed.')
             time.sleep(.05)
         # A controller could have spawned a child between inventory and STOP.
         current = _controllers(root)
         if {(p['pid'], p['starttime']) for p in current} != {
                 (p['pid'], p['starttime']) for p in records}:
-            raise RuntimeError('Controller tree changed; original processes resumed.')
+            raise RefreshTransientError('Controller tree changed; original processes resumed.')
+        frozen = True
         yield handles
+    except (ProcessLookupError, FileNotFoundError) as error:
+        if frozen:
+            raise  # A missing scientific file is not a process-inventory race.
+        raise RefreshTransientError(
+            'A controller exited during process inventory; surviving owners resumed before rechecking.') from error
     finally:
         for _, fd in handles:
             try:
@@ -889,11 +903,12 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
 
 
 def refresh_when_idle(root, *, wait_idle=0., poll_interval=10., **options):
-    """Wait only for the local-process guard; retain every other refusal.
+    """Wait for explicit busy boundaries, retaining scientific/ownership refusals.
 
     Each attempt rebuilds the full process/ownership inventory. Never ignore
-    a process, infer that a reused PID exited, or signal a non-controller.
-    A freeze race unwinds its context and resumes owners before this wait.
+    a process, reset a submitting task, or signal a non-controller. A freeze
+    race resumes owners and releases the pool lock before this wait, allowing
+    the owner to finish staging/submission and publish its allocation ID.
     """
     if (not math.isfinite(wait_idle) or wait_idle < 0
             or not math.isfinite(poll_interval) or poll_interval <= 0):
@@ -902,9 +917,12 @@ def refresh_when_idle(root, *, wait_idle=0., poll_interval=10., **options):
     while True:
         try:
             return refresh(root, **options)
-        except RefreshBusyError as error:
+        except RefreshTransientError as error:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                if wait_idle:
+                    print(f'Refresh wait expired: {error} No ambiguous task was reset; '
+                          'inspect the named owner/ledger before retrying.', file=sys.stderr, flush=True)
                 raise
             print(f'WAIT: {error} Rechecking all owners; {remaining:.0f}s remain.', flush=True)
             time.sleep(min(poll_interval, remaining))
@@ -915,7 +933,7 @@ def main(argv=None):
     parser.add_argument('root', type=Path)
     parser.add_argument('--apply', action='store_true', help='Replace controllers and launch with current code.')
     parser.add_argument('--wait-idle', type=float, default=0., metavar='SECONDS',
-                        help='Wait at most this long for local children to finish; never signal them.')
+                        help='Wait for local children and staging/submission bookkeeping; never reset ambiguous work.')
     parser.add_argument('--replace-pending', action='store_true',
                         help='Archive and replace pending allocations; preserve running allocations.')
     parser.add_argument('--deduplicate-vrc', action='store_true',

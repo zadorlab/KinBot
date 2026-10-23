@@ -34,15 +34,18 @@ An optional `KB_DECISIONS_FILE=/absolute/path/decisions.json` adds owner-applied
 reaction decisions after loading the replacement code. The JSON is a list of
 objects with exactly `worker` (relative to ROOT), `reaction` (exact accepted
 name), `decision` (`reject` or `include`), `reason`, and boolean `cancel_running`.
+The whole batch is validated before policy changes or controller replacement.
 The handoff waits for these receipts before resuming absent sampling owners and
 running the full reconciliation. Re-running a completed decision is idempotent.
-The complete handoff also gives local child processes up to 30 minutes to finish
-before controller replacement. `run_refresh --wait-idle SECONDS` exposes this
-bounded wait directly. Each retry inventories all owners again and logs the
-blocking PID, parent, start time, state, command and working directory. It never
-signals the child or bypasses a scientific/ownership validation failure. If a
-child appears during quiescence, controllers resume before waiting. A persistent
-blocker ends the wait with a diagnostic and leaves the guarded work intact.
+The complete handoff gives local child processes, pool admission, graph staging
+and submission bookkeeping up to 30 minutes to settle before replacement.
+`run_refresh --wait-idle SECONDS` exposes this bounded wait directly. Each retry
+inventories all owners again and logs the blocking process or task. It never
+signals a child, resets a submitting task, or bypasses a scientific/ownership
+validation failure. A race during quiescence resumes the original controllers
+and releases the admission lock before waiting, so the owner can finish its
+write. An unresolved submission ends the wait with its exact ledger path;
+refresh never guesses its allocation ID or submits another copy.
 
 ## Persistent reaction selection
 

@@ -203,6 +203,8 @@ def pes_summary(path, warnings):
 
 def reaction_summary(path, warnings):
     rows = []
+    checkpoint = read_json(Path(path).parent/'.kinbot_search_state.json', warnings)
+    retained = checkpoint.get('reactions', {}) if checkpoint.get('schema') == 1 else {}
     try:
         for line in tail(path).splitlines():
             parts = line.split()
@@ -212,6 +214,9 @@ def reaction_summary(path, warnings):
             rows.append({'name': parts[2], 'step': parts[1], 'code': state,
                          'stage': REACTION_STAGES.get(state, f'state {state}'),
                          'products': parts[3:]})
+            saved = retained.get(parts[2], {})
+            if state >= 0 and saved.get('status') == -1 and not saved.get('reassess'):
+                rows[-1]['stage'] = 'restoring accepted QC'
     except (OSError, ValueError) as error:
         warnings.append(f'{path}: {error}')
     return {'path': str(path), 'counts': dict(Counter(r['stage'] for r in rows)), 'rows': rows,

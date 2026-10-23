@@ -296,6 +296,10 @@ def inherit_models(root, generator):
     overrides['vrc_tst_surface_models'] = deepcopy(models)
     atomic_json(path, overrides)
     generator.par['vrc_tst_surface_models'] = deepcopy(models)
+    from kinbot.search_state import rebase
+    rebase(inp, r['id'])
+    if getattr(generator, 'search_checkpoint', None):
+        generator.search_checkpoint.adopt_revision()
     from kinbot.vrc_review_status import acknowledge_installed
     acknowledge_installed(generator.par, generator.species, inp.parent)
 

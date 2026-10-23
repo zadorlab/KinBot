@@ -1593,6 +1593,13 @@ class QuantumChemistry:
             if check == 'running':
                 return 0
 
+        if getattr(self, '_search_replay', None):
+            raise RuntimeError(
+                f'{job}: restoring accepted reaction {self._search_replay} '
+                'requires a missing/replacement QC calculation. Retained the '
+                'saved search; no calculation was submitted. Review its provenance '
+                'or request an explicit search revision.')
+
         from kinbot import run_policy
         shared_pool = self.queuing == 'slurm' and run_policy.find() is not None
         if self.queue_job_limit > 0 and not shared_pool:
@@ -1807,6 +1814,8 @@ class QuantumChemistry:
                 f'Cannot parse scheduler job id for {job}. stdout: {out!r}; '
                 f'stderr: {err!r}')
         self.job_ids[job] = pid
+        from kinbot.search_state import submitted as record_path_submission
+        record_path_submission(self, job, pid)
         live_control.observe_qc(Path.cwd()/job,pid,'running')
         generations = getattr(self, 'job_generation_tagged', None)
         if generations is None:

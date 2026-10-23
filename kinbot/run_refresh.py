@@ -758,7 +758,21 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 if selected and not journal.get('cancel_superseded_vrc_scans'):
                     raise ValueError('New live scan detected; explicit targeted cancellation is required.')
                 journal['vrc_migration'] = dict(migration, scans=scans, selected_jobs=selected)
-            journal.update(phase='stopping', controllers=records, jobs=jobs)
+            from kinbot import search_state
+            search_checkpoints = []
+            for inp in _ordinary_inputs(root):
+                legacy = search_state.capture_legacy(inp, publish=False)
+                if legacy is not None:
+                    relative = (inp.parent/search_state.NAME).relative_to(root)
+                    # Publish to the live worker only after its controller is
+                    # gone. An aborted freeze must not install a stale record
+                    # underneath an old controller that cannot maintain it.
+                    atomic_json(archive/relative, legacy)
+                    search_checkpoints.append(str(relative))
+                for name in (search_state.NAME, 'kinbot_monitor.out'):
+                    run_salvage._save(inp.parent/name, root, archive)
+            journal.update(phase='stopping', controllers=records, jobs=jobs,
+                           search_checkpoints=search_checkpoints)
             atomic_json(journal_path, journal)
             for _, fd in handles:
                 try:
@@ -778,6 +792,9 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         # Disappearing from /proc need not coincide with filesystem lock
         # availability. Hold all original inodes before changing anything.
         with _worker_locks(root):
+            for relative in journal.get('search_checkpoints', []):
+                if not (root/relative).exists():
+                    atomic_json(root/relative, json.loads((archive/relative).read_text()))
             if journal.get('replace_pending'):
                 _replace_pending(root, journal, journal_path)
             else:
@@ -799,6 +816,10 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 network_revisit.apply(root,journal['network_revision'],archive/'network_revision',journal,journal_path)
                 journal['jobs'] = _owned_jobs(root)
                 atomic_json(journal_path,journal)
+            if journal.get('vrc_migration') or journal.get('network_revision'):
+                from kinbot.search_state import rebase
+                for inp in _ordinary_inputs(root):
+                    rebase(inp, str(archive), reassess=bool(journal.get('network_revision')))
             _archive_controllers(root, archive)
             journal['discovery_restored'] = _restore_discovery(root, archive)
             history.update(status='prepared', code=str(pin))

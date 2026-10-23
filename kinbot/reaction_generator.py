@@ -249,12 +249,16 @@ class ReactionGenerator:
 
         frag_unique = []
 
+        from kinbot.search_state import SearchState
+        self.search_checkpoint = SearchState(self)
+
         while alldone:
             from kinbot import search_control, live_control
             search_control.reactions(self)
             optimization_monitor = []
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
+                self.search_checkpoint.enter(index)
                 try:
                     if matches_name(obj.instance_name, self.par['skip_reactions']) \
                             and self.species.reac_ts_done[index] != -999:
@@ -304,6 +308,7 @@ class ReactionGenerator:
                                                 'Invalid geometry.')
 
                         elif obj.scan == 1:  # do a bond scan
+                            command = self.par['qc_command']
 
                             if (self.species.reac_step[index] == self.par['scan_step'] + 1):
                                 status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
@@ -340,7 +345,7 @@ class ReactionGenerator:
                                     else:
                                         err, energy = self.qc.get_qc_energy(obj.instance_name)
                                         if err == 0:
-                                            self.species.reac_scan_energy[index].append(energy)
+                                            self.search_checkpoint.scan_energy(index, energy)
                                             logger.debug(f'Scan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
                                             logger.debug(f'{self.species.reac_scan_energy[index][-1]} Hartree.')
                                             # need at least 3 points for a maximum
@@ -821,6 +826,9 @@ class ReactionGenerator:
                                    'the exported network is incomplete.', obj.instance_name, error)
                     obj.stereochemical_rejection = str(error)
                     self.species.reac_ts_done[index] = -999
+                finally:
+                    self.search_checkpoint.save(index)
+                    self.search_checkpoint.leave()
 
             # Continue only while at least one reaction is in a nonterminal
             # state.  The former nested ``any`` tested the same scalar once
@@ -835,7 +843,9 @@ class ReactionGenerator:
                 alldone = not search_control.close_reactions(self)
 
             # write a small summary while running
-            with open('kinbot_monitor.out', 'w') as f_out:
+            import io
+            from kinbot.execution import atomic_text
+            with io.StringIO() as f_out:
                 for index, instance in enumerate(self.species.reac_inst):
                     if self.species.reac_ts_done[index] == -1:
                         prodstring = []
@@ -849,6 +859,7 @@ class ReactionGenerator:
                         f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
                                                           self.species.reac_step[index], 
                                                           self.species.reac_obj[index].instance_name))
+                atomic_text(Path('kinbot_monitor.out'), f_out.getvalue())
             self._write_optimization_monitor(optimization_monitor)
             time.sleep(1)
 

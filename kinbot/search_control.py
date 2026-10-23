@@ -47,6 +47,8 @@ def reactions(generator):
                 install_reaction(target,r)
             species.reac_obj[i] = new
             species.reac_ts_done[i], species.reac_step[i] = 0, 0
+            from kinbot.search_state import reset
+            reset(generator, i, r['id'])
             control.acknowledge(path,r,'applied', detail='Reaction search restarted from its original species geometry.')
         except (ValueError, RuntimeError, OSError) as error:
             control.acknowledge(path,r,'blocked' if isinstance(error,ValueError) else r['status'], error=str(error))
@@ -159,6 +161,8 @@ def _offline_revisit(generator, objects):
         _retire_reaction(generator.qc,name,set(objects),path,r)
         generator.species.reac_obj[i] = new
         generator.species.reac_ts_done[i],generator.species.reac_step[i] = 0,0
+        from kinbot.search_state import reset
+        reset(generator, i, token)
         m['attempted'].append(name)
         atomic_json(marker,m)
         control.acknowledge(path,r,'applied')
@@ -223,6 +227,10 @@ def revise_network(generator):
             atomic_json(inp,saved)
             atomic_json(override_path,overrides)
             generator.par.update(overrides)
+            from kinbot.search_state import rebase
+            rebase(inp, r['id'], reassess=replay)
+            if getattr(generator, 'search_checkpoint', None):
+                generator.search_checkpoint.adopt_revision()
             if models is not None:
                 from kinbot.vrc_review_status import acknowledge_installed
                 acknowledge_installed(generator.par, species, inp.parent)
@@ -231,6 +239,9 @@ def revise_network(generator):
                 species.reac_obj=copies
                 species.reac_ts_done=[0]*len(copies)
                 species.reac_step=[0]*len(copies)
+                if getattr(generator, 'search_checkpoint', None):
+                    from kinbot.search_state import SearchState
+                    generator.search_checkpoint = SearchState(generator)
             control.acknowledge(path,r,'applied',detail=(
                 'Replaying cached accepted searches and retrying selected failures.' if replay
                 else 'Reviewed VRC models accepted; existing searches retained.'))

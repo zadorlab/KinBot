@@ -9,6 +9,22 @@ from kinbot import run_monitor as monitor
 ORIGINAL_QUEUE = monitor.queue
 
 
+def test_monitor_distinguishes_accepted_reconstruction_from_new_search(tmp_path):
+    path = tmp_path/'kinbot_monitor.out'
+    path.write_text('3 13 accepted\n0 5 unfinished\n-999 -1 rejected\n')
+    put(tmp_path/'.kinbot_search_state.json', dict(schema=1, reactions={
+        'accepted': {'status': -1}, 'unfinished': {'status': 0},
+        'rejected': {'status': -999}}))
+    before = {p: p.read_bytes() for p in tmp_path.iterdir()}
+    warnings = []
+    result = monitor.reaction_summary(path, warnings)
+    assert result['rows'][0]['stage'] == 'restoring accepted QC'
+    assert result['rows'][1]['stage'] != 'restoring accepted QC'
+    assert result['counts']['restoring accepted QC'] == 1
+    assert not warnings
+    assert before == {p: p.read_bytes() for p in tmp_path.iterdir()}
+
+
 def put(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value) if isinstance(value, dict) else value)

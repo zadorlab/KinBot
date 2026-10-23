@@ -63,6 +63,28 @@ def test_refresh_preserves_campaign_tree_and_allocations(sampling_tree):
     assert any(j['job_id'] == '800' for j in t.jobs)
 
 
+def test_refresh_imports_terminal_search_outcomes_before_replacement(live_tree):
+    from kinbot import search_state
+    t = live_tree
+    worker = t.root/'ch3s/123'
+    inp = worker/'123.json'
+    atomic_json(inp, {'smiles': 'CC'})
+    monitor = worker/'kinbot_monitor.out'
+    monitor.write_text('-999 -1 rejected\n-1 13 accepted product\n3 13 optimizing\n')
+    before = (worker/'kinbot.db').read_bytes()
+    result = run_refresh.refresh(t.root, apply=True)
+    saved = json.loads((worker/search_state.NAME).read_text())
+    assert saved['reactions']['rejected']['status'] == -999
+    assert saved['reactions']['accepted']['status'] == -1
+    assert saved['reactions']['optimizing']['status'] == 3
+    archive = Path(result['archive'])/'ch3s/123'
+    assert (archive/search_state.NAME).read_bytes() == (worker/search_state.NAME).read_bytes()
+    assert (archive/'kinbot_monitor.out').read_bytes() == monitor.read_bytes()
+    assert (worker/'kinbot.db').read_bytes() == before
+    assert not any(j.get('state') == 'CANCELLED' for j in t.jobs)
+    assert len(t.launches) == 2
+
+
 @pytest.mark.parametrize('fault', ['owner', 'input', 'claim', 'orphan'])
 def test_refresh_refuses_unproven_campaign_before_signalling(sampling_tree, fault):
     t = sampling_tree

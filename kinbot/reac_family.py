@@ -26,8 +26,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         length coordinate
     """
     ts = True
+    # A queued worker may still read its Python input from this directory.
+    # Even at step zero, adopt it before rendering any replacement input.
+    status = rxn.qc.check_qc(rxn.instance_name)
+    if status == 'running':
+        return step
     if step > 0:
-        status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error':
             return step
   
@@ -251,7 +255,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
 # uncommet if you want intermediate runs to be printed into files, for debugging
 #    with open('{}_{}.py'.format(rxn.instance_name, step),'w') as f_out:
 #        f_out.write(template)
-    step += rxn.qc.submit_qc(rxn.instance_name, min(rxn.species.nel, rxn.qc.ppn), singlejob=0, 
+    checkpoint = getattr(rxn, 'search_checkpoint', None)
+    if checkpoint:
+        checkpoint.prepare_submission(rxn, step)
+    step += rxn.qc.submit_qc(rxn.instance_name, min(rxn.species.nel, rxn.qc.ppn), singlejob=0,
                              jobtype=kwargs.pop('method', None))
+    if checkpoint:
+        checkpoint.finish_submission(rxn, step)
 
     return step

@@ -309,6 +309,30 @@ Configuration/history, request receipts, scheduler receipts and archived
 attempts remain in the run directory for review. Nothing in this interface
 assumes a username, chemistry example, hostname, partition, or scratch path.
 
+Each well now saves reaction decisions and constrained-path progress in
+`.kinbot_search_state.json`. A successful intermediate QC calculation cannot
+reopen a rejected search after a controller refresh. Accepted reactions rebuild
+their in-memory objects from retained QC, with replacement submissions blocked;
+the monitor labels this as `restoring accepted QC`. The outer PES can briefly
+report `exploring` while those objects and its generation-bound L2 selection
+are reconstructed. That does not authorize new reaction attempts.
+
+Path submissions record their next step at scheduler acknowledgement, and scan
+energy histories survive replacement without counting a point twice. Explicit
+reaction retries archive the previous decision and reset only their target.
+Input/theory or reaction-definition mismatches require an explicit revision.
+An authorized network-policy revision can revalidate accepted results and
+perform the additional work that policy requires.
+
+When upgrading an older run, `run_refresh` captures the existing search monitor
+while controllers are frozen, archives it, and installs the checkpoint after
+the controllers stop. Admission receipts distinguish the most recent path
+submission from a rendered input still waiting for capacity. An old partial
+scan without its energy history, or a path with ambiguous step provenance,
+requires review rather than guessing. Jobs already submitted by an older
+controller remain owned and are retained. Loading this fix does not undo
+earlier extra attempts or waive scientific review holds.
+
 ## Exploration and reviewed network extensions
 
 `pes_phase_policy` defaults to `auto`: automatic CBH/ANL PES runs finish

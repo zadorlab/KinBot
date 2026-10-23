@@ -2,7 +2,6 @@ import itertools
 import numpy as np
 
 from kinbot import find_motif
-from kinbot.stationary_pt import StationaryPoint
 
 
 def equivalent_bond(b1, b2, species):
@@ -261,16 +260,3 @@ def generate_product_bond_matrices(mol, bond, nbonds, par, rad=-1):
                 reactions.append([comb, prod, ts, 1])
                 # reactions.append([comb, prod, ts, 2])
     return reactions
-
-
-def main():
-    smi = '[CH2]CC'
-    mult = 1
-    charge = 0
-    mol = StationaryPoint('well0', charge, mult, smiles=smi)
-    mol.characterize()
-    reactions = generate_all_product_bond_matrices(mol)
-
-
-if __name__ == "__main__":
-    main()

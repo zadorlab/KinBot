@@ -97,18 +97,26 @@ def _finished_graph_attempt(directory, job, *, allow_completed):
     """
     from kinbot.anl import dispatch
     directory = Path(directory).resolve()
-    if directory.parent.name != 'tasks' or not (directory/'execution.json').is_file():
+    if directory.parent.name != 'tasks':
         return False
     graph, spec, state = dispatch._load(directory.parent.parent)
     entry = state['tasks'].get(directory.name, {})
     if (str(entry.get('job_id')) != str(job)
             or entry.get('status') not in ('failed', 'unavailable', 'complete')):
         return False
+    task = next(t for t in spec['tasks'] if t['id'] == directory.name)
+    if not (directory/'execution.json').is_file():
+        # SIGKILL at a walltime limit prevents the worker receipt. Reuse the
+        # general job-specific timeout proof (including its saved ownership
+        # and timestamp checks), never infer termination from missing files.
+        from kinbot import timeout_retry
+        dispatch._verify_stage_files(graph, task, entry)
+        return (not dispatch._job_active(str(job)) and timeout_retry.evidence(
+            directory, job, [directory/'slurm.stderr']) is not None)
     outcome = json.loads((directory/'execution.json').read_text())
     if (str(outcome.get('slurm_job_id')) != str(job)
             or outcome.get('status') not in ({'failed', 'executed'} if allow_completed else {'failed'})):
         return False
-    task = next(t for t in spec['tasks'] if t['id'] == directory.name)
     dispatch._verify_stage_files(graph, task, entry)
     dispatch._verify_execution(graph, task, entry, outcome)
     return not dispatch._job_active(str(job))
@@ -158,7 +166,7 @@ def process(graph):
     resume(graph)
     if control.find(graph) is None:
         return
-    for path, r in control.requests(graph/'tasks', kinds={'task'}):
+    for path, r in control.requests(graph/'tasks', kinds={'task', 'refinement'}):
         target = Path(r['target'])
         if target.parent != graph/'tasks':
             continue
@@ -170,6 +178,10 @@ def process(graph):
                 raise ValueError('Attempt changed after the request; refusing to affect a replacement generation.')
             if r['action'] == 'release':
                 control.acknowledge(path, r, 'applied')
+                continue
+            if r['kind'] == 'refinement':
+                from kinbot.anl.refinement import process as refine
+                refine(graph, path, r, spec, state)
                 continue
             entry = state['tasks'].get(ident, {})
             from kinbot.vrc_scan_recovery import rejected_point

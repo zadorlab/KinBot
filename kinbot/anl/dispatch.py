@@ -1947,6 +1947,17 @@ def _vpt2_framework_recovery(task, output):
     groups, current = _vpt2_framework_history(task)
     new, old = (framework_change[n].upper() for n in (1, 2))
     assigned = task.get('recovery', {}).get('assigned_native_framework')
+    # PG is a ceiling on detected symmetry, not an instruction to force that
+    # group. A native mass-framework assignment can therefore still disagree
+    # with initial detection. Try the documented Loose detection tolerance
+    # once, only when both native assignments corroborate this exact case.
+    # No species/group name, geometry adjustment or parser waiver is involved.
+    if (assigned and current == new and old and old != new
+            and not re.search(r'(?i)\bLoose\b', original_template)
+            and re.search(r'(?im)^\s*Full point group\s+'+re.escape(old)+r'\s', output)
+            and re.search(r'(?im)^\s*Framework definition based on atomic masses:\s*'
+                          +re.escape(new)+r'\s*$', output)):
+        return f'Symmetry=(PG={new},Loose)', True, framework_change.group(0)
     # Do not undo the general None workaround. Only an explicit *new native
     # failure* with an unassigned old group permits its complementary retry.
     if prior_none and framework_change.group(2):
@@ -1991,7 +2002,8 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     If that bypass itself leaves an empty old group and Link 717 rejects it,
     a retry selects the group reported by Gaussian after Eckart rotation.
     A subsequent changed group can be tried once; two distinct named groups
-    exhaust the budget and previously attempted groups are never repeated.
+    exhaust that budget. If initial group detection still contradicts the
+    requested and mass-derived group, one Loose detection retry is allowed.
     The accepted geometry and method remain unchanged. Neither path repeats
     a native success or overrides an unrelated failure.
     """
@@ -2037,7 +2049,9 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     keyword, assigned_native, framework_change = _vpt2_framework_recovery(task, output)
     groups, _ = _vpt2_framework_history(task)
     if assigned_native:
-        groups.append(re.search(r'PG=([A-Za-z0-9*]+)', keyword)[1])
+        group = re.search(r'PG=([A-Za-z0-9*]+)', keyword)[1]
+        if group not in groups:
+            groups.append(group)
     replacement = deepcopy(task)
     original_template = replacement['input_template']
     symmetry_keyword = (r'(?i)(?<!\S)(?:NoSymm(?:etry)?|'
@@ -2069,6 +2083,7 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
         'assigned_native_framework': assigned_native,
         'attempted_framework_groups': groups,
         'observed_framework_change': framework_change,
+        'symmetry_detection': 'loose' if ',Loose)' in keyword else 'default',
         'geometry_changed': False,
     }
     spec['tasks'][spec['tasks'].index(task)] = replacement
@@ -2362,6 +2377,8 @@ def advance(run_dir, submit=False, submit_only=None):
     lock_recovery.resume(run_dir)
     optimization_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
+    from kinbot.anl.refinement import pending as pending_refinement
+    refining = pending_refinement(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
     if submit_only is not None:
         submit_only = set(submit_only)
@@ -2473,7 +2490,7 @@ def advance(run_dir, submit=False, submit_only=None):
 
     # Old pinned workers may fail after replacement controllers start. Repair
     # only this recognized startup bug, once, before deriving component skips.
-    if not spec.get('intent', {}).get('vrc_fragment_retry'):
+    if not spec.get('intent', {}).get('vrc_fragment_retry') and not refining:
         state = lock_recovery.recover(run_dir, spec, state)
         state = interface_recovery.recover(run_dir, spec, state)
         from kinbot.anl import molpro_mpi_recovery
@@ -2546,6 +2563,8 @@ def advance(run_dir, submit=False, submit_only=None):
                           if child in by_id)
     for task in spec['tasks']:
         ident = task['id']
+        if ident in refining:
+            continue  # Do not admit new descendants of a retiring geometry.
         dependencies = _task_dependencies(task, state)
         failed_dependencies = [
             dependency for dependency in dependencies
@@ -2623,6 +2642,8 @@ def advance(run_dir, submit=False, submit_only=None):
         active = sum(entry['status'] == 'submitted' for entry in state['tasks'].values())
         for task in spec['tasks']:
             ident = task['id']
+            if ident in refining:
+                continue
             entry = state['tasks'].get(ident)
             if active >= run_policy.limit(spec['limits']['max_nodes'], run_dir):
                 break

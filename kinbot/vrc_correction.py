@@ -246,7 +246,7 @@ def spin_splitting_settings(parameters, *, parent_multiplicity=None,
             == 'arithmetic_mean'):
         settings['weighting'] = {'model': 'arithmetic_mean'}
     _validate_spin_splitting_settings(settings)
-    # Keep archived ethane manifests and callers readable while new records
+    # Keep archived manifests and callers readable while new records
     # use state-neutral names.  These aliases are views of the same validated
     # values and are never accepted alongside their canonical input names.
     settings['singlet_multiplicity'] = settings['target_multiplicity']

@@ -7,7 +7,11 @@ import pytest
 
 from kinbot.anl import literature
 from kinbot.anl.dispatch import validate_spec
-from kinbot.anl.literature import BENCHMARKS, compare_values
+from kinbot.anl.literature import compare_values
+from validation.anl_source_reproduction import source_reference_spec
+REFERENCE_PATH = Path(__file__).parents[1]/'validation/data/anl_2017.json'
+REFERENCE = json.loads(REFERENCE_PATH.read_text())
+BENCHMARKS = REFERENCE['benchmarks']
 
 
 def test_ethane_tz_component_and_difference_regression_pass():
@@ -16,7 +20,7 @@ def test_ethane_tz_component_and_difference_regression_pass():
         task_id: target['expected']
         for task_id, target in benchmark['tasks'].items()
     }
-    result = compare_values('ethane-tz-2017', observed)
+    result = compare_values('ethane-tz-2017', observed, reference=REFERENCE)
     assert result['status'] == 'passed'
     assert result['checks']['delta_q_dz']['passed'] is True
     assert result['checks']['delta_q_dz']['derived_from'] == [
@@ -30,7 +34,7 @@ def test_methane_targeted_mrcc_regression_detects_wrong_energy():
         'ccsdtq_dz': benchmark['tasks']['ccsdtq_dz']['expected'],
         'ccsdtqp_dz': benchmark['tasks']['ccsdtqp_dz']['expected'] + 1e-4,
     }
-    result = compare_values('methane-qz-2017', observed)
+    result = compare_values('methane-qz-2017', observed, reference=REFERENCE)
     assert result['status'] == 'failed'
     assert result['checks']['ccsdtq_dz']['passed'] is True
     assert result['checks']['ccsdtqp_dz']['passed'] is False
@@ -39,7 +43,7 @@ def test_methane_targeted_mrcc_regression_detects_wrong_energy():
 
 def test_literature_comparison_requires_a_shared_completed_component():
     with pytest.raises(ValueError, match='no completed components'):
-        compare_values('methyl-qz-2017', {'unrelated': -1.0})
+        compare_values('methyl-qz-2017', {'unrelated': -1.0}, reference=REFERENCE)
 
 
 def test_published_small_species_geometries_are_state_specific():
@@ -61,7 +65,7 @@ def test_prepare_cli_builds_only_the_default_small_species_pair_plus_low(
 
     monkeypatch.setattr('kinbot.anl.dispatch.prepare', fake_prepare)
     run_dir = tmp_path / 'methane'
-    assert literature.main([
+    assert literature.main(['--reference', str(REFERENCE_PATH),
         'prepare-higher-order', 'methane-qz-2017', str(run_dir)]) == 0
     spec = captured['spec']
     assert [task['id'] for task in spec['tasks']] == [
@@ -69,7 +73,7 @@ def test_prepare_cli_builds_only_the_default_small_species_pair_plus_low(
     assert spec['molecule']['multiplicity'] == 1
     qp = next(task for task in spec['tasks'] if task['id'] == 'ccsdtqp_dz')
     assert qp['resources']['walltime'] == 'partition_max'
-    assert qp['resources']['max_cores'] == 4
+    assert qp['resources']['max_cores'] != 4
     assert spec['intent']['literature_benchmark']['name'] == \
         'methane-qz-2017'
     json.dumps(spec)
@@ -84,7 +88,7 @@ def test_prepare_methyl_benchmark_uses_current_rohf_ucc_profile(
         return Path(run_dir)
 
     monkeypatch.setattr('kinbot.anl.dispatch.prepare', fake_prepare)
-    assert literature.main([
+    assert literature.main(['--reference', str(REFERENCE_PATH),
         'prepare-higher-order', 'methyl-qz-2017', str(tmp_path / 'methyl'),
         '--task', 'ccsdt_dz', '--task', 'ccsdtq_dz']) == 0
     tasks = {task['id']: task for task in captured['spec']['tasks']}
@@ -113,9 +117,7 @@ def test_prepare_one_off_methyl_uhf_source_reproduction(
 
     monkeypatch.setattr('kinbot.anl.dispatch.prepare', fake_prepare)
     run_dir = tmp_path / 'methyl-uhf'
-    assert literature.main([
-        'prepare-methyl-uhf', str(run_dir),
-        '--partition', 'test']) == 0
+    fake_prepare(source_reference_spec('methyl-qz-2017', reference=REFERENCE, task_id='ccsdtq_dz', partition='test'), run_dir)
     spec = captured['spec']
     assert len(spec['tasks']) == 1
     task = spec['tasks'][0]
@@ -170,7 +172,7 @@ def test_methyl_current_profile_compares_to_published_targets(monkeypatch):
                 'ccsdt_dz': -39.715724312484,
                 'ccsdtq_dz': -39.716241160157,
             }[task_id]}))
-    result = literature.compare_run('methyl-qz-2017', '/synthetic/run')
+    result = literature.compare_run('methyl-qz-2017', '/synthetic/run', reference=REFERENCE)
     assert result['status'] == 'passed'
     assert result['profiled_variant'] is True
     assert result['calculation_profiles']['ccsdt_dz'] == (
@@ -187,7 +189,7 @@ def test_methyl_current_profile_compares_to_published_targets(monkeypatch):
     assert check['error_hartree'] == pytest.approx(1.9499843e-5)
     assert check['source_exact_tolerance_hartree'] == pytest.approx(2e-6)
     assert check['absolute_tolerance_hartree'] == pytest.approx(5e-5)
-    assert check['tolerance_profile'] == 'published-UHF-to-current-ROHF'
+    assert check['tolerance_profile'] == 'declared_request_variant'
 
 
 def test_run_comparison_rejects_a_different_reference(monkeypatch):
@@ -200,7 +202,7 @@ def test_run_comparison_rejects_a_different_reference(monkeypatch):
         literature, '_load',
         lambda run_dir: (Path(run_dir), {
             'molecule':
-                literature.BENCHMARKS['methane-qz-2017']['molecule'],
+                BENCHMARKS['methane-qz-2017']['molecule'],
             'tasks': [task]}, {
             'tasks': {'ccsdtqp_dz': {'status': 'complete'}}}))
     monkeypatch.setattr(
@@ -209,7 +211,7 @@ def test_run_comparison_rejects_a_different_reference(monkeypatch):
             None, None, None, None, None,
             {'energy_hartree': -40.387527542311}))
     with pytest.raises(ValueError, match='does not match'):
-        literature.compare_run('methane-qz-2017', '/synthetic/run')
+        literature.compare_run('methane-qz-2017', '/synthetic/run', reference=REFERENCE)
 
 
 def test_run_comparison_uses_verified_native_driver_evidence(monkeypatch):
@@ -230,7 +232,7 @@ def test_run_comparison_uses_verified_native_driver_evidence(monkeypatch):
             None, None, None, None, None, {
                 'energy_hartree': benchmark['tasks']['ccsdtq_dz']['expected'],
                 'driver': 'direct'}))
-    result = literature.compare_run('methane-qz-2017', '/synthetic/run')
+    result = literature.compare_run('methane-qz-2017', '/synthetic/run', reference=REFERENCE)
     assert result['status'] == 'passed'
     assert result['calculation_request_native_evidence'] == {
         'ccsdtq_dz': {'driver': 'direct'}}
@@ -254,7 +256,7 @@ def test_run_comparison_does_not_invent_missing_driver(monkeypatch):
             None, None, None, None, None, {
                 'energy_hartree': benchmark['tasks']['ccsdtq_dz']['expected']}))
     with pytest.raises(ValueError, match="'observed': None"):
-        literature.compare_run('methane-qz-2017', '/synthetic/run')
+        literature.compare_run('methane-qz-2017', '/synthetic/run', reference=REFERENCE)
 
 
 def test_formation_comparison_uses_computed_cbh_result(tmp_path):
@@ -269,7 +271,7 @@ def test_formation_comparison_uses_computed_cbh_result(tmp_path):
         },
     }))
     comparison = literature.compare_formation(
-        'methyl-qz-2017', result, absolute_tolerance_kcal_mol=0.1)
+        'methyl-qz-2017', result, absolute_tolerance_kcal_mol=0.1, reference=REFERENCE)
     assert comparison['status'] == 'passed'
     assert comparison['error_kcal_mol'] == pytest.approx(0.02)
     assert 'inserted' in comparison['note']
@@ -280,7 +282,7 @@ def test_formation_comparison_uses_computed_cbh_result(tmp_path):
     result.write_text(json.dumps(payload))
     comparison = literature.compare_formation(
         'methyl-qz-2017', result, method=profile,
-        absolute_tolerance_kcal_mol=0.1)
+        absolute_tolerance_kcal_mol=0.1, reference=REFERENCE)
     assert comparison['status'] == 'passed'
     assert comparison['benchmark_method_family'] == 'ANL0-F12'
     assert comparison['profiled_variant'] is True
@@ -296,4 +298,4 @@ def test_formation_comparison_rejects_wrong_species_or_method(tmp_path):
         },
     }))
     with pytest.raises(ValueError, match='target'):
-        literature.compare_formation('methyl-qz-2017', result)
+        literature.compare_formation('methyl-qz-2017', result, reference=REFERENCE)

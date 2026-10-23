@@ -357,7 +357,8 @@ held while independent surfaces may sample.
 
 ### Read-only CH3SS comparison with the paper
 
-`python -m kinbot.paper_pes_check ROOT` compares the current CH3SS discovery
+`python -B -m validation.pes_compare CASE --reference validation/data/d4cp04873c_fig6.json`
+(from the checkout) compares the current discovery
 records with Fig. 6 of [DOI 10.1039/d4cp04873c](https://pubs.rsc.org/en/content/articlehtml/2026/cp/d4cp04873c).
 Add `--json` for the complete per-search evidence. It prints to stdout, reads
 existing files and ASE databases in read-only mode, and does not call Slurm,

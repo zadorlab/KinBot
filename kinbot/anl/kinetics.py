@@ -1,4 +1,4 @@
-"""Hash-verified MESS rate-table parsing and literature diagnostics."""
+"""Hash-verified MESS rate-table parsing and execution audits."""
 
 from __future__ import annotations
 
@@ -10,37 +10,6 @@ from pathlib import Path
 import re
 
 from kinbot.execution import file_sha256 as _sha256
-
-
-METHYL_RECOMBINATION_SOURCE = {
-    'doi': '10.1021/acs.jpca.5b01002',
-    'title': ('Reanalysis of Rate Data for the Reaction CH3 + CH3 -> C2H6 '
-              'Using Revised Cross Sections and a Linearized Second-Order '
-              'Master Equation'),
-    'fit': '5.76e-11 * (T/298 K)^-0.34 cm^3 molecule^-1 s^-1',
-    'temperature_range_k': [300.0, 2000.0],
-    'uncertainty': 'about +/-10% at 300 K, increasing to +/-20% at 2000 K',
-}
-
-METHYL_RECOMBINATION_LEGACY_SOURCE = {
-    'doi': '10.1021/jp951218o',
-    'title': 'Recombination of Methyl Radicals. 2. Global Fits of the Rate Coefficient',
-    'fit': '8.78e-11 * exp(-T/723) cm^3 s^-1',
-    'temperature_range_k': [300.0, 1750.0],
-    'relationship': ('Historical comparison only. The 2015 reanalysis found '
-                     'that this expression has an excessively strong negative '
-                     'temperature dependence.'),
-}
-
-METHYL_RECOMBINATION_THEORY_CONTEXT = {
-    'doi': '10.1039/B515914H',
-    'title': 'Predictive theory for the combination kinetics of two alkyl radicals',
-    'method': ('VRC-TST with direct CASPT2/cc-pVDZ sampling and a '
-               'one-dimensional CAS+1+2/aug-cc-pVTZ correction'),
-    'fit': '1.57e-9 * T^-0.538 * exp(-68 K/T) cm^3 molecule^-1 s^-1',
-    'relationship': ('Independent method context; the current validation '
-                     'uses its declared MRCI+Q/cc-pVTZ correction instead.'),
-}
 
 
 @dataclass(frozen=True)
@@ -148,30 +117,6 @@ def rate_series(points, reactant, product):
     return tuple(series)
 
 
-def methyl_recombination_experimental_fit(temperature_k):
-    """2015 recommended experimental high-pressure fit, in cm^3 s^-1."""
-    temperature = float(temperature_k)
-    if not math.isfinite(temperature) or temperature <= 0.:
-        raise ValueError('Temperature must be finite and positive.')
-    return 5.76e-11 * (temperature / 298.) ** -0.34
-
-
-def methyl_recombination_theory_fit(temperature_k):
-    """2006 corrected VRC-TST high-pressure fit, in cm^3 s^-1."""
-    temperature = float(temperature_k)
-    if not math.isfinite(temperature) or temperature <= 0.:
-        raise ValueError('Temperature must be finite and positive.')
-    return 1.57e-9 * temperature ** -0.538 * math.exp(-68. / temperature)
-
-
-def methyl_recombination_legacy_fit(temperature_k):
-    """1996 global high-pressure fit retained for historical context."""
-    temperature = float(temperature_k)
-    if not math.isfinite(temperature) or temperature <= 0.:
-        raise ValueError('Temperature must be finite and positive.')
-    return 8.78e-11 * math.exp(-temperature / 723.)
-
-
 def audit_rate_tables(run_dir, *, job='mess_0000'):
     """Verify a completed MESS network without assuming its chemistry or fit.
 
@@ -215,78 +160,6 @@ def audit_rate_tables(run_dir, *, job='mess_0000'):
             'note': 'Native execution and rate-table audit; no empirical fit is applied.'}
 
 
-def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=1.5):
-    """Explicit literature diagnostic; never invoked by general orchestration."""
-    if not math.isfinite(max_factor) or max_factor < 1.:
-        raise ValueError('max_factor must be finite and at least one.')
-    native = audit_rate_tables(run_dir, job=job)
-    network = native['network']
-    if len(network.get('wells', ())) != 1 or len(network.get('products', ())) != 1:
-        raise ValueError(
-            f'{job}: methyl recombination audit requires one well and one '
-            'bimolecular product.')
-    reactant = network['products'][0]
-    product = network['wells'][0]
-    series = rate_series(
-        (HighPressureRate(**point) for point in native['rates']), reactant, product)
-    minimum_temperature, maximum_temperature = (
-        METHYL_RECOMBINATION_SOURCE['temperature_range_k'])
-    comparison = []
-    for point in series:
-        row = {**asdict(point), 'compared_to_experiment': (
-            minimum_temperature <= point.temperature_k <= maximum_temperature)}
-        if row['compared_to_experiment']:
-            reference = methyl_recombination_experimental_fit(
-                point.temperature_k)
-            theory = methyl_recombination_theory_fit(point.temperature_k)
-            legacy = methyl_recombination_legacy_fit(point.temperature_k)
-            factor = (max(point.rate, reference) / min(point.rate, reference)
-                      if point.rate > 0. else math.inf)
-            row.update({
-                'reference_rate': reference,
-                'factor_difference': factor,
-                'within_factor': factor <= max_factor,
-                'similar_vrc_theory_rate': theory,
-                'similar_vrc_theory_factor_difference': (
-                    max(point.rate, theory) / min(point.rate, theory)
-                    if point.rate > 0. else math.inf),
-                'legacy_1996_rate': legacy,
-                'legacy_1996_factor_difference': (
-                    max(point.rate, legacy) / min(point.rate, legacy)
-                    if point.rate > 0. else math.inf),
-            })
-        comparison.append(row)
-    compared = [row for row in comparison if row['compared_to_experiment']]
-    if len(compared) < 2:
-        raise ValueError(
-            'MESS has fewer than two rates in the experimental fit range.')
-    monotone = all(
-        right.rate <= left.rate
-        for left, right in zip(series, series[1:])
-        if (minimum_temperature <= left.temperature_k <= maximum_temperature
-            and minimum_temperature <= right.temperature_k
-            <= maximum_temperature))
-    return {
-        'schema': 1,
-        'status': ('passed' if monotone and all(
-            item['within_factor'] for item in compared) else 'failed'),
-        'job': job,
-        'execution_job_key': native['execution_job_key'],
-        'output': native['output'],
-        'output_sha256': native['output_sha256'],
-        'reaction': f'{reactant}->{product}',
-        'units': 'cm^3 s^-1',
-        'maximum_accepted_factor': float(max_factor),
-        'monotonically_nonincreasing_with_temperature': monotone,
-        'source': METHYL_RECOMBINATION_SOURCE,
-        'legacy_source': METHYL_RECOMBINATION_LEGACY_SOURCE,
-        'similar_vrc_theory_context': METHYL_RECOMBINATION_THEORY_CONTEXT,
-        'rates': comparison,
-        'note': ('The literature fit is an independent diagnostic target and '
-                 'was not used to generate the ROTD_py surface or MESS input.'),
-    }
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description='Parse and audit hash-verified MESS rate tables')
@@ -296,10 +169,6 @@ def main(argv=None):
     audit = commands.add_parser('audit-rates')
     audit.add_argument('run_dir', type=Path)
     audit.add_argument('--job', default='mess_0000')
-    compare = commands.add_parser('compare-methyl-recombination')
-    compare.add_argument('run_dir', type=Path)
-    compare.add_argument('--job', default='mess_0000')
-    compare.add_argument('--max-factor', type=float, default=1.5)
     args = parser.parse_args(argv)
     if args.action == 'parse-high-pressure':
         print(json.dumps([asdict(point) for point in
@@ -308,10 +177,6 @@ def main(argv=None):
     if args.action == 'audit-rates':
         print(json.dumps(audit_rate_tables(args.run_dir, job=args.job), indent=2))
         return 0
-    result = audit_methyl_recombination(
-        args.run_dir, job=args.job, max_factor=args.max_factor)
-    print(json.dumps(result, indent=2, sort_keys=True))
-    return int(result['status'] != 'passed')
 
 
 if __name__ == '__main__':

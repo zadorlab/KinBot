@@ -1550,6 +1550,9 @@ def _retry_l3_execution_failures(graph, spec, state):
     if not limit:
         return state
     for ident in sorted(_required_geometries(spec)):
+        from kinbot.anl.refinement import pending as pending_refinement
+        if ident in pending_refinement(graph):
+            continue
         entry = state['tasks'].get(ident, {})
         if (entry.get('status') not in ('failed', 'unavailable')
                 or entry.get('attempt', 1) > limit):
@@ -1572,6 +1575,9 @@ def _retry_vpt2_framework_failures(graph, state):
                for e in state['tasks'].values()):
         return state
     from kinbot.anl.dispatch import recover_vpt2_failures
+    from kinbot.anl.refinement import pending as pending_refinement
+    if pending_refinement(graph):
+        return state
     spec = _load(graph)[1]
     if not spec.get('tasks'):
         return state
@@ -1603,6 +1609,9 @@ def _drive_graphs_locked(graphs, max_jobs, interval):
     names = sorted(graphs)
     specifications = {name: _load(graphs[name])[1] for name in names}
     required = {name: _required_geometries(specifications[name]) for name in names}
+    from kinbot.anl.refinement import window
+    for graph in graphs.values():
+        window(graph)
     cursor = 0
     scheduler_error = None
     while True:
@@ -1633,11 +1642,26 @@ def _drive_graphs_locked(graphs, max_jobs, interval):
             held = any(e['status'] in ('failed','unavailable') and holding(
                 Path(graphs[name])/'tasks'/task) for name,state in states.items()
                 for task,e in state['tasks'].items())
-            if hard and not active and not runnable and not held:
+            from kinbot.live_control import find as live_controls
+            waiting_for_operator = bool(hard and names and all(
+                live_controls(graphs[n]) for n in names))
+            for name in names:
+                marker = Path(graphs[name])/'live_retry_status.json'
+                value = dict(status='waiting_for_live_retry' if waiting_for_operator else 'running',
+                             failures=hard if waiting_for_operator else [])
+                if waiting_for_operator or marker.exists():
+                    if not marker.exists() or json.loads(marker.read_text()) != value:
+                        atomic_json(marker, value)
+            if hard and not active and not runnable and not held and not waiting_for_operator:
                 raise RuntimeError('Automatic composite graph failed: ' +
                                    ', '.join(hard))
-            if complete and not held:
-                return states
+            if complete and not held and not hard:
+                if all(window(graph, close=True) for graph in graphs.values()):
+                    return states
+                # A request published before closure takes priority over
+                # downstream assembly; poll it under the same graph owner.
+                for graph in graphs.values():
+                    window(graph)
             slots = run_policy.limit(max_jobs, graphs[names[0]]) - active if names else 0
             for offset in range(len(names)):
                 if slots <= 0:

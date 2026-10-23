@@ -1,0 +1,464 @@
+{
+  "schema": 1,
+  "source": {
+    "doi": "10.1021/acs.jpca.7b05945",
+    "supplement_doi": "10.1021/acs.jpca.7b05945.s001",
+    "geometry_supplement_doi": "10.1021/acs.jpca.7b05945.s002",
+    "title": "Ab Initio Computations and Active Thermochemical Tables Hand in Hand: Heats of Formation of Core Combustion Species"
+  },
+  "benchmarks": {
+    "ethane-tz-2017": {
+      "species": "C2H6",
+      "smiles": "CC",
+      "geometry": "CCSD(T)/cc-pVTZ optimized geometry",
+      "worksheet": "stable,TZ!A33:CU33",
+      "molecule": {
+        "symbols": [
+          "C",
+          "C",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.0,
+            0.0,
+            -0.7644921462
+          ],
+          [
+            0.0,
+            0.0,
+            0.7644921462
+          ],
+          [
+            1.0179776872,
+            0.0,
+            -1.159266974
+          ],
+          [
+            -0.5089888436,
+            -0.8815945376,
+            -1.159266974
+          ],
+          [
+            -0.5089888436,
+            0.8815945376,
+            -1.159266974
+          ],
+          [
+            -1.0179776872,
+            0.0,
+            1.159266974
+          ],
+          [
+            0.5089888436,
+            0.8815945376,
+            1.159266974
+          ],
+          [
+            0.5089888436,
+            -0.8815945376,
+            1.159266974
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 1
+      },
+      "tasks": {
+        "harmonic": {
+          "path": [
+            "zpe",
+            "hartree"
+          ],
+          "expected": 0.07472969,
+          "atol": 2e-06
+        },
+        "f12_tz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -79.705837768001,
+          "atol": 2e-06
+        },
+        "f12_qz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -79.709469984796,
+          "atol": 2e-06
+        },
+        "ccsdt_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -79.582320541811,
+          "atol": 2e-06
+        },
+        "ccsdtq_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -79.583342872557,
+          "atol": 2e-06
+        },
+        "cfour_dboc": {
+          "path": [
+            "selected",
+            "hartree"
+          ],
+          "expected": 0.0047235917,
+          "atol": 2e-07
+        }
+      },
+      "derived": {
+        "delta_q_dz": {
+          "high": "ccsdtq_dz",
+          "low": "ccsdt_dz",
+          "expected": -0.001022330746,
+          "atol": 3e-07
+        }
+      },
+      "formation_enthalpy_0k_kcal_mol": {
+        "ANL0": -16.458410745169683,
+        "ANL0-F12": -16.453662494159296
+      }
+    },
+    "ethane-qz-2017": {
+      "species": "C2H6",
+      "smiles": "CC",
+      "geometry": "CCSD(T)/cc-pVQZ optimized geometry",
+      "worksheet": "Stable,QZ!A31:CF31",
+      "molecule": {
+        "symbols": [
+          "C",
+          "C",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.0,
+            0.0,
+            -0.7632756988
+          ],
+          [
+            0.0,
+            0.0,
+            0.7632756988
+          ],
+          [
+            1.0169667994,
+            0.0,
+            -1.1578258559
+          ],
+          [
+            -0.5084833997,
+            -0.8807190831,
+            -1.1578258559
+          ],
+          [
+            -0.5084833997,
+            0.8807190831,
+            -1.1578258559
+          ],
+          [
+            -1.0169667994,
+            0.0,
+            1.1578258559
+          ],
+          [
+            0.5084833997,
+            0.8807190831,
+            1.1578258559
+          ],
+          [
+            0.5084833997,
+            -0.8807190831,
+            1.1578258559
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 1
+      },
+      "tasks": {
+        "ccsdt_tz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -79.674438136905,
+          "atol": 2e-06
+        },
+        "ccsdtq_tz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -79.675402085034,
+          "atol": 2e-06
+        },
+        "ccsdtq_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -79.583194551738,
+          "atol": 2e-06
+        },
+        "ccsdtqp_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -79.583204093642,
+          "atol": 2e-06
+        }
+      },
+      "derived": {
+        "delta_q_tz": {
+          "high": "ccsdtq_tz",
+          "low": "ccsdt_tz",
+          "expected": -0.000963948129,
+          "atol": 3e-07
+        },
+        "delta_p_dz": {
+          "high": "ccsdtqp_dz",
+          "low": "ccsdtq_dz",
+          "expected": -9.541904e-06,
+          "atol": 3e-07
+        }
+      },
+      "formation_enthalpy_0k_kcal_mol": {
+        "ANL1": -16.486399886603884
+      }
+    },
+    "methane-qz-2017": {
+      "species": "CH4",
+      "smiles": "C",
+      "geometry": "CCSD(T)/cc-pVQZ optimized geometry",
+      "worksheet": "Stable,QZ!A22:CF22",
+      "molecule": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.0,
+            0.0,
+            -1.2e-09
+          ],
+          [
+            0.8882878215,
+            0.0,
+            0.6281143484
+          ],
+          [
+            -0.8882878215,
+            0.0,
+            0.6281143484
+          ],
+          [
+            0.0,
+            0.8882878285,
+            -0.628114341
+          ],
+          [
+            0.0,
+            -0.8882878285,
+            -0.628114341
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 1
+      },
+      "tasks": {
+        "ccsdt_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -40.38698142,
+          "atol": 2e-06,
+          "request": {
+            "backend": "molpro",
+            "method": "CCSD(T)",
+            "basis": "cc-pVDZ",
+            "reference": "RHF"
+          }
+        },
+        "ccsdtq_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -40.3875184,
+          "atol": 2e-06,
+          "request": {
+            "backend": "mrcc",
+            "method": "CCSDT(Q)",
+            "basis": "cc-pVDZ",
+            "reference": "RHF",
+            "correlation": "unrestricted",
+            "driver": "direct"
+          }
+        },
+        "ccsdtqp_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -40.387527542311,
+          "atol": 2e-06,
+          "request": {
+            "backend": "mrcc",
+            "method": "CCSDTQ(P)",
+            "basis": "cc-pVDZ",
+            "reference": "RHF",
+            "correlation": "unrestricted"
+          }
+        }
+      },
+      "derived": {
+        "delta_q_dz": {
+          "high": "ccsdtq_dz",
+          "low": "ccsdt_dz",
+          "expected": -0.00053698,
+          "atol": 3e-07
+        },
+        "delta_p_dz": {
+          "high": "ccsdtqp_dz",
+          "low": "ccsdtq_dz",
+          "expected": -9.142311e-06,
+          "atol": 3e-07
+        }
+      },
+      "formation_enthalpy_0k_kcal_mol": {
+        "ANL0": -15.905831739961759,
+        "ANL0-F12": -15.905831739961759,
+        "ANL1": -15.905831739961759
+      }
+    },
+    "methyl-qz-2017": {
+      "species": "CH3",
+      "smiles": "[CH3]",
+      "geometry": "CCSD(T)/cc-pVQZ optimized geometry",
+      "worksheet": "Stable,QZ!A21:CF21",
+      "reference_note": "The source RHF-UCCSD(T) component uses the restricted HF determinant. Its MRCC CCSDT(Q) and CCSDTQ(P) components use a UHF determinant. Current validation uses a semicanonical ROHF determinant with unrestricted coupled cluster and compares the results directly as an explicitly recorded reference variant.",
+      "molecule": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            1.0777376714,
+            0.0,
+            0.0
+          ],
+          [
+            -0.5388688357,
+            -0.933348202,
+            0.0
+          ],
+          [
+            -0.5388688357,
+            0.933348202,
+            0.0
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "tasks": {
+        "ccsdt_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -39.71574341,
+          "atol": 2e-06,
+          "profiled_atol": 5e-05,
+          "comparison_profile": "published-MOLPRO-2012.1-to-current-MOLPRO-RUCCSD(T)",
+          "request": {
+            "backend": "molpro",
+            "method": "CCSD(T)",
+            "basis": "cc-pVDZ",
+            "reference": "ROHF"
+          }
+        },
+        "ccsdtq_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -39.71626066,
+          "atol": 2e-06,
+          "profiled_atol": 5e-05,
+          "request": {
+            "backend": "mrcc",
+            "method": "CCSDT(Q)",
+            "basis": "cc-pVDZ",
+            "reference": "UHF",
+            "correlation": "unrestricted"
+          },
+          "comparison_variants": {
+            "reference": [
+              "ROHF"
+            ]
+          }
+        },
+        "ccsdtqp_dz": {
+          "path": [
+            "energy_hartree"
+          ],
+          "expected": -39.716271925574,
+          "atol": 2e-06,
+          "profiled_atol": 5e-05,
+          "request": {
+            "backend": "mrcc",
+            "method": "CCSDTQ(P)",
+            "basis": "cc-pVDZ",
+            "reference": "UHF",
+            "correlation": "unrestricted"
+          },
+          "comparison_variants": {
+            "reference": [
+              "ROHF"
+            ]
+          }
+        }
+      },
+      "derived": {
+        "delta_q_dz": {
+          "high": "ccsdtq_dz",
+          "low": "ccsdt_dz",
+          "expected": -0.00051725,
+          "atol": 3e-07,
+          "profiled_atol": 5e-05
+        },
+        "delta_p_dz": {
+          "high": "ccsdtqp_dz",
+          "low": "ccsdtq_dz",
+          "expected": -1.1265574e-05,
+          "atol": 3e-07,
+          "profiled_atol": 5e-05
+        }
+      },
+      "formation_enthalpy_0k_kcal_mol": {
+        "ANL0": 35.8358988626,
+        "ANL0-F12": 35.86931404,
+        "ANL1": 35.79702527592331
+      }
+    }
+  }
+}

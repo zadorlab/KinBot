@@ -187,6 +187,15 @@ def main(argv=None):
     rec.add_argument('root', type=Path)
     rec.add_argument('--select', action='append', default=[], help='Graph path glob relative to ROOT; default all current graphs.')
     rec.add_argument('--apply', action='store_true')
+    refine = sub.add_parser('refine', help='Request a tighter geometry/harmonic retry from the live graph owner.')
+    refine.add_argument('root', type=Path)
+    refine.add_argument('--target', required=True, help='GRAPH/tasks/TASK relative to ROOT: geometry, harmonic, or a dependent calculation.')
+    refine.add_argument('--fmax', required=True, type=float, help='Maximum geometry force, eV/angstrom.')
+    refine.add_argument('--scf', required=True, type=float, help='Electronic SCF convergence, e.g. 1e-11.')
+    refine.add_argument('--cc', required=True, type=float, help='Coupled-cluster convergence, e.g. 1e-11.')
+    refine.add_argument('--cancel-running', action='store_true', help='Stop only allocations in the displayed dependency closure; default waits for them.')
+    refine.add_argument('--reason', required=True)
+    refine.add_argument('--apply', action='store_true', help='Queue the reviewed refinement; default is read-only preview.')
     resubmit = sub.add_parser('resubmit', help='Validate an edited PES input; ask its existing owner to apply it.')
     resubmit.add_argument('input', type=Path)
     resubmit.add_argument('--run-directory', type=Path,
@@ -234,7 +243,20 @@ def main(argv=None):
     group.add_argument('--walltime'); group.add_argument('--delta', help='Signed HH:MM:SS, e.g. --delta=-02:00:00')
     wall.add_argument('--apply', action='store_true')
     args = parser.parse_args(argv)
-    if args.action == 'reconcile':
+    if args.action == 'refine':
+        from kinbot.anl.refinement import plan
+        root = args.root.resolve(strict=True)
+        target = (root/args.target).resolve()
+        if not target.is_relative_to(root) or target.parent.name != 'tasks':
+            raise ValueError('Refinement target must be a dispatcher task inside ROOT.')
+        result = plan(target.parent.parent, target.name,
+                      dict(fmax=args.fmax, scf=args.scf, cc=args.cc))
+        result.pop('replacement')
+        if args.apply:
+            result = control.request(root, target, kind='refinement', reason=args.reason,
+                                     cancel_running=args.cancel_running,
+                                     options={'refinement_plan': result})
+    elif args.action == 'reconcile':
         result = reconcile(args.root, args.select, apply=args.apply)
     elif args.action == 'resubmit':
         from kinbot.input_refresh import submit, receipt, owner_directory

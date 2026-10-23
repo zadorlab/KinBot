@@ -623,3 +623,28 @@ def test_second_manual_qc_retry_updates_the_actual_previous_worker(ordinary,monk
     assert json.loads(request_path(root,r).read_text())['status']=='applied'
     qc_live.process(qc,'well','running')
     assert len(submitted)==2
+
+
+@pytest.mark.parametrize('proof', ['valid', 'wrong_job', 'missing_observation', 'still_live'])
+def test_purged_timeout_can_be_explicitly_retried_without_worker_receipt(root, monkeypatch, proof):
+    from kinbot import timeout_retry
+    g = graph(root)
+    d = g/'tasks/change'
+    state = dispatch._load(g)[2]
+    state['tasks']['change'].update(status='failed', job_id='42')
+    atomic_json(g/'state.json', state)
+    if proof != 'missing_observation':
+        record = allocation(d, state='RUNNING')
+        record.update(StartTime='2026-10-22T13:39:03', TimeLimit='02:00:00')
+        atomic_json(d/'.kinbot_timeout_allocations/42.json', record)
+    job = '43' if proof == 'wrong_job' else '42'
+    (d/'slurm.stderr').write_text(f'*** JOB {job} ON node1 CANCELLED AT 2026-10-22T15:39:03 DUE TO TIME LIMIT ***\n')
+    monkeypatch.setattr(owner, 'slurm_job_record', lambda job: {})
+    monkeypatch.setattr(timeout_retry, 'slurm_job_record', lambda job: {})
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: proof == 'still_live')
+    r = control.request(root, d, reason='explicit longer timeout retry')
+    if proof == 'valid':
+        assert owner.stop_attempt(d, '42', request_path(root, r), r)
+    else:
+        with pytest.raises(RuntimeError, match='ownership'):
+            owner.stop_attempt(d, '42', request_path(root, r), r)

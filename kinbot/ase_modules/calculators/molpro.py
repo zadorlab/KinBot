@@ -113,8 +113,7 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
     Molpro's RHF step supplies RHF or ROHF orbitals according to multiplicity.
     Bare ``UCCSD(T)`` then uses the restricted-reference unrestricted-CC
     formalism.  ``UHF_UCCSD=1`` must not be added: it forces Molpro's separate
-    UHF-UCC engine and produced a zero triples correction for closed-shell
-    ethane in Molpro 2024.1.
+    UHF-UCC engine rather than the requested restricted-reference engine.
     """
     if not basis or not _SAFE_BASIS.fullmatch(basis):
         raise ValueError('Molpro basis must be one safe basis identifier.')

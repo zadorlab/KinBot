@@ -332,10 +332,11 @@ def test_literature_gate_requires_every_declared_component(
         tmp_path, monkeypatch):
     monkeypatch.setattr(
         'kinbot.anl.end_to_end.compare_run',
-        lambda benchmark, source: {
+        lambda benchmark, source, **kwargs: {
             'status': 'passed', 'checks': {'ccsdt_dz': {'passed': True}}})
     with pytest.raises(ValueError, match='lacks required comparisons'):
         _literature_checks(tmp_path, [{
             'kind': 'run', 'benchmark': 'fixture', 'source': str(tmp_path),
+            'reference': 'explicit-reference.json',
             'required_checks': ['ccsdt_dz', 'ccsdtq_dz'],
         }])

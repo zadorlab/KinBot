@@ -564,11 +564,14 @@ def _literature_checks(base, entries):
     for index, entry in enumerate(entries or []):
         if not isinstance(entry, dict):
             raise ValueError(f'literature[{index}] must be an object.')
+        reference = _path(base, entry.get('reference'),
+                          f'literature[{index}].reference')
         kind = entry.get('kind')
         if kind == 'run':
             result = compare_run(
                 entry.get('benchmark'),
-                _path(base, entry.get('source'), f'literature[{index}].source'))
+                _path(base, entry.get('source'), f'literature[{index}].source'),
+                reference=reference)
         elif kind == 'formation':
             source = _path(
                 base, entry.get('source'), f'literature[{index}].source')
@@ -577,7 +580,7 @@ def _literature_checks(base, entries):
                 method = _read_json(source, 'CBH formation result')[
                     'formation']['method']
             result = compare_formation(
-                entry.get('benchmark'), source, method=method,
+                entry.get('benchmark'), source, reference=reference, method=method,
                 absolute_tolerance_kcal_mol=float(entry.get(
                     'absolute_tolerance_kcal_mol', 0.1)))
         else:

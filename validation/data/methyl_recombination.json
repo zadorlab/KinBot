@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "primary": "experiment",
+  "fits": {
+    "experiment": {
+      "source": {
+        "doi": "10.1021/acs.jpca.5b01002",
+        "title": "Reanalysis of Rate Data for the Reaction CH3 + CH3 -> C2H6 Using Revised Cross Sections and a Linearized Second-Order Master Equation",
+        "fit": "5.76e-11 * (T/298 K)^-0.34 cm^3 molecule^-1 s^-1",
+        "temperature_range_k": [
+          300.0,
+          2000.0
+        ],
+        "uncertainty": "about +/-10% at 300 K, increasing to +/-20% at 2000 K"
+      },
+      "coefficients": {
+        "A": 5.76e-11,
+        "T0": 298.0,
+        "n": -0.34
+      }
+    },
+    "theory": {
+      "source": {
+        "doi": "10.1039/B515914H",
+        "title": "Predictive theory for the combination kinetics of two alkyl radicals",
+        "method": "VRC-TST with direct CASPT2/cc-pVDZ sampling and a one-dimensional CAS+1+2/aug-cc-pVTZ correction",
+        "fit": "1.57e-9 * T^-0.538 * exp(-68 K/T) cm^3 molecule^-1 s^-1",
+        "relationship": "Independent method context; the current validation uses its declared MRCI+Q/cc-pVTZ correction instead."
+      },
+      "coefficients": {
+        "A": 1.57e-09,
+        "n": -0.538,
+        "activation_temperature": 68.0
+      }
+    },
+    "legacy": {
+      "source": {
+        "doi": "10.1021/jp951218o",
+        "title": "Recombination of Methyl Radicals. 2. Global Fits of the Rate Coefficient",
+        "fit": "8.78e-11 * exp(-T/723) cm^3 s^-1",
+        "temperature_range_k": [
+          300.0,
+          1750.0
+        ],
+        "relationship": "Historical comparison only. The 2015 reanalysis found that this expression has an excessively strong negative temperature dependence."
+      },
+      "coefficients": {
+        "A": 8.78e-11,
+        "temperature_decay": 723.0
+      }
+    }
+  },
+  "maximum_factor": 1.5,
+  "trend": "nonincreasing",
+  "units": "cm^3 molecule^-1 s^-1"
+}

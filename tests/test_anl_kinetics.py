@@ -5,12 +5,22 @@ from pathlib import Path
 
 import pytest
 
-from kinbot.anl.kinetics import (audit_methyl_recombination,
-                                 audit_rate_tables,
-                                 methyl_recombination_experimental_fit,
-                                 methyl_recombination_legacy_fit,
-                                 methyl_recombination_theory_fit,
-                                 parse_high_pressure_rates, rate_series)
+from kinbot.anl.kinetics import audit_rate_tables, parse_high_pressure_rates, rate_series
+from validation.rate_compare import compare, fit
+
+REFERENCE = json.loads((Path(__file__).parents[1]/'validation/data/methyl_recombination.json').read_text())
+
+def methyl_recombination_experimental_fit(t):
+    return fit(t, REFERENCE['fits']['experiment']['coefficients'])
+
+def methyl_recombination_theory_fit(t):
+    return fit(t, REFERENCE['fits']['theory']['coefficients'])
+
+def methyl_recombination_legacy_fit(t):
+    return fit(t, REFERENCE['fits']['legacy']['coefficients'])
+
+def audit_methyl_recombination(run):
+    return compare(run, reference=REFERENCE, reactant='b_1', product='w_1')
 
 
 def output(rates):
@@ -60,12 +70,12 @@ def test_methyl_recombination_audit_uses_hash_and_network(tmp_path):
     }]))
     audit = audit_methyl_recombination(tmp_path)
     assert audit['status'] == 'passed'
-    assert audit['monotonically_nonincreasing_with_temperature']
-    assert all(math.isclose(row['factor_difference'], 1., rel_tol=1.e-8)
+    assert audit['trend_matches']
+    assert all(math.isclose(row['comparisons']['experiment']['factor_difference'], 1., rel_tol=1.e-8)
                for row in audit['rates'])
-    assert audit['source']['doi'] == '10.1021/acs.jpca.5b01002'
-    assert all(row['similar_vrc_theory_rate'] > 0.
-               and row['legacy_1996_rate'] > 0.
+    assert audit['reference']['fits']['experiment']['source']['doi'] == '10.1021/acs.jpca.5b01002'
+    assert all(row['comparisons']['theory']['reference_rate'] > 0.
+               and row['comparisons']['legacy']['reference_rate'] > 0.
                for row in audit['rates'])
     # The general audit permits arbitrary networks and rate trends; no
     # implicit fit or methyl statistical factor is an acceptance criterion.
@@ -122,9 +132,9 @@ def test_methyl_recombination_retains_rates_outside_fit_range(tmp_path):
     audit = audit_methyl_recombination(tmp_path)
     assert audit['status'] == 'passed'
     assert len(audit['rates']) == 5
-    assert [row['compared_to_experiment'] for row in audit['rates']] == [
+    assert ['experiment' in row['comparisons'] for row in audit['rates']] == [
         False, True, True, True, False]
-    assert 'reference_rate' not in audit['rates'][-1]
+    assert 'experiment' not in audit['rates'][-1]['comparisons']
 
 
 def test_methyl_recombination_published_fits():
@@ -157,6 +167,8 @@ def test_production_style_rates_pass_current_not_superseded_fit(tmp_path):
     audit = audit_methyl_recombination(tmp_path)
 
     assert audit['status'] == 'passed'
-    assert max(row['factor_difference'] for row in audit['rates']) < 1.5
-    assert max(row['legacy_1996_factor_difference']
-               for row in audit['rates']) > 5.
+    assert max(row['comparisons']['experiment']['factor_difference'] for row in audit['rates']) < 1.5
+    assert any(not row['comparisons']['legacy']['within_factor']
+               for row in audit['rates'] if 'legacy' in row['comparisons'])
+    # No extrapolation beyond a reference's declared interval.
+    assert 'legacy' not in audit['rates'][-1]['comparisons']

@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "title": "D4CP04873C Figure 6",
+  "source": "https://pubs.rsc.org/en/content/articlehtml/2026/cp/d4cp04873c",
+  "nodes": {
+    "W1": {
+      "label": "CH2S...SH complex",
+      "smiles": [
+        "C=S",
+        "[SH]"
+      ],
+      "relative_energy_kcal_mol": -4.77,
+      "kind": "complex",
+      "net_endpoint": "P1",
+      "orientation": "Coplanar VdW2; SH hydrogen points toward thioformaldehyde sulfur; coordinates needed to establish identity."
+    },
+    "W2": {
+      "label": "CH2S2H",
+      "smiles": [
+        "[CH2]SS"
+      ],
+      "relative_energy_kcal_mol": -18.46,
+      "kind": "species"
+    },
+    "W3": {
+      "label": "HSCH2S",
+      "smiles": [
+        "SC[S]"
+      ],
+      "relative_energy_kcal_mol": -22.82,
+      "kind": "species"
+    },
+    "W4": {
+      "label": "CH3S2",
+      "smiles": [
+        "CS[S]"
+      ],
+      "relative_energy_kcal_mol": -43.02,
+      "kind": "species"
+    },
+    "P1": {
+      "label": "CH2S + SH",
+      "smiles": [
+        "C=S",
+        "[SH]"
+      ],
+      "relative_energy_kcal_mol": 0.0,
+      "kind": "products"
+    },
+    "P2": {
+      "label": "CHS + H2S",
+      "smiles": [
+        "[CH]=S",
+        "S"
+      ],
+      "relative_energy_kcal_mol": 1.49,
+      "kind": "products"
+    },
+    "P3": {
+      "label": "SCHSH + H",
+      "smiles": [
+        "S=CS",
+        "[H]"
+      ],
+      "relative_energy_kcal_mol": 16.6,
+      "kind": "products"
+    },
+    "P4": {
+      "label": "CH3 + S2",
+      "smiles": [
+        "[CH3]",
+        "[S][S]"
+      ],
+      "relative_energy_kcal_mol": 3.57,
+      "kind": "products"
+    }
+  },
+  "connections": {
+    "entrance": {
+      "endpoints": [
+        "P1",
+        "W1"
+      ],
+      "relative_energy_kcal_mol": null,
+      "kind": "association"
+    },
+    "TS1": {
+      "endpoints": [
+        "W1",
+        "P2"
+      ],
+      "relative_energy_kcal_mol": 7.48,
+      "kind": "tight"
+    },
+    "TS2": {
+      "endpoints": [
+        "W2",
+        "W1"
+      ],
+      "relative_energy_kcal_mol": -4.22,
+      "kind": "tight"
+    },
+    "TS3": {
+      "endpoints": [
+        "W3",
+        "W1"
+      ],
+      "relative_energy_kcal_mol": -0.17,
+      "kind": "tight"
+    },
+    "TS4": {
+      "endpoints": [
+        "W4",
+        "W2"
+      ],
+      "relative_energy_kcal_mol": 7.38,
+      "kind": "tight"
+    },
+    "TS5": {
+      "endpoints": [
+        "W3",
+        "P3"
+      ],
+      "relative_energy_kcal_mol": 21.62,
+      "kind": "tight"
+    },
+    "TS6": {
+      "endpoints": [
+        "W2",
+        "W3"
+      ],
+      "relative_energy_kcal_mol": 18.2,
+      "kind": "tight"
+    },
+    "scission": {
+      "endpoints": [
+        "W4",
+        "P4"
+      ],
+      "relative_energy_kcal_mol": null,
+      "kind": "barrierless"
+    }
+  },
+  "identity_scope": "Element/H connectivity only. Paper geometries are not supplied; exact TS and complex identities remain unverified."
+}

@@ -235,3 +235,35 @@ def test_mismatched_allocation_cannot_trigger_recovery(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match='different allocation'):
         dispatch.advance(root)
     assert not (root/'.live_control_transaction.json').exists()
+
+
+@pytest.mark.parametrize('new,old', [('C2V', 'C2'), ('C3V', 'C3'), ('C5V', 'C5')])
+def test_native_detection_disagreement_gets_one_loose_retry(tmp_path, monkeypatch, new, old):
+    root = graph(tmp_path)
+    monkeypatch.setattr(dispatch, '_job_active', lambda _: False)
+    d = fail(root, f'ERROR: Inconsistency found in framework group definition:\nNew: {new} - Old:\nError termination via Lnk1e\n')
+    dispatch.advance(root)
+    geometry = (d/'geometry.xyz').read_bytes()
+    diagnostic = (f'Full point group                 {old}      NOp 2\n'
+                  f'Framework definition based on atomic masses: {new}\n'
+                  'ERROR: Inconsistency found in framework group definition:\n'
+                  f'New: {new} - Old: {old}\nError termination via Lnk1e\n')
+    fail(root, diagnostic)
+    state = dispatch.advance(root)
+    assert state['tasks']['custom_anharmonic']['status'] == 'staged'
+    assert f'Symmetry=(PG={new},Loose)' in (d/'vpt2.com').read_text()
+    assert (d/'geometry.xyz').read_bytes() == geometry
+    task = next(t for t in dispatch._load(root)[1]['tasks'] if t['id'] == 'custom_anharmonic')
+    assert task['recovery']['symmetry_detection'] == 'loose'
+    fail(root, diagnostic)
+    assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'failed'
+    assert len(list((root/'attempts').glob('live_*'))) == 2
+
+
+def test_loose_retry_requires_both_native_framework_assignments(tmp_path, monkeypatch):
+    root = graph(tmp_path)
+    monkeypatch.setattr(dispatch, '_job_active', lambda _: False)
+    fail(root)
+    dispatch.advance(root)
+    fail(root, 'ERROR: Inconsistency found in framework group definition:\nNew: CS - Old: C1\nError termination via Lnk1e\n')
+    assert dispatch.advance(root)['tasks']['custom_anharmonic']['status'] == 'failed'

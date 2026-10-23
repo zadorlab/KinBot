@@ -3,7 +3,8 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-exclude = ["build", "dist", "KinBot.egg-info", "graphics"]
+include = ["kinbot*"]
+exclude = ["kinbot.tests*"]
 
 [tool.setuptools.package-data]
 "kinbot.tpl" = ["*.tpl.py", "*.tpl", "*.png"]

@@ -185,3 +185,31 @@ CH3SS closed=17/occ=22). No production behavior was changed to satisfy those
 expectations. The complete rerun then passed 1,622 tests and 391 subtests.
 The Davidson reader test now includes all three Davidson/Pople variants and
 a pre-CABS fatal-error case; the existing runtime selector remains unchanged.
+
+## October 22 update: remove reference examples from the installed package
+
+This supersedes the earlier allowance for diagnostic datasets inside
+`anl.literature` and `anl.kinetics` above. All four historical ANL benchmark
+geometries/energies, methyl recombination fits and the paper PES catalogue now
+live under `validation/data/`. Source-reproduction and paper-comparison helpers
+live under `validation/`, outside the installed package. The remaining generic
+ANL comparator requires an explicit reference file; native rate auditing has no
+implicit reference reaction. A fixed four-core benchmark cap and a fixed
+molecule demonstration in `bond_combinations` were removed. Packaging includes
+only `kinbot*`, excluding `kinbot.tests*`; validation and example directories are
+not runtime packages. Regression fixtures retain explicit example evidence.
+
+The source scan also flags these pre-existing chemistry rules for transparency:
+`exceptions.py` contains legacy O2/CH2/OH identity exceptions; `stationary_pt.py`
+contains elemental/fragment multiplicity defaults; `mess.py`, `product_complex.py`
+and `tpl/mess_fragment_OH.tpl` implement the OH electronic-state model;
+`pes.py` has the bare-proton zero-energy convention. These are existing physical
+model rules, not benchmark results inferred from this campaign, and were not
+removed as though they were example validation. Reaction-family patterns,
+physical constants, method definitions and configurable solver limits likewise
+remain general model implementation. This audit does not establish convergence
+or physical accuracy for every possible molecule.
+
+The new geometry/frequency refinement follows declared dependencies and native
+convergence controls. VPT2 recovery derives point groups from native diagnostics;
+no species, DOI, run path or observed example energies enter either decision.

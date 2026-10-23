@@ -855,7 +855,7 @@ class VTS:
         # its replacement is staged. The dispatcher owns staging that task.
         from kinbot import live_control
         if (state['tasks'].get('relaxed_scan', {}).get('status') != 'complete'
-                or live_control.requests(run_dir/'tasks', kinds={'task'})):
+                or live_control.requests(run_dir/'tasks', kinds={'task', 'refinement'})):
             returncode, _ = _drive_vrc_dispatch(
                 run_dir, ('relaxed_scan',), interval=20.,
                 **({'max_attempts': 1} if fragment_retry else {}))

@@ -1182,3 +1182,29 @@ def test_adopting_live_reference_does_not_overwrite_its_input(tmp_path,monkeypat
     with pytest.raises(pes_phase.ExplorationReopened):
         a._run_reference_l2([entry],source,root,1,{})
     assert (directory/'input.json').read_text()=='{"existing":true}\n'
+
+
+@pytest.mark.parametrize('failed_status', ['failed', 'unavailable'])
+def test_control_enabled_owner_survives_required_failure_for_live_retry(tmp_path, monkeypatch, failed_status):
+    from kinbot import live_control
+    from kinbot.anl import automatic
+    live_control.configure(tmp_path)
+    spec = {'tasks': [{'id': 'geometry', 'kind': 'ase_optimize'}]}
+    monkeypatch.setattr(automatic, '_load', lambda p: (p, spec, {}))
+    monkeypatch.setattr(automatic, '_required_geometries', lambda s: {'geometry'})
+    monkeypatch.setattr('kinbot.anl.live_control.process', lambda p: None)
+    monkeypatch.setattr(automatic, '_retry_l3_execution_failures', lambda p,s,t: t)
+    monkeypatch.setattr(automatic, '_retry_vpt2_framework_failures', lambda p,s: s)
+    calls = []
+    def advance(*a, **kw):
+        calls.append(kw)
+        return {'tasks': {'geometry': {'status': failed_status if len(calls) == 1 else 'complete'}}}
+    monkeypatch.setattr(automatic, 'advance', advance)
+    def wait(_):
+        record = json.loads((tmp_path/'live_retry_status.json').read_text())
+        assert record['status'] == 'waiting_for_live_retry'
+        assert record['failures'] == ['state/geometry='+failed_status]
+    monkeypatch.setattr(automatic.time, 'sleep', wait)
+    result = automatic._drive_graphs({'state': tmp_path}, 1)
+    assert len(calls) == 2
+    assert result['state']['tasks']['geometry']['status'] == 'complete'

@@ -204,7 +204,7 @@ def review_changed(channels):
             return True
         for point in record['points'].values():
             for attempt in point.get('attempts', []):
-                if live_control.requests(Path(attempt['graph'])/'tasks', kinds={'task'}):
+                if live_control.requests(Path(attempt['graph'])/'tasks', kinds={'task', 'refinement'}):
                     return True
     return False
 

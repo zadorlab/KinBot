@@ -149,7 +149,7 @@ def request(root, target, *, kind='task', action='retry', cancel_running=False,
     target = target.resolve() if target.is_absolute() else (root/target).resolve()
     if not target.is_relative_to(root) or target == root:
         raise ValueError('Target must be inside the live-control root.')
-    if kind not in ('task', 'qc', 'reaction', 'conformer', 'network') or action not in ('retry', 'release'):
+    if kind not in ('task', 'refinement', 'qc', 'reaction', 'conformer', 'network') or action not in ('retry', 'release'):
         raise ValueError('Unknown live-control target/action.')
     if pending_only and cancel_running:
         raise ValueError('Pending-only and cancel-running are mutually exclusive.')
@@ -160,6 +160,18 @@ def request(root, target, *, kind='task', action='retry', cancel_running=False,
         if action != 'retry' or kind not in ('task','qc','conformer','reaction'):
             raise ValueError('Per-attempt fallbacks require task, qc, conformer or reaction retry targets.')
         fallback=validate(fallback,kind)
+    if kind == 'task' and options is not None:
+        raise ValueError('Use a refinement request for geometry/frequency options.')
+    if kind == 'refinement':
+        from kinbot.anl.refinement import plan
+        if (not isinstance(options, dict) or set(options) != {'refinement_plan'} or action != 'retry'
+                or fallback is not None or pending_only):
+            raise ValueError('Task refinement cannot be combined with other retry options.')
+        reviewed = options['refinement_plan']
+        current = plan(target.parent.parent, target.name, reviewed['options'])
+        current.pop('replacement')
+        if current != reviewed:
+            raise ValueError('Refinement scope changed before publication; preview it again.')
     if kind == 'network':
         from kinbot.network_revisit import settings
         if not isinstance(options, dict) or set(options)-{'vdW_detection','rejected','vrc_tst_surface_models'} or action!='retry':
@@ -173,6 +185,9 @@ def request(root, target, *, kind='task', action='retry', cancel_running=False,
     if expected is None:
         expected = generation(target, kind)
     with _request_lock(root, target, kind):
+        if kind == 'refinement':
+            from kinbot.anl.refinement import require_open
+            require_open(target.parent.parent)
         if kind in ('reaction','conformer','network'):
             generation(target,kind)  # Search closure and request publication share this lock.
         directory = root/'.kinbot_controls/requests'
@@ -200,7 +215,7 @@ def generation(target, kind):
         if not active_worker(target):
             raise ValueError('Network revisit requires a live revision-aware PES worker.')
         return {'input_sha256':file_sha256(target/(target.name+'.json'))}
-    if kind == 'task':
+    if kind in ('task', 'refinement'):
         from kinbot.anl.dispatch import _load
         graph = target.parent.parent
         if target.parent.name != 'tasks':

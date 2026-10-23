@@ -321,8 +321,7 @@ def validate_molpro_triples(output, *, scaled=None):
 
     An exactly zero correction is legitimate only when too few correlated
     electrons exist to form a triple excitation.  Molpro's native N-1 count
-    distinguishes that case from the Molpro 2024.1 forced-UHF-UCC failure
-    observed for ethane.
+    distinguishes that case from an invalid zero triples contribution.
     """
     suffix = (r'\s+\(scaled\)' if scaled is True else
               r'(?!\s+\(scaled\))' if scaled is False else

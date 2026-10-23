@@ -98,7 +98,7 @@ def assert_idle(targets):
 
 
 def _scratch_candidates(archive, home, skipped):
-    """Only direct children of the old home scratch root named in r6 evidence."""
+    """Only direct children of the old home scratch root identified in archived task evidence."""
     cache = home/'.kinbot_scratch'
     if not cache.exists() and not cache.is_symlink():
         return []

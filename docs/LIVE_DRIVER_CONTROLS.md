@@ -490,3 +490,77 @@ keyword/command/environment overrides, resources, explicit retries, and VRC
 review/resubmission use the live interfaces above. A genuinely new software
 defect can still require a software upgrade; arbitrary scientific changes
 must invalidate affected dependents rather than silently reuse them.
+
+## Paired geometry and frequency refinement
+
+A failed geometry, harmonic calculation, or dependent single point can be
+retried with tighter geometry and electronic convergence through its existing
+owner. This applies to TZ and QZ stages, minima and transition states, without
+molecule, reaction, task-name or basis-name rules. The present native adapter
+supports generated Molpro ASE geometry/harmonic graphs; unsupported custom
+frequency decks are refused before any job is stopped.
+
+```bash
+python -m kinbot.run_control refine "$KB_RUN" \
+  --target RELATIVE_GRAPH/tasks/harmonic_tz \
+  --fmax 0.0001 --scf 1e-11 --cc 1e-11 \
+  --reason 'Refine geometry and numerical Hessian after curvature validation'
+# Inspect the affected tasks, then repeat with --apply.
+```
+
+`--target` can instead identify the QZ geometry, its frequency task, or a
+single point consuming that geometry. The command resolves the geometry source
+and the entire dependency closure (`geometry_from`, `geometry_fallback` and
+`depends_on`). All existing results in that closure, including completed
+single points, are archived and recomputed. Tasks outside it retain their files
+and allocation IDs. A QZ refinement does not reset its TZ ancestors. A TZ
+refinement resets QZ geometry and everything downstream of it.
+
+The default waits for affected allocations to finish. Add `--cancel-running`
+when publishing the request to stop only the reviewed affected allocations.
+Job ownership, task/geometry hashes and request generations are checked before
+cancellation. The controller journals archival and replacement, resumes an
+interrupted transaction, and blocks a stale request instead of affecting a
+newer attempt. Pending refinement fences new submissions using the old source.
+Verified converged geometry can seed its own refinement; descendant geometry
+optimizations always consume the replacement parent, not their previous seed.
+
+The force target is in eV/angstrom. `--scf` and `--cc` tighten the native
+calculations used for both geometry derivatives and the numerical Hessian;
+stricter existing thresholds are preserved. The Hessian finite-difference step
+and imaginary-mode acceptance rule are unchanged. Molpro's default step is
+0.01 bohr; making it smaller is not automatically more accurate when energies
+are noisy. The retry is a new calculation, not a claim that extra negative
+curvature is numerical error. See the [Molpro frequency manual](https://www.molpro.net/manual/doku.php?id=harmonic_vibrational_frequencies_frequencies).
+
+New requests use a distinct `refinement` kind so older controllers cannot
+misinterpret them as single-task retries. After the one code upgrade, subsequent
+requests require no controller replacement. A control-enabled ANL graph owner
+now remains available after hard failures instead of exiting once other work
+finishes. `live_retry_status.json` reports the failure; no downstream composite
+handoff occurs while it remains unresolved. Final handoff is serialized with
+request publication; already handed-off graphs require reopening the owning
+workflow, because changing a consumed result cannot safely update external
+consumers by itself. Requests still respect PES admission and shared capacity.
+
+## Native-derived VPT2 recovery
+
+The existing automatic framework-error ladder now also handles this situation:
+Gaussian was asked for the group printed as `New`, but its initial `Full point
+group` agrees with `Old`, and `Framework definition based on atomic masses`
+agrees with `New`. It retries once with `Symmetry=(PG=<native New>,Loose)`.
+The group is read from the native log, not selected from molecule-specific or
+point-group-specific cases. Attempt history prevents cycling. Existing geometry,
+method, basis and VPT2 validation are retained. This is the documented symmetry
+detection tolerance, not permission to accept an unconverged frequency job.
+
+Unknown failures and contradictory native group assignments remain visible.
+A segmentation trace by itself is not a retry trigger. This procedure cannot
+infer a reliable numerical remedy for an arbitrary new Gaussian error.
+
+An explicit live retry can also recognize a purged timeout allocation without
+`execution.json` when the saved scheduler ownership/timestamps and the exact
+job's TIME LIMIT diagnostic prove termination and a successful queue query
+confirms inactivity. Missing files alone are never sufficient. This permits
+operator-budgeted retries of deliberately bounded probes without turning on
+unlimited automatic retries.

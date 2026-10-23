@@ -85,6 +85,30 @@ def test_refresh_imports_terminal_search_outcomes_before_replacement(live_tree):
     assert len(t.launches) == 2
 
 
+@pytest.mark.parametrize('phase_bytes', [b'', b'{"phase":', b'{"phase":"exploring"}'])
+def test_refresh_archives_old_phase_before_relaunch_after_owner_loss(live_tree, phase_bytes):
+    from kinbot.input_refresh import owner_directory
+    t = live_tree
+    t.processes.clear()
+    before = {p: p.read_bytes() for g in t.graphs for p in (g/'state.json', g/'workflow.json')}
+    for case in ('ch3s', 'ch3ss'):
+        (t.root/case/'pes_exploration.json').write_bytes(phase_bytes)
+        (t.root/case/'chemids').write_text('123\n')
+        (t.root/case/'pes_l2_selection.json').write_text('{"status":"selected"}')
+    result = run_refresh.refresh(t.root, apply=True)
+    archive = Path(result['archive'])
+    for case in ('ch3s', 'ch3ss'):
+        assert (archive/case/'pes_exploration.json').read_bytes() == phase_bytes
+        assert not (t.root/case/'pes_exploration.json').exists()
+        assert owner_directory(t.root/case/'input.json', directory=t.root/case) is None
+        assert (t.root/case/'chemids').read_text() == '123\n'
+        assert (t.root/case/'pes_l2_selection.json').read_text() == '{"status":"selected"}'
+    assert all(p.read_bytes() == data for p, data in before.items())
+    assert not t.signals
+    assert all(j['state'] == 'RUNNING' for j in t.jobs)
+    assert len(t.launches) == 2
+
+
 @pytest.mark.parametrize('fault', ['owner', 'input', 'claim', 'orphan'])
 def test_refresh_refuses_unproven_campaign_before_signalling(sampling_tree, fault):
     t = sampling_tree

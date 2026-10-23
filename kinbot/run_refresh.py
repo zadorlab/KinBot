@@ -344,8 +344,13 @@ def _archive_controllers(root, archive):
                      'kinbot.log', 'kinbot.err', 'kinbot.out', 'kinbot_status.json'):
             run_salvage._save(directory / name, root, archive, move=True)
         run_salvage._save(directory / '.kinbot_post_reaction_branches.json', root, archive)
-        for name in ('chemids', 'pes_exploration.json'):
-            run_salvage._save(directory / name, root, archive)
+        run_salvage._save(directory / 'chemids', root, archive)
+        # This generation's owner record must not survive its controllers.
+        # Startup checks it before creating the replacement generation, so a
+        # truncated record after a filesystem outage otherwise prevents launch.
+        # Preserve its exact bytes here, under the stopped-controller locks;
+        # chemistry, discovery and task ledgers remain in their live locations.
+        run_salvage._save(directory / 'pes_exploration.json', root, archive, move=True)
 
 
 def _restore_discovery(root, archive):

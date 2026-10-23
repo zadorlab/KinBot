@@ -101,13 +101,40 @@ def _caspt2_space(method, electron_count):
     return active_electrons, active_orbitals, closed, closed + active_orbitals
 
 
+def numerical_gradient_options(options, *, analytic=False):
+    """Explicit FORCE accuracy controls; retain Molpro defaults when omitted.
+
+    The step is in bohr for both Cartesian-distance and symmetric
+    displacements. Electronic state, differentiated energy and displacement
+    coordinates are deliberately not part of these numerical controls.
+    """
+    if options is None:
+        return ''
+    if not isinstance(options, dict) or set(options) - {'stencil', 'step_bohr'}:
+        raise ValueError('Molpro numerical_gradient supports stencil and step_bohr only.')
+    if options and analytic:
+        raise ValueError('Numerical gradient options require a numerical gradient.')
+    result = ''
+    if 'stencil' in options:
+        if options['stencil'] not in ('central', 'fourpoint'):
+            raise ValueError('Molpro gradient stencil must be central or fourpoint.')
+        result += ',' + options['stencil']
+    if 'step_bohr' in options:
+        step = options['step_bohr']
+        if (isinstance(step, bool) or not isinstance(step, (int, float))
+                or not math.isfinite(step) or step <= 0):
+            raise ValueError('Molpro gradient step_bohr must be finite and positive.')
+        result += f',rstep={step:.16g},dstep={step:.16g}'
+    return result
+
+
 def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                  mult=1, method='CCSD(T)', effective_method=None,
                  caspt2_shift=0.1, caspt2_ipea=0.25,
                  state_model=None,
                  orbital_file=None,
                  gradient_mode='auto', scf_convergence=1.e-10,
-                 correlation_convergence=1.e-8):
+                 correlation_convergence=1.e-8, numerical_gradient=None):
     """Render a CCSD(T), CASPT2, or Davidson-corrected MRCI gradient.
 
     Molpro's RHF step supplies RHF or ROHF orbitals according to multiplicity.
@@ -139,6 +166,7 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
         raise ValueError(
             f'{requested_method} has no supported analytic Molpro gradient.')
     analytic_caspt2 = analytic_available and gradient_mode != 'numerical'
+    gradient_options = numerical_gradient_options(numerical_gradient, analytic=analytic_caspt2)
     if contract is None:
         f12 = requested_method.upper() == 'CCSD(T)-F12B'
         if effective_method is not None:
@@ -234,7 +262,7 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
             # requested simultaneous MRCI roots. F12 has no CCSD A/B variants here.
             gradient_variable = _mr_gradient_variable(contract, state_model, mult).casefold()
             body += (f'forces,numerical,variable={gradient_variable},'
-                     'startcmd=multi\n')
+                     f'startcmd=multi{gradient_options}\n')
         body += f'put,xyz,{geometry_name}\n'
         return initialize_molpro_restart(header + body)
     if cc_command:
@@ -243,7 +271,7 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                       f'thrvar={cc_variance}}}')
     return initialize_molpro_restart(header + f'rhf\n{cc_command}\n'
             + energy_assignment('energy') +
-            f'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
+            f'forces,numerical,variable=kb_geom_energy,startcmd=rhf{gradient_options}\n'
             f'put,xyz,{geometry_name}\n')
 
 
@@ -450,7 +478,7 @@ class Molpro(Calculator):
                  caspt2_shift=0.1, caspt2_ipea=0.25,
                  state_model=None,
                  gradient_mode='auto', scf_convergence=1.e-10,
-                 correlation_convergence=1.e-8):
+                 correlation_convergence=1.e-8, numerical_gradient=None):
         super().__init__()
         if (method.upper() not in ('CCSD(T)', 'CCSD(T)-F12B')
                 and vrc_multireference_energy_contract(method) is None):
@@ -517,6 +545,8 @@ class Molpro(Calculator):
                 f'{method} has no supported analytic Molpro gradient.')
         self.analytic_caspt2 = (
             analytic_available and gradient_mode != 'numerical')
+        numerical_gradient_options(numerical_gradient, analytic=self.analytic_caspt2)
+        self.numerical_gradient = deepcopy(numerical_gradient)
         self.gradient_variable = (
             _mr_gradient_variable(contract, self.state_model, self.mult) if contract is not None
             and not self.analytic_caspt2 else 'KB_GEOM_ENERGY')
@@ -558,6 +588,7 @@ class Molpro(Calculator):
                          state_model=state_model,
                          orbital_file=orbital_name,
                          gradient_mode=self.gradient_mode,
+                         numerical_gradient=self.numerical_gradient,
                          scf_convergence=self.scf_convergence,
                          correlation_convergence=
                              self.correlation_convergence))

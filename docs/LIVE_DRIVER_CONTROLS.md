@@ -6,6 +6,17 @@ already include this implementation. An older running Python process needs one
 controller refresh; subsequent control commands do not require refreshes.
 Running allocations keep their immutable inputs and code snapshot.
 
+After an outage, `kinbot.run_refresh ROOT --apply` archives the previous PES
+coordination records after verifying controller shutdown and acquiring the
+worker locks. This includes an empty or truncated `pes_exploration.json`:
+its exact bytes remain in the controller archive, while replacement owners
+create their new generation. Discovery inventories, saved search decisions,
+accepted chemistry, dispatch ledgers and live allocations stay in place.
+Independent ROTD campaigns retain their own ownership: resume an absent owner
+with `kinbot.rotdpy_campaign retry INPUT.py`. The command verifies the immutable
+input/correction contract and retains an existing owner; valid completed
+results are reused and existing sampling databases remain available to ROTD.
+
 ## Enable and inspect
 
 Use the common parent directory for cooperating PES trees:
@@ -612,3 +623,33 @@ job's TIME LIMIT diagnostic prove termination and a successful queue query
 confirms inactivity. Missing files alone are never sufficient. This permits
 operator-budgeted retries of deliberately bounded probes without turning on
 unlimited automatic retries.
+
+## Numerical-gradient stagnation recovery
+
+Molpro/Sella tasks that exhaust their step budget can receive one automatic
+accuracy retry when the final twenty optimizer steps all have trust radii at
+or below 0.001, forces above the requested target, and no material improvement
+in the best force. Ordinary slow progress, native execution errors, analytic
+gradients and deliberately bounded fragment probes do not trigger this rule.
+Already exhausted accuracy settings are not repeated.
+
+The graph owner verifies the attempt and trajectory, archives the failed task,
+and resumes its last evaluated positions with a fresh optimizer and recomputed
+forces. It tightens SCF/CC convergence to at least 1e-11/1e-10 and, for MR
+models, CASSCF energy/gradient to 1e-11/1e-7 and correlation energy/coefficient
+to 1e-11/1e-8. Tighter existing values stay tighter. It selects Molpro's
+four-point numerical gradient without changing displacement size, selected
+energy, active space, roots, state weights, reference policy, shift or IPEA.
+The stationary-point order, original constraint targets, force criterion and
+step budget remain unchanged. Completed or allocated descendants prevent
+automatic source replacement; unrelated tasks retain their inputs and jobs.
+`state.json` records the proof in `molpro_gradient_retries`. A second failure
+remains available for review; the history survives controller refreshes.
+
+The same controls are available for an explicitly reviewed task retry:
+`"calculator_kwargs": {"numerical_gradient": {"stencil": "fourpoint"}}`.
+An optional positive `step_bohr` sets both distance and symmetric-displacement
+steps; it is not automatically reduced by this recovery. See the
+[Molpro FORCE documentation](https://www.molpro.net/manual/doku.php?id=energy_gradients)
+for four-point accuracy and cost. Local tests verify recovery and input
+generation, not convergence of a future native calculation.

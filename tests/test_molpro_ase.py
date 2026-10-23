@@ -164,6 +164,36 @@ def test_documented_molpro_force_input_and_parser_contract():
             parse_output(output)
 
 
+@pytest.mark.parametrize('method,mult,variable,start', [
+    ('CCSD(T)-F12b', 1, 'kb_geom_energy', 'rhf'),
+    ('CASPT2-F12(2,2)', 1, 'energy(1)', 'multi'),
+    ('MRCI+Q(2,2)', 1, 'energd', 'multi'),
+])
+def test_gradient_accuracy_controls_preserve_energy_and_model(method, mult, variable, start):
+    atoms = Atoms('OH2', positions=[[0, 0, 0], [.8, .6, 0], [-.8, .6, 0]])
+    options = dict(basis='cc-pVDZ', geometry_name='step.xyz', method=method, mult=mult)
+    original = render_input(atoms, **options)
+    refined = render_input(atoms, numerical_gradient={'stencil': 'fourpoint', 'step_bohr': .01}, **options)
+    native = f'forces,numerical,variable={variable},startcmd={start}'
+    assert native + ',fourpoint,rstep=0.01,dstep=0.01\n' in refined
+    assert refined.replace(',fourpoint,rstep=0.01,dstep=0.01', '') == original
+
+
+@pytest.mark.parametrize('options', [False, [], {'stencil': 'forward'}, {'step_bohr': 0},
+                                    {'step_bohr': True}, {'step_bohr': float('nan')},
+                                    {'step_bohr': '0.01'}, {'variable': 'energy(2)'}])
+def test_invalid_gradient_accuracy_controls_rejected_before_execution(tmp_path, options):
+    with pytest.raises(ValueError, match='gradient'):
+        Molpro(directory=tmp_path, label='step', method='CCSD(T)', basis='cc-pVDZ',
+               numerical_gradient=options)
+
+
+def test_gradient_accuracy_cannot_silently_change_analytic_method(tmp_path):
+    with pytest.raises(ValueError, match='require a numerical gradient'):
+        Molpro(directory=tmp_path, label='step', method='CASPT2(2,2)', basis='cc-pVDZ',
+               numerical_gradient={'stencil': 'fourpoint'})
+
+
 @pytest.mark.parametrize('method', ['CCSD(T)', 'CASPT2-F12b(2,2)', 'MRCI-F12b+Q(2,2)'])
 def test_native_nonconvergence_invalidates_energy_even_after_normal_exit(tmp_path, method):
     path = tmp_path / 'bad.out'
@@ -435,9 +465,12 @@ def test_molpro_2024_ch4_gradient_rows_from_first_live_step():
             parse_numerical_gradient(output, geometry, atoms)
 
 
-def test_l3_sella_calls_molpro_at_each_geometry_and_hashes_native_files():
+@pytest.mark.parametrize('accuracy', [None, {'stencil': 'fourpoint'}])
+def test_l3_sella_calls_molpro_at_each_geometry_and_hashes_native_files(accuracy):
     spec = dispatch_spec()
     spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial')]
+    if accuracy:
+        spec['tasks'][0]['profile'].setdefault('calculator_kwargs', {})['numerical_gradient'] = accuracy
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         fake = root / 'molpro'
@@ -457,6 +490,8 @@ def test_l3_sella_calls_molpro_at_each_geometry_and_hashes_native_files():
             stem = inp[:-4]
             assert {stem + suffix for suffix in ('.inp', '.out', '.log', '.xyz',
                                                   '.stdout', '.stderr')} <= set(artifacts)
+            if accuracy:
+                assert 'startcmd=rhf,fourpoint\n' in (run_dir/'tasks/l3_geometry'/inp).read_text()
         assert 'final.xyz' in artifacts
         assert 'optimization.traj' in artifacts
         assert advance(run_dir)['tasks']['l3_geometry']['status'] == 'complete'

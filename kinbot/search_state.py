@@ -5,6 +5,7 @@ controller decisions and path steps separately; rebuild higher-stage Python
 objects from QC records without reopening terminal searches.
 """
 from datetime import datetime, timezone
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -31,6 +32,87 @@ def contract(inp):
     routes = _read(inp.parent/'.kinbot_theory_jobs.json')
     return dict(input_sha256=_digest(_read(inp)),
                 profile_sha256=routes.get('profile_sha256'))
+
+
+def validate_input(inp):
+    """Check restart compatibility before starting or rewriting a worker."""
+    inp = Path(inp).resolve()
+    record = _read(inp.parent/NAME)
+    if record and (record.get('schema') != 1 or record.get('contract') != contract(inp)):
+        raise RuntimeError(f'{inp}: reaction-search checkpoint inputs/theory changed. '
+                           'Restore the recorded input or use an explicit search revision; '
+                           'no search was restarted.')
+
+
+def input_restore_plan(inp, logs=()):
+    """Recover only a regenerated embedding, proven by the full input hash.
+
+    Old checkpoints did not retain input snapshots. A structure printed by the
+    old worker is usable only when substituting it reproduces the *entire*
+    recorded input. No theory, model, policy or search decision is rebased.
+    This function is read-only; refresh applies the plan after owners stop.
+    """
+    inp = Path(inp).resolve()
+    record = _read(inp.parent/NAME)
+    current = contract(inp)
+    if not record or record.get('contract') == current:
+        validate_input(inp)
+        return None
+    expected = record.get('contract', {})
+    if (record.get('schema') != 1
+            or expected.get('profile_sha256') != current['profile_sha256']):
+        validate_input(inp)
+    values = _read(inp)
+    candidates = []
+    if 'input_snapshot' in record:
+        candidates.append(('checkpoint input snapshot', record['input_snapshot']))
+    for log in logs:
+        log = Path(log)
+        if not log.is_file():
+            continue
+        # Parameters precede native progress; never read a whole QC log or
+        # parse/evaluate arbitrary Python from retained evidence.
+        with log.open(errors='replace') as stream:
+            reading = False
+            for line in stream.read(2_000_000).splitlines():
+                if 'Input parameters' in line:
+                    reading = True
+                elif reading and 'Starting KinBot' in line:
+                    reading = False
+                elif reading and line.strip().startswith('structure: '):
+                    try:
+                        structure = ast.literal_eval(line.strip().partition(': ')[2])
+                    except (ValueError, SyntaxError):
+                        continue
+                    candidates.append((str(log), dict(values, structure=structure)))
+    for source, candidate in candidates:
+        if (isinstance(candidate, dict)
+                and _digest(candidate) == expected.get('input_sha256')
+                and {k for k in candidate.keys() | values.keys()
+                     if candidate.get(k) != values.get(k)} == {'structure'}):
+            return dict(before=current, after=expected, input=candidate, source=source,
+                        reason='Restore original PES embedding with exact checkpoint input hash')
+    validate_input(inp)  # No verified recovery: preserve the strict mismatch.
+
+
+def restore_input(inp, plan, archive):
+    """Apply a verified plan under refresh's stopped-controller locks."""
+    inp, archive = Path(inp), Path(archive)
+    current = contract(inp)
+    record = _read(inp.parent/NAME)
+    if record.get('contract') != plan['after'] or _digest(plan['input']) != plan['after']['input_sha256']:
+        raise RuntimeError(f'{inp}: input recovery proof changed; nothing restored.')
+    if current == plan['after']:
+        return  # An interrupted handoff already restored this input.
+    if current != plan['before']:
+        raise RuntimeError(f'{inp}: input changed since recovery planning; nothing restored.')
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    if archive.exists() and archive.read_bytes() != inp.read_bytes():
+        raise RuntimeError(f'{archive}: conflicting recovery archive; retained.')
+    if not archive.exists():
+        archive.write_bytes(inp.read_bytes())
+    atomic_json(inp, plan['input'])
+    validate_input(inp)
 
 
 def capture_legacy(inp, *, publish=True):
@@ -76,7 +158,7 @@ def capture_legacy(inp, *, publish=True):
                 # Do not silently guess when no submission provenance exists.
                 entry['unverified_step'] = True
         entries[name] = entry
-    record = dict(schema=1, contract=contract(inp), reactions=entries,
+    record = dict(schema=1, contract=contract(inp), input_snapshot=_read(inp), reactions=entries,
                   imported_monitor_sha256=file_sha256(monitor))
     if publish:
         atomic_json(path, record)
@@ -93,6 +175,7 @@ def rebase(inp, reason, *, reassess=False):
     record.setdefault('revisions', []).append(dict(
         reason=reason, contract=record['contract'], reassess=bool(reassess)))
     record['contract'] = contract(inp)
+    record['input_snapshot'] = _read(inp)
     if reassess:
         # Terminal failures remain closed unless the bounded revisit control
         # names them. Accepted searches reconstruct and revalidate under policy.
@@ -119,9 +202,8 @@ class SearchState:
         # Direct, single-owner restarts also import the pre-checkpoint monitor.
         capture_legacy(generator.inp)
         self.record = _read(self.path) or dict(schema=1, contract=self.source, reactions={})
-        if self.record.get('schema') != 1 or self.record['contract'] != self.source:
-            raise RuntimeError('Reaction-search checkpoint inputs/theory changed. '
-                               'Use an explicit search revision; no search was restarted.')
+        validate_input(generator.inp)
+        self.record['input_snapshot'] = _read(Path(generator.inp))
         self.entries = self.record['reactions']
         self.replaying = set()
         self.scan_seen = {}

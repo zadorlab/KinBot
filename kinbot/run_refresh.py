@@ -330,6 +330,36 @@ def _preflight(root):
         snapshot = path.parent/SNAPSHOT
         if snapshot.exists():
             validate_input_change(json.loads(snapshot.read_text()), json.loads(path.read_text()), path.parent)
+    _search_input_plans(root)
+
+
+def _search_input_plans(root):
+    """Verify saved searches before stopping owners; never waive a mismatch."""
+    from kinbot.search_state import input_restore_plan
+    archives = []
+    marker = root/'controller_refresh.json'
+    if marker.is_file():
+        saved = json.loads(marker.read_text())
+        archive = Path(saved['archive'])
+        if (archive.is_symlink() or archive.parent != root.parent
+                or not archive.name.startswith(root.name+'.controllers.')):
+            raise ValueError('Search recovery archive does not belong to this run.')
+        archives.append(archive)
+        prior = archive/'previous_refresh.json'
+        if prior.is_file():
+            previous = Path(json.loads(prior.read_text())['archive'])
+            if (previous.is_symlink() or previous.parent != root.parent
+                    or not previous.name.startswith(root.name+'.controllers.')):
+                raise ValueError('Previous search recovery archive does not belong to this run.')
+            archives.append(previous)
+    plans = {}
+    for inp in _ordinary_inputs(root):
+        rel = inp.relative_to(root)
+        logs = [inp.parent/'kinbot.log', *(a/rel.parent/'kinbot.log' for a in archives)]
+        plan = input_restore_plan(inp, logs)
+        if plan:
+            plans[str(rel)] = plan
+    return plans
 
 
 def _archive_controllers(root, archive):
@@ -764,6 +794,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                     raise ValueError('New live scan detected; explicit targeted cancellation is required.')
                 journal['vrc_migration'] = dict(migration, scans=scans, selected_jobs=selected)
             from kinbot import search_state
+            input_restores = _search_input_plans(root)
             search_checkpoints = []
             for inp in _ordinary_inputs(root):
                 legacy = search_state.capture_legacy(inp, publish=False)
@@ -777,7 +808,7 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 for name in (search_state.NAME, 'kinbot_monitor.out'):
                     run_salvage._save(inp.parent/name, root, archive)
             journal.update(phase='stopping', controllers=records, jobs=jobs,
-                           search_checkpoints=search_checkpoints)
+                           search_checkpoints=search_checkpoints, search_input_restores=input_restores)
             atomic_json(journal_path, journal)
             for _, fd in handles:
                 try:
@@ -797,6 +828,10 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         # Disappearing from /proc need not coincide with filesystem lock
         # availability. Hold all original inodes before changing anything.
         with _worker_locks(root):
+            from kinbot.search_state import restore_input
+            for relative, plan in journal.get('search_input_restores', {}).items():
+                restore_input(root/relative, plan, archive/relative)
+                print(f'Restored checkpoint-matched input: {relative}', flush=True)
             for relative in journal.get('search_checkpoints', []):
                 if not (root/relative).exists():
                     atomic_json(root/relative, json.loads((archive/relative).read_text()))

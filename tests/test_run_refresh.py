@@ -85,6 +85,55 @@ def test_refresh_imports_terminal_search_outcomes_before_replacement(live_tree):
     assert len(t.launches) == 2
 
 
+@pytest.mark.parametrize('source', ['snapshot', 'archived_log'])
+def test_refresh_restores_hash_proven_initial_input_and_keeps_jobs(live_tree, source):
+    from kinbot import search_state
+    t = live_tree
+    worker = t.root/'ch3s/123'; inp = worker/'123.json'
+    original = dict(smiles='', structure=['H', 0., 0., 0.])
+    atomic_json(inp, original)
+    (worker/'kinbot_monitor.out').write_text('-999 -1 rejected\n')
+    search_state.capture_legacy(inp)
+    if source == 'archived_log':
+        record = json.loads((worker/search_state.NAME).read_text())
+        record.pop('input_snapshot')
+        atomic_json(worker/search_state.NAME, record)
+        old_archive = t.root.with_name(t.root.name+'.controllers.previous')
+        log = old_archive/'ch3s/123/kinbot.log'
+        log.parent.mkdir(parents=True)
+        log.write_text('INFO: Input parameters\n\tstructure: '+repr(original['structure'])+
+                       '\nINFO: Starting KinBot\n')
+        atomic_json(t.root/'controller_refresh.json', dict(
+            phase='launched', code=str(t.root/'.salvage_code.old'), archive=str(old_archive)))
+    checkpoint = (worker/search_state.NAME).read_bytes()
+    atomic_json(inp, dict(original, structure=['H', 1., 2., 3.]))
+    overwritten = inp.read_bytes()
+    chemistry = (worker/'kinbot.db').read_bytes()
+    result = run_refresh.refresh(t.root, apply=True)
+    assert json.loads(inp.read_text()) == original
+    assert (Path(result['archive'])/'ch3s/123/123.json').read_bytes() == overwritten
+    assert (worker/search_state.NAME).read_bytes() == checkpoint
+    assert (worker/'kinbot.db').read_bytes() == chemistry
+    assert all(j['state'] == 'RUNNING' for j in t.jobs)
+    assert len(t.launches) == 2
+
+
+def test_unproven_search_input_change_fails_preflight_before_signalling(live_tree, monkeypatch):
+    from kinbot import search_state
+    t = live_tree
+    worker = t.root/'ch3s/123'; inp = worker/'123.json'
+    atomic_json(inp, {'structure': ['H', 0., 0., 0.], 'barrier_threshold': 100.})
+    (worker/'kinbot_monitor.out').write_text('-999 -1 rejected\n')
+    search_state.capture_legacy(inp)
+    before = (worker/search_state.NAME).read_bytes()
+    atomic_json(inp, {'structure': ['H', 1., 2., 3.], 'barrier_threshold': 50.})
+    monkeypatch.setattr(run_refresh, '_preflight', run_refresh._search_input_plans)
+    with pytest.raises(RuntimeError, match='inputs/theory changed'):
+        run_refresh.refresh(t.root, apply=True)
+    assert not t.signals and not t.launches
+    assert (worker/search_state.NAME).read_bytes() == before
+
+
 @pytest.mark.parametrize('phase_bytes', [b'', b'{"phase":', b'{"phase":"exploring"}'])
 def test_refresh_archives_old_phase_before_relaunch_after_owner_loss(live_tree, phase_bytes):
     from kinbot.input_refresh import owner_directory
@@ -974,7 +1023,7 @@ def test_all_handles_checked_before_first_stop(live_tree, monkeypatch):
 def test_failed_old_preparation_accepts_fixed_code_without_manual_cleanup(live_tree):
     t = live_tree
     before = scientific_files(t.root)
-    archive = t.root.parent / 'failed_refresh'; archive.mkdir()
+    archive = t.root.parent / (t.root.name+'.controllers.failed'); archive.mkdir()
     atomic_json(t.root / 'controller_refresh.json', {
         'phase': 'preparing', 'code': str(t.root / '.salvage_code.bad'),
         'previous_code': str(t.root / '.salvage_code.old'), 'archive': str(archive),

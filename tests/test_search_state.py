@@ -39,11 +39,12 @@ def test_controller_rejection_survives_successful_intermediate_qc(tree):
     g.species.reac_step[0] = -1
     g.species.reac_ts_done[0] = -999
     cp.save(0)
-    restored = tree.make()
-    restored.qc.check_qc = lambda *a: pytest.fail('QC success must not reopen a rejected search')
-    checkpoint(restored)
-    assert restored.species.reac_ts_done == [-999]
-    assert restored.species.reac_step == [-1]
+    for _ in range(3):
+        restored = tree.make()
+        restored.qc.check_qc = lambda *a: pytest.fail('QC success must not reopen a rejected search')
+        checkpoint(restored).save(0)
+        assert restored.species.reac_ts_done == [-999]
+        assert restored.species.reac_step == [-1]
 
 
 def test_generate_keeps_imported_rejection_without_calling_qc(tree, monkeypatch):
@@ -237,3 +238,81 @@ def test_resuming_step_zero_never_rewrites_a_running_worker(tree):
     reaction = NS(instance_name='reaction', qc=NS(check_qc=lambda name: 'running'))
     assert carry_out_reaction(reaction, 0, 'backend') == 0
     assert worker.read_text() == 'immutable queued worker input\n'
+
+
+@pytest.mark.parametrize('source', ['snapshot', 'legacy_log'])
+def test_restore_embedding_requires_exact_full_input_hash_and_preserves_search(tree, source):
+    original = {'smiles': '', 'structure': ['H', 0., 0., 0.], 'title': '123', 'barrier_threshold': 100.}
+    atomic_json(tree.inp, original)
+    cp = checkpoint(tree.make())
+    cp.entries['reaction']['status'] = -999
+    if source == 'legacy_log':
+        cp.record.pop('input_snapshot')
+    cp.write()
+    saved = cp.path.read_bytes()
+    changed = dict(original, structure=['H', 1., 2., 3.])
+    atomic_json(tree.inp, changed)
+    before = tree.inp.read_bytes()
+    log = tree.root/'archived.log'
+    log.write_text('INFO: Input parameters\n\tstructure: '+repr(original['structure'])+
+                   '\n\ttitle: 123\nINFO: Starting KinBot\n')
+    plan = search_state.input_restore_plan(tree.inp, [log])
+    assert plan['input'] == original
+    assert tree.inp.read_bytes() == before  # planning does not edit files
+    archive = tree.root/'archive/input.json'
+    search_state.restore_input(tree.inp, plan, archive)
+    assert archive.read_bytes() == before
+    assert cp.path.read_bytes() == saved
+    assert json.loads(tree.inp.read_text()) == original
+    search_state.restore_input(tree.inp, plan, archive)  # interrupted handoff
+    assert checkpoint(tree.make()).generator.species.reac_ts_done == [-999]
+
+
+@pytest.mark.parametrize('change', ['theory', 'policy', 'missing_evidence', 'changed_after_plan'])
+def test_embedding_recovery_never_rebases_unproven_changes(tree, change):
+    original = {'structure': ['H', 0., 0., 0.], 'barrier_threshold': 100.}
+    atomic_json(tree.inp, original)
+    cp = checkpoint(tree.make())
+    atomic_json(tree.inp, dict(original, structure=['H', 1., 2., 3.]))
+    if change == 'theory':
+        atomic_json(tree.root/'.kinbot_theory_jobs.json', {'profile_sha256': 'different'})
+    elif change == 'policy':
+        atomic_json(tree.inp, {'structure': ['H', 1., 2., 3.], 'barrier_threshold': 50.})
+    elif change == 'missing_evidence':
+        cp.record.pop('input_snapshot'); cp.write()
+    if change == 'changed_after_plan':
+        plan = search_state.input_restore_plan(tree.inp)
+        atomic_json(tree.inp, dict(original, structure=['H', 4., 5., 6.]))
+        with pytest.raises(RuntimeError, match='changed since recovery planning'):
+            search_state.restore_input(tree.inp, plan, tree.root/'archive.json')
+        assert not (tree.root/'archive.json').exists()
+    else:
+        before = tree.inp.read_bytes()
+        with pytest.raises(RuntimeError, match='inputs/theory changed'):
+            search_state.input_restore_plan(tree.inp)
+        assert tree.inp.read_bytes() == before
+
+
+def test_pes_restart_retains_input_despite_new_smiles_embedding(tmp_path, monkeypatch):
+    from kinbot import pes
+    from kinbot.stationary_pt import StationaryPoint
+    from kinbot.species_routing import routing_name
+    import numpy as np
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path/'input.json'
+    atomic_json(source, {'smiles': 'C', 'barrier_threshold': 100.})
+    species = StationaryPoint('initial', 0, 1, smiles='C')
+    species.characterize()
+    pes.write_input(str(source), species, 100., None, str(tmp_path), 0)
+    inp = tmp_path/routing_name(species)/(routing_name(species)+'.json')
+    (inp.parent/'kinbot_monitor.out').write_text('-999 -1 rejected\n')
+    search_state.capture_legacy(inp)
+    original = inp.read_bytes()
+    # A rigid reorientation is the same species, but a different raw JSON hash.
+    species.geom = np.asarray(species.geom) @ np.array([[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]])
+    for _ in range(2):
+        pes.write_input(str(source), species, 100., None, str(tmp_path), 0)
+        assert inp.read_bytes() == original
+        search_state.validate_input(inp)
+        pes.write_input_keep(str(source), routing_name(species), str(tmp_path))
+        assert inp.read_bytes() == original

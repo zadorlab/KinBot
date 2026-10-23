@@ -17,6 +17,20 @@ with `kinbot.rotdpy_campaign retry INPUT.py`. The command verifies the immutable
 input/correction contract and retains an existing owner; valid completed
 results are reused and existing sampling databases remain available to ROTD.
 
+For a complete retained-run handoff from a checkout, use
+`bash examples/anl/tools/refresh_retained_run.sh ROOT MAX_JOBS`.
+It adds currently down/unknown/draining/failed nodes to the existing exclusions,
+updates the shared admission cap, refreshes PES/KB owners, resumes eligible
+independent ROTD owners, then reconciles saved dispatcher results and applicable
+automatic retries without submitting QC itself. It checks PES owner health
+before and after reconciliation and writes a timestamped reconciliation report.
+Review holds and scientific validation remain in force. The cap is a maximum,
+not a guarantee of a fixed number of idle nodes.
+If an earlier handoff is still active, pass its PID and exact stdout-log path as
+the third and fourth arguments. The script waits for the verified process and
+any existing reconciliation writer; it does not terminate an I/O-blocked writer.
+Use `nohup` with an explicit log to keep this handoff running after logout.
+
 ## Enable and inspect
 
 Use the common parent directory for cooperating PES trees:
@@ -343,6 +357,16 @@ scan without its energy history, or a path with ambiguous step provenance,
 requires review rather than guessing. Jobs already submitted by an older
 controller remain owned and are retained. Loading this fix does not undo
 earlier extra attempts or waive scientific review holds.
+
+PES startup and rediscovery retain existing worker inputs verbatim, including
+the initial well's starting coordinates. Re-embedding the same SMILES during
+startup must not rewrite a completed search's input. Checkpoints retain an input
+snapshot, and refresh checks compatibility before replacing controllers. For
+older checkpoints affected by an overwritten starting structure, refresh can
+restore the structure from the archived worker parameter log only when doing so
+reproduces the full saved input SHA-256 and the theory fingerprint still matches.
+The overwritten input is archived; search decisions, step history, native files
+and job IDs are retained. Other mismatches still require an explicit revision.
 
 ## Exploration and reviewed network extensions
 

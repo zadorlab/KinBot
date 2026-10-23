@@ -2262,6 +2262,17 @@ def write_input(input_file, species, threshold, threshold_L2, root, me):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
+    file_name = directory + routing_name(species) + '.json'
+    from kinbot.stereo_routing import guard_pes_input
+    guard_pes_input(species, file_name)
+    if Path(file_name).exists():
+        # Rediscovery and controller startup are not input revisions. In
+        # particular, rebuilding the initial SMILES can generate a different
+        # embedding, invalidating an otherwise unchanged search checkpoint.
+        from kinbot.search_state import validate_input
+        validate_input(file_name)
+        return
+
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
     from kinbot.input_refresh import accepted_source
@@ -2299,11 +2310,8 @@ def write_input(input_file, species, threshold, threshold_L2, root, me):
     if me:
         par2['me'] = 2
 
-    file_name = directory + routing_name(species) + '.json'
-    from kinbot.stereo_routing import guard_pes_input
-    guard_pes_input(species, file_name)
-    with open(file_name, 'w') as outfile:
-        json.dump(par2, outfile, indent=4, sort_keys=True)
+    from kinbot.execution import atomic_json
+    atomic_json(file_name, par2)
     return
 
 
@@ -2315,30 +2323,10 @@ def write_input_keep(input_file, keepchemid, root):
 
     saved_input = f'{directory}{keepchemid}.json'
     ensure_current_run(directory)
-    par_keep = Parameters(saved_input).par
-    # make a new parameters instance and overwrite some keys
-    input_file = '{}'.format(input_file)
-    from kinbot.input_refresh import accepted_source
-    par_new = Parameters(str(accepted_source(input_file, directory=root))).par
-    par_new['input_file'] = os.path.abspath(input_file)
-    # overwrite the title
-    par_new['title'] = str(keepchemid)
-    for key in ('structure', 'smiles', 'charge', 'mult', 'stereo_reference', 'optical_population'):
-        par_new[key] = par_keep[key]
-    par_new['barrier_threshold'] = par_keep['barrier_threshold']
-    par_new['barrier_threshold_L2'] = par_keep['barrier_threshold_L2']
-    par_new['pes'] = 1
-    par_new['me'] = 2
-    if ((par_new.get('vrc_tst_surface_model') or par_new.get('vrc_tst_surface_model_file'))
-            and not par_new.get('vrc_tst_surface_model_scope')):
-        phase=Path(root)/'pes_exploration.json'
-        initial=json.loads(phase.read_text()).get('initial_worker') if phase.exists() else None
-        if initial:
-            par_new['vrc_tst_surface_model_scope']=initial
-
-    file_name = directory + str(keepchemid) + '.json'
-    with open(file_name, 'w') as outfile:
-        json.dump(par_new, outfile, indent=4, sort_keys=True)
+    # Keeping an explored well means keeping its accepted input as well.
+    # Changes belong to the explicit input/network revision procedures.
+    from kinbot.search_state import validate_input
+    validate_input(saved_input)
     return
 
 

@@ -1,0 +1,208 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791472110370000000002",
+    "reaction": "791472110370000000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]([H])=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "ch2_sh_s_cs_cas5_4",
+      "anchors": [
+        {
+          "source": "cs_r_2"
+        },
+        {
+          "source": "cs_r_3p5",
+          "name": "cs_r_2p75",
+          "distance_angstrom": 2.75
+        },
+        {
+          "source": "cs_r_3p5"
+        },
+        {
+          "source": "cs_r_6"
+        },
+        {
+          "source": "cs_r_30"
+        },
+        {
+          "source": "cs_r_30",
+          "name": "cs_r_42",
+          "distance_angstrom": 42.0
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [
+        {
+          "method": "caspt2-f12(5,4)",
+          "shift": 0.1,
+          "ipea": 0.25,
+          "reference_policy": "state_average"
+        }
+      ],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "chemical_note": "Diagnostic CAS(5,4), source orbitals 19-22. In both bases at large separation 20/21 lie mainly on departing sulfur atom 2 and 19/22 on C(1)-S(3). Near 2 A the characters reorganize: 19/22 involve the breaking C(1)-S(2) bond and 20/21 contain substantial S(3) character. The 2.75 A point tests this interval; occupations alone do not establish continuous root/subspace identity.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ]
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true,
+          "casscf_options": {
+            "solver": "so_sci",
+            "quasi_newton": true,
+            "exact_diagonalization": true,
+            "energy_convergence": 1e-08,
+            "gradient_convergence": 1e-05,
+            "max_iterations": 999
+          },
+          "correlation_options": {
+            "max_iterations": 2000,
+            "max_reference_iterations": 2000,
+            "max_reference_vectors": 60,
+            "energy_convergence": 1e-08,
+            "coefficient_convergence": 1e-05,
+            "reference_policy": "state_average"
+          }
+        },
+        "orbital_partition": {
+          "source_active_electrons": 19,
+          "source_active_orbitals": 12,
+          "close_lowest": 7,
+          "discard_highest": 1
+        }
+      }
+    },
+    {
+      "name": "ch2_sh_s_cs_cas7_6",
+      "anchors": [
+        {
+          "source": "cs_r_2"
+        },
+        {
+          "source": "cs_r_3p5",
+          "name": "cs_r_2p75",
+          "distance_angstrom": 2.75
+        },
+        {
+          "source": "cs_r_3p5"
+        },
+        {
+          "source": "cs_r_6"
+        },
+        {
+          "source": "cs_r_30"
+        },
+        {
+          "source": "cs_r_30",
+          "name": "cs_r_42",
+          "distance_angstrom": 42.0
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [
+        {
+          "method": "caspt2-f12(7,6)",
+          "shift": 0.1,
+          "ipea": 0.25,
+          "reference_policy": "state_average"
+        }
+      ],
+      "probe_definition": {
+        "active_electrons": 7,
+        "active_orbitals": 6,
+        "chemical_note": "Diagnostic CAS(7,6), source orbitals 18-23. Adds the largely filled/empty C(1)-S(3) sigma pair 18/23 to the CAS(5,4) candidate. This is the retained CH2S scaffold pair, not the S-H pair from a different channel. Compare matched interaction energies, root character and relaxed connectivity; raw total-energy lowering does not select the space.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ]
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true,
+          "casscf_options": {
+            "solver": "so_sci",
+            "quasi_newton": true,
+            "exact_diagonalization": true,
+            "energy_convergence": 1e-08,
+            "gradient_convergence": 1e-05,
+            "max_iterations": 999
+          },
+          "correlation_options": {
+            "max_iterations": 2000,
+            "max_reference_iterations": 2000,
+            "max_reference_vectors": 60,
+            "energy_convergence": 1e-08,
+            "coefficient_convergence": 1e-05,
+            "reference_policy": "state_average"
+          }
+        },
+        "orbital_partition": {
+          "source_active_electrons": 19,
+          "source_active_orbitals": 12,
+          "close_lowest": 6,
+          "discard_highest": 0
+        }
+      }
+    }
+  ]
+}

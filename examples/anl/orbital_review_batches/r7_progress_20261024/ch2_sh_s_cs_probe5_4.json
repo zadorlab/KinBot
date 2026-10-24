@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "diagnostic_only": true,
+  "review_note": "Diagnostic CAS(5,4), source orbitals 19-22. In both bases at large separation 20/21 lie mainly on departing sulfur atom 2 and 19/22 on C(1)-S(3). Near 2 A the characters reorganize: 19/22 involve the breaking C(1)-S(2) bond and 20/21 contain substantial S(3) character. The 2.75 A point tests this interval; occupations alone do not establish continuous root/subspace identity. Native-character evidence supplied 2026-10-24; this approves only a finite diagnostic seed, not production use.",
+  "request_match": {
+    "parent": "791472110370000000002",
+    "reaction": "791472110370000000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]([H])=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 5,
+    "active_orbitals": 4,
+    "source": "Diagnostic CAS(5,4), source orbitals 19-22. In both bases at large separation 20/21 lie mainly on departing sulfur atom 2 and 19/22 on C(1)-S(3). Near 2 A the characters reorganize: 19/22 involve the breaking C(1)-S(2) bond and 20/21 contain substantial S(3) character. The 2.75 A point tests this interval; occupations alone do not establish continuous root/subspace identity."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__cs_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        19,
+        20,
+        21,
+        22
+      ]
+    },
+    "avtz-f12": {
+      "job": "atz__cs_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        19,
+        20,
+        21,
+        22
+      ]
+    }
+  },
+  "state_model": {
+    "state_average": [
+      {
+        "multiplicity": 2,
+        "roots": 2,
+        "weights": [
+          0.5,
+          0.5
+        ]
+      }
+    ],
+    "selected_roots": {
+      "2": 1
+    },
+    "canonical_orbitals": true,
+    "casscf_options": {
+      "solver": "so_sci",
+      "quasi_newton": true,
+      "exact_diagonalization": true,
+      "energy_convergence": 1e-08,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999
+    },
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    }
+  },
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(5,4)"
+  }
+}

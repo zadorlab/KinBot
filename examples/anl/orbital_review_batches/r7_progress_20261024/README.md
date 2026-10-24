@@ -52,3 +52,61 @@ checkout revision, changed scientific evidence, or changed plan requires
 inspection rather than silently starting a duplicate campaign. The diagnostic
 owner holds an exclusive lock; do not start a separate owner for the same
 review slots while this script is running.
+
+## CH2(SH)S C-S follow-up
+
+The 24 October native character extraction is retained in
+`ch2_sh_s_cs_character.txt`. Atom 2 is the departing SH sulfur; atom 3 remains
+with carbon in CH2S. At 3.5-30 angstrom, orbitals 20/21 lie primarily on atom 2
+and 19/22 form the CH2S pi pair. At 2 angstrom the 19/22 pair instead contains
+substantial breaking C(1)-S(2) bond character and 20/21 substantial S(3)
+character. Both bases show this reorganization. This supports a comparison,
+not a claim of demonstrated subspace/root continuity. The extra 18/23 pair is
+the retained C(1)-S(3) sigma pair, not the S-H pair from the earlier CH2SH case.
+Printed AO coefficients are not atomic populations, and their signs can change
+with orbital phase; compare chemical subspaces, not signs or sorted occupations
+alone.
+
+`ch2_sh_s_cs_candidates.json` defines 24 independent fixed-geometry jobs:
+CAS(5,4) from source 19-22 and CAS(7,6) from 18-23, in both bases at 2, 2.75,
+3.5, 6, 30 and 42 angstrom. Each optimizes the same two equally weighted
+doublet states and computes both CASPT2-F12 roots, retaining shift 0.1 and IPEA
+0.25. Basis-matched, geometry-specific CASCI seeds are reused; the new 2.75/42
+points use the 3.5/30 seeds. Compare energies relative to each model's own
+asymptote and inspect the two roots, rather than choosing by absolute energy.
+The 42 point is a finite long-range check, not automatic acceptance of the
+previous coverage flag or a changed production asymptote.
+
+`ch2_sh_s_cs_relaxations.json` stages ten independent aDZ-F12 CASPT2-F12
+optimizations: both spaces at 2, 2.75, 3.5, 6 and 30 angstrom. Only C(1)-S(2)
+separation is fixed. The actual request geometry and verified 2 angstrom seeds
+are used; internal fragment changes remain observable. Each has a four-hour
+limit and 50 optimizer steps. A failed calculation remains review evidence;
+it is not accepted as a relaxed geometry. The `probe5_4` and `probe7_6` files
+approve only diagnostic seeds (`diagnostic_only: true`); the production
+publisher explicitly refuses these files.
+
+After pulling the follow-up, run the following with the existing environment:
+
+```
+.venv/bin/python -B -u examples/anl/tools/continue_ch2_sh_s_review.py PRODUCTION_ROOT
+```
+
+Use `nohup` for a background owner. It waits on the original review handoff
+lock, adopts any surviving allocations through their existing owners, and
+finishes the original screens/eight probes before the new comparison. The
+same three reserved slots are used sequentially. No production controller
+replacement, sample cancellation, new production model or additional review
+capacity is requested. It reuses the verified core-code snapshot from
+`refresh_complete.json`; the new code here is confined to example tools.
+Repeated invocation retains the staged graphs, completed jobs and live job
+identities; a second simultaneous owner is refused. Recipe changes during
+the wait are refused before new submissions.
+
+If the fixed-geometry comparisons fail, all their existing allocations are
+settled and the new relaxed probes remain staged for review. Otherwise the
+ten relaxed probes run automatically. Inspect
+`ch2_sh_s_followup/orbital_evidence.txt`, `relaxations/report.json` and
+`followup_status.json` under the review directory. Native success, orbital
+continuity, relaxed connectivity and the eventual production model still need
+review; no diagnostic completion is automatically promoted.

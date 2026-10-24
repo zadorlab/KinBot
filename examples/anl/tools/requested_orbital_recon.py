@@ -191,7 +191,8 @@ def candidates(source, recipe, output):
         systems.append(dict(title=data['title'], configuration=str(config), manifest=str(manifest)))
     record = dict(schema=1, status='prepared', request=previous['request'],
                   max_jobs=min(cap, slots), production_policy=str(policy_path),
-                  files={name: file_sha256(output/name) for name in files}, systems=systems)
+                  files={name: file_sha256(output/name) for name in files}, systems=systems,
+                  candidate_comparison=True, source_review=str(source))
     atomic_json(output/'review_launch.json', record)
     return dict(directory=str(output), models=len(systems), max_jobs=record['max_jobs'],
                 tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),
@@ -602,8 +603,9 @@ def production_checks(production, output, *, extend=False):
 
 def run(output, *, report_failures=False):
     root = Path(output).expanduser().resolve(strict=True)
-    if report_failures and not _read(root/'review_launch.json').get('reviews'):
-        raise ValueError('Failure reporting is only supported for independent screen batches.')
+    record = _read(root/'review_launch.json')
+    if report_failures and not (record.get('reviews') or record.get('candidate_comparison')):
+        raise ValueError('Failure reporting requires independent screens or a candidate comparison.')
     with recon._manifest_lock(root):
         try:
             return _run(root)
@@ -683,7 +685,8 @@ def _run(output):
         os.chdir(root)
         if record.get('production_checks'):
             _reference_preflight(record, manifests)
-        options = {'keep_going': True} if record.get('reviews') or record.get('production_checks') else {}
+        options = {'keep_going': True} if (record.get('reviews') or record.get('production_checks')
+                                         or record.get('candidate_comparison')) else {}
         result = recon.run_many(manifests, max_jobs=min(record['max_jobs'], slots),
                                allocation_retries=2, **options)
     finally:
@@ -1021,6 +1024,8 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
         raise ValueError('Bind the completed screen to the actual VRC review request before selection.')
     request = _read(bind_request or source/'request.json')
     chosen = _read(recipe)
+    if chosen.get('diagnostic_only'):
+        raise ValueError('A diagnostic-only orbital seed cannot be published to production.')
     if (chosen.get('schema') != 1 or chosen.get('reviewed') is not True
             or not chosen.get('review_note') or not chosen.get('request_match')):
         raise ValueError('An explicit reviewed selection and chemistry note are required.')

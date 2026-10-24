@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "panels": [
+    {
+      "source": "r7_progress_review_20261024/screens/ch2_sh_s_cs",
+      "request": "ch3ss/791472110370000000002/vrctst/orbital_review/791472110370000000002_hom_sci_1_2/request.json",
+      "selection": "ch2_sh_s_cs_probe5_4.json",
+      "case_input": "ch3ss/input.json",
+      "distances_angstrom": [
+        2.0,
+        2.75,
+        3.5,
+        6.0,
+        30.0
+      ]
+    },
+    {
+      "source": "r7_progress_review_20261024/screens/ch2_sh_s_cs",
+      "request": "ch3ss/791472110370000000002/vrctst/orbital_review/791472110370000000002_hom_sci_1_2/request.json",
+      "selection": "ch2_sh_s_cs_probe7_6.json",
+      "case_input": "ch3ss/input.json",
+      "distances_angstrom": [
+        2.0,
+        2.75,
+        3.5,
+        6.0,
+        30.0
+      ]
+    }
+  ]
+}

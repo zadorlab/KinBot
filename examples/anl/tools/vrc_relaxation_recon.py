@@ -27,7 +27,7 @@ def read(path):
     return json.loads(Path(path).read_text())
 
 
-def specifications(source, request, selection, case_input):
+def specifications(source, request, selection, case_input, *, distances_angstrom=None):
     source, request, selection, case_input = [Path(p).resolve(strict=True) for p in
                                              (source,request,selection,case_input)]
     record = read(source/'review_launch.json')
@@ -74,6 +74,16 @@ def specifications(source, request, selection, case_input):
         reference_species.characterize()
     config.update(geometry_angstrom=reference,multiplicity=current['multiplicity'],kinbot_input=str(case_input))
     anchors=recon._coordinates(config,source/'input.json') if 'coordinates' in config else config['anchors']
+    if distances_angstrom is not None:
+        if (not isinstance(distances_angstrom,list) or not distances_angstrom
+                or any(type(d) not in (int,float) or not np.isfinite(d) or d<=0
+                       for d in distances_angstrom)
+                or len(set(distances_angstrom))!=len(distances_angstrom)):
+            raise ValueError('Relaxation distances must be distinct positive finite numbers.')
+        coordinates={(tuple(a['bond']),tuple(a['moving_atoms'])) for a in anchors}
+        if len(coordinates)!=1 or any(a.get('_rotation') for a in anchors):
+            raise ValueError('A distance override requires one unrotated separation coordinate.')
+        anchors=[dict(deepcopy(anchors[0]),distance_angstrom=d) for d in sorted(distances_angstrom)]
     basis=par['vrc_tst_scan_basis'];seed=chosen['basis_seeds'][basis];job=jobs[seed['job']]
     if job['basis']!=basis or seed['job'] not in required:
         raise ValueError('Panel needs an explicitly verified basis-matched seed.')
@@ -118,7 +128,8 @@ def prepare(production,plan,output):
     entries=read(plan)['panels']; specs=[]
     for entry in entries:
         specs.extend(specifications(production.parent/entry['source'],production/entry['request'],
-            plan.parent/entry['selection'],production/entry['case_input']))
+            plan.parent/entry['selection'],production/entry['case_input'],
+            distances_angstrom=entry.get('distances_angstrom')))
     output.mkdir(parents=True,exist_ok=True)
     with (output/'.prepare.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)

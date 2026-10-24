@@ -1,0 +1,9 @@
+[
+  {
+    "worker": "ch3s/471430450000000000002-s06a7b4c221beb748",
+    "reaction": "471430450000000000002-s06a7b4c221beb748_hom_sci_1_2",
+    "decision": "reject",
+    "reason": "Retain the user's C + SH3 exclusion: relaxed scans changed internal fragment connectivity.",
+    "cancel_running": true
+  }
+]

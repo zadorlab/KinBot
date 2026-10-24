@@ -37,14 +37,14 @@ pes_phase.owner_alive = lambda p: p.get('fixture_alive', False)
 def refresh(args):
     assert args == [str(root), '--apply', '--wait-idle', '1800']
     event('refresh')
-    atomic_json(root/'controller_refresh.json', dict(phase='launched', code=str(root/'pinned')))
+    atomic_json(root/'controller_refresh.json', dict(phase='launched', code=str(root/'.salvage_code.test')))
     for case in ('first', 'second'):
         atomic_json(root/case/'pes_status.json', dict(status='running'))
         atomic_json(root/case/'pes_exploration.json', dict(phase='postprocessing', fixture_alive=True))
 run_refresh.main = refresh
 original_request = live_control.request
 def request(*args, **kwargs):
-    assert os.environ['PYTHONPATH'] == str(root/'pinned')
+    assert os.environ['PYTHONPATH'] == str(root/'.salvage_code.test')
     assert (root/'controller_refresh.json').exists()
     record = original_request(*args, **kwargs)
     path = root/'.kinbot_controls/requests'/(record['id']+'.json')
@@ -121,7 +121,10 @@ def handoff(tmp_path):
         atomic_json(worker/'123.json', {})
         atomic_json(worker.parent/'input.json', {})
         inputs.append(str(worker.parent/'input.json'))
-    (root/'pinned').mkdir()
+    pin = root/'.salvage_code.test'
+    (pin/'kinbot').mkdir(parents=True)
+    (pin/'kinbot/rotdpy_worker.py').write_text('# verified worker snapshot')
+    atomic_json(pin/'manifest.json', {'kinbot/rotdpy_worker.py':file_sha256(pin/'kinbot/rotdpy_worker.py')})
     atomic_json(root/'prepared.json', dict(inputs=inputs))
     atomic_json(root/'first/123/accepted_l2_network.json', evidence('123', [('123_channel',['p','q'],0.,None)]))
     run_policy.update(root, max_jobs=23, exclude=['node9'])
@@ -131,6 +134,8 @@ def handoff(tmp_path):
         reason='Reviewed relaxed geometry', cancel_running=True)])
     sampling = root/'first/rotdPy'
     sampling.mkdir()
+    (sampling/'site_setup.sh').write_text('# Generated from the environment visible during prepare.\n')
+    (sampling/'qu.tpl').write_text('source '+str(sampling/'site_setup.sh')+'\npython -m kinbot.rotdpy_worker\n')
     retained = []
     for state in ('active', 'absent', 'complete', 'rejected'):
         inp = sampling/(state+'.py')
@@ -155,6 +160,7 @@ def handoff(tmp_path):
     def run():
         return subprocess.run(['bash', str(script), str(root), '22'], env=env,
             capture_output=True, text=True, timeout=30)
+    run.env = env
     return root, decisions, {p:p.read_bytes() for p in retained}, run
 
 
@@ -195,6 +201,17 @@ def test_invalid_decision_batch_stops_before_policy_or_controller_changes(handof
     assert result.returncode != 0
     assert (root/run_policy.NAME).read_bytes() == before
     assert not (root/'events.jsonl').exists()
+    assert all(p.read_bytes() == old for p,old in retained.items())
+
+
+def test_invalid_sampling_setup_stops_before_controller_replacement(handoff):
+    root, _, retained, run = handoff
+    (root/'first/rotdPy/qu.tpl').write_text('python -m custom_worker\n')
+    before = (root/run_policy.NAME).read_bytes()
+    result = run()
+    assert result.returncode != 0 and 'generated setup' in result.stderr
+    assert not (root/'events.jsonl').exists()
+    assert (root/run_policy.NAME).read_bytes() == before
     assert all(p.read_bytes() == old for p,old in retained.items())
 
 

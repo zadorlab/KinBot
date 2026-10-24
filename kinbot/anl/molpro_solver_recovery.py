@@ -9,6 +9,33 @@ import json
 import re
 
 
+def solver_options(model, text, attempt):
+    """Shared two-step hsdel ladder for optimization and sampling evaluations."""
+    if (attempt not in (0, 1) or not model.get('state_average')
+            or ('pspace' in model.get('correlation_options', {}) and attempt == 0)
+            or not re.search(r'Catastrophic failure in diagonalization\s*\(hsdel\)', text, re.I)
+            or not re.search(r'The expansion set has become singular', text, re.I)):
+        return None
+    result = deepcopy(model)
+    controls = result.setdefault('correlation_options', {})
+    roots = max(s['roots'] for s in result['state_average'])
+    counts = [int(x) for x in re.findall(r'Number of p-space configurations:\s*(\d+)', text, re.I)]
+    if attempt == 0:
+        count = 2 * max([roots, *counts])
+        if count > 64:
+            return None
+        controls['pspace'] = dict(energy_threshold=0., minimum_configurations=count)
+    else:
+        floor = 2 * roots + 2
+        old = controls.get('max_reference_vectors')
+        controls['max_reference_vectors'] = max(floor, old // 2) if old else floor
+        if old is not None:
+            controls['max_reference_vectors'] = min(old, controls['max_reference_vectors'])
+        controls['energy_convergence'] = min(controls.get('energy_convergence', 1.e-7), 1.e-10)
+        controls['coefficient_convergence'] = min(controls.get('coefficient_convergence', 1.e-5), 1.e-7)
+    return result if result != model else None
+
+
 def evidence(task, directory, outcome, *, own_pspace=False):
     from kinbot.molpro import vrc_multireference_energy_contract
     profile = task.get('profile', {})
@@ -87,24 +114,22 @@ def recover(graph, spec, state):
         if any(state['tasks'].get(n, {}).get('status') in
                ('complete', 'submitted', 'submitting', 'staged') for n in children):
             continue
-        model = deepcopy(task['profile']['calculator_kwargs']['state_model'])
-        controls = model.setdefault('correlation_options', {})
+        old_model = task['profile']['calculator_kwargs']['state_model']
+        # evidence already validated the native signature/count. Use the same
+        # numerical policy as the sampling bridge, preserving all other fields.
+        native = ('Catastrophic failure in diagonalization(hsdel)\nThe expansion set has become singular\n'
+                  + '\n'.join(f'Number of p-space configurations: {n}' for n in proof['observed_pspace_counts']))
+        model = solver_options(old_model, native, len(history))
+        if model is None:
+            continue
+        controls = model['correlation_options']
         kwargs = {'state_model': model}
         if not history:
-            controls['pspace'] = proof['pspace']
             reason = 'P-space eigensolver retry after native hsdel singularity'
         else:
             # MAXVI is the iterative workspace, not NSTATI or the reference
             # configuration space. A smaller workspace limits dependence in
             # accumulated vectors; tighter tolerances reduce numerical noise.
-            roots = max(s['roots'] for s in model['state_average'])
-            floor = 2 * roots + 2
-            old = controls.get('max_reference_vectors')
-            controls['max_reference_vectors'] = max(floor, old // 2) if old else floor
-            if old is not None:
-                controls['max_reference_vectors'] = min(old, controls['max_reference_vectors'])
-            controls['energy_convergence'] = min(controls.get('energy_convergence', 1.e-7), 1.e-10)
-            controls['coefficient_convergence'] = min(controls.get('coefficient_convergence', 1.e-5), 1.e-7)
             kwargs['scf_convergence'] = min(task['profile']['calculator_kwargs'].get('scf_convergence', 1.e-10), 1.e-10)
             reason = 'Final hsdel retry with reduced internal expansion workspace and tighter convergence'
             proof['pspace'] = controls['pspace']

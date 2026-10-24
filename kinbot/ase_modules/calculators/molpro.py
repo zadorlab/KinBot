@@ -134,7 +134,8 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
                  state_model=None,
                  orbital_file=None,
                  gradient_mode='auto', scf_convergence=1.e-10,
-                 correlation_convergence=1.e-8, numerical_gradient=None):
+                 correlation_convergence=1.e-8, numerical_gradient=None,
+                 cc_max_iterations=None):
     """Render a CCSD(T), CASPT2, or Davidson-corrected MRCI gradient.
 
     Molpro's RHF step supplies RHF or ROHF orbitals according to multiplicity.
@@ -153,6 +154,7 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
     requested_method = str(method).strip()
     electron_count = int(sum(atoms.numbers)) - charge
     contract = vrc_multireference_energy_contract(requested_method)
+    cc_iterations(cc_max_iterations, requested_method, effective_method)
     if contract is not None:
         # Never differentiate the final root while reporting MIN(all roots).
         _mr_gradient_variable(contract, state_model, mult)
@@ -268,7 +270,8 @@ def render_input(atoms, *, basis, geometry_name, gradient_name=None, charge=0,
     if cc_command:
         cc_energy, cc_variance = molpro_cc_thresholds(correlation_convergence)
         cc_command = (f'{{{cc_command},thrden={cc_energy},'
-                      f'thrvar={cc_variance}}}')
+                      f'thrvar={cc_variance}'
+                      + (f',maxit={cc_max_iterations}' if cc_max_iterations is not None else '') + '}')
     return initialize_molpro_restart(header + f'rhf\n{cc_command}\n'
             + energy_assignment('energy') +
             f'forces,numerical,variable=kb_geom_energy,startcmd=rhf{gradient_options}\n'
@@ -467,6 +470,15 @@ def parse_output(path, *, method='CCSD(T)', effective_method=None,
     return energy_hartree * Hartree
 
 
+def cc_iterations(value, method, effective_method=None):
+    """Validate an iteration budget without changing CC convergence tests."""
+    if value is not None and (type(value) is not int or not 1 <= value <= 1000
+            or str(method).upper() not in ('CCSD(T)', 'CCSD(T)-F12B')
+            or effective_method == 'HF'):
+        raise ValueError('cc_max_iterations requires CCSD, and an integer from 1 to 1000.')
+    return value
+
+
 class Molpro(Calculator):
     """Run one Molpro force evaluation for each new ASE geometry."""
 
@@ -478,7 +490,8 @@ class Molpro(Calculator):
                  caspt2_shift=0.1, caspt2_ipea=0.25,
                  state_model=None,
                  gradient_mode='auto', scf_convergence=1.e-10,
-                 correlation_convergence=1.e-8, numerical_gradient=None):
+                 correlation_convergence=1.e-8, numerical_gradient=None,
+                 cc_max_iterations=None):
         super().__init__()
         if (method.upper() not in ('CCSD(T)', 'CCSD(T)-F12B')
                 and vrc_multireference_energy_contract(method) is None):
@@ -530,6 +543,7 @@ class Molpro(Calculator):
                           'Molpro correlation convergence')
         self.scf_convergence = scf_convergence
         self.correlation_convergence = correlation_convergence
+        self.cc_max_iterations = cc_iterations(cc_max_iterations, method, effective_method)
         if gradient_mode not in ('auto', 'analytic', 'numerical'):
             raise ValueError('Molpro gradient_mode must be auto, analytic, '
                              'or numerical.')
@@ -589,6 +603,7 @@ class Molpro(Calculator):
                          orbital_file=orbital_name,
                          gradient_mode=self.gradient_mode,
                          numerical_gradient=self.numerical_gradient,
+                         cc_max_iterations=self.cc_max_iterations,
                          scf_convergence=self.scf_convergence,
                          correlation_convergence=
                              self.correlation_convergence))

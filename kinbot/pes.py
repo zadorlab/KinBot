@@ -129,7 +129,8 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
     # them. Replace whole files atomically, and leave identical files alone.
     from kinbot.execution import atomic_text
     site_setup = folder / 'site_setup.sh'
-    atomic_text(site_setup, render_site_setup({'molpro': {'molpro'}}))
+    from kinbot.rotdpy_worker_code import publish as worker_setup
+    worker_setup(folder, render_site_setup({'molpro': {'molpro'}}))
     site_setup.chmod(site_setup.stat().st_mode | stat.S_IXUSR)
     template = Path(f'{kb_path}/tpl/rotdPy_slurm.tpl').read_text()
     from kinbot.qc import _slurm_exclude_directive

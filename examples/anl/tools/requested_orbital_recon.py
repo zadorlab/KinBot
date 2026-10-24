@@ -198,6 +198,63 @@ def candidates(source, recipe, output):
                 production_model_accepted=False)
 
 
+def product_complex_geometry(request, evidence, selection):
+    """Read an accepted path's mapped product geometry for exit-channel probes."""
+    import sqlite3
+    import networkx as nx
+    from ase.db import connect
+    from rdkit import Chem
+    from kinbot.stationary_pt import StationaryPoint
+    worker=Path(request).parents[3]
+    network=_read(worker/'accepted_l2_network.json')['network']['reactions']
+    rows=[r for r in network if r['name']==evidence['reaction']]
+    if len(rows)!=1 or rows[0].get('product_complex')!=selection['product_complex']:
+        raise ValueError('Product-side screen is not bound to the accepted reaction complex.')
+    name=selection['record_name']
+    if name not in [evidence['reaction']+s for s in ('_IRC_F_prod_high','_IRC_R_prod_high')]:
+        raise ValueError('Product-side screen requires an explicit L2 product record.')
+    path=worker/'kinbot.db'
+    db=connect(str(path),use_lock_file=False)
+    db.connection=sqlite3.connect(path.as_uri()+'?mode=ro',uri=True);db.change_count=0
+    try:
+        found=list(db.select(name=name))
+        if not found:raise ValueError('Missing saved L2 product geometry: '+name)
+        row=found[-1];atoms=row.toatoms()
+    finally:db.connection.close()
+    if row.data.get('status')!='normal':
+        raise ValueError('Saved L2 product geometry has no normal completion: '+name)
+    if atoms.get_chemical_symbols()!=evidence['symbols'] or not np.isfinite(atoms.positions).all():
+        raise ValueError('Product-side atom identity/coordinates differ.')
+    fragments=selection['fragments'];maps=[f['atoms'] for f in fragments]
+    if len(maps)!=2 or sorted(i for m in maps for i in m)!=list(range(1,len(atoms)+1)):
+        raise ValueError('Explicit one-based fragment maps must partition all atoms.')
+    species=StationaryPoint('product',evidence['charge'],evidence['multiplicity'],
+        atom=np.array(evidence['symbols']),geom=atoms.positions)
+    species.characterize()
+    parts=list(nx.connected_components(nx.from_numpy_array(species.bond01)))
+    if {frozenset(p) for p in parts}!={frozenset(i-1 for i in m) for m in maps}:
+        raise ValueError('Saved product geometry does not match the declared separated fragments.')
+    from kinbot.electronic_states import _canonical_smiles
+    product_key=lambda p:(_canonical_smiles(p['smiles']),p['charge'],p['multiplicity'])
+    if sorted(map(product_key,fragments))!=sorted(map(product_key,evidence['products'])):
+        raise ValueError('Mapped fragment states differ from the live review request.')
+    for fragment,mapping in zip(fragments,maps):
+        mol=Chem.AddHs(Chem.MolFromSmiles(fragment['smiles']))
+        expected=nx.Graph();expected.add_nodes_from((a.GetIdx(),dict(element=a.GetSymbol())) for a in mol.GetAtoms())
+        expected.add_edges_from((b.GetBeginAtomIdx(),b.GetEndAtomIdx()) for b in mol.GetBonds())
+        actual=nx.from_numpy_array(species.bond01).subgraph([i-1 for i in mapping]).copy()
+        nx.set_node_attributes(actual,{i:atoms[i].symbol for i in actual},'element')
+        if not nx.is_isomorphic(actual,expected,node_match=lambda a,b:a['element']==b['element']):
+            raise ValueError('Mapped fragment connectivity differs from its declared identity.')
+    pair=evidence['bond'];moving=next((m for m in maps if pair[1] in m and pair[0] not in m),None)
+    if moving is None:raise ValueError('VRC coordinate does not separate the mapped fragments.')
+    anchors=[dict(name='exit_r_'+str(d).replace('.','p'),bond=pair,moving_atoms=moving,
+                  distance_angstrom=d) for d in selection['distances_angstrom']]
+    proof=dict(database=str(path),row_id=row.id,record_name=name,network=rows[0],
+               symbols=evidence['symbols'],positions=atoms.positions.tolist(),fragments=fragments)
+    return atoms.positions.tolist(),anchors,proof
+
+
 def prepare(request, case_input, recipe, output, *, provisional=False):
     request, case_input, recipe = [Path(p).expanduser().resolve(strict=True)
                                     for p in (request, case_input, recipe)]
@@ -223,6 +280,10 @@ def prepare(request, case_input, recipe, output, *, provisional=False):
             raise ValueError('Provisional recipe must explicitly identify the cleavage and fragment states.')
     if evidence.get('schema') != 1 or evidence.get('status') != 'needs_review':
         raise ValueError('Expected a current, unaccepted VRC orbital review request.')
+    from kinbot.reaction_decisions import rejected
+    worker = request.parent if provisional else request.parents[3]
+    if rejected(worker, evidence['reaction']):
+        raise ValueError('An operator-rejected reaction cannot start a new orbital screen.')
     if controls.get('schema') != 1 or not controls.get('request_match'):
         raise ValueError('Recipe must identify its intended review request.')
     for key, value in controls['request_match'].items():
@@ -249,6 +310,12 @@ def prepare(request, case_input, recipe, output, *, provisional=False):
     config = deepcopy(controls['reconnaissance'])
     config.update(symbols=evidence['symbols'], geometry_angstrom=evidence['positions'],
                   charge=evidence['charge'], partition=context['queue_name'])
+    geometry_proof=None
+    if controls.get('geometry_source'):
+        if provisional:raise ValueError('Product-side screens require an accepted live request.')
+        positions,anchors,geometry_proof=product_complex_geometry(request,evidence,controls['geometry_source'])
+        config.pop('coordinates',None)
+        config.update(geometry_angstrom=positions,anchors=anchors)
     # The recipe may explicitly choose a high-spin ROHF initialization; the
     # parent and its production multiplicity remain in the immutable request.
     config.setdefault('multiplicity', evidence['multiplicity'])
@@ -285,6 +352,10 @@ def prepare(request, case_input, recipe, output, *, provisional=False):
         record['provisional'] = True
         record['files']['provisional_source.json'] = file_sha256(output/'provisional_source.json')
     atomic_json(output/'review_launch.json', record)
+    if geometry_proof:
+        atomic_json(output/'geometry_source.json',geometry_proof)
+        record['files']['geometry_source.json']=file_sha256(output/'geometry_source.json')
+        atomic_json(output/'review_launch.json',record)
     return dict(directory=str(output), tasks=len(state['jobs']), max_jobs=record['max_jobs'],
                 active_space=loaded['_probe_space'], states=state['jobs'][0]['root_states'],
                 partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
@@ -529,10 +600,20 @@ def production_checks(production, output, *, extend=False):
     return dict(status='prepared', **record['production_checks'])
 
 
-def run(output):
+def run(output, *, report_failures=False):
     root = Path(output).expanduser().resolve(strict=True)
+    if report_failures and not _read(root/'review_launch.json').get('reviews'):
+        raise ValueError('Failure reporting is only supported for independent screen batches.')
     with recon._manifest_lock(root):
-        return _run(root)
+        try:
+            return _run(root)
+        except recon.ProbeFailure as error:
+            if not report_failures:
+                raise
+            # Batch run_many(keep_going=True) raises this only after auditing
+            # all allocations to termination. No still-live jobs can overlap
+            # the next independent campaign using these reserved slots.
+            return dict(status='failed', error=str(error), production_model_accepted=False)
 
 
 def _reference_preflight(record, manifests):
@@ -1150,7 +1231,11 @@ def main():
         reviews_cmd.add_argument(name)
     reviews_cmd.add_argument('--apply', action='store_true')
     for name in ('run', 'monitor', 'evidence', 'reference-report', 'production-evidence'):
-        commands.add_parser(name).add_argument('output')
+        command = commands.add_parser(name)
+        command.add_argument('output')
+        if name == 'run':
+            command.add_argument('--report-failures', action='store_true',
+                help='Report terminal independent-batch probe failures without aborting a later campaign.')
     args = parser.parse_args()
     if args.action == 'prepare':
         result = prepare(args.request, args.case_input, args.recipe, args.output)
@@ -1171,7 +1256,7 @@ def main():
     elif args.action == 'review-batch':
         result = review_batch(args.production, args.campaign, args.plan, apply=args.apply)
     elif args.action == 'run':
-        result = run(args.output)
+        result = run(args.output, report_failures=args.report_failures)
     elif args.action == 'evidence':
         print(evidence(args.output))
         return

@@ -2415,6 +2415,8 @@ def advance(run_dir, submit=False, submit_only=None):
         from kinbot.anl import molpro_mpi_recovery, molpro_solver_recovery, molpro_gradient_recovery
         spec, state = molpro_mpi_recovery.recover(run_dir, spec, state)
         spec, state = molpro_solver_recovery.recover(run_dir, spec, state)
+        from kinbot.anl import cc_iteration_recovery
+        spec, state = cc_iteration_recovery.recover(run_dir, spec, state)
         spec, state = recover_vpt2_failures(run_dir, spec, state)
         from kinbot.anl import vpt2_refinement
         spec, state = vpt2_refinement.recover(run_dir, spec, state)

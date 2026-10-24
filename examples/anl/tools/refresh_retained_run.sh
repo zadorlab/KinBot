@@ -26,6 +26,8 @@ if not (root/'prepared.json').is_file() or int(os.environ['KB_CAP']) < 0:
 if os.environ.get('KB_DECISIONS_FILE'):
     from kinbot.reaction_decisions import load_batch
     load_batch(root, os.environ['KB_DECISIONS_FILE'])
+from kinbot.rotdpy_worker_code import preflight
+preflight(root)
 print('Handoff input preflight passed.', flush=True)
 pid = int(os.environ['KB_WAIT_PID'] or 0)
 identity = process_identity(pid) if pid else None
@@ -84,6 +86,10 @@ PY
 KB_PIN="$("$KB_PY" -B -c 'import json,sys; from pathlib import Path; print(json.loads((Path(sys.argv[1])/"controller_refresh.json").read_text())["code"])' "$KB_RUN")"
 export PYTHONPATH="$KB_PIN"
 cd "$KB_RUN"  # Keep the checkout cwd from taking precedence over the code snapshot.
+
+# Retained sampling owners cache their scheduler template, but each allocation
+# sources this generated setup. Route future workers through the verified pin.
+"$KB_PY" -B -u -m kinbot.rotdpy_worker_code "$KB_RUN" "$KB_PIN"
 
 # Optional operator decisions are consumed by the replacement owners. Never
 # publish new control semantics to old pinned drivers before replacement.

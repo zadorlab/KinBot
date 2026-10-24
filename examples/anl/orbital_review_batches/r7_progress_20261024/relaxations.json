@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "panels": [
+    {
+      "source": "r7_additional_orbital_recon_20261021/ch2shs_cs",
+      "request": "ch3ss/791671580700000000002-s36f1e2b924862f12/vrctst/orbital_review/791671580700000000002-s36f1e2b924862f12_hom_sci_1_2/request.json",
+      "selection": "../r7_additional_20261021/ch2shs_cs_selected.json",
+      "case_input": "ch3ss/input.json"
+    },
+    {
+      "source": "r7_additional_orbital_recon_20261021/ch2shs_ss",
+      "request": "ch3ss/791671580700000000002-s36f1e2b924862f12/vrctst/orbital_review/791671580700000000002-s36f1e2b924862f12_hom_sci_2_3/request.json",
+      "selection": "../r7_additional_20261021/ch2shs_ss_selected.json",
+      "case_input": "ch3ss/input.json"
+    }
+  ]
+}

@@ -7,7 +7,9 @@ model and CBS algebra, without modifying the pinned external package.
 
 from copy import deepcopy
 from pathlib import Path
+import json
 import re
+import shutil
 import subprocess
 
 import numpy as np
@@ -23,6 +25,7 @@ from kinbot.molpro import (_vrc_multireference_method, stage_vrc_state_model,
 from kinbot.theory import fortran_threshold
 from kinbot.vrc_correction import sampling_settings, _basis_cardinal
 from kinbot.anl.runtime import qc_runtime_environment, cleanup_qc_runtime
+from kinbot.execution import atomic_json, file_sha256
 
 
 class LocalMolpro(LegacyMolpro):
@@ -77,21 +80,93 @@ class MolproSample(LocalMolpro):
                                  'CASPT2 or Davidson-corrected MRCI.')
             method, selected_energy = rendered
             child = LegacyMolpro(name, atoms, self.calc.copy())
-            Path(f'{name}.inp').write_text(initialize_molpro_restart(
+            header = (
                 f'***,KinBot ROTD sampling\nmemory,{self.memory_in_MW},m\n'
                 'angstrom\norient,noorient\nsymmetry,nosym\n'
                 f'set,charge={model["charge"]}\nset,spin={mult - 1}\n'
                 f'geometry={{\n{len(atoms)}\n{name}\n{rows}\n}}\n'
                 + f'basis={basis}\n'
-                +
-                f'gthresh,energy={scf},coeff={correlation},civec={correlation}\n'
-                + method + energy_assignment(selected_energy) +
-                f'MYENERGY={selected_energy}\n'))
+                + f'gthresh,energy={scf},coeff={correlation},civec={correlation}\n')
+            child.kinbot_retry = dict(header=header, model=deepcopy(model['state_models_by_basis'][basis]),
+                method=level['method'], electrons=electron_count, mult=mult,
+                shift=model['shift'], ipea=model['ipea'], scf=model['scf_convergence'])
+            Path(f'{name}.inp').write_text(initialize_molpro_restart(header
+                + method + energy_assignment(selected_energy) + f'MYENERGY={selected_energy}\n'))
             self.basis_jobs.append(child)
 
     def run(self):
         for child in self.basis_jobs:
-            self._run_basis_job(child)
+            self._run_with_solver_recovery(child)
+
+    def _run_with_solver_recovery(self, child):
+        """Retry this exact geometry, never substitute a fresh random sample."""
+        from kinbot.anl.molpro_solver_recovery import solver_options
+        path = Path(child.name+'.inp')
+        original = file_sha256(path)
+        archive = Path('.kinbot_sample_attempts')/child.name/original
+        journal = archive/'recovery.json'
+        record = json.loads(journal.read_text()) if journal.exists() else dict(attempts=[])
+        if record.get('status') == 'exhausted':
+            raise RuntimeError(f'Molpro sample {child.name}: solver retries exhausted for this geometry.')
+        model = deepcopy(record.get('next_model', child.kinbot_retry['model']))
+        if record.get('next_model'):
+            self._retry_input(child, model, len(record['attempts']))
+        while True:
+            try:
+                self._run_basis_job(child)
+            except RuntimeError as error:
+                # Only a native nonzero return is eligible, not parse, setup,
+                # scratch, subprocess or validation errors.
+                if (not getattr(error, 'native_output_current', False)
+                        or str(error) != f'Molpro sample {child.name} exited with status {getattr(error, "native_returncode", None)}.'):
+                    raise
+                output = Path(child.name+'.out')
+                text = output.read_text(errors='replace') if output.exists() else ''
+                next_model = solver_options(model, text, len(record['attempts']))
+                if not next_model and not record['attempts']:
+                    raise
+                dest = archive/str(len(record['attempts']))
+                dest.mkdir(parents=True, exist_ok=True)
+                hashes = {}
+                sources = list(Path.cwd().glob(child.name+'.*'))
+                restart = re.search(r'(?m)^file,2,([^,\n]+)', path.read_text())
+                if restart and Path(restart[1]).name == restart[1]:
+                    sources.append(Path.cwd()/restart[1])
+                for source in sources:
+                    if source.is_file():
+                        digest = file_sha256(source)
+                        saved = dest/source.name
+                        if saved.exists() and file_sha256(saved) != digest:
+                            raise RuntimeError('Sample recovery archive changed; inspect before retry.')
+                        if not saved.exists():
+                            shutil.copy2(source, saved)
+                        hashes[source.name] = digest
+                record['attempts'].append(dict(files=hashes, model=model,
+                    returncode=error.native_returncode, archive=str(dest.resolve())))
+                record.update(status='retry_ready' if next_model else 'exhausted', next_model=next_model)
+                atomic_json(journal, record)
+                if next_model is None:
+                    raise
+                model = next_model
+                self._retry_input(child, model, len(record['attempts']))
+            else:
+                if record['attempts']:
+                    record.update(status='native_executed', output_sha256=file_sha256(Path(child.name+'.out')))
+                    atomic_json(journal, record)
+                return
+
+    @staticmethod
+    def _retry_input(child, model, attempt):
+        settings = child.kinbot_retry
+        selection = stage_vrc_state_model(model, Path.cwd(), child.name)
+        method, energy = _vrc_multireference_method(settings['method'], settings['electrons'],
+            spin=settings['mult']-1, shift=settings['shift'], ipea=settings['ipea'], state_model=selection)
+        header = settings['header']
+        if attempt >= 2:
+            scf = fortran_threshold(min(settings['scf'], 1.e-10), 'VRC SCF convergence')
+            header = re.sub(r'gthresh,energy=[^,\n]+', 'gthresh,energy='+scf, header)
+        Path(child.name+'.inp').write_text(initialize_molpro_restart(header+method
+            + energy_assignment(energy)+f'MYENERGY={energy}\n'))
 
     def _run_basis_job(self, child):
         env, runtime = qc_runtime_environment('molpro', 'molpro', work_directory=Path.cwd())
@@ -106,10 +181,20 @@ class MolproSample(LocalMolpro):
                         (local / f'{child.name}.stderr').open('w') as stderr:
                     result = subprocess.run(command, cwd=local, env=env, stdout=stdout,
                                             stderr=stderr, check=False)
+                # A launcher failure may leave an old output in the shared
+                # worker directory. Only this fresh scratch attempt is evidence.
+                output = local/f'{child.name}.out'
+                has_output = output.is_file() and output.stat().st_size > 0
             from kinbot.molpro_diagnostics import write_native_report
-            write_native_report(Path(f'{child.name}.out'))
+            if has_output:
+                write_native_report(Path(f'{child.name}.out'))
             if result.returncode:
-                raise RuntimeError(f'Molpro sample {child.name} exited with status {result.returncode}.')
+                error = RuntimeError(f'Molpro sample {child.name} exited with status {result.returncode}.')
+                error.native_returncode = result.returncode
+                error.native_output_current = has_output
+                raise error
+            if not has_output:
+                raise RuntimeError(f'Molpro sample {child.name} produced no native output in its scratch attempt.')
         finally:
             cleanup_qc_runtime(runtime)
 

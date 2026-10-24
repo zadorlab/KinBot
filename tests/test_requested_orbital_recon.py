@@ -40,6 +40,21 @@ def request_tree(tmp_path):
     return request, case/'input.json', tmp_path/'screen'
 
 
+def test_batch_terminal_failure_can_be_reported_but_scheduler_failure_still_stops(tmp_path, monkeypatch):
+    atomic_json(tmp_path/'review_launch.json', dict(reviews=['independent-screen']))
+    def failed(_):
+        raise helper.recon.ProbeFailure('native probe failed after all allocations settled')
+    monkeypatch.setattr(helper, '_run', failed)
+    assert helper.run(tmp_path, report_failures=True)['status'] == 'failed'
+    with pytest.raises(helper.recon.ProbeFailure):
+        helper.run(tmp_path)
+    def uncertain(_):
+        raise RuntimeError('scheduler unavailable')
+    monkeypatch.setattr(helper, '_run', uncertain)
+    with pytest.raises(RuntimeError, match='scheduler unavailable'):
+        helper.run(tmp_path, report_failures=True)
+
+
 def test_exact_request_prepares_eight_independent_probes_and_no_production_writes(request_tree, monkeypatch):
     request, case_input, output = request_tree
     original = {p: p.read_bytes() for p in case_input.parent.parent.rglob('*') if p.is_file()}
@@ -573,7 +588,11 @@ def test_review_reaches_existing_owner_and_preserves_native_work(request_tree,wo
     proposed=helper._read(case_input)
     assert helper._read(root/input_refresh.SNAPSHOT)==proposed
     if worker_status=='exploring':
-        generator=SimpleNamespace(inp=str(worker/(parent+'.json')),par=previous.copy())
+        request=helper._read(source/'request.json')
+        generator=SimpleNamespace(inp=str(worker/(parent+'.json')),par=previous.copy(),
+            species=SimpleNamespace(chemid=parent,atom=request['symbols'],
+                charge=request['charge'],mult=request['multiplicity'],
+                optical_reference=dict(status='assigned',canonical_graphs=[])))
         input_refresh.inherit_models(root,generator)
         assert generator.par['vrc_tst_surface_models']==proposed['vrc_tst_surface_models']
         assert helper._read(worker/(parent+'.json'))==proposed

@@ -26,6 +26,31 @@ automatic retries without submitting QC itself. It checks PES owner health
 before and after reconciliation and writes a timestamped reconciliation report.
 Review holds and scientific validation remain in force. The cap is a maximum,
 not a guarantee of a fixed number of idle nodes.
+The handoff also verifies each generated RotdPy setup and routes future sample
+workers through the new immutable code snapshot. Retained owners, input files,
+sampling databases and already executing workers are unchanged. The cached
+Slurm template sources this setup on each allocation. The route is recorded in
+`rotdPy/.kinbot_worker_code.json`, and prior setup files are archived. A later
+runtime-only update can use `python -m kinbot.rotdpy_worker_code ROOT PIN` without
+replacing sampling or PES owners; `PIN` must be a verified snapshot in ROOT.
+
+Native CC iteration exhaustion now has a bounded automatic ladder in ANL
+dispatch: Molpro CCSD(T)/CC-F12 optimization and single-point jobs use MAXIT
+100 then 200; CFOUR VCC uses CC_MAXCYC 600 then 1000. An existing larger limit
+is never reduced. Native CC-specific failure evidence and the failed attempt's
+identity are required. Failed attempts are archived, blocked descendants are
+reconciled, and geometry, theory, state definitions and convergence thresholds
+stay fixed. MRCC's `ccprog=mrcc` higher-order engine has a compiled iteration
+ceiling, so an ineffective `ccmaxit` edit is not attempted there.
+
+The Molpro sampling bridge shares the dispatcher's two-step `hsdel` singularity
+recovery: enlarge the numerical P-space, then reduce the iterative workspace
+and tighten numerical convergence. It keeps the same sample geometry, selected
+roots, state-average weights, active space, level shift and IPEA shift. Native
+attempts and restart records are archived under `.kinbot_sample_attempts` in
+the worker directory; exhausted settings stay exhausted across worker restarts.
+Normal termination and the energy parser remain mandatory. Unknown failures
+remain failures, and failed samples are never assigned replacement energies.
 Sampling ownership is checked independently of current scan readiness: replay
 of saved scan points can temporarily publish `running` during replacement.
 A live, hash-bound campaign is retained through that interval. An absent owner

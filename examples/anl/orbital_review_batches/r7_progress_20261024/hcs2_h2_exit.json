@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791472110370000000002",
+    "reaction": "791472110370000000002_h2_elim_4_5",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      6,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]([S])=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][H]"
+      }
+    ]
+  },
+  "reconnaissance": {
+    "title": "hcs2_h2_exit_orbital_screen",
+    "multiplicity": 2,
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-09,
+    "scf_options": {
+      "solver": "so_sci",
+      "max_iterations": 256
+    },
+    "probe_active_space": true,
+    "probe_method": "casci",
+    "orbital_initialization": "independent",
+    "avas_reference": "rhf",
+    "probe_definition": {
+      "active_electrons": 19,
+      "active_orbitals": 14,
+      "chemical_note": "Diagnostic CASCI(19,14) from the saved L2 product complex, translated along the requested exit coordinate. Heavy-atom 2s/2p and 3s/3p AVAS targets plus H4/H5 1s include the departing H2 or S-H/C-H subspace. Two doublet roots are diagnostic support, not two reactive fluxes. Choose a compact model only after native orbital review at both bases; subsequently check relaxed fragment identity at key separations. No production model is accepted by this screen.",
+      "state_model": {
+        "orbital_selection": {
+          "mode": "avas",
+          "threshold": 0.3,
+          "minao_basis": "minao",
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 3,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 4,
+              "orbitals": [
+                "1s"
+              ]
+            },
+            {
+              "atom": 5,
+              "orbitals": [
+                "1s"
+              ]
+            }
+          ]
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ],
+        "selected_roots": {
+          "2": 1
+        },
+        "canonical_orbitals": true
+      }
+    }
+  },
+  "geometry_source": {
+    "product_complex": "791031300000000000002",
+    "record_name": "791472110370000000002_h2_elim_4_5_IRC_R_prod_high",
+    "fragments": [
+      {
+        "atoms": [
+          1,
+          2,
+          3,
+          6
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]([S])=[S]"
+      },
+      {
+        "atoms": [
+          4,
+          5
+        ],
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][H]"
+      }
+    ],
+    "distances_angstrom": [
+      2.0,
+      3.5,
+      6.0,
+      30.0
+    ]
+  }
+}

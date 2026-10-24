@@ -1,0 +1,27 @@
+Input orientation:                          
+ ---------------------------------------------------------------------
+ Center     Atomic      Atomic             Coordinates (Angstroms)
+ Number     Number       Type             X           Y           Z
+ ---------------------------------------------------------------------
+      1         16           0        0.909433    0.092055    0.050322
+      2          1           0        0.653723   -1.039218    0.721187
+      3          1           0        2.234691   -0.077664    0.150968
+ ---------------------------------------------------------------------
+
+Harmonic frequencies (cm**-1), IR intensities (KM/Mole), Raman scattering
+ activities (A**4/AMU), depolarization ratios for plane and unpolarized
+ incident light, reduced masses (AMU), force constants (mDyne/A),
+ and normal coordinates:
+                      1                      2                      3
+                      A                      A                      A
+ Frequencies --   1215.0876              2726.4782              2741.7733
+ Red. masses --      1.0397                 1.0356                 1.0399
+ Frc consts  --      0.9044                 4.5355                 4.6059
+ IR Inten    --      0.6225                 0.2607                 0.3746
+  Atom  AN      X      Y      Z        X      Y      Z        X      Y      Z
+     1  16    -0.02   0.02  -0.01    -0.02   0.02  -0.01    -0.03  -0.02   0.01
+     2   1     0.69  -0.11   0.07    -0.15  -0.60   0.35     0.13   0.59  -0.35
+     3   1    -0.11  -0.60   0.36     0.70  -0.07   0.04     0.70  -0.09   0.05
+
+ -------------------
+ -

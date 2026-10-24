@@ -381,14 +381,25 @@ def attach_task_vpt2_frequencies(species, run_dir, task_id, *,
             f'{task_id}: VPT2 fundamentals require explicit quality review.')
     parsed = dict(parsed)
     parsed['review_required'] = False
-    frequencies = attach_anharmonic_frequencies(
-        species, parsed, **match_options)
+    if (getattr(species, 'anl_thermal_model', None) or {}).get('harmonic'):
+        from ase.io import read
+        from kinbot.anl.thermal import attach_vpt2
+        frequencies = attach_vpt2(species, parsed, native,
+            read(native.parent/'geometry.xyz'), **match_options)
+    else:
+        frequencies = attach_anharmonic_frequencies(
+            species, parsed, **match_options)
     species.anl_thermochemistry_frequency_source.update({
         'task_id': task_id,
         'native_output': str(native),
         'source_sha256': execution['artifacts'][task['result_parser']['file']],
         'quality_review': component.settings.get('quality_review'),
     })
+    thermal = getattr(species, 'anl_thermal_model', None)
+    if thermal and thermal.get('vpt2'):
+        thermal['vpt2']['evidence'] = {
+            key: species.anl_thermochemistry_frequency_source[key]
+            for key in ('task_id', 'native_output', 'source_sha256', 'quality_review')}
     return frequencies
 
 

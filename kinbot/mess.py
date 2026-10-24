@@ -306,9 +306,25 @@ class MESS:
 
     @staticmethod
     def _stable_frequencies(species):
-        """Use explicitly accepted ANL frequencies, otherwise KinBot's L2 set."""
+        """Use accepted ANL modes, reprojecting any repaired L2 rotors."""
+        if getattr(species, 'anl_thermal_model', None):
+            from kinbot.anl.thermal import update_model
+            update_model(species)
         accepted = getattr(species, 'anl_thermochemistry_frequencies', None)
         return species.reduced_freqs if accepted is None else accepted
+
+    @staticmethod
+    def _thermal_sigma(species):
+        geometry = (getattr(species, 'anl_thermal_model', None) or {}).get('geometry')
+        return geometry['sigma_ext'] if geometry else species.sigma_ext
+
+    def _member_data(self, species, record):
+        """Only the conformer supplying the ANL graph inherits its L3 data."""
+        if (getattr(species, 'anl_thermal_model', None)
+                and np.allclose(record.geometry, species.geom, atol=1.e-8, rtol=0.)):
+            from kinbot.anl.thermal import member_spectrum
+            return self._thermal_geometry(species), member_spectrum(species), self._thermal_sigma(species)
+        return record.geometry, record.frequencies_cm1, record.sigma_ext
 
 
     def write_header(self, lot):
@@ -484,7 +500,7 @@ class MESS:
                 temperatures=' '.join(f'{value:g}' for value in temperatures),
                 name=species.name, natom=species.natom,
                 geom=self.rotor_geom(species),
-                symm=float(species.sigma_ext) / float(species.nopt),
+                symm=float(self._thermal_sigma(species)) / float(species.nopt),
                 rotconst=self.rotor_core_line(species),
                 nfreq=len(stable_freqs),
                 freq=self.make_freq(stable_freqs, 1., 0),
@@ -493,7 +509,7 @@ class MESS:
         return destination
 
     def thermochemistry_model(self, species):
-        """Export the accepted L2 RRHO/HR model for an external CBH state."""
+        """Export the best accepted RRHO model and its associated L2 rotors."""
         from kinbot.anl.atct import _canonical_smiles
         from kinbot.anl.dispatch import _geometry_hash
         from ase import Atoms
@@ -506,7 +522,7 @@ class MESS:
         rotor_blocks = ('' if species.natom == 1
                         else self.make_rotors(species, 1.))
         symbols = list(map(str, species.atom))
-        positions = np.asarray(species.geom, dtype=float)
+        positions = np.asarray(self._thermal_geometry(species), dtype=float)
         source = {
             'provider': 'kinbot-accepted-l2',
             'source_job': getattr(species, 'source_job', None),
@@ -515,7 +531,7 @@ class MESS:
             'harmonic_zpe_hartree': float(species.zpe),
             'hessian_frame_policy': 'selected-geometry-v1',
             'geometry_sha256': _geometry_hash(Atoms(
-                symbols=symbols, positions=positions)),
+                symbols=symbols, positions=species.geom)),
         }
         identity = species.smiles
         requested = self.par.get('smiles')
@@ -529,6 +545,11 @@ class MESS:
             identity = requested
         if getattr(species, 'spin_orbit_correction', None) is not None:
             source['spin_orbit_correction'] = dict(species.spin_orbit_correction)
+        if getattr(species, 'anl_thermal_model', None):
+            from kinbot.anl.thermal import provenance
+            source = {'provider': 'kinbot-anl-thermal', 'l2': source,
+                      'thermal': provenance(species),
+                      'geometry_sha256': _geometry_hash(Atoms(symbols=symbols, positions=positions))}
         source['record_sha256'] = hashlib.sha256(json.dumps(
             source, sort_keys=True,
             separators=(',', ':')).encode()).hexdigest()
@@ -540,7 +561,7 @@ class MESS:
             'symbols': symbols,
             'positions': positions.tolist(),
             'symmetry_factor': (1. if species.natom == 1 else
-                                float(species.sigma_ext)
+                                float(self._thermal_sigma(species))
                                 / float(species.nopt)),
             'frequencies_cm_inverse': frequencies,
             'electronic_levels': electronic_levels_for_species(
@@ -1355,7 +1376,7 @@ class MESS:
         if self.par['multi_conf_tst'] and not single_structure:
             record = representative_record(species, self.par.get('optical_population', 'specified'))
             species.mess_optical_counting = record.optical_evidence
-            return record.sigma_ext / record.remaining_optical_weight
+            return self._member_data(species, record)[2] / record.remaining_optical_weight
         from copy import copy
         from kinbot.counting_contract import optical_counting
         from kinbot.thermochemistry import hir_evidence
@@ -1376,20 +1397,21 @@ class MESS:
             if preserve_errors:
                 refuse_routing(reason, [species])
             raise ValueError(reason)
-        return float(species.sigma_ext) / counting['remaining_multiplier']
+        return float(self._thermal_sigma(species)) / counting['remaining_multiplier']
 
 
     def _member_rrho(self, species, record, freq_factor, zeroenergy, *,
                      saddle=False, tunneling='', shift=''):
         """Render one MC member from its associated geometry and properties."""
+        geom, raw_modes, sigma = self._member_data(species, record)
         modes = frequencies.thermochemical_frequencies(
-            record.frequencies_cm1, saddle, self.par.get('imagfreq_threshold', 50.))
+            raw_modes, saddle, self.par.get('imagfreq_threshold', 50.))
         electronic = self._electronic_fields(
             species, '      ', ground_only=saddle)
         return self._counting_comment(record.optical_evidence, record.member_id) + self.rrhotpl.format(
-            natom=species.natom, geom=self.rotor_geom(species, record.geometry, record.frequencies_cm1),
-            core=self.corerrtpl.format(symm=record.sigma_ext / record.remaining_optical_weight,
-                rotconst=self.rotor_core_line(species, record.geometry, record.frequencies_cm1)),
+            natom=species.natom, geom=self.rotor_geom(species, geom, raw_modes),
+            core=self.corerrtpl.format(symm=sigma / record.remaining_optical_weight,
+                rotconst=self.rotor_core_line(species, geom, raw_modes)),
             nfreq=len(modes) - int(saddle), freq=self.make_freq(modes, freq_factor, int(saddle)),
             rotors='', tunneling=tunneling, **electronic,
             zeroenergy=zeroenergy, shift=shift)
@@ -1621,7 +1643,7 @@ class MESS:
                         not np.allclose(record.geometry, species.geom, atol=1.e-8, rtol=0.)
                         or abs(record.zero_energy_hartree - species.energy - species.zpe) > 1.e-8
                         or not np.array_equal(record.frequencies_cm1, species.freq)
-                        or abs(record.sigma_ext / record.remaining_optical_weight
+                        or abs(self._member_data(species, record)[2] / record.remaining_optical_weight
                                - self._parent_symmetry(species)) > 1.e-8)
         if conformer_union:
             message = (f'{name}: multi-conformer VRC requires a separate sampled flux '
@@ -1688,13 +1710,13 @@ class MESS:
             divisor = symmetry_factor
             for species, record in zip(products, combination):
                 if record is None:
-                    geom, freq = species.geom, species.reduced_freqs
+                    geom, freq = self._thermal_geometry(species), self._stable_frequencies(species)
                     rotors.append(self.make_rotors(species, freq_factor, bless=True))
                 else:
-                    geom = record.geometry
+                    geom, raw_modes, sigma_ext = self._member_data(species, record)
                     freq = frequencies.thermochemical_frequencies(
-                        record.frequencies_cm1, False, self.par.get('imagfreq_threshold', 50.))
-                    sigma = record.sigma_ext / record.remaining_optical_weight
+                        raw_modes, False, self.par.get('imagfreq_threshold', 50.))
+                    sigma = sigma_ext / record.remaining_optical_weight
                     offset += (record.zero_energy_hartree - species.energy - species.zpe) * constants.AUtoKCAL
                 if record is not None:
                     divisor *= sigma / self._parent_symmetry(species)
@@ -1843,13 +1865,13 @@ class MESS:
             tun = f'! barrier is submerged {left_zeroenergy} {right_zeroenergy}'
         elif self.par['pes'] == 0:
             tun = self.tunneltpl.format(cutoff=round(min(left_zeroenergy, right_zeroenergy), 2),
-                                        imfreq=round(-reaction.ts.reduced_freqs[0] * imagfreq_factor, 2),
+                                        imfreq=round(-self._stable_frequencies(reaction.ts)[0] * imagfreq_factor, 2),
                                         welldepth1=round(left_zeroenergy, 2),
                                         welldepth2=round(right_zeroenergy, 2))
         else: 
             logger.info(f'Barrier {reaction.instance_name}')
             tun = self.tunneltpl.format(cutoff='{cutoff}',
-                                        imfreq=round(-reaction.ts.reduced_freqs[0] * imagfreq_factor, 2),
+                                        imfreq=round(-self._stable_frequencies(reaction.ts)[0] * imagfreq_factor, 2),
                                         welldepth1='{welldepth1}',
                                         welldepth2='{welldepth2}')
 
@@ -1919,8 +1941,8 @@ class MESS:
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
                                        geom=self.rotor_geom(reaction.ts),
                                        core=corerr,
-                                       nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=self.make_freq(reaction.ts.reduced_freqs, freq_factor, 1),
+                                       nfreq=len(self._stable_frequencies(reaction.ts))-1,
+                                       freq=self.make_freq(self._stable_frequencies(reaction.ts), freq_factor, 1),
                                        rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
                                        **ts_electronic,
@@ -1943,8 +1965,8 @@ class MESS:
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
                                        geom=self.rotor_geom(reaction.ts),
                                        core=corerr,
-                                       nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=self.make_freq(reaction.ts.reduced_freqs, freq_factor, 1),
+                                       nfreq=len(self._stable_frequencies(reaction.ts))-1,
+                                       freq=self.make_freq(self._stable_frequencies(reaction.ts), freq_factor, 1),
                                        rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
                                        **ts_electronic,
@@ -1963,7 +1985,7 @@ class MESS:
                 shift = constants.AUtoKCAL * (record.zero_energy_hartree - base_zeroen)
                 conformer_zeroenergy = (zeroenergy if self.par['pes'] else
                                         round(zeroenergy + shift, 2))
-                imfreq = round(-record.frequencies_cm1[0] * imagfreq_factor, 2)
+                imfreq = round(-self._member_data(reaction.ts, record)[1][0] * imagfreq_factor, 2)
                 if self.par['pes']:
                     tun_conf = self.tunneltpl.format(
                         cutoff='{cutoff}', imfreq=imfreq,
@@ -2061,6 +2083,11 @@ class MESS:
 
 
 
+    @staticmethod
+    def _thermal_geometry(species):
+        model = getattr(species, 'anl_thermal_model', None) or {}
+        return np.asarray(model['geometry']['positions']) if model.get('geometry') else species.geom
+
     def rotor_geom(self, species, geom=None, freqs=None):
         """Geometry block for a rigid-rotor species.
 
@@ -2070,9 +2097,9 @@ class MESS:
         agrees, and say so in the input and in the log. The stored geometry is
         never modified, and other species are written as calculated.
         """
-        geom = species.geom if geom is None else geom
+        geom = self._thermal_geometry(species) if geom is None else geom
         if freqs is None:
-            freqs = getattr(species, 'reduced_freqs', None) or species.freq
+            freqs = self._stable_frequencies(species)
         natom = len(species.atom)
         block = self.make_geom(geom, species.atom)
         if natom < 3 or freqs is None or len(freqs) != 3 * natom - 5:
@@ -2099,9 +2126,9 @@ class MESS:
         Give MESS the three rotational constants explicitly so it keeps the
         3D rotor KinBot's frequency count assumes, and say so.
         """
-        geom = species.geom if geom is None else geom
+        geom = self._thermal_geometry(species) if geom is None else geom
         if freqs is None:
-            freqs = getattr(species, 'reduced_freqs', None) or species.freq
+            freqs = self._stable_frequencies(species)
         natom = len(species.atom)
         if natom < 3 or freqs is None or len(freqs) != 3 * natom - 6:
             return ''
@@ -2207,13 +2234,14 @@ class MESS:
                                   f'kept as a harmonic oscillator: {why}')
                     continue
                 rotorpot, rotortype = self.make_rotorpot(species, i, rot, freq_factor)
-                if rotortype == 'hindered' and bless == False:
+                separate_geometry = bless or bool(getattr(species, 'anl_thermal_model', None))
+                if rotortype == 'hindered' and not separate_geometry:
                     rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                                axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
                                                                rotorsymm=self.rotorsymm(species, rot),
                                                                nrotorpot=self.nrotorpot(species, rot),
                                                                rotorpot=rotorpot))
-                if rotortype == 'hindered' and bless == True:
+                if rotortype == 'hindered' and separate_geometry:
                     rotors.append(self.hinderedrotorgeomtpl.format(geom=self.make_geom(species.geom, species.atom),
                                                                    natom=species.natom,
                                                                    group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),

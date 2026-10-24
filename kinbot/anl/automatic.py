@@ -1766,24 +1766,8 @@ def _reference_thermochemistry_models(reference_entries, sources, graphs):
         model = dict(sources[key]['thermochemistry_model'])
         graph = graphs.get('stable:' + key)
         if graph is not None:
-            state = _read_json(graph / 'state.json', 'dispatcher state')
-            if state['tasks'].get('gaussian_vpt2', {}).get(
-                    'status') == 'complete':
-                _, _, task, execution, _, parsed = _verified_task_result(
-                    graph, 'gaussian_vpt2')
-                fundamentals = parsed.get(
-                    'anharmonic_fundamentals_cm_inverse')
-                if (not parsed.get('review_required')
-                        and isinstance(fundamentals, list)
-                        and len(fundamentals) == len(
-                            model.get('frequencies_cm_inverse', ()))
-                        and all(float(value) > 0. for value in fundamentals)):
-                    model['frequencies_cm_inverse'] = list(
-                        map(float, fundamentals))
-                    model['frequency_source'] = {
-                        'kind': 'gaussian_vpt2', 'run': str(graph),
-                        'native_output_sha256': execution['artifacts'][
-                            task['result_parser']['file']]}
+            from kinbot.anl.thermal import enrich_reference_model
+            model = enrich_reference_model(model, graph)
         models[entry['smiles']] = model
     return models
 
@@ -2420,6 +2404,7 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
             *(profiles['ts:' + item['transition_state']]['barrier']
               for item in tight)])
 
+    from kinbot.anl.thermal import handoff_options
     handoff = {
         'schema': 1, 'mode': 'cbh-anl', 'strict': True,
         'species': {}, 'transition_states': {},
@@ -2440,6 +2425,9 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         if route == root_route and barrier_label is not None:
             entry['barrier_composite'] = profiles[key]['barrier'][barrier_label]
         graph = graphs['stable:' + key]
+        thermal = handoff_options(graph)
+        if thermal is not None:
+            entry['thermal'] = thermal
         if ('harmonic-ZPE' not in method
                 and _read_json(
                     graph / 'state.json', 'dispatcher state')['tasks']
@@ -2451,6 +2439,9 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         handoff['species'][route] = dict(
             composite=profiles['complex:'+route]['barrier'][formations[route].method],
             formation=str(formation_paths[route]), geometry=entry['record']['molecule'])
+        thermal = handoff_options(graphs['complex:'+route])
+        if thermal is not None:
+            handoff['species'][route]['thermal'] = thermal
     for reaction in tight:
         name = reaction['transition_state']
         handoff['transition_states'][name] = {
@@ -2458,6 +2449,9 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
             'identity_smiles': plan['network']['transition_states'][name][
                 'smiles'],
         }
+        thermal = handoff_options(graphs['ts:'+name])
+        if thermal is not None:
+            handoff['transition_states'][name]['thermal'] = thermal
 
     handoff_path = base / 'handoff.json'
     handoff_path.write_text(json.dumps(handoff, indent=2, sort_keys=True) + '\n')

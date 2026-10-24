@@ -831,3 +831,36 @@ and pass after the correction. Reference recovery, reuse, network revision,
 automatic ANL and refresh tests: **153 passed, 1 skipped**. Pull the correction
 and repeat the same `run_refresh --deduplicate-anl --apply` command above;
 no cleanup or fresh production restart is required.
+
+## October 24: accepted L3 properties in MESS
+
+`kinbot.anl.thermal` supplies a separate, verified thermal model to the MESS
+writer. Automatic ANL handoffs select the highest completed L3 geometry and
+harmonic task independently. Original L2 fields remain intact for reuse and
+rotor scans. MESS's main geometry, rotational constants, external symmetry and
+harmonic modes use the accepted L3 data where available. Only the conformer
+that supplied the ANL graph inherits that upgrade.
+
+The complete printed Molpro Cartesian modes reconstruct the vibrational Hessian
+to native print precision. KinBot projects validated L2 rotor identities from
+that Hessian; each explicit MESS rotor retains its L2 scan geometry and potential.
+For stable species, accepted L2 VPT2 mode shifts are assigned to the retained L3
+modes by maximum mass-weighted vector overlap after atom/frame alignment.
+Ambiguous correspondence, geometry mismatch, changed native hashes and invalid
+spectra require review. The fallback without accepted L3 data remains the
+existing L2 thermal model; no L3 frequencies are invented.
+
+Tight saddles use the L3 imaginary frequency for tunneling and L3 real modes,
+without automatic VPT2. Complex wells retain L3 soft harmonic modes without
+complex VPT2; outer RotdPy blocks use fragment internal modes and sampled
+relative motion. Products retain their own VPT2 thermochemistry. Complex binding
+uses a matched harmonic difference added to the product formation energies,
+and final complex retention uses the accepted energy and harmonic stability.
+No second ZPE is added by changing the thermal frequencies.
+
+The handoff records native sources, geometry/atom maps, mode assignments and
+overlaps. Tests cover native mode tables, verified artifact gates, rotor
+projection/demotion and final inner/complex/outer MESS assembly. They do not
+establish a completed native MESS rate calculation. The full selection and
+export handoff is documented in
+[the current review README](../examples/anl/orbital_review_batches/r7_progress_20261024/README.md).

@@ -51,6 +51,7 @@ def detach_handoff(root):
     for point in (*stable.values(), *saddles.values()):
         for key in ('final_zero_k_energy', 'barrier_zero_k_energy',
                     'formation_enthalpy_0k', 'anl_identity_smiles',
+                    'anl_thermal_model',
                     'anl_thermochemistry_frequencies', 'anl_thermochemistry_frequency_source'):
             point.__dict__.pop(key, None)
 
@@ -166,6 +167,19 @@ def _attach_vpt2(point, value, base, label):
     return dict(point.anl_thermochemistry_frequency_source)
 
 
+def _attach_thermal(point, entry, base):
+    from kinbot.anl.thermal import attach_model
+    value = entry.get('thermal')
+    for key in ('anl_thermal_model', 'anl_thermochemistry_frequencies',
+                'anl_thermochemistry_frequency_source'):
+        point.__dict__.pop(key, None)
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value)-{'run','geometry_task','harmonic_task'}:
+        raise ValueError('Invalid ANL thermal handoff options.')
+    return attach_model(point, dict(value, run=_path(base,value.get('run'),'thermal.run')))
+
+
 def apply_handoff(root, manifest_file, *, report_file='me/anl_handoff.json'):
     """Apply hash-verifiable composite, CBH, and VPT2 records.
 
@@ -246,9 +260,15 @@ def apply_handoff(root, manifest_file, *, report_file='me/anl_handoff.json'):
                 barrier_composite_sha256=_digest(barrier_path),
                 barrier_method=barrier.method,
                 barrier_zero_k_hartree=barrier.hartree)
+        thermal = _attach_thermal(point, entry, base)
+        if thermal is not None:
+            record['thermal'] = thermal
         vpt2 = _attach_vpt2(point, entry.get('vpt2'), base, key)
         if vpt2 is not None:
             record['vpt2'] = vpt2
+        if thermal is not None:
+            from kinbot.anl.thermal import provenance
+            record['thermal'] = provenance(point)
         if geometry is not None:
             record['geometry'] = geometry
         applied['species'][key] = record
@@ -273,10 +293,16 @@ def apply_handoff(root, manifest_file, *, report_file='me/anl_handoff.json'):
             'composite_sha256': _digest(composite_path),
             'method': final.method, 'zero_k_hartree': final.hartree,
         }
+        thermal = _attach_thermal(point, entry, base)
+        if thermal is not None:
+            record['thermal'] = thermal
         vpt2 = _attach_vpt2(
             point, entry.get('vpt2'), base, reaction_name)
         if vpt2 is not None:
             record['vpt2'] = vpt2
+        if thermal is not None:
+            from kinbot.anl.thermal import provenance
+            record['thermal'] = provenance(point)
         applied['transition_states'][reaction_name] = record
 
     result = {

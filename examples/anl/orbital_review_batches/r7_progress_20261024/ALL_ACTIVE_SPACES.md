@@ -221,31 +221,66 @@ counts come from the native atoms and charge, not the CBH connectivity routine
 that intentionally rejects disconnected fragmentation targets. Neither fragment
 CBH thermochemistry nor their VPT2 task definitions are disabled.
 
-**MESS frequencies are separate from composite ZPE.** The automatic handoff
-does not replace KinBot's L2 Hessian with the L3 Hessian. For a stable network
-species with an accepted VPT2 handoff, `energy.attach_anharmonic_frequencies`
-uses
+**MESS uses accepted L3 thermal data.** The handoff selects the highest completed,
+verified L3 geometry and harmonic task independently. The main RRHO geometry,
+rotational constants and external symmetry use that L3 geometry. The vibrational
+spectrum uses the accepted L3 harmonic result. Original L2 geometry, Hessian,
+conformer and hindered-rotor records remain intact. Only the selected conformer
+that supplied the ANL graph inherits its L3 properties; uncalculated conformers
+retain their own data. Atomic species have no vibrational modes.
+
+For a stable species with an accepted VPT2 handoff, the frequencies are
 
 ```text
-nu_i(MESS) = nu_i(L2, retained after internal-rotation projection)
+nu_i(MESS) = nu_i(L3, retained after internal-rotation projection)
            + [nu_j(L2, VPT2 fundamental) - nu_j(L2, harmonic)].
 ```
 
-The current automatic correspondence is a global frequency-distance assignment,
-with a 100 cm-1 maximum mismatch by default; a reviewed explicit one-based mode
-map can replace it. This is not an eigenvector-overlap validation, especially
-for mixed or nearly degenerate modes. Without an accepted handoff, MESS retains
-the L2 rotor-reduced harmonics. The automatic TS and complex entries do not
-attach VPT2 mode shifts. Ordinary product entries can still attach them.
+The mapping is a global maximum-overlap assignment of mass-weighted L3 and L2
+normal vectors after atom mapping and proper rotational alignment. It is not
+frequency sorting. The default requires squared overlap at least 0.5 and rejects
+competing assignments within 0.1 overlap when their shifts differ by more than
+1 cm-1. A reviewed one-based mode map can resolve mixing, but still must pass the
+harmonic mismatch bound (100 cm-1 by default) and positive corrected-frequency
+checks. Missing vectors, changed hashes, wrong geometries and ambiguous mapping
+block the thermal handoff; they do not silently substitute unverified L3 data.
+
+Molpro's full Cartesian normal-mode table supplies a vibrational spectral
+Hessian to its printed precision. KinBot projects the same validated L2 rotor
+identities from this L3 Hessian and retains mode vectors for matching. Invalid
+or demoted rotors return their vibrational mode to the spectrum. Each MESS rotor
+block contains the L2 geometry associated with its L2 scan, so its inertia does
+not accidentally use the main L3 geometry. This is a complete eigenbasis
+reconstruction, not an unprojected frequency list with the lowest modes deleted.
+See the native [Molpro frequency documentation](https://www.molpro.net/manual/doku.php?id=harmonic_vibrational_frequencies_frequencies)
+and the rotor geometry keywords in the
+[MESS manual](https://tcg.cse.anl.gov/papr/codes/mess/messmanual_3_23_16.pdf).
+
+Without accepted L3 thermal data, the existing L2 model remains the fallback;
+any L2-only VPT2 correspondence follows the legacy L2 matching policy. A partial
+ANL graph can upgrade geometry without inventing an unavailable Hessian. TS
+entries use L3 real modes and the L3 imaginary frequency for tunneling, without
+automatic VPT2 shifts. Ordinary products retain their own accepted VPT2 shifts.
+
+Complex wells retain their L3 intermolecular harmonic modes and receive no
+automatic complex VPT2 shifts. Their outer RotdPy barrier contains the products'
+internal modes and sampled relative-motion flux, not the complex's soft harmonic
+modes a second time. This is a harmonic model of the bound complex, not proof
+that a floppy well is quantitatively converged or a newly fitted large-amplitude
+intermolecular potential. Final complex retention is reassessed using accepted
+ANL/formation energies and its L3 harmonic stability when available.
 
 The complete ANL energy expression separately uses its accepted harmonic ZPE
 and L2 VPT2 ZPE correction; the L3 profile uses L3 harmonic ZPE, whereas fallback
-profiles can use L2 harmonic ZPE. That does not upgrade the vibrational spectrum
-sent to MESS. External CBH reference models likewise retain L2 thermal models
-and may use accepted L2 fundamentals. This publication preserves that frequency
-policy; it does **not** claim L3 harmonic frequencies plus L2 per-mode shifts.
-Such an extension needs L2/L3 mode correspondence and consistent internal-rotor
-projection, with explicit provenance and validation before using it in rates.
+profiles can use L2 harmonic ZPE. Frequency changes never add a second ZPE to
+that energy. External CBH MESSPF references use the same verified L3/shift policy
+while retaining their L2 rotor data. The handoff and thermal-model provenance
+record native hashes, atom maps, mode assignments, overlaps, geometry and rotor
+sources. Local tests exercise native Molpro/Gaussian vector parsing, signed TS
+modes, atom permutations/rotations, quality/hash gates, rotor demotion, and the
+final MESS inner/complex/outer assembly. Synthetic VPT2 shifts used in those
+tests are explicitly labeled; neither a native VPT2 calculation nor a production
+MESS solver run is claimed by these tests.
 
 **Why the non-homolysis requests exist.** Automatic VRC selection in
 `kb._accepted_homolytic_channels` includes accepted two-product reactions with
@@ -303,7 +338,7 @@ family label alone does not establish the detailed sequence along the IRC.
 The two outer H···H anchor distances are interfragment distances, not H2 bond
 stretches. Their scan geometry is the saved product-side complex.
 
-**Monitor reconciliation, snapshot 2026-10-24 13:25:46 −07:00.** The configured
+**Monitor reconciliation, snapshot 2026-10-24 14:14:48 −07:00.** The configured
 production limit was 22 with a three-slot orbital-review reserve, hence the
 effective limit was 19. Retirement sets 23 and reserve 0; existing production
 node exclusions remain unchanged. This is a simultaneous-allocation cap, not
@@ -314,8 +349,11 @@ as 52928790. Its bounded iteration recovery was implemented, but this snapshot
 does not establish native convergence. Three CH3S channels had complete
 48-point correction scans and four active RotdPy owners; each still reported
 0/116 final surface files, so neither sampling nor rates were complete. The
-two initial CH3SS scans were progressing (26 and 15 accepted points), and its
-PES exploration remained active. Their existing jobs are retained.
+two initial CH3SS scans were progressing (27 and 15 accepted points; running
+at 7.4 and 5.0 angstrom), and its PES exploration remained active. There were
+18 production-root allocations, including 13 submitted ANL tasks. Existing jobs
+are retained. The five review holds are the five models in this publication;
+the old branch reports are explicitly marked as belonging to earlier controllers.
 
 The −3.62 kcal/mol L1 path `Intra_R_Add_Endocyclic_F_3_1` was rejected because
 neither IRC returned to the initial well. Separate TS searches with no qualifying

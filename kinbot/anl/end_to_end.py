@@ -205,6 +205,12 @@ def _assemble_composites(base, specification):
             'zero_k_hartree': final.hartree,
             'l2_geometry': l2_geometry,
         }
+        if assembly is not None:
+            from kinbot.anl.thermal import handoff_options
+            thermal = handoff_options(_path(base,
+                assembly.get('base_run') or assembly.get('interface_run'), f'{name}.thermal_run'))
+            if thermal is not None:
+                records[name]['thermal'] = thermal
     return records
 
 
@@ -318,6 +324,8 @@ def _write_handoff(base, specification, composites, solved):
                            f'handoff.species.{routing}.vpt2')
         if vpt2 is not None:
             record['vpt2'] = vpt2
+        if composites[entry['composite']].get('thermal'):
+            record['thermal'] = composites[entry['composite']]['thermal']
         if entry.get('require_l2_geometry_match'):
             geometry = composites[entry['composite']].get('l2_geometry')
             if geometry is None:
@@ -334,6 +342,8 @@ def _write_handoff(base, specification, composites, solved):
                            f'handoff.transition_states.{name}.vpt2')
         if vpt2 is not None:
             record['vpt2'] = vpt2
+        if composites[entry['composite']].get('thermal'):
+            record['thermal'] = composites[entry['composite']]['thermal']
         transition_states[name] = record
     output = _path(base, specification.get('output'), 'handoff.output')
     payload = {
@@ -422,6 +432,10 @@ def _write_cbh_thermochemistry_models(base, specification, composites,
                 raise ValueError(
                     f'{name}: accepted VPT2 task lacks positive harmonic modes.')
             point.reduced_freqs = list(harmonic)
+            point.freq = list(harmonic)
+            if record.get('thermal'):
+                from kinbot.anl.thermal import attach_model
+                attach_model(point, record['thermal'])
             review = _optional_path(
                 base, assembly.get('vpt2_review'), f'{name}.vpt2_review')
             frequencies = list(attach_task_vpt2_frequencies(
@@ -431,11 +445,14 @@ def _write_cbh_thermochemistry_models(base, specification, composites,
             frequency_source['native_output'] = str(native)
             frequency_source['native_output_sha256'] = execution[
                 'artifacts'][task['result_parser']['file']]
+        thermal_geometry = getattr(point, 'anl_thermal_model', {}).get('geometry')
+        if thermal_geometry:
+            positions = thermal_geometry['positions']
         models[record['smiles']] = {
             'name': name, 'smiles': record['smiles'], 'symbols': symbols,
             'positions': positions, 'charge': record['charge'],
             'multiplicity': record['multiplicity'],
-            'symmetry_factor': float(point.sigma_ext),
+            'symmetry_factor': float(thermal_geometry['sigma_ext'] if thermal_geometry else point.sigma_ext),
             'frequencies_cm_inverse': frequencies,
             'hindered_rotor_source': 'none-no-rotatable-bonds',
             'source': {

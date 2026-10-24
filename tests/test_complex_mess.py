@@ -415,6 +415,8 @@ class TestComplexMESS(unittest.TestCase):
         from test_vrc_multistate import _completed_channel
         from kinbot.execution import file_sha256
         from kinbot.mess_networks import _HEADER, split_model
+        from kinbot.calculation import array_fingerprint
+        from kinbot.frequencies import get_frequencies
         root=Path.cwd()
         parent,reactions=self.reactions()
         reaction=reactions[1]
@@ -424,6 +426,23 @@ class TestComplexMESS(unittest.TestCase):
         point.energy=ref+20./constants.AUtoKCAL-point.zpe
         reaction.ts.energy=ref+25./constants.AUtoKCAL-reaction.ts.zpe
         reaction.products[0].energy+=ref+30./constants.AUtoKCAL-sum(p.energy+p.zpe for p in reaction.products)
+        # Synthetic L3 eigensystems with distinct complex, TS and fragment
+        # spectra exercise the actual worker + final-PES assembly boundary.
+        for p, modes, shift in ((point, [51.,81.,111.]+[901.]*6, None),
+                               (reaction.ts, [-777.]+[1201.]*8, None),
+                               (reaction.products[0], list(range(1601,1607)), -25.)):
+            l2 = p.geom.copy()
+            geom = l2*1.02
+            view = copy.deepcopy(p); view.dihed=[]; view.hir=None
+            _, _, vectors, _ = get_frequencies(view, np.eye(3*p.natom), geom, return_modes=True)
+            p.rotor_projection=copy.deepcopy(view.rotor_projection)
+            p.anl_thermal_model=dict(run='synthetic-integration',atom_map=list(range(p.natom)),
+                l2_geometry_sha256=array_fingerprint(l2),
+                geometry=dict(positions=geom.tolist(),sigma_ext=p.sigma_ext),
+                harmonic=dict(positions=geom.tolist(),frequencies=modes,mass_weighted_modes=vectors.tolist()),
+                vpt2=None if shift is None else dict(shifts=[shift]*len(modes),harmonic=modes,
+                    mass_weighted_modes=vectors.tolist(),mode_map=None,match_tolerance_cm_inverse=100.,
+                    method='synthetic',basis='integration'))
         parent_name=routing_name(parent);names=sorted(routing_name(p) for p in reaction.products)
         key='_'.join(names);worker=root/parent_name;worker.mkdir();(worker/'me').mkdir()
         rotd=root/'rotdPy';rotd.mkdir()
@@ -468,6 +487,14 @@ class TestComplexMESS(unittest.TestCase):
         self.assertIn(complex_short,_HEADER.search(outer)[2].split()[1:3])
         self.assertEqual(values(inner,'WellDepth'),[25.,5.])
         self.assertEqual(values(outer,'ZeroEnergy'),[30.])
+        self.assertEqual(values(inner,'ImaginaryFrequency'),[777.])
+        self.assertEqual(values(complex_block,'Frequencies'),[9.])
+        self.assertEqual(values(outer,'Frequencies'),[6.])
+        self.assertRegex(complex_block, r'51\.0+\s+81\.0+\s+111\.0+')
+        self.assertIn('1576.0', outer)  # fragment L3 + its own L2 VPT2 shift
+        self.assertNotIn('901.0', outer)
+        self.assertNotIn('1576.0', complex_block)
+        self.assertIn(MESS(settings,parent).make_geom(point.geom*1.02,point.atom),complex_block)
         provenance=json.loads(Path('me/rotdpy_sources_0000.json').read_text())
         self.assertIn(reaction.instance_name,provenance['reactions'])
         manifest.unlink()

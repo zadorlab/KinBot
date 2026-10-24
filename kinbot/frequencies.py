@@ -194,7 +194,7 @@ def thermochemical_frequencies(raw, wellorts=0, imagfreq_threshold=50.):
     return result
 
 
-def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
+def get_frequencies(species, hess, geom, checkdist=0, massweighted=False, *, return_modes=False):
     """"Calculates three sets of frequencies:
 
     1: all the frequencies including translations and rotations
@@ -227,7 +227,7 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
         }
         if getattr(species, 'hir', None) is not None:
             species.hir.projection_status = []
-        return [], []
+        return ([], [], np.empty((0, 3)), np.empty((0, 3))) if return_modes else ([], [])
 
     masses = []
     for at in atom:
@@ -301,6 +301,7 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     eigvals, eigvecs = np.linalg.eigh(Phess)
 
     modes = np.dot(eigvecs.T, vecs)
+    harmonic_modes_mw = modes.copy()
     modes /= np.sqrt(masses[np.newaxis, :])
     for mode in modes:
         mode /= np.linalg.norm(mode)
@@ -392,6 +393,7 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     eigvals, eigvecs = np.linalg.eigh(Phess)
 
     modes = np.dot(eigvecs.T, vecs)
+    reduced_modes_mw = modes.copy()
     modes /= np.sqrt(masses[np.newaxis, :])
     for mode in modes:
         mode /= np.linalg.norm(mode)
@@ -405,6 +407,8 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     }
     if hir is not None:
         hir.projection_status = evidence
+    if return_modes:
+        return freqs, reduced_freqs, harmonic_modes_mw, reduced_modes_mw
     return freqs, reduced_freqs
 
 

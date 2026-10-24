@@ -32,10 +32,13 @@ itself uses live controls. Running QC jobs and RotdPy owners are retained; futur
 sampling workers load the new verified code snapshot. A running worker finishes
 with its original code. The previous C + SH3 rejection is preserved.
 
-MESS currently uses retained L2 harmonic modes plus accepted L2 VPT2 mode
-shifts, when attached. It does not automatically use L3 Hessian frequencies.
-Composite ZPE and the binding-energy convention are separate from that spectrum;
-the exact distinction and mode-matching limitations are documented in
+MESS now uses the best accepted L3 geometry and harmonic spectrum where present,
+including TS imaginary frequencies. Stable-species L2 VPT2 shifts are matched
+to the retained L3 modes by mass-weighted vector overlap. L2 hindered-rotor
+potentials retain explicit L2 geometry inside each rotor block. Complex wells
+keep their L3 soft harmonic modes without complex VPT2; outer RotdPy blocks use
+fragment internal modes and sampled relative-motion flux. Composite ZPE remains
+a separately assembled energy quantity. Validation and fallback limits are in
 [ALL_ACTIVE_SPACES.md](ALL_ACTIVE_SPACES.md).
 
 `publication_handoff.json` records the input-revision receipt. `queued` or
@@ -55,6 +58,10 @@ and verify that archive locally. If collection reports issues, publication is
 not rolled back; repeat only the export after resolving the listed issue.
 The handoff's local tests simulate the site scheduler/process boundaries. They
 do not establish a successful remote refresh or native QC convergence.
+The combined thermal, MESS, publication, refresh, review, sampling and bounded
+recovery suite passed **575 tests and 79 subtests, with one skip**. The new
+thermal tests include native harmonic-vector fixtures and clearly labeled
+synthetic anharmonic shifts; they do not certify a native VPT2 or MESS rate run.
 
 The following is historical handoff documentation, not the current launch plan.
 

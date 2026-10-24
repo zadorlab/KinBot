@@ -166,6 +166,29 @@ def test_operator_rejection_is_possible_during_scan_hold(inp, tmp_path, monkeypa
         campaign.require_review(inp)
 
 
+@pytest.mark.parametrize('reused_after_handle', [False, True])
+def test_operator_rejection_checks_alias_identity_before_and_after_pidfd(inp, tmp_path, monkeypatch,
+                                                                      reused_after_handle):
+    from kinbot import pes_phase, run_refresh
+    saved = dict(host='node', pid=42, start='same-process', boot='same-boot')
+    atomic_json(campaign.receipt(inp), dict(input=str(inp), owner_identity=saved, **campaign.contract(inp)))
+    current = dict(saved, host='node.example.org')
+    monkeypatch.setattr(pes_phase, 'process_identity', lambda pid: dict(current))
+    def open_handle(pid):
+        assert pid == 42
+        if reused_after_handle:
+            current['start'] = 'new-process'
+        return 99
+    signals, closed = [], []
+    monkeypatch.setattr(run_refresh, '_pidfd_open', open_handle)
+    monkeypatch.setattr(run_refresh, '_pidfd_send_signal', lambda fd, sig: signals.append((fd,sig)))
+    monkeypatch.setattr(campaign.os, 'close', closed.append)
+    assert not campaign.stop_for_rejection(inp, tmp_path/'archive', dict(id='request', reason='Reviewed rejection'))
+    assert len(signals) == (0 if reused_after_handle else 1)
+    assert closed == [99]
+    assert json.loads(campaign.receipt(inp).read_text())['owner_identity'] == saved
+
+
 def test_early_leaf_and_final_pes_generate_one_identical_campaign(tmp_path, monkeypatch):
     from kinbot.pes import create_rotdpy_inputs
     from tests.test_rotdpy_profiles import sulfur_correction

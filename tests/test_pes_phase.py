@@ -17,6 +17,38 @@ def root(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.mark.parametrize('hosts', [('node', 'node.example.org'), ('node.example.org', 'node'),
+                                 ('NODE', 'node.example.org.'), ('node', 'node')])
+def test_process_identity_accepts_hostname_alias_only_with_matching_kernel_identity(hosts):
+    saved = dict(host=hosts[0], pid=42, start='817184', boot='same-boot')
+    current = dict(saved, host=hosts[1])
+    assert phase.same_process_identity(saved, current)
+    for change in ({'pid':43}, {'start':'new-process'}, {'boot':'other-boot'}, {'boot':None},
+                   {'host':'other.example.org'}):
+        assert not phase.same_process_identity(saved, dict(current, **change))
+
+
+@pytest.mark.parametrize('saved,current', [
+    (None, None), ({}, {}),
+    (dict(host='node', pid=42, start='s', boot=None),
+     dict(host='node.example.org', pid=42, start='s', boot=None)),
+    (dict(host='node.a.org', pid=42, start='s', boot='b'),
+     dict(host='node.b.org', pid=42, start='s', boot='b')),
+])
+def test_process_identity_does_not_infer_ownership_from_a_hostname(saved, current):
+    assert not phase.same_process_identity(saved, current)
+
+
+def test_pes_and_worker_liveness_survive_hostname_qualification(root, monkeypatch):
+    identities = {pid:dict(host='node', pid=pid, start=str(pid), boot='boot') for pid in (42, 43)}
+    atomic_json(root/phase.NAME, dict(phase='postprocessing', owner_pid=42,
+        owner_identity=identities[42], workers={'well':dict(pid=43, identity=identities[43])}))
+    monkeypatch.setattr(phase, 'process_identity', lambda pid: dict(identities[pid], host='node.example.org'))
+    assert phase.active_worker(root/'well')
+    monkeypatch.setattr(phase, 'process_identity', lambda pid: dict(identities[pid], boot='reboot'))
+    assert not phase.active_worker(root/'well')
+
+
 def state(root, **values):
     m = json.loads((root/phase.NAME).read_text())
     m.update(values)

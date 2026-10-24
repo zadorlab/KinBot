@@ -14,12 +14,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from kinbot import run_cleanup, run_refresh, run_salvage
+from kinbot import run_cleanup, run_refresh, run_salvage, pes_phase
 from kinbot.anl import dispatch
 from kinbot.execution import atomic_json, file_sha256
 from tests.anl_fixture import dispatch_spec, molpro_task
 
 PIN_CODE = run_salvage._pin_code
+PROC_INVENTORY = run_cleanup._processes
+PROCESS_IDENTITY = pes_phase.process_identity
 
 
 @pytest.fixture
@@ -61,6 +63,66 @@ def test_refresh_preserves_campaign_tree_and_allocations(sampling_tree):
     assert t.campaign.with_suffix('.campaign.json').read_bytes() == before
     assert len(t.launches) == 2
     assert any(j['job_id'] == '800' for j in t.jobs)
+
+
+def test_full_refresh_reads_proc_and_retains_four_owners_after_hostname_change(sampling_tree, monkeypatch):
+    """Real /proc parsing + identity checks, not a mocked campaign filter."""
+    from kinbot import rotdpy_campaign as campaign
+    t = sampling_tree
+    proc = t.root.parent/'proc'; proc.mkdir()
+    boot = proc/'sys/kernel/random/boot_id'; boot.parent.mkdir(parents=True)
+    boot.write_text('same-boot\n')
+    host = socket.gethostname().split('.')[0]
+    inputs = [t.campaign]
+    # Mirror all four independently running owners, with policy descendants.
+    for offset in (10, 20, 30):
+        inp = t.campaign.with_name(f'channel_{offset}.py')
+        inp.write_text(t.campaign.read_text()); inputs.append(inp)
+        for original in [p for p in t.processes if p['pid'] in (700, 701, 702)]:
+            p = dict(original, pid=original['pid']+offset,
+                     starttime=str((original['pid']+offset)*10))
+            if original['pid'] == 700:
+                p['command'] = f'/python -u -m kinbot.rotdpy run {inp}'
+            else:
+                p['ppid'] += offset
+            t.processes.append(p)
+    for inp, pid in zip(inputs, (700, 710, 720, 730)):
+        atomic_json(campaign.receipt(inp), dict(input=str(inp), status='launched',
+            owner_identity=dict(host=host, pid=pid, start=str(pid*10), boot='same-boot'),
+            **campaign.contract(inp)))
+    receipts = {campaign.receipt(p):campaign.receipt(p).read_bytes() for p in inputs}
+
+    # Exercise both native readers on the same Linux stat/boot data, including
+    # changing process states during quiescence and vanished/reparented owners.
+    def inventory(folder):
+        for path in proc.iterdir():
+            if path.name.isdigit():
+                (path/'stat').write_text(f'{path.name} (done) Z 1 '+'0 '*17+'0 0')
+        for p in t.processes:
+            path = proc/str(p['pid']); path.mkdir(exist_ok=True)
+            (path/'stat').write_text(f'{p["pid"]} (python (worker)) {p["state"]} {p["ppid"]} '+
+                                    '0 '*17+f'{p["starttime"]} 0')
+            (path/'cmdline').write_bytes(p['command'].replace(' ', '\0').encode()+b'\0')
+            if not (path/'cwd').is_symlink():
+                (path/'cwd').symlink_to(p['cwd'])
+        return PROC_INVENTORY(folder, proc)
+    def proc_path(value):
+        p = Path(value)
+        return proc/p.relative_to('/proc') if p.is_relative_to('/proc') else p
+    monkeypatch.setattr(run_cleanup, '_processes', inventory)
+    monkeypatch.setattr(pes_phase, 'Path', proc_path)
+    monkeypatch.setattr(pes_phase.socket, 'gethostname', lambda: host+'.example.org')
+    monkeypatch.setattr(pes_phase, 'process_identity', PROCESS_IDENTITY)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30)
+    assert result['phase'] == 'launched' and len(t.launches) == 2
+    assert len(t.processes) == 12
+    assert not any(pid >= 700 for pid, sig in t.signals)
+    assert all(p.read_bytes() == before for p, before in receipts.items())
+    assert all(campaign.active(p, json.loads(campaign.receipt(p).read_text())) for p in inputs)
+    assert all(j['state'] == 'RUNNING' for j in t.jobs)
+    # Same code re-entry adopts the existing handoff without another launch.
+    run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30)
+    assert len(t.launches) == 2
 
 
 def test_refresh_preserves_owned_sampling_while_scan_is_being_readopted(sampling_tree):

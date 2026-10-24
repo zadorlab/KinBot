@@ -73,7 +73,7 @@ def retained_processes(root, processes):
     identity. A module name or a directory alone is not ownership evidence.
     Cleanup deliberately does not use this filter.
     """
-    from kinbot.pes_phase import process_identity
+    from kinbot.pes_phase import process_identity, same_process_identity
     root = Path(root).resolve()
     retained = set()
     for process in processes:
@@ -88,11 +88,15 @@ def retained_processes(root, processes):
             continue
         saved = json.loads(receipt(inp).read_text())
         identity = saved.get('owner_identity')
+        current_identity = process_identity(process['pid'])
         if (saved.get('input') != str(inp) or inp.parent != Path(process['cwd']).resolve()
                 or not identity or identity.get('pid') != process['pid']
                 or identity.get('start') != process['starttime']
-                or process_identity(process['pid']) != identity):
-            raise RuntimeError(f'{inp}: independent campaign process identity changed.')
+                or not same_process_identity(identity, current_identity)):
+            raise RuntimeError(f'{inp}: independent campaign process identity changed. '
+                               f'Saved={identity!r}; current={current_identity!r}; '
+                               f'inventory_start={process["starttime"]!r}; '
+                               f'cwd={process["cwd"]!r}; saved_input={saved.get("input")!r}.')
         validate(inp, saved, require_ready=False)
         retained.add(process['pid'])
     while True:
@@ -143,9 +147,9 @@ def owns_job(root, job):
 
 
 def active(inp, record):
-    from kinbot.pes_phase import process_identity
+    from kinbot.pes_phase import process_identity, same_process_identity
     identity = record.get('owner_identity')
-    if identity and process_identity(identity['pid']) == identity:
+    if identity and same_process_identity(identity, process_identity(identity['pid'])):
         return True
     # Also detect an explicitly requested `rotdpy run` retry, which uses the
     # same executor lock but has no obligation to rewrite a launch receipt.
@@ -275,7 +279,7 @@ def stop_for_rejection(inp, archive, request):
     """Stop exactly one bound sampling owner and its verified allocations."""
     import signal
     from kinbot import run_refresh, run_walltime, run_policy
-    from kinbot.pes_phase import process_identity
+    from kinbot.pes_phase import process_identity, same_process_identity
     from kinbot.anl.live_control import stop_attempt
     inp = Path(inp).resolve()
     with locked(inp):
@@ -289,14 +293,14 @@ def stop_for_rejection(inp, archive, request):
         atomic_json(path, record)  # Fence restart before signalling the owner.
         if active(inp, record):
             identity = record.get('owner_identity')
-            if not identity or process_identity(identity['pid']) != identity:
+            if not identity or not same_process_identity(identity, process_identity(identity['pid'])):
                 raise ValueError('Sampling owner identity unavailable; no process signalled.')
             try:
                 fd = run_refresh._pidfd_open(identity['pid'])
             except ProcessLookupError:
                 return False
             try:
-                if process_identity(identity['pid']) != identity:
+                if not same_process_identity(identity, process_identity(identity['pid'])):
                     return False
                 run_refresh._pidfd_send_signal(fd, signal.SIGTERM)
             finally:

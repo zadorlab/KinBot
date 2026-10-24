@@ -36,6 +36,10 @@ pes_phase.active_worker = lambda p: (root/'controller_refresh.json').exists()
 pes_phase.owner_alive = lambda p: p.get('fixture_alive', False)
 def refresh(args):
     assert args == [str(root), '--apply', '--wait-idle', '1800']
+    # Exercise the production retention check at the orchestration boundary.
+    # A short-name launch receipt must survive the host reporting its FQDN.
+    owners = json.loads((root/'fixture_processes.json').read_text())
+    assert rotdpy_campaign.replacement_processes(root, owners) == []
     event('refresh')
     atomic_json(root/'controller_refresh.json', dict(phase='launched', code=str(root/'.salvage_code.test')))
     for case in ('first', 'second'):
@@ -54,7 +58,6 @@ def request(*args, **kwargs):
     event('decision_applied')
     return record
 live_control.request = request
-rotdpy_campaign.active = lambda inp, record: record.get('fixture_active', False)
 original_spawn = rotdpy_campaign.subprocess.Popen
 def spawn(args, **kwargs):
     if args[1:5] != ['-u', '-m', 'kinbot.rotdpy', 'run']:
@@ -68,10 +71,8 @@ def spawn(args, **kwargs):
     event('resume:'+inp.stem)
     return SimpleNamespace(pid=1234)
 rotdpy_campaign.subprocess.Popen = spawn
-pes_phase.process_identity = lambda pid: {'pid':1234} if pid == 1234 else None
-original_active = rotdpy_campaign.active
-rotdpy_campaign.active = lambda inp, record: (original_active(inp, record)
-    or record.get('owner_identity') == {'pid':1234})
+pes_phase.process_identity = lambda pid: ({'pid':1234} if pid == 1234 else
+    dict(host='fixturehost.example.org', pid=700, start='7000', boot='same-boot') if pid == 700 else None)
 rotdpy.read_result = lambda inp: event('completed:'+inp.stem)
 def reconcile(args):
     assert args == ['reconcile', str(root), '--apply']
@@ -141,6 +142,10 @@ def handoff(tmp_path):
         inp = sampling/(state+'.py')
         inp.write_text('validation_metadata = {}\n')
         record = dict(input=str(inp), **rotdpy_campaign.contract(inp), fixture_active=state=='active')
+        if state == 'active':
+            record['owner_identity'] = dict(host='fixturehost', pid=700, start='7000', boot='same-boot')
+            atomic_json(root/'fixture_processes.json', [dict(pid=700, ppid=1, starttime='7000',
+                cwd=str(sampling), command=f'/python -u -m kinbot.rotdpy run {inp}')])
         if state == 'rejected':
             record['operator_rejected'] = {'request':'previous'}
         atomic_json(rotdpy_campaign.receipt(inp), record)
@@ -212,6 +217,21 @@ def test_invalid_sampling_setup_stops_before_controller_replacement(handoff):
     assert result.returncode != 0 and 'generated setup' in result.stderr
     assert not (root/'events.jsonl').exists()
     assert (root/run_policy.NAME).read_bytes() == before
+    assert all(p.read_bytes() == old for p,old in retained.items())
+
+
+@pytest.mark.parametrize('change', [{'boot':'reboot'}, {'start':'reused-pid'},
+                                   {'host':'other.example.org'}])
+def test_changed_sampling_identity_still_blocks_shell_refresh(handoff, change):
+    root, _, retained, run = handoff
+    path = root/'first/rotdPy/active.campaign.json'
+    record = json.loads(path.read_text())
+    record['owner_identity'].update(change)
+    atomic_json(path, record)
+    result = run()
+    assert result.returncode != 0 and 'process identity changed' in result.stderr
+    assert not (root/'controller_refresh.json').exists()
+    assert not (root/'events.jsonl').exists()
     assert all(p.read_bytes() == old for p,old in retained.items())
 
 

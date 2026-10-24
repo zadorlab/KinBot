@@ -19,7 +19,7 @@ flock -n 9 || { echo 'Another complete handoff is active; nothing changed.' >&2;
 "$KB_PY" -B -u - <<'PY'
 from pathlib import Path
 import os, time
-from kinbot.pes_phase import process_identity
+from kinbot.pes_phase import process_identity, same_process_identity
 root = Path(os.environ['KB_RUN']).resolve(strict=True)
 if not (root/'prepared.json').is_file() or int(os.environ['KB_CAP']) < 0:
     raise ValueError('Expected a prepared run and nonnegative job cap.')
@@ -37,7 +37,7 @@ if identity:
     except FileNotFoundError:
         output = None
     if output == os.environ['KB_WAIT_LOG']:
-        while process_identity(pid) == identity:
+        while same_process_identity(identity, process_identity(pid)):
             print(f'WAIT: previous handoff {pid} is still active; no processes signalled.', flush=True)
             time.sleep(30)
     else:

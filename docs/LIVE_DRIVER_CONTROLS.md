@@ -16,6 +16,11 @@ Independent ROTD campaigns retain their own ownership: resume an absent owner
 with `kinbot.rotdpy_campaign retry INPUT.py`. The command verifies the immutable
 input/correction contract and retains an existing owner; valid completed
 results are reused and existing sampling databases remain available to ROTD.
+PES and sampling ownership tolerate a hostname changing between its short name
+and fully qualified name only when the recorded boot ID, PID and process start
+time all match. Receipts are not rewritten to hide a mismatch. Different boot
+IDs, reused PIDs, unrelated hosts and changed scientific contracts still stop
+adoption or signalling.
 
 For a complete retained-run handoff from a checkout, use
 `bash examples/anl/tools/refresh_retained_run.sh ROOT MAX_JOBS`.

@@ -50,9 +50,32 @@ def process_identity(pid):
         return None
 
 
+def same_process_identity(saved, current):
+    """Match a process across short/FQDN hostname reporting changes.
+
+    An alias is allowed only with an unchanged, nonempty Linux boot ID and
+    exact PID/start-time identity. Two different qualified domains are not
+    aliases. Receipts remain unchanged, and hosts without boot IDs retain
+    the original exact-match rule.
+    """
+    if not saved or not current:
+        return False
+    if saved == current:
+        return True
+    if not all(saved.get(k) for k in ('boot', 'pid', 'start', 'host')) or not current.get('host'):
+        return False
+    if {k:v for k,v in saved.items() if k != 'host'} != {
+            k:v for k,v in current.items() if k != 'host'}:
+        return False
+    before, after = (v['host'].rstrip('.').casefold() for v in (saved, current))
+    return (before == after or
+            (('.' not in before or '.' not in after)
+             and before.split('.')[0] == after.split('.')[0]))
+
+
 def owner_alive(record):
     identity=record.get('owner_identity')
-    return bool(identity and process_identity(record['owner_pid'])==identity)
+    return bool(identity and same_process_identity(identity, process_identity(record['owner_pid'])))
 
 
 def initialize(root, input_file=None, initial_worker=None):
@@ -111,7 +134,7 @@ def active_worker(directory):
         return False
     worker=m['workers'][directory.name]
     return (owner_alive(m) and bool(worker.get('identity'))
-            and process_identity(worker['pid'])==worker['identity'])
+            and same_process_identity(worker['identity'], process_identity(worker['pid'])))
 
 
 def checkpoint():

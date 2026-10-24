@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from tests.test_retained_run_handoff import handoff, RUNNER
+from kinbot.execution import atomic_json
 
 
 DIAGNOSTICS = r'''
@@ -99,4 +100,27 @@ def test_diagnostic_mismatch_prevents_controller_or_job_changes(handoff):
     result = invoke(KB_TEST_BAD_STAGE='1')
     assert result.returncode != 0 and 'diagnostic identity mismatch' in result.stderr
     assert not (root/'controller_refresh.json').exists()
+    assert all(p.read_bytes() == old for p,old in retained.items())
+
+
+def test_failed_owner_preflight_resumes_staged_panels_and_replaces_drivers_once(handoff):
+    root, retained, invoke = progress(handoff)
+    path = root/'first/rotdPy/active.campaign.json'
+    original = path.read_bytes()
+    record = json.loads(original); record['owner_identity']['boot'] = 'wrong-boot'
+    atomic_json(path, record)
+    failed = invoke(KB_TEST_REVISION='previous-code')
+    assert failed.returncode != 0 and 'process identity changed' in failed.stderr
+    review = root.parent/'r7_progress_review_20261024'
+    assert (review/'screens/review_launch.json').exists()
+    assert not (review/'refresh_complete.json').exists()
+    assert not (root/'controller_refresh.json').exists()
+    path.write_bytes(original)
+    result = invoke(KB_TEST_REVISION='fixed-code')
+    assert result.returncode == 0, result.stdout+result.stderr
+    events = [json.loads(s) for s in (root/'events.jsonl').read_text().splitlines()]
+    assert events.count('stage_screens') == events.count('refresh') == 1
+    assert events.count('resume:absent') == events.count('decision_applied') == 1
+    assert events[-2:] == ['requested_orbital_recon:run','vrc_relaxation_recon:run']
+    assert 'ROTD OWNER RETAINED active.py' in result.stdout
     assert all(p.read_bytes() == old for p,old in retained.items())

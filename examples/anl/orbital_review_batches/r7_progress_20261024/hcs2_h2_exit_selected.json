@@ -1,0 +1,137 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "review_note": "Reviewed 2026-10-24 from all eight native CASCI(19,14) product-side probes at 2, 3.5, 6 and 30 angstrom in aDZ-F12 and aTZ-F12. Select CAS(7,6) from noncontiguous 2 angstrom source indices 15,19,20,21,22,25. H2 sigma/sigma-star (15/25; occupations about 1.976/0.024) contribute two electrons, HCS2 pi/pi-star (19/22; about 1.917/0.139) contribute two, and its two sulfur-rich frontier combinations (20/21; about 1.542/1.450) contribute three. Retaining the H2 pair permits its bond relaxation to respond within the active space; this is a conservative chemical inclusion, not a measured compact-space energy-convergence result. Other C-S sigma pairs and deeper lone pairs remain inactive. Two equal-weight doublets are orbital support; only D1 is counted as reactive flux. The [6,4] coordinate separates HCS2 atoms [1,2,3,6] from H2 atoms [4,5] in the saved L2 exit complex; it does not stretch the internal H2 bond. Use separate basis-specific records and direct CASPT2-F12 aDZ/aTZ CBS, power 3.7. Compact CASSCF/CASPT2, angular convergence and relaxed state/connectivity continuity are not yet validated; inspect the production scan under its unchanged review gates. The outer RotdPy dividing surfaces use fragment centers of mass; their distances are COM separations. The one-dimensional relaxed/frozen correction remains the mapped interfragment anchor scan from the saved product complex. Both grids retain the explicit production distance lists; they are distinct coordinates and must not be interchanged.",
+  "request_match": {
+    "parent": "791472110370000000002",
+    "reaction": "791472110370000000002_h2_elim_4_5",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      6,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]([S])=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][H]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 7,
+    "active_orbitals": 6,
+    "source": "Reviewed 2026-10-24 from all eight native CASCI(19,14) product-side probes at 2, 3.5, 6 and 30 angstrom in aDZ-F12 and aTZ-F12. Select CAS(7,6) from noncontiguous 2 angstrom source indices 15,19,20,21,22,25. H2 sigma/sigma-star (15/25; occupations about 1.976/0.024) contribute two electrons, HCS2 pi/pi-star (19/22; about 1.917/0.139) contribute two, and its two sulfur-rich frontier combinations (20/21; about 1.542/1.450) contribute three. Retaining the H2 pair permits its bond relaxation to respond within the active space; this is a conservative chemical inclusion, not a measured compact-space energy-convergence result. Other C-S sigma pairs and deeper lone pairs remain inactive. Two equal-weight doublets are orbital support; only D1 is counted as reactive flux. The [6,4] coordinate separates HCS2 atoms [1,2,3,6] from H2 atoms [4,5] in the saved L2 exit complex; it does not stretch the internal H2 bond. Use separate basis-specific records and direct CASPT2-F12 aDZ/aTZ CBS, power 3.7. Compact CASSCF/CASPT2, angular convergence and relaxed state/connectivity continuity are not yet validated; inspect the production scan under its unchanged review gates. The outer RotdPy dividing surfaces use fragment centers of mass; their distances are COM separations. The one-dimensional relaxed/frozen correction remains the mapped interfragment anchor scan from the saved product complex. Both grids retain the explicit production distance lists; they are distinct coordinates and must not be interchanged."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__exit_r_2p0",
+      "record": "2140.2",
+      "active_indices": [
+        15,
+        19,
+        20,
+        21,
+        22,
+        25
+      ]
+    },
+    "avtz-f12": {
+      "job": "atz__exit_r_2p0",
+      "record": "2140.2",
+      "active_indices": [
+        15,
+        19,
+        20,
+        21,
+        22,
+        25
+      ]
+    }
+  },
+  "state_model": {
+    "state_average": [
+      {
+        "multiplicity": 2,
+        "roots": 2,
+        "weights": [
+          0.5,
+          0.5
+        ]
+      }
+    ],
+    "selected_roots": {
+      "2": 1
+    },
+    "canonical_orbitals": true,
+    "casscf_options": {
+      "solver": "so_sci",
+      "quasi_newton": true,
+      "exact_diagonalization": true,
+      "energy_convergence": 1e-08,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999
+    },
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    }
+  },
+  "coordinate": "com",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(7,6)",
+    "vrc_tst_sample_method": "caspt2-f12(7,6)",
+    "vrc_tst_high_method": "caspt2-f12(7,6)",
+    "vrc_tst_state_average_roots": {
+      "2": 2
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
+  },
+  "required_complete_jobs": [
+    "adz__exit_r_2p0",
+    "adz__exit_r_3p5",
+    "adz__exit_r_6p0",
+    "adz__exit_r_30p0",
+    "atz__exit_r_2p0",
+    "atz__exit_r_3p5",
+    "atz__exit_r_6p0",
+    "atz__exit_r_30p0"
+  ]
+}

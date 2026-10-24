@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "selections": [
+    {
+      "name": "ch2shs_cs",
+      "case": "ch3ss",
+      "source": "r7_additional_orbital_recon_20261021/ch2shs_cs",
+      "recipe": "../r7_additional_20261021/ch2shs_cs_selected.json"
+    },
+    {
+      "name": "ch2shs_ss",
+      "case": "ch3ss",
+      "source": "r7_additional_orbital_recon_20261021/ch2shs_ss",
+      "recipe": "../r7_additional_20261021/ch2shs_ss_selected.json"
+    },
+    {
+      "name": "ch2_sh_s_cs",
+      "case": "ch3ss",
+      "source": "r7_progress_review_20261024/screens/ch2_sh_s_cs",
+      "recipe": "ch2_sh_s_cs_selected.json",
+      "supporting_reviews": [
+        "r7_progress_review_20261024/ch2_sh_s_followup/candidates"
+      ]
+    },
+    {
+      "name": "hcs2_h2_exit",
+      "case": "ch3ss",
+      "source": "r7_progress_review_20261024/screens/hcs2_h2_exit",
+      "recipe": "hcs2_h2_exit_selected.json"
+    },
+    {
+      "name": "ch2s_sh_exit",
+      "case": "ch3ss",
+      "source": "r7_progress_review_20261024/screens/ch2s_sh_exit",
+      "recipe": "ch2s_sh_exit_selected.json"
+    }
+  ]
+}

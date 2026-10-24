@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "scope": "All selection campaigns, native WFU/input/output and retained attempts; curated initial checkpoints; published inputs and current production scan/review metadata. Production native scan WFUs and node scratch are not copied by this plan. Live metadata files are individually hash-verified snapshots, not a transaction.",
+  "sources": [
+    {
+      "root": "runs",
+      "path": "r7_ch2sh_cs_orbital_recon"
+    },
+    {
+      "root": "runs",
+      "path": "r7_ch2sh_cs_orbital_validation"
+    },
+    {
+      "root": "runs",
+      "path": "r7_additional_orbital_recon_20261021"
+    },
+    {
+      "root": "runs",
+      "path": "r7_ch_h2s_orbital_recon_20261022"
+    },
+    {
+      "root": "runs",
+      "path": "r7_vrc_reference_checks_20261022"
+    },
+    {
+      "root": "runs",
+      "path": "r7_progress_review_20261024"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/ch3s_anl1_f12/orbital_reviews/orbitals"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/ch3s_anl1_f12/orbital_reviews/*.md"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/ch3s_anl1_f12/orbital_reviews/*.json"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/ch3ss_anl1_f12/orbital_reviews/orbitals"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/ch3ss_anl1_f12/orbital_reviews/*.md"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/ch3ss_anl1_f12/orbital_reviews/*.json"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/orbital_review_batches/r7_progress_20261024/*.md"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/orbital_review_batches/r7_progress_20261024/*.json"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/orbital_review_batches/r7_progress_20261024/*.txt"
+    },
+    {
+      "root": "production",
+      "path": "ch3s/input.json"
+    },
+    {
+      "root": "production",
+      "path": "ch3ss/input.json"
+    },
+    {
+      "root": "production",
+      "path": ".kinbot_resource_policy.json"
+    },
+    {
+      "root": "production",
+      "path": "controller_refresh.json"
+    },
+    {
+      "root": "production",
+      "path": "*/orbital_reviews",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/.kinbot_input_refresh.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/.kinbot_input_history",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/resolved_parameters.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/pes_status.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/pes_exploration.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/accepted_l2_network.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/orbital_review",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/scan_review",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/scan_progress",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/corr_*.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/.kinbot_reaction_decisions.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrc_model_review.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/anl_automatic/handoff.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/anl_automatic/final_report.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/anl_automatic/profiles",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/anl_automatic/formations",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/rotdPy/*.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": ".kinbot_controls",
+      "optional": true
+    }
+  ]
+}

@@ -1113,12 +1113,23 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
     a = np.asarray(config['geometry_angstrom'], dtype=float)
     b = np.asarray(request['positions'], dtype=float)
     distances = lambda xyz: np.linalg.norm(xyz[:, None]-xyz[None, :], axis=2)
+    from kinbot.vrc_correction import asymptote_distance
+    effective = {**previous, **parameters}
     summary = dict(status='reviewed', parent=parent, active_space=active,
         basis_seeds={b:m['orbital_selection'] for b,m in basis_models.items()},
         source_screen=str(source), request=str(bind_request or saved['request']),
         geometry_provenance=dict(coordinates_equal=bool(np.array_equal(a, b)),
             max_pair_distance_change_angstrom=float(np.max(abs(distances(a)-distances(b)))),
             note='Source is a fixed-geometry orbital screen; production reoptimizes the current geometry.'),
+        scan_plan=dict(anchor_atoms_one_based=request['bond'],
+            correction_distances_angstrom=effective.get('vrc_tst_scan_points'),
+            asymptote_distance_angstrom=asymptote_distance(effective),
+            fragment_geometry=effective.get('vrc_tst_fragment_geometry'),
+            unspecified_parameters='Unspecified scan/fragment settings retain the owning driver defaults.',
+            sampling_coordinate=stage['coordinate'],
+            sampling_distances_angstrom=stage['distances_angstrom'],
+            geometry_source=(_read(source/'geometry_source.json')
+                if (source/'geometry_source.json').is_file() else None)),
         drivers_started=0, reconnaissance_jobs_submitted=0)
     return proposed, summary, chosen
 
@@ -1136,7 +1147,7 @@ def _publish_selection(case_input, previous, proposed, chosen, summary):
         # Preserve the exact pre-edit input once. A retry may find the proposal
         # already installed; submit() reconciles its existing receipt then.
         for name, payload in [('input_before.json',previous), ('input_after.json',proposed),
-                              ('selection.json',chosen)]:
+                              ('selection.json',chosen), ('review_summary.json',summary)]:
             path = archive/name
             if path.exists() and _read(path) != payload:
                 raise ValueError('Existing review archive differs; nothing was overwritten.')
@@ -1147,12 +1158,43 @@ def _publish_selection(case_input, previous, proposed, chosen, summary):
     return dict(summary, refresh=refresh, status=refresh['status'])
 
 
-def review_batch(production, campaign, plan, *, apply=False):
+def _review_source(campaign, relative):
+    relative = Path(relative)
+    source = (campaign/relative).resolve(strict=True)
+    if relative.is_absolute() or not source.is_relative_to(campaign) or source == campaign:
+        raise ValueError('Selection sources must be relative paths beneath campaign.')
+    return source
+
+
+def _supporting_review(source):
+    """Hash-check a completed comparison used in a human selection rationale."""
+    saved = _saved(source, allow_accepted=True)
+    evidence = {}
+    for system in saved['systems']:
+        manifest = _read(system['manifest'])
+        if not manifest['jobs'] or any(j['status'] != 'complete' for j in manifest['jobs']):
+            return None
+        for job in manifest['jobs']:
+            files = [(Path(job['wfu']), job['wfu_sha256']),
+                     (Path(job['directory'])/(job['name']+'.out'), job['output_sha256'])]
+            if job.get('validation_errors'):
+                raise ValueError('Supporting comparison failed native validation: '+job['name'])
+            for path, expected in files:
+                if file_sha256(path) != expected:
+                    raise ValueError('Supporting comparison evidence changed: '+str(path))
+                evidence[str(path)] = expected
+    return dict(source=str(source), files=evidence)
+
+
+def review_batch(production, campaign, plan, *, apply=False, require_all=False):
     """Install ready, explicitly selected channels once per case, without QC.
 
     Provisional screens can bind only after actual accepted review requests
     appear. Waiting cases do not block independent ready cases. Re-running
     reconciles receipts and never starts a driver or a reconnaissance job.
+    ``require_all`` requires one case and publishes its entire selection list
+    in a single input revision, or none of it. Sources may be relative paths
+    beneath campaign, so completed screens from separate campaigns can join.
     """
     from contextlib import ExitStack
     from kinbot import input_refresh
@@ -1170,6 +1212,16 @@ def review_batch(production, campaign, plan, *, apply=False):
             raise ValueError('Selection names/cases must be safe and distinct.')
         names.add(name)
         cases.setdefault(case, []).append(item)
+    if require_all and len(cases) != 1:
+        raise ValueError('An all-or-none publication must target one case input.')
+    sources = set()
+    for item in controls['selections']:
+        source = _review_source(campaign, item.get('source', item['name']))
+        if source in sources:
+            raise ValueError('Selection sources must be distinct.')
+        sources.add(source)
+        for relative in item.get('supporting_reviews', []):
+            _review_source(campaign, relative)
     results = {}
     for case, items in cases.items():
         case_input = production/case/'input.json'
@@ -1181,7 +1233,7 @@ def review_batch(production, campaign, plan, *, apply=False):
             proposed = deepcopy(previous)
             selections, summaries, bindings, waiting = [], [], [], []
             for item in items:
-                source = campaign/item['name']
+                source = _review_source(campaign, item.get('source', item['name']))
                 saved = _saved(source, allow_accepted=True)
                 request = _read(source/'request.json')
                 actual = case_input.parent/request['parent']/'vrctst/orbital_review'/request['reaction']/'request.json'
@@ -1192,14 +1244,22 @@ def review_batch(production, campaign, plan, *, apply=False):
                 if any(j['status'] != 'complete' for j in manifest['jobs']):
                     waiting.append(dict(channel=item['name'], reason='waiting_for_native_completion'))
                     continue
+                supporting = [_supporting_review(_review_source(campaign, relative))
+                              for relative in item.get('supporting_reviews', [])]
+                if any(e is None for e in supporting):
+                    waiting.append(dict(channel=item['name'], reason='waiting_for_supporting_comparison'))
+                    continue
                 binding = actual if saved.get('provisional') else None
                 if binding:
                     bind(source, binding, apply=False)
                     bindings.append((source, binding))
                 proposed, summary, chosen = _selection(source, case_input,
                     plan.parent/item['recipe'], proposed, bind_request=binding)
+                if supporting:
+                    summary['supporting_evidence'] = supporting
+                    chosen = dict(chosen, supporting_evidence=supporting)
                 selections.append(chosen); summaries.append(summary)
-            if not summaries:
+            if not summaries or (require_all and waiting):
                 results[case] = dict(status='waiting', waiting=waiting)
                 continue
             summary = dict(status='reviewed', channels=summaries, waiting=waiting,
@@ -1253,6 +1313,8 @@ def main():
     for name in ('production', 'campaign', 'plan'):
         reviews_cmd.add_argument(name)
     reviews_cmd.add_argument('--apply', action='store_true')
+    reviews_cmd.add_argument('--require-all', action='store_true',
+        help='Require every selection for one case; publish one input revision or none.')
     for name in ('run', 'monitor', 'evidence', 'reference-report', 'production-evidence'):
         command = commands.add_parser(name)
         command.add_argument('output')
@@ -1280,7 +1342,8 @@ def main():
     elif args.action == 'proposal':
         result = proposal(args.source, args.case_input, args.recipe, args.output)
     elif args.action == 'review-batch':
-        result = review_batch(args.production, args.campaign, args.plan, apply=args.apply)
+        result = review_batch(args.production, args.campaign, args.plan, apply=args.apply,
+                              require_all=args.require_all)
     elif args.action == 'run':
         result = run(args.output, report_failures=args.report_failures,
                      queue_all=args.queue_all, allow_nodes=args.allow_node)
@@ -1303,6 +1366,9 @@ def main():
         print(render(data, details=True))
         return
     print(json.dumps(result, indent=2))
+    if args.action == 'review-batch' and args.require_all and any(
+            row['status'].startswith('waiting') for row in result['cases'].values()):
+        raise SystemExit(2)
 
 
 if __name__ == '__main__':

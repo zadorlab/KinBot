@@ -411,6 +411,69 @@ class TestComplexMESS(unittest.TestCase):
         self.assertNotIn('Tunneling', output)
         self.assertNotIn('{blessname}', output)
 
+    def test_complex_outer_flux_preserves_inner_saddle_and_final_pes_endpoints(self):
+        from test_vrc_multistate import _completed_channel
+        from kinbot.execution import file_sha256
+        from kinbot.mess_networks import _HEADER, split_model
+        root=Path.cwd()
+        parent,reactions=self.reactions()
+        reaction=reactions[1]
+        parent.reac_obj=[reaction];parent.reac_ts_done=[-1];parent.reac_type=['test']
+        ref=parent.energy+parent.zpe
+        point=reaction.irc_prod_opt.species
+        point.energy=ref+20./constants.AUtoKCAL-point.zpe
+        reaction.ts.energy=ref+25./constants.AUtoKCAL-reaction.ts.zpe
+        reaction.products[0].energy+=ref+30./constants.AUtoKCAL-sum(p.energy+p.zpe for p in reaction.products)
+        parent_name=routing_name(parent);names=sorted(routing_name(p) for p in reaction.products)
+        key='_'.join(names);worker=root/parent_name;worker.mkdir();(worker/'me').mkdir()
+        rotd=root/'rotdPy';rotd.mkdir()
+        manifest=_completed_channel(rotd);data=json.loads(manifest.read_text())
+        data.update(reaction=reaction.instance_name,combination='single',bottlenecks=[data['bottlenecks'][1]])
+        data['bottlenecks'][0]['name']='single'
+        data['bottlenecks'][0]['states']=data['bottlenecks'][0]['states'][:1]
+        model_file=Path(data['surface_model']['source'])
+        model=json.loads(model_file.read_text())
+        channel=model['channels'][0]
+        channel.update(combination='single',bottlenecks=[channel['bottlenecks'][1]])
+        channel['bottlenecks'][0]['name']='single'
+        channel['bottlenecks'][0]['states']=channel['bottlenecks'][0]['states'][:1]
+        model_file.write_text(json.dumps(model))
+        data['surface_model']['sha256']=file_sha256(model_file)
+        manifest.unlink();manifest=rotd/(reaction.instance_name+'.multistate.json')
+        manifest.write_text(json.dumps(data))
+        settings=dict(self.par,pes=1,smiles='C',rotdpy_mess_mode='required',
+            rotdpy_directory=str(rotd),vrc_tst_scan={parent_name:[reaction.instance_name]},
+            vrc_tst_surface_model_file=str(rotd/'surfaces.json'))
+        os.chdir(worker)
+        try:MESS(settings,parent).write_input(None)
+        finally:os.chdir(root)
+        def assemble():
+            with patch('kinbot.pes.logger',logging.getLogger('KinBot'),create=True):
+                pes.create_mess_input(settings,[parent_name,point.name],[key],[],[],
+                    [[parent_name,reaction.instance_name,names,25.,20.,'vdW_IRC_F_prod']],
+                    {parent_name:0.,point.name:20.},{key:30.},
+                    {parent_name:parent_name,point.name:parent_name,key:point.name},parent.mass,False)
+        assemble()
+        output=Path('me/mess_0000.inp').read_text()
+        _,blocks,_=split_model(output)
+        wells=[b for b in blocks if _HEADER.search(b)[1]=='Well']
+        barriers=[b for b in blocks if _HEADER.search(b)[1]=='Barrier']
+        self.assertEqual(len(wells),2);self.assertEqual(len(barriers),2)
+        self.assertEqual(output.count('Core Rotd'),1);self.assertNotIn('PhaseSpaceTheory',output)
+        inner=next(b for b in barriers if 'ImaginaryFrequency' in b)
+        outer=next(b for b in barriers if 'Core Rotd' in b)
+        complex_block=next(b for b in wells if point.name in b)
+        complex_short=_HEADER.search(complex_block)[2].split()[0]
+        self.assertIn(complex_short,_HEADER.search(inner)[2].split()[1:3])
+        self.assertIn(complex_short,_HEADER.search(outer)[2].split()[1:3])
+        self.assertEqual(values(inner,'WellDepth'),[25.,5.])
+        self.assertEqual(values(outer,'ZeroEnergy'),[30.])
+        provenance=json.loads(Path('me/rotdpy_sources_0000.json').read_text())
+        self.assertIn(reaction.instance_name,provenance['reactions'])
+        manifest.unlink()
+        with self.assertRaisesRegex((ValueError,RuntimeError,FileNotFoundError),'required|missing|complete|manifest|flux'):
+            assemble()
+
     def test_full_pes_stages_scalar_and_multistate_flux_after_network_energy_assignment(self):
         from test_vrc_multistate import _completed_channel
         root = Path.cwd()

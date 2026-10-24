@@ -1629,12 +1629,15 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
     created = []
     if (par.get('rotdpy_run') and not par['vrc_tst_scan']
             and not par['vrc_tst_noscan']):
-        # Workers select accepted homolytic exits after discovery. Repeat
-        # that selection from the accepted global list, so PES aggregation
-        # does not lose it with the worker's in-memory parameter dictionary.
+        # Workers select accepted homolytic and retained complex exits after
+        # discovery. Repeat that selection from the accepted global list so
+        # PES aggregation does not lose the worker's in-memory selection.
         automatic = {}
         for reactant, name, _, _ in bless:
             if re.search(r'_hom_sci(?:_|$)', name):
+                automatic.setdefault(reactant, []).append(name)
+        for reactant, name, products, *_ in vdW:
+            if len(products) == 2 and name not in automatic.get(reactant, []):
                 automatic.setdefault(reactant, []).append(name)
         if automatic:
             par['vrc_tst_scan'] = automatic

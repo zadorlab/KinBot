@@ -120,6 +120,36 @@ def _cancel(root, jobs):
                                + (error.stderr or str(error)).strip()) from error
 
 
+def cancel_allocations(root, *, timeout=300.):
+    """Cancel this user's allocations below a verified working-directory scope.
+
+    The caller must first stop submission owners. This does not signal local
+    processes, remove data, or infer job success from scheduler disappearance.
+    Each new inventory is scoped by WorkDir, never by a job-name prefix.
+    """
+    root = Path(root).resolve(strict=True)
+    if (not root.is_dir() or root in (Path('/'), Path.home().resolve())
+            or root in Path.home().resolve().parents):
+        raise ValueError('Expected a specific calculation directory.')
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError('Cancellation timeout must be finite and positive.')
+    deadline = time.monotonic()+timeout
+    cancelled = set()
+    while True:
+        jobs = _jobs(root)
+        if not jobs:
+            return dict(status='stopped', cancelled_job_ids=sorted(cancelled), remaining_jobs=[])
+        if time.monotonic() >= deadline:
+            raise CleanupTimeout(dict(status='stop_pending', remaining_jobs=jobs,
+                error='Scoped cancellation is still pending; files were preserved.'))
+        new = [j for j in jobs if j['job_id'] not in cancelled]
+        if new:
+            _cancel(root, new)
+            cancelled.update(j['job_id'] for j in new)
+            print('Cancelling scoped Slurm allocations: '+', '.join(j['job_id'] for j in new), flush=True)
+        time.sleep(2)
+
+
 def stop(root, *, archive=False, timeout=300., known=()):
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError('Cleanup timeout must be a finite positive number of seconds.')

@@ -165,7 +165,7 @@ def stop_owners(production, review, marker, *, timeout=180, validate_saved=None)
                                              retained_jobs=jobs, production=str(production)))
                     for _, fd in handles:
                         run_refresh._pidfd_send_signal(fd, signal.SIGKILL)
-            print('Review controllers replaced; retained Slurm IDs: '+
+            print('Review owners stopped; Slurm IDs retained at this step: '+
                   ', '.join(j['job_id'] for j in jobs), flush=True)
             return jobs
         except run_refresh.RefreshTransientError as error:
@@ -261,6 +261,8 @@ def supervise(review, pin, allowed):
 
 
 def perform(production, review, pin, allowed, *, replace_owner=False):
+    if (review/'review_retired.json').exists():
+        raise ValueError('This diagnostic campaign was retired; preserve its evidence and use production scans.')
     allowed = run_policy._nodes(allowed)
     destination = review/'ch2_sh_s_followup'; destination.mkdir(exist_ok=True)
     with ExitStack() as locks, ExitStack() as transition:
@@ -293,16 +295,62 @@ def perform(production, review, pin, allowed, *, replace_owner=False):
         return supervise(review, pin, allowed)
 
 
+def retire(production, review):
+    """Legacy-owner adapter; cancellation and production capacity are shared controls."""
+    from kinbot import pool_drain
+    production = Path(production).resolve(strict=True)
+    review = Path(review).resolve(strict=True)
+    if (review != production.parent/'r7_progress_review_20261024'
+            or not (production/run_policy.NAME).is_file()
+            or not (review/'screens/review_launch.json').is_file()):
+        raise ValueError('Expected the separate saved review and existing production pool.')
+    with ExitStack() as locks:
+        acquire(locks, review/'.queue_transition.lock', timeout=0)
+        marker = review/'review_retired.json'
+        old = read(marker) if marker.exists() else {}
+        stop_owners(production, review, review/'review_stop_owners.json')
+        acquire(locks, review/'.queue_all.lock')
+        acquire(locks, review/'.handoff.lock')
+        followup_lock = review/'ch2_sh_s_followup/.owner.lock'
+        if followup_lock.parent.exists():
+            acquire(locks, followup_lock)
+        # No preparation, retry, or scientific-evidence rewrite belongs here.
+        atomic_json(marker, dict(old, phase='cancelling', production=str(production)))
+        cancelled = run_cleanup.cancel_allocations(review)
+        policy = run_policy.update(production, max_jobs=23,
+            orbital_review_reserve=0, manage_pending=True)
+        result = dict(phase='stopped', production=str(production),
+            cancelled_job_ids=sorted(set(old.get('cancelled_job_ids', [])) |
+                                     set(cancelled['cancelled_job_ids'])),
+            max_jobs=policy['max_jobs'], orbital_review_reserve=policy['orbital_review_reserve'],
+            evidence_preserved=True, production_controllers_replaced=False)
+        atomic_json(marker, result)
+        drain = pool_drain.pulse(production, force=True)
+        result['pending_reconciliation'] = drain
+        atomic_json(marker, result)
+        if drain and drain.get('status') == 'blocked':
+            raise RuntimeError('Review stopped and capacity restored; pending-job reconciliation needs attention: '
+                               +drain['error'])
+        return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('production')
     parser.add_argument('--allow-node',action='append',default=[])
     parser.add_argument('--replace-owner',action='store_true',
                         help='Replace this review supervisor and owners after preflight; retain Slurm jobs.')
+    parser.add_argument('--stop', action='store_true',
+        help='Stop only review owners/jobs, preserve evidence, and restore production capacity to 23.')
     parser.add_argument('--code',help=argparse.SUPPRESS)
     args = parser.parse_args()
     production = Path(args.production).expanduser().resolve(strict=True)
     review = production.parent/'r7_progress_review_20261024'
+    if args.stop:
+        if args.allow_node or args.replace_owner or args.code:
+            parser.error('--stop cannot be combined with review launch options.')
+        print(json.dumps(retire(production, review), indent=2))
+        return
     read(review/'refresh_complete.json')
     if not args.code:
         with ExitStack() as locks:

@@ -143,3 +143,21 @@ def test_invalid_timeout_cannot_start_cleanup(monkeypatch, tmp_path, timeout):
     monkeypatch.setattr(cleanup, 'inspect', lambda *args: pytest.fail('No side effects allowed'))
     with pytest.raises(ValueError, match='finite positive'):
         cleanup.stop(tmp_path, timeout=timeout)
+
+
+def test_cancel_allocations_rechecks_completion_and_late_job_without_process_signals(tmp_path,monkeypatch):
+    rounds=iter([[{'job_id':'11'}],[{'job_id':'11'},{'job_id':'12'}],[{'job_id':'12'}],[]])
+    monkeypatch.setattr(cleanup,'_jobs',lambda root:next(rounds))
+    calls=[]
+    monkeypatch.setattr(cleanup,'_cancel',lambda root,jobs:calls.append([j['job_id'] for j in jobs]))
+    monkeypatch.setattr(cleanup.time,'sleep',lambda _:None)
+    monkeypatch.setattr(cleanup.os,'kill',lambda *a:pytest.fail('No local process signals'))
+    assert cleanup.cancel_allocations(tmp_path)['cancelled_job_ids']==['11','12']
+    assert calls==[['11'],['12']]
+
+
+def test_cancel_allocations_scheduler_failure_is_not_empty_queue(tmp_path,monkeypatch):
+    def fail(root):raise RuntimeError('Slurm unavailable')
+    monkeypatch.setattr(cleanup,'_jobs',fail)
+    with pytest.raises(RuntimeError,match='Slurm unavailable'):
+        cleanup.cancel_allocations(tmp_path)

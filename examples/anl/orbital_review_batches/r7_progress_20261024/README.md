@@ -1,3 +1,63 @@
+# Final orbital selection handoff, 24 October 2026
+
+The current instruction supersedes the diagnostic launch/resume commands below:
+retire the separate reviews, restore the production pool to 23 with reserve 0,
+and publish the five new channel models in one live input revision. See
+[all active spaces and scientific limits](ALL_ACTIVE_SPACES.md) and
+[the one-case publication plan](all_selections.json).
+
+The user runs the remote commands and transfers. From the updated `composite`
+checkout, start the finite handoff below. It stops review submitters before
+cancelling their jobs, validates all five selections before replacing production
+owners, runs the existing retained-driver refresh with capacity 23, publishes one
+additive model revision, and archives the selection evidence. It submits no new
+standalone review jobs. A repeated invocation uses the existing refresh journal
+and publication receipt; the evidence archive gets a fresh directory.
+
+```bash
+cd "$HOME/KinBot"
+export PYTHONPATH="$PWD"
+KB_RUN="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+KB_LOG="$KB_RUN/publication_handoff.$(date -u +%Y%m%dT%H%M%SZ).log"
+nohup "$PWD/.venv/bin/python" -B -u examples/anl/tools/publish_progress_review.py \
+  "$KB_RUN" >"$KB_LOG" 2>&1 </dev/null &
+printf 'Handoff PID: %s\nLog: %s\n' "$!" "$KB_LOG"
+```
+
+This code update requires the authorized controller refresh: PES aggregation now
+retains accepted vdW exits, and complex binding uses harmonic profiles for both
+complex and fragments. VPT2 tasks/results remain available for thermochemistry;
+the binding subtraction excludes them. The additive orbital-model revision by
+itself uses live controls. Running QC jobs and RotdPy owners are retained; future
+sampling workers load the new verified code snapshot. A running worker finishes
+with its original code. The previous C + SH3 rejection is preserved.
+
+MESS currently uses retained L2 harmonic modes plus accepted L2 VPT2 mode
+shifts, when attached. It does not automatically use L3 Hessian frequencies.
+Composite ZPE and the binding-energy convention are separate from that spectrum;
+the exact distinction and mode-matching limitations are documented in
+[ALL_ACTIVE_SPACES.md](ALL_ACTIVE_SPACES.md).
+
+`publication_handoff.json` records the input-revision receipt. `queued` or
+`published` is not confirmation that all workers have consumed it. Inspect:
+
+```bash
+"$PWD/.venv/bin/python" -B -m kinbot.run_monitor "$KB_RUN"
+"$PWD/.venv/bin/python" -B - "$KB_RUN/ch3ss" <<'PY'
+import json,sys
+from kinbot.input_refresh import receipt
+print(json.dumps(receipt(sys.argv[1]),indent=2))
+PY
+```
+
+The log prints `EVIDENCE DIRECTORY`. Follow [EXPORT.md](EXPORT.md) to transfer
+and verify that archive locally. If collection reports issues, publication is
+not rolled back; repeat only the export after resolving the listed issue.
+The handoff's local tests simulate the site scheduler/process boundaries. They
+do not establish a successful remote refresh or native QC convergence.
+
+The following is historical handoff documentation, not the current launch plan.
+
 # Retained production handoff, 24 October 2026
 
 Latest review-only resume: pull the current composite code, then run

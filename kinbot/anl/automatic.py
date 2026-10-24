@@ -917,9 +917,10 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
         profiles[role][label] = str(path)
 
     declared = set(statuses)
-    electrons = cbh_size_metrics(
-        source_record['smiles'], charge=molecule.get('charge', 0),
-        multiplicity=molecule.get('multiplicity', 1))['electrons']
+    # The native molecule also covers disconnected product complexes. CBH
+    # connectivity validation deliberately rejects those as fragmentation targets.
+    from ase.data import atomic_numbers
+    electrons = sum(atomic_numbers[s] for s in molecule['symbols']) - molecule.get('charge', 0)
     vpt2 = None
     if statuses.get('gaussian_vpt2') == 'complete':
         vpt2 = _vpt2_zpe_components(run_dir, state_id=state_id)
@@ -2021,6 +2022,21 @@ def finalize_automatic_run(automatic, parameters, *, run_dir='.'):
     return str(destination)
 
 
+def _complex_binding_method(record, fragments, profiles, energies):
+    """Choose a matched harmonic expression, preserving VPT2 for thermochemistry."""
+    smiles = record['smiles']
+    values = {label: zero_k_from_composite_record(smiles, path)
+              for label, path in profiles['barrier'].items()}
+    common = set(values)
+    for fragment in fragments:
+        common &= set(energies[fragment['smiles']])
+    method = next((label for label in _ordered_methods({smiles: values, **energies})
+                   if label in common), None)
+    if method is None:
+        raise ValueError('No common accepted harmonic complex/fragment binding-energy method.')
+    return method, values
+
+
 def _choose_common_barrier(profile_sets):
     common = set.intersection(*(set(item) for item in profile_sets))
     ordered = _ordered_methods({'barrier': {label: None
@@ -2368,14 +2384,10 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         record = entry['record']
         fragments = [network_records[name] for name in entry['products']]
         smiles = record['smiles']
-        values = {label:zero_k_from_composite_record(smiles, path) for label,path in
-                  profiles['complex:'+route]['thermochemistry'].items()}
-        common = set(values)
-        for fragment in fragments:
-            common &= set(energies[fragment['smiles']])
-        method = next((label for label in _ordered_methods({smiles:values, **energies}) if label in common), None)
-        if method is None:
-            raise ValueError(f'{route}: no common accepted complex/fragment binding-energy method.')
+        # Binding differences use harmonic profiles for the complex AND its
+        # fragments; stable fragment formation references can retain VPT2.
+        method, values = _complex_binding_method(
+            record, fragments, profiles['complex:'+route], energies)
         stoichiometry = dict(Counter(f['smiles'] for f in fragments))
         stoichiometry[smiles] = -1
         records = {r['smiles']:r for r in [record, *fragments]}
@@ -2437,7 +2449,7 @@ def run_automatic_cbh_anl(root_species, parameters, input_file, *,
         handoff['species'][route] = entry
     for route, entry in plan['network'].get('product_complexes', {}).items():
         handoff['species'][route] = dict(
-            composite=profiles['complex:'+route]['thermochemistry'][formations[route].method],
+            composite=profiles['complex:'+route]['barrier'][formations[route].method],
             formation=str(formation_paths[route]), geometry=entry['record']['molecule'])
     for reaction in tight:
         name = reaction['transition_state']

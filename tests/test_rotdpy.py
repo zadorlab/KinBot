@@ -38,6 +38,26 @@ def test_full_pes_restores_automatic_homolytic_selection(tmp_path, monkeypatch):
     assert par['vrc_tst_scan'] == {'parent': ['parent_hom_sci_1_2']}
 
 
+def test_full_pes_restores_retained_complex_exits_without_selecting_ordinary_saddles(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr('kinbot.pes._write_rotdpy_slurm_template', lambda *args: None)
+    par = {'rotdpy_run': 1, 'queuing': 'slurm',
+           'vrc_tst_scan': {}, 'vrc_tst_noscan': {}}
+    hom = ['parent', 'parent_hom_sci_1_2', ['a', 'b'], 0.]
+    ordinary = ['parent', 'ordinary_saddle', ['c', 'd'], 10.]
+    exit = ['parent', 'product_exit', ['c', 'd'], 10., -1., 'vdW_IRC_R_prod']
+    with pytest.raises(KeyError, match='Results of scan'):
+        create_rotdpy_inputs(par, [hom, ordinary], [exit])
+    assert par['vrc_tst_scan'] == {'parent': ['parent_hom_sci_1_2', 'product_exit']}
+    par['vrc_tst_scan'] = {}
+    with pytest.raises(KeyError, match='Results of scan'):
+        create_rotdpy_inputs(par, [], [exit])
+    assert par['vrc_tst_scan'] == {'parent': ['product_exit']}
+    # Explicit user selection remains authoritative on a fresh or repeated call.
+    par['vrc_tst_scan'] = {'parent': ['a_different_channel']}
+    assert create_rotdpy_inputs(par, [hom], [exit]) == []
+
+
 def test_generated_input_uses_configured_sampling_and_portable_scratch():
     with TemporaryDirectory() as temporary:
         previous = Path.cwd()

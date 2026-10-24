@@ -36,12 +36,14 @@ def failed(graph, *, job='42', node='badnode', legacy=True, error=ERROR):
     atomic_json(directory/'execution.json', record)
 
 
-@pytest.fixture
-def graph(tmp_path, monkeypatch):
+@pytest.fixture(params=[False, True], ids=['ordinary', 'bounded_vrc'])
+def graph(tmp_path, monkeypatch, request):
     monkeypatch.setenv('SBATCH_EXCLUDE', 'sitebad')
     monkeypatch.setenv('KINBOT_QC_SCRATCH_RETRIES', '2')
     monkeypatch.setattr(scratch_recovery, 'slurm_job_record', lambda job: {})
     spec = dispatch_spec()
+    if request.param:
+        spec['intent'] = {'vrc_fragment_retry': True}
     spec['tasks'] = [molpro_task(n, 'rhf\n', geometry_from='initial')
                      for n in ('bad', 'live', 'done', 'ready', 'child')]
     spec['tasks'][-1]['depends_on'] = ['bad']
@@ -164,7 +166,9 @@ def test_previously_staged_script_gets_new_exclusions_at_submission(graph, monke
     calls = []
     def submit(command, **kwargs):
         calls.append(command)
-        assert command == ['sbatch', '--parsable', 'job.slurm']
+        bounded = dispatch._load(graph)[1].get('intent', {}).get('vrc_fragment_retry')
+        options = ['--time=0-02:00:00'] if bounded else []
+        assert command == ['sbatch', '--parsable', *options, 'job.slurm']
         script = (Path(kwargs['cwd'])/'job.slurm').read_text()
         assert '#SBATCH --exclude=badnode,sitebad\n' in script
         assert '--exclusive' in script

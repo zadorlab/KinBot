@@ -46,7 +46,8 @@ def owner(record, production, review):
     """An exact known script/argument pair, never a PID or substring alone."""
     args = shlex.split(record['command'])
     scripts = {name for _, name, _ in campaigns(review)} | {
-        'refresh_progress_20261024.sh', 'continue_ch2_sh_s_review.py'}
+        'refresh_progress_20261024.sh', 'continue_ch2_sh_s_review.py',
+        'queue_progress_review.py'}
     for i, arg in enumerate(args):
         name = Path(arg).name
         if name not in scripts:
@@ -55,6 +56,25 @@ def owner(record, production, review):
                 or arg=='examples/anl/tools/'+name):
             continue
         tail = args[i+1:]
+        if name == 'queue_progress_review.py':
+            if (not tail or not Path(tail[0]).is_absolute()
+                    or Path(tail[0]).resolve() != production):
+                return False
+            remaining = tail[1:]
+            while remaining:
+                option = remaining.pop(0)
+                if option == '--replace-owner':
+                    continue
+                if option == '--allow-node' and remaining:
+                    run_policy._nodes([remaining.pop(0)])
+                    continue
+                if option == '--code' and remaining:
+                    pin = Path(remaining.pop(0))
+                    if (pin.is_absolute() and pin.parent.resolve() == production
+                            and pin.name.startswith('.salvage_code.')):
+                        continue
+                return False
+            return True
         if name in ('refresh_progress_20261024.sh', 'continue_ch2_sh_s_review.py'):
             return len(tail)==1 and Path(tail[0]).is_absolute() and Path(tail[0]).resolve()==production
         targets = {p for _, script, p in campaigns(review) if script == name}
@@ -76,7 +96,8 @@ def owner(record, production, review):
 
 def inventory(production, review):
     records = run_cleanup._processes(Path('/'))
-    selected = [p for p in records if owner(p, production, review)]
+    selected = [p for p in records if p['pid'] != os.getpid()
+                and owner(p, production, review)]
     ids = {p['pid'] for p in selected}
     # Local scheduler/preflight children must finish their bookkeeping. They
     # are not killed together with an owner, even if they run outside review.
@@ -229,17 +250,24 @@ def supervise(review, pin, allowed):
     return result
 
 
-def perform(production, review, pin, allowed):
+def perform(production, review, pin, allowed, *, replace_owner=False):
     allowed = run_policy._nodes(allowed)
     destination = review/'ch2_sh_s_followup'; destination.mkdir(exist_ok=True)
-    with ExitStack() as locks:
-        acquire(locks, review/'.queue_all.lock', timeout=0)
+    with ExitStack() as locks, ExitStack() as transition:
+        # Serialize replacement handoffs separately from the supervisor lock.
+        # Older supervisors hold only .queue_all.lock. A normal duplicate
+        # invocation must still fail without stopping anything.
+        acquire(transition, review/'.queue_transition.lock', timeout=0)
+        if not replace_owner:
+            acquire(locks, review/'.queue_all.lock', timeout=0)
         print('Checking the finite review plans and native seeds before replacing review owners.',flush=True)
         preflight(production, review)
         marker = review/'queue_all_refresh.json'
         if marker.exists():
             atomic_json(review/'.queue_all_history'/(uuid.uuid4().hex+'.json'),read(marker))
         jobs = stop_owners(production, review, marker)
+        if replace_owner:
+            acquire(locks, review/'.queue_all.lock')
         acquire(locks, review/'.handoff.lock')
         acquire(locks, destination/'.owner.lock')
         # Preparation is idempotent and retains saved graph/task/job identities.
@@ -250,6 +278,7 @@ def perform(production, review, pin, allowed):
         expand_pending(review, allowed, journal)
         journal.update(phase='owners_starting',retained_jobs=jobs)
         atomic_json(marker,journal)
+        transition.close()
         return supervise(review, pin, allowed)
 
 
@@ -257,6 +286,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('production')
     parser.add_argument('--allow-node',action='append',default=[])
+    parser.add_argument('--replace-owner',action='store_true',
+                        help='Replace this review supervisor and owners after preflight; retain Slurm jobs.')
     parser.add_argument('--code',help=argparse.SUPPRESS)
     args = parser.parse_args()
     production = Path(args.production).expanduser().resolve(strict=True)
@@ -273,7 +304,7 @@ def main():
     import kinbot
     if Path(kinbot.__file__).resolve().parent.parent != pin:
         raise RuntimeError('Review controller must load the verified code snapshot.')
-    result=perform(production,review,pin,args.allow_node)
+    result=perform(production,review,pin,args.allow_node,replace_owner=args.replace_owner)
     if any(result.values()):
         raise SystemExit(1)
 

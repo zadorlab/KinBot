@@ -80,8 +80,9 @@ previous coverage flag or a changed production asymptote.
 `ch2_sh_s_cs_relaxations.json` stages ten independent aDZ-F12 CASPT2-F12
 optimizations: both spaces at 2, 2.75, 3.5, 6 and 30 angstrom. Only C(1)-S(2)
 separation is fixed. The actual request geometry and verified 2 angstrom seeds
-are used; internal fragment changes remain observable. Each has a four-hour
-limit and 50 optimizer steps. A failed calculation remains review evidence;
+are used; internal fragment changes remain observable. Each requests four hours,
+subject to the dispatcher's existing two-hour bounded-probe ceiling, and 50
+optimizer steps. A failed calculation remains review evidence;
 it is not accepted as a relaxed geometry. The `probe5_4` and `probe7_6` files
 approve only diagnostic seeds (`diagnostic_only: true`); the production
 publisher explicitly refuses these files.
@@ -146,3 +147,34 @@ An owner exit code of zero means its monitoring loop finished, not that every
 native result is scientifically accepted. Inspect the evidence and relaxation
 reports before publishing any model. No production controller replacement is
 needed for this diagnostic scheduling change.
+
+### Scratch-only recovery of bounded probes
+
+The 24 October queue-all results recorded 24/24 compact comparisons complete,
+but fifteen relaxed probes failed during scratch setup on node34: the account
+scratch directory was inaccessible and `/tmp` did not meet the unchanged 52000 MB
+minimum. These are allocation failures, not rejected geometries. The original
+2 angstrom C-S probe completed; the two other retained C-S allocations were
+still running in the supplied snapshot.
+
+Bounded VRC graphs now use the existing shared scratch-allocation recovery even
+though they suppress extra scientific/optimizer attempts. The recovery verifies
+task, geometry, allocation and node provenance, waits for the failed allocation
+to exit, archives its attempt, excludes its node and allows at most two replacement
+allocations by default. The scientific specification, optimizer budget and
+scratch-capacity validation are unchanged. A pending explicit geometry refinement
+continues to own its dependency transition.
+
+To load this recovery while the queue-all supervisor is still running, use
+`queue_progress_review.py PRODUCTION_ROOT --replace-owner --allow-node node16
+--allow-node node21 --allow-node node24`. Omit node34. The explicit replacement
+validates all prepared evidence first, then replaces the matching review
+supervisor and review owners using the existing process-handle and submission
+guards. It retains live Slurm jobs and completed results. A normal concurrent
+invocation without `--replace-owner` still refuses duplicate ownership.
+
+Validation uses scheduler/process doubles and actual panel/dispatcher state
+transitions, including archive recovery, exhausted budgets, repeated invocation,
+the supervisor lock, self-exclusion and preservation of production files. This
+does not establish that the replacement native calculations have succeeded;
+their execution records and relaxed structures remain to be inspected.

@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import fcntl
 import importlib.util
+import os
 from pathlib import Path
 import signal
 import sys
@@ -150,13 +151,14 @@ def test_stop_retries_submission_boundary_and_preserves_jobs(tmp_path,monkeypatc
     assert queue.read(review/'receipt.json')['retained_jobs']==jobs
 
 
-def test_bad_preflight_and_duplicate_owner_never_stop_anything(tree,monkeypatch):
+@pytest.mark.parametrize('replace_owner', [False, True])
+def test_bad_preflight_and_duplicate_owner_never_stop_anything(tree,monkeypatch,replace_owner):
     production,review,destination,*_=tree
     monkeypatch.setattr(queue,'stop_owners',lambda *a:pytest.fail('No stopping before valid preflight'))
     def fail(*a):raise ValueError('seed changed')
     monkeypatch.setattr(queue,'preflight',fail)
     with pytest.raises(ValueError,match='seed changed'):
-        queue.perform(production,review,Path('/pin'),['node16'])
+        queue.perform(production,review,Path('/pin'),['node16'],replace_owner=replace_owner)
     with (review/'.queue_all.lock').open('a') as f:
         fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)
         with pytest.raises(RuntimeError,match='lock still held'):
@@ -203,7 +205,8 @@ def test_pending_override_retains_other_exclusions_and_running_jobs(tmp_path,mon
                    ['scontrol','update','JobId=1','ExcNodeList=bad'],['scontrol','show','hostnames','bad']]
 
 
-def test_handoff_repeat_adopts_identical_job_ids_and_keeps_production_unchanged(tree,monkeypatch):
+@pytest.mark.parametrize('replace_owner', [False, True])
+def test_handoff_repeat_adopts_identical_job_ids_and_keeps_production_unchanged(tree,monkeypatch,replace_owner):
     production,review,destination,source,*_=tree
     before={p:p.read_bytes() for p in production.rglob('*') if p.is_file()}
     events=[]
@@ -234,9 +237,113 @@ def test_handoff_repeat_adopts_identical_job_ids_and_keeps_production_unchanged(
             atomic_json(path,m)
         return {'retained':0}
     monkeypatch.setattr(queue,'supervise',supervise)
-    for _ in range(2):queue.perform(production,review,Path('/pin'),['node16'])
+    for _ in range(2):queue.perform(production,review,Path('/pin'),['node16'],replace_owner=replace_owner)
     assert len(submitted)==24
     assert events==['preflight','stop-review','adopt-original','all-phases']*2
     assert queue.read(review/'queue_all_refresh.json')['retained_jobs']==jobs
     assert len(list((review/'.queue_all_history').glob('*.json')))==1
     assert all(p.read_bytes()==data for p,data in before.items())
+
+
+def test_review_supervisor_identity_and_self_exclusion(tmp_path,monkeypatch):
+    production=tmp_path/'production';review=tmp_path/'review'
+    args=[production,'--allow-node','node16','--code',production/'.salvage_code.abc']
+    previous=process(1001,'queue_progress_review.py',args,review)
+    current=process(os.getpid(),'queue_progress_review.py',args+['--replace-owner'],review)
+    other=process(1002,'queue_progress_review.py',[tmp_path/'other'],review)
+    child=process(1003,'vrc_relaxation_recon.py',['run',review/'relaxations','--queue-all'],review)
+    child['ppid']=1001
+    rows=[previous,current,other,child]
+    monkeypatch.setattr(queue.run_cleanup,'_processes',lambda _:rows)
+    assert queue.inventory(production,review)==[previous,child]
+    for extra in (['--unknown'], ['--code','/unrelated/pin'], ['--allow-node']):
+        assert not queue.owner(process(1004,'queue_progress_review.py',[production,*extra],review),production,review)
+    rows.append(dict(pid=1005,ppid=1001,starttime='10050',command='squeue',cwd=str(review)))
+    with pytest.raises(run_refresh.RefreshBusyError):queue.inventory(production,review)
+
+
+def test_explicit_replacement_releases_old_supervisor_lock_before_adoption(tree,monkeypatch):
+    production,review,destination,*_=tree
+    events=[]
+    old=(review/'.queue_all.lock').open('a+')
+    fcntl.flock(old,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    def preflight(*args):
+        assert not old.closed
+        events.append('preflight')
+    def stop(prod,rev,marker):
+        events.append('verified-stop')
+        old.close()
+        atomic_json(marker,dict(retained_jobs=[dict(job_id='42')]))
+        return [dict(job_id='42')]
+    monkeypatch.setattr(queue,'preflight',preflight)
+    monkeypatch.setattr(queue,'stop_owners',stop)
+    monkeypatch.setattr(relaxation,'prepare',lambda *args:events.append('adopt'))
+    monkeypatch.setattr(followup,'stage',lambda *args:events.append('adopt'))
+    monkeypatch.setattr(queue,'expand_pending',lambda *args:None)
+    def supervise(*args):
+        # The transition lock must not stay held for the new owner's lifetime:
+        # another explicit replacement must be able to reach preflight later.
+        with (review/'.queue_transition.lock').open('a+') as f:
+            fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        with (review/'.queue_all.lock').open('a+') as f:
+            with pytest.raises(BlockingIOError):fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        events.append('new-owner')
+        return {'relaxations':0}
+    monkeypatch.setattr(queue,'supervise',supervise)
+    try:
+        with pytest.raises(RuntimeError,match='lock still held'):
+            queue.perform(production,review,Path('/pin'),[])
+        assert events==[]
+        queue.perform(production,review,Path('/pin'),[],replace_owner=True)
+    finally:
+        old.close()
+    assert events==['preflight','verified-stop','adopt','adopt','new-owner']
+
+
+def test_real_panel_retries_scratch_only_and_adopts_live_and_complete(tree,monkeypatch):
+    from kinbot.anl import dispatch
+    from tests.test_anl_dispatch import _mock_execution
+    production,review,destination,*_=tree
+    prepared=followup.stage(production,review,destination)
+    output=destination/'relaxations'
+    graphs=[Path(g) for g in prepared['graphs']]
+    monkeypatch.setenv('KINBOT_QC_SCRATCH_RETRIES','2')
+    _mock_execution(graphs[0],'relaxed_scan',geometry='final.xyz')
+    unchanged={p:p.read_bytes() for base in (production,graphs[0]/'tasks',graphs[1]/'tasks')
+               for p in base.rglob('*') if p.is_file()}
+    science={g:(g/'workflow.json').read_bytes() for g in graphs}
+    for i,g in enumerate(graphs[1:],1):
+        s=dispatch._load(g)[2];entry=s['tasks']['relaxed_scan']
+        entry.update(status='submitted' if i==1 else 'failed',job_id=str(100+i))
+        atomic_json(g/'state.json',s)
+        if i>1:
+            atomic_json(g/'tasks/relaxed_scan/execution.json',dict(schema=1,task_id='relaxed_scan',
+                status='failed',failure_phase='scratch_setup',retryable_scratch_node=True,
+                geometry_sha256=entry['geometry_sha256'],slurm_job_id=str(100+i),
+                execution_node='bad_scratch',error='No verified local QC scratch is usable: permission denied'))
+    submitted=[]
+    monkeypatch.setattr(dispatch,'_job_active',lambda j:j=='101' or j in submitted)
+    monkeypatch.setattr(dispatch,'preflight_until_scheduler_ready',lambda g:None)
+    def submit(command,*,cwd,**kwargs):
+        assert 'bad_scratch' in run_policy.read(output)['excluded_nodes']
+        assert '--exclude=' in (cwd/'job.slurm').read_text()
+        assert 'bad_scratch' in (cwd/'job.slurm').read_text()
+        ident=str(200+len(submitted));submitted.append(ident)
+        return SimpleNamespace(returncode=0,stdout=ident,stderr='')
+    monkeypatch.setattr(run_policy,'submit',submit)
+    class PollFinished(Exception):pass
+    def end_poll(_):raise PollFinished()
+    monkeypatch.setattr(relaxation.time,'sleep',end_poll)
+    for _ in range(2):
+        with pytest.raises(PollFinished):
+            relaxation.run(output,queue_all=True,allow_nodes=['bad_scratch','extra_node'])
+    assert len(submitted)==8
+    assert dispatch._load(graphs[0])[2]['tasks']['relaxed_scan']['status']=='complete'
+    assert dispatch._load(graphs[1])[2]['tasks']['relaxed_scan']['job_id']=='101'
+    for g in graphs[2:]:
+        s=dispatch._load(g)[2];entry=s['tasks']['relaxed_scan']
+        assert entry['status']=='submitted' and entry['attempt']==2
+        assert len(s['scratch_node_retries']['relaxed_scan'])==1
+        assert Path(entry['previous_attempt'],'execution.json').exists()
+    assert all((g/'workflow.json').read_bytes()==data for g,data in science.items())
+    assert all(p.read_bytes()==data for p,data in unchanged.items())

@@ -2423,7 +2423,13 @@ def advance(run_dir, submit=False, submit_only=None):
         spec, state = molpro_gradient_recovery.recover(run_dir, spec, state)
         state = optimization_recovery.recover(run_dir, spec, state)
         state = account_recovery.recover(run_dir, spec, state)
+    # Bounded VRC probes suppress extra scientific/optimizer attempts, but a
+    # verified scratch-setup failure never reached the native calculation.
+    # Use the separate, bounded allocation budget without changing the probe.
+    # An explicitly pending refinement still owns its dependency transition.
+    if not refining:
         state = scratch_recovery.recover(run_dir, spec, state)
+    if not spec.get('intent', {}).get('vrc_fragment_retry') and not refining:
         spec, state = timeout_recovery.recover(run_dir, spec, state)
     by_id = {task['id']: task for task in spec['tasks']}
 

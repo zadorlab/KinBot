@@ -135,11 +135,11 @@ def _replacement_processes(root):
 
 
 @contextmanager
-def _submission_guard(root):
+def _submission_guard(root, *, independent=False):
     """Do not freeze a pool-lock holder, or race a retained sampler's sbatch."""
     from kinbot import run_policy
     policy = run_policy.find(root)
-    if policy is None or _POOL_GUARDED.get():
+    if policy is None or (_POOL_GUARDED.get() and not independent):
         yield
         return
     # Bounded acquisition also works during recovery from an interrupted stop.

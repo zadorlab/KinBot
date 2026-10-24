@@ -12,6 +12,61 @@ The general entry point is `python -m kinbot.orbital_review`. It uses the
 existing Molpro/Slurm execution machinery. There are no molecule-name branches
 or prescribed sulfur active spaces in the implementation.
 
+Production review requests also have installed, molecule-independent tools:
+
+```bash
+python -m kinbot.requested_orbital_recon prepare REQUEST.json CASE_INPUT.json RECIPE.json SCREEN
+python -m kinbot.requested_orbital_recon candidates SCREEN CANDIDATES.json COMPARISON
+python -m kinbot.vrc_relaxation_recon prepare PRODUCTION_ROOT PANEL_PLAN.json RELAXATIONS
+python -m kinbot.requested_orbital_recon review SCREEN CASE_INPUT.json SELECTION.json
+```
+
+Recipes supply the molecular identity, geometry, states, explicit candidate
+spaces, distances and native seed evidence. Preparation does not infer or approve
+a production model. The `review --apply` and `review-batch --apply` commands
+publish an explicitly reviewed selection through live controls. Rejection uses
+the shared reaction-decision controls described in `LIVE_DRIVER_CONTROLS.md`.
+The legacy `examples/anl/tools/requested_orbital_recon.py` and
+`vrc_relaxation_recon.py` paths are compatibility entry points to these modules.
+
+Independent prepared campaigns can run together with
+`python -m kinbot.review_campaign REVIEW/inventory.json --queue-all`:
+
+```json
+{
+  "schema": 1,
+  "campaigns": [
+    {"name": "orbital_comparison", "kind": "orbitals", "directory": "comparison"},
+    {"name": "geometry_panel", "kind": "relaxations", "directory": "relaxations"}
+  ]
+}
+```
+
+Directories are relative to the inventory file. This queues each finite
+inventory while respecting native orbital-predecessor dependencies; it does not
+accept results or promise immediate allocations. Without `--queue-all`, the
+workers use the configured reserved review capacity. Explicit `--allow-node`
+options affect the review workers only. Repeating after owners exit adopts
+their completed and live calculations. A concurrent duplicate cannot take the
+existing workers' locks. Run-specific example launchers supply plans and legacy
+owner identities; the screen preparation, relaxation, scientific validation,
+execution, supervision and numerical recovery implementations reside in KinBot.
+
+Shared admission retains uncertain `sbatch` outcomes. A purged known allocation
+can release its reservation only with a healthy scheduler query, an explicit
+invalid-ID response, a matching submission receipt, and verified current or
+archived task/execution evidence. Reconciliation is journaled. The legacy
+write-before-admission state is repaired only when the old archived allocation
+still blocks the exact submission and no newer claim, receipt, worker artifact
+or live allocation exists.
+
+Relaxation panels use the shared bounded scratch-allocation and Molpro `hsdel`
+solver retries. The solver sequence changes P-space, then internal expansion
+workspace and numerical convergence, with at most two replacements. It requires
+the native singularity signature and retains each attempt. It does not change
+the CAS, state weights, selected roots, Hamiltonian, separation constraint or
+optimizer-step budget. Unknown or exhausted failures remain visible for review.
+
 Recon and production share [native orbital/state printing and extracted
 per-output evidence](MOLPRO_NATIVE_ORBITAL_DIAGNOSTICS.md). Each CAS/MRCI output
 gets an adjacent `.orbital_audit.json` with occupations, labeled AO coefficients,

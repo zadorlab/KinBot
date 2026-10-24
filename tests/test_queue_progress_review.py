@@ -5,6 +5,7 @@ import importlib.util
 import os
 from pathlib import Path
 import signal
+import shlex
 import sys
 from types import SimpleNamespace
 
@@ -391,7 +392,8 @@ def process_doubles(monkeypatch,production,review):
     return signals
 
 
-def test_full_saved_review_handoff_recovers_legacy_metadata_and_fifteen_scratch_failures(full_review,monkeypatch):
+@pytest.mark.parametrize('real_admission', [False, True])
+def test_full_saved_review_handoff_recovers_legacy_metadata_and_fifteen_scratch_failures(full_review,monkeypatch,real_admission):
     from kinbot.anl import dispatch
     from tests.test_anl_dispatch import _mock_execution
     tree,graphs=full_review
@@ -410,7 +412,7 @@ def test_full_saved_review_handoff_recovers_legacy_metadata_and_fifteen_scratch_
               for p in base.rglob('*') if p.is_file()}
     workflows={g:(g/'workflow.json').read_bytes() for g in graphs}
     native_before=(source/'native/reconnaissance.json').read_bytes()
-    jobs=[dict(job_id=str(100+i),directory=str(graphs[i]),state='RUNNING') for i in (1,2)]
+    jobs=[dict(job_id=str(100+i),directory=str(graphs[i]/'tasks/relaxed_scan'),state='RUNNING') for i in (1,2)]
     monkeypatch.setattr(queue.run_cleanup,'_jobs',lambda _:jobs)
     signals=process_doubles(monkeypatch,production,review)
     checked=[]
@@ -423,7 +425,36 @@ def test_full_saved_review_handoff_recovers_legacy_metadata_and_fifteen_scratch_
         assert 'node34' in (cwd/'job.slurm').read_text()
         ident=str(500+len(submitted));submitted.append(ident)
         return SimpleNamespace(returncode=0,stdout=ident,stderr='')
-    monkeypatch.setattr(run_policy,'submit',submit)
+    if real_admission:
+        from kinbot import pool_drain
+        # Preserve actual admission, receipts, locks and dispatcher callback.
+        # Only the external scheduler and unrelated pending-job drain are doubles.
+        monkeypatch.setattr(pool_drain,'reconcile',lambda *a:[])
+        monkeypatch.setattr(run_policy,'slurm_job_record',lambda j:{})
+        allocated={j['job_id']:j['directory'] for j in jobs}
+        monkeypatch.setattr(run_policy,'_queue',lambda root:{j:1 for j,d in allocated.items()
+            if Path(d).is_relative_to(root)})
+        def slurm(command,**kwargs):
+            if command[0]=='sbatch':
+                result=submit(command,**kwargs)
+                allocated[result.stdout]=str(kwargs['cwd'])
+                return result
+            assert command[:3]==['scontrol','show','job']
+            return SimpleNamespace(returncode=1,stdout='',stderr='Invalid job id specified')
+        monkeypatch.setattr(queue.subprocess,'run',slurm)
+        # Recreate the two legacy blocked last-in-panel submissions, retaining
+        # real scratch archives and their original successful sbatch receipts.
+        for i in (7,17):
+            g=graphs[i];job=str(100+i);pool=g.parent
+            claim=dict(directory=str(g/'tasks/relaxed_scan'),job_id=job,status='submitted',
+                command=['sbatch','--parsable','job.slurm'],created_at='2026-01-01T00:00:00+00:00')
+            atomic_json(pool/'.kinbot_policy_admissions.json',{str(i):claim})
+            atomic_json(pool/'.kinbot_policy_submissions'/(job+'.json'),claim)
+            state=dispatch.advance(g)
+            state['tasks']['relaxed_scan']['status']='submitting'
+            atomic_json(g/'state.json',state)
+    else:
+        monkeypatch.setattr(run_policy,'submit',submit)
     class PollFinished(Exception):pass
     monkeypatch.setattr(relaxation.time,'sleep',lambda _:(_ for _ in ()).throw(PollFinished()))
     launches=[]
@@ -433,9 +464,9 @@ def test_full_saved_review_handoff_recovers_legacy_metadata_and_fifteen_scratch_
             self.command=command;self.pid=len(launches)+1;self.returncode=None;launches.append(command)
         def poll(self):
             assert len(launches)%4==0
-            if self.returncode is None and Path(self.command[3]).name=='vrc_relaxation_recon.py':
+            if self.returncode is None and 'kinbot.vrc_relaxation_recon' in self.command:
                 with pytest.raises(PollFinished):
-                    relaxation.run(Path(self.command[5]),queue_all=True,allow_nodes=['node16','node21','node24'])
+                    relaxation.run(Path(self.command[self.command.index('run')+1]),queue_all=True,allow_nodes=['node16','node21','node24'])
             self.returncode=0
             return 0
     monkeypatch.setattr(queue.subprocess,'Popen',Child)
@@ -455,6 +486,9 @@ def test_full_saved_review_handoff_recovers_legacy_metadata_and_fifteen_scratch_
         assert e['attempt']==2 and len(s['scratch_node_retries']['relaxed_scan'])==1
         assert Path(e['previous_attempt'],'execution.json').exists()
     assert len(list(review.glob('**/probe_*/workflow.json')))==18
+    if real_admission:
+        proofs=[queue.read(p) for p in review.glob('**/.kinbot_policy_reconciled/*.json')]
+        assert len(proofs)==2 and all(p['kind']=='legacy_pre_admission_state' for p in proofs)
 
 
 @pytest.mark.parametrize('during_freeze',[False,True])
@@ -493,3 +527,52 @@ def test_staging_lock_race_never_freezes_writer(full_review,monkeypatch):
             queue.stop_owners(production,review,review/'receipt.json',timeout=0,
                               validate_saved=lambda:pytest.fail('Writer still holds manifest'))
     assert signals==[]
+
+
+def test_repeated_panel_validation_adopts_bounded_solver_retry(full_review,monkeypatch):
+    from kinbot.anl import dispatch
+    from kinbot.vrc_graph import scientific_spec
+    tree,graphs=full_review
+    production,review,*_=tree
+    g=graphs[3];original=scientific_spec(dispatch._load(g)[1])
+    state=dispatch._load(g)[2];entry=state['tasks']['relaxed_scan']
+    entry.update(status='failed',job_id='888')
+    atomic_json(g/'state.json',state)
+    directory=g/'tasks/relaxed_scan'
+    atomic_json(directory/'execution.json',dict(schema=1,task_id='relaxed_scan',status='failed',
+        slurm_job_id='888',geometry_sha256=entry['geometry_sha256'],failure_phase='execution',
+        error='Molpro force evaluation relaxed_scan_step_0001 exited with status 1; '
+              'diagnostics: relaxed_scan_step_0001.failure.json.'))
+    atomic_json(directory/'relaxed_scan_step_0001.failure.json',dict(returncode=1,files={
+        'native.out':dict(error_context='Otherwise, try changing P space',tail='GLOBAL ERROR')}))
+    (directory/'relaxed_scan_step_0001.out').write_text(
+        'Number of p-space configurations: 4\nCatastrophic failure in diagonalization(hsdel)\n'
+        'The expansion set has become singular\n')
+    monkeypatch.setattr(dispatch,'_job_active',lambda _:False)
+    state=dispatch.advance(g)
+    assert state['tasks']['relaxed_scan']['status']=='staged'
+    assert len(state['molpro_pspace_retries']['relaxed_scan'])==1
+    assert scientific_spec(dispatch._load(g)[1])==original
+    for _ in range(2):queue.validate_existing(production,review)
+    assert len(list(review.glob('**/probe_*/workflow.json')))==18
+
+
+def test_independent_review_pool_guards_lock_both_pools(tmp_path):
+    from contextlib import ExitStack
+    pools=[tmp_path/'first',tmp_path/'second']
+    for p in pools:
+        p.mkdir();run_policy.update(p,max_jobs=1)
+    with ExitStack() as locks:
+        for p in pools:locks.enter_context(run_refresh._submission_guard(p,independent=True))
+        for p in pools:
+            with (p/'.kinbot_resource_policy.lock').open('a') as stream:
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
+
+
+def test_installed_module_owner_identity_is_scoped(tmp_path):
+    production=tmp_path/'production';review=tmp_path/'review'
+    row=dict(pid=42,ppid=1,command=shlex.join([sys.executable,'-B','-u','-m',
+        'kinbot.vrc_relaxation_recon','run',str(review/'relaxations'),'--queue-all']),cwd=str(review))
+    assert queue.owner(row,production,review)
+    assert not queue.owner(row,production,tmp_path/'other')

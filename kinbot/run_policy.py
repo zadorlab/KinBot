@@ -290,15 +290,25 @@ def _queue(root):
     return jobs
 
 
-def _reconcile(root, jobs, claims):
+def _reconcile(root, jobs, claims, *, archive=False):
+    from kinbot.anl.submission_recovery import terminal_evidence, legacy_pending
     for token, claim in list(claims.items()):
         ident = claim.get('job_id')
+        if legacy_pending(claim):
+            continue
         if ident in jobs:
             del claims[token]  # Visible jobs are now counted by Slurm itself.
         elif ident:
             record = slurm_job_record(ident)
             if record.get('JobId') == ident and record.get('JobState', '').split('+')[0] in SLURM_TERMINAL_STATES:
                 del claims[token]
+            else:
+                evidence = terminal_evidence(root, claim)
+                if evidence is not None:
+                    if archive:
+                        atomic_json(root/'.kinbot_policy_reconciled'/(token+'.json'),
+                                    dict(evidence, claim=claim))
+                    del claims[token]
     return sum(jobs.values()) + len(claims)
 
 
@@ -368,7 +378,7 @@ def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime
     ledger = path.parent/'.kinbot_policy_admissions.json'
     claims = json.loads(ledger.read_text()) if ledger.exists() else {}
     jobs = _queue(path.parent)
-    occupied = _reconcile(path.parent, jobs, claims)
+    occupied = _reconcile(path.parent, jobs, claims, archive=True)
     atomic_json(ledger, claims)
     if policy.get('manage_pending'):
         from kinbot.pool_drain import reconcile
@@ -385,8 +395,6 @@ def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime
         from kinbot.pool_fairness import take_turn
         turn = take_turn(path.parent, directory, command, max(0, policy['max_jobs']-occupied))
     if occupied < policy['max_jobs'] and turn:
-        if before_submit:
-            before_submit()
         override = {}
         if policy.get('minimum_walltime'):
             from kinbot.run_walltime import submission_override
@@ -410,6 +418,8 @@ def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime
                  'status': 'submitting'}
         if override:
             claim['walltime_override'] = override
+        if before_submit:
+            before_submit()
         claims[token] = claim
         atomic_json(ledger, claims)  # Durable before the first sbatch byte.
         # Command-line policy overrides stale script/environment exclusions.

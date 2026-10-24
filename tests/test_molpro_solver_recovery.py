@@ -45,7 +45,15 @@ def failed(tmp_path, monkeypatch):
     return graph
 
 
-def test_two_bounded_retries_keep_model_and_archive(failed):
+@pytest.mark.parametrize('bounded', [False, True])
+def test_two_bounded_retries_keep_model_and_archive(failed, bounded):
+    if bounded:
+        _, spec, state = dispatch._load(failed)
+        spec['intent'] = {'vrc_fragment_retry': True}
+        atomic_json(failed/'workflow.json', spec)
+        from kinbot.execution import file_sha256
+        state['spec_sha256'] = file_sha256(failed/'workflow.json')
+        atomic_json(failed/'state.json', state)
     original = deepcopy(dispatch._load(failed)[1]['tasks'][0])
     for index in range(2):
         result = dispatch.advance(failed)
@@ -77,7 +85,7 @@ def test_two_bounded_retries_keep_model_and_archive(failed):
     assert len(result['molpro_pspace_retries']['l3_geometry']) == 2
 
 
-@pytest.mark.parametrize('fault', ['active', 'other', 'io', 'pspace', 'generation', 'bounded_probe'])
+@pytest.mark.parametrize('fault', ['active', 'other', 'io', 'pspace', 'generation'])
 def test_no_unproven_or_unrequested_retry(failed, monkeypatch, fault):
     graph, spec, state = dispatch._load(failed)
     d = graph/'tasks/l3_geometry'
@@ -86,7 +94,6 @@ def test_no_unproven_or_unrequested_retry(failed, monkeypatch, fault):
     if fault == 'active': monkeypatch.setattr(dispatch, '_job_active', lambda job: True)
     elif fault == 'other': data['files']['work/native.out']['error_context'] = 'MPI_Abort'
     elif fault == 'io': data['explicit_io_failure'] = True
-    elif fault == 'bounded_probe': spec['intent'] = {'vrc_fragment_retry': True}
     elif fault == 'pspace':
         spec['tasks'][0]['profile']['calculator_kwargs']['state_model']['correlation_options']['pspace'] = {
             'energy_threshold': 0., 'minimum_configurations': 10}
@@ -98,6 +105,17 @@ def test_no_unproven_or_unrequested_retry(failed, monkeypatch, fault):
         with pytest.raises(RuntimeError): recovery.recover(graph, spec, state)
     else:
         assert recovery.recover(graph, spec, state) == (spec, state)
+
+
+def test_full_native_output_can_supply_signature_missing_from_short_excerpt(failed):
+    d = failed/'tasks/l3_geometry'
+    p = d/'l3_geometry_step_0006.failure.json'
+    data = json.loads(p.read_text())
+    full = data['files']['work/native.out']['error_context']
+    data['files']['work/native.out']['error_context'] = 'Otherwise, try changing P space'
+    atomic_json(p, data)
+    (d/'l3_geometry_step_0006.out').write_text(full)
+    assert dispatch.advance(failed)['tasks']['l3_geometry']['status'] == 'staged'
 
 
 @pytest.mark.parametrize('method', ['caspt2-f12(4,4)', 'mrci-f12+q(4,4)'])

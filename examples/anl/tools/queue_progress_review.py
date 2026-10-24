@@ -19,8 +19,8 @@ import time
 import uuid
 
 import continue_ch2_sh_s_review as followup
-import requested_orbital_recon as screens
-import vrc_relaxation_recon as relaxation
+from kinbot import requested_orbital_recon as screens
+from kinbot import vrc_relaxation_recon as relaxation
 from kinbot import run_cleanup, run_refresh, run_salvage, run_policy
 from kinbot.anl import dispatch
 from kinbot.execution import atomic_json, file_sha256, slurm_job_record
@@ -45,6 +45,14 @@ def campaigns(review):
 def owner(record, production, review):
     """An exact known script/argument pair, never a PID or substring alone."""
     args = shlex.split(record['command'])
+    if '-m' in args:
+        index = args.index('-m')
+        module = args[index+1] if len(args) > index+1 else ''
+        from kinbot.review_campaign import MODULES
+        if module in MODULES.values():
+            script = module.rsplit('.', 1)[1]+'.py'
+            return owner(dict(record, command=shlex.join(
+                [*args[:index], str(TOOLS/script), *args[index+2:]])), production, review)
     scripts = {name for _, name, _ in campaigns(review)} | {
         'refresh_progress_20261024.sh', 'continue_ch2_sh_s_review.py',
         'queue_progress_review.py'}
@@ -116,7 +124,11 @@ def submission_check(review):
         if script.startswith('requested'):
             rows = [j for s in record['systems'] for j in read(s['manifest'])['jobs']]
         else:
-            rows = [t for g in record['graphs'] for t in read(Path(g)/'state.json')['tasks'].values()]
+            from kinbot.anl.submission_recovery import reconcile_pre_admission
+            # Called with admission guards held and owners frozen. Repair
+            # only a proven legacy write-before-admission, never a live RPC.
+            rows = [t for g in record['graphs']
+                    for t in reconcile_pre_admission(g, pool_locked=True)['tasks'].values()]
         if any(j.get('submission_status') == 'submitting' or j.get('status') == 'submitting' for j in rows):
             raise run_refresh.RefreshTransientError('A review submission is being journaled; retrying the idle boundary.')
 
@@ -130,7 +142,7 @@ def stop_owners(production, review, marker, *, timeout=180, validate_saved=None)
             with ExitStack() as guards:
                 for _, script, folder in campaigns(review):
                     if script.startswith('vrc') and folder.exists():
-                        guards.enter_context(run_refresh._submission_guard(folder))
+                        guards.enter_context(run_refresh._submission_guard(folder, independent=True))
                         # Never freeze an owner halfway through a panel or
                         # workflow/state transaction, then wait for its lock.
                         paths=[folder/'.prepare.lock']
@@ -242,33 +254,10 @@ def expand_pending(review, allowed, journal):
 
 
 def supervise(review, pin, allowed):
-    children = []
-    with ExitStack() as logs:
-        for name, script, folder in campaigns(review):
-            log = logs.enter_context((review/('queue_all_'+name+'.log')).open('a'))
-            command = [sys.executable,'-B','-u',str(TOOLS/script),'run',str(folder),'--queue-all']
-            if script.startswith('requested'):
-                command.append('--report-failures')
-            for node in allowed:
-                command += ['--allow-node',node]
-            child = subprocess.Popen(command, cwd=review, stdin=subprocess.DEVNULL,stdout=log,
-                stderr=subprocess.STDOUT,env=dict(os.environ,PYTHONPATH=str(pin)))
-            children.append((name,child))
-            print(f'{name}: owner {child.pid}; log {log.name}',flush=True)
-        marker=review/'queue_all_refresh.json';journal=read(marker)
-        journal.update(phase='running',owners={name:p.pid for name,p in children})
-        atomic_json(marker,journal)
-        while any(p.poll() is None for _,p in children):
-            status = {name:p.poll() for name,p in children}
-            print('Review owners (null = active): '+json.dumps(status),flush=True)
-            time.sleep(20)
-        result = {name:p.returncode for name,p in children}
-    for _, script, folder in campaigns(review):
-        if script.startswith('requested'):
-            (folder/'orbital_evidence.txt').write_text(screens.evidence(folder)+'\n')
-    atomic_json(review/'queue_all_finished.json',dict(owner_exit_codes=result,production_model_accepted=False))
-    print('Diagnostic owners finished; native results still require review: '+json.dumps(result),flush=True)
-    return result
+    from kinbot.review_campaign import supervise as run_campaigns
+    records = [dict(name=name, kind='orbitals' if script.startswith('requested') else 'relaxations',
+                    directory=str(folder)) for name, script, folder in campaigns(review)]
+    return run_campaigns(review, records, code=pin, allow_nodes=allowed, queue_all=True)
 
 
 def perform(production, review, pin, allowed, *, replace_owner=False):

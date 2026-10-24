@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+from datetime import datetime, timezone
 import fcntl
 import hashlib
 import json
@@ -2293,6 +2294,9 @@ def advance(run_dir, submit=False, submit_only=None):
     lock_recovery.resume(run_dir)
     optimization_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
+    if any(e.get('status') == 'submitting' for e in state['tasks'].values()):
+        from kinbot.anl.submission_recovery import reconcile_pre_admission
+        state = reconcile_pre_admission(run_dir)
     from kinbot.reaction_decisions import graph_rejected
     if graph_rejected(run_dir):
         return state
@@ -2412,9 +2416,8 @@ def advance(run_dir, submit=False, submit_only=None):
     if not spec.get('intent', {}).get('vrc_fragment_retry') and not refining:
         state = lock_recovery.recover(run_dir, spec, state)
         state = interface_recovery.recover(run_dir, spec, state)
-        from kinbot.anl import molpro_mpi_recovery, molpro_solver_recovery, molpro_gradient_recovery
+        from kinbot.anl import molpro_mpi_recovery, molpro_gradient_recovery
         spec, state = molpro_mpi_recovery.recover(run_dir, spec, state)
-        spec, state = molpro_solver_recovery.recover(run_dir, spec, state)
         from kinbot.anl import cc_iteration_recovery
         spec, state = cc_iteration_recovery.recover(run_dir, spec, state)
         spec, state = recover_vpt2_failures(run_dir, spec, state)
@@ -2428,6 +2431,11 @@ def advance(run_dir, submit=False, submit_only=None):
     # Use the separate, bounded allocation budget without changing the probe.
     # An explicitly pending refinement still owns its dependency transition.
     if not refining:
+        # Numerical eigensolver retries preserve the constrained probe and
+        # electronic model; their independent two-attempt budget also applies
+        # to bounded VRC diagnostics. Optimizer extensions remain suppressed.
+        from kinbot.anl import molpro_solver_recovery
+        spec, state = molpro_solver_recovery.recover(run_dir, spec, state)
         state = scratch_recovery.recover(run_dir, spec, state)
     if not spec.get('intent', {}).get('vrc_fragment_retry') and not refining:
         spec, state = timeout_recovery.recover(run_dir, spec, state)
@@ -2595,8 +2603,11 @@ def advance(run_dir, submit=False, submit_only=None):
             if guarded != original_script:
                 script_path.write_text(guarded)
                 entry['job_sha256'] = _file_hash(script_path)
-            entry['status'] = 'submitting'
             _atomic_json(run_dir / 'state.json', state)
+            def mark_submitting():
+                entry.update(status='submitting',
+                             submission_started_utc=datetime.now(timezone.utc).isoformat())
+                _atomic_json(run_dir / 'state.json', state)
             directory = run_dir / 'tasks' / ident
             submission_options = {}
             if spec.get('intent', {}).get('vrc_fragment_retry'):
@@ -2614,7 +2625,8 @@ def advance(run_dir, submit=False, submit_only=None):
                 response = run_policy.submit(
                     ['sbatch', '--parsable', 'job.slurm'], cwd=directory,
                     capture_output=True, text=True, check=False,
-                    timeout=_SCHEDULER_TIMEOUT, **submission_options)
+                    timeout=_SCHEDULER_TIMEOUT, before_submit=mark_submitting,
+                    **submission_options)
             except SchedulerUnavailableError:
                 # The shared pool could not count occupancy; no sbatch was
                 # attempted. Preserve a runnable task for the next poll.

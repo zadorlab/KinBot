@@ -1,5 +1,24 @@
 # Retained production handoff, 24 October 2026
 
+Latest review-only resume: pull the current composite code, then run
+`queue_progress_review.py PRODUCTION_ROOT --replace-owner --allow-node node16
+--allow-node node21`. Node24, like node34, has now produced verified scratch
+setup failures and is no longer included in the review node override. Scratch
+retry histories remain bounded; completed and live allocations are adopted.
+
+The shared dispatcher now reconciles purged allocation reservations against
+verified attempt archives and repairs the proven legacy pre-admission state.
+It marks a task submitting only after admission. Bounded relaxation probes use
+the existing native-evidence Molpro solver retry ladder without extending their
+optimizer budgets. The complete handoff is tested through real admission code
+with a simulated scheduler, including repeated invocation and retained jobs;
+these tests are not evidence of native calculation success.
+
+The reusable engines are installed as `kinbot.requested_orbital_recon`,
+`kinbot.vrc_relaxation_recon`, and `kinbot.review_campaign`. Example launchers
+select these saved plans and recognize their legacy owners. No molecular IDs or
+run-specific recovery conditions are installed in the shared implementation.
+
 Run `bash examples/anl/tools/refresh_progress_20261024.sh PRODUCTION_ROOT`
 from the updated composite checkout. The script validates and stages the
 diagnostic inputs before replacing controllers. It then runs the existing

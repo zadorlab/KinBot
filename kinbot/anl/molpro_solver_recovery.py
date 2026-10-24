@@ -59,9 +59,6 @@ def evidence(task, directory, outcome, *, own_pspace=False):
         return None
     text = '\n'.join(v.get('error_context', '') + '\n' + v.get('tail', '')
                      for v in record.get('files', {}).values())
-    if not (re.search(r'Catastrophic failure in diagonalization\s*\(hsdel\)', text, re.I)
-            and re.search(r'The expansion set has become singular', text, re.I)):
-        return None
     # Read only this failed evaluation. Native logs may retain the P-space
     # count outside the diagnostic excerpt; never infer it from another step.
     for suffix in ('.out', '.log'):
@@ -70,6 +67,9 @@ def evidence(task, directory, outcome, *, own_pspace=False):
             with path.open('rb') as stream:
                 stream.seek(max(0, path.stat().st_size-8_000_000))
                 text += '\n' + stream.read().decode(errors='replace')
+    if not (re.search(r'Catastrophic failure in diagonalization\s*\(hsdel\)', text, re.I)
+            and re.search(r'The expansion set has become singular', text, re.I)):
+        return None
     counts = [int(x) for x in re.findall(r'Number of p-space configurations:\s*(\d+)', text, re.I)]
     roots = max(s['roots'] for s in model['state_average'])
     # Small bounded primary solve. Do not silently enlarge a large native
@@ -87,8 +87,6 @@ def recover(graph, spec, state):
     from kinbot.anl.salvage import descendants
     from kinbot.anl.timeout_recovery import _job_id
     from kinbot.manual_fallback import task_options
-    if spec.get('intent', {}).get('vrc_fragment_retry'):
-        return spec, state
     replacement, updated = deepcopy(spec), deepcopy(state)
     reset, reasons = set(), {}
     for index, task in enumerate(replacement['tasks']):

@@ -1,0 +1,1309 @@
+"""General finite orbital screens for existing or provisional VRC requests.
+
+Scientific choices live in the supplied recipe. Only the explicit ``review
+--apply`` command installs a human-reviewed selection in an existing PES
+input. It uses live refresh and never starts/restarts a production driver.
+"""
+import argparse
+from contextlib import ExitStack
+from copy import deepcopy
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import tempfile
+
+import numpy as np
+
+from kinbot import molpro_reconnaissance as recon, run_policy
+from kinbot.execution import atomic_json, file_sha256
+
+
+def _read(path):
+    return json.loads(Path(path).read_text())
+
+
+def _saved(root, *, allow_accepted=False):
+    record = _read(root/'review_launch.json')
+    for name, digest in record['files'].items():
+        if file_sha256(root/name) != digest:
+            raise ValueError(f'Prepared evidence changed: {name}.')
+    if record.get('reviews'):
+        for child in record['reviews']:
+            saved = _saved(Path(child), allow_accepted=allow_accepted)
+            if saved['production_policy'] != record['production_policy']:
+                raise ValueError('Batch reviews no longer share one resource policy.')
+        return record
+    if record.get('provisional'):
+        original = _read(root/'provisional_source.json')
+        current = _read(record['request'])
+        if any(current.get(k) != original.get(k) for k in ('structure', 'charge', 'mult')):
+            raise ValueError('Provisional parent structure/spin changed; inspect the saved screen.')
+        return record
+    live, original = _read(record['request']), _read(root/'request.json')
+    if allow_accepted and live.get('status') == 'model_accepted':
+        # Acceptance changes only bookkeeping. A repeated review must still
+        # match the saved chemistry/geometry and the installed channel below.
+        live.pop('surface_model', None)
+        live['status'] = original.get('status')
+    if live != original:
+        raise ValueError('Live review request changed; inspect before continuing this review.')
+    return record
+
+
+def candidates(source, recipe, output):
+    """Prepare explicit CASSCF partitions from completed CASCI/CASSCF seeds.
+
+    This does not select orbitals by occupation or accept a production model.
+    Every partition, seed geometry and native check comes from the recipe.
+    """
+    source = Path(source).expanduser().resolve(strict=True)
+    output = Path(output).expanduser().resolve()
+    previous = _saved(source)
+    controls = _read(recipe)
+    request = _read(source/'request.json')
+    if controls.get('schema') != 1 or not controls.get('request_match'):
+        raise ValueError('Candidate recipe must identify its intended review request.')
+    for key, value in controls['request_match'].items():
+        if request.get(key) != value:
+            raise ValueError(f'Request differs from candidate recipe: {key}.')
+    policy_path = run_policy.find(Path(previous['request']).parent)
+    policy = run_policy.read(Path(previous['request']).parent) or {}
+    slots = policy.get('orbital_review_reserved_slots', 0)
+    cap = controls.get('max_jobs', previous['max_jobs'])
+    if type(cap) is not int or cap < 1 or slots < 1:
+        raise ValueError('Candidate review needs positive reserved capacity.')
+    if output.exists() or output == source or source in output.parents:
+        raise FileExistsError('Preserve the source review; choose a fresh sibling directory.')
+    if policy_path.parent == output or policy_path.parent in output.parents:
+        raise ValueError('Keep reconnaissance outside the production run directory.')
+    # A single completed source manifest is explicit. Multi-model successors
+    # require choosing a source, rather than silently picking one candidate.
+    if len(previous['systems']) != 1:
+        raise ValueError('Choose one source model for a new partition comparison.')
+    manifest_path = Path(previous['systems'][0]['manifest'])
+    original = _read(manifest_path)
+    if not original['jobs'] or any(j['status'] != 'complete' for j in original['jobs']):
+        raise ValueError('Finish the source screen before preparing candidates.')
+    loaded = recon._load(previous['systems'][0]['configuration'])
+    anchors = {a['name']: a for a in loaded['anchors']}
+    jobs = {j['name']: j for j in original['jobs']}
+    definitions = controls.get('candidates')
+    if not isinstance(definitions, list) or not definitions:
+        raise ValueError('Candidate recipe needs a nonempty candidates list.')
+    configurations, names = [], set()
+    with tempfile.TemporaryDirectory(prefix='kinbot-candidate-preflight-') as tmp:
+        for item in definitions:
+            name = item['name']
+            if not recon._SAFE.fullmatch(name) or name in names:
+                raise ValueError('Candidate names must be safe and distinct.')
+            names.add(name)
+            data = {k: deepcopy(v) for k, v in loaded.items()
+                    if not k.startswith('_') and k not in
+                    ('coordinates', 'anchors', 'scan_policy', 'orientation_probes', 'initial_records')}
+            definition = deepcopy(item['probe_definition'])
+            partition = definition.get('orbital_partition', {})
+            for key in ('active_electrons', 'active_orbitals'):
+                if partition.get('source_'+key) != loaded['_probe_space'][key]:
+                    raise ValueError('Partition counts differ from the source active space.')
+            data.update(title=name, probe_method='casscf', orbital_initialization='independent',
+                        probe_definition=definition, anchors=[], initial_records={},
+                        casscf_options=deepcopy(item['casscf_options']),
+                        reference_identity_check=item.get('reference_identity_check', False),
+                        correlation_checks=deepcopy(item['correlation_checks']))
+            for key in ('scf_convergence', 'correlation_convergence', 'scf_options'):
+                if key in item:
+                    data[key] = deepcopy(item[key])
+            for choice in item['anchors']:
+                if set(choice) - {'source', 'name', 'distance_angstrom', 'rotation'}:
+                    raise ValueError('Candidate anchors accept source, name, distance and rotation.')
+                anchor = deepcopy(anchors[choice['source']])
+                anchor['name'] = choice.get('name', choice['source'])
+                if 'distance_angstrom' in choice:
+                    if 'bond' not in anchor:
+                        raise ValueError('Distance changes require a dissociation coordinate.')
+                    anchor['distance_angstrom'] = choice['distance_angstrom']
+                if 'rotation' in choice:
+                    rotate = choice['rotation']
+                    if (not isinstance(rotate, dict) or set(rotate) !=
+                            {'atoms', 'pivot_atom', 'axis_bond', 'angle_degrees'}):
+                        raise ValueError('Rotation needs atoms, pivot_atom, axis_bond and angle_degrees.')
+                    atoms, axis_bond, pivot = rotate['atoms'], rotate['axis_bond'], rotate['pivot_atom']
+                    angle = rotate['angle_degrees']
+                    if (not isinstance(atoms, list) or not atoms
+                            or not isinstance(axis_bond, list) or len(axis_bond) != 2
+                            or any(type(i) is not int or not 1 <= i <= len(data['symbols'])
+                                   for i in [*atoms, *axis_bond, pivot])
+                            or len(set(atoms)) != len(atoms) or pivot not in atoms
+                            or axis_bond[0] == axis_bond[1] or type(angle) not in (int, float)
+                            or not np.isfinite(angle)):
+                        raise ValueError('Invalid one-based fragment rotation.')
+                    xyz = recon._anchor_geometry(data, anchor)
+                    axis = xyz[axis_bond[1]-1]-xyz[axis_bond[0]-1]
+                    length = np.linalg.norm(axis)
+                    if length < 1e-8:
+                        raise ValueError('Rotation axis has zero length.')
+                    anchor['_rotation'] = dict(atoms=[i-1 for i in atoms], pivot=pivot-1,
+                                                axis=(axis/length).tolist(), angle_degrees=angle)
+                    anchor['_orientation'] = dict(channel=anchor.get('_channel'), pivot_atom=pivot,
+                        axis='bond_'+'_'.join(map(str, axis_bond)), angle_degrees=angle)
+                    if np.allclose(xyz, recon._anchor_geometry(data, anchor), atol=1e-10, rtol=0.):
+                        raise ValueError('Rotation would duplicate the unchanged geometry.')
+                data['anchors'].append(anchor)
+                for basis in data['bases']:
+                    old = jobs[basis['name']+'__'+choice['source']]
+                    if (old['probe_active_space']['active_electrons'] != loaded['_probe_space']['active_electrons']
+                            or old['probe_active_space']['active_orbitals'] != loaded['_probe_space']['active_orbitals']
+                            or old['basis'] != basis['basis']
+                            or file_sha256(old['wfu']) != old['wfu_sha256']
+                            or file_sha256(Path(old['directory'])/(old['name']+'.out')) != old['output_sha256']):
+                        raise ValueError('Source checkpoint/output or model differs from validated evidence.')
+                    data['initial_records'][basis['name']+'__'+anchor['name']] = dict(
+                        path=old['wfu'], sha256=old['wfu_sha256'], basis=old['basis'])
+            path = Path(tmp)/(name+'.json')
+            atomic_json(path, data)
+            check = recon._load(path)
+            for basis in check['bases']:
+                for anchor in check['anchors']:
+                    stem = basis['name']+'__'+anchor['name']
+                    recon.validate_input_blocks(recon._deck(check, basis['basis'], anchor, stem,
+                        previous=check['initial_records'][stem]), stem)
+            configurations.append(data)
+    output.mkdir(parents=True, exist_ok=False)
+    for name in ('request.json', 'electronic_context.json'):
+        atomic_json(output/name, _read(source/name))
+    atomic_json(output/'recipe.json', controls)
+    atomic_json(output/'source_manifest.json', original)
+    files = ['request.json', 'electronic_context.json', 'recipe.json', 'source_manifest.json']
+    systems = []
+    for data in configurations:
+        config = output/(data['title']+'.json')
+        data['kinbot_input'] = str(output/'electronic_context.json')
+        atomic_json(config, data)
+        manifest = recon.prepare(config, output/data['title'])
+        state = _read(manifest)
+        state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
+        atomic_json(manifest, state)
+        files.append(config.name)
+        systems.append(dict(title=data['title'], configuration=str(config), manifest=str(manifest)))
+    record = dict(schema=1, status='prepared', request=previous['request'],
+                  max_jobs=min(cap, slots), production_policy=str(policy_path),
+                  files={name: file_sha256(output/name) for name in files}, systems=systems,
+                  candidate_comparison=True, source_review=str(source))
+    atomic_json(output/'review_launch.json', record)
+    return dict(directory=str(output), models=len(systems), max_jobs=record['max_jobs'],
+                tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),
+                production_model_accepted=False)
+
+
+def product_complex_geometry(request, evidence, selection):
+    """Read an accepted path's mapped product geometry for exit-channel probes."""
+    import sqlite3
+    import networkx as nx
+    from ase.db import connect
+    from rdkit import Chem
+    from kinbot.stationary_pt import StationaryPoint
+    worker=Path(request).parents[3]
+    network=_read(worker/'accepted_l2_network.json')['network']['reactions']
+    rows=[r for r in network if r['name']==evidence['reaction']]
+    if len(rows)!=1 or rows[0].get('product_complex')!=selection['product_complex']:
+        raise ValueError('Product-side screen is not bound to the accepted reaction complex.')
+    name=selection['record_name']
+    if name not in [evidence['reaction']+s for s in ('_IRC_F_prod_high','_IRC_R_prod_high')]:
+        raise ValueError('Product-side screen requires an explicit L2 product record.')
+    path=worker/'kinbot.db'
+    db=connect(str(path),use_lock_file=False)
+    db.connection=sqlite3.connect(path.as_uri()+'?mode=ro',uri=True);db.change_count=0
+    try:
+        found=list(db.select(name=name))
+        if not found:raise ValueError('Missing saved L2 product geometry: '+name)
+        row=found[-1];atoms=row.toatoms()
+    finally:db.connection.close()
+    if row.data.get('status')!='normal':
+        raise ValueError('Saved L2 product geometry has no normal completion: '+name)
+    if atoms.get_chemical_symbols()!=evidence['symbols'] or not np.isfinite(atoms.positions).all():
+        raise ValueError('Product-side atom identity/coordinates differ.')
+    fragments=selection['fragments'];maps=[f['atoms'] for f in fragments]
+    if len(maps)!=2 or sorted(i for m in maps for i in m)!=list(range(1,len(atoms)+1)):
+        raise ValueError('Explicit one-based fragment maps must partition all atoms.')
+    species=StationaryPoint('product',evidence['charge'],evidence['multiplicity'],
+        atom=np.array(evidence['symbols']),geom=atoms.positions)
+    species.characterize()
+    parts=list(nx.connected_components(nx.from_numpy_array(species.bond01)))
+    if {frozenset(p) for p in parts}!={frozenset(i-1 for i in m) for m in maps}:
+        raise ValueError('Saved product geometry does not match the declared separated fragments.')
+    from kinbot.electronic_states import _canonical_smiles
+    product_key=lambda p:(_canonical_smiles(p['smiles']),p['charge'],p['multiplicity'])
+    if sorted(map(product_key,fragments))!=sorted(map(product_key,evidence['products'])):
+        raise ValueError('Mapped fragment states differ from the live review request.')
+    for fragment,mapping in zip(fragments,maps):
+        mol=Chem.AddHs(Chem.MolFromSmiles(fragment['smiles']))
+        expected=nx.Graph();expected.add_nodes_from((a.GetIdx(),dict(element=a.GetSymbol())) for a in mol.GetAtoms())
+        expected.add_edges_from((b.GetBeginAtomIdx(),b.GetEndAtomIdx()) for b in mol.GetBonds())
+        actual=nx.from_numpy_array(species.bond01).subgraph([i-1 for i in mapping]).copy()
+        nx.set_node_attributes(actual,{i:atoms[i].symbol for i in actual},'element')
+        if not nx.is_isomorphic(actual,expected,node_match=lambda a,b:a['element']==b['element']):
+            raise ValueError('Mapped fragment connectivity differs from its declared identity.')
+    pair=evidence['bond'];moving=next((m for m in maps if pair[1] in m and pair[0] not in m),None)
+    if moving is None:raise ValueError('VRC coordinate does not separate the mapped fragments.')
+    anchors=[dict(name='exit_r_'+str(d).replace('.','p'),bond=pair,moving_atoms=moving,
+                  distance_angstrom=d) for d in selection['distances_angstrom']]
+    proof=dict(database=str(path),row_id=row.id,record_name=name,network=rows[0],
+               symbols=evidence['symbols'],positions=atoms.positions.tolist(),fragments=fragments)
+    return atoms.positions.tolist(),anchors,proof
+
+
+def prepare(request, case_input, recipe, output, *, provisional=False):
+    request, case_input, recipe = [Path(p).expanduser().resolve(strict=True)
+                                    for p in (request, case_input, recipe)]
+    output = Path(output).expanduser().resolve()
+    evidence, controls = _read(request), _read(recipe)
+    preliminary = None
+    if provisional:
+        if request.name != request.parent.name+'.json':
+            raise ValueError('Provisional screening requires the existing well input.')
+        preliminary = deepcopy(evidence)
+        structure = evidence.get('structure', [])
+        if not structure or len(structure) % 4:
+            raise ValueError('Provisional well input needs explicit atom coordinates.')
+        match = controls.get('request_match', {})
+        evidence = dict(schema=1, status='needs_review',
+            parent=request.parent.name, reaction=match.get('reaction'), bond=match.get('bond'),
+            symbols=structure[::4], positions=[structure[i+1:i+4] for i in range(0,len(structure),4)],
+            charge=evidence.get('charge'), multiplicity=evidence.get('mult'),
+            products=match.get('products'), smiles=evidence.get('smiles', ''),
+            provisional=True, note='Orbital screen only; reaction/product acceptance remains pending.')
+        if (evidence['reaction'] != evidence['parent']+'_hom_sci_'+'_'.join(map(str,evidence['bond'] or []))
+                or not evidence['products']):
+            raise ValueError('Provisional recipe must explicitly identify the cleavage and fragment states.')
+    if evidence.get('schema') != 1 or evidence.get('status') != 'needs_review':
+        raise ValueError('Expected a current, unaccepted VRC orbital review request.')
+    from kinbot.reaction_decisions import rejected
+    worker = request.parent if provisional else request.parents[3]
+    if rejected(worker, evidence['reaction']):
+        raise ValueError('An operator-rejected reaction cannot start a new orbital screen.')
+    if controls.get('schema') != 1 or not controls.get('request_match'):
+        raise ValueError('Recipe must identify its intended review request.')
+    for key, value in controls['request_match'].items():
+        if evidence.get(key) != value:
+            raise ValueError(f'Request differs from the reviewed recipe: {key}.')
+    if provisional:
+        monitor = request.parent/'kinbot_monitor.out'
+        rows = [s.split() for s in monitor.read_text().splitlines()] if monitor.exists() else []
+        if not any(len(s)>=3 and s[2]==evidence['reaction'] and s[0]!='-999' for s in rows):
+            raise ValueError('Provisional cleavage is not an active/accepted search in this well.')
+    if case_input.parent not in request.parents:
+        raise ValueError('The case input must belong to the requested calculation tree.')
+    policy_file = run_policy.find(request.parent)
+    policy = run_policy.read(request.parent) or {}
+    slots = policy.get('orbital_review_reserved_slots', 0)
+    if slots < 1:
+        raise ValueError('No orbital-review capacity is configured/currently reserved.')
+    requested_cap = controls.get('max_jobs', slots)
+    if type(requested_cap) is not int or requested_cap < 1:
+        raise ValueError('Recipe max_jobs must be a positive integer.')
+    if policy_file.parent == output or policy_file.parent in output.parents:
+        raise ValueError('Keep reconnaissance outside the production run directory.')
+    context = _read(case_input)
+    config = deepcopy(controls['reconnaissance'])
+    config.update(symbols=evidence['symbols'], geometry_angstrom=evidence['positions'],
+                  charge=evidence['charge'], partition=context['queue_name'])
+    geometry_proof=None
+    if controls.get('geometry_source'):
+        if provisional:raise ValueError('Product-side screens require an accepted live request.')
+        positions,anchors,geometry_proof=product_complex_geometry(request,evidence,controls['geometry_source'])
+        config.pop('coordinates',None)
+        config.update(geometry_angstrom=positions,anchors=anchors)
+    # The recipe may explicitly choose a high-spin ROHF initialization; the
+    # parent and its production multiplicity remain in the immutable request.
+    config.setdefault('multiplicity', evidence['multiplicity'])
+    config['schema'] = 1
+    config['kinbot_input'] = str(case_input)
+    with tempfile.TemporaryDirectory(prefix='kinbot-request-preflight-') as temporary:
+        source = Path(temporary)/'input.json'
+        atomic_json(source, config)
+        loaded = recon._load(source)
+        # Validate every generated native deck before publishing the directory.
+        for basis in loaded['bases']:
+            for anchor in loaded['anchors']:
+                recon.validate_input_blocks(recon._deck(
+                    loaded, basis['basis'], anchor, basis['name']+'__'+anchor['name']), 'screen')
+    output.mkdir(parents=True, exist_ok=False)  # Repeating preparation cannot duplicate jobs.
+    atomic_json(output/'request.json', evidence)
+    atomic_json(output/'electronic_context.json', context)
+    atomic_json(output/'recipe.json', controls)
+    if preliminary is not None:
+        atomic_json(output/'provisional_source.json', preliminary)
+    config['kinbot_input'] = str(output/'electronic_context.json')
+    atomic_json(output/'input.json', config)
+    manifest = recon.prepare(output/'input.json', output/'native')
+    state = _read(manifest)
+    state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
+    atomic_json(manifest, state)
+    record = dict(schema=1, status='prepared', request=str(request), manifest=str(manifest),
+                  max_jobs=min(requested_cap, slots), production_policy=str(policy_file),
+                  files={name: file_sha256(output/name) for name in
+                         ('request.json', 'recipe.json', 'electronic_context.json', 'input.json')},
+                  systems=[dict(title=config['title'], configuration=str(output/'input.json'),
+                                manifest=str(manifest))])
+    if provisional:
+        record['provisional'] = True
+        record['files']['provisional_source.json'] = file_sha256(output/'provisional_source.json')
+    atomic_json(output/'review_launch.json', record)
+    if geometry_proof:
+        atomic_json(output/'geometry_source.json',geometry_proof)
+        record['files']['geometry_source.json']=file_sha256(output/'geometry_source.json')
+        atomic_json(output/'review_launch.json',record)
+    return dict(directory=str(output), tasks=len(state['jobs']), max_jobs=record['max_jobs'],
+                active_space=loaded['_probe_space'], states=state['jobs'][0]['root_states'],
+                partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
+
+
+def batch(production, plan, output):
+    """Stage independent orbital-only screens with one shared submission cap.
+
+    Paths and scientific settings are explicit in the plan/recipes. Existing
+    review selections are skipped; no rejected or imaginary future channel is
+    manufactured. A provisional source can never directly approve production.
+    """
+    production = Path(production).expanduser().resolve(strict=True)
+    plan = Path(plan).expanduser().resolve(strict=True)
+    output = Path(output).expanduser().resolve()
+    spec = _read(plan)
+    entries = spec.get('screens', [])
+    if (spec.get('schema') != 1 or not entries or type(spec.get('max_jobs')) is not int
+            or spec['max_jobs'] < 1):
+        raise ValueError('Batch plan requires schema 1, screens and positive max_jobs.')
+    if output.exists():
+        raise FileExistsError('Batch already exists; use run to resume without duplicate preparation.')
+    if production == output or production in output.parents:
+        raise ValueError('Keep reconnaissance outside the production run directory.')
+    pending, skipped, names, policies = [], [], set(), set()
+    for item in entries:
+        name = item['name']
+        if not recon._SAFE.fullmatch(name) or name in names:
+            raise ValueError('Batch screen names must be safe and distinct.')
+        names.add(name)
+        case = (production/item['case']).resolve(strict=True)
+        if case.parent != production:
+            raise ValueError('Batch case must be directly inside the production directory.')
+        recipe = (plan.parent/item['recipe']).resolve(strict=True)
+        control = _read(recipe)
+        config = control['reconnaissance']
+        if config.get('correlation_checks') or config.get('probe_method') != 'casci':
+            raise ValueError('This batch command stages orbital-only CASCI screens.')
+        match = control['request_match']
+        parent, reaction = match['parent'], match['reaction']
+        if not all(recon._SAFE.fullmatch(x) for x in (parent,reaction)):
+            raise ValueError('Unsafe parent/reaction in batch recipe.')
+        context = _read(case/'input.json')
+        model = context.get('vrc_tst_surface_models', {}).get(parent, {})
+        if any(sorted(c['bond'])==sorted(match['bond']) for c in model.get('channels', [])):
+            skipped.append(dict(name=name, reason='channel already supplied in case input'))
+            continue
+        request = case/parent/'vrctst/orbital_review'/reaction/'request.json'
+        provisional = not request.exists()
+        if provisional:
+            if not item.get('allow_provisional', False):
+                raise ValueError(f'{name}: no live orbital review request yet.')
+            request = case/parent/(parent+'.json')
+        policy_file = run_policy.find(case)
+        if policy_file is None:
+            raise ValueError('Every batch case needs a production resource policy.')
+        policies.add(str(policy_file))
+        pending.append((name,request,case/'input.json',recipe,provisional))
+    if not pending:
+        return dict(status='nothing_to_prepare', skipped=skipped, tasks=0)
+    if len(policies)!=1:
+        raise ValueError('A batch requires one shared production resource policy.')
+    # Preflight the entire batch first, so a bad later recipe cannot publish a
+    # partially usable campaign. This performs no scheduler/native calls.
+    with tempfile.TemporaryDirectory(prefix='kinbot-batch-preflight-') as tmp:
+        for name,request,case_input,recipe,provisional in pending:
+            prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional)
+    output.mkdir(parents=True, exist_ok=False)
+    systems, reviews, caps = [], [], []
+    for name,request,case_input,recipe,provisional in pending:
+        child = output/name
+        prepare(request,case_input,recipe,child,provisional=provisional)
+        saved = _saved(child)
+        systems.extend(saved['systems']); reviews.append(str(child)); caps.append(saved['max_jobs'])
+    atomic_json(output/'plan.json',spec)
+    record = dict(schema=1,status='prepared', request=str(pending[0][1]),
+        production_policy=next(iter(policies)),max_jobs=min(spec['max_jobs'],*caps),
+        systems=systems,reviews=reviews,skipped=skipped,
+        files={'plan.json':file_sha256(output/'plan.json')})
+    atomic_json(output/'review_launch.json',record)
+    return dict(directory=str(output),screens=len(reviews),skipped=skipped,
+        tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),max_jobs=record['max_jobs'],
+        production_model_accepted=False)
+
+
+def bind(source, request, *, apply=True):
+    """Attach a completed provisional screen to a subsequently accepted channel.
+
+    This only binds evidence. The separate reviewed selection and live refresh
+    remain required. Geometry changes are recorded; atom order/connectivity,
+    fragment spin/charge, parent and bond must agree.
+    """
+    from kinbot.electronic_states import _canonical_smiles
+    from kinbot.stationary_pt import StationaryPoint
+    source = Path(source).expanduser().resolve(strict=True)
+    request = Path(request).expanduser().resolve(strict=True)
+    with recon._manifest_lock(source/'native'):
+        record = _saved(source)
+        if not record.get('provisional'):
+            raise ValueError('Only a provisional screen needs binding.')
+        if not all(j['status']=='complete' for j in _read(record['manifest'])['jobs']):
+            raise ValueError('Finish the orbital screen before binding its evidence.')
+        old, current = _read(source/'request.json'), _read(request)
+        if (current.get('status')!='needs_review' or
+                any(current.get(k)!=old.get(k) for k in ('parent','reaction','symbols','bond','charge','multiplicity'))
+                or request != Path(record['request']).parent/'vrctst/orbital_review'/old['reaction']/'request.json'):
+            raise ValueError('Live review request does not match the provisional channel.')
+        def products(m):
+            return sorted((_canonical_smiles(p['smiles']),p['charge'],p['multiplicity']) for p in m['products'])
+        if products(old)!=products(current):
+            raise ValueError('Accepted fragments differ from the provisional fragment states.')
+        molecules=[]
+        for m in (old,current):
+            p=StationaryPoint('screen',m['charge'],m['multiplicity'],
+                             atom=np.array(m['symbols']),geom=np.array(m['positions']))
+            p.characterize(); molecules.append(p)
+        if not np.array_equal(molecules[0].bond01,molecules[1].bond01):
+            raise ValueError('Parent atom connectivity/order changed; review cannot reuse this screen.')
+        if apply:
+            atomic_json(source/'provisional_request.json',old)
+            atomic_json(source/'request.json',current)
+            record.update(provisional=False,request=str(request),
+                          binding=dict(geometry_changed=old['positions']!=current['positions']))
+            for name in ('provisional_request.json','request.json'):
+                record['files'][name]=file_sha256(source/name)
+            atomic_json(source/'review_launch.json',record)
+    return dict(status='bound_for_review',request=str(request),production_model_accepted=False)
+
+
+def _idle_panel(record):
+    """Call with the campaign and all existing manifest locks held."""
+    live = set(subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+        text=True, check=True, timeout=30).stdout.split())
+    for system in record['systems']:
+        manifest = _read(system['manifest'])
+        for job in manifest['jobs'] + manifest.get('excluded_jobs', []):
+            if str(job.get('job_id')) in live or job.get('submission_status') == 'submitting':
+                raise RuntimeError('Wait for panel allocations/submissions to finish before repair or extension.')
+    return live
+
+
+def retry_reference_exports(output):
+    """Archive only known density-selector failures; leave scientific failures alone."""
+    from kinbot.molpro_reference_identity import repair_legacy_selectors
+    root = Path(output).expanduser().resolve(strict=True)
+    with recon._manifest_lock(root), ExitStack() as locks:
+        record = _saved(root)
+        paths = [Path(s['manifest']) for s in record['systems']]
+        for parent in sorted({p.parent for p in paths}):
+            locks.enter_context(recon._manifest_lock(parent))
+        live = _idle_panel(record)
+        selected = {}
+        for path in paths:
+            selected[path] = set()
+            for job in _read(path)['jobs']:
+                d = Path(job['directory']); inp = d/(job['name']+'.inp')
+                if file_sha256(inp) != job['input_sha256']:
+                    raise ValueError('Prepared native input changed: '+str(inp))
+                _, repairs = repair_legacy_selectors(inp.read_text())
+                receipt = d/'execution.json'
+                if not repairs or not receipt.exists() or not job.get('job_id'):
+                    continue
+                execution = _read(receipt)
+                out = d/(job['name']+'.out')
+                text = out.read_text(errors='replace') if out.exists() else ''
+                if (execution.get('status') == 'failed'
+                        and re.search(r'REQUESTED DENSITY NOT FOUND IN RECORD\s+300\d+\.2', text)):
+                    selected[path].add(str(job['job_id']))
+        results = [recon._retry_failed(p, job_ids=ids, live_job_ids=live)
+                   for p, ids in selected.items() if ids]
+        if results:
+            # Gate this new export layout on a repaired case, not a previously
+            # passing case whose WF order never exercised the failure.
+            singleton = next((p for p, ids in selected.items()
+                              if ids and len(_read(p)['jobs']) == 1), None)
+            if singleton is not None:
+                record['reference_export_preflight'] = str(singleton)
+            atomic_json(root/'review_launch.json', record)
+    return dict(status='retry_ready', manifests=results, production_model_accepted=False)
+
+
+def production_checks(production, output, *, extend=False):
+    """Append fixed-geometry native checks to one unstarted shared-cap panel."""
+    from kinbot.vrc_reference_probes import prepare_configs
+    root = Path(output).expanduser().resolve(strict=True)
+    production = Path(production).expanduser().resolve(strict=True)
+    if root.is_relative_to(production):
+        raise ValueError('Keep reference checks outside production.')
+    with recon._manifest_lock(root), ExitStack() as locks:
+        record = _saved(root)
+        if Path(record['production_policy']).parent != production:
+            raise ValueError('The panel and production must share one resource policy.')
+        if record.get('production_checks') and not extend:
+            return dict(status='already_prepared', **record['production_checks'])
+        if extend:
+            for parent in sorted({Path(s['manifest']).parent for s in record['systems']}):
+                locks.enter_context(recon._manifest_lock(parent))
+            _idle_panel(record)
+        else:
+            for system in record['systems']:
+                state = _read(system['manifest'])
+                if any(j.get('job_id') or j.get('status', 'prepared') != 'prepared' for j in state['jobs']):
+                    raise ValueError('Append production checks before starting this panel.')
+        template = _read(record['systems'][0]['configuration'])
+        configurations, skipped = prepare_configs(production, template)
+        if not configurations and not extend:
+            raise ValueError('No eligible production points: '+json.dumps(skipped))
+        # Preserve the original interior/far selection even if production has
+        # advanced. An extension fills missing roles, never adds a second near
+        # point or changes a previously prepared model/checkpoint.
+        def key(p):
+            return p['channel'], '_vts_fragments_asymptote_' in Path(p['graph']).name
+        existing = {key(s['production_probe']) for s in record['systems'] if s.get('production_probe')}
+        configurations = [(d, p) for d, p in configurations if key(p) not in existing]
+        policy = run_policy.read(production) or {}
+        # Preflight every native deck before publishing the new systems.
+        with tempfile.TemporaryDirectory(prefix='kinbot-production-probe-') as tmp:
+            for data, provenance in configurations:
+                path = Path(tmp)/(data['title']+'.json')
+                atomic_json(path, data)
+                loaded = recon._load(path)
+                basis, anchor = loaded['bases'][0], loaded['anchors'][0]
+                recon.validate_input_blocks(recon._deck(loaded, basis['basis'], anchor, 'native__point',
+                    previous=loaded['initial_records']['native__point']), data['title'])
+        for data, provenance in configurations:
+            path = root/(data['title']+'.json')
+            if path.exists() or (root/data['title']).exists():
+                raise FileExistsError('Partial production staging exists; use a fresh panel directory.')
+            atomic_json(path, data)
+            manifest = recon.prepare(path, root/data['title'])
+            state = _read(manifest)
+            state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
+            atomic_json(manifest, state)
+            record['files'][path.name] = file_sha256(path)
+            record['systems'].append(dict(title=data['title'], configuration=str(path),
+                                         manifest=str(manifest), production_probe=provenance))
+        record['max_jobs'] = min(3, record['max_jobs'])
+        record['production_checks'] = dict(added_tasks=sum(bool(s.get('production_probe')) for s in record['systems']), skipped=skipped,
+            total_tasks=sum(len(_read(s['manifest'])['jobs']) for s in record['systems']),
+            max_jobs=record['max_jobs'], production_model_accepted=False)
+        atomic_json(root/'review_launch.json', record)
+    return dict(status='prepared', **record['production_checks'])
+
+
+def run(output, *, report_failures=False, queue_all=False, allow_nodes=()):
+    root = Path(output).expanduser().resolve(strict=True)
+    record = _read(root/'review_launch.json')
+    if report_failures and not (record.get('reviews') or record.get('candidate_comparison')):
+        raise ValueError('Failure reporting requires independent screens or a candidate comparison.')
+    with recon._manifest_lock(root):
+        try:
+            return (_run(root, queue_all=queue_all, allow_nodes=allow_nodes)
+                    if queue_all or allow_nodes else _run(root))
+        except recon.ProbeFailure as error:
+            if not report_failures:
+                raise
+            # Batch run_many(keep_going=True) raises this only after auditing
+            # all allocations to termination. No still-live jobs can overlap
+            # the next independent campaign using these reserved slots.
+            return dict(status='failed', error=str(error), production_model_accepted=False)
+
+
+def _reference_preflight(record, manifests):
+    """Validate one complete native export before allowing panel fan-out.
+
+    Reuse one existing singleton production probe, never stage extra QC. The
+    other manifests still count against capacity and are not submitted here.
+    Re-audit on resume rather than trusting a stale 'passed' receipt.
+    """
+    from kinbot.molpro_reference_identity import report, state_records
+    preferred = record.get('reference_export_preflight')
+    system = next((s for s in record['systems'] if str(s['manifest']) == preferred), None)
+    if system is None:
+        system = next((s for s in record['systems'] if s.get('production_probe')), None)
+    if system is None:
+        raise ValueError('Reference panel needs a singleton production probe for native preflight.')
+    path = Path(system['manifest'])
+    manifest = _read(path)
+    if len(manifest['jobs']) != 1:
+        raise ValueError('Reference preflight must contain exactly one existing probe.')
+    print('Native reference-export preflight: '+system['title']+'; remaining probes wait.', flush=True)
+    result = recon.run_many([path], max_jobs=1, allocation_retries=2,
+                            capacity_manifests=[p for p in manifests if p != path])
+    manifest = result[0]; job = manifest['jobs'][0]
+    if job.get('status') != 'complete':
+        raise RuntimeError('Native reference preflight has not completed validation.')
+    mult = next(c['multiplicity'] for c in job['correlation_checks']
+                if c['method'].lower() == 'uccsd(t)-f12b')
+    receipt = _read(Path(job['directory'])/'execution.json')
+    keys = {'s', 'cas', 'hf', 'dhf'} | {f'dr{r}' for r in state_records(job['state_model'], mult)}
+    expected = {job['name']+'.identity_'+k+'.out' for k in keys}
+    if set(receipt.get('reference_identity_matrices', {})) != expected:
+        raise RuntimeError('Native reference preflight lacks the complete set of root-density exports.')
+    result = report(job['directory'], job['name'], job['probe_active_space'],
+                    manifest['electron_count'], mult)
+    if result.get('verdict') == 'unavailable':
+        raise RuntimeError('Native reference preflight has no valid matrices.')
+    print('Native export/energy preflight passed; state identity still requires scientific review.', flush=True)
+
+
+def _run(output, *, queue_all=False, allow_nodes=()):
+    root = Path(output).expanduser().resolve(strict=True)
+    record = _saved(root)
+    policy = run_policy.read(Path(record['request']).parent) or {}
+    slots = policy.get('orbital_review_reserved_slots', 0)
+    if slots < 1 and not queue_all:
+        raise ValueError('No review capacity remains reserved; production may have resumed.')
+    # Check setup and scheduler, without starting native work on the login node.
+    manifests = [Path(s['manifest']) for s in record['systems']]
+    setup = manifests[0].parent/'site_setup.sh'
+    env = dict(os.environ, KINBOT_BACKEND='molpro')
+    subprocess.run(['bash', '-c', 'set -eo pipefail; source '+shlex.quote(str(setup))+
+                    '; command -v molpro'], env=env, check=True, timeout=60)
+    config = _read(record['systems'][0]['configuration'])
+    from kinbot.run_walltime import partition_walltime
+    print('Partition walltime:', partition_walltime(config['partition']), flush=True)
+    # Hold the same manifest lock used by every submission path while updating
+    # exclusions, then let run_many take it for the complete controller lifetime.
+    for manifest in manifests:
+        with recon._manifest_lock(manifest.parent):
+            state = _read(manifest)
+            if queue_all:
+                allowed = set(run_policy._nodes(allow_nodes))
+                previous = set(state.get('slurm_inherited_exclusion_allow', []))
+                state['slurm_excluded_nodes'] = sorted(
+                    (set(state.get('slurm_excluded_nodes', [])) - (allowed - previous))
+                    | (set(policy['excluded_nodes']) - allowed))
+                state['slurm_inherited_exclusion_allow'] = sorted(allowed)
+            else:
+                if allow_nodes:
+                    raise ValueError('Node overrides require explicit --queue-all review scheduling.')
+                state['slurm_excluded_nodes'] = sorted(set(state.get('slurm_excluded_nodes', []))
+                                                       | set(policy['excluded_nodes']))
+            atomic_json(manifest, state)
+    previous = Path.cwd()
+    try:
+        os.chdir(root)
+        if record.get('production_checks'):
+            _reference_preflight(record, manifests)
+        options = {'keep_going': True} if (record.get('reviews') or record.get('production_checks')
+                                         or record.get('candidate_comparison')) else {}
+        cap = sum(len(_read(p)['jobs']) for p in manifests) if queue_all else min(record['max_jobs'], slots)
+        if queue_all:
+            record.setdefault('queue_all_previous_max_jobs',record['max_jobs'])
+            record.update(max_jobs=cap,queue_all_scheduling=dict(allowed_nodes=sorted(allowed),
+                          production_model_accepted=False))
+            atomic_json(root/'review_launch.json',record)
+            print(f'Queueing all {cap} prepared probes; orbital predecessor dependencies remain enforced.', flush=True)
+        result = recon.run_many(manifests, max_jobs=cap, allocation_retries=2,
+                               **({'startup_checked': True} if queue_all else {}), **options)
+    finally:
+        os.chdir(previous)
+    statuses = sorted({r['status'] for r in result})
+    return dict(status=statuses[0] if len(statuses) == 1 else statuses,
+                tasks=sum(len(r['jobs']) for r in result),
+                production_model_accepted=False)
+
+
+def evidence(output):
+    """Saved evidence only; no audit mutation, scheduler call or acceptance."""
+    root = Path(output).expanduser().resolve(strict=True)
+    record = _read(root/'review_launch.json')
+    lines = ['Recorded native results; no production model has been accepted.']
+    for system in record['systems']:
+        state = _read(system['manifest'])
+        lines.append(system['title']+': '+state['status'])
+        config = _read(system['configuration'])
+        for j in state['jobs']:
+            lines.append(j['name']+' '+j.get('status', 'prepared'))
+            for field, label in (('state_energies_hartree', config.get('probe_method', 'casci').upper()),
+                                 ('correlated_energies_hartree', 'CORRELATED')):
+                rows = j.get(field, [])
+                if rows:
+                    lines.append(label+' Eh '+', '.join(
+                        f'{r.get("method", "")}:m{r["multiplicity"]}r{r["root"]}={r["energy_hartree"]:.10f}'
+                        for r in rows))
+            n = (state['electron_count']-j['probe_active_space']['active_electrons'])//2
+            stop = n+j['probe_active_space']['active_orbitals']
+            occ = j.get('natural_occupations', [])
+            if occ:
+                lines.append('ACTIVE '+', '.join(f'{i+1}:{occ[i]:.6f}'
+                             for i in range(n, min(stop, len(occ)))))
+            for field in ('validation_errors', 'validation_warnings', 'terminal_failure'):
+                if j.get(field):
+                    lines.append(field+': '+json.dumps(j[field]))
+        for key, value in state.get('coverage', {}).items():
+            lines.append('COVERAGE '+key+' '+json.dumps({k:value.get(k) for k in
+                ('status', 'asymptote_plateau', 'suggested_midpoints_angstrom',
+                 'suggested_far_distance_angstrom')}))
+    return '\n'.join(lines)
+
+
+def reference_report(output):
+    """Read the finite reference panel; report evidence, never approve science."""
+    from kinbot.molpro_diagnostics import _orbital_tables, parse_native_output
+    root = Path(output).expanduser().resolve(strict=True)
+    record = _saved(root)
+    policy = _read(root/'recipe.json')['reference_check']
+    target, reference = policy['target_multiplicity'], policy['reference_multiplicity']
+    rows, lines = {}, [evidence(root),
+        'Reference audit: convergence is not state-identity or CC-quality acceptance.']
+
+    def orbitals(label, table, low, high):
+        for orbital in table['orbitals']:
+            if not low <= int(orbital['index'].split('.')[0]) <= high:
+                continue
+            ao = sorted(orbital['ao_coefficients'],
+                        key=lambda v: abs(v['coefficient']), reverse=True)[:5]
+            lines.append(f'{label} {orbital["index"]} occ={orbital["occupation"]} AO='
+                         + str([(v['center'], v['component'], v['coefficient']) for v in ao]))
+
+    for system in record['systems']:
+        manifest = _read(system['manifest'])
+        production = system.get('production_probe')
+        reference = production['reference_multiplicity'] if production else policy['reference_multiplicity']
+        target = production['target_multiplicity'] if production else policy['target_multiplicity']
+        for job in manifest['jobs']:
+            if job['status'] != 'complete' or job.get('validation_errors'):
+                continue
+            path = Path(job['directory'])/(job['name']+'.out')
+            if file_sha256(path) != job['output_sha256']:
+                raise ValueError(f'Native output changed: {path}')
+            text = path.read_text(errors='replace')
+            lines.append('\nNATIVE '+system['title']+'/'+job['name'])
+            if production:
+                lines.append('PRODUCTION CONTRACT '+json.dumps(production))
+            audit = parse_native_output(text)
+            tables = [t for section in audit['native_sections']
+                      for t in section.get('orbital_tables', [])
+                      if 'NATURAL' in t['heading'].upper()]
+            closed = (manifest['electron_count']-job['probe_active_space']['active_electrons'])//2
+            if tables:
+                orbitals('CAS', tables[-1], closed+1,
+                         closed+job['probe_active_space']['active_orbitals'])
+            else:
+                lines.append('CAS ORBITAL TABLE MISSING: inspect native output.')
+            for section in audit['native_sections']:
+                if section['program'].upper() not in ('MULTI', 'MCSCF'):
+                    continue
+                for table in section.get('ci_tables', []):
+                    lines.append('CI '+table['text'][:1600])
+            # The last RHF section is the independent reference immediately
+            # before CC, not the initial doublet used to enter MULTI.
+            blocks = re.split(r'(?im)^\s*PROGRAM\s*\*\s*', text)[1:]
+            scf = [b for b in blocks if re.match(r'RHF(?:-SCF)?\b', b, re.I)]
+            if scf:
+                normalized = re.sub(r'(?im)^\s*ELECTRON ORBITALS\s*$',
+                                    'CANONICAL ORBITALS', scf[-1])
+                tables = _orbital_tables(normalized.splitlines(), 1, None, None)
+                if tables:
+                    nclosed = (manifest['electron_count']-reference+1)//2
+                    orbitals('REFERENCE ROHF', tables[-1], nclosed+1, nclosed+reference-1)
+                else:
+                    lines.append('REFERENCE ORBITAL TABLE MISSING: inspect reference Molden/WFU.')
+            diagnostics = [s.strip() for s in text.splitlines() if re.search(
+                r'T1 diagnostic|D1 diagnostic|Norm of t[12]|Expectation value of S|'
+                r'\(T\).*contribution|triples.*(?:energy|contribution)', s, re.I)]
+            lines.extend('CC '+s for s in diagnostics[-12:])
+            from kinbot.molpro_reference_identity import report as identity_report
+            try:
+                identity = identity_report(job['directory'], job['name'],
+                                           job['probe_active_space'], manifest['electron_count'], reference)
+            except (ValueError, OSError, KeyError) as exc:
+                identity = dict(verdict='unavailable', reason=str(exc))
+            reference_energies = [e for e in job.get('correlated_energies_hartree', [])
+                if e['multiplicity'] == reference and e['method'].lower() != 'uccsd(t)-f12b']
+            if reference_energies:
+                root = (min(reference_energies, key=lambda e:e['energy_hartree'])['root']
+                        if production and production['reference_selection'] == 'lowest'
+                        else production['reference_root'] if production else policy['root'])
+                identity['selected_mr_reference_root'] = root
+                identity['correlated_reference_roots'] = reference_energies
+                if 'closest_density_root' in identity:
+                    identity['closest_density_matches_selected_root'] = identity['closest_density_root'] == root
+                    identity['flags'] = []
+                    if identity['closest_density_root'] != root:
+                        identity['flags'].append('Selected MR reference is not the closest ROHF density; inspect root identity/degeneracy.')
+                    if min(identity['rohf_somo_active_projection_eigenvalues'], default=0.) < .9:
+                        identity['flags'].append('ROHF open-shell subspace projects below 90% into the MR active span.')
+                    identity['threshold_note'] = '90% is a diagnostic screening threshold, not a production acceptance criterion.'
+            lines.append('NATIVE IDENTITY '+json.dumps(identity))
+            if production:
+                continue  # DZ spot checks cannot stand in for a new CBS curve.
+            energies = job.get('correlated_energies_hartree', [])
+            values = []
+            for mult, cc in ((reference, True), (target, False), (reference, False)):
+                found = [v['energy_hartree'] for v in energies
+                         if v['multiplicity'] == mult and v['root'] == policy['root']
+                         and (v['method'].lower() == 'uccsd(t)-f12b') == cc]
+                if len(found) != 1 or not np.isfinite(found[0]):
+                    raise ValueError(f'{job["name"]}: reference panel energies are missing or ambiguous.')
+                values.append(found[0])
+            key = (job['distance_angstrom'], job['basis'])
+            if key in rows:
+                raise ValueError('Reference report requires one geometry per distance and basis.')
+            rows[key] = np.array(values)
+    # A deliberately independent DZ/TZ calculation of the production formula.
+    # Report the finite 30 A reference explicitly; do not claim a proven limit.
+    low, high = policy['bases']
+    power = policy['extrapolation_power']
+    complete = {}
+    for distance in sorted({r for r, _ in rows}):
+        if (distance, low) in rows and (distance, high) in rows:
+            complete[distance] = (3.**power*rows[distance, high]
+                                  - 2.**power*rows[distance, low])/(3.**power-2.**power)
+    far = policy['far_distance_angstrom']
+    lines.append('\nCBS columns: R/A, CCref/Eh, MRtarget/Eh, MRref/Eh, '
+                 'MRgap/Eh, anchored interaction/kcal mol-1, direct MR interaction/kcal mol-1')
+    if far not in complete:
+        lines.append('Waiting for both far-reference results; no interaction curve yet.')
+    else:
+        anchor = complete[far][0]+complete[far][1]-complete[far][2]
+        for distance, (cc, low_spin, high_spin) in complete.items():
+            lines.append(f'{distance:g} {cc:.10f} {low_spin:.10f} {high_spin:.10f} '
+                         f'{low_spin-high_spin:.10f} '
+                         f'{(cc+low_spin-high_spin-anchor)*627.509474:.6f} '
+                         f'{(low_spin-complete[far][1])*627.509474:.6f}')
+    lines.append('No production input changed. Inspect CC/MR reference character, '
+                 'active span and diagnostics before refresh; three distances do not certify continuity.')
+    return '\n'.join(lines)
+
+
+def production_evidence(production):
+    """Inspect actual accepted scan artifacts without replaying native QC.
+
+    Select the latest accepted interior point and the separated reference of
+    every saved leaf. Never substitute a proposed recipe or a rejected point.
+    """
+    from ase.io import read as read_atoms
+    from kinbot.molpro_diagnostics import parse_native_output
+    root = Path(production).expanduser().resolve(strict=True)
+    lines = ['READ ONLY: native production state evidence, not scientific approval.']
+    for request in sorted(root.glob('*/[0-9]*/vrctst/scan_review/*/scan_review.json')):
+        saved = _read(request)
+        lines.append('\nCHANNEL '+str(request.relative_to(root)))
+        lines.append('REVIEW '+str(saved.get('status'))+' '+str(saved.get('error')))
+        points = {**saved.get('history', {}), **saved.get('points', {})}
+        accepted = [v for v in points.values() if v.get('status') == 'accepted' and v.get('graph')]
+        if not accepted:
+            lines.append('No accepted native points available.')
+            continue
+        far = saved['context']['separation_angstrom']
+        inner = [v for v in accepted if v['distance_angstrom'] < far]
+        chosen = ([max(inner, key=lambda p: p['distance_angstrom'])] if inner else [])
+        chosen += [v for v in accepted if v['distance_angstrom'] == far]
+        for point in chosen:
+            graph = Path(point['graph'])
+            if not graph.resolve().is_relative_to(root):
+                raise ValueError(f'Production graph lies outside this run: {graph}')
+            for name, expected in point.get('hashes', {}).items():
+                if file_sha256(name) != expected:
+                    raise ValueError(f'Accepted production evidence changed: {name}')
+            directory = graph/'tasks/relaxed_scan'
+            if (directory/'scan_rejection.json').exists():
+                lines.append('REJECTED marker present; excluding '+str(graph))
+                continue
+            execution = _read(directory/'execution.json')
+            if execution.get('status') != 'executed':
+                lines.append('Incomplete execution; excluding '+str(graph))
+                continue
+            task = _read(directory/'task.json')['task']
+            profile = task['profile']
+            options = profile['calculator_kwargs']
+            lines.append('POINT '+str(point['distance_angstrom'])+' A '+str(graph.relative_to(root)))
+            lines.append('PROFILE '+json.dumps({k: profile.get(k) for k in ('method', 'basis')}))
+            model = options['state_model']
+            lines.append('MODEL '+json.dumps({k: model.get(k) for k in
+                ('state_average', 'selected_roots', 'energy_selection', 'correlation_options')}))
+            generated = execution.get('details', {}).get('generated_files', [])
+            inputs = [directory/Path(n).name for n in generated
+                      if re.search(r'_step_\d+\.inp$', str(n))]
+            if not inputs:
+                lines.append('No recorded final force evaluation; native identity unresolved.')
+                continue
+            inp = inputs[-1]
+            actual = read_atoms(inp.with_suffix('.xyz'))
+            final = read_atoms(directory/'final.xyz')
+            if (actual.get_chemical_symbols() != final.get_chemical_symbols()
+                    or not np.allclose(actual.positions, final.positions, atol=1.e-7, rtol=0.)):
+                lines.append('Last force geometry differs from final.xyz; inspect manually.')
+                continue
+            out = inp.with_suffix('.out')
+            audit = parse_native_output(out.read_text(errors='replace'), inp.read_text())
+            # Numerical-gradient output repeats MULTI at displaced geometries.
+            # The first MULTI is the undisplaced final-force evaluation.
+            sections = [s for s in audit['native_sections'] if s['program'].upper() in ('MULTI', 'MCSCF')]
+            lines.append('NATIVE '+str(out.relative_to(root))+' sha256='+file_sha256(out))
+            if not sections:
+                lines.append('No native MULTI section; identity unresolved.')
+                continue
+            section = sections[0]
+            lines.append('NATIVE STATES '+json.dumps(section['states']))
+            lines.append('NATIVE ROOTS '+json.dumps(section['state_energies']))
+            tables = [t for t in section['orbital_tables'] if 'NATURAL' in t['heading'].upper()]
+            if tables:
+                for orbital in tables[-1]['orbitals']:
+                    if orbital['role'] != 'active':
+                        continue
+                    ao = sorted(orbital['ao_coefficients'], key=lambda a: abs(a['coefficient']), reverse=True)[:4]
+                    lines.append(f'ACTIVE {orbital["index"]} occ={orbital["occupation"]} AO='
+                        +str([(v['center'], v['component'], v['coefficient']) for v in ao]))
+            for table in section['ci_tables']:
+                lines.append('CI '+table['text'][:1000])
+        correction = request.parents[2]/('corr_'+saved['reaction']+'.json')
+        if correction.exists():
+            payload = _read(correction)
+            lines.append('CORRECTION '+json.dumps({k: payload.get(k) for k in
+                ('correction_model', 'levels', 'e_inf_high', 'e_inf_samp')}))
+            lines.append('Native correction components: '+str(list(payload.get('native_components', {}))))
+            lines.append('CC/MR reference identity still requires inspection of those native components.')
+        else:
+            lines.append('CC/MR correction components not yet published; their state agreement is NOT verified.')
+    return '\n'.join(lines)
+
+
+def review(source, case_input, recipe, *, apply=False):
+    """Publish an explicitly reviewed orbital selection to the existing owner.
+
+    Selection is supplied by a human-reviewed recipe, never inferred from
+    occupations or correlation energies. No reconnaissance jobs are launched.
+    """
+    case_input = Path(case_input).expanduser().resolve(strict=True)
+    if not apply:
+        return _review(source, case_input, recipe, apply=False)
+    # Serialize helper invocations before reading/modifying the shared input;
+    # otherwise two simultaneous channel additions could overwrite each other.
+    with (case_input.parent/'.kinbot_orbital_review.lock').open('a+') as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError('Another orbital review is editing this input; retry after it finishes.') from error
+        return _review(source, case_input, recipe, apply=True)
+
+
+def _review(source, case_input, recipe, *, apply):
+    previous = _read(case_input)
+    proposed, summary, chosen = _selection(source, case_input, recipe, previous)
+    if not apply:
+        return summary
+    return _publish_selection(case_input, previous, proposed, chosen, summary)
+
+
+def proposal(source, case_input, recipe, output):
+    """Stage a hash-bound additive model for a single controller migration.
+
+    No live input, review request, job or controller is changed here.
+    """
+    case_input = Path(case_input).expanduser().resolve(strict=True)
+    source = Path(source).expanduser().resolve(strict=True)
+    recipe = Path(recipe).expanduser().resolve(strict=True)
+    previous = _read(case_input)
+    proposed, summary, chosen = _selection(source, case_input, recipe, previous)
+    saved = _saved(source, allow_accepted=True)
+    manifest_path = Path(saved['systems'][0]['manifest'])
+    manifest = _read(manifest_path)
+    files = [recipe, source/'request.json', Path(saved['request']), manifest_path,
+             source/'review_launch.json', Path(saved['systems'][0]['configuration'])]
+    required = set(chosen.get('required_complete_jobs', [])) | {
+        v['job'] for v in chosen['basis_seeds'].values()}
+    for job in manifest['jobs']:
+        if job['name'] in required:
+            files.extend([Path(job['wfu']), Path(job['directory'])/(job['name']+'.out')])
+    record = dict(schema=1, kind='orbital_model_proposal', case_input=str(case_input),
+                  input_sha256=file_sha256(case_input),
+                  models=proposed['vrc_tst_surface_models'], selection=chosen, summary=summary,
+                  evidence={str(p):file_sha256(p) for p in files})
+    output = Path(output).expanduser().resolve()
+    if output in files or output == case_input:
+        raise ValueError('Proposal must not overwrite an input or evidence file.')
+    atomic_json(output, record)
+    return dict(summary, status='staged_for_controller_refresh', proposal=str(output),
+                sha256=file_sha256(output))
+
+
+def _selection(source, case_input, recipe, previous, *, bind_request=None):
+    from kinbot import input_refresh
+    from kinbot.molpro import validate_vrc_state_model
+    from kinbot.vrc_multistate import validate_surface_model, extend_surface_model
+    source = Path(source).expanduser().resolve(strict=True)
+    case_input = Path(case_input).expanduser().resolve(strict=True)
+    saved = _saved(source, allow_accepted=True)
+    if saved.get('provisional') and bind_request is None:
+        raise ValueError('Bind the completed screen to the actual VRC review request before selection.')
+    request = _read(bind_request or source/'request.json')
+    chosen = _read(recipe)
+    if chosen.get('diagnostic_only'):
+        raise ValueError('A diagnostic-only orbital seed cannot be published to production.')
+    if (chosen.get('schema') != 1 or chosen.get('reviewed') is not True
+            or not chosen.get('review_note') or not chosen.get('request_match')):
+        raise ValueError('An explicit reviewed selection and chemistry note are required.')
+    from kinbot.electronic_states import _canonical_smiles
+    def match_value(k, value):
+        if k == 'products':
+            return sorted((_canonical_smiles(p['smiles']), p['charge'], p['multiplicity']) for p in value)
+        return value
+    if any(match_value(k, request.get(k)) != match_value(k, v)
+           for k,v in chosen['request_match'].items()):
+        raise ValueError('Selected orbital recipe does not match this review request.')
+    if case_input.parent not in Path(saved['request']).parents:
+        raise ValueError('Case input does not belong to this review request.')
+    if len(saved['systems']) != 1:
+        raise ValueError('Select one source screen with basis-specific orbital records.')
+    manifest = _read(saved['systems'][0]['manifest'])
+    jobs = {j['name']: j for j in manifest['jobs']}
+    for name in chosen.get('required_complete_jobs', []):
+        job = jobs[name]
+        if (job['status'] != 'complete' or job.get('validation_errors')
+                or file_sha256(job['wfu']) != job['wfu_sha256']
+                or file_sha256(Path(job['directory'])/(name+'.out')) != job['output_sha256']):
+            raise ValueError(f'Required orbital evidence is incomplete or changed: {name}.')
+    active = deepcopy(chosen['active_space'])
+    basis_models = {}
+    for basis, selection in chosen['basis_seeds'].items():
+        job = jobs[selection['job']]
+        if (job['status'] != 'complete' or job['basis'] != basis
+                or file_sha256(job['wfu']) != job['wfu_sha256']
+                or file_sha256(Path(job['directory'])/(job['name']+'.out')) != job['output_sha256']):
+            raise ValueError('Selected native seed is not unchanged, complete and basis matched.')
+        model = deepcopy(chosen['state_model'])
+        model['orbital_selection'] = dict(mode='molpro_record', path=job['wfu'],
+            sha256=job['wfu_sha256'], record=selection['record'], orbital_type='natural',
+            align_active_orbitals=False, active_indices=selection['active_indices'])
+        basis_models[basis] = validate_vrc_state_model(model,
+            active_electrons=active['active_electrons'], active_orbitals=active['active_orbitals'],
+            nelectron=manifest['electron_count'], atom_count=len(request['symbols']))
+    parameters = deepcopy(chosen.get('parameters', {}))
+    parameters.update(vrc_tst_active_space=active, vrc_tst_state_model_file='', vrc_tst_state_model=dict(
+        schema=2, molecule=dict(symbols=request['symbols'], charge=request['charge']),
+        active_space=active, state_average_policy='reviewed', basis_models=basis_models))
+    stage = dict(name='single', coordinate=chosen['coordinate'],
+        distances_angstrom=deepcopy(previous[chosen['distances_parameter']]),
+        states=deepcopy(chosen['states']), parameters=parameters)
+    # Match JSON's string keys on repeat application (selected_roots is
+    # normalized to integer keys by the state-model validator).
+    channel = json.loads(json.dumps(dict(bond=request['bond'], combination='single', bottlenecks=[stage])))
+    parent = request['parent']
+    models = deepcopy(previous.get('vrc_tst_surface_models', {}))
+    prior = models.get(parent)
+    model = deepcopy(prior) if prior else dict(schema=1, reviewed=True,
+        review_note=chosen['review_note'], channels=[])
+    matches = [c for c in model['channels'] if sorted(c['bond']) == sorted(channel['bond'])]
+    if matches and matches != [channel]:
+        raise ValueError('This channel already has different settings; use a scientific migration.')
+    if not matches and _read(saved['request']).get('status') == 'model_accepted':
+        raise ValueError('Accepted review has no matching channel in this input; inspect its provenance.')
+    if not matches:
+        model['channels'].append(channel)
+    models[parent] = extend_surface_model(prior, validate_surface_model(model))
+    proposed = dict(previous, vrc_tst_surface_models=models)
+    input_refresh.validate_models(previous, proposed, case_input.parent)
+    if input_refresh.owner_directory(case_input) is None:
+        raise ValueError('No live PES owner for this input; no driver was launched.')
+    config = _read(saved['systems'][0]['configuration'])
+    a = np.asarray(config['geometry_angstrom'], dtype=float)
+    b = np.asarray(request['positions'], dtype=float)
+    distances = lambda xyz: np.linalg.norm(xyz[:, None]-xyz[None, :], axis=2)
+    summary = dict(status='reviewed', parent=parent, active_space=active,
+        basis_seeds={b:m['orbital_selection'] for b,m in basis_models.items()},
+        source_screen=str(source), request=str(bind_request or saved['request']),
+        geometry_provenance=dict(coordinates_equal=bool(np.array_equal(a, b)),
+            max_pair_distance_change_angstrom=float(np.max(abs(distances(a)-distances(b)))),
+            note='Source is a fixed-geometry orbital screen; production reoptimizes the current geometry.'),
+        drivers_started=0, reconnaissance_jobs_submitted=0)
+    return proposed, summary, chosen
+
+
+def _publish_selection(case_input, previous, proposed, chosen, summary):
+    from kinbot import input_refresh
+    # Validate with the real publisher before making even an archived proposal.
+    # Its apply call repeats validation under locks before writing the input.
+    input_refresh.submit(case_input, proposal=proposed, expected=previous)
+    if previous != proposed:
+        import hashlib
+        digest = hashlib.sha256(json.dumps(proposed,sort_keys=True).encode()).hexdigest()
+        archive = case_input.parent/'orbital_reviews/live_refresh'/digest
+        archive.mkdir(parents=True, exist_ok=True)
+        # Preserve the exact pre-edit input once. A retry may find the proposal
+        # already installed; submit() reconciles its existing receipt then.
+        for name, payload in [('input_before.json',previous), ('input_after.json',proposed),
+                              ('selection.json',chosen)]:
+            path = archive/name
+            if path.exists() and _read(path) != payload:
+                raise ValueError('Existing review archive differs; nothing was overwritten.')
+            atomic_json(path,payload)
+    # Uses the existing journaled live-refresh path, which validates the owner,
+    # accepted input, worker state and additive models. It never starts a driver.
+    refresh = input_refresh.submit(case_input,apply=True,proposal=proposed,expected=previous)
+    return dict(summary, refresh=refresh, status=refresh['status'])
+
+
+def review_batch(production, campaign, plan, *, apply=False):
+    """Install ready, explicitly selected channels once per case, without QC.
+
+    Provisional screens can bind only after actual accepted review requests
+    appear. Waiting cases do not block independent ready cases. Re-running
+    reconciles receipts and never starts a driver or a reconnaissance job.
+    """
+    from contextlib import ExitStack
+    from kinbot import input_refresh
+    production = Path(production).expanduser().resolve(strict=True)
+    campaign = Path(campaign).expanduser().resolve(strict=True)
+    plan = Path(plan).expanduser().resolve(strict=True)
+    controls = _read(plan)
+    if controls.get('schema') != 1 or not controls.get('selections'):
+        raise ValueError('Expected an explicit selection plan.')
+    cases = {}
+    names = set()
+    for item in controls['selections']:
+        name, case = item['name'], item['case']
+        if not recon._SAFE.fullmatch(name) or not recon._SAFE.fullmatch(case) or name in names:
+            raise ValueError('Selection names/cases must be safe and distinct.')
+        names.add(name)
+        cases.setdefault(case, []).append(item)
+    results = {}
+    for case, items in cases.items():
+        case_input = production/case/'input.json'
+        with ExitStack() as stack:
+            if apply:
+                handle = stack.enter_context((case_input.parent/'.kinbot_orbital_review.lock').open('a+'))
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            previous = _read(case_input)
+            proposed = deepcopy(previous)
+            selections, summaries, bindings, waiting = [], [], [], []
+            for item in items:
+                source = campaign/item['name']
+                saved = _saved(source, allow_accepted=True)
+                request = _read(source/'request.json')
+                actual = case_input.parent/request['parent']/'vrctst/orbital_review'/request['reaction']/'request.json'
+                if saved.get('provisional') and not actual.is_file():
+                    waiting.append(dict(channel=item['name'], reason='waiting_for_accepted_channel', request=str(actual)))
+                    continue
+                manifest = _read(saved['systems'][0]['manifest'])
+                if any(j['status'] != 'complete' for j in manifest['jobs']):
+                    waiting.append(dict(channel=item['name'], reason='waiting_for_native_completion'))
+                    continue
+                binding = actual if saved.get('provisional') else None
+                if binding:
+                    bind(source, binding, apply=False)
+                    bindings.append((source, binding))
+                proposed, summary, chosen = _selection(source, case_input,
+                    plan.parent/item['recipe'], proposed, bind_request=binding)
+                selections.append(chosen); summaries.append(summary)
+            if not summaries:
+                results[case] = dict(status='waiting', waiting=waiting)
+                continue
+            summary = dict(status='reviewed', channels=summaries, waiting=waiting,
+                           drivers_started=0, reconnaissance_jobs_submitted=0)
+            # A preceding revision must remain byte-for-byte intact until
+            # consumed. Do not edit its input and then discover it was pending.
+            try:
+                input_refresh.submit(case_input, proposal=proposed, expected=previous)
+            except ValueError as error:
+                if 'input revision is still pending' not in str(error):
+                    raise
+                results[case] = dict(summary, status='waiting_for_previous_refresh', error=str(error))
+                continue
+            if apply:
+                for source, actual in bindings:
+                    bind(source, actual)
+                summary = _publish_selection(case_input, previous, proposed,
+                                              dict(selections=selections), summary)
+            results[case] = summary
+    return dict(cases=results, drivers_started=0, reconnaissance_jobs_submitted=0)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest='action', required=True)
+    prepare_cmd = commands.add_parser('prepare')
+    for name in ('request', 'case_input', 'recipe', 'output'):
+        prepare_cmd.add_argument(name)
+    candidate_cmd = commands.add_parser('candidates')
+    for name in ('source', 'recipe', 'output'):
+        candidate_cmd.add_argument(name)
+    production_cmd = commands.add_parser('production-checks', help='Append native production CC/MR identity probes.')
+    for name in ('production', 'output'):
+        production_cmd.add_argument(name)
+    production_cmd.add_argument('--extend', action='store_true', help='Add missing roles only after every panel allocation has stopped.')
+    commands.add_parser('retry-reference-exports', help='Archive known legacy density-selector failures for retry.').add_argument('output')
+    batch_cmd = commands.add_parser('batch',help='Prepare one shared-cap orbital-only campaign.')
+    for name in ('production','plan','output'):
+        batch_cmd.add_argument(name)
+    bind_cmd = commands.add_parser('bind',help='Bind preliminary evidence to an actual review request.')
+    for name in ('source','request'):
+        bind_cmd.add_argument(name)
+    review_cmd = commands.add_parser('review', help='Apply an explicitly reviewed orbital selection without QC submissions.')
+    for name in ('source', 'case_input', 'recipe'):
+        review_cmd.add_argument(name)
+    review_cmd.add_argument('--apply', action='store_true')
+    proposal_cmd = commands.add_parser('proposal', help='Stage a reviewed model for one controller refresh; no live publication.')
+    for name in ('source', 'case_input', 'recipe', 'output'):
+        proposal_cmd.add_argument(name)
+    reviews_cmd = commands.add_parser('review-batch', help='Publish ready selections once per case, without new QC.')
+    for name in ('production', 'campaign', 'plan'):
+        reviews_cmd.add_argument(name)
+    reviews_cmd.add_argument('--apply', action='store_true')
+    for name in ('run', 'monitor', 'evidence', 'reference-report', 'production-evidence'):
+        command = commands.add_parser(name)
+        command.add_argument('output')
+        if name == 'run':
+            command.add_argument('--report-failures', action='store_true',
+                help='Report terminal independent-batch probe failures without aborting a later campaign.')
+            command.add_argument('--queue-all', action='store_true',
+                help='Queue the finite prepared inventory, overriding reserved-slot and pilot throttles.')
+            command.add_argument('--allow-node', action='append', default=[])
+    args = parser.parse_args()
+    if args.action == 'prepare':
+        result = prepare(args.request, args.case_input, args.recipe, args.output)
+    elif args.action == 'batch':
+        result = batch(args.production,args.plan,args.output)
+    elif args.action == 'bind':
+        result = bind(args.source,args.request)
+    elif args.action == 'candidates':
+        result = candidates(args.source, args.recipe, args.output)
+    elif args.action == 'production-checks':
+        result = production_checks(args.production, args.output, extend=args.extend)
+    elif args.action == 'retry-reference-exports':
+        result = retry_reference_exports(args.output)
+    elif args.action == 'review':
+        result = review(args.source, args.case_input, args.recipe, apply=args.apply)
+    elif args.action == 'proposal':
+        result = proposal(args.source, args.case_input, args.recipe, args.output)
+    elif args.action == 'review-batch':
+        result = review_batch(args.production, args.campaign, args.plan, apply=args.apply)
+    elif args.action == 'run':
+        result = run(args.output, report_failures=args.report_failures,
+                     queue_all=args.queue_all, allow_nodes=args.allow_node)
+    elif args.action == 'evidence':
+        print(evidence(args.output))
+        return
+    elif args.action == 'reference-report':
+        print(reference_report(args.output))
+        return
+    elif args.action == 'production-evidence':
+        print(production_evidence(args.output))
+        return
+    else:
+        from kinbot.orbital_monitor import snapshot, render
+        root = Path(args.output).expanduser().resolve()
+        data = snapshot(root, registry=root/'review_launch.json', include_all=True)
+        states = sorted({_read(s['manifest'])['status']
+                         for s in _read(root/'review_launch.json')['systems']})
+        data['status'] = ', '.join(states)
+        print(render(data, details=True))
+        return
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == '__main__':
+    main()

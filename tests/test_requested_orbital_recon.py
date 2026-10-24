@@ -9,10 +9,7 @@ import pytest
 from kinbot.execution import atomic_json
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location('requested_orbital_recon',
-    ROOT/'examples/anl/tools/requested_orbital_recon.py')
-helper = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(helper)
+from kinbot import requested_orbital_recon as helper
 RECIPE = ROOT/'examples/anl/ch3s_anl1_f12/orbital_reviews/ch2sh_cs_screen.json'
 CANDIDATES = RECIPE.with_name('ch2sh_cs_candidates.json')
 SELECTION = RECIPE.with_name('ch2sh_cs_selected.json')

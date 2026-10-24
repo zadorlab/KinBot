@@ -7,8 +7,7 @@ from kinbot.execution import atomic_json
 from tests.test_requested_orbital_recon import request_tree, completed_screen, RECIPE, SELECTION, helper as screening
 
 ROOT=Path(__file__).resolve().parents[1]
-spec=importlib.util.spec_from_file_location('relaxation',ROOT/'examples/anl/tools/vrc_relaxation_recon.py')
-helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(helper)
+from kinbot import vrc_relaxation_recon as helper
 
 
 def test_relaxed_panel_uses_verified_seeds_and_one_constraint(request_tree):

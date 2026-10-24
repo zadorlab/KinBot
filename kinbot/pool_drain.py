@@ -98,7 +98,7 @@ def pulse(directory, *, force=False):
             ledger = path.parent/'.kinbot_policy_admissions.json'
             claims = json.loads(ledger.read_text()) if ledger.exists() else {}
             jobs = run_policy._queue(path.parent)
-            run_policy._reconcile(path.parent,jobs,claims)
+            run_policy._reconcile(path.parent,jobs,claims,archive=True)
             atomic_json(ledger,claims)
             result['holds'] = reconcile(path,policy,jobs,claims)
             result['status'] = 'reconciled'

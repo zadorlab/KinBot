@@ -12,8 +12,8 @@ import os
 from pathlib import Path
 import sys
 
-import requested_orbital_recon as screens
-import vrc_relaxation_recon as relaxation
+from kinbot import requested_orbital_recon as screens
+from kinbot import vrc_relaxation_recon as relaxation
 from kinbot.execution import atomic_json, file_sha256
 
 

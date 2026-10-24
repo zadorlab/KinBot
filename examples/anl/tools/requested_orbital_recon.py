@@ -601,14 +601,15 @@ def production_checks(production, output, *, extend=False):
     return dict(status='prepared', **record['production_checks'])
 
 
-def run(output, *, report_failures=False):
+def run(output, *, report_failures=False, queue_all=False, allow_nodes=()):
     root = Path(output).expanduser().resolve(strict=True)
     record = _read(root/'review_launch.json')
     if report_failures and not (record.get('reviews') or record.get('candidate_comparison')):
         raise ValueError('Failure reporting requires independent screens or a candidate comparison.')
     with recon._manifest_lock(root):
         try:
-            return _run(root)
+            return (_run(root, queue_all=queue_all, allow_nodes=allow_nodes)
+                    if queue_all or allow_nodes else _run(root))
         except recon.ProbeFailure as error:
             if not report_failures:
                 raise
@@ -656,12 +657,12 @@ def _reference_preflight(record, manifests):
     print('Native export/energy preflight passed; state identity still requires scientific review.', flush=True)
 
 
-def _run(output):
+def _run(output, *, queue_all=False, allow_nodes=()):
     root = Path(output).expanduser().resolve(strict=True)
     record = _saved(root)
     policy = run_policy.read(Path(record['request']).parent) or {}
     slots = policy.get('orbital_review_reserved_slots', 0)
-    if slots < 1:
+    if slots < 1 and not queue_all:
         raise ValueError('No review capacity remains reserved; production may have resumed.')
     # Check setup and scheduler, without starting native work on the login node.
     manifests = [Path(s['manifest']) for s in record['systems']]
@@ -677,8 +678,18 @@ def _run(output):
     for manifest in manifests:
         with recon._manifest_lock(manifest.parent):
             state = _read(manifest)
-            state['slurm_excluded_nodes'] = sorted(set(state.get('slurm_excluded_nodes', []))
-                                                   | set(policy['excluded_nodes']))
+            if queue_all:
+                allowed = set(run_policy._nodes(allow_nodes))
+                previous = set(state.get('slurm_inherited_exclusion_allow', []))
+                state['slurm_excluded_nodes'] = sorted(
+                    (set(state.get('slurm_excluded_nodes', [])) - (allowed - previous))
+                    | (set(policy['excluded_nodes']) - allowed))
+                state['slurm_inherited_exclusion_allow'] = sorted(allowed)
+            else:
+                if allow_nodes:
+                    raise ValueError('Node overrides require explicit --queue-all review scheduling.')
+                state['slurm_excluded_nodes'] = sorted(set(state.get('slurm_excluded_nodes', []))
+                                                       | set(policy['excluded_nodes']))
             atomic_json(manifest, state)
     previous = Path.cwd()
     try:
@@ -687,8 +698,15 @@ def _run(output):
             _reference_preflight(record, manifests)
         options = {'keep_going': True} if (record.get('reviews') or record.get('production_checks')
                                          or record.get('candidate_comparison')) else {}
-        result = recon.run_many(manifests, max_jobs=min(record['max_jobs'], slots),
-                               allocation_retries=2, **options)
+        cap = sum(len(_read(p)['jobs']) for p in manifests) if queue_all else min(record['max_jobs'], slots)
+        if queue_all:
+            record.setdefault('queue_all_previous_max_jobs',record['max_jobs'])
+            record.update(max_jobs=cap,queue_all_scheduling=dict(allowed_nodes=sorted(allowed),
+                          production_model_accepted=False))
+            atomic_json(root/'review_launch.json',record)
+            print(f'Queueing all {cap} prepared probes; orbital predecessor dependencies remain enforced.', flush=True)
+        result = recon.run_many(manifests, max_jobs=cap, allocation_retries=2,
+                               **({'startup_checked': True} if queue_all else {}), **options)
     finally:
         os.chdir(previous)
     statuses = sorted({r['status'] for r in result})
@@ -1241,6 +1259,9 @@ def main():
         if name == 'run':
             command.add_argument('--report-failures', action='store_true',
                 help='Report terminal independent-batch probe failures without aborting a later campaign.')
+            command.add_argument('--queue-all', action='store_true',
+                help='Queue the finite prepared inventory, overriding reserved-slot and pilot throttles.')
+            command.add_argument('--allow-node', action='append', default=[])
     args = parser.parse_args()
     if args.action == 'prepare':
         result = prepare(args.request, args.case_input, args.recipe, args.output)
@@ -1261,7 +1282,8 @@ def main():
     elif args.action == 'review-batch':
         result = review_batch(args.production, args.campaign, args.plan, apply=args.apply)
     elif args.action == 'run':
-        result = run(args.output, report_failures=args.report_failures)
+        result = run(args.output, report_failures=args.report_failures,
+                     queue_all=args.queue_all, allow_nodes=args.allow_node)
     elif args.action == 'evidence':
         print(evidence(args.output))
         return

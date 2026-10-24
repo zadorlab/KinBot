@@ -1029,7 +1029,8 @@ def _prepare(source, output):
             if channel:
                 predecessors[(basis['name'], channel)] = stem
     manifest = {
-        **{key: previous[key] for key in ('excluded_bases', 'excluded_jobs', 'slurm_excluded_nodes', 'startup_retries',
+        **{key: previous[key] for key in ('excluded_bases', 'excluded_jobs', 'slurm_excluded_nodes',
+                                                         'slurm_inherited_exclusion_allow', 'startup_retries',
                                                          'reference_solver_options', 'solver_options') if key in previous},
         'schema': 1, 'source': data['_source'], 'title': data['title'],
         'electron_count': data['_electrons'], 'jobs': records,
@@ -2035,7 +2036,7 @@ def _recover_slurm_startup_failures(path, manifest, live):
     atomic_json(Path(path), manifest)
 
 
-def _slurm_submission_options(batch, excluded):
+def _slurm_submission_options(batch, excluded, *, allow_inherited=()):
     """Pass exclusions through Slurm's CLI, preserving script/site choices.
 
     SBATCH_EXCLUDE is not a Slurm input variable. Read it only for compatibility
@@ -2043,7 +2044,9 @@ def _slurm_submission_options(batch, excluded):
     """
     if any(not isinstance(node, str) or not _SAFE.fullmatch(node) for node in excluded):
         raise ValueError('Invalid recorded Slurm exclusion node.')
-    values = [os.environ.get('SBATCH_EXCLUDE', ''), *sorted(excluded)]
+    if any(not isinstance(node, str) or not _SAFE.fullmatch(node) for node in allow_inherited):
+        raise ValueError('Invalid inherited exclusion override node.')
+    values = [os.environ.get('SBATCH_EXCLUDE', ''), *([] if allow_inherited else sorted(excluded))]
     auto_time = False
     partition = ''
     for line in batch.splitlines():
@@ -2067,8 +2070,18 @@ def _slurm_submission_options(batch, excluded):
                 values.append(token.split('=', 1)[1])
             elif token.startswith('-x') and len(token) > 2:
                 values.append(token[2:])
-    value = ','.join(dict.fromkeys(v for v in values if v))
-    options = ['--exclude=' + value] if value else []
+    if allow_inherited:
+        inherited = set()
+        for value in dict.fromkeys(v for v in values if v):
+            expanded = subprocess.run(['scontrol', 'show', 'hostnames', value],
+                capture_output=True, text=True, check=True, timeout=20)
+            inherited.update(expanded.stdout.split())
+        # The explicit override applies to inherited script/environment values.
+        # Newly learned allocation failures in the manifest still win.
+        value = ','.join(sorted((inherited - set(allow_inherited)) | set(excluded)))
+    else:
+        value = ','.join(dict.fromkeys(v for v in values if v))
+    options = ['--exclude=' + value] if value or allow_inherited else []
     if auto_time and not os.environ.get('SBATCH_TIMELIMIT'):
         from kinbot.run_walltime import partition_walltime
         options.append('--time=' + partition_walltime(
@@ -2249,7 +2262,9 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
         batch = Path(job['directory']) / (job['name'] + '.sbatch')
         batch.write_text(wrap_script(batch.read_text(), identity=job['name'],
                                      directories=[job['directory']]))
-        options = _slurm_submission_options(batch.read_text(), manifest.get('slurm_excluded_nodes', []))
+        options = _slurm_submission_options(batch.read_text(), manifest.get('slurm_excluded_nodes', []),
+            **({'allow_inherited': manifest['slurm_inherited_exclusion_allow']}
+               if manifest.get('slurm_inherited_exclusion_allow') else {}))
         command = ['sbatch', '--export=ALL', '--parsable', *options, job['name'] + '.sbatch']
         job['submission_status'] = 'submitting'
         job['submission_command'] = command

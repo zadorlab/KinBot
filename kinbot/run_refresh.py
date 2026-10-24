@@ -300,7 +300,7 @@ def _stopped(pid):
 
 
 @contextmanager
-def _freeze(root, records):
+def _freeze(root, records, *, inventory=None):
     """Use Linux pidfds so neither STOP, KILL nor CONT can target a reused PID."""
     handles = []
     stopped = []
@@ -322,7 +322,7 @@ def _freeze(root, records):
                 raise RefreshTransientError('Controllers did not quiesce; original processes resumed.')
             time.sleep(.05)
         # A controller could have spawned a child between inventory and STOP.
-        current = _controllers(root)
+        current = (inventory or _controllers)(root)
         if {(p['pid'], p['starttime']) for p in current} != {
                 (p['pid'], p['starttime']) for p in records}:
             raise RefreshTransientError('Controller tree changed; original processes resumed.')

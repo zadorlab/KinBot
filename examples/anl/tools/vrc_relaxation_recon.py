@@ -140,7 +140,8 @@ def prepare(production,plan,output):
                     or saved['production']!=str(production)
                     or [identity(dispatch._load(g)[1]) for g in saved['graphs']]!=[identity(s) for s in specs]):
                 raise ValueError('Existing panel plan or evidence changed; inspect before preparing another panel.')
-        run_policy.update(output,max_jobs=min(3,slots),exclude=policy['excluded_nodes'],manage_pending=True)
+        if not (output/'queue_all_policy.json').exists():
+            run_policy.update(output,max_jobs=min(3,slots),exclude=policy['excluded_nodes'],manage_pending=True)
         graphs=[str(select_graph(output,'probe',spec)) for spec in specs]
         atomic_json(receipt,dict(schema=1,production=str(production),plan_sha256=file_sha256(plan),graphs=graphs))
     return dict(graphs=graphs,production_model_accepted=False)
@@ -173,16 +174,30 @@ def report(output):
     return dict(panels=result,production_model_accepted=False)
 
 
-def run(output):
+def run(output, *, queue_all=False, allow_nodes=()):
     output=Path(output).resolve(strict=True);record=read(output/'panel.json')
     with ExitStack() as locks:
         for p in [output/'.run.lock',*[Path(g)/'drive.lock' for g in record['graphs']]]:
             stream=locks.enter_context(p.open('a'));fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
         for graph in record['graphs']:
             dispatch.preflight_until_scheduler_ready(graph)
+        if queue_all:
+            allowed=set(run_policy._nodes(allow_nodes))
+            marker=output/'queue_all_policy.json'
+            previous=set(read(marker).get('allowed_nodes',[])) if marker.exists() else set()
+            policy=run_policy.read(record['production'])
+            run_policy.update(output,max_jobs=len(record['graphs']),
+                exclude=set(policy['excluded_nodes'])-allowed,allow=allowed-previous,manage_pending=True)
+            atomic_json(marker,dict(allowed_nodes=sorted(allowed),queue_all=True))
+            print(f'Queueing all {len(record["graphs"])} prepared relaxed probes; live jobs are adopted.',flush=True)
+        elif allow_nodes:
+            raise ValueError('Node overrides require explicit --queue-all review scheduling.')
         while True:
-            policy=run_policy.read(record['production']);slots=policy.get('orbital_review_reserved_slots',0)
-            run_policy.update(output,max_jobs=min(3,slots),exclude=policy['excluded_nodes'],manage_pending=True)
+            if queue_all:
+                slots=run_policy.read(output)['max_jobs']
+            else:
+                policy=run_policy.read(record['production']);slots=policy.get('orbital_review_reserved_slots',0)
+                run_policy.update(output,max_jobs=min(3,slots),exclude=policy['excluded_nodes'],manage_pending=True)
             try:
                 states=[dispatch.advance(g,submit=slots>0) for g in record['graphs']]
             except dispatch.SchedulerUnavailableError as error:
@@ -198,9 +213,14 @@ def run(output):
 def main():
     p=argparse.ArgumentParser(description=__doc__);commands=p.add_subparsers(dest='command',required=True)
     prep=commands.add_parser('prepare');prep.add_argument('production');prep.add_argument('plan');prep.add_argument('output')
-    for name in ('run','report'):commands.add_parser(name).add_argument('output')
+    for name in ('run','report'):
+        sub=commands.add_parser(name);sub.add_argument('output')
+        if name=='run':
+            sub.add_argument('--queue-all',action='store_true')
+            sub.add_argument('--allow-node',action='append',default=[])
     a=p.parse_args();print(json.dumps(prepare(a.production,a.plan,a.output) if a.command=='prepare'
-                                    else globals()[a.command](a.output),indent=2))
+                                    else run(a.output,queue_all=a.queue_all,allow_nodes=a.allow_node)
+                                    if a.command=='run' else report(a.output),indent=2))
 
 
 if __name__=='__main__':main()

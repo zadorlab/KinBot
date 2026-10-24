@@ -110,3 +110,39 @@ ten relaxed probes run automatically. Inspect
 `followup_status.json` under the review directory. Native success, orbital
 continuity, relaxed connectivity and the eventual production model still need
 review; no diagnostic completion is automatically promoted.
+
+### Queue the independent diagnostic inventory together
+
+`examples/anl/tools/queue_progress_review.py PRODUCTION_ROOT --allow-node node16
+--allow-node node21 --allow-node node24 --allow-node node34` replaces only the
+review launchers. It queues the original eight relaxed probes, the 24 compact
+CASSCF/CASPT2 comparisons, and the ten additional relaxed probes concurrently.
+Completed work and live Slurm allocations are adopted. The original fixed
+screens are also reconciled. No production model is published.
+
+This is an explicit change from the three reserved review slots: all prepared
+review tasks may enter Slurm, which determines when and where they run. The
+production cap and exclusions stay unchanged; the previous aggregate 22-job
+ceiling is therefore no longer a ceiling for production plus this review.
+Only the four explicitly allowed nodes are removed from inherited exclusions.
+New allocation failures can exclude them again. The existing independent
+fixed-probe pilot throttle is waived by `--queue-all`; real orbital-predecessor
+dependencies and all native scientific validation remain enforced.
+
+The added relaxed probes consume the original, hash-verified CASCI seeds, not
+outputs of the compact comparison. Their old wait behind that comparison was
+an orchestration choice, not a data dependency. They remain diagnostic-only.
+Changed/missing seed evidence stops preflight before any review owner is
+replaced. The handoff uses PID/start-time verified handles, waits out local
+submission children and submission journals, then retains every Slurm job.
+It holds the old handoff and follow-up locks until the new owners finish.
+Repeated invocation preserves graph and job identities. Do not launch the old
+sequential handoff while this owner is running.
+
+Progress is written to `queue_all_{screens,relaxations,compact,compact_relaxations}.log`
+in the review directory. The finite background supervisor prints child-owner
+status every 20 seconds and writes `queue_all_finished.json` when they exit.
+An owner exit code of zero means its monitoring loop finished, not that every
+native result is scientifically accepted. Inspect the evidence and relaxation
+reports before publishing any model. No production controller replacement is
+needed for this diagnostic scheduling change.

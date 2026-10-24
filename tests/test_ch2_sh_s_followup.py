@@ -107,6 +107,78 @@ def test_changed_native_source_cannot_be_reused(tree):
         followup.stage(production,review,destination)
 
 
+def legacy_metadata_change(tree):
+    """Reproduce panels prepared before queue-all rewrote source exclusions."""
+    production,review,destination,source,*_=tree
+    staged=followup.stage(production,review,destination)
+    shutil.rmtree(destination/'relaxations/.native_evidence')
+    from kinbot.execution import file_sha256
+    old=file_sha256(destination/'candidates/source_manifest.json')
+    path=source/'native/reconnaissance.json'
+    assert old==file_sha256(path)
+    for graph in staged['graphs']:
+        proof=followup.read(Path(graph)/'workflow.json')['intent']['relaxation_recon']
+        assert proof['evidence'][str(path)]==old
+    m=followup.read(path)
+    m.update(slurm_excluded_nodes=['node34'],slurm_inherited_exclusion_allow=['node16','node21','node24'])
+    atomic_json(path,m)
+    return staged
+
+
+def test_legacy_manifest_bookkeeping_adopts_exact_graphs_and_native_records(tree):
+    production,review,destination,source,*_=tree
+    first=legacy_metadata_change(tree)
+    retained={p:p.read_bytes() for g in first['graphs'] for p in Path(g).rglob('*') if p.is_file()}
+    before={p:p.read_bytes() for p in destination.rglob('*') if p.is_file()}
+    assert followup.stage(production,review,destination,validate_only=True)==first
+    assert {p:p.read_bytes() for p in destination.rglob('*') if p.is_file()}==before
+    for _ in range(2):assert followup.stage(production,review,destination)==first
+    assert all(p.read_bytes()==data for p,data in retained.items())
+    assert len(list((destination/'relaxations').glob('probe_*')))==10
+    assert len(list((destination/'relaxations/.native_evidence').glob('*.json')))==2
+    # Later resumes use the panel's own immutable snapshots, without depending
+    # on a candidate directory or resetting the original graph bindings.
+    path=source/'native/reconnaissance.json';m=followup.read(path)
+    m['slurm_excluded_nodes'].append('another_bad_node');atomic_json(path,m)
+    result=relaxation.prepare(production,PLAN/'ch2_sh_s_cs_relaxations.json',destination/'relaxations')
+    assert result['graphs']==first['graphs']
+    assert all(p.read_bytes()==data for p,data in retained.items())
+
+
+def test_legacy_panel_requires_the_matching_historical_manifest(tree):
+    production,review,destination,*_=tree
+    legacy_metadata_change(tree)
+    with pytest.raises(ValueError,match='Missing hash-matched'):
+        relaxation.prepare(production,PLAN/'ch2_sh_s_cs_relaxations.json',
+                           destination/'relaxations',validate_only=True)
+
+
+@pytest.mark.parametrize('change',['snapshot','threshold','native','selection','request'])
+def test_manifest_hash_exception_never_masks_scientific_changes(tree,change):
+    production,review,destination,source,request,case=tree
+    first=legacy_metadata_change(tree)
+    if change=='snapshot':
+        # Hash-bound legacy evidence cannot be replaced by a current manifest.
+        snap=destination/'candidates/source_manifest.json'
+        snap.write_bytes((source/'native/reconnaissance.json').read_bytes())
+    elif change=='threshold':
+        par=followup.read(case);par['vrc_tst_scan_fmax']=.001;atomic_json(case,par)
+    elif change=='native':
+        m=followup.read(source/'native/reconnaissance.json');j=m['jobs'][-1]
+        out=Path(j['directory'])/(j['name']+'.out');out.write_text('changed output')
+        from kinbot.execution import file_sha256
+        j['output_sha256']=file_sha256(out);atomic_json(source/'native/reconnaissance.json',m)
+    elif change=='request':
+        data=followup.read(request);data['positions'][0][0]+=.001;atomic_json(request,data)
+    else:
+        g=Path(first['graphs'][0]);spec=followup.read(g/'workflow.json')
+        spec['tasks'][0]['profile']['calculator_kwargs']['state_model']['orbital_selection']['active_indices']=[18,20,21,22]
+        atomic_json(g/'workflow.json',spec)
+        from kinbot.execution import file_sha256
+        state=followup.read(g/'state.json');state['spec_sha256']=file_sha256(g/'workflow.json');atomic_json(g/'state.json',state)
+    with pytest.raises(ValueError):followup.stage(production,review,destination,validate_only=True)
+
+
 def test_recipe_change_during_wait_prevents_any_campaign_action(tree,tmp_path,monkeypatch):
     production,review,destination,*_=tree
     plan=tmp_path/'plan';plan.mkdir()

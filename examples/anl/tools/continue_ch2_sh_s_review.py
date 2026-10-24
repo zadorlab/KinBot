@@ -24,7 +24,7 @@ def read(path):
     return json.loads(Path(path).read_text())
 
 
-def stage(production, review, destination, plan=PLAN):
+def stage(production, review, destination, plan=PLAN, *, validate_only=False):
     source = review/'screens/ch2_sh_s_cs'
     recipe = plan/'ch2_sh_s_cs_candidates.json'
     target = destination/'candidates'
@@ -36,20 +36,23 @@ def stage(production, review, destination, plan=PLAN):
             raise ValueError('Existing candidate provenance or recipe differs; preserve and inspect it.')
         old = read(target/'source_manifest.json')
         now = read(current['systems'][0]['manifest'])
-        fields = ('name', 'basis', 'input_sha256', 'probe_active_space',
-                  'wfu', 'wfu_sha256', 'output_sha256')
-        identity = lambda m: [{k: j.get(k) for k in fields} for j in m['jobs']]
-        if identity(old) != identity(now):
+        if relaxation.native_evidence(old) != relaxation.native_evidence(now):
             raise ValueError('Source native evidence changed since the candidates were prepared.')
     else:
-        screens.candidates(source, recipe, target)
+        if target.exists():
+            raise ValueError('Incomplete candidate preparation; inspect the saved directory before replacing owners.')
+        if not validate_only:
+            screens.candidates(source, recipe, target)
     # This repeats native output/WFU checks and rejects operator-rejected paths.
     panel = relaxation.prepare(production, plan/'ch2_sh_s_cs_relaxations.json',
-                               destination/'relaxations')
+                               destination/'relaxations', validate_only=validate_only,
+                               evidence_snapshots=([target/'source_manifest.json']
+                                   if (target/'review_launch.json').exists() else []))
     receipt = dict(schema=1, production=str(production), source=str(source),
                    candidates=str(target), graphs=panel['graphs'],
                    recipe_sha256=file_sha256(recipe), production_model_accepted=False)
-    atomic_json(destination/'staged.json', receipt)
+    if not validate_only:
+        atomic_json(destination/'staged.json', receipt)
     return receipt
 
 

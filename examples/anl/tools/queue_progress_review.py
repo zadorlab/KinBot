@@ -121,7 +121,7 @@ def submission_check(review):
             raise run_refresh.RefreshTransientError('A review submission is being journaled; retrying the idle boundary.')
 
 
-def stop_owners(production, review, marker, *, timeout=180):
+def stop_owners(production, review, marker, *, timeout=180, validate_saved=None):
     run_refresh._probe_process_handles()
     deadline = time.monotonic()+timeout
     while True:
@@ -131,9 +131,23 @@ def stop_owners(production, review, marker, *, timeout=180):
                 for _, script, folder in campaigns(review):
                     if script.startswith('vrc') and folder.exists():
                         guards.enter_context(run_refresh._submission_guard(folder))
+                        # Never freeze an owner halfway through a panel or
+                        # workflow/state transaction, then wait for its lock.
+                        paths=[folder/'.prepare.lock']
+                        if (folder/'panel.json').exists():
+                            paths += [Path(g)/'.manifest.lock' for g in read(folder/'panel.json')['graphs']]
+                        for path in paths:
+                            if path.exists():
+                                stream=guards.enter_context(path.open('r'))
+                                try:
+                                    fcntl.flock(stream,fcntl.LOCK_SH|fcntl.LOCK_NB)
+                                except BlockingIOError:
+                                    raise run_refresh.RefreshTransientError('Review panel is being staged: '+str(path)) from None
                 with run_refresh._freeze(review, records,
                         inventory=lambda _: inventory(production, review)) as handles:
                     submission_check(review)
+                    if validate_saved is not None:
+                        validate_saved()
                     jobs = run_cleanup._jobs(review)
                     atomic_json(marker, dict(phase='stopping_review_owners', owners=records,
                                              retained_jobs=jobs, production=str(production)))
@@ -163,6 +177,7 @@ def acquire(stack, path, timeout=30):
 
 
 def preflight(production, review):
+    validate_existing(production, review)
     screens._saved(review/'screens')
     # Temporary decks are never submitted. Preparation verifies the completed
     # native seed hashes, request identity, constraints and both candidate CASs.
@@ -172,6 +187,12 @@ def preflight(production, review):
         for graph in [*staged['graphs'], *original['graphs']]:
             dispatch.preflight(graph)
     run_cleanup._jobs(review)  # An unavailable scheduler cannot mean no jobs.
+
+
+def validate_existing(production, review):
+    """Read the actual destinations, not just freshly reconstructed decks."""
+    relaxation.prepare(production, PLAN/'relaxations.json', review/'relaxations', validate_only=True)
+    followup.stage(production, review, review/'ch2_sh_s_followup', validate_only=True)
 
 
 def expand_pending(review, allowed, journal):
@@ -265,7 +286,8 @@ def perform(production, review, pin, allowed, *, replace_owner=False):
         marker = review/'queue_all_refresh.json'
         if marker.exists():
             atomic_json(review/'.queue_all_history'/(uuid.uuid4().hex+'.json'),read(marker))
-        jobs = stop_owners(production, review, marker)
+        jobs = stop_owners(production, review, marker,
+                           validate_saved=lambda: validate_existing(production, review))
         if replace_owner:
             acquire(locks, review/'.queue_all.lock')
         acquire(locks, review/'.handoff.lock')

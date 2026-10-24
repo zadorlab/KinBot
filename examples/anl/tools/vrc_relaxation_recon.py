@@ -7,6 +7,7 @@ import argparse
 from contextlib import ExitStack
 from copy import deepcopy
 import fcntl
+import hashlib
 import json
 from pathlib import Path
 import time
@@ -14,17 +15,75 @@ import time
 import numpy as np
 from ase.io import read as atoms_read
 from kinbot.anl import dispatch
-from kinbot.execution import atomic_json, file_sha256
+from kinbot.execution import atomic_json, atomic_text, file_sha256
 from kinbot import molpro_reconnaissance as recon, reaction_decisions, run_policy
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.electronic_states import _canonical_smiles
 from kinbot.molpro import validate_vrc_state_model
 from kinbot.parameters import Parameters
-from kinbot.vrc_graph import select_graph, identity
+from kinbot.vrc_graph import select_graph, scientific_spec
 
 
 def read(path):
     return json.loads(Path(path).read_text())
+
+
+def native_evidence(manifest):
+    """Calculation identity, excluding mutable scheduling/derived audit fields.
+
+    Input/output/WFU hashes bind the native calculation; geometry, model and
+    seed provenance are also explicit. Neither exclusions nor scheduler status
+    identify a new calculation. This is not a scientific acceptance verdict.
+    """
+    fields = ('name', 'directory', 'basis', 'anchor', 'input_sha256', 'template_sha256',
+              'probe_active_space', 'probe_method', 'state_model', 'root_states',
+              'symbols', 'geometry_angstrom', 'distance_angstrom', 'spin_context',
+              'channel', 'orientation', 'correlation_checks', 'orbital_predecessor',
+              'initial_record', 'initial_wfu_sha256', 'wfu', 'wfu_sha256',
+              'output_sha256', 'reference_review_contract_sha256')
+    return dict(schema=manifest.get('schema'), source=manifest.get('source'),
+                electron_count=manifest.get('electron_count'),
+                jobs=[{k: j.get(k) for k in fields} for j in manifest['jobs']])
+
+
+def _panel_evidence(specs, output, evidence_snapshots):
+    """Read current manifests once and find hash-bound historical snapshots."""
+    paths = {str(Path(read(Path(s['intent']['relaxation_recon']['source_screen'])/
+                          'review_launch.json')['systems'][0]['manifest']).resolve())
+             for s in specs}
+    current = {p: Path(p).read_bytes() for p in paths}
+    snapshots = {}
+    for p in [*evidence_snapshots, *sorted((output/'.native_evidence').glob('*.json'))]:
+        data = Path(p).read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
+        if Path(p).parent == output/'.native_evidence' and Path(p).stem != digest:
+            raise ValueError('Saved native manifest snapshot changed: '+str(p))
+        snapshots[digest] = data
+    for s in specs:
+        evidence = s['intent']['relaxation_recon']['evidence']
+        for path in paths & evidence.keys():
+            if hashlib.sha256(current[path]).hexdigest() != evidence[path]:
+                raise ValueError('Native manifest changed during panel validation; repeat at an idle boundary.')
+    snapshots.update({hashlib.sha256(data).hexdigest(): data for data in current.values()})
+    return current, snapshots
+
+
+def _same_panel(saved, wanted, current, snapshots):
+    before, after = scientific_spec(saved), scientific_spec(wanted)
+    old = before['intent']['relaxation_recon']['evidence']
+    new = after['intent']['relaxation_recon']['evidence']
+    for path, data in current.items():
+        if path not in old or path not in new or old[path] == new[path]:
+            continue
+        historical = snapshots.get(old[path])
+        if historical is None:
+            raise ValueError('Missing hash-matched native manifest snapshot: '+path)
+        if native_evidence(json.loads(historical)) != native_evidence(json.loads(data)):
+            raise ValueError('Native calculation evidence changed: '+path)
+        # Only this verified manifest hash may differ. All other provenance,
+        # geometry, theory, state definitions and constraints remain exact.
+        old[path] = new[path]
+    return before == after
 
 
 def specifications(source, request, selection, case_input, *, distances_angstrom=None):
@@ -54,11 +113,14 @@ def specifications(source, request, selection, case_input, *, distances_angstrom
         p.characterize();molecules.append(p)
     if not np.array_equal(molecules[0].bond01,molecules[1].bond01):
         raise ValueError('Parent connectivity/atom order differs from the orbital screen.')
-    manifest=read(record['systems'][0]['manifest']);jobs={j['name']:j for j in manifest['jobs']}
+    manifest_path=Path(record['systems'][0]['manifest']).resolve()
+    manifest_bytes=manifest_path.read_bytes()
+    manifest=json.loads(manifest_bytes);jobs={j['name']:j for j in manifest['jobs']}
     required=chosen.get('required_complete_jobs',list(jobs))
     for name in required:
         job=jobs[name]
         if (job['status']!='complete' or job.get('validation_errors')
+                or file_sha256(Path(job['directory'])/(name+'.inp'))!=job['input_sha256']
                 or file_sha256(job['wfu'])!=job['wfu_sha256']
                 or file_sha256(Path(job['directory'])/(name+'.out'))!=job['output_sha256']):
             raise ValueError('Native orbital screen is incomplete or changed: '+name)
@@ -102,7 +164,8 @@ def specifications(source, request, selection, case_input, *, distances_angstrom
         proof=dict(reaction=current['reaction'],source_screen=str(source),request=str(request),
             distance_angstrom=anchor['distance_angstrom'],maps=maps,coordinate=pair,
             reference_positions=reference,reference_bonds=reference_species.bond01.tolist(),
-            evidence={str(p):file_sha256(p) for p in (request,selection,Path(record['systems'][0]['manifest']))})
+            evidence={str(request):file_sha256(request),str(selection):file_sha256(selection),
+                      str(manifest_path):hashlib.sha256(manifest_bytes).hexdigest()})
         task=dict(id='relaxed_scan',kind='ase_optimize',geometry_from='initial',geometry_output='final.xyz',
             profile=dict(calculator='molpro',method=method,basis=basis,command='molpro',optimizer='sella',
                 calculator_kwargs=dict(state_model=model,caspt2_shift=par['vrc_tst_scan_shift'],
@@ -119,7 +182,7 @@ def specifications(source, request, selection, case_input, *, distances_angstrom
     return specs
 
 
-def prepare(production,plan,output):
+def prepare(production,plan,output, *, validate_only=False, evidence_snapshots=()):
     production,plan=Path(production).resolve(strict=True),Path(plan).resolve(strict=True)
     output=Path(output).resolve()
     if output.is_relative_to(production):raise ValueError('Keep diagnostic panels outside production.')
@@ -130,19 +193,39 @@ def prepare(production,plan,output):
         specs.extend(specifications(production.parent/entry['source'],production/entry['request'],
             plan.parent/entry['selection'],production/entry['case_input'],
             distances_angstrom=entry.get('distances_angstrom')))
-    output.mkdir(parents=True,exist_ok=True)
-    with (output/'.prepare.lock').open('a') as lock:
-        fcntl.flock(lock,fcntl.LOCK_EX)
+    with ExitStack() as locks:
+        if not validate_only:
+            output.mkdir(parents=True,exist_ok=True)
+            lock=locks.enter_context((output/'.prepare.lock').open('a'))
+            fcntl.flock(lock,fcntl.LOCK_EX)
+        current,snapshots=_panel_evidence(specs,output,evidence_snapshots)
         receipt=output/'panel.json'
+        graphs=[]
         if receipt.exists():
             saved=read(receipt)
+            graphs=saved['graphs']
             if (saved['plan_sha256']!=file_sha256(plan)
                     or saved['production']!=str(production)
-                    or [identity(dispatch._load(g)[1]) for g in saved['graphs']]!=[identity(s) for s in specs]):
+                    or len(graphs)!=len(specs) or len(set(graphs))!=len(graphs)
+                    or any(Path(g).resolve().parent!=output for g in graphs)
+                    or not all(_same_panel(dispatch._load(g)[1],s,current,snapshots)
+                               for g,s in zip(graphs,specs))):
                 raise ValueError('Existing panel plan or evidence changed; inspect before preparing another panel.')
+        elif any(output.glob('probe_*/workflow.json')):
+            raise ValueError('Incomplete panel preparation; inspect saved graphs before replacing owners.')
+        if validate_only:
+            return dict(graphs=graphs,production_model_accepted=False)
+        # Preserve historical bytes and existing graph/workflow/job identities.
+        # A legacy panel may use a hash-matched candidate source snapshot.
+        for digest,data in snapshots.items():
+            path=output/'.native_evidence'/(digest+'.json')
+            path.parent.mkdir(exist_ok=True)
+            if not path.exists():
+                atomic_text(path,data.decode('utf-8'))
         if not (output/'queue_all_policy.json').exists():
             run_policy.update(output,max_jobs=min(3,slots),exclude=policy['excluded_nodes'],manage_pending=True)
-        graphs=[str(select_graph(output,'probe',spec)) for spec in specs]
+        if not receipt.exists():
+            graphs=[str(select_graph(output,'probe',spec)) for spec in specs]
         atomic_json(receipt,dict(schema=1,production=str(production),plan_sha256=file_sha256(plan),graphs=graphs))
     return dict(graphs=graphs,production_model_accepted=False)
 

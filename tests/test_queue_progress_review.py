@@ -12,7 +12,8 @@ import pytest
 
 from kinbot import molpro_reconnaissance as recon, run_policy, run_refresh
 from kinbot.execution import atomic_json
-from tests.test_ch2_sh_s_followup import tree, followup, screens, relaxation
+from tests.test_ch2_sh_s_followup import tree, followup, screens, relaxation, legacy_metadata_change
+from tests.test_requested_orbital_recon import completed_screen
 
 sys.modules.setdefault('continue_ch2_sh_s_review',followup)
 spec=importlib.util.spec_from_file_location('queue_review',Path(__file__).resolve().parents[1]/
@@ -212,16 +213,16 @@ def test_handoff_repeat_adopts_identical_job_ids_and_keeps_production_unchanged(
     events=[]
     monkeypatch.setattr(queue,'preflight',lambda *a:events.append('preflight'))
     jobs=[dict(job_id='live-42',directory=str(review/'relaxations'),state='RUNNING')]
-    def stop(prod,rev,marker):
+    def stop(prod,rev,marker,**kwargs):
         events.append('stop-review')
         atomic_json(marker,dict(retained_jobs=jobs))
         return jobs
     monkeypatch.setattr(queue,'stop_owners',stop)
     real=relaxation.prepare
-    def original(prod,plan,out):
+    def original(prod,plan,out,**kwargs):
         if out==review/'relaxations':
             events.append('adopt-original');return {'graphs':[]}
-        return real(prod,plan,out)
+        return real(prod,plan,out,**kwargs)
     monkeypatch.setattr(relaxation,'prepare',original)
     monkeypatch.setattr(queue,'expand_pending',lambda *a:None)
     submitted={}
@@ -270,7 +271,7 @@ def test_explicit_replacement_releases_old_supervisor_lock_before_adoption(tree,
     def preflight(*args):
         assert not old.closed
         events.append('preflight')
-    def stop(prod,rev,marker):
+    def stop(prod,rev,marker,**kwargs):
         events.append('verified-stop')
         old.close()
         atomic_json(marker,dict(retained_jobs=[dict(job_id='42')]))
@@ -347,3 +348,148 @@ def test_real_panel_retries_scratch_only_and_adopts_live_and_complete(tree,monke
         assert Path(entry['previous_attempt'],'execution.json').exists()
     assert all((g/'workflow.json').read_bytes()==data for g,data in science.items())
     assert all(p.read_bytes()==data for p,data in unchanged.items())
+
+
+@pytest.fixture
+def full_review(tree):
+    production,review,destination,source,request,case=tree
+    # The real two-channel plan, plus the real compact follow-up. Native
+    # artifacts are synthetic; only orchestration/provenance is tested here.
+    positions=[[1.2000100119,-.4655510032,.1013882575],[.9455572501,.7518250541,1.3204837046],
+        [.2070132629,-.3355235642,2.8547670677],[-.134624981,1.3246843886,.7341794664],
+        [.3345123258,-.9791964859,-.2861472967],[2.1494724455,-.9711253636,.1677215698]]
+    for entry in queue.read(queue.PLAN/'relaxations.json')['panels']:
+        recipe=queue.PLAN.parent/'r7_additional_20261021'/(Path(entry['source']).name+'.json')
+        req=production/entry['request']
+        atomic_json(req,dict(queue.read(recipe)['request_match'],schema=1,status='needs_review',positions=positions))
+        completed_screen((req,case,production.parent/entry['source']),recipe)
+    record=screens._saved(source)
+    atomic_json(review/'screens/review_launch.json',dict(schema=1,files={},reviews=[str(source)],
+        production_policy=record['production_policy'],systems=record['systems']))
+    original=relaxation.prepare(production,queue.PLAN/'relaxations.json',review/'relaxations')
+    compact=legacy_metadata_change(tree)
+    # Complete the compact comparison once, retaining native result identities.
+    for system in queue.read(destination/'candidates/review_launch.json')['systems']:
+        path=Path(system['manifest']);m=queue.read(path)
+        for i,j in enumerate(m['jobs']):j.update(status='complete',job_id=str(900+i))
+        atomic_json(path,m)
+    return tree,[Path(g) for g in [*original['graphs'],*compact['graphs']]]
+
+
+def process_doubles(monkeypatch,production,review):
+    rows=[process(1234,'vrc_relaxation_recon.py',['run',review/'relaxations','--queue-all'],review)]
+    signals=[]
+    monkeypatch.setattr(queue.run_cleanup,'_processes',lambda _:rows)
+    monkeypatch.setattr(run_refresh,'_probe_process_handles',lambda:None)
+    monkeypatch.setattr(run_refresh,'_pidfd_open',lambda pid:os.open(os.devnull,os.O_RDONLY))
+    monkeypatch.setattr(run_refresh,'_starttime',lambda pid:str(pid*10))
+    monkeypatch.setattr(run_refresh,'_stopped',lambda pid:True)
+    def send(fd,sig):
+        signals.append(sig)
+        if sig==signal.SIGKILL:rows.clear()
+    monkeypatch.setattr(run_refresh,'_pidfd_send_signal',send)
+    return signals
+
+
+def test_full_saved_review_handoff_recovers_legacy_metadata_and_fifteen_scratch_failures(full_review,monkeypatch):
+    from kinbot.anl import dispatch
+    from tests.test_anl_dispatch import _mock_execution
+    tree,graphs=full_review
+    production,review,destination,source,*_=tree
+    _mock_execution(graphs[0],'relaxed_scan',geometry='final.xyz')
+    for i,g in enumerate(graphs[1:],1):
+        state=dispatch._load(g)[2];e=state['tasks']['relaxed_scan']
+        e.update(status='submitted' if i<3 else 'failed',job_id=str(100+i))
+        atomic_json(g/'state.json',state)
+        if i>=3:
+            atomic_json(g/'tasks/relaxed_scan/execution.json',dict(schema=1,task_id='relaxed_scan',
+                status='failed',failure_phase='scratch_setup',retryable_scratch_node=True,
+                geometry_sha256=e['geometry_sha256'],slurm_job_id=e['job_id'],execution_node='node34',
+                error='No verified local QC scratch is usable: permission denied'))
+    retained={p:p.read_bytes() for base in (production,destination/'candidates',graphs[0]/'tasks')
+              for p in base.rglob('*') if p.is_file()}
+    workflows={g:(g/'workflow.json').read_bytes() for g in graphs}
+    native_before=(source/'native/reconnaissance.json').read_bytes()
+    jobs=[dict(job_id=str(100+i),directory=str(graphs[i]),state='RUNNING') for i in (1,2)]
+    monkeypatch.setattr(queue.run_cleanup,'_jobs',lambda _:jobs)
+    signals=process_doubles(monkeypatch,production,review)
+    checked=[]
+    monkeypatch.setattr(dispatch,'preflight',lambda g:checked.append(g))
+    monkeypatch.setattr(dispatch,'preflight_until_scheduler_ready',lambda g:None)
+    monkeypatch.setenv('KINBOT_QC_SCRATCH_RETRIES','2')
+    submitted=[]
+    monkeypatch.setattr(dispatch,'_job_active',lambda j:j in ['101','102',*submitted])
+    def submit(command,*,cwd,**kwargs):
+        assert 'node34' in (cwd/'job.slurm').read_text()
+        ident=str(500+len(submitted));submitted.append(ident)
+        return SimpleNamespace(returncode=0,stdout=ident,stderr='')
+    monkeypatch.setattr(run_policy,'submit',submit)
+    class PollFinished(Exception):pass
+    monkeypatch.setattr(relaxation.time,'sleep',lambda _:(_ for _ in ()).throw(PollFinished()))
+    launches=[]
+    class Child:
+        def __init__(self,command,**kwargs):
+            assert kwargs['env']['PYTHONPATH']=='/verified-new-pin'
+            self.command=command;self.pid=len(launches)+1;self.returncode=None;launches.append(command)
+        def poll(self):
+            assert len(launches)%4==0
+            if self.returncode is None and Path(self.command[3]).name=='vrc_relaxation_recon.py':
+                with pytest.raises(PollFinished):
+                    relaxation.run(Path(self.command[5]),queue_all=True,allow_nodes=['node16','node21','node24'])
+            self.returncode=0
+            return 0
+    monkeypatch.setattr(queue.subprocess,'Popen',Child)
+    monkeypatch.setattr(screens,'evidence',lambda p:'Synthetic orchestration test, not native acceptance.')
+    for _ in range(2):
+        assert not any(queue.perform(production,review,Path('/verified-new-pin'),
+            ['node16','node21','node24'],replace_owner=True).values())
+    assert signals.count(signal.SIGKILL)==1
+    assert len(checked)==36 and len(submitted)==15 and len(launches)==8
+    assert queue.read(review/'queue_all_refresh.json')['retained_jobs']==jobs
+    assert all((g/'workflow.json').read_bytes()==data for g,data in workflows.items())
+    assert all(p.read_bytes()==data for p,data in retained.items())
+    assert (source/'native/reconnaissance.json').read_bytes()==native_before
+    assert [dispatch._load(g)[2]['tasks']['relaxed_scan']['job_id'] for g in graphs[1:3]]==['101','102']
+    for g in graphs[3:]:
+        s=dispatch._load(g)[2];e=s['tasks']['relaxed_scan']
+        assert e['attempt']==2 and len(s['scratch_node_retries']['relaxed_scan'])==1
+        assert Path(e['previous_attempt'],'execution.json').exists()
+    assert len(list(review.glob('**/probe_*/workflow.json')))==18
+
+
+@pytest.mark.parametrize('during_freeze',[False,True])
+def test_actual_panel_mismatch_aborts_before_kill_and_resumes_frozen_owner(full_review,monkeypatch,during_freeze):
+    tree,graphs=full_review
+    production,review,destination,source,request,case=tree
+    monkeypatch.setattr(queue.run_cleanup,'_jobs',lambda _:[])
+    monkeypatch.setattr(queue.dispatch,'preflight',lambda g:None)
+    signals=process_doubles(monkeypatch,production,review)
+    def change():
+        data=queue.read(case);data['vrc_tst_scan_fmax']=.002;atomic_json(case,data)
+    if during_freeze:
+        original=run_refresh._freeze
+        @contextmanager
+        def frozen(*args,**kwargs):
+            with original(*args,**kwargs) as handles:
+                change()
+                yield handles
+        monkeypatch.setattr(run_refresh,'_freeze',frozen)
+    else:change()
+    monkeypatch.setattr(queue,'supervise',lambda *a:pytest.fail('Invalid panels must not launch'))
+    with pytest.raises(ValueError,match='plan or evidence changed'):
+        queue.perform(production,review,Path('/pin'),[],replace_owner=True)
+    assert signal.SIGKILL not in signals
+    assert signals==([0,signal.SIGSTOP,signal.SIGCONT] if during_freeze else [])
+
+
+def test_staging_lock_race_never_freezes_writer(full_review,monkeypatch):
+    tree,graphs=full_review
+    production,review,*_=tree
+    monkeypatch.setattr(queue.run_cleanup,'_jobs',lambda _:[])
+    signals=process_doubles(monkeypatch,production,review)
+    with (graphs[0]/'.manifest.lock').open('r') as writer:
+        fcntl.flock(writer,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        with pytest.raises(RuntimeError,match='stayed busy'):
+            queue.stop_owners(production,review,review/'receipt.json',timeout=0,
+                              validate_saved=lambda:pytest.fail('Writer still holds manifest'))
+    assert signals==[]

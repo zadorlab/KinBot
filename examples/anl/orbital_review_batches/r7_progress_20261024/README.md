@@ -115,7 +115,7 @@ review; no diagnostic completion is automatically promoted.
 ### Queue the independent diagnostic inventory together
 
 `examples/anl/tools/queue_progress_review.py PRODUCTION_ROOT --allow-node node16
---allow-node node21 --allow-node node24 --allow-node node34` replaces only the
+--allow-node node21 --allow-node node24` replaces only the
 review launchers. It queues the original eight relaxed probes, the 24 compact
 CASSCF/CASPT2 comparisons, and the ten additional relaxed probes concurrently.
 Completed work and live Slurm allocations are adopted. The original fixed
@@ -125,7 +125,7 @@ This is an explicit change from the three reserved review slots: all prepared
 review tasks may enter Slurm, which determines when and where they run. The
 production cap and exclusions stay unchanged; the previous aggregate 22-job
 ceiling is therefore no longer a ceiling for production plus this review.
-Only the four explicitly allowed nodes are removed from inherited exclusions.
+Only the three explicitly allowed nodes are removed from inherited exclusions.
 New allocation failures can exclude them again. The existing independent
 fixed-probe pilot throttle is waived by `--queue-all`; real orbital-predecessor
 dependencies and all native scientific validation remain enforced.
@@ -178,3 +178,27 @@ transitions, including archive recovery, exhausted budgets, repeated invocation,
 the supervisor lock, self-exclusion and preservation of production files. This
 does not establish that the replacement native calculations have succeeded;
 their execution records and relaxed structures remain to be inspected.
+
+### Retain prepared panels after scheduling metadata changes
+
+The first scratch-resume handoff stopped while matching the ten saved compact
+relaxed probes. Their scientific specifications matched, but queue-all had
+changed the source reconnaissance manifest's node exclusions. The panel had
+incorrectly treated the entire mutable manifest byte hash as a new calculation.
+
+Panel resumption now verifies a historical manifest snapshot against the saved
+hash, then compares the native input/output/WFU hashes, geometry, model and seed
+provenance. Legacy compact panels can use the already hash-bound
+`candidates/source_manifest.json`. Verified historical/current manifest bytes
+are retained under `.native_evidence` for later restarts. Other evidence hashes
+and all scientific settings still require exact agreement. Existing graph paths,
+workflows, native attempts and Slurm identities are preserved; no new graphs
+are created for a bookkeeping-only change.
+
+The queue handoff validates the actual saved destinations before stopping any
+owner, in addition to testing newly reconstructed decks. It rechecks saved
+compatibility while owners are briefly frozen, holding nonblocking staging and
+manifest guards. A mismatch resumes the old processes without killing them.
+Local orchestration tests reproduce all eighteen saved panels, two live jobs,
+fifteen scratch failures, a changed source manifest, repeat invocation and
+staging/validation races. Native retry success remains a remote observation.

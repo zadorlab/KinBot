@@ -92,6 +92,14 @@ is unambiguous.
 The default is to wait for affected allocations. `--cancel-running --apply`
 explicitly authorizes the owner to cancel only the previewed affected attempts,
 after verifying scheduler ownership, stage files, and attempt generations.
+Cancellation sends one job-specific `scancel` and waits for a terminal Slurm
+state; `COMPLETING` does not release the graph for replacement. If completion
+wins the race, the superseded result is archived with its attempt rather than
+being relabeled at the new geometry. Retained allocations continue to count
+against the shared pool. Protocol changes do not rewrite the pool's capacity,
+exclusions, walltime policy, fairness settings, or revision; subsequent work
+uses the same admission controller. Freed slots are available to all cooperating
+branches, not reserved exclusively for the edited graph.
 Ambiguous submissions block a change. The manifest transaction is journalled
 and restartable; superseded task directories precede replacement manifests in
 the archive. Old workers without manifest-lock support are allowed to finish
@@ -267,7 +275,7 @@ Local validation used native-output parser fixtures and simulated scheduler and
 controller fixtures; no remote QC calculation was submitted by these tests.
 
 * ANL, live refinement, controller refresh, RotdPy campaign and worker-code
-  suites: **660 passed, 1 skipped**.
+  suites: **664 passed, 1 skipped**.
 * Input refresh and CASPT2 handoff suites, in a separate process: **34 passed,
   1 deselected**. The deselected example renderer test already fails on the
   unchanged baseline.
@@ -282,5 +290,9 @@ variants, independent higher-order increments, sharing provenance rejection,
 receiver detachment, ambiguous submissions, generation changes, scheduler-owned
 cancellation, interrupted transaction recovery, closed-owner wakeup, old-worker
 guards, site preflight, controller replacement, sampling adoption, and repeat
-invocation. Successful native TZ/QZ VPT2 results and a successful Blodgett refresh
+invocation. The full-capacity cancellation regression exercises 23 allocations,
+both pending and running targets, the `COMPLETING` interval, cancellation versus
+natural-completion races, admission-claim reconciliation, unchanged policy bytes,
+and admission of exactly one replacement into the freed slot. Successful native
+TZ/QZ VPT2 results and a successful Blodgett refresh
 remain to be verified from their actual receipts.

@@ -268,6 +268,95 @@ def test_native_scheduler_ownership_is_checked_for_explicit_cancellation(graph, 
     assert dispatch._load(graph)[2]['tasks']['gaussian_vpt2']['job_id'] == '99'
 
 
+@pytest.mark.parametrize('initial_phase', ['PENDING', 'RUNNING'])
+@pytest.mark.parametrize('terminal_phase', ['CANCELLED', 'COMPLETED'])
+def test_protocol_cancellation_preserves_full_pool_and_waits_for_terminal(
+        graph, monkeypatch, initial_phase, terminal_phase):
+    from types import SimpleNamespace
+    from kinbot import run_policy as policy, run_refresh, run_walltime
+
+    root = graph.parent
+    policy.update(root, max_jobs=23, exclude=['bad1', 'bad2'],
+                  minimum_walltime='7-00:00:00')
+    policy_before = (root/policy.NAME).read_bytes()
+    workflow_before = (graph/'workflow.json').read_bytes()
+    retained = {p:file_sha256(p) for n in ('l3_geometry_tz', 'gaussian_vpt2')
+                for p in (graph/'tasks'/n).iterdir() if p.is_file()}
+    jobs = {'42': 1, '99': 1, **{str(100+i): 1 for i in range(21)}}
+    phase = initial_phase
+    cancelled, launched = [], []
+
+    def record(job):
+        assert job == '42'
+        return dict(JobId=job, WorkDir=str(graph/'tasks/l3_geometry'), JobState=phase)
+
+    def cancel(command):
+        nonlocal phase
+        cancelled.append(command)
+        phase = 'COMPLETING'
+        return ''
+
+    def launch(command, **kwargs):
+        assert command[0] == 'sbatch'
+        launched.append(command)
+        jobs['200'] = 1
+        return SimpleNamespace(returncode=0, stdout='200\n', stderr='')
+
+    monkeypatch.setattr(owner, 'slurm_job_record', record)
+    monkeypatch.setattr(policy, 'slurm_job_record', record)
+    monkeypatch.setattr(policy, '_queue', lambda root: dict(jobs))
+    monkeypatch.setattr(dispatch, '_job_active', lambda job: job in jobs)
+    monkeypatch.setattr(run_refresh, '_pending_request', cancel)
+    monkeypatch.setattr(run_walltime, 'partition_limits', lambda **kw: {'test': 604800})
+    q = queue(graph, dict(geometry='tz', harmonic='tz'), cancel=True)
+    owner.process(graph)
+    owner.process(graph)
+    assert cancelled == [['scancel', '42']]
+    assert json.loads(q.read_text())['status'] == 'applying'
+    assert (graph/'workflow.json').read_bytes() == workflow_before
+    assert not list((graph/'attempts').glob('live_*'))
+
+    # A finishing allocation still occupies its slot. An old admission claim
+    # is retired once visible in Slurm, without double-counting that job.
+    atomic_json(root/'.kinbot_policy_admissions.json', {'old': dict(
+        job_id='42', directory=str(graph/'tasks/l3_geometry'),
+        command=['sbatch', '--parsable', 'job.slurm'], status='submitted')})
+    next_job = root/'other_branch'; next_job.mkdir()
+    (next_job/'job.slurm').write_text('#!/bin/bash\n#SBATCH --partition=test\n#SBATCH --time=02:00:00\n')
+    with monkeypatch.context() as submission:
+        submission.setattr(policy.subprocess, 'run', launch)
+        assert policy.submit(['sbatch', '--parsable', 'job.slurm'], cwd=next_job,
+                             capture_output=True, text=True) is None
+    assert not launched and len(jobs) == 23
+    assert json.loads((root/'.kinbot_policy_admissions.json').read_text()) == {}
+
+    # Scheduler completion may win the cancellation race; both terminal
+    # outcomes permit archival, but neither changes unrelated allocations.
+    phase = terminal_phase
+    owner.process(graph)
+    assert json.loads(q.read_text())['status'] == 'applied'
+    jobs.pop('42')
+    owner.process(graph)
+    state = dispatch._load(graph)[2]
+    assert state['tasks']['gaussian_vpt2']['job_id'] == '99'
+    assert retained == {p:file_sha256(p) for p in retained}
+    assert len(list((graph/'attempts').glob('live_*'))) == 1
+    assert (root/policy.NAME).read_bytes() == policy_before
+
+    with monkeypatch.context() as submission:
+        submission.setattr(policy.subprocess, 'run', launch)
+        assert policy.submit(['sbatch', '--parsable', 'job.slurm'], cwd=next_job,
+                             capture_output=True, text=True).returncode == 0
+        assert policy.submit(['sbatch', '--parsable', 'job.slurm'], cwd=next_job,
+                             capture_output=True, text=True) is None
+    assert len(jobs) == 23 and len(launched) == 1
+    assert '--exclude=bad1,bad2' in launched[0]
+    assert '--time=7-00:00:00' in launched[0]
+    assert '--nodes=1' in launched[0] and '--exclusive' in launched[0]
+    assert cancelled == [['scancel', '42']]
+    assert (root/policy.NAME).read_bytes() == policy_before
+
+
 def test_cli_preview_and_batch_revalidation_are_write_free(graph, capsys):
     from kinbot.anl import control as cli
     capsys.readouterr()

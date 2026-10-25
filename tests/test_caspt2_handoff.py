@@ -168,6 +168,13 @@ def test_current_inputs_propagate_thresholds_into_reference_and_all_l3_backends(
             highest_tier=par['composite_method'], scf_convergence=par['anl_scf_convergence'],
             cc_convergence=par['anl_cc_convergence'], geometry_fmax=par['anl_geometry_fmax'])
         for task in spec['tasks']:
+            if task.get('anharmonic_basis_extension'):
+                if task.get('kind') == 'ase_optimize':
+                    assert task['optimizer']['fmax'] == 1e-5
+                    assert task['profile']['calculator_kwargs']['scf'] == '(XQC,Conver=10)'
+                else:
+                    assert 'SCF=(XQC,Conver=10)' in task['input_template']
+                continue
             if task.get('kind') == 'ase_optimize':
                 assert task['optimizer']['fmax'] == 5e-4
                 kw = task['profile']['calculator_kwargs']

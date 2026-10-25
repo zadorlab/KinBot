@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import hashlib
 import json
 import math
@@ -889,7 +889,8 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
                              component_version=COMPONENT_VERSION,
                              cv_f12_auxiliary=None,
                              require_l3_geometry=True,
-                             l3_max_retries=1):
+                             l3_max_retries=1,
+                             anharmonic_qz=True):
     """Build the automatic post-L2 graph for one stable point or tight TS.
 
     The caller supplies the already accepted L2 geometry and its provenance
@@ -1118,6 +1119,11 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
 
     if require_l3_geometry:
         require_primary_geometries(spec)
+    if type(anharmonic_qz) is not bool:
+        raise ValueError('anharmonic_qz must be boolean.')
+    if anharmonic_qz:
+        from kinbot.anl.anharmonic import extend
+        spec = extend(spec)
     return spec
 
 
@@ -1752,17 +1758,17 @@ def _assemble_profiled_anl(
           or f12_augmented != recorded_f12_augmented):
         raise ValueError(
             'Requested F12 augmentation differs from the workflow intent.')
-    l3_status = base_state['tasks'].get('l3_geometry', {}).get('status')
-    geometry_fallback = l3_status in ('unavailable', 'skipped')
-    harmonic_ids = (('harmonic_tz', 'harmonic_qz') if anl1
-                    else ('harmonic',))
+    from kinbot.anl import protocol
+    geometry_id, harmonic_ids = protocol.sources(base_spec)
+    l3_status = base_state['tasks'].get(geometry_id, {}).get('status')
+    geometry_fallback = geometry_id == 'initial' or l3_status in ('unavailable', 'skipped')
     harmonic_statuses = tuple(
         base_state['tasks'].get(task_id, {}).get('status')
         for task_id in harmonic_ids)
     harmonic_fallback = (len(molecule.get('symbols', ())) > 1
-                         and any(status in ('unavailable', 'skipped')
-                                 for status in harmonic_statuses))
-    if geometry_fallback:
+                         and (not harmonic_ids or any(status in ('unavailable', 'skipped')
+                                 for status in harmonic_statuses)))
+    if geometry_fallback and not base_spec.get('intent', {}).get('live_protocol'):
         harmonic_fallback = True
     needs_l2_fallback = geometry_fallback or harmonic_fallback
     if (needs_l2_fallback
@@ -1784,7 +1790,7 @@ def _assemble_profiled_anl(
         if not fallback_geometry_method or not fallback_basis:
             raise ValueError('Accepted L2 fallback provenance is incomplete.')
     else:
-        l3 = molecule_from_completed_run(base_run, 'l3_geometry')
+        l3 = molecule_from_completed_run(base_run, geometry_id)
         l3_hash = l3['source']['geometry_sha256']
         fallback_geometry_method = fallback_basis = None
         if Path(higher_order_run).resolve() != base_run:
@@ -1794,8 +1800,10 @@ def _assemble_profiled_anl(
 
     atomic = len(molecule.get('symbols', ())) == 1
     rank_exact = _rank_exact_higher_order(molecule)
+    from kinbot.anl import anharmonic
+    vpt2_cbs = not harmonic_only and anharmonic.available(interface_spec, interface_state)
     equation = versioned_recipe(
-        recipe_name, vpt2_method=vpt2_method,
+        recipe_name, vpt2_method=vpt2_method, vpt2_cbs=vpt2_cbs,
         component_version=component_version, augmented=augmented,
         cv_f12_auxiliary=base_spec.get('intent', {}).get('cv_f12_auxiliary'),
         multiplicity=multiplicity, atomic=atomic,
@@ -1809,6 +1817,13 @@ def _assemble_profiled_anl(
         fallback_basis=((l2_geometry_fallback.basis
                          if harmonic_fallback else fallback_basis)
                         or 'cc-pVTZ'))
+    if vpt2_cbs:
+        equation = replace(equation, requirements=tuple(
+            replace(r, geometry_role='vpt2') if r.key == 'vpt2_correction' else r
+            for r in equation.requirements))
+    if base_spec.get('intent', {}).get('live_protocol'):
+        equation = protocol.equation(equation, base_spec, geometry_fallback=geometry_fallback,
+                                     harmonic_fallback=harmonic_fallback)
     required = {item.key: item for item in equation.requirements}
     if recipe_name in ('ANL0-F12', 'ANL1-F12'):
         reference_tasks = reference_bases = None
@@ -1846,11 +1861,11 @@ def _assemble_profiled_anl(
             components['vpt2_correction'] = task_component(
                 interface_run, 'gaussian_vpt2', key='vpt2_correction',
                 state_id=state_id)
-    elif anl1:
+    elif len(harmonic_ids) == 2:
         harmonic_bases = (component_profile(recipe_name, augmented)['geometry_bases']
                           if component_version == 2 else ('cc-pVTZ', 'cc-pVQZ'))
         components['harmonic_zpe'] = cbs_task_component(
-            base_run, 'harmonic_tz', 'harmonic_qz',
+            base_run, *harmonic_ids,
             requirement=required['harmonic_zpe'], state_id=state_id,
             lower_basis=harmonic_bases[0], upper_basis=harmonic_bases[1])
         if not harmonic_only:
@@ -1859,7 +1874,7 @@ def _assemble_profiled_anl(
                 state_id=state_id)
     else:
         components['harmonic_zpe'] = task_component(
-            base_run, 'harmonic', key='harmonic_zpe', state_id=state_id)
+            base_run, harmonic_ids[0], key='harmonic_zpe', state_id=state_id)
         if not harmonic_only:
             components['vpt2_correction'] = task_component(
                 interface_run, 'gaussian_vpt2', key='vpt2_correction',
@@ -1875,14 +1890,18 @@ def _assemble_profiled_anl(
         components['hoe_high'] = task_component(
             higher_order_run, 'ccsdtq_dz', key='hoe_high',
             state_id=state_id)
-    elif 'hoe_tz_low' in required:
+    elif 'hoe_tz_low' in required or 'hoe_dz_low' in required:
         for key, task_id in (
                 ('hoe_tz_low', 'ccsdt_tz'),
                 ('hoe_tz_high', 'ccsdtq_tz'),
                 ('hoe_dz_low', 'ccsdtq_dz'),
                 ('hoe_dz_high', 'ccsdtqp_dz')):
-            components[key] = task_component(
-                higher_order_run, task_id, key=key, state_id=state_id)
+            if key in required:
+                components[key] = task_component(
+                    higher_order_run, task_id, key=key, state_id=state_id)
+    if vpt2_cbs:
+        components['vpt2_correction'] = anharmonic.component(
+            interface_run, state_id=state_id, requirement=required['vpt2_correction'])
     if harmonic_only:
         if vpt2_review is not None:
             raise ValueError(
@@ -1890,7 +1909,7 @@ def _assemble_profiled_anl(
     elif atomic:
         if vpt2_review is not None:
             raise ValueError('A monatomic species must not receive a VPT2 review.')
-    else:
+    elif not vpt2_cbs:
         components['vpt2_correction'] = _apply_quality_review(
             components['vpt2_correction'], 'gaussian_vpt2', vpt2_review)
     if 'core_valence_cbs' in required:
@@ -1915,10 +1934,15 @@ def _assemble_profiled_anl(
         requirement=required['spin_orbit'], value_hartree=spin_orbit_hartree,
         state_id=state_id, charge=charge, multiplicity=multiplicity,
         source=spin_orbit_source, backend=spin_orbit_backend)
+    geometry_hashes = {'l2': l2_hash, 'l3': l3_hash}
+    if required['harmonic_zpe'].geometry_role == 'harmonic':
+        geometry_hashes['harmonic'] = components['harmonic_zpe'].geometry_sha256
+    if vpt2_cbs:
+        geometry_hashes['vpt2'] = components['vpt2_correction'].geometry_sha256
     result = equation.evaluate(
         components, state_id=state_id, charge=charge,
         multiplicity=multiplicity,
-        geometry_hashes={'l2': l2_hash, 'l3': l3_hash})
+        geometry_hashes=geometry_hashes)
     record = {
         'schema': 1, 'status': 'complete', 'state_id': state_id,
         'charge': charge, 'multiplicity': multiplicity,
@@ -1926,14 +1950,14 @@ def _assemble_profiled_anl(
         'electronic_hartree': result.electronic_hartree,
         'zero_point_hartree': result.zero_point_hartree,
         'zero_k_hartree': result.zero_k_hartree,
-        'geometry_sha256': {'l2': l2_hash, 'l3': l3_hash},
+        'geometry_sha256': geometry_hashes,
         'geometry_provenance': {
             'electronic_single_points': (
                 'accepted_l2_fallback' if geometry_fallback else
                 'accepted_l3_optimization'),
             'harmonic_zpe': (
                 'accepted_l2_fallback' if harmonic_fallback else
-                ('l3_harmonic_cbs' if anl1 else 'l3_harmonic')),
+                ('l3_harmonic_cbs' if len(harmonic_ids) == 2 else 'l3_harmonic')),
         },
         'components': {key: asdict(value)
                        for key, value in result.components.items()},
@@ -1943,7 +1967,7 @@ def _assemble_profiled_anl(
     if omitted_families:
         record['reduced_recipe'] = {
             'parent_recipe': versioned_recipe(
-                recipe_name, vpt2_method=vpt2_method,
+                recipe_name, vpt2_method=vpt2_method, vpt2_cbs=vpt2_cbs,
                 component_version=component_version, augmented=augmented,
                 multiplicity=multiplicity, atomic=atomic,
                 f12_augmented=f12_augmented,
@@ -1957,6 +1981,8 @@ def _assemble_profiled_anl(
                                 or 'cc-pVTZ')).name,
             'omitted_families': list(omitted_families),
         }
+    if base_spec.get('intent', {}).get('live_protocol'):
+        record['user_protocol'] = deepcopy(base_spec['intent']['live_protocol'])
     return record
 
 

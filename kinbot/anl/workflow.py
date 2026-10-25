@@ -369,7 +369,7 @@ def attach_task_vpt2_frequencies(species, run_dir, task_id, *,
     from kinbot.energy import attach_anharmonic_frequencies
     from kinbot.anl.validation import _apply_quality_review
 
-    _, _, task, execution, native, parsed = _verified_task_result(run_dir, task_id)
+    _, spec, task, execution, native, parsed = _verified_task_result(run_dir, task_id)
     if parsed.get('kind') != 'gaussian_vpt2' or task['backend'].lower() != 'gaussian':
         raise ValueError(f'{task_id}: expected a Gaussian VPT2 task.')
     component = task_component(
@@ -381,11 +381,30 @@ def attach_task_vpt2_frequencies(species, run_dir, task_id, *,
             f'{task_id}: VPT2 fundamentals require explicit quality review.')
     parsed = dict(parsed)
     parsed['review_required'] = False
+    from kinbot.anl import anharmonic
+    from ase.io import read
+    _, _, state = _load(run_dir)
+    paired = task_id == 'gaussian_vpt2' and anharmonic.available(spec, state)
+    if paired and not (getattr(species, 'anl_thermal_model', None) or {}).get('harmonic'):
+        from kinbot.anl.thermal import attach_l2_harmonic_reference
+        attach_l2_harmonic_reference(species, parsed, native,
+                                    read(native.parent/'geometry.xyz'), run=run_dir)
     if (getattr(species, 'anl_thermal_model', None) or {}).get('harmonic'):
-        from ase.io import read
         from kinbot.anl.thermal import attach_vpt2
         frequencies = attach_vpt2(species, parsed, native,
             read(native.parent/'geometry.xyz'), **match_options)
+        if paired:
+            # The scalar verifier also proves both basis-matched optimized
+            # geometries and rejects either unreviewed native VPT2 result.
+            anharmonic.component(run_dir, state_id='thermochemistry-frequency-handoff')
+            upper_id = spec['intent']['anharmonic_basis_extension']['upper_task']
+            _, _, upper_task, upper_execution, upper_native, upper_parsed = _verified_task_result(run_dir, upper_id)
+            from kinbot.anl.thermal import attach_vpt2_upper
+            frequencies = attach_vpt2_upper(species, upper_parsed, upper_native,
+                read(upper_native.parent/'geometry.xyz'),
+                power=spec['intent']['anharmonic_basis_extension']['extrapolation_power'],
+                evidence=dict(task_id=upper_id, native_output=str(upper_native),
+                    source_sha256=upper_execution['artifacts'][upper_task['result_parser']['file']]))
     else:
         frequencies = attach_anharmonic_frequencies(
             species, parsed, **match_options)

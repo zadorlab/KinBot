@@ -3,7 +3,7 @@
 Molpro prints Cartesian (mass-unweighted) normal modes. Their complete
 mass-weighted spectral decomposition supplies the vibrational Hessian, to
 native print precision, for the same internal-rotor projection used by KinBot.
-Gaussian modes are used only for correspondence of L2 VPT2 shifts.
+Gaussian modes identify VPT2 shifts and the explicitly retained L2 fallback.
 """
 from copy import copy, deepcopy
 import re
@@ -143,8 +143,15 @@ def handoff_options(run):
     from kinbot.anl.dispatch import _load
     run, spec, state = _load(run)
     complete = {k for k,v in state['tasks'].items() if v['status']=='complete'}
-    geometry = next((k for k in ('l3_geometry','l3_geometry_tz') if k in complete), None)
-    harmonic = next((k for k in ('harmonic_qz','harmonic','harmonic_tz') if k in complete), None)
+    from kinbot.anl import protocol
+    complete -= protocol.omitted(spec)
+    if spec.get('intent', {}).get('live_protocol'):
+        primary, harmonics = protocol.sources(spec)
+        geometry = primary if primary in complete else None
+        harmonic = next((k for k in reversed(harmonics) if k in complete), None)
+    else:
+        geometry = next((k for k in ('l3_geometry','l3_geometry_tz') if k in complete), None)
+        harmonic = next((k for k in ('harmonic_qz','harmonic','harmonic_tz') if k in complete), None)
     if geometry is None and harmonic is None:
         return None
     return dict(run=str(run), geometry_task=geometry, harmonic_task=harmonic)
@@ -203,8 +210,9 @@ def attach_model(point, options):
     return provenance(point)
 
 
-def attach_vpt2(point, parsed, native, staged_geometry, *, mode_map=None, match_tolerance_cm_inverse=100.):
-    """Retain the L2 shift source; match by mass-weighted vector overlap."""
+def _vpt2_vectors(point, parsed, native, staged_geometry, *, mode_map=None,
+                  match_tolerance_cm_inverse=100., require_l2=True):
+    """Read each basis' own verified geometry and rotate its mode vectors."""
     model = point.anl_thermal_model
     permutation = model['atom_map']
     symbols = staged_geometry.get_chemical_symbols()
@@ -218,16 +226,85 @@ def attach_vpt2(point, parsed, native, staged_geometry, *, mode_map=None, match_
     if [symbols[i] for i in permutation] != list(point.atom):
         raise ValueError('VPT2 atom order differs from the accepted thermal model.')
     rot = _rotation(coords,np.asarray(point.geom))
-    if np.max(np.linalg.norm((coords-coords.mean(0)) @ rot
+    if require_l2 and np.max(np.linalg.norm((coords-coords.mean(0)) @ rot
                             -(point.geom-point.geom.mean(0)), axis=1)) > 2.e-4:
         raise ValueError('VPT2 geometry differs from the accepted L2 thermal model.')
     q = (q.reshape(len(q),len(symbols),3)[:,permutation] @ rot).reshape(len(q),-1)
-    model['vpt2'] = dict(shifts=(np.asarray(parsed['anharmonic_fundamentals_cm_inverse'])-harmonic).tolist(),
+    return dict(shifts=(np.asarray(parsed['anharmonic_fundamentals_cm_inverse'])-harmonic).tolist(),
         harmonic=harmonic.tolist(), mass_weighted_modes=q.tolist(), mode_map=mode_map,
         match_tolerance_cm_inverse=float(match_tolerance_cm_inverse),
         method=parsed['method'], basis=parsed['basis'], dispersion=parsed['dispersion'])
+
+
+def attach_vpt2(point, parsed, native, staged_geometry, *, mode_map=None, match_tolerance_cm_inverse=100.):
+    """Retain the L2 shift source; match by mass-weighted vector overlap."""
+    point.anl_thermal_model['vpt2'] = _vpt2_vectors(point, parsed, native,
+        staged_geometry, mode_map=mode_map, match_tolerance_cm_inverse=match_tolerance_cm_inverse)
     update_model(point)
     return point.anl_thermochemistry_frequencies
+
+
+def attach_l2_harmonic_reference(point, parsed, native, staged_geometry, *, run):
+    """Provide native vectors when the user retains L2 harmonics with CBS shifts."""
+    from kinbot.anl.ts_reuse import aligned_permutation
+    x, y = staged_geometry.positions, np.asarray(point.geom)
+    mapping = aligned_permutation(list(point.atom), y-y.mean(0),
+        staged_geometry.get_chemical_symbols(), x-x.mean(0), 2.e-4)
+    if mapping is None:
+        raise ValueError('L2 VPT2 geometry cannot be mapped to the retained L2 harmonic model.')
+    model = getattr(point, 'anl_thermal_model', None)
+    if model is None:
+        model = dict(schema=1, run=str(run), atom_map=mapping[1],
+                     l2_geometry_sha256=array_fingerprint(point.geom), geometry=None, vpt2=None)
+        point.anl_thermal_model = model
+    v = _vpt2_vectors(point, parsed, native, staged_geometry)
+    f, target = np.array(v['harmonic']), np.array(point.freq)
+    rows, cols = linear_sum_assignment(abs(target[:, None]-f[None, :]))
+    if len(rows) != len(f) or len(target) != len(f) or max(abs(target-f[cols])) > .1:
+        raise ValueError('Native VPT2 harmonics differ from the retained accepted L2 frequencies.')
+    model['harmonic'] = dict(positions=y.tolist(), frequencies=target.tolist(),
+        mass_weighted_modes=np.array(v['mass_weighted_modes'])[cols].tolist(),
+        method=parsed['method'], basis=parsed['basis'], level='l2',
+        native_output=str(native), representation='accepted L2 harmonics with verified native Gaussian vectors')
+
+
+def attach_vpt2_upper(point, parsed, native, staged_geometry, *, power, evidence):
+    """Add QZ shifts at the QZ optimized geometry; project each basis separately."""
+    from kinbot.anl.extrapolation import extrapolation_coefficient
+    extrapolation_coefficient(4, power=power)
+    lower = point.anl_thermal_model['vpt2']
+    upper = _vpt2_vectors(point, parsed, native, staged_geometry, require_l2=False,
+        match_tolerance_cm_inverse=lower['match_tolerance_cm_inverse'])
+    if (lower['method'], lower['dispersion'], lower['basis'], upper['basis']) != (
+            upper['method'], upper['dispersion'], 'cc-pVTZ', 'cc-pVQZ'):
+        raise ValueError('Anharmonic TZ/QZ methods, dispersion or basis order differ.')
+    lower.update(upper=upper, extrapolation_power=power, upper_evidence=evidence)
+    update_model(point)
+    return point.anl_thermochemistry_frequencies
+
+
+def _match_shifts(v, target, modes):
+    shifts = np.array(v['shifts'])
+    overlaps = (modes @ np.array(v['mass_weighted_modes']).T)**2
+    if v['mode_map'] is None:
+        rows, cols = linear_sum_assignment(-overlaps)
+        if len(cols) != len(target):
+            raise ValueError('VPT2 has fewer modes than the retained L3 spectrum.')
+        for i, j in zip(rows, cols):
+            rivals = [k for k in range(len(shifts)) if k != j and overlaps[i,k] >= overlaps[i,j]-.1]
+            if overlaps[i,j] < .5 or any(abs(shifts[k]-shifts[j]) > 1. for k in rivals):
+                raise ValueError('Ambiguous L3/L2 VPT2 mode overlap; provide a reviewed explicit mode map.')
+    else:
+        mapping = v['mode_map']
+        if (len(mapping) != len(target) or any(type(i) is not int for i in mapping)
+                or len(set(mapping)) != len(mapping) or min(mapping) < 1 or max(mapping) > len(shifts)):
+            raise ValueError('VPT2 mode map must select distinct valid modes for the L3 spectrum.')
+        cols = np.array(mapping)-1
+    mismatch = abs(target-np.array(v['harmonic'])[cols])
+    if (not np.isfinite(v['match_tolerance_cm_inverse']) or v['match_tolerance_cm_inverse'] <= 0
+            or np.any(mismatch > v['match_tolerance_cm_inverse'])):
+        raise ValueError('L3/L2 harmonic mismatch exceeds the reviewed VPT2 matching tolerance.')
+    return shifts[cols], cols, overlaps[np.arange(len(cols)), cols], float(max(mismatch))
 
 
 class _SelectedRotors:
@@ -259,41 +336,42 @@ def update_model(point):
     view = copy(point); view.geom = np.asarray(h['positions']); view.hir = _SelectedRotors(selected)
     view.dihed = deepcopy(getattr(point,'dihed',[]))
     _, reduced, _, modes = frequencies.get_frequencies(view,hmw,view.geom,massweighted=True,return_modes=True)
+    if h.get('level') == 'l2' and not selected:
+        # Gaussian prints fewer mode-vector digits. Keep the actual accepted
+        # harmonic values instead of rediagonalizing that rounded table.
+        reduced, modes = values.tolist(), q
     saddle = bool(getattr(point,'wellorts',False))
     if (sum(v<0 for v in reduced) != int(saddle) or any(v==0 for v in reduced)
             or len(reduced) != len(values)-len(selected)):
         raise ValueError('L3 rotor-projected spectrum has the wrong dimension or stationary-point character.')
-    source = dict(model='l3_harmonic', harmonic={k:v for k,v in h.items()
+    level = h.get('level', 'l3')
+    source = dict(model=level+'_harmonic', harmonic={k:v for k,v in h.items()
                   if k not in ('positions','mass_weighted_modes')},
                   projected_l2_rotors=selected, l2_geometry_sha256=model['l2_geometry_sha256'])
     if model['vpt2'] is not None:
-        v = model['vpt2']; shifts = np.array(v['shifts']); target = np.array(reduced)
-        overlaps = (modes @ np.array(v['mass_weighted_modes']).T)**2
-        if v['mode_map'] is None:
-            rows, cols = linear_sum_assignment(-overlaps)
-            if len(cols) != len(target): raise ValueError('VPT2 has fewer modes than the retained L3 spectrum.')
-            for i,j in zip(rows,cols):
-                rivals = [k for k in range(len(shifts)) if k != j and overlaps[i,k] >= overlaps[i,j]-.1]
-                if overlaps[i,j] < .5 or any(abs(shifts[k]-shifts[j])>1. for k in rivals):
-                    raise ValueError('Ambiguous L3/L2 VPT2 mode overlap; provide a reviewed explicit mode map.')
-        else:
-            mapping = v['mode_map']
-            if (len(mapping)!=len(target) or any(type(i) is not int for i in mapping)
-                    or len(set(mapping))!=len(mapping) or min(mapping)<1 or max(mapping)>len(shifts)):
-                raise ValueError('VPT2 mode map must select distinct valid modes for the L3 spectrum.')
-            cols = np.array(mapping)-1
-        mismatch = abs(target-np.array(v['harmonic'])[cols])
-        if (not np.isfinite(v['match_tolerance_cm_inverse'])
-                or v['match_tolerance_cm_inverse'] <= 0
-                or np.any(mismatch > v['match_tolerance_cm_inverse'])):
-            raise ValueError('L3/L2 harmonic mismatch exceeds the reviewed VPT2 matching tolerance.')
-        corrected = target+shifts[cols]
+        v = model['vpt2']; target = np.array(reduced)
+        shifts, cols, overlaps, mismatch = _match_shifts(v, target, modes)
+        applied_shifts = shifts
+        if v.get('upper'):
+            from kinbot.anl.extrapolation import extrapolation_coefficient
+            upper, upper_cols, upper_overlaps, upper_mismatch = _match_shifts(v['upper'], target, modes)
+            alpha = extrapolation_coefficient(4, power=v['extrapolation_power'])
+            applied_shifts = upper + alpha*(upper-shifts)
+            source.update(anharmonic_extrapolation=dict(
+                bases=[v['basis'], v['upper']['basis']], power=v['extrapolation_power'],
+                lower_shifts_cm_inverse=shifts.tolist(), upper_shifts_cm_inverse=upper.tolist(),
+                extrapolated_shifts_cm_inverse=applied_shifts.tolist(),
+                upper_mode_map=(upper_cols+1).tolist(), upper_squared_overlaps=upper_overlaps.tolist(),
+                upper_maximum_harmonic_mismatch_cm_inverse=upper_mismatch,
+                upper_source=v['upper_evidence']))
+        corrected = target+applied_shifts
         if np.any(corrected <= 0): raise ValueError('L3 plus L2 VPT2 shifts gives nonpositive stable frequencies.')
         reduced = corrected.tolist()
-        source.update(model='l3_harmonic_plus_l2_vpt2_mode_shifts', mode_map=(cols+1).tolist(),
-            squared_overlaps=overlaps[np.arange(len(cols)),cols].tolist(),
-            l2_mode_shifts_cm_inverse=shifts[cols].tolist(),
-            maximum_harmonic_mismatch_cm_inverse=float(max(mismatch)),
+        source.update(model=(level+'_harmonic_plus_tz_qz_vpt2_mode_shifts' if v.get('upper')
+                             else level+'_harmonic_plus_l2_vpt2_mode_shifts'), mode_map=(cols+1).tolist(),
+            squared_overlaps=overlaps.tolist(),
+            l2_mode_shifts_cm_inverse=shifts.tolist(),
+            maximum_harmonic_mismatch_cm_inverse=mismatch,
             vpt2_method=v['method'], vpt2_basis=v['basis'],
             **v.get('evidence', {}))
     point.anl_thermochemistry_frequencies = tuple(reduced)

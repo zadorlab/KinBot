@@ -21,6 +21,9 @@ def window(graph, *, close=False):
     graph = Path(graph)
     root = control.find(graph)
     with control.locked(root.parent) if root else nullcontext():
+        from kinbot.anl import protocol
+        if close and protocol.requests(graph):
+            return False
         if close and control.requests(graph/'tasks', kinds={'task', 'refinement'}):
             return False
         atomic_json(graph/'refinement_window.json', dict(status='closed' if close else 'open'))
@@ -124,7 +127,8 @@ def plan(graph, ident, options):
 def pending(graph):
     """Fence only affected tasks while their owner stops/waits for old jobs."""
     from kinbot import live_control as control
-    result = set()
+    from kinbot.anl import protocol
+    result = protocol.pending(graph)
     for _, request in control.requests(Path(graph)/'tasks', kinds={'refinement'}):
         planned = request.get('options', {}).get('refinement_plan')
         if planned and planned.get('graph') == str(Path(graph).resolve()):

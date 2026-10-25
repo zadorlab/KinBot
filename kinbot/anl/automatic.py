@@ -819,23 +819,25 @@ def _simple_composite(recipe_name, molecule, components, electronic_keys,
 
 def _component_family_omissions(availability):
     """Return every common-component fallback, best expression first."""
+    from kinbot.anl.recipes import ANL1_INCREMENT_FAMILIES
+    order = ANL_REDUCIBLE_FAMILIES if isinstance(availability, dict) and 'higher_order' in availability else ANL1_INCREMENT_FAMILIES + ANL_REDUCIBLE_FAMILIES[1:]
     if (not isinstance(availability, dict)
-            or set(availability) != set(ANL_REDUCIBLE_FAMILIES)
+            or set(availability) != set(order)
             or any(not isinstance(value, bool)
                    for value in availability.values())):
         raise ValueError('ANL component-family availability is invalid.')
     missing = {
-        family for family in ANL_REDUCIBLE_FAMILIES
+        family for family in order
         if not availability[family]}
     available = tuple(
-        family for family in ANL_REDUCIBLE_FAMILIES
+        family for family in order
         if availability[family])
     result = []
     for count in range(len(available) + 1):
         for extra in combinations(available, count):
             omitted = missing | set(extra)
             result.append(tuple(
-                family for family in ANL_REDUCIBLE_FAMILIES
+                family for family in order
                 if family in omitted))
     return tuple(result)
 
@@ -843,7 +845,9 @@ def _component_family_omissions(availability):
 def _required_geometries(spec):
     if not spec.get('intent', {}).get('require_l3_geometry'):
         return set()
-    return {t['id'] for t in spec['tasks'] if t['kind'] == 'ase_optimize'}
+    from kinbot.anl.protocol import omitted
+    return {t['id'] for t in spec['tasks'] if t['kind'] == 'ase_optimize'
+            and not t.get('anharmonic_basis_extension')} - omitted(spec)
 
 
 def assemble_available_profiles(run_dir, source_record, destination, *,
@@ -885,6 +889,8 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
     l2_label = theory['label']
     statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
         'status', 'waiting') for task in spec['tasks']}
+    from kinbot.anl import protocol
+    statuses.update({n:'skipped' for n in protocol.omitted(spec)})
     unfinished = {key: value for key, value in statuses.items()
                   if value not in ('complete', 'unavailable', 'skipped')}
     if unfinished:
@@ -945,7 +951,8 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
             t['id'] for t in spec['tasks'] if t['id'].startswith('cv_'))
         common_family_tasks['scalar_relativistic'] = tuple(
             t['id'] for t in spec['tasks'] if t['id'].startswith('rel_'))
-    l3_status = statuses.get('l3_geometry')
+    primary_geometry, harmonic_tasks = protocol.sources(spec)
+    l3_status = statuses.get(primary_geometry) if primary_geometry != 'initial' else 'skipped'
     if l3_status in ('complete', 'unavailable', 'skipped'):
         common = dict(
             state_id=state_id, spin_orbit_hartree=source_record.get(
@@ -956,7 +963,7 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
             vpt2_method=l2_method,
             f12_augmented=bool(spec.get('intent', {}).get(
                 'f12_augmented', False)))
-        high_graph = 'l3_geometry_tz' in declared
+        high_graph = spec['intent']['highest_tier'] in ('ANL1', 'ANL1-F12')
         recipe_configs = ((
             ('ANL1-F12', assemble_profiled_anl1_f12,
              ('f12_qz', 'f12_5z', 'anl1_5z', 'anl1_6z'), 'anl1_f12'),
@@ -985,6 +992,10 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
                     if family in ('ANL1', 'ANL1-F12') else
                     ('ccsdt_dz', 'ccsdtq_dz'))),
             }
+            if family in ('ANL1', 'ANL1-F12'):
+                family_tasks.pop('higher_order')
+                family_tasks.update(higher_order_tz=() if electrons <= 2 else ('ccsdt_tz', 'ccsdtq_tz'),
+                                    higher_order_dz=() if electrons <= 2 else ('ccsdtq_dz', 'ccsdtqp_dz'))
             family_available = {
                 component_family: all(
                     task in declared and statuses[task] == 'complete'
@@ -1032,18 +1043,18 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
                     save('thermochemistry', thermal['recipe'], thermal,
                          f'{stem}{suffix}.json')
 
-    if statuses.get('l3_geometry') == 'complete' and \
-            statuses.get('harmonic') == 'complete':
+    if statuses.get(primary_geometry) == 'complete' and len(harmonic_tasks) == 1 and \
+            statuses.get(harmonic_tasks[0]) == 'complete':
         geometry_profile = next(t['profile'] for t in spec['tasks']
-                                if t['id'] == 'l3_geometry')
+                                if t['id'] == primary_geometry)
         geometry_method = geometry_profile['method']
         geometry_basis = geometry_profile['basis']
         geometry_label = f'{geometry_method}/{geometry_basis}'
         electronic = _ase_energy_component(
-            run_dir, 'l3_geometry', key='electronic', method=geometry_method,
+            run_dir, primary_geometry, key='electronic', method=geometry_method,
             basis=geometry_basis, state_id=state_id)
         harmonic = task_component(
-            run_dir, 'harmonic', key='harmonic_zpe', state_id=state_id)
+            run_dir, harmonic_tasks[0], key='harmonic_zpe', state_id=state_id)
         harmonic_components = {
             'electronic': electronic, 'harmonic_zpe': harmonic}
         harmonic_label = (
@@ -1630,6 +1641,11 @@ def _drive_graphs_locked(graphs, max_jobs, interval):
             from kinbot.anl.live_control import process as process_controls
             for graph in graphs.values():
                 process_controls(graph)
+            from kinbot.anl import sharing
+            names = [name for name in sorted(graphs) if sharing.discover(graphs[name]) is None]
+            # Scientific live edits can change the required dependency chain.
+            specifications = {name: _load(graphs[name])[1] for name in names}
+            required = {name: _required_geometries(specifications[name]) for name in names}
             states = {
                 name: advance(graphs[name], submit=False) for name in names}
             for name in names:
@@ -2060,8 +2076,9 @@ def _ordered_methods(energies):
             omitted = tuple(body.split('+'))
         else:
             omitted = ()
+        from kinbot.anl.recipes import ANL1_INCREMENT_FAMILIES
         family_order = {name: index for index, name in enumerate(
-            ANL_REDUCIBLE_FAMILIES)}
+            ANL_REDUCIBLE_FAMILIES + ANL1_INCREMENT_FAMILIES)}
         omission_order = tuple(family_order[item] for item in omitted)
         # Preserve the requested electronic tier first. Within it, retain as
         # many additive families as possible; for equal counts, the declared
@@ -2188,7 +2205,8 @@ def _electronic_state_audit(plan, parameters):
 def _shared_profiles(base, graphs, parameters, interval, required=None):
     """Carry canonical ownership through assembly, VPT2 and final QC auditing."""
     from kinbot.anl import pes_ts_reuse
-    external = pes_ts_reuse.load(base)
+    from kinbot.anl import sharing
+    external = {**pes_ts_reuse.load(base), **sharing.load(base)}
     if required is not None:
         external = {n:v for n,v in external.items() if n in required}
     profiles = {}

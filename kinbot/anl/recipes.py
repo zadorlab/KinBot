@@ -61,6 +61,7 @@ ANL_REDUCIBLE_FAMILIES = (
     'scalar_relativistic',
     'core_valence',
 )
+ANL1_INCREMENT_FAMILIES = ('higher_order_tz', 'higher_order_dz')
 
 
 def _required(key, quantity, method, basis, role='l3',
@@ -107,7 +108,7 @@ def _legacy_recipe(name: str, *, vpt2_method: str | None = None,
         raise ValueError('harmonic_only must be boolean.')
     if (not isinstance(omitted_families, tuple)
             or len(omitted_families) != len(set(omitted_families))
-            or any(item not in ANL_REDUCIBLE_FAMILIES
+            or any(item not in ANL_REDUCIBLE_FAMILIES + ANL1_INCREMENT_FAMILIES
                    for item in omitted_families)):
         raise ValueError('Invalid omitted ANL component families.')
     geometry_fallback = fallback_geometry_method is not None
@@ -141,7 +142,7 @@ def _legacy_recipe(name: str, *, vpt2_method: str | None = None,
             f'{fallback_harmonic_method}/{fallback_basis}-ZPE')
     if omitted_families:
         ordered_omissions = tuple(
-            item for item in ANL_REDUCIBLE_FAMILIES
+            item for item in ANL_REDUCIBLE_FAMILIES + ANL1_INCREMENT_FAMILIES
             if item in omitted_families)
         variants.append('reduced[without=' + '+'.join(ordered_omissions) + ']')
     label = (f'profiled:{name}:' + ':'.join(variants)) if variants else name
@@ -349,6 +350,8 @@ def _legacy_recipe(name: str, *, vpt2_method: str | None = None,
                    ExpressionTerm('vpt2_correction')))
     family_keys = {
         'higher_order': {item.key for item in higher},
+        'higher_order_tz': {'hoe_tz_low', 'hoe_tz_high', 'higher_order_correction'},
+        'higher_order_dz': {'hoe_dz_low', 'hoe_dz_high', 'higher_order_correction'},
         'core_valence': {'core_valence_cbs'},
         'scalar_relativistic': {'scalar_relativistic'},
         'dboc': {'dboc'},

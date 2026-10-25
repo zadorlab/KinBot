@@ -1710,7 +1710,11 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     environment_checks = 0
     environment_reuses = 0
     runtime_environment_deferred = []
+    from kinbot.anl.protocol import omitted
+    protocol_exclusions = omitted(spec)
     for task in spec['tasks']:
+        if task['id'] in protocol_exclusions:
+            continue
         entry = state['tasks'].get(task['id'])
         if entry and entry.get('status') in ('unavailable', 'skipped'):
             continue
@@ -2302,6 +2306,16 @@ def advance(run_dir, submit=False, submit_only=None):
         return state
     from kinbot.anl.refinement import pending as pending_refinement
     refining = pending_refinement(run_dir)
+    from kinbot.anl.protocol import omitted as protocol_omitted
+    excluded = protocol_omitted(spec)
+    for ident in excluded:
+        entry = state['tasks'].get(ident, {})
+        if entry.get('status') in ('submitted', 'submitting'):
+            raise RuntimeError('Protocol omission encountered an unretired allocation.')
+        if entry.get('status') != 'complete':
+            state['tasks'][ident] = dict(status='skipped', protocol_omitted=True,
+                skip_reason='Explicit user ANL protocol selection')
+    held_tasks = refining | excluded
     by_id = {task['id']: task for task in spec['tasks']}
     if submit_only is not None:
         submit_only = set(submit_only)
@@ -2502,7 +2516,7 @@ def advance(run_dir, submit=False, submit_only=None):
                           if child in by_id)
     for task in spec['tasks']:
         ident = task['id']
-        if ident in refining:
+        if ident in held_tasks:
             continue  # Do not admit new descendants of a retiring geometry.
         dependencies = _task_dependencies(task, state)
         failed_dependencies = [
@@ -2578,11 +2592,16 @@ def advance(run_dir, submit=False, submit_only=None):
             _stage_task(run_dir, spec, state, task)
     _atomic_json(run_dir / 'state.json', state)
     if submit:
+        from kinbot.anl.protocol import preflight_ready
+        if not preflight_ready(run_dir):
+            return state
+        # Preflight may mark an unavailable optional new component.
+        state = _load(run_dir)[2]
         from kinbot import run_policy
         active = sum(entry['status'] == 'submitted' for entry in state['tasks'].values())
         for task in spec['tasks']:
             ident = task['id']
-            if ident in refining:
+            if ident in held_tasks:
                 continue
             entry = state['tasks'].get(ident)
             if active >= run_policy.limit(spec['limits']['max_nodes'], run_dir):

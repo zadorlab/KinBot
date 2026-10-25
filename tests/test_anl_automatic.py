@@ -467,13 +467,13 @@ def test_automatic_f12_augmentation_updates_native_tasks_and_intent():
     assert spec['intent']['f12_augmented'] is True
     assert tasks['l3_geometry']['optimizer']['fmax'] == 5e-4
     tight = automatic_composite_spec(mol, highest_tier='ANL1-F12', geometry_fmax=5e-5)
-    assert all(t['optimizer']['fmax'] == 5e-5 for t in tight['tasks'] if t['kind'] == 'ase_optimize')
+    assert all(t['optimizer']['fmax'] == 5e-5 for t in tight['tasks'] if t['kind'] == 'ase_optimize' and not t.get('anharmonic_basis_extension'))
     assert all(t['optimizer']['minimum_recovery']['attempts'] == 2
-               for t in tight['tasks'] if t['kind'] == 'ase_optimize')
+               for t in tight['tasks'] if t['kind'] == 'ase_optimize' and not t.get('anharmonic_basis_extension'))
     disabled = automatic_composite_spec(mol, highest_tier='ANL1-F12',
                                        minimum_recovery={'attempts': 0})
     assert all(t['optimizer']['minimum_recovery']['attempts'] == 0
-               for t in disabled['tasks'] if t['kind'] == 'ase_optimize')
+               for t in disabled['tasks'] if t['kind'] == 'ase_optimize' and not t.get('anharmonic_basis_extension'))
     saddle = automatic_composite_spec(mol, highest_tier='ANL1-F12',
                                      stationary_point='transition_state')
     assert all('minimum_recovery' not in t['optimizer']

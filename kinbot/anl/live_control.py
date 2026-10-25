@@ -53,7 +53,8 @@ def resume(graph):
             control.acknowledge(path, r, 'applied', archive=transaction['archive'])
 
 
-def commit(graph, spec, state, reset, reasons, request_path=None):
+def check_commit(graph, spec, state, reset):
+    """Check manifest compatibility before cancelling any affected work."""
     from kinbot.anl import dispatch
     dispatch.validate_spec(spec)
     original = json.loads((graph/'workflow.json').read_text())
@@ -65,6 +66,10 @@ def commit(graph, spec, state, reset, reasons, request_path=None):
                 record = json.loads((graph/'tasks'/name/'task.json').read_text())
                 if record.get('live_control_schema') != 1:
                     raise RuntimeError('Resource update deferred until legacy workers in this graph finish.')
+
+
+def commit(graph, spec, state, reset, reasons, request_path=None):
+    check_commit(graph, spec, state, reset)
     archive = graph/'attempts'/('live_'+uuid.uuid4().hex)
     plan = dict(graph=str(graph), spec=spec, state=state, reset=sorted(reset), reasons=reasons,
                 before={n: file_sha256(graph/n) for n in ('workflow.json', 'state.json')},
@@ -177,6 +182,12 @@ def process(graph):
     from kinbot.pool_drain import pulse
     pulse(graph)
     resume(graph)
+    from kinbot.anl import protocol
+    # Pending previews bind the previous manifest. Apply those first, then
+    # append the default QZ anharmonic branch without retiring other work.
+    protocol.process(graph)
+    if (graph/'workflow.json').exists() and not protocol.requests(graph):
+        protocol.migrate(graph)
     if control.find(graph) is None:
         return
     for path, r in control.requests(graph/'tasks', kinds={'task', 'refinement'}):

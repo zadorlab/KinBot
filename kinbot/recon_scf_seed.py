@@ -4,6 +4,7 @@ These guesses do not select production models. Keep source canonical orbitals
 on FILE,3 so a new RHF calculation cannot replace the reviewed source indices.
 """
 from pathlib import Path
+import json
 import re
 
 from kinbot.execution import file_sha256
@@ -65,12 +66,75 @@ def separate(text, name):
                           lambda m: m[1]+',new\nfile,3,'+name, text)
     if count != 1:
         raise ValueError('SCF seed requires one destination FILE,2.')
-    text, count = re.subn(r'(?im)^start,2100\.2,type=canonical,ovl$',
-                          'start,2100.3,type=canonical,ovl', text)
+    # Same basis and atom order: retain the coefficient ordering on the
+    # moving atom-centred basis, using Molpro's normal restart. Forced OVL
+    # projects spatially fixed far-separated orbitals onto the new centres;
+    # large translations can lose rank before RHF or MULTI starts. This does
+    # not reselect indices from the newly optimized RHF record on FILE,2.
+    text, count = re.subn(r'(?im)^start,2100\.2,type=canonical(?:,ovl)?$',
+                          'start,2100.3,type=canonical', text)
     if count != 1:
         raise ValueError('SCF seed requires one explicit canonical MULTI start.')
     text, count = re.subn(r'(?i)(\{rhf(?:,[^;{}]*)?;)(wf,)',
-                          r'\1start,2100.3,type=canonical,ovl;\2', text, count=1)
+                          r'\1start,2100.3,type=canonical;\2', text, count=1)
     if count != 1:
         raise ValueError('SCF seed requires the generated RHF block.')
     return text
+
+
+def projection_failure(job, *, recheck_completed=False):
+    """Identify only the obsolete forced-OVL RHF initialization failure.
+
+    A same-basis restart that itself fails is not eligible. Other native
+    failures and unbound/stale attempts are never reset. Completed diagnostic
+    probes require an explicit, job-ID-scoped recheck by the review owner.
+    The caller owns the manifest lock and checks scheduler liveness.
+    """
+    space = job.get('probe_active_space') or {}
+    seed = job.get('initial_record') or {}
+    if (space.get('orbital_source') != 'scf'
+            or (job.get('status') == 'complete' and not recheck_completed)
+            or not job.get('job_id') or job.get('submission_status') == 'submitting'
+            or seed.get('basis', '').lower() != job.get('basis', '').lower()
+            or any(h.get('input_transform') == 'native_xml_scf_seed_file_v7'
+                   for h in job.get('attempt_history', []))):
+        return None
+    directory = Path(job['directory'])
+    record = directory/'execution.json'
+    if not record.exists():
+        return None
+    execution = json.loads(record.read_text())
+    native = directory/(job['name']+'.native.inp')
+    output = directory/(job['name']+'.out')
+    expected_status = 'complete' if recheck_completed else 'failed'
+    if (execution.get('status') != expected_status
+            or str(execution.get('slurm_job_id')) != str(job['job_id'])
+            or execution.get('input_transform') != 'native_xml_scf_seed_file_v7'
+            or execution.get('input_sha256') != job['input_sha256']
+            or execution.get('native_input') != str(native)
+            or not native.is_file() or not output.is_file()
+            or file_sha256(native) != execution.get('native_input_sha256')
+            or any(execution.get('scf_seed', {}).get(k) != v for k, v in seed.items())):
+        return None
+    text = output.read_text(errors='replace')
+    programs = re.findall(r'(?im)^\s*PROGRAM\s*\*\s*([^\n]+)', text)
+    if (not any(re.match(r'(?:RHF(?:-SCF)?\b|Restricted Hartree-Fock\b)', p, re.I) for p in programs)
+            or 'start,2100.3,type=canonical,ovl' not in native.read_text().lower()):
+        return None
+    if recheck_completed:
+        if (job.get('status') != 'complete' or execution.get('returncode') != 0
+                or file_sha256(output) != job.get('output_sha256')
+                or not any(p.upper().startswith('MULTI') for p in programs)
+                or not re.search(r'(?im)^\s*start,2100\.3,type=canonical,ovl\s*$', native.read_text())):
+            return None
+    elif (any(p.upper().startswith('MULTI') for p in programs)
+          or not re.search(r'(?im)^\s*\?\s*ERROR IN VIRTORB:\s*INCORRECT NUMBER OF ORBITALS:', text)):
+        return None
+    validate(seed, job['electron_count'], space['active_electrons'], space['active_orbitals'])
+    return dict(kind=('reviewed_seed_recheck' if recheck_completed else 'same_basis_seed_restart'),
+                previous_transform=execution['input_transform'],
+                input_sha256=job['input_sha256'], native_input_sha256=file_sha256(native),
+                output_sha256=file_sha256(output), source_sha256=seed['sha256'],
+                reason=('Explicit review recheck of forced-OVL SCF initialization; retain original result.'
+                        if recheck_completed else
+                        'VIRTORB failed during forced-OVL RHF initialization; use normal same-basis restart.'))

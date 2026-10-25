@@ -199,8 +199,8 @@ def test_native_scf_seed_is_not_overwritten_by_new_rhf(tree,followup_plan, tmp_p
         source = re.search(r'(?m)^file,3,(\S+)$',deck)[1]
         target = re.search(r'(?m)^file,2,([^,\n]+),new$',deck)[1]
         assert (local/source).read_bytes() == original
-        assert 'start,2100.3,type=canonical,ovl' in deck
-        assert deck.count('start,2100.3,type=canonical,ovl') == 2
+        assert ',ovl' not in deck
+        assert deck.count('start,2100.3,type=canonical') == 2
         assert 'rotate,19.1,17.1,0' in deck
         (local/target).write_bytes(b'new RHF and MULTI records')
         assert (local/source).read_bytes() == original
@@ -210,6 +210,7 @@ def test_native_scf_seed_is_not_overwritten_by_new_rhf(tree,followup_plan, tmp_p
     assert len(calls)==1 and Path(job['initial_record']['path']).read_bytes()==original
     execution = review._read(Path(job['directory'])/'execution.json')
     assert execution['scf_seed']['source_record']=='2100.3'
+    assert execution['scf_seed']['transport']=='same_basis_coefficients'
     assert execution['status']=='complete'
 
 

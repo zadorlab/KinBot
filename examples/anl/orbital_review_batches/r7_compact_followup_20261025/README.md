@@ -41,7 +41,7 @@ primarily on different fragments at the two geometries. That observation does
 not prove physical charge transfer or state correspondence. The two acceptor
 guesses deliberately test a remaining ambiguity within the same compact size.
 
-A seed projected between geometries is only a starting guess. Convergence must
+A seed transferred between geometries is only a starting guess. Convergence must
 be followed by inspection of optimized natural occupations, AO/CI character,
 fragment charge/spin and state continuity. If the compact near and far solutions
 are consistent, intermediate points and correlated interaction energies can
@@ -151,3 +151,80 @@ input/source hash checks, late preparation failure and retry, repeated
 invocation, separate source/destination records, and a simulated scheduler
 retaining production jobs under the shared cap. Those tests do not substitute
 for native Molpro convergence or a verified Blodgett launch.
+
+## Recovery after the 25 October native results
+
+The 12:23 PDT snapshot contained four VIRTORB failures during forced-OVL RHF
+initialization, two native CASSCF completions rejected by the occupation reader,
+nine completed SCF character jobs, one pending job, and forty unsubmitted jobs.
+This is a timestamped snapshot, not a claim about the current queue.
+
+The four failed initializations use far-separation SCF seeds. Their native
+inputs forced spatial overlap projection despite matching bases. The supplied
+CH+H2SS and CHSH2+S outputs report many occupied overlaps of zero, followed by
+inconsistent virtual counts. The shared executor now uses a normal same-basis
+coefficient restart from the immutable source record. The owning review driver
+verifies provenance, archives these attempts, and retries each once.
+
+The two HCS+H2S L2-geometry jobs terminated normally:
+
+| Job | Candidate | Native energy / Eh | Native elapsed / s | Final active occupations |
+| --- | --- | ---: | ---: | --- |
+| 52931214 | CAS(3,3), source 19,21,22 | -834.641533617762 | 10.48 | 1.99965, 1.00000, 0.00035 |
+| 52931217 | CAS(5,4), source 19,20,21,22 | -834.641785308293 | 23.40 | 1.99999, 1.99965, 1.00001, 0.00036 |
+
+The reader previously recognized only `NATURAL ORBITALS (state averaged)`.
+It now also reads the bare `NATURAL ORBITALS` heading for these single-root
+calculations. This corrects computational status; it does not validate their
+active spaces. Their final active window contains sulfur core-like p character
+at approximately -6 Eh and a high-energy correlating orbital around +13 Eh.
+The intended valence pi/pi-star orbitals are outside that final active window.
+These two results are therefore **not suitable selection evidence for the
+intended valence CAS**.
+
+The initial MULTI excerpts confirm record 2100.3, occupied overlaps of 1.000000,
+and the expected 20.1/19.1 exchange for CAS(3,3). They report overlaps only through
+occupied orbital 21, so they do not establish preservation of the selected
+virtual orbital 22. They also do not distinguish a virtual initialization
+problem from subsequent active-space drift. The next controlled check repeats
+only these two completed jobs with the same source indices and scientific
+settings, using the corrected restart. Original native files are archived, not
+discarded. The six unsubmitted HCS/H2S points also use the corrected executor.
+No additional CAS, extra root, frozen core or CI initialization option is added.
+Any remaining character failure requires inspecting the new native evidence.
+
+Run the following on Blodgett after pulling the repair commit supplied in the
+handoff. This resumes the existing 56-job panel; it does not stage a duplicate
+panel or restart production/RotdPy controllers.
+
+```bash
+cd "$HOME/KinBot"
+export PYTHONPATH="$PWD"
+KB_RUN="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+KB_PANEL="$KB_RUN/orbital_recon/compact_followup_20261025"
+KB_LOG="$KB_PANEL/seed_recovery.$(date -u +%Y%m%dT%H%M%SZ).log"
+nohup "$PWD/.venv/bin/python" -B -u -m kinbot.requested_orbital_recon \
+  run "$KB_PANEL" --report-failures --wait-owner 86400 \
+  --recheck-seed-job 52931214 --recheck-seed-job 52931217 \
+  >"$KB_LOG" 2>&1 </dev/null &
+printf 'Review PID: %s\nLog: %s\n' "$!" "$KB_LOG"
+```
+
+If the previous owner is still running its independent SCF jobs, this process
+waits for its lock. It then rechecks the saved panel, archives the two explicitly
+selected completions, recovers only the proved VIRTORB failures, and resumes
+submission. The panel cap remains three within the existing shared pool of 23.
+The shared node exclusions remain effective and now appear in the orbital monitor.
+Repeated invocation recognizes archived old IDs and preserves newer attempts.
+
+Read-only follow-up:
+
+```bash
+"$PWD/.venv/bin/python" -B -m kinbot.requested_orbital_recon monitor "$KB_PANEL"
+"$PWD/.venv/bin/python" -B -m kinbot.requested_orbital_recon character "$KB_PANEL"
+```
+
+Inspect both the repaired near probes and their far/basis counterparts before
+choosing a production model. The eight additional SCF screens keep their completed
+results and continue. The existing five-model production reconciliation is a
+separate status check; this review repair does not certify its remote outcome.

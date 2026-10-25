@@ -1133,3 +1133,56 @@ a competing preparer from deleting an existing campaign. Repeated run commands
 use the campaign/manifest locks and job journals. For a new panel, a production
 controller restart is unnecessary: the new review process and workers load the
 current installed code.
+
+### Same-basis SCF seed restart and diagnosed rechecks
+
+SCF-seeded compact probes now use normal `START,2100.3,TYPE=CANONICAL`
+restarts in the matching basis. The source checkpoint remains on FILE,3 and the
+new results use fresh FILE,2. The executor records this as
+`native_xml_scf_seed_same_basis_v8`. The prepared input and its hash remain
+unchanged; the transformed native input and its separate hash identify what ran.
+Source indices, their packing exchanges, geometry, CAS, spin states, weights and
+convergence requirements are retained.
+
+The previous `native_xml_scf_seed_file_v7` executor forced `OVL`, even for the
+same basis. Molpro's [orbital restart documentation](https://www.molpro.net/manual/doku.php?id=general_program_structure#selecting_orbitals_and_density_matrices_orbital_density)
+describes `OVL` as overlap projection, normally used when basis dimensions
+change. It can lose occupied rank across a large fragment displacement. A new
+review owner automatically archives and retries a native VIRTORB orbital-count
+failure once only when the old v7 transform, same-basis seed, job ID, source and
+input hashes, and failure before MULTI are verified. Live jobs and uncertain
+submissions are protected. A failure of the replacement setting is not retried
+with the same setting. All original files and Slurm IDs remain in attempt history.
+Neither `NOCHECK` nor `IGNORE_ERROR` is added.
+
+A single-state calculation may print the bare heading `NATURAL ORBITALS`.
+The completion reader accepts that table only for a declared single root,
+retaining occupation bounds, electron-count, energy, convergence, checkpoint and
+export checks. A state-specific table cannot replace a multi-state average.
+An existing native success can therefore be re-audited without recomputation.
+Computational completion is still separate from acceptance of orbital character.
+
+If human inspection rejects the character of a *completed* legacy SCF-seeded
+diagnostic, an explicit recheck can use the corrected restart:
+
+```bash
+python -m kinbot.requested_orbital_recon run PANEL --report-failures \
+  --wait-owner 86400 --recheck-seed-job JOB_ID
+```
+
+Repeat `--recheck-seed-job` for additional inspected jobs. This option is limited
+to intact, unpublished v7 completions with independent SCF seeds; it is not a
+general permission to replace accepted results. It rejects orbital dependency
+chains, live/ambiguous allocations and changed evidence. Every requested target
+is checked before archival. The old ID is recorded as `reviewed_seed_recheck`;
+repeating the handoff, including after partial application, does not repeat it.
+Ordinary submission then enforces the same panel and shared-pool limits and
+exclusions. The monitor displays inherited shared-pool exclusions separately.
+
+`--wait-owner` waits for the current review owner to finish, without sending
+signals or stopping allocations. It expires with an error after the specified
+number of seconds. The replacement review process and subsequently launched
+workers load the updated code; production controllers need no restart for this
+review-only change. These orchestration and parser paths are locally tested
+with simulated scheduling and retained native excerpts. Native recovery and the
+intended orbital subspace must be verified from the new outputs.

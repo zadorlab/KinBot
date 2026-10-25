@@ -93,6 +93,21 @@ def test_monitor_reads_explicit_single_phase_registry_without_duplicate_jobs(tmp
     assert registry.read_bytes() == before
 
 
+def test_shared_exclusions_are_displayed_without_copying_them_into_manifests(tmp_path, monkeypatch):
+    _campaign(tmp_path)
+    policy = tmp_path/'policy.json'
+    policy.write_text(json.dumps(dict(excluded_nodes=['pool-bad-node'])))
+    path = tmp_path/'reconnaissance.json'; manifest = json.loads(path.read_text())
+    manifest['shared_policy_file'] = str(policy); path.write_text(json.dumps(manifest))
+    monkeypatch.setattr(monitor, '_queue', lambda: ({}, None))
+    before = {p:p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    result = monitor.snapshot(tmp_path)
+    assert result['excluded_nodes'] == ['bad-node']
+    assert result['shared_policy_excluded_nodes'] == ['pool-bad-node']
+    assert 'Shared-pool exclusions for new submissions: pool-bad-node' in monitor.render(result)
+    assert {p:p.read_bytes() for p in before} == before
+
+
 def test_monitor_uses_latest_requeue_and_ignores_old_guard_failures(tmp_path, monkeypatch):
     jobs = _campaign(tmp_path)
     directory = Path(jobs[0]['directory'])

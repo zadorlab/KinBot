@@ -47,15 +47,27 @@ class ProbeFailure(RuntimeError):
 
 
 @contextmanager
-def _manifest_lock(root):
+def _manifest_lock(root, *, wait=0.):
+    if not np.isfinite(wait) or wait < 0:
+        raise ValueError('Owner wait must be finite and nonnegative.')
     root = Path(root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     with (root / '.reconnaissance.lock').open('a+') as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise RuntimeError('Another reconnaissance controller is updating this directory; '
-                               'read reconnaissance.json for live progress.') from error
+        deadline = time.monotonic() + wait
+        announced = False
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError as error:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError('Another reconnaissance controller is updating this directory; '
+                                       'read reconnaissance.json for live progress.') from error
+                if not announced:
+                    print('Waiting for the existing review owner to finish; its jobs continue.', flush=True)
+                    announced = True
+                time.sleep(min(5., remaining))
         yield
 
 
@@ -1205,6 +1217,8 @@ def _execute(job):
     if scf_seed:
         from kinbot.recon_scf_seed import validate
         space = job['probe_active_space']
+        if seed.get('basis', '').lower() != job['basis'].lower():
+            raise ValueError('SCF seed coefficient restart requires the same basis.')
         validate(seed, job['electron_count'], space['active_electrons'], space['active_orbitals'])
     if job.get('initial_record'):
         import shutil
@@ -1298,9 +1312,10 @@ def _execute(job):
             'source_record': '2140.3', 'natural_destination_record': '2140.2',
             'canonical_destination_record': '2141.2'}
     if scf_seed:
-        execution['input_transform'] = 'native_xml_scf_seed_file_v7'
+        execution['input_transform'] = 'native_xml_scf_seed_same_basis_v8'
         execution['scf_seed'] = dict(seed, source_record='2100.3',
-                                     natural_destination_record='2140.2')
+                                     natural_destination_record='2140.2',
+                                     transport='same_basis_coefficients')
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -1370,13 +1385,28 @@ def audit(manifest_path):
         return _audit(manifest_path)
 
 
-def _native_occupations(text):
-    """Read the state-averaged native table, independently of export format."""
-    headers = list(re.finditer(r'NATURAL ORBITALS\s*\(STATE AVERAGED\)', text, re.I))
+def _native_occupations(text, root_states=()):
+    """Read a natural table for the declared state average or single state.
+
+    A state-specific table cannot stand in for a multi-state average. Stop
+    at its own dump boundary rather than reading later numeric output rows.
+    """
+    headers = list(re.finditer(
+        r'(?im)^[ \t]*NATURAL ORBITALS(?:[ \t]*\(([^\n)]*)\))?[ \t]*$', text))
     if not headers:
         return []
-    table = re.split(r'Natural orbital dump', text[headers[-1].end():],
-                     maxsplit=1, flags=re.I)[0]
+    header = headers[-1]
+    label = (header[1] or '').upper().strip()
+    if label != 'STATE AVERAGED':
+        if len(root_states) != 1:
+            return []
+        state = root_states[0]
+        expected = f'STATE {state["root"]}.{state.get("symmetry", 1)}'
+        if label not in ('', expected):
+            return []
+    table = re.split(r'(?im)^\s*(?:Natural orbital dump|PROGRAM\s*\*|'
+                     r'(?:NATURAL|CANONICAL|DIABATIC) ORBITALS)',
+                     text[header.end():], maxsplit=1)[0]
     return [float(value.replace('D', 'E').replace('d', 'e')) for value in re.findall(
         r'(?m)^\s*\d+\.\d+\s+([-+0-9.]+(?:[EDed][-+]?\d+)?)\s+', table)]
 
@@ -1693,7 +1723,7 @@ def _audit(manifest_path, *, live_job_ids=()):
                             for value in re.findall(r'(?im)^\s*Occup\s*=\s*'
                                 r'([-+0-9.]+(?:[EDed][-+]?\d+)?)', natural.read_text())])
             if not occupations and xml_evidence:
-                occupations = _native_occupations(output_text)
+                occupations = _native_occupations(output_text, job.get('root_states', []))
             if (not occupations or any(not np.isfinite(value) or not 0. <= value <= 2.
                                        for value in occupations)
                     or abs(sum(occupations) - manifest['electron_count']) > .02):
@@ -1705,7 +1735,7 @@ def _audit(manifest_path, *, live_job_ids=()):
                 job['natural_occupations'] = occupations
                 if not xml_evidence and natural.is_file():
                     job['natural_molden_sha256'] = file_sha256(natural)
-                job['occupation_source'] = 'native_state_averaged_table' if xml_evidence else 'molden'
+                job['occupation_source'] = ('native_natural_table' if xml_evidence else 'molden')
             checks = job.get('correlation_checks', [])
             if checks:
                 values = {int(index): float(value.replace('D', 'E').replace('d', 'e'))
@@ -1926,7 +1956,8 @@ def retry_failed(manifest_path, *, include_interrupted=False, job_ids=None, max_
 
 
 def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids=None,
-                  max_reference_vectors=None, max_reference_iterations=None, solver_options=None):
+                  max_reference_vectors=None, max_reference_iterations=None, solver_options=None,
+                  recheck_scf_seed=False):
     import shutil
     solver_options = validate_solver_options(solver_options or {})
     controls = {key: value for key, value in (
@@ -1943,20 +1974,33 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
     live = set(live_job_ids)
     manifest = _audit(path, live_job_ids=live)
     selected = [j for j in manifest['jobs'] if job_ids is None or str(j.get('job_id')) in job_ids]
+    rechecks = {}
+    if recheck_scf_seed:
+        from kinbot.recon_scf_seed import projection_failure
+        if not job_ids or not selected or controls or solver_options or include_interrupted:
+            raise ValueError('Seed recheck requires explicit completed job IDs without other retry changes.')
+        for job in selected:
+            proof = projection_failure(job, recheck_completed=True)
+            if not proof:
+                raise ValueError('Seed recheck needs an intact completed legacy forced-OVL SCF probe.')
+            if any(j.get('orbital_predecessor') == job['name'] for j in manifest['jobs']):
+                raise ValueError('Seed recheck cannot invalidate an orbital dependency chain.')
+            rechecks[job['name']] = proof
     if any(str(job.get('job_id')) in live for job in selected):
         raise RuntimeError('Wait for all manifest allocations to leave before retrying.')
     if any(job.get('submission_status') == 'submitting' for job in manifest['jobs']):
         raise RuntimeError('Reconcile uncertain Slurm submissions before retrying.')
     retried = []
     for job in selected:
-        if job['status'] == 'complete':
+        recheck = rechecks.get(job['name'])
+        if job['status'] == 'complete' and not recheck:
             continue
         directory = Path(job['directory'])
         record = directory / 'execution.json'
         execution = json.loads(record.read_text()) if record.is_file() else {}
         interrupted = (include_interrupted and
                        execution.get('status') in (None, 'running'))
-        invalid_final = bool(job_ids and solver_options and execution.get('status') == 'complete')
+        invalid_final = bool(recheck or job_ids and solver_options and execution.get('status') == 'complete')
         if (not job.get('job_id') or
                 execution.get('status') != 'failed' and not interrupted and not invalid_final):
             continue
@@ -2017,6 +2061,8 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
             'error': execution.get('error') or ('Explicitly retried interrupted allocation'
                                                if interrupted else None),
             'input_sha256': job['input_sha256'],
+            'input_transform': execution.get('input_transform'),
+            **({'recovery': recheck} if recheck else {}),
             **{key: job.get(key) for key in
                ('retry_max_reference_vectors', 'retry_max_reference_iterations', 'retry_solver_options')}})
         for key in ('job_id', 'missing_since', 'terminal_failure', 'scheduler_record'):
@@ -2035,6 +2081,26 @@ def _retry_failed(path, *, include_interrupted=False, job_ids=None, live_job_ids
         atomic_json(path, manifest)
     return {'manifest': str(path), 'retry_ready': retried,
             'completed_preserved': sum(job['status'] == 'complete' for job in manifest['jobs'])}
+
+
+def _retry_seed_projection_failures(path, manifest, live):
+    """One migration retry for evidenced forced-OVL failures; keep all peers."""
+    from kinbot.recon_scf_seed import projection_failure
+    for job in manifest['jobs']:
+        if str(job.get('job_id')) in live:
+            continue
+        proof = projection_failure(job)
+        if proof is None:
+            continue
+        identifier = str(job['job_id'])
+        result = _retry_failed(path, job_ids={identifier}, live_job_ids=live)
+        if result['retry_ready']:
+            manifest = json.loads(path.read_text())
+            current = next(j for j in manifest['jobs'] if j['name'] == job['name'])
+            current['attempt_history'][-1]['recovery'] = proof
+            atomic_json(path, manifest)
+            print(f'{job["name"]}: archived job {identifier}; retrying same-basis seed transport once.', flush=True)
+    return manifest
 
 
 def _recover_slurm_startup_failures(path, manifest, live):
@@ -2507,6 +2573,8 @@ def run_many(manifest_paths, *, max_jobs=8, interval=20., startup_checked=False,
             # Re-audit every phase before allocating slots. An apparently
             # finished output remains untrusted while its allocation is live.
             snapshots = {p: _audit(p, live_job_ids=live) for p in all_paths}
+            snapshots = {p: _retry_seed_projection_failures(p, m, live)
+                         for p, m in snapshots.items()}
             if allocation_retries:
                 snapshots = {p: _retry_allocation_failures(p, m, live, allocation_retries)
                              for p, m in snapshots.items()}

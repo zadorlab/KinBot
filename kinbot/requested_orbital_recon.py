@@ -733,12 +733,68 @@ def production_checks(production, output, *, extend=False):
     return dict(status='prepared', **record['production_checks'])
 
 
-def run(output, *, report_failures=False, queue_all=False, allow_nodes=()):
+def _recheck_seed_jobs(root, identifiers):
+    """Explicit one-time rechecks of unpublished, independent legacy probes.
+
+    All targets are checked before archival; the ordinary runner subsequently
+    submits them through the same admission policy. Old IDs in attempt history
+    make a repeated handoff a no-op, including after a partial application.
+    """
+    from kinbot.recon_scf_seed import projection_failure
+    identifiers = {str(i) for i in identifiers}
+    if not identifiers or any(not i.isdigit() for i in identifiers):
+        raise ValueError('Seed recheck requires numeric Slurm job IDs.')
+    record = _saved(root)  # A changed/accepted live request must not be replayed.
+    paths = [Path(s['manifest']) for s in record['systems']]
+    with ExitStack() as locks:
+        for parent in sorted({p.parent for p in paths}):
+            locks.enter_context(recon._manifest_lock(parent))
+        queued = subprocess.run(['squeue', '-h', '-o', '%A'], capture_output=True,
+                                text=True, check=True, timeout=30)
+        live = set(queued.stdout.split())
+        snapshots = {p: recon._audit(p, live_job_ids=live) for p in paths}
+        found, selected = set(), {}
+        for p, m in snapshots.items():
+            for j in m['jobs']:
+                for h in j.get('attempt_history', []):
+                    if (str(h.get('job_id')) in identifiers
+                            and h.get('recovery', {}).get('kind') == 'reviewed_seed_recheck'):
+                        found.add(str(h['job_id']))
+                identifier = str(j.get('job_id'))
+                if identifier not in identifiers:
+                    continue
+                if identifier in found or identifier in live:
+                    raise ValueError('Seed recheck target is live or has ambiguous attempt identity.')
+                if (not projection_failure(j, recheck_completed=True)
+                        or any(k.get('orbital_predecessor') == j['name'] for k in m['jobs'])
+                        or any(k.get('submission_status') == 'submitting' for k in m['jobs'])):
+                    raise ValueError('Seed recheck target is not an intact independent legacy completion: '+identifier)
+                scheduler = recon.slurm_job_record(identifier)
+                if scheduler.get('JobId') == identifier and (
+                        scheduler.get('WorkDir') != j['directory']
+                        or scheduler.get('JobState') not in recon.SLURM_TERMINAL_STATES):
+                    raise RuntimeError('Slurm still owns the recheck target, or its identity differs.')
+                found.add(identifier)
+                selected.setdefault(p, set()).add(identifier)
+        if found != identifiers:
+            raise ValueError('Unknown or inapplicable seed recheck job IDs: '+','.join(sorted(identifiers-found)))
+        # All participating paths stay locked through validation and archival.
+        for p, ids in selected.items():
+            result = recon._retry_failed(p, job_ids=ids, live_job_ids=live, recheck_scf_seed=True)
+            print('Archived completed seed probes for explicit recheck: '
+                  + ', '.join(result['retry_ready']), flush=True)
+
+
+def run(output, *, report_failures=False, queue_all=False, allow_nodes=(), wait_owner=0.,
+        recheck_seed_jobs=()):
     root = Path(output).expanduser().resolve(strict=True)
     record = _read(root/'review_launch.json')
     if report_failures and not (record.get('reviews') or record.get('candidate_comparison')):
         raise ValueError('Failure reporting requires independent screens or a candidate comparison.')
-    with recon._manifest_lock(root):
+    with recon._manifest_lock(root, wait=wait_owner):
+        record = _read(root/'review_launch.json')
+        if recheck_seed_jobs:
+            _recheck_seed_jobs(root, recheck_seed_jobs)
         try:
             result = (_run(root, queue_all=queue_all, allow_nodes=allow_nodes)
                       if queue_all or allow_nodes else _run(root))
@@ -1538,6 +1594,10 @@ def main():
         command = commands.add_parser(name)
         command.add_argument('output')
         if name == 'run':
+            command.add_argument('--recheck-seed-job', action='append', default=[], metavar='JOB_ID',
+                help='Archive/recheck an explicitly reviewed completed legacy forced-OVL SCF-seeded probe once.')
+            command.add_argument('--wait-owner', type=float, default=0., metavar='SECONDS',
+                help='Wait for the current review owner to finish before resuming; never stop jobs.')
             command.add_argument('--report-failures', action='store_true',
                 help='Report terminal independent-batch probe failures without aborting a later campaign.')
             command.add_argument('--queue-all', action='store_true',
@@ -1567,7 +1627,8 @@ def main():
                               require_all=args.require_all)
     elif args.action == 'run':
         result = run(args.output, report_failures=args.report_failures,
-                     queue_all=args.queue_all, allow_nodes=args.allow_node)
+                     queue_all=args.queue_all, allow_nodes=args.allow_node, wait_owner=args.wait_owner,
+                     recheck_seed_jobs=args.recheck_seed_job)
     elif args.action == 'evidence':
         print(evidence(args.output))
         return

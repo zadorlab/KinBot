@@ -162,6 +162,8 @@ def snapshot(root, *, now=None, registry=None, roots=False, include_all=False):
         raise ValueError(error or f'Campaign missing: {root}')
     queue, queue_error = _queue()
     rows, counts, warnings, excluded, retries = [], {}, [], set(), Counter()
+    policy_excluded = set()
+    policy_files = set()
     chains = []
     if queue_error:
         warnings.append('SCHEDULER UNAVAILABLE: ' + queue_error)
@@ -179,6 +181,14 @@ def snapshot(root, *, now=None, registry=None, roots=False, include_all=False):
                 warnings.append(error or f'Manifest missing: {system[phase]}')
                 continue
             excluded.update(manifest.get('slurm_excluded_nodes', []))
+            shared = manifest.get('shared_policy_file')
+            if shared and shared not in policy_files:
+                policy_files.add(shared)
+                policy, error = _read_json(Path(shared))
+                if error or not policy:
+                    warnings.append(error or f'Shared policy missing: {shared}')
+                else:
+                    policy_excluded.update(policy.get('excluded_nodes', []))
             count = counts.setdefault(phase, Counter())
             chain_count = Counter()
             chains.append({'system': system['title'], 'phase': phase, 'counts': chain_count})
@@ -310,6 +320,7 @@ def snapshot(root, *, now=None, registry=None, roots=False, include_all=False):
             'max_jobs': campaign.get('max_jobs'), 'counts': counts, 'jobs': rows,
             'chains': chains,
             'retries': retries,
+            'shared_policy_excluded_nodes': sorted(policy_excluded),
             'excluded_nodes': sorted(excluded), 'warnings': warnings,
             'controller_tail': [line[:300] for line in controller['text'].splitlines()[-6:]]}
 
@@ -320,6 +331,9 @@ def render(data, *, details=False):
     for phase, count in data['counts'].items():
         lines.append(f'{phase}: ' + '  '.join(f'{k}={v}' for k, v in count.items()))
     lines.append('Campaign excluded nodes: ' + (','.join(data['excluded_nodes']) or 'none'))
+    if data.get('shared_policy_excluded_nodes'):
+        lines.append('Shared-pool exclusions for new submissions: '
+                     + ','.join(data['shared_policy_excluded_nodes']))
     lines.append('Campaign retries (cumulative): ' + '  '.join(f'{key}={value}' for key, value in data['retries'].items()))
     lines.extend('WARNING: ' + warning for warning in data['warnings'])
     if details:

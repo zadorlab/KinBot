@@ -1346,7 +1346,7 @@ def test_xml_orbitals_support_native_high_angular_momentum_evidence(tmp_path, mo
     recon.execute(path, name)
     audited = audit(path)['jobs'][0]
     assert audited['status'] == 'complete'
-    assert audited['occupation_source'] == 'native_state_averaged_table'
+    assert audited['occupation_source'] == 'native_natural_table'
     assert len(audited['orbital_xml']) == 2
     assert (directory / (name + '.inp')).read_bytes() == original
     execution = json.loads((directory / 'execution.json').read_text())

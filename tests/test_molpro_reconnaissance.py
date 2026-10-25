@@ -9,6 +9,16 @@ import pytest
 from kinbot.molpro_reconnaissance import audit, prepare, select_record
 
 
+def _explicit_legacy_fixture(source, destination):
+    # Replay an old, deliberately broad diagnostic. This does not authorize
+    # those example inputs for new production reviews.
+    data = json.loads(source.read_text())
+    data['probe_space'] = {'mode': 'full_valence', **data.get('probe_space', {})}
+    data['kinbot_input'] = str((source.parent/data['kinbot_input']).resolve())
+    destination.write_text(json.dumps(data))
+    return destination
+
+
 def _partition_chain_configuration(tmp_path):
     from kinbot.execution import file_sha256
     seeds = {}
@@ -484,6 +494,7 @@ def test_casscf_rejects_invalid_diagnostic_verbosity(tmp_path, verbosity):
     'null_native_path', 'missing_native_hash', 'wrong_native_hash'])
 def test_real_blodgett_molden_pilot_execution_evidence(tmp_path, monkeypatch, execution_format):
     source = (Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reviews/orbital_reconnaissance.json')
+    source = _explicit_legacy_fixture(source, tmp_path/'historical_input.json')
     path = prepare(source, tmp_path / 'recon')
     job = json.loads(path.read_text())['jobs'][0]
     directory, name = Path(job['directory']), job['name']
@@ -597,6 +608,7 @@ def test_select_accumulates_basis_specific_reviewed_records(tmp_path):
 @pytest.mark.parametrize('name,channels', [('ch3s', 1), ('ch3ss', 2)])
 def test_sulfur_recon_covers_production_basis_and_derives_channel_states(tmp_path, name, channels):
     source = Path(__file__).parents[1] / 'examples' / 'anl' / f'{name}_anl1_f12' / 'orbital_reviews' / 'orbital_reconnaissance.json'
+    source = _explicit_legacy_fixture(source, tmp_path/'historical_input.json')
     manifest = json.loads(prepare(source, tmp_path / name).read_text())
     jobs = manifest['jobs']
     assert {job['basis'] for job in jobs} == {'avtz-f12'}
@@ -760,7 +772,7 @@ def _coordinate_configuration(source):
     _configuration(source)
     data = json.loads(source.read_text())
     data.pop('anchors')
-    data.update(probe_active_space=True, coordinates=[{
+    data.update(probe_active_space=True, probe_space={'mode': 'full_valence'}, coordinates=[{
         'name': 'cs', 'bond': [1, 2], 'distances_angstrom': [1.8, 2., 3., 30.],
     }])
     source.write_text(json.dumps(data))
@@ -1349,6 +1361,7 @@ def test_completed_long_name_probe_recovers_exact_native_checkpoint(tmp_path, ch
     """Regression for Blodgett job 52907323: all evidence but FILE,2 passed."""
     from kinbot.molpro import molpro_wfu_name
     source = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reviews/orbital_reconnaissance.json'
+    source = _explicit_legacy_fixture(source, tmp_path/'historical_input.json')
     path = prepare(source, tmp_path / 'recon')
     manifest = json.loads(path.read_text())
     job = next(job for job in manifest['jobs'] if job['orientation'])
@@ -1515,3 +1528,18 @@ def test_runtime_setup_failure_is_recorded_before_molpro_launch(tmp_path, monkey
     assert record['status'] == 'failed'
     assert record['error'] == 'scratch capacity requirement not met'
     assert record['input_sha256'] == job['input_sha256']
+
+
+def test_new_preparation_requires_explicit_space_but_legacy_evidence_stays_readable(tmp_path):
+    from kinbot.molpro_reconnaissance import _load
+    source = tmp_path/'input.json'; _coordinate_configuration(source)
+    data = json.loads(source.read_text()); data.pop('probe_space')
+    source.write_text(json.dumps(data))
+    assert _load(source)['_probe_space']  # Historical evidence can still be inspected.
+    output = tmp_path/'not_prepared'
+    with pytest.raises(ValueError, match='explicit probe_definition'):
+        prepare(source, output)
+    assert not output.exists()
+    data['probe_space'] = {'mode': 'full_valence'}
+    source.write_text(json.dumps(data))
+    assert prepare(source, output).is_file()

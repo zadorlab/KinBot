@@ -2,6 +2,7 @@
 from copy import deepcopy
 import json
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -11,6 +12,20 @@ from kinbot.execution import atomic_json, file_sha256
 
 
 SOURCE = Path(__file__).parents[1] / 'examples/anl/ch3s_anl1_f12/orbital_reviews/orbital_reconnaissance.json'
+
+
+@pytest.fixture(autouse=True)
+def explicit_historical_source(tmp_path, monkeypatch):
+    # Tests replay an explicitly chosen historical valence comparator; new
+    # callers must no longer acquire that model just by omitting a definition.
+    source = SOURCE
+    data = json.loads(source.read_text())
+    data['probe_space'] = {'mode': 'full_valence'}
+    data['kinbot_input'] = str((source.parent/data['kinbot_input']).resolve())
+    target = tmp_path/'historical'/'orbital_reviews'/source.name
+    atomic_json(target, data)
+    atomic_json(target.parent.parent/'ch3s.json', json.loads(Path(data['kinbot_input']).read_text()))
+    monkeypatch.setattr(sys.modules[__name__], 'SOURCE', target)
 
 
 def test_correlated_order_diagnostic_keeps_method_controls_and_root_labels():
@@ -52,6 +67,7 @@ def test_non_sulfur_channels_derive_spaces_and_spin_blocks(
         'symbols': [symbol, symbol],
         'geometry_angstrom': [[0., 0., 0.], [0., 0., bond_length]],
         'charge': 0, 'multiplicity': 1, 'probe_active_space': True,
+        'probe_space': {'mode': 'full_valence'},
         'bases': [{'name': 'test_basis', 'basis': 'vdz'}],
         'coordinates': [{'name': 'dissociation', 'bond': [1, 2],
             'distances_angstrom': [bond_length, 2., 4., 20.],

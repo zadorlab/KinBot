@@ -1,4 +1,7 @@
-"""Native-deck staging against supplied request and L2 product evidence."""
+"""Transport tests using SCF-only fixtures, plus withdrawal of the invalid plan.
+
+These fixtures test atom maps and orchestration, not an approved electronic model.
+"""
 import json
 from pathlib import Path
 
@@ -33,14 +36,28 @@ PRODUCTS = {
 
 
 @pytest.fixture
-def tree(tmp_path):
+def plan(tmp_path):
+    destination = tmp_path/'scf_transport_fixture'; destination.mkdir()
+    for path in PLAN.glob('*.json'):
+        data = json.loads(path.read_text())
+        data.pop('status'); data.pop('status_reason')
+        if 'reconnaissance' in data:
+            config = data['reconnaissance']
+            config['probe_active_space'] = False
+            config.pop('probe_definition')
+        atomic_json(destination/path.name, data)
+    return destination
+
+
+@pytest.fixture
+def tree(tmp_path, plan):
     production = tmp_path/'production'; case = production/'ch3ss'
     atomic_json(case/'input.json', dict(queue_name='month-long-cpu'))
     atomic_json(production/'.kinbot_resource_policy.json', dict(schema=1, max_jobs=23,
         excluded_nodes=['node34'], revision=14, manage_pending=True))
     rows = []
-    for entry in json.loads((PLAN/'screens.json').read_text())['screens']:
-        recipe = json.loads((PLAN/entry['recipe']).read_text()); match = recipe['request_match']
+    for entry in json.loads((plan/'screens.json').read_text())['screens']:
+        recipe = json.loads((plan/entry['recipe']).read_text()); match = recipe['request_match']
         worker = case/match['parent']
         atomic_json(worker/'vrctst/orbital_review'/match['reaction']/'request.json',
                     dict(match, schema=1, status='needs_review', positions=PARENT))
@@ -53,11 +70,11 @@ def tree(tmp_path):
     return production, production/'orbital_recon'/'remaining'
 
 
-def test_all_four_actual_requests_stage_and_keep_distinct_product_exits(tree, monkeypatch):
+def test_all_four_actual_requests_stage_and_keep_distinct_product_exits(tree, plan, monkeypatch):
     production, output = tree
     before = {p:p.read_bytes() for p in production.rglob('*') if p.is_file()}
     monkeypatch.setattr(review.subprocess, 'run', lambda *a, **k: pytest.fail('Staging must not submit'))
-    result = review.batch(production, PLAN/'screens.json', output, shared_pool=True)
+    result = review.batch(production, plan/'screens.json', output, shared_pool=True)
     assert (result['screens'], result['tasks'], result['max_jobs']) == (4,32,3)
     assert all(p.read_bytes() == b for p,b in before.items())
     for child in review._saved(output)['reviews']:
@@ -68,9 +85,9 @@ def test_all_four_actual_requests_stage_and_keep_distinct_product_exits(tree, mo
         assert all(not j.get('job_id') and j.get('orbital_predecessor') is None for j in manifest['jobs'])
         for job in manifest['jobs']:
             text = (Path(job['directory'])/(job['name']+'.inp')).read_text().lower()
-            assert '{multi,cas-ci;' in text and 'rs2' not in text
+            assert '{rhf' in text and '{multi' not in text and 'rs2' not in text
         if child.name in PRODUCTS:
-            assert loaded['_probe_space']['active_orbitals'] == 15
+            assert '_probe_space' not in loaded
             assert np.allclose(loaded['geometry_angstrom'], PRODUCTS[child.name])
             for anchor in loaded['anchors']:
                 xyz = review.recon._anchor_geometry(loaded, anchor)
@@ -82,23 +99,23 @@ def test_all_four_actual_requests_stage_and_keep_distinct_product_exits(tree, mo
                     assert np.allclose(delta(xyz[m]), delta(np.array(PRODUCTS[child.name])[m]))
         else:
             assert np.allclose(loaded['geometry_angstrom'], PARENT)
-            assert loaded['_probe_space']['active_orbitals'] == 12
+            assert '_probe_space' not in loaded
     with pytest.raises(FileExistsError, match='resume'):
-        review.batch(production, PLAN/'screens.json', output, shared_pool=True)
+        review.batch(production, plan/'screens.json', output, shared_pool=True)
 
 
-def test_bad_last_product_record_cannot_partially_publish_campaign(tree):
+def test_bad_last_product_record_cannot_partially_publish_campaign(tree, plan):
     production, output = tree
     worker = production/'ch3ss/791871710370000000002'
-    source = json.loads((PLAN/'hcs_h2s_exit.json').read_text())['geometry_source']
+    source = json.loads((plan/'hcs_h2s_exit.json').read_text())['geometry_source']
     connect(worker/'kinbot.db').write(Atoms('CSSHHH', positions=PRODUCTS['hcs_h2s_exit']),
         name=source['record_name'], data=dict(status='error'))
     with pytest.raises(ValueError, match='normal completion'):
-        review.batch(production, PLAN/'screens.json', output, shared_pool=True)
+        review.batch(production, plan/'screens.json', output, shared_pool=True)
     assert not output.exists()
 
 
-def test_campaign_launch_and_resume_share_retained_production_capacity(tree, monkeypatch):
+def test_campaign_launch_and_resume_share_retained_production_capacity(tree, plan, monkeypatch):
     """Simulated site: terminal audits are stubbed, scientific acceptance is not tested."""
     from types import SimpleNamespace
     from kinbot import run_policy
@@ -107,7 +124,7 @@ def test_campaign_launch_and_resume_share_retained_production_capacity(tree, mon
     policy_path = production/'.kinbot_resource_policy.json'
     policy = json.loads(policy_path.read_text()); policy.update(fair_submission=False)
     atomic_json(policy_path, policy)
-    review.batch(production, PLAN/'screens.json', output, shared_pool=True)
+    review.batch(production, plan/'screens.json', output, shared_pool=True)
     before = policy_path.read_bytes()
     running = {str(100+i): 1 for i in range(23)}
     done, launched = set(), []
@@ -153,3 +170,19 @@ def test_campaign_launch_and_resume_share_retained_production_capacity(tree, mon
     assert json.loads((production/'.kinbot_policy_admissions.json').read_text()) == {}
     review.run(output, report_failures=True)
     assert len(launched) == 32
+
+
+def test_withdrawn_batch_and_individual_recipes_cannot_stage(tree, monkeypatch):
+    production, output = tree
+    before = {p:p.read_bytes() for p in production.rglob('*') if p.is_file()}
+    monkeypatch.setattr(review.subprocess, 'run', lambda *a, **k: pytest.fail('No launch'))
+    with pytest.raises(ValueError, match='not ready: withdrawn'):
+        review.batch(production, PLAN/'screens.json', output, shared_pool=True)
+    for item in json.loads((PLAN/'screens.json').read_text())['screens']:
+        recipe = PLAN/item['recipe']; match = json.loads(recipe.read_text())['request_match']
+        case = production/item['case']
+        request = case/match['parent']/'vrctst/orbital_review'/match['reaction']/'request.json'
+        with pytest.raises(ValueError, match='not ready: withdrawn'):
+            review.prepare(request, case/'input.json', recipe, output, shared_pool=True)
+    assert not output.exists()
+    assert before == {p:p.read_bytes() for p in production.rglob('*') if p.is_file()}

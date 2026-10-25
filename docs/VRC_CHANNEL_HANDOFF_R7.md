@@ -1,5 +1,7 @@
 # r7 VRC channel and orbital handoff, 2026-10-21
 
+**Historical record.** For the current direct-CASPT2 selections use [ALL_ACTIVE_SPACES.md](../examples/anl/orbital_review_batches/r7_progress_20261024/ALL_ACTIVE_SPACES.md); for the later TZ/QZ anharmonic and MESS extension use [anl_live_controls.md](anl_live_controls.md). Older spin-gap and launch instructions below are superseded. See the [25 October audit](VRC_HANDOFF_AUDIT_2026-10-25.md) before a new handoff.
+
 **2026-10-22 current update:** use the [direct-CASPT2 CBS transaction](VRC_DIRECT_CBS_HANDOFF_R7.md)
 for all CH3S/CH3SS channels and the new CH + H2S model. It supersedes the earlier
 spin-splitting energy recommendation below; orbital evidence and existing

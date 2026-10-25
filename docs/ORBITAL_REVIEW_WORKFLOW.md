@@ -29,6 +29,20 @@ the shared reaction-decision controls described in `LIVE_DRIVER_CONTROLS.md`.
 The legacy `examples/anl/tools/requested_orbital_recon.py` and
 `vrc_relaxation_recon.py` paths are compatibility entry points to these modules.
 
+New active-space preparation and planning require an explicit `probe_definition`
+with counted electrons/orbitals, chemical rationale and electronic-state model.
+An intentionally broad valence diagnostic instead requires
+`"probe_space": {"mode": "full_valence"}`. Merely setting
+`probe_active_space=true` no longer authorizes a valence CI. Legacy manifests
+remain readable and already prepared jobs can be monitored/resumed; reproducing
+or expanding an implicit legacy recipe requires a new explicit choice. Do not
+edit a running campaign's hash-bound input to add this field.
+
+Requested-review recipes and batch plans may carry `status: withdrawn` or
+`status: proposed`; preparation rejects either before creating a campaign.
+An absent status retains the existing explicit-recipe interface. `status: ready`
+only permits preparation, and is not scientific approval or production acceptance.
+
 Independent prepared campaigns can run together with
 `python -m kinbot.review_campaign REVIEW/inventory.json --queue-all`:
 
@@ -250,7 +264,9 @@ they do not infer physical root identities or certify unsampled smoothness.
 1. `plan CONFIG PLAN.json` derives fragment/spin context from the existing
    reconnaissance configuration and linked KinBot input. It exposes all
    radial/orientation anchors and selects a small finite comparison panel.
-   The initial model is a diagnostic valence reference, not a production choice.
+   The initial model is the explicitly supplied chemical candidate, not a
+   production choice. A valence reference requires deliberate opt-in; it is not
+   the mandatory starting point for a VRC review.
    `rotd_target` records resolved sampling/correction methods and bases, the
    actual scan and dividing-surface grids, temperature controls and available
    surface-model stage overrides. Missing/unreviewed stage choices stay explicit.

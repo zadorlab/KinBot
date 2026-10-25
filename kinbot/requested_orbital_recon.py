@@ -26,6 +26,15 @@ def _read(path):
     return json.loads(Path(path).read_text())
 
 
+def _require_available_recipe(payload):
+    # An absent status retains compatibility with explicitly defined recipes.
+    # Withdrawn/proposed recipes can preserve evidence without authorizing QC.
+    if payload.get('status', 'ready') != 'ready':
+        raise ValueError('Orbital review recipe/plan is not ready: '
+                         + str(payload.get('status')) + '. '
+                         + str(payload.get('status_reason', 'Inspect its scientific selection.')))
+
+
 def _saved(root, *, allow_accepted=False):
     record = _read(root/'review_launch.json')
     for name, digest in record['files'].items():
@@ -270,6 +279,7 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
                                     for p in (request, case_input, recipe)]
     output = Path(output).expanduser().resolve()
     evidence, controls = _read(request), _read(recipe)
+    _require_available_recipe(controls)
     preliminary = None
     if provisional:
         if request.name != request.parent.name+'.json':
@@ -323,6 +333,7 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
         raise ValueError('Keep reconnaissance outside the production run directory.')
     context = _read(case_input)
     config = deepcopy(controls['reconnaissance'])
+    recon.require_explicit_probe_space(config)
     config.update(symbols=evidence['symbols'], geometry_angstrom=evidence['positions'],
                   charge=evidence['charge'], partition=context['queue_name'])
     geometry_proof=None
@@ -375,7 +386,7 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
         record['files']['geometry_source.json']=file_sha256(output/'geometry_source.json')
         atomic_json(output/'review_launch.json',record)
     return dict(directory=str(output), tasks=len(state['jobs']), max_jobs=record['max_jobs'],
-                active_space=loaded['_probe_space'], states=state['jobs'][0]['root_states'],
+                active_space=loaded.get('_probe_space'), states=state['jobs'][0]['root_states'],
                 partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
 
 
@@ -390,6 +401,7 @@ def batch(production, plan, output, *, shared_pool=False):
     plan = Path(plan).expanduser().resolve(strict=True)
     output = Path(output).expanduser().resolve()
     spec = _read(plan)
+    _require_available_recipe(spec)
     entries = spec.get('screens', [])
     if (spec.get('schema') != 1 or not entries or type(spec.get('max_jobs')) is not int
             or spec['max_jobs'] < 1):
@@ -412,9 +424,11 @@ def batch(production, plan, output, *, shared_pool=False):
             raise ValueError('Batch case must be directly inside the production directory.')
         recipe = (plan.parent/item['recipe']).resolve(strict=True)
         control = _read(recipe)
+        _require_available_recipe(control)
         config = control['reconnaissance']
-        if config.get('correlation_checks') or config.get('probe_method') != 'casci':
-            raise ValueError('This batch command stages orbital-only CASCI screens.')
+        if (config.get('correlation_checks')
+                or (config.get('probe_active_space') and config.get('probe_method', 'casci') != 'casci')):
+            raise ValueError('This batch command stages orbital-only SCF or CASCI screens.')
         match = control['request_match']
         parent, reaction = match['parent'], match['reaction']
         if not all(recon._SAFE.fullmatch(x) for x in (parent,reaction)):

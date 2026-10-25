@@ -262,6 +262,20 @@ def _coordinates(data, source):
     return anchors
 
 
+def require_explicit_probe_space(data):
+    """Do not turn a request for orbital evidence into an implicit valence CI.
+
+    Reading legacy manifests remains supported. New preparation/planning needs
+    counted chemical candidates or an explicit full-valence diagnostic choice.
+    """
+    controls = data.get('probe_space', {})
+    if (data.get('probe_active_space') and not data.get('probe_definition')
+            and (not isinstance(controls, dict) or controls.get('mode') != 'full_valence')):
+        raise ValueError('An active-space probe needs an explicit probe_definition; '
+                         'a deliberate valence diagnostic requires '
+                         'probe_space.mode=full_valence. No active space is inferred for new jobs.')
+
+
 def _load(path):
     path = Path(path).expanduser().resolve()
     data = json.loads(path.read_text())
@@ -398,12 +412,13 @@ def _load(path):
     if data.get('probe_active_space'):
         controls = data.get('probe_space', {})
         if (not isinstance(controls, dict)
-                or set(controls) - {'include_light_atoms', 'additional_centers'}
+                or set(controls) - {'mode', 'include_light_atoms', 'additional_centers'}
+                or ('mode' in controls and controls['mode'] != 'full_valence')
                 or ('include_light_atoms' in controls and not isinstance(controls['include_light_atoms'], bool))):
-            raise ValueError('probe_space accepts include_light_atoms and additional_centers.')
-        # Hydrogen cleavage needs its independent 1s projection, including
-        # the corresponding antibonding space. Heavy-bond probes retain the
-        # compact default, with a user-controlled all-atom extension.
+            raise ValueError('probe_space accepts mode=full_valence, include_light_atoms '
+                             'and additional_centers.')
+        # Legacy parsing retains the former valence definition for evidence
+        # readers. New jobs must explicitly opt in; this is not a compact CAS.
         hydrogen_coordinate = any(any(symbols[index - 1] in ('H', 'He')
                                      for index in anchor.get('bond', [])) for anchor in anchors)
         definition = data.get('probe_definition')
@@ -893,12 +908,14 @@ def _recover_legacy_caspt2_energies(output, native_input, labels, electron_count
 
 
 def prepare(source, output):
+    require_explicit_probe_space(json.loads(Path(source).expanduser().read_text()))
     with _manifest_lock(output):
         return _prepare(source, output)
 
 
 def _prepare(source, output):
     data = _load(source)
+    require_explicit_probe_space(data)
     root = Path(output).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     setup = root / 'site_setup.sh'
@@ -1798,6 +1815,7 @@ def _refine(manifest_path):
     if manifest['status'] != 'coverage_refinement_required':
         raise ValueError('Refinement requires completed probes with unresolved coverage.')
     data = _load(manifest['source'])
+    require_explicit_probe_space(data)
     channels = {}
     for anchor in data['anchors']:
         if anchor.get('_channel'):

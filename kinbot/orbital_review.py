@@ -82,6 +82,7 @@ def _rotd_target(context_path):
 def plan(source, output):
     """Expose chemistry, available geometries and editable region/model choices."""
     data = recon._load(source)
+    recon.require_explicit_probe_space(data)
     if not data.get('probe_active_space'):
         raise ValueError('Orbital review requires probe_active_space=true.')
     channels = sorted({_channel(anchor) for anchor in data['anchors']} - {None})

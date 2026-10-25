@@ -22,5 +22,7 @@
       "case": "ch3ss",
       "recipe": "hcs_h2s_exit.json"
     }
-  ]
+  ],
+  "status": "withdrawn",
+  "status_reason": "The valence CASCI plan did not follow the established compact dissociation-space selection. Retained for audit only; no new QC is authorized by this recipe."
 }

@@ -1,5 +1,7 @@
 # VRC orbital selections and publication, 24 October 2026
 
+**Later thermal-model update:** the channel/orbital selections below remain the 24 October record. The subsequent [ANL live-control documentation](../../../../docs/anl_live_controls.md) supersedes the single-TZ anharmonic formula below when the accepted TZ/QZ extension is enabled. The [25 October audit](../../../../docs/VRC_HANDOFF_AUDIT_2026-10-25.md) records remaining publication and validation limits.
+
 The five new channels below are selected together for one additive live revision
 of the CH3SS case input. They are ready for production optimization, subject to
 the saved native files passing the publication checks. This is completion of

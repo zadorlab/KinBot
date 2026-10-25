@@ -146,5 +146,7 @@
         "canonical_orbitals": true
       }
     }
-  }
+  },
+  "status": "withdrawn",
+  "status_reason": "The valence CASCI plan did not follow the established compact dissociation-space selection. Retained for audit only; no new QC is authorized by this recipe."
 }

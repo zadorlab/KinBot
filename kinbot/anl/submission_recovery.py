@@ -36,6 +36,9 @@ def _attempt(root, claim):
     from kinbot.anl import dispatch
     job = str(claim.get('job_id', ''))
     directory = Path(claim.get('directory', '/')).resolve()
+    if directory.parent.name != 'tasks':
+        from kinbot.recon_submission import terminal_attempt
+        return terminal_attempt(root, claim)
     if (not job.isdecimal() or claim.get('status') != 'submitted'
             or not directory.is_relative_to(root) or directory.parent.name != 'tasks'):
         return None

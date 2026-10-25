@@ -34,7 +34,8 @@ def _saved(root, *, allow_accepted=False):
     if record.get('reviews'):
         for child in record['reviews']:
             saved = _saved(Path(child), allow_accepted=allow_accepted)
-            if saved['production_policy'] != record['production_policy']:
+            if (saved['production_policy'] != record['production_policy']
+                    or saved.get('shared_pool', False) != record.get('shared_pool', False)):
                 raise ValueError('Batch reviews no longer share one resource policy.')
         return record
     if record.get('provisional'):
@@ -72,13 +73,18 @@ def candidates(source, recipe, output):
             raise ValueError(f'Request differs from candidate recipe: {key}.')
     policy_path = run_policy.find(Path(previous['request']).parent)
     policy = run_policy.read(Path(previous['request']).parent) or {}
-    slots = policy.get('orbital_review_reserved_slots', 0)
+    shared = previous.get('shared_pool', False)
+    slots = (policy.get('configured_max_jobs', policy.get('max_jobs', 0)) if shared
+             else policy.get('orbital_review_reserved_slots', 0))
     cap = controls.get('max_jobs', previous['max_jobs'])
     if type(cap) is not int or cap < 1 or slots < 1:
         raise ValueError('Candidate review needs positive reserved capacity.')
     if output.exists() or output == source or source in output.parents:
         raise FileExistsError('Preserve the source review; choose a fresh sibling directory.')
-    if policy_path.parent == output or policy_path.parent in output.parents:
+    if shared:
+        if run_policy.find(output.parent) != policy_path:
+            raise ValueError('Shared candidates must remain in the same production policy tree.')
+    elif policy_path.parent == output or policy_path.parent in output.parents:
         raise ValueError('Keep reconnaissance outside the production run directory.')
     # A single completed source manifest is explicit. Multi-model successors
     # require choosing a source, rather than silently picking one candidate.
@@ -186,10 +192,12 @@ def candidates(source, recipe, output):
         manifest = recon.prepare(config, output/data['title'])
         state = _read(manifest)
         state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
+        if shared:
+            state.update(shared_policy_file=str(policy_path), slurm_excluded_nodes=[])
         atomic_json(manifest, state)
         files.append(config.name)
         systems.append(dict(title=data['title'], configuration=str(config), manifest=str(manifest)))
-    record = dict(schema=1, status='prepared', request=previous['request'],
+    record = dict(schema=1, status='prepared', shared_pool=shared, request=previous['request'],
                   max_jobs=min(cap, slots), production_policy=str(policy_path),
                   files={name: file_sha256(output/name) for name in files}, systems=systems,
                   candidate_comparison=True, source_review=str(source))
@@ -256,7 +264,8 @@ def product_complex_geometry(request, evidence, selection):
     return atoms.positions.tolist(),anchors,proof
 
 
-def prepare(request, case_input, recipe, output, *, provisional=False):
+def prepare(request, case_input, recipe, output, *, provisional=False, shared_pool=False,
+            _preflight=False):
     request, case_input, recipe = [Path(p).expanduser().resolve(strict=True)
                                     for p in (request, case_input, recipe)]
     output = Path(output).expanduser().resolve()
@@ -299,13 +308,18 @@ def prepare(request, case_input, recipe, output, *, provisional=False):
         raise ValueError('The case input must belong to the requested calculation tree.')
     policy_file = run_policy.find(request.parent)
     policy = run_policy.read(request.parent) or {}
-    slots = policy.get('orbital_review_reserved_slots', 0)
+    slots = (policy.get('configured_max_jobs', policy.get('max_jobs', 0)) if shared_pool
+             else policy.get('orbital_review_reserved_slots', 0))
     if slots < 1:
         raise ValueError('No orbital-review capacity is configured/currently reserved.')
     requested_cap = controls.get('max_jobs', slots)
     if type(requested_cap) is not int or requested_cap < 1:
         raise ValueError('Recipe max_jobs must be a positive integer.')
-    if policy_file.parent == output or policy_file.parent in output.parents:
+    inside = policy_file.parent in output.parents
+    if shared_pool:
+        if not _preflight and (not inside or run_policy.find(output.parent) != policy_file):
+            raise ValueError('Shared-pool reviews must be inside their production policy tree.')
+    elif policy_file.parent == output or inside:
         raise ValueError('Keep reconnaissance outside the production run directory.')
     context = _read(case_input)
     config = deepcopy(controls['reconnaissance'])
@@ -342,8 +356,11 @@ def prepare(request, case_input, recipe, output, *, provisional=False):
     manifest = recon.prepare(output/'input.json', output/'native')
     state = _read(manifest)
     state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
+    if shared_pool:
+        state['shared_policy_file'] = str(policy_file)
+        state['slurm_excluded_nodes'] = []  # Pool exclusions are read at each admission.
     atomic_json(manifest, state)
-    record = dict(schema=1, status='prepared', request=str(request), manifest=str(manifest),
+    record = dict(schema=1, status='prepared', shared_pool=shared_pool, request=str(request), manifest=str(manifest),
                   max_jobs=min(requested_cap, slots), production_policy=str(policy_file),
                   files={name: file_sha256(output/name) for name in
                          ('request.json', 'recipe.json', 'electronic_context.json', 'input.json')},
@@ -362,7 +379,7 @@ def prepare(request, case_input, recipe, output, *, provisional=False):
                 partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
 
 
-def batch(production, plan, output):
+def batch(production, plan, output, *, shared_pool=False):
     """Stage independent orbital-only screens with one shared submission cap.
 
     Paths and scientific settings are explicit in the plan/recipes. Existing
@@ -379,7 +396,10 @@ def batch(production, plan, output):
         raise ValueError('Batch plan requires schema 1, screens and positive max_jobs.')
     if output.exists():
         raise FileExistsError('Batch already exists; use run to resume without duplicate preparation.')
-    if production == output or production in output.parents:
+    if shared_pool:
+        if production not in output.parents or run_policy.find(output.parent) != run_policy.find(production):
+            raise ValueError('Shared-pool reviews must be inside their production policy tree.')
+    elif production == output or production in output.parents:
         raise ValueError('Keep reconnaissance outside the production run directory.')
     pending, skipped, names, policies = [], [], set(), set()
     for item in entries:
@@ -423,16 +443,17 @@ def batch(production, plan, output):
     # partially usable campaign. This performs no scheduler/native calls.
     with tempfile.TemporaryDirectory(prefix='kinbot-batch-preflight-') as tmp:
         for name,request,case_input,recipe,provisional in pending:
-            prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional)
+            prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional,
+                    shared_pool=shared_pool,_preflight=True)
     output.mkdir(parents=True, exist_ok=False)
     systems, reviews, caps = [], [], []
     for name,request,case_input,recipe,provisional in pending:
         child = output/name
-        prepare(request,case_input,recipe,child,provisional=provisional)
+        prepare(request,case_input,recipe,child,provisional=provisional,shared_pool=shared_pool)
         saved = _saved(child)
         systems.extend(saved['systems']); reviews.append(str(child)); caps.append(saved['max_jobs'])
     atomic_json(output/'plan.json',spec)
-    record = dict(schema=1,status='prepared', request=str(pending[0][1]),
+    record = dict(schema=1,status='prepared', shared_pool=shared_pool, request=str(pending[0][1]),
         production_policy=next(iter(policies)),max_jobs=min(spec['max_jobs'],*caps),
         systems=systems,reviews=reviews,skipped=skipped,
         files={'plan.json':file_sha256(output/'plan.json')})
@@ -608,15 +629,20 @@ def run(output, *, report_failures=False, queue_all=False, allow_nodes=()):
         raise ValueError('Failure reporting requires independent screens or a candidate comparison.')
     with recon._manifest_lock(root):
         try:
-            return (_run(root, queue_all=queue_all, allow_nodes=allow_nodes)
-                    if queue_all or allow_nodes else _run(root))
+            result = (_run(root, queue_all=queue_all, allow_nodes=allow_nodes)
+                      if queue_all or allow_nodes else _run(root))
         except recon.ProbeFailure as error:
             if not report_failures:
                 raise
             # Batch run_many(keep_going=True) raises this only after auditing
             # all allocations to termination. No still-live jobs can overlap
             # the next independent campaign using these reserved slots.
-            return dict(status='failed', error=str(error), production_model_accepted=False)
+            result = dict(status='failed', error=str(error), production_model_accepted=False)
+        if record.get('shared_pool'):
+            # Retire the last verified claims even if production owners loaded
+            # older code and no further review submission will occur.
+            run_policy.reconcile_allocations(root)
+        return result
 
 
 def _reference_preflight(record, manifests):
@@ -661,7 +687,12 @@ def _run(output, *, queue_all=False, allow_nodes=()):
     root = Path(output).expanduser().resolve(strict=True)
     record = _saved(root)
     policy = run_policy.read(Path(record['request']).parent) or {}
-    slots = policy.get('orbital_review_reserved_slots', 0)
+    shared = record.get('shared_pool', False)
+    if shared and (queue_all or allow_nodes):
+        raise ValueError('Shared-pool reviews use the live pool limit and node exclusions.')
+    slots = record['max_jobs'] if shared else policy.get('orbital_review_reserved_slots', 0)
+    if shared and run_policy.find(root) != Path(record['production_policy']):
+        raise ValueError('Shared review has moved outside its production policy.')
     if slots < 1 and not queue_all:
         raise ValueError('No review capacity remains reserved; production may have resumed.')
     # Check setup and scheduler, without starting native work on the login node.
@@ -678,6 +709,9 @@ def _run(output, *, queue_all=False, allow_nodes=()):
     for manifest in manifests:
         with recon._manifest_lock(manifest.parent):
             state = _read(manifest)
+            if shared and (state.get('shared_policy_file') != record['production_policy']
+                           or run_policy.find(manifest.parent) != Path(record['production_policy'])):
+                raise ValueError('Shared review manifest policy changed.')
             if queue_all:
                 allowed = set(run_policy._nodes(allow_nodes))
                 previous = set(state.get('slurm_inherited_exclusion_allow', []))
@@ -688,8 +722,9 @@ def _run(output, *, queue_all=False, allow_nodes=()):
             else:
                 if allow_nodes:
                     raise ValueError('Node overrides require explicit --queue-all review scheduling.')
-                state['slurm_excluded_nodes'] = sorted(set(state.get('slurm_excluded_nodes', []))
-                                                       | set(policy['excluded_nodes']))
+                if not shared:
+                    state['slurm_excluded_nodes'] = sorted(set(state.get('slurm_excluded_nodes', []))
+                                                           | set(policy['excluded_nodes']))
             atomic_json(manifest, state)
     previous = Path.cwd()
     try:
@@ -1288,6 +1323,7 @@ def main():
     prepare_cmd = commands.add_parser('prepare')
     for name in ('request', 'case_input', 'recipe', 'output'):
         prepare_cmd.add_argument(name)
+    prepare_cmd.add_argument('--shared-pool', action='store_true')
     candidate_cmd = commands.add_parser('candidates')
     for name in ('source', 'recipe', 'output'):
         candidate_cmd.add_argument(name)
@@ -1299,6 +1335,8 @@ def main():
     batch_cmd = commands.add_parser('batch',help='Prepare one shared-cap orbital-only campaign.')
     for name in ('production','plan','output'):
         batch_cmd.add_argument(name)
+    batch_cmd.add_argument('--shared-pool', action='store_true',
+        help='Stage within production and admit all review jobs through its existing resource policy.')
     bind_cmd = commands.add_parser('bind',help='Bind preliminary evidence to an actual review request.')
     for name in ('source','request'):
         bind_cmd.add_argument(name)
@@ -1326,9 +1364,9 @@ def main():
             command.add_argument('--allow-node', action='append', default=[])
     args = parser.parse_args()
     if args.action == 'prepare':
-        result = prepare(args.request, args.case_input, args.recipe, args.output)
+        result = prepare(args.request, args.case_input, args.recipe, args.output,shared_pool=args.shared_pool)
     elif args.action == 'batch':
-        result = batch(args.production,args.plan,args.output)
+        result = batch(args.production,args.plan,args.output,shared_pool=args.shared_pool)
     elif args.action == 'bind':
         result = bind(args.source,args.request)
     elif args.action == 'candidates':

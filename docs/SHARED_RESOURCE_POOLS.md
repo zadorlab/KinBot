@@ -4,9 +4,9 @@ KinBot can share one allocation budget across multiple PES controllers and
 their ordinary QC, CBH/ANL, VRC, ROTD_py sampling, and MESS/MESMER jobs.
 An opt-in `.kinbot_resource_policy.json` in a common ancestor directory
 defines the pool. No account, molecule, partition, node name, or site capacity
-is hardcoded into the implementation. Standalone orbital-reconnaissance
-campaign tools retain their separate campaign controls; do not run those
-independent submitters inside an active shared-pool tree.
+is hardcoded into the implementation. Orbital reconnaissance can join the
+same pool with explicit `--shared-pool` staging (below). Legacy standalone
+campaigns retain their separate controls outside the production tree.
 
 Without a policy, existing input defaults and per-branch limits remain in
 effect. With a policy, its live limit replaces the ordinary QC, dispatcher,
@@ -15,6 +15,39 @@ their original fields and hashes, so adding a pool does not invalidate
 accepted geometries, single points, or samples. These older job-count fields
 are no longer reservations in shared mode. Resource controls do not change
 cores, memory, scratch selection, convergence thresholds, or chemistry.
+
+## Orbital screens in the production pool
+
+```bash
+python -m kinbot.requested_orbital_recon batch /path/to/campaign \
+  /path/to/review-plan.json /path/to/campaign/orbital_recon/new-review --shared-pool
+python -m kinbot.requested_orbital_recon run \
+  /path/to/campaign/orbital_recon/new-review --report-failures
+```
+
+The plan supplies channel identities and scientific recipes. All requests,
+seeds, fragment mappings and native decks are checked before publishing the
+batch. A product exit uses an explicit accepted L2 product-complex record;
+its two intact fragments are translated along the requested separation.
+Staging submits nothing and changes no production input or resource policy.
+
+Every review submission then uses the same locked admission ledger and Slurm
+work-directory accounting as production. The campaign `max_jobs` is an
+additional ceiling, not reserved capacity: a cap of three reviews within a
+23-job pool still permits at most 23 total allocations. No reserved review
+slots are needed. Existing allocations are counted and retained. A full or
+paused pool leaves probes prepared, without a false submitting journal.
+Live pool exclusions apply at admission; bounded allocation recovery may add
+campaign exclusions without overwriting the pool policy.
+
+An uncertain sbatch response retains both journals and requires reconciliation;
+it is never submitted again automatically. Known purged allocations can release
+their claim only with matching submission and terminal execution provenance,
+including linked archived attempts. That releases capacity, not scientific
+acceptance. Repeated `run` adopts recorded jobs; a second live owner is refused.
+`--queue-all` and per-campaign node allowances cannot bypass shared admission.
+Native orbital character, state correspondence and active-space selection still
+require review before any production model is published.
 
 ## Enable a pool
 

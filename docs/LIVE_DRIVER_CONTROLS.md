@@ -595,6 +595,30 @@ ordinary monitor. This interface does not start native QC on the login node.
 An `applied` model-only receipt acknowledges the currently targeted branches;
 still-exploring wells inherit that accepted input when they become ready.
 
+Accepted orbital models also survive a controller generation change: ready
+workers inherit from the accepted input snapshot, not from the previous
+generation's publication journal. Unsubmitted input edits are never inherited.
+Relative orbital paths retain the original case-input directory. An in-progress
+publication defers inheritance until its transaction has finished.
+
+For workers started by older code that missed this inheritance, reconcile the
+already accepted models through their existing owners:
+
+```bash
+python -m kinbot.run_control resubmit /absolute/path/to/case/input.json --reconcile-models
+python -m kinbot.run_control resubmit /absolute/path/to/case/input.json --reconcile-models --apply
+python -m kinbot.run_control resubmit /absolute/path/to/case/input.json --status
+```
+
+This requires an unchanged accepted input, validates additive compatibility with
+worker settings, and retains the old publication journal. It queues ordinary
+generation-fenced network requests, which existing revision-aware drivers can
+consume without a controller restart. Ready branches cooperatively yield;
+searching workers inherit at their ready boundary. No QC allocations are
+cancelled, no searches are reconstructed, and the resource policy is unchanged.
+Repeated calls reconcile the same pending receipt. Model application still does
+not certify scan completion, orbital continuity, or kinetics.
+
 These controls cover configuration-driven retries, not arbitrary changes to
 already imported Python code. A future controller-code defect can still require
 a controller replacement; unsafe native checkpoints and contradictory scientific

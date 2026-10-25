@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "screens": [
+    {
+      "name": "ch_h2ss_cs",
+      "case": "ch3ss",
+      "recipe": "ch_h2ss_cs.json"
+    },
+    {
+      "name": "chsh2_s_ss",
+      "case": "ch3ss",
+      "recipe": "chsh2_s_ss.json"
+    },
+    {
+      "name": "csh2_sh_exit",
+      "case": "ch3ss",
+      "recipe": "csh2_sh_exit.json"
+    },
+    {
+      "name": "hcs_h2s_exit",
+      "case": "ch3ss",
+      "recipe": "hcs_h2s_exit.json"
+    }
+  ]
+}

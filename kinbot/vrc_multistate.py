@@ -160,6 +160,9 @@ def resolve_state_model_paths(payload, base):
 
 
 def normalize_inline_model_paths(parameters, base):
+    name = parameters.get('vrc_tst_state_model_file')
+    if name:
+        parameters['vrc_tst_state_model_file'] = str((Path(base)/Path(name).expanduser()).resolve())
     models = parameters.get('vrc_tst_surface_models', {})
     if not isinstance(models, dict):
         raise ValueError('vrc_tst_surface_models must map species selectors to reviewed surface models.')

@@ -1031,7 +1031,7 @@ def _prepare(source, output):
     manifest = {
         **{key: previous[key] for key in ('excluded_bases', 'excluded_jobs', 'slurm_excluded_nodes',
                                                          'slurm_inherited_exclusion_allow', 'startup_retries',
-                                                         'reference_solver_options', 'solver_options') if key in previous},
+                                                         'reference_solver_options', 'solver_options', 'shared_policy_file') if key in previous},
         'schema': 1, 'source': data['_source'], 'title': data['title'],
         'electron_count': data['_electrons'], 'jobs': records,
         'scan_policy': data.get('scan_policy'),
@@ -1058,6 +1058,7 @@ def execute(manifest_path, name):
     # occupations/energies. The native worker fills in the remaining metadata.
     record = Path(job['directory']) / 'execution.json'
     execution = {'schema': 1, 'status': 'running', 'host': socket.gethostname(),
+                 'slurm_job_id': os.environ.get('SLURM_JOB_ID'),
                  'input_sha256': job['input_sha256']}
     atomic_json(record, execution)
     started = time.monotonic()
@@ -1202,6 +1203,7 @@ def _execute(job):
         exports['natural'] = str(directory / f'{name}.natural.orbitals.xml')
     runtime = {}
     execution = {'schema': 1, 'status': 'running',
+                 'slurm_job_id': os.environ.get('SLURM_JOB_ID'),
                  'host': socket.gethostname(),
                  'input_sha256': job['input_sha256'],
                  'native_input': str(native),
@@ -2173,6 +2175,9 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
         raise ValueError('max_jobs must be positive.')
     path = Path(manifest_path).expanduser().resolve()
     pending = json.loads(path.read_text())
+    from kinbot import run_policy
+    if run_policy.find(path.parent) is not None and not pending.get('shared_policy_file'):
+        raise ValueError('Reconnaissance inside a resource pool requires explicit shared-pool staging.')
     # An unknown allocation consumes unknown capacity. Check the whole
     # manifest before the startup/dependency/cap filters can skip its entry.
     if any(job.get('submission_status') == 'submitting' for job in pending['jobs']):
@@ -2265,16 +2270,38 @@ def _submit(manifest_path, *, max_jobs=8, max_new_jobs=None,
         options = _slurm_submission_options(batch.read_text(), manifest.get('slurm_excluded_nodes', []),
             **({'allow_inherited': manifest['slurm_inherited_exclusion_allow']}
                if manifest.get('slurm_inherited_exclusion_allow') else {}))
-        command = ['sbatch', '--export=ALL', '--parsable', *options, job['name'] + '.sbatch']
-        job['submission_status'] = 'submitting'
-        job['submission_command'] = command
-        job['submission_overrides'] = {key: os.environ[key] for key in
-            ('SBATCH_MEM_PER_NODE', 'SBATCH_MEM_PER_CPU', 'SBATCH_TIMELIMIT',
-             'SBATCH_PARTITION') if key in os.environ}
-        atomic_json(path, manifest)
+        shared = manifest.get('shared_policy_file')
+        command = ['sbatch', '--export=ALL', '--parsable',
+                   *([] if shared else options), job['name'] + '.sbatch']
+        def journal():
+            job['submission_status'] = 'submitting'
+            job['submission_command'] = command
+            job['submission_overrides'] = {key: os.environ[key] for key in
+                ('SBATCH_MEM_PER_NODE', 'SBATCH_MEM_PER_CPU', 'SBATCH_TIMELIMIT',
+                 'SBATCH_PARTITION') if key in os.environ}
+            atomic_json(path, manifest)
         try:
-            result = subprocess.run(
-                command, cwd=job['directory'], capture_output=True, text=True, timeout=30)
+            if shared:
+                if run_policy.find(job['directory']) != Path(shared):
+                    raise ValueError('Shared reconnaissance policy/path changed; no submission.')
+                # Current pool exclusions supersede inherited script settings;
+                # native allocation failures add exclusions without editing policy.
+                ceiling = next((o.split('=', 1)[1] for o in options
+                                if o.startswith('--time=')), None)
+                result = run_policy.submit(command, cwd=job['directory'], before_submit=journal,
+                    extra_excluded_nodes=manifest.get('slurm_excluded_nodes', []),
+                    walltime_ceiling=ceiling, capture_output=True, text=True, timeout=30)
+                if result is None:
+                    break  # No admission: leave the probe prepared, not submitting.
+            else:
+                journal()
+                result = subprocess.run(
+                    command, cwd=job['directory'], capture_output=True, text=True, timeout=30)
+        except OSError as error:
+            if getattr(error, 'kinbot_submission_not_started', False):
+                job['submission_status'] = 'retry_ready'
+                atomic_json(path, manifest)
+            raise
         except subprocess.TimeoutExpired as error:
             raise RuntimeError(f'{job["name"]}: sbatch timed out; submission outcome is '
                                'uncertain. Retain the submitting journal for scheduler '

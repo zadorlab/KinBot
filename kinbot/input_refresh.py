@@ -81,7 +81,35 @@ def validate_models(previous, current, base, *, scope=None):
     return new
 
 
-def submit(source, *, apply=False, directory=None, proposal=None, expected=None):
+def _model_map(values, base):
+    from kinbot.vrc_multistate import normalize_inline_model_paths
+    values = deepcopy(values)
+    normalize_inline_model_paths(values, base)
+    return values.get('vrc_tst_surface_models', {})
+
+
+def _missing_model_inheritance(root, phase, accepted, base):
+    """Compare persisted worker settings without modifying their live owners."""
+    models = _model_map(accepted, base)
+    if not models:
+        return []
+    missing = []
+    for name in sorted(phase['workers']):
+        worker = root/name
+        saved = json.loads((worker/(name+'.json')).read_text())
+        overrides = worker/'.kinbot_search_options.json'
+        if overrides.exists():
+            saved.update(json.loads(overrides.read_text()))
+        if _model_map(saved, worker) != models:
+            # Never overwrite a conflicting worker-specific scientific choice.
+            validate_models(saved, dict(saved, vrc_tst_surface_models=models), worker,
+                            scope=saved.get('vrc_tst_surface_model_scope'))
+            missing.append(name)
+    return missing
+
+
+def submit(source, *, apply=False, directory=None, proposal=None, expected=None,
+           reconcile_models=False):
     """Submit an on-disk input, or atomically install a prepared proposal.
 
     Programmatic editors provide both proposal and expected. Validation and
@@ -105,13 +133,24 @@ def submit(source, *, apply=False, directory=None, proposal=None, expected=None)
             raise ValueError('Case input changed during review preparation; no input was overwritten.')
         proposed = deepcopy(proposal) if proposal is not None else current
         prior = json.loads((root/SNAPSHOT).read_text())
+        changed = {k for k in prior.keys() | proposed.keys() if prior.get(k)!=proposed.get(k)}
+        if reconcile_models and changed:
+            raise ValueError('Model reconciliation requires the unchanged accepted input; '
+                             'submit new scientific choices separately.')
         old = json.loads((root/JOURNAL).read_text()) if (root/JOURNAL).exists() else None
+        pending_inheritance = (_missing_model_inheritance(root, m, prior, source.parent)
+                               if reconcile_models else [])
         if (old and old['token']==m['token'] and proposed == current
                 and old['source_sha256']==file_sha256(source)):
-            return receipt(root)
+            previous = receipt(root)
+            ready_missing = any(m['workers'][name]['status'] != 'exploring'
+                                for name in pending_inheritance)
+            if not ready_missing or previous['status'] != 'applied':
+                return previous
         if old and old['token']==m['token'] and receipt(root)['status'] not in ('applied', 'blocked'):
             raise ValueError('An input revision is still pending; inspect its receipt first.')
-        changed = {k for k in prior.keys() | proposed.keys() if prior.get(k)!=proposed.get(k)}
+        if pending_inheritance:
+            changed = {'vrc_tst_surface_models'}
         if not changed:
             return dict(status='unchanged', input_file=str(source), drivers_started=0)
         if changed-FIELDS:
@@ -160,6 +199,9 @@ def submit(source, *, apply=False, directory=None, proposal=None, expected=None)
             previous_source_sha256=m['input_sha256'], options=options,
             requests=requests, control_root=str(control_path.parent), drivers_started=0,
             model_only=model_only)
+        if reconcile_models:
+            record['reconciliation'] = dict(kind='accepted_model_inheritance',
+                workers=pending_inheritance, accepted_sha256=file_sha256(root/SNAPSHOT))
         resolved=root/'resolved_parameters.json'
         if resolved.exists():
             values=json.loads(resolved.read_text())
@@ -272,14 +314,21 @@ def inherit_models(root, generator):
     change a running reaction/branch; only its future VRC model is extended.
     """
     root = Path(root)
-    if generator is None or not (root/JOURNAL).exists():
+    if generator is None or not (root/SNAPSHOT).exists():
         return
-    r = json.loads((root/JOURNAL).read_text())
     from kinbot import pes_phase, live_control as control
-    if (r['token'] != json.loads((root/pes_phase.NAME).read_text())['token']
-            or r['status'] != 'published' or 'vrc_tst_surface_models' not in r['options']):
+    phase = json.loads((root/pes_phase.NAME).read_text())
+    if (root/JOURNAL).exists():
+        r = json.loads((root/JOURNAL).read_text())
+        if r['token'] == phase['token'] and r['status'] in ('queued', 'publishing'):
+            return  # Do not observe a partially published revision.
+    # Accepted inputs survive a controller generation. The old journal's token
+    # fences its transactions, not the lifetime of already accepted models.
+    # Resolve relative seeds beside the original input, never the worker/run.
+    accepted = json.loads((root/SNAPSHOT).read_text())
+    models = _model_map(accepted, Path(phase['input_file']).parent)
+    if not models:
         return
-    models = r['options']['vrc_tst_surface_models']  # normalized absolute paths
     prior = generator.par
     if prior.get('vrc_tst_surface_models', {}) == models:
         return
@@ -297,7 +346,7 @@ def inherit_models(root, generator):
     atomic_json(path, overrides)
     generator.par['vrc_tst_surface_models'] = deepcopy(models)
     from kinbot.search_state import rebase
-    rebase(inp, r['id'])
+    rebase(inp, 'accepted_models_'+phase['token']+'_'+file_sha256(root/SNAPSHOT))
     if getattr(generator, 'search_checkpoint', None):
         generator.search_checkpoint.adopt_revision()
     from kinbot.vrc_review_status import acknowledge_installed

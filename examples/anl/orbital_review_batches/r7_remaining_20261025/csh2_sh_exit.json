@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_R_Addition_CSm_R_5_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "reconnaissance": {
+    "title": "csh2_sh_exit_orbital_screen",
+    "multiplicity": 2,
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-09,
+    "scf_options": {
+      "solver": "so_sci",
+      "max_iterations": 256
+    },
+    "probe_active_space": true,
+    "probe_method": "casci",
+    "orbital_initialization": "independent",
+    "avas_reference": "rhf",
+    "probe_definition": {
+      "active_electrons": 19,
+      "active_orbitals": 15,
+      "chemical_note": "Diagnostic full-valence CASCI(19,15), including all hydrogen 1s targets, on the explicitly saved normal L2 product-complex geometry. Translate one intact fragment along the requested exit coordinate; do not cleave the parent molecule. Two equally weighted doublets are orbital-screen support, not two reactive fluxes. This finite screen identifies an eventual compact subspace; no production active space, potential, scan, or rate is accepted.",
+      "state_model": {
+        "orbital_selection": {
+          "mode": "avas",
+          "threshold": 0.3,
+          "minao_basis": "minao",
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 3,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 4,
+              "orbitals": [
+                "1s"
+              ]
+            },
+            {
+              "atom": 5,
+              "orbitals": [
+                "1s"
+              ]
+            },
+            {
+              "atom": 6,
+              "orbitals": [
+                "1s"
+              ]
+            }
+          ]
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ],
+        "selected_roots": {
+          "2": 1
+        },
+        "canonical_orbitals": true
+      }
+    }
+  },
+  "geometry_source": {
+    "product_complex": "791430280000000000002",
+    "record_name": "791871710370000000002_R_Addition_CSm_R_5_1_2_IRC_R_prod_high",
+    "fragments": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[C]",
+        "atoms": [
+          1,
+          2,
+          4,
+          6
+        ]
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]",
+        "atoms": [
+          3,
+          5
+        ]
+      }
+    ],
+    "distances_angstrom": [
+      2.0,
+      3.5,
+      6.0,
+      30.0
+    ]
+  }
+}

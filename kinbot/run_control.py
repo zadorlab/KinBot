@@ -202,6 +202,8 @@ def main(argv=None):
                           help='PES directory when its input is stored elsewhere.')
     resubmit.add_argument('--apply', action='store_true')
     resubmit.add_argument('--status', action='store_true')
+    resubmit.add_argument('--reconcile-models', action='store_true',
+                          help='Reapply already accepted VRC models to workers missing inheritance; no new scientific edits.')
     cap = sub.add_parser('capacity'); cap.add_argument('root', type=Path)
     cap.add_argument('--max-jobs', type=int)
     cap.add_argument('--exclude', action='append', default=[])
@@ -274,7 +276,8 @@ def main(argv=None):
                 raise ValueError('No PES input owner record was found.')
             result = receipt(owner)
         else:
-            result = submit(args.input, apply=args.apply,directory=args.run_directory)
+            result = submit(args.input, apply=args.apply,directory=args.run_directory,
+                            reconcile_models=args.reconcile_models)
     elif args.action == 'resume-scheduler':
         from kinbot import run_policy
         from kinbot.run_refresh import _pending_request

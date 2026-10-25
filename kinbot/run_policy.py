@@ -312,12 +312,28 @@ def _reconcile(root, jobs, claims, *, archive=False):
     return sum(jobs.values()) + len(claims)
 
 
-def _submit_once(command, directory, path, kwargs, before_submit=None, walltime_ceiling=None):
+def _submit_once(command, directory, path, kwargs, before_submit=None, walltime_ceiling=None,
+                 extra_excluded_nodes=()):
     with _locked(path):
-        return _admit_locked(command, directory, path, kwargs, before_submit, walltime_ceiling)
+        return _admit_locked(command, directory, path, kwargs, before_submit, walltime_ceiling,
+                             extra_excluded_nodes)
 
 
-def submit(command, *, cwd=None, wait=False, before_submit=None, walltime_ceiling=None, **kwargs):
+def reconcile_allocations(directory):
+    """Persist verified allocation exits without submitting or changing policy."""
+    path = find(directory)
+    if path is None:
+        raise ValueError('Allocation reconciliation requires a shared policy.')
+    with _locked(path):
+        ledger = path.parent/'.kinbot_policy_admissions.json'
+        claims = json.loads(ledger.read_text()) if ledger.exists() else {}
+        occupied = _reconcile(path.parent, _queue(path.parent), claims, archive=True)
+        atomic_json(ledger, claims)
+    return occupied
+
+
+def submit(command, *, cwd=None, wait=False, before_submit=None, walltime_ceiling=None,
+           extra_excluded_nodes=(), **kwargs):
     """Serialize count + sbatch across threads/processes, retaining ambiguity.
 
     Return None when the pool is full and wait=False. No scheduler submission
@@ -325,6 +341,7 @@ def submit(command, *, cwd=None, wait=False, before_submit=None, walltime_ceilin
     they are never automatically resubmitted.
     """
     directory = Path(cwd or Path.cwd()).resolve()
+    extra_excluded_nodes = _nodes(extra_excluded_nodes)
     if walltime_ceiling is not None:
         import math
         from kinbot.run_walltime import seconds
@@ -334,6 +351,8 @@ def submit(command, *, cwd=None, wait=False, before_submit=None, walltime_ceilin
             raise ValueError('Submission walltime ceiling requires Slurm.')
     path = find(directory)
     if path is None:
+        if extra_excluded_nodes:
+            raise ValueError('Additional pool exclusions require a shared policy.')
         if before_submit:
             before_submit()
         try:
@@ -349,13 +368,15 @@ def submit(command, *, cwd=None, wait=False, before_submit=None, walltime_ceilin
     # competing command-line resource options rather than silently overriding
     # either a caller's requirements or the shared pool's policy.
     if (len(command) < 2 or str(command[-1]).startswith('-')
-            or any(arg != '--parsable' for arg in command[1:-1])):
-        raise ValueError('Shared admission requires sbatch [--parsable] SCRIPT.')
+            or any(arg not in ('--parsable', '--export=ALL') for arg in command[1:-1])):
+        raise ValueError('Shared admission requires sbatch [--parsable] [--export=ALL] SCRIPT.')
     from kinbot.anl.dispatch import SchedulerUnavailableError
     warned = False
     while True:
         try:
-            result = (_submit_once(command, directory, path, kwargs, before_submit, walltime_ceiling)
+            result = (_submit_once(command, directory, path, kwargs, before_submit, walltime_ceiling,
+                                   extra_excluded_nodes) if extra_excluded_nodes else
+                      _submit_once(command, directory, path, kwargs, before_submit, walltime_ceiling)
                       if walltime_ceiling is not None else
                       _submit_once(command, directory, path, kwargs, before_submit)
                       if before_submit else _submit_once(command, directory, path, kwargs))
@@ -373,8 +394,10 @@ def submit(command, *, cwd=None, wait=False, before_submit=None, walltime_ceilin
         time.sleep(20)
 
 
-def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime_ceiling=None):
+def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime_ceiling=None,
+                  extra_excluded_nodes=()):
     policy = effective(path, _read(path))
+    excluded = sorted(set(policy['excluded_nodes']) | set(extra_excluded_nodes))
     ledger = path.parent/'.kinbot_policy_admissions.json'
     claims = json.loads(ledger.read_text()) if ledger.exists() else {}
     jobs = _queue(path.parent)
@@ -414,7 +437,7 @@ def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime
         token = uuid.uuid4().hex
         claim = {'directory': str(directory), 'command': list(command),
                  'created_at': datetime.now(timezone.utc).isoformat(),
-                 'policy_revision': policy['revision'], 'excluded_nodes': policy['excluded_nodes'],
+                 'policy_revision': policy['revision'], 'excluded_nodes': excluded,
                  'status': 'submitting'}
         if override:
             claim['walltime_override'] = override
@@ -424,7 +447,7 @@ def _admit_locked(command, directory, path, kwargs, before_submit=None, walltime
         atomic_json(ledger, claims)  # Durable before the first sbatch byte.
         # Command-line policy overrides stale script/environment exclusions.
         actual = [*command[:-1], '--nodes=1', '--exclusive',
-                  '--exclude=' + ','.join(policy['excluded_nodes']),
+                  '--exclude=' + ','.join(excluded),
                   *(['--time='+override['effective']] if override else []), command[-1]]
         try:
             response = subprocess.run(actual, cwd=directory, **kwargs)

@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "capture": "compact_review_character.20261025T203418Z.txt",
+  "report": "native_character_evidence.txt",
+  "sha256": "d535f24959aa13092b6d5b0b865fd9ffcfc29e58e90fdbf845bda2801e271008",
+  "native_jobs": 56,
+  "note": "User-supplied character report including selected AO coefficients and WFU/XML hashes. Full native output and checkpoint files remain on Blodgett; no local native rerun or full coefficient-overlap audit is claimed."
+}

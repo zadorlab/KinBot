@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_R_Addition_CSm_R_5_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "csh2_sh_exit_resolution_union",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30p0",
+          "active_indices": {
+            "adz": [
+              18,
+              19,
+              20,
+              21,
+              23
+            ],
+            "atz": [
+              18,
+              19,
+              20,
+              21,
+              23
+            ]
+          },
+          "seed_sha256": {
+            "adz": "13753f4f9662fd4caec1b0fd62652d8ce6d960682e95a5c54c7d0f02c64d766b",
+            "atz": "aef46fef89fa43480e6b5023af2bdbc403ee7bf5f3168c2df30fc084625010cb"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "seed": "exit_r_30p0",
+          "active_indices": {
+            "adz": [
+              18,
+              19,
+              20,
+              21,
+              23
+            ],
+            "atz": [
+              18,
+              19,
+              20,
+              21,
+              23
+            ]
+          },
+          "seed_sha256": {
+            "adz": "13753f4f9662fd4caec1b0fd62652d8ce6d960682e95a5c54c7d0f02c64d766b",
+            "atz": "aef46fef89fa43480e6b5023af2bdbc403ee7bf5f3168c2df30fc084625010cb"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 7,
+        "active_orbitals": 5,
+        "orbital_source": "scf",
+        "chemical_note": "The completed CAS(5,4) virtual-23 trial replaces one SH p component near the complex with the occupied C/S2 valence orbital represented by far SCF 18. Test only the five-orbital union: occupied C/S2 valence 18, SH pair 19/21, carbon frontier 20, acceptor 23. Two equally weighted doublets; compare near/far character before any production selection.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    }
+  ]
+}

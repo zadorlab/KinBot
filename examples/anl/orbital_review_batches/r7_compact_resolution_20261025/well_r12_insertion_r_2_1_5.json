@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791671450790040000002",
+    "reaction": "791671450790040000002_r12_insertion_R_2_1_5",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      5,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 3,
+        "smiles": "[H][C][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "S=[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "well_r12_insertion_r_2_1_5_radicals",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30p0",
+          "active_indices": {
+            "adz": [
+              20,
+              21,
+              22
+            ],
+            "atz": [
+              20,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "1cece47614494e7c4534f6b453ce9ca4e79862b4c0596e40cc40ffe40e0c0baf",
+            "atz": "65144a89c629239992724f1260abce6fe122c5d1b7d20aa44786e218f7048868"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "seed": "exit_r_30p0",
+          "active_indices": {
+            "adz": [
+              20,
+              21,
+              22
+            ],
+            "atz": [
+              20,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "1cece47614494e7c4534f6b453ce9ca4e79862b4c0596e40cc40ffe40e0c0baf",
+            "atz": "65144a89c629239992724f1260abce6fe122c5d1b7d20aa44786e218f7048868"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 3,
+        "active_orbitals": 3,
+        "orbital_source": "scf",
+        "chemical_note": "Three singly occupied orbitals from the separately bound 30 angstrom SCF seed: two CH2 frontier orbitals and the HSS radical. Test CAS(3,3) for their quartet/doublet coupling; equal total spin-block weights, one root per block. This is an orbital hypothesis, not additional quartet flux or an accepted production potential.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 4,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 0.5
+            },
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 0.5
+            }
+          ],
+          "selected_roots": {
+            "4": 1,
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    }
+  ]
+}

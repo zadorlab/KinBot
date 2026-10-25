@@ -228,3 +228,8 @@ Inspect both the repaired near probes and their far/basis counterparts before
 choosing a production model. The eight additional SCF screens keep their completed
 results and continue. The existing five-model production reconciliation is a
 separate status check; this review repair does not certify its remote outcome.
+
+The completed 56-job character report and its scientific assessment are now
+preserved in [the compact-resolution review](../r7_compact_resolution_20261025/README.md).
+It distinguishes the corrected valence HCS result from active-space exchanges
+in other completed candidates and stages the eight additional compact reviews.

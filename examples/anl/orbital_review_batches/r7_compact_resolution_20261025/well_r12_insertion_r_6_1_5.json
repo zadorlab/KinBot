@@ -1,0 +1,180 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791671450790040000002",
+    "reaction": "791671450790040000002_r12_insertion_R_6_1_5",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      3,
+      6
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]#[S]#[S][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "well_r12_insertion_r_6_1_5_s_donor",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30p0",
+          "active_indices": {
+            "adz": [
+              19,
+              21
+            ],
+            "atz": [
+              19,
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "ffe6a4e8d32005861f70967353b4ce63134f76a3e6cd223360e5c7bf63777fa5",
+            "atz": "4c45f53bf6b1c325209b97f27f62f113e6ec0bef856826cee06693eb9fe5c54d"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "seed": "exit_r_30p0",
+          "active_indices": {
+            "adz": [
+              19,
+              21
+            ],
+            "atz": [
+              19,
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "ffe6a4e8d32005861f70967353b4ce63134f76a3e6cd223360e5c7bf63777fa5",
+            "atz": "4c45f53bf6b1c325209b97f27f62f113e6ec0bef856826cee06693eb9fe5c54d"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 3,
+        "active_orbitals": 2,
+        "orbital_source": "scf",
+        "chemical_note": "HCSSH singlet plus atomic H doublet at the verified product-side endpoint: H 1s SOMO 21 plus occupied molecular donor 19 (terminal-sulfur p dominated) in this request-specific 30 angstrom SCF record. CAS(3,2) is a minimal donor/H interaction trial with one doublet. Its optimized character and consistent endpoints must be inspected; no covalent homolysis coordinate or arbitrary virtual orbital is introduced.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    },
+    {
+      "name": "well_r12_insertion_r_6_1_5_cs_frontier",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30p0",
+          "active_indices": {
+            "adz": [
+              20,
+              21
+            ],
+            "atz": [
+              20,
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "ffe6a4e8d32005861f70967353b4ce63134f76a3e6cd223360e5c7bf63777fa5",
+            "atz": "4c45f53bf6b1c325209b97f27f62f113e6ec0bef856826cee06693eb9fe5c54d"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "seed": "exit_r_30p0",
+          "active_indices": {
+            "adz": [
+              20,
+              21
+            ],
+            "atz": [
+              20,
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "ffe6a4e8d32005861f70967353b4ce63134f76a3e6cd223360e5c7bf63777fa5",
+            "atz": "4c45f53bf6b1c325209b97f27f62f113e6ec0bef856826cee06693eb9fe5c54d"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 3,
+        "active_orbitals": 2,
+        "orbital_source": "scf",
+        "chemical_note": "HCSSH singlet plus atomic H doublet at the verified product-side endpoint: H 1s SOMO 21 plus occupied molecular donor 20 (mixed C/S valence frontier) in this request-specific 30 angstrom SCF record. CAS(3,2) is a minimal donor/H interaction trial with one doublet. Its optimized character and consistent endpoints must be inspected; no covalent homolysis coordinate or arbitrary virtual orbital is introduced.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    }
+  ]
+}

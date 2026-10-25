@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "screens": [
+    {
+      "name": "well_hom_sci_1_2",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_followup_20261025/well_hom_sci_1_2",
+      "recipe": "well_hom_sci_1_2.json"
+    },
+    {
+      "name": "well_hom_sci_2_3",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_followup_20261025/well_hom_sci_2_3",
+      "recipe": "well_hom_sci_2_3.json"
+    },
+    {
+      "name": "well_r12_insertion_r_2_1_5",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_followup_20261025/well_r12_insertion_r_2_1_5",
+      "recipe": "well_r12_insertion_r_2_1_5.json"
+    },
+    {
+      "name": "well_r12_insertion_r_2_1_6",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_followup_20261025/well_r12_insertion_r_2_1_6",
+      "recipe": "well_r12_insertion_r_2_1_6.json"
+    },
+    {
+      "name": "well_r12_insertion_r_2_3_4",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_followup_20261025/well_r12_insertion_r_2_3_4",
+      "recipe": "well_r12_insertion_r_2_3_4.json"
+    },
+    {
+      "name": "well_r12_insertion_r_5_1_6",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_followup_20261025/well_r12_insertion_r_5_1_6",
+      "recipe": "well_r12_insertion_r_5_1_6.json"
+    },
+    {
+      "name": "well_r12_insertion_r_6_1_2",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_followup_20261025/well_r12_insertion_r_6_1_2",
+      "recipe": "well_r12_insertion_r_6_1_2.json"
+    },
+    {
+      "name": "well_r12_insertion_r_6_1_5",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_followup_20261025/well_r12_insertion_r_6_1_5",
+      "recipe": "well_r12_insertion_r_6_1_5.json"
+    },
+    {
+      "name": "csh2_sh_exit_resolution",
+      "case": "ch3ss",
+      "source": "orbital_recon/remaining_character_20261025/csh2_sh_exit",
+      "recipe": "csh2_sh_exit_resolution.json"
+    },
+    {
+      "name": "hcs_h2s_exit_resolution",
+      "case": "ch3ss",
+      "source": "orbital_recon/remaining_character_20261025/hcs_h2s_exit",
+      "recipe": "hcs_h2s_exit_resolution.json"
+    }
+  ]
+}

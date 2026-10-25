@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_r12_insertion_R_2_1_5",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "hcs_h2s_exit_resolution_hcs_valence",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_l2",
+          "active_indices": {
+            "adz": [
+              18,
+              19,
+              21,
+              22
+            ],
+            "atz": [
+              18,
+              19,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "f0ec1d4f36e879d6db7f0e44f56e13d569fe12a41b6634431060dc22f740c2e1",
+            "atz": "c470b1c21abfb6917e7275c0d19d32dd7ce1de6a1378bfbcf3250cd81895e725"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "seed": "exit_l2",
+          "active_indices": {
+            "adz": [
+              18,
+              19,
+              21,
+              22
+            ],
+            "atz": [
+              18,
+              19,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "f0ec1d4f36e879d6db7f0e44f56e13d569fe12a41b6634431060dc22f740c2e1",
+            "atz": "c470b1c21abfb6917e7275c0d19d32dd7ce1de6a1378bfbcf3250cd81895e725"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "orbital_source": "scf",
+        "chemical_note": "The previous donor-added CAS(5,4) ejects the H2S donor near the complex and substitutes an HCS occupied valence orbital. Test a consistent HCS-only CAS(5,4): near SCF 18 in-plane valence, 19 pi, 21 radical and 22 pi-star, keeping the H2S donor inactive at both endpoints. Compare with the completed valence CAS(3,3); lower absolute energy alone is not acceptance.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    }
+  ]
+}

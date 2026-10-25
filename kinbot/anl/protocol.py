@@ -261,8 +261,11 @@ def replacement(spec, options):
                 and t.get('result_parser', {}).get('kind') not in ('molpro_harmonic', 'gaussian_vpt2')
                 and t.get('geometry_from') in (previous_primary, 'l3_geometry')):
             t['geometry_from'] = primary
-            t['depends_on'] = [primary if d in (previous_primary, 'l3_geometry') else d
-                               for d in t.get('depends_on', []) if primary != 'initial' or d not in (previous_primary, 'l3_geometry')]
+            # Preserve absent optional fields: adding depends_on=[] to an
+            # unchanged single point would retire that task's live attempt.
+            if 'depends_on' in t:
+                t['depends_on'] = [primary if d in (previous_primary, 'l3_geometry') else d
+                                   for d in t['depends_on'] if primary != 'initial' or d not in (previous_primary, 'l3_geometry')]
     for n, t in tasks.items():
         if ((t.get('kind') == 'ase_optimize' and not t.get('anharmonic_basis_extension'))
                 or t.get('result_parser', {}).get('kind') == 'molpro_harmonic'):

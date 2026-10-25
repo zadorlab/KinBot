@@ -96,6 +96,32 @@ def test_explicit_cancel_archives_affected_only_and_preserves_allocations(graph,
     assert calls == ['42']
 
 
+def test_single_point_omission_leaves_shared_reference_allocations_untouched(graph, monkeypatch):
+    monkeypatch.setattr(dispatch, '_job_active', lambda j: j == '99')
+    _mock_execution(graph, 'l3_geometry', geometry='final.xyz')
+    dispatch.advance(graph)
+    state = dispatch._load(graph)[2]
+    state['tasks']['ccsdtqp_dz'].update(status='submitted', job_id='43')
+    state['tasks']['ccsdtq_tz'].update(status='submitted', job_id='44')
+    atomic_json(graph/'state.json', state)
+    reference = dispatch.prepare(specification(), graph.parent/'shared_reference')
+    reference_state = dispatch._load(reference)[2]
+    reference_state['tasks']['l3_geometry_tz'].update(status='submitted', job_id='73')
+    atomic_json(reference/'state.json', reference_state)
+    before = {p:file_sha256(p) for p in reference.rglob('*') if p.is_file()}
+    monkeypatch.setattr(dispatch, '_job_active', lambda j: j in ('43', '44', '73', '99'))
+    stopped = []
+    monkeypatch.setattr(owner, 'stop_attempt', lambda d,j,*a,**kw: stopped.append(j) or True)
+    assert protocol.plan(graph, dict(omit_tasks=['ccsdtqp_dz']))['reset'] == ['ccsdtqp_dz']
+    q = queue(graph, dict(omit_tasks=['ccsdtqp_dz']), cancel=True)
+    owner.process(graph)
+    assert json.loads(q.read_text())['status'] == 'applied'
+    assert stopped == ['43']
+    assert dispatch._load(graph)[2]['tasks']['ccsdtq_tz']['job_id'] == '44'
+    assert before == {p:file_sha256(p) for p in reference.rglob('*') if p.is_file()}
+    assert dispatch._load(reference)[2]['tasks']['l3_geometry_tz']['job_id'] == '73'
+
+
 def test_changed_generation_and_ambiguous_submission_are_not_cancelled(graph, monkeypatch):
     q = queue(graph, dict(geometry='tz'), cancel=True)
     s = dispatch._load(graph)[2]; s['tasks']['l3_geometry']['job_id'] = '43'
@@ -371,6 +397,25 @@ def test_cli_preview_and_batch_revalidation_are_write_free(graph, capsys):
     with pytest.raises(ValueError, match='preview changed'):
         protocol.publish(graph.parent, [p], reason='stale preview')
     assert not list((graph.parent/protocol.QUEUE).glob('*.json'))
+
+
+def test_graph_selectors_cover_one_state_subset_and_one_pes(tmp_path):
+    from kinbot.anl.control import graphs
+    names = ('pes_a/well/anl_automatic/states/target/composite',
+             'pes_a/well/anl_automatic/states/reference/composite',
+             'pes_b/well/anl_automatic/states/target/composite')
+    paths = [tmp_path/n for n in names]
+    for path, smiles in zip(paths, ('CCC', 'CC', 'CCC')):
+        atomic_json(path/'workflow.json', dict(name='anl-automatic-post-l2',
+                                               molecule=dict(smiles=smiles)))
+    archived = paths[0]/'attempts/old/graphs'
+    atomic_json(archived/'workflow.json', dict(name='anl-automatic-post-l2',
+                                             molecule=dict(smiles='CCC')))
+    assert graphs(tmp_path, patterns=[names[0]]) == paths[:1]
+    assert graphs(tmp_path, patterns=[names[0], names[2]]) == [paths[0], paths[2]]
+    assert graphs(tmp_path, patterns=['pes_a/*/anl_automatic/states/*/composite']) == [paths[1], paths[0]]
+    assert graphs(tmp_path, species=['CCC']) == [paths[0], paths[2]]
+    assert graphs(tmp_path, all_species=True) == [paths[1], paths[0], paths[2]]
 
 
 def test_omitted_prerequisites_cannot_leave_unrunnable_consumers(monkeypatch):

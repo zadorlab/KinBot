@@ -51,6 +51,29 @@ The preview lists the resolved graphs, retained geometry/harmonic sources,
 omitted tasks, and affected job IDs. It does not change native calculations.
 `--all` is a selection of current graphs, not a rule to simplify future species.
 
+Here a composite graph represents one electronic state of one species (or TS).
+The larger CBH/PES network connects many such graphs. To edit exactly one copy,
+use its exact graph path; a SMILES selection can match several copies or states.
+Selector lists are a union, not an intersection. These previews illustrate the
+scope independently of the selected calculation:
+
+```bash
+# One single point on exactly one species/state graph.
+python -m kinbot.anl.control protocol ROOT \
+  --graph 'CASE/WORKER/anl_automatic/states/STATE/composite' \
+  --omit-task ccsdtqp_dz
+
+# A subset: repeat exact --graph paths or --species SMILES.
+python -m kinbot.anl.control protocol ROOT \
+  --graph 'CASE/WORKER/anl_automatic/states/STATE_A/composite' \
+  --graph 'CASE/WORKER/anl_automatic/states/STATE_B/composite' \
+  --geometry tz --harmonic tz
+
+# All currently prepared species/state graphs in one PES, within a shared root.
+python -m kinbot.anl.control protocol ROOT \
+  --graph 'CASE/*/anl_automatic/states/*/composite' --omit-component dboc
+```
+
 | Choice | Effect |
 |---|---|
 | `--geometry tz --harmonic tz` | Retain the declared TZ CC geometry/Hessian; omit QZ geometry/Hessian; evaluate retained higher-level electronic terms at TZ geometry. |
@@ -81,6 +104,16 @@ families. CBH reactions and barrier differences still require a common compatibl
 expression; changing one species can therefore change the common expression
 available to that reaction. The code does not silently mix incompatible species
 protocols into a nominally uniform ANL result.
+
+Selecting a target does not recursively cancel or edit its CBH reference graphs.
+Reference calculations can continue supplying other reactions. Completed
+reference components can supply several arithmetic profiles: for example, one
+reaction can use the common expression without a higher-order increment while
+another uses the full expression from the same references. A geometry/basis/tier
+change still needs compatible reference profiles; it can select a lower common
+level or make a requested level unavailable. No new reference calculation is
+implicitly authorized by an arithmetic fallback, and incompatible geometry
+profiles are not relabeled to force a match.
 
 Changing a geometry invalidates its dependent single points. Calculations at
 the old geometry remain archived evidence; they are not relabeled as calculations
@@ -275,7 +308,7 @@ Local validation used native-output parser fixtures and simulated scheduler and
 controller fixtures; no remote QC calculation was submitted by these tests.
 
 * ANL, live refinement, controller refresh, RotdPy campaign and worker-code
-  suites: **664 passed, 1 skipped**.
+  suites: **667 passed, 1 skipped**.
 * Input refresh and CASPT2 handoff suites, in a separate process: **34 passed,
   1 deselected**. The deselected example renderer test already fails on the
   unchanged baseline.
@@ -296,3 +329,12 @@ natural-completion races, admission-claim reconciliation, unchanged policy bytes
 and admission of exactly one replacement into the freed slot. Successful native
 TZ/QZ VPT2 results and a successful Blodgett refresh
 remain to be verified from their actual receipts.
+
+The task-scope regression also checks that omitting one single point retires
+only that task, retains another live single point on the same species, and
+leaves a running reference graph byte-for-byte unchanged. Separate CBH arithmetic
+checks let one target use a reduced expression and another use the full
+expression from the same reference profiles. This exposed and fixed an unwanted
+empty `depends_on` insertion that previously marked otherwise unchanged single
+points for replacement. Owners pinned before this fix require a code refresh;
+subsequent protocol choices remain live operations without controller replacement.

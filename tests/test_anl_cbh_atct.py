@@ -431,6 +431,35 @@ def test_ladder_prefers_exact_reduced_recipe_before_lower_tier_or_rung():
     assert any(full in reason for reason in selected.skipped)
 
 
+def test_target_reduction_keeps_shared_reference_profiles_for_other_reactions():
+    from copy import deepcopy
+    _, table = _table()
+    full = 'profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ'
+    reduced = full + ':reduced[without=higher_order]'
+    profiles = {smiles: {
+        label: ZeroKEnergy(smiles, value + shift, label, smiles + label)
+        for label, shift in ((full, -.01), (reduced, 0.))}
+        for smiles, value in [('CCCC', -157.03), ('CCC', -118.02),
+                              ('CC', -79.), ('C', -40.), ('[H][H]', -1.)]}
+    # Only propane loses its full expression. Ethane/methane/hydrogen retain
+    # every accepted profile and can serve either reaction independently.
+    del profiles['CCC'][full]
+    before = deepcopy(profiles)
+    for smiles, atoms, label in [('CCC', ['C']*3+['H']*8, reduced),
+                                 ('CCCC', ['C']*4+['H']*10, full)]:
+        point = SimpleNamespace(smiles=smiles, charge=0, mult=1, wellorts=0, atom=atoms)
+        selected = select_cbh_ladder(point, profiles, table, max_rung=1,
+                                    method_ladder=(full, reduced))
+        assert selected.reaction.rung == 1
+        assert selected.formation.method == label
+        expected = sum(n * profiles[s][label].hartree
+                       for s, n in selected.reaction.stoichiometry.items())
+        from kinbot.anl.cbh import HARTREE_TO_KJ_MOL
+        assert selected.formation.reaction_energy_0k_kj_mol == pytest.approx(
+            expected * HARTREE_TO_KJ_MOL, abs=1.e-8)
+    assert profiles == before
+
+
 @pytest.mark.parametrize('species_key', ['CCC', 'CC'])
 @pytest.mark.parametrize('change', [{'hartree': float('nan')},
                                    {'multiplicity': 3}, {'method': 'wrong-label'}])

@@ -441,7 +441,7 @@ def _load(path):
             required_definition = {
                 'active_electrons', 'active_orbitals', 'state_model', 'chemical_note'}
             if (not isinstance(definition, dict) or not required_definition <= set(definition)
-                    or set(definition) - required_definition - {'orbital_partition'}
+                    or set(definition) - required_definition - {'orbital_partition', 'orbital_source'}
                     or not isinstance(definition['chemical_note'], str)
                     or not definition['chemical_note'].strip()
                     or any(isinstance(definition[key], bool)
@@ -453,6 +453,12 @@ def _load(path):
                 active_orbitals=definition['active_orbitals'], nelectron=electrons,
                 atom_count=len(symbols))
             partition = definition.get('orbital_partition')
+            scf_seed = definition.get('orbital_source') == 'scf'
+            if 'orbital_source' in definition and not scf_seed:
+                raise ValueError('orbital_source must be scf when specified.')
+            if scf_seed and (partition is not None or model.get('orbital_selection') is not None
+                             or data.get('probe_method') != 'casscf'):
+                raise ValueError('SCF seeds require CASSCF and no competing orbital selector/partition.')
             if partition is not None:
                 keys = {'source_active_electrons', 'source_active_orbitals',
                         'close_lowest', 'discard_highest'}
@@ -479,14 +485,24 @@ def _load(path):
                 if (electrons - partition['source_active_electrons'] < 0
                         or (electrons - partition['source_active_electrons']) % 2):
                     raise ValueError('Source active electron count is incompatible with the molecule.')
-            elif model.get('orbital_selection', {}).get('mode') != 'avas':
+            elif not scf_seed and model.get('orbital_selection', {}).get('mode') != 'avas':
                 raise ValueError('A reconnaissance candidate requires explicit AVAS targets.')
             if data['multiplicity'] not in {entry['multiplicity'] for entry in model['state_average']}:
                 raise ValueError('Probe multiplicity must occur in its requested state average.')
             data['_probe_model'] = model
             data['_probe_space'] = {key: definition[key] for key in
                                     ('active_electrons', 'active_orbitals', 'chemical_note')}
-            if partition is None:
+            if scf_seed:
+                from kinbot.recon_scf_seed import validate
+                data['_probe_space']['orbital_source'] = 'scf'
+                seeds = data.get('initial_records', {})
+                for basis in data['bases']:
+                    for anchor in anchors:
+                        seed = seeds.get(basis['name']+'__'+anchor['name'], {})
+                        if seed.get('basis') != basis['basis'] or seed.get('project_orbitals'):
+                            raise ValueError('SCF selections require a separate native seed in each matching basis.')
+                        validate(seed, electrons, definition['active_electrons'], definition['active_orbitals'])
+            elif partition is None:
                 data['_probe_space']['orbital_selection'] = model['orbital_selection']
             else:
                 data['_probe_space']['orbital_partition'] = partition
@@ -748,6 +764,12 @@ def _deck(data, basis, anchor, stem, previous=None):
             initial_partition = bool(space.get('orbital_partition') and isinstance(previous, dict))
             diab = '' if initial_partition else '\ndiab,2140.2'
             partition = space.get('orbital_partition', {})
+            if space.get('orbital_source') == 'scf':
+                from kinbot.recon_scf_seed import start as scf_start
+                if not isinstance(previous, dict):
+                    raise ValueError('SCF source indices require an explicit initial record.')
+                start = scf_start(previous, data['_electrons'], space['active_electrons'])
+                diab = ''
             if initial_partition and partition.get('orbital_swaps'):
                 source_closed = (data['_electrons'] - partition['source_active_electrons']) // 2
                 # Reorder the verified source before closing/discarding its
@@ -983,8 +1005,15 @@ def _prepare(source, output):
             if data.get('_probe_space', {}).get('orbital_partition') and not (seed or predecessor):
                 raise ValueError('A partitioned candidate needs a verified seed or a propagated predecessor.')
             if seed:
+                scf_fields = {'active_indices', 'source_output', 'source_output_sha256',
+                              'source_input', 'source_input_sha256'}
+                if (isinstance(seed, dict) and set(seed) & scf_fields
+                        and (data.get('_probe_space') or {}).get('orbital_source') != 'scf'):
+                    raise ValueError('Explicit SCF seed evidence requires orbital_source=scf.')
                 if (not isinstance(seed, dict) or not {'path', 'sha256'} <= set(seed)
-                        or set(seed) - {'path', 'sha256', 'basis', 'project_orbitals'}
+                        or set(seed) - {'path', 'sha256', 'basis', 'project_orbitals',
+                                       'active_indices', 'source_output', 'source_output_sha256',
+                                       'source_input', 'source_input_sha256'}
                         or ('project_orbitals' in seed and type(seed['project_orbitals']) is not bool)
                         or ('basis' in seed and (not isinstance(seed['basis'], str)
                                                 or not seed['basis'].strip()))
@@ -1045,6 +1074,7 @@ def _prepare(source, output):
                     for root in range(1, entry['roots'] + 1)]
                     if data.get('probe_active_space') else []),
                 'natural_orbital_probe': bool(data.get('probe_active_space', False)),
+                'electron_count': data['_electrons'],
                 'probe_active_space': data.get('_probe_space'),
                 'probe_method': data.get('probe_method', 'casci'),
                 'avas_reference': data.get('avas_reference', 'atomic'),
@@ -1169,7 +1199,13 @@ def _execute(job):
     seed = job.get('initial_record') or {}
     cross_basis = bool(seed.get('project_orbitals') and
                        seed.get('basis', '').lower() != job['basis'].lower())
-    seed_name = molpro_wfu_name(name + '_source') if cross_basis else None
+    scf_seed = (job.get('probe_active_space') or {}).get('orbital_source') == 'scf'
+    separate_seed = cross_basis or scf_seed
+    seed_name = molpro_wfu_name(name + '_source') if separate_seed else None
+    if scf_seed:
+        from kinbot.recon_scf_seed import validate
+        space = job['probe_active_space']
+        validate(seed, job['electron_count'], space['active_electrons'], space['active_orbitals'])
     if job.get('initial_record'):
         import shutil
         seed = job['initial_record']
@@ -1204,6 +1240,9 @@ def _execute(job):
         raise ValueError('Expected exactly one reconnaissance FILE,2 directive.')
     if cross_basis:
         native_text = _separate_cross_basis_seed(native_text, seed_name)
+    elif scf_seed:
+        from kinbot.recon_scf_seed import separate
+        native_text = separate(native_text, seed_name)
     recovery = job.get('recovered_scf')
     if recovery:
         source = Path(recovery['path'])
@@ -1228,7 +1267,7 @@ def _execute(job):
     # Submission stages predecessor/export-recovery records under the old
     # canonical path. Copy to the short native name before launching Molpro.
     staged = directory / f'{name}.wfu'
-    if not cross_basis and staged != checkpoint and staged.is_file():
+    if not separate_seed and staged != checkpoint and staged.is_file():
         import shutil
         shutil.copyfile(staged, checkpoint)
     exports = {'scf': str(directory / f'{name}.orbitals.xml')}
@@ -1258,6 +1297,10 @@ def _execute(job):
             'source_basis': seed['basis'], 'destination_basis': job['basis'],
             'source_record': '2140.3', 'natural_destination_record': '2140.2',
             'canonical_destination_record': '2141.2'}
+    if scf_seed:
+        execution['input_transform'] = 'native_xml_scf_seed_file_v7'
+        execution['scf_seed'] = dict(seed, source_record='2100.3',
+                                     natural_destination_record='2140.2')
     if recovery:
         execution['recovered_scf'] = recovery
     record = directory / 'execution.json'
@@ -1466,7 +1509,8 @@ def convergence_diagnostics(output_text, job):
         thresholds = re.search(r'(?im)^\s*Convergence thresholds[^\r\n]*', multi)
         if thresholds:
             errors[-1] += ' Native ' + thresholds[0].strip() + '.'
-    if (job.get('probe_active_space') or {}).get('orbital_partition'):
+    if ((job.get('probe_active_space') or {}).get('orbital_partition')
+            or (job.get('probe_active_space') or {}).get('orbital_source') == 'scf'):
         space = job['probe_active_space']
         orbitals = re.search(r'Number of active\s+orbitals:\s+(\d+)', multi)
         electrons = re.findall(r'Number of active electrons:\s+(\d+)', multi)

@@ -5,7 +5,7 @@ Scientific choices live in the supplied recipe. Only the explicit ``review
 input. It uses live refresh and never starts/restarts a production driver.
 """
 import argparse
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 import fcntl
 import json
@@ -24,6 +24,22 @@ from kinbot.execution import atomic_json, file_sha256
 
 def _read(path):
     return json.loads(Path(path).read_text())
+
+
+@contextmanager
+def _new_campaign(output):
+    """Roll back only this invocation's unsubmitted staging on a late failure.
+
+    mkdir is the ownership claim: a competing preparer cannot remove an
+    existing campaign. Preparation performs no scheduler/native calls.
+    """
+    output.mkdir(parents=True, exist_ok=False)
+    try:
+        yield
+    except BaseException:
+        import shutil
+        shutil.rmtree(output)
+        raise
 
 
 def _require_available_recipe(payload):
@@ -66,8 +82,8 @@ def _saved(root, *, allow_accepted=False):
     return record
 
 
-def candidates(source, recipe, output):
-    """Prepare explicit CASSCF partitions from completed CASCI/CASSCF seeds.
+def candidates(source, recipe, output, *, preflight=False, resume=False):
+    """Prepare explicit compact CASSCF guesses from validated native seeds.
 
     This does not select orbitals by occupation or accept a production model.
     Every partition, seed geometry and native check comes from the recipe.
@@ -76,6 +92,7 @@ def candidates(source, recipe, output):
     output = Path(output).expanduser().resolve()
     previous = _saved(source)
     controls = _read(recipe)
+    _require_available_recipe(controls)
     request = _read(source/'request.json')
     if controls.get('schema') != 1 or not controls.get('request_match'):
         raise ValueError('Candidate recipe must identify its intended review request.')
@@ -90,6 +107,19 @@ def candidates(source, recipe, output):
     cap = controls.get('max_jobs', previous['max_jobs'])
     if type(cap) is not int or cap < 1 or slots < 1:
         raise ValueError('Candidate review needs positive reserved capacity.')
+    if output.exists() and resume:
+        saved = _saved(output)
+        if (saved.get('source_review') != str(source) or _read(output/'recipe.json') != controls
+                or saved.get('shared_pool', False) != shared
+                or saved['production_policy'] != str(policy_path)):
+            raise ValueError('Existing candidate plan or ownership differs.')
+        for system in saved['systems']:
+            loaded = recon._load(system['configuration'])
+            for seed in loaded['initial_records'].values():
+                if file_sha256(seed['path']) != seed['sha256']:
+                    raise ValueError('Candidate source checkpoint changed.')
+        return dict(status='resume_ready', directory=str(output), models=len(saved['systems']),
+                    tasks=sum(len(_read(s['manifest'])['jobs']) for s in saved['systems']))
     if output.exists() or output == source or source in output.parents:
         raise FileExistsError('Preserve the source review; choose a fresh sibling directory.')
     if shared:
@@ -106,6 +136,7 @@ def candidates(source, recipe, output):
     if not original['jobs'] or any(j['status'] != 'complete' for j in original['jobs']):
         raise ValueError('Finish the source screen before preparing candidates.')
     loaded = recon._load(previous['systems'][0]['configuration'])
+    scf_source = not bool(loaded.get('_probe_space'))
     anchors = {a['name']: a for a in loaded['anchors']}
     jobs = {j['name']: j for j in original['jobs']}
     definitions = controls.get('candidates')
@@ -123,10 +154,15 @@ def candidates(source, recipe, output):
                     ('coordinates', 'anchors', 'scan_policy', 'orientation_probes', 'initial_records')}
             definition = deepcopy(item['probe_definition'])
             partition = definition.get('orbital_partition', {})
-            for key in ('active_electrons', 'active_orbitals'):
-                if partition.get('source_'+key) != loaded['_probe_space'][key]:
-                    raise ValueError('Partition counts differ from the source active space.')
+            if scf_source:
+                if definition.get('orbital_source') != 'scf' or partition:
+                    raise ValueError('SCF candidates need explicit orbital_source=scf and selected indices.')
+            else:
+                for key in ('active_electrons', 'active_orbitals'):
+                    if partition.get('source_'+key) != loaded['_probe_space'][key]:
+                        raise ValueError('Partition counts differ from the source active space.')
             data.update(title=name, probe_method='casscf', orbital_initialization='independent',
+                        probe_active_space=True, orbital_character_only=False,
                         probe_definition=definition, anchors=[], initial_records={},
                         casscf_options=deepcopy(item['casscf_options']),
                         reference_identity_check=item.get('reference_identity_check', False),
@@ -135,8 +171,11 @@ def candidates(source, recipe, output):
                 if key in item:
                     data[key] = deepcopy(item[key])
             for choice in item['anchors']:
-                if set(choice) - {'source', 'name', 'distance_angstrom', 'rotation'}:
-                    raise ValueError('Candidate anchors accept source, name, distance and rotation.')
+                if set(choice) - {'source', 'name', 'distance_angstrom', 'rotation',
+                                  'seed', 'active_indices', 'seed_sha256'}:
+                    raise ValueError('Unsupported candidate anchor field.')
+                if not scf_source and set(choice) & {'seed', 'active_indices', 'seed_sha256'}:
+                    raise ValueError('Explicit SCF indices/seed cannot alter a natural-orbital partition.')
                 anchor = deepcopy(anchors[choice['source']])
                 anchor['name'] = choice.get('name', choice['source'])
                 if 'distance_angstrom' in choice:
@@ -171,15 +210,28 @@ def candidates(source, recipe, output):
                         raise ValueError('Rotation would duplicate the unchanged geometry.')
                 data['anchors'].append(anchor)
                 for basis in data['bases']:
-                    old = jobs[basis['name']+'__'+choice['source']]
-                    if (old['probe_active_space']['active_electrons'] != loaded['_probe_space']['active_electrons']
-                            or old['probe_active_space']['active_orbitals'] != loaded['_probe_space']['active_orbitals']
-                            or old['basis'] != basis['basis']
+                    old = jobs[basis['name']+'__'+choice.get('seed', choice['source'])]
+                    wrong_space = (not scf_source and any(
+                        old['probe_active_space'][key] != loaded['_probe_space'][key]
+                        for key in ('active_electrons', 'active_orbitals')))
+                    if (wrong_space or old['basis'] != basis['basis']
                             or file_sha256(old['wfu']) != old['wfu_sha256']
                             or file_sha256(Path(old['directory'])/(old['name']+'.out')) != old['output_sha256']):
                         raise ValueError('Source checkpoint/output or model differs from validated evidence.')
                     data['initial_records'][basis['name']+'__'+anchor['name']] = dict(
                         path=old['wfu'], sha256=old['wfu_sha256'], basis=old['basis'])
+                    if scf_source:
+                        inp = Path(old['directory'])/(old['name']+'.inp')
+                        if (old.get('validation_errors') or old.get('probe_active_space')
+                                or file_sha256(inp) != old['input_sha256']):
+                            raise ValueError('Source is not an intact validated SCF probe.')
+                        if choice.get('seed_sha256', {}).get(basis['name']) != old['wfu_sha256']:
+                            raise ValueError('SCF source checkpoint differs from the explicitly reviewed seed hash.')
+                        data['initial_records'][basis['name']+'__'+anchor['name']].update(
+                            active_indices=choice.get('active_indices', {}).get(basis['name']),
+                            source_output=str(Path(old['directory'])/(old['name']+'.out')),
+                            source_output_sha256=old['output_sha256'], source_input=str(inp),
+                            source_input_sha256=old['input_sha256'])
             path = Path(tmp)/(name+'.json')
             atomic_json(path, data)
             check = recon._load(path)
@@ -189,33 +241,39 @@ def candidates(source, recipe, output):
                     recon.validate_input_blocks(recon._deck(check, basis['basis'], anchor, stem,
                         previous=check['initial_records'][stem]), stem)
             configurations.append(data)
-    output.mkdir(parents=True, exist_ok=False)
-    for name in ('request.json', 'electronic_context.json'):
-        atomic_json(output/name, _read(source/name))
-    atomic_json(output/'recipe.json', controls)
-    atomic_json(output/'source_manifest.json', original)
-    files = ['request.json', 'electronic_context.json', 'recipe.json', 'source_manifest.json']
-    systems = []
-    for data in configurations:
-        config = output/(data['title']+'.json')
-        data['kinbot_input'] = str(output/'electronic_context.json')
-        atomic_json(config, data)
-        manifest = recon.prepare(config, output/data['title'])
-        state = _read(manifest)
-        state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
-        if shared:
-            state.update(shared_policy_file=str(policy_path), slurm_excluded_nodes=[])
-        atomic_json(manifest, state)
-        files.append(config.name)
-        systems.append(dict(title=data['title'], configuration=str(config), manifest=str(manifest)))
-    record = dict(schema=1, status='prepared', shared_pool=shared, request=previous['request'],
-                  max_jobs=min(cap, slots), production_policy=str(policy_path),
-                  files={name: file_sha256(output/name) for name in files}, systems=systems,
-                  candidate_comparison=True, source_review=str(source))
-    atomic_json(output/'review_launch.json', record)
-    return dict(directory=str(output), models=len(systems), max_jobs=record['max_jobs'],
-                tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),
-                production_model_accepted=False)
+    if preflight:
+        return dict(status='preflight_passed', models=len(configurations),
+                    tasks=sum(len(d['anchors'])*len(d['bases']) for d in configurations))
+    with _new_campaign(output):
+        for name in ('request.json', 'electronic_context.json'):
+            atomic_json(output/name, _read(source/name))
+        atomic_json(output/'recipe.json', controls)
+        atomic_json(output/'source_manifest.json', original)
+        files = ['request.json', 'electronic_context.json', 'recipe.json', 'source_manifest.json']
+        if (source/'geometry_source.json').exists():
+            atomic_json(output/'geometry_source.json', _read(source/'geometry_source.json'))
+            files.append('geometry_source.json')
+        systems = []
+        for data in configurations:
+            config = output/(data['title']+'.json')
+            data['kinbot_input'] = str(output/'electronic_context.json')
+            atomic_json(config, data)
+            manifest = recon.prepare(config, output/data['title'])
+            state = _read(manifest)
+            state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
+            if shared:
+                state.update(shared_policy_file=str(policy_path), slurm_excluded_nodes=[])
+            atomic_json(manifest, state)
+            files.append(config.name)
+            systems.append(dict(title=data['title'], configuration=str(config), manifest=str(manifest)))
+        record = dict(schema=1, status='prepared', shared_pool=shared, request=previous['request'],
+                      max_jobs=min(cap, slots), production_policy=str(policy_path),
+                      files={name: file_sha256(output/name) for name in files}, systems=systems,
+                      candidate_comparison=True, source_review=str(source))
+        atomic_json(output/'review_launch.json', record)
+        return dict(directory=str(output), models=len(systems), max_jobs=record['max_jobs'],
+                    tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),
+                    production_model_accepted=False)
 
 
 def product_complex_geometry(request, evidence, selection):
@@ -365,42 +423,42 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
             for anchor in loaded['anchors']:
                 recon.validate_input_blocks(recon._deck(
                     loaded, basis['basis'], anchor, basis['name']+'__'+anchor['name']), 'screen')
-    output.mkdir(parents=True, exist_ok=False)  # Repeating preparation cannot duplicate jobs.
-    atomic_json(output/'request.json', evidence)
-    atomic_json(output/'electronic_context.json', context)
-    atomic_json(output/'recipe.json', controls)
-    if preliminary is not None:
-        atomic_json(output/'provisional_source.json', preliminary)
-    config['kinbot_input'] = str(output/'electronic_context.json')
-    atomic_json(output/'input.json', config)
-    manifest = recon.prepare(output/'input.json', output/'native')
-    state = _read(manifest)
-    state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
-    if shared_pool:
-        state['shared_policy_file'] = str(policy_file)
-        state['slurm_excluded_nodes'] = []  # Pool exclusions are read at each admission.
-    atomic_json(manifest, state)
-    record = dict(schema=1, status='prepared', shared_pool=shared_pool, request=str(request), manifest=str(manifest),
-                  max_jobs=min(requested_cap, slots), production_policy=str(policy_file),
-                  files={name: file_sha256(output/name) for name in
-                         ('request.json', 'recipe.json', 'electronic_context.json', 'input.json')},
-                  systems=[dict(title=config['title'], configuration=str(output/'input.json'),
-                                manifest=str(manifest))])
-    if provisional:
-        record['provisional'] = True
-        record['files']['provisional_source.json'] = file_sha256(output/'provisional_source.json')
-    atomic_json(output/'review_launch.json', record)
-    if geometry_proof:
-        atomic_json(output/'geometry_source.json',geometry_proof)
-        record['files']['geometry_source.json']=file_sha256(output/'geometry_source.json')
-        atomic_json(output/'review_launch.json',record)
-    return dict(directory=str(output), tasks=len(state['jobs']), max_jobs=record['max_jobs'],
-                active_space=loaded.get('_probe_space'), states=state['jobs'][0]['root_states'],
-                partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
+    with _new_campaign(output):
+        atomic_json(output/'request.json', evidence)
+        atomic_json(output/'electronic_context.json', context)
+        atomic_json(output/'recipe.json', controls)
+        if preliminary is not None:
+            atomic_json(output/'provisional_source.json', preliminary)
+        config['kinbot_input'] = str(output/'electronic_context.json')
+        atomic_json(output/'input.json', config)
+        manifest = recon.prepare(output/'input.json', output/'native')
+        state = _read(manifest)
+        state.update(slurm_excluded_nodes=policy['excluded_nodes'], startup_retries=2)
+        if shared_pool:
+            state['shared_policy_file'] = str(policy_file)
+            state['slurm_excluded_nodes'] = []  # Pool exclusions are read at each admission.
+        atomic_json(manifest, state)
+        record = dict(schema=1, status='prepared', shared_pool=shared_pool, request=str(request), manifest=str(manifest),
+                      max_jobs=min(requested_cap, slots), production_policy=str(policy_file),
+                      files={name: file_sha256(output/name) for name in
+                             ('request.json', 'recipe.json', 'electronic_context.json', 'input.json')},
+                      systems=[dict(title=config['title'], configuration=str(output/'input.json'),
+                                    manifest=str(manifest))])
+        if provisional:
+            record['provisional'] = True
+            record['files']['provisional_source.json'] = file_sha256(output/'provisional_source.json')
+        atomic_json(output/'review_launch.json', record)
+        if geometry_proof:
+            atomic_json(output/'geometry_source.json',geometry_proof)
+            record['files']['geometry_source.json']=file_sha256(output/'geometry_source.json')
+            atomic_json(output/'review_launch.json',record)
+        return dict(directory=str(output), tasks=len(state['jobs']), max_jobs=record['max_jobs'],
+                    active_space=loaded.get('_probe_space'), states=state['jobs'][0]['root_states'],
+                    partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
 
 
 def batch(production, plan, output, *, shared_pool=False, preflight=False, resume=False):
-    """Stage independent orbital-only screens with one shared submission cap.
+    """Stage explicit SCF, CASCI or seeded compact probes under one review cap.
 
     Paths and scientific settings are explicit in the plan/recipes. Existing
     review selections are skipped; no rejected or imaginary future channel is
@@ -426,6 +484,8 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
                 entry = next(e for e in entries if e['name'] == child.name)
                 if _read(child/'recipe.json') != _read(plan.parent/entry['recipe']):
                     raise ValueError('Existing batch recipe changed: '+child.name)
+                if 'source' in entry:
+                    candidates(production/entry['source'], plan.parent/entry['recipe'], child, resume=True)
             return dict(status='resume_ready', directory=str(output),
                         tasks=sum(len(_read(s['manifest'])['jobs']) for s in saved['systems']))
         raise FileExistsError('Batch already exists; use run to resume without duplicate preparation.')
@@ -446,8 +506,13 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
         recipe = (plan.parent/item['recipe']).resolve(strict=True)
         control = _read(recipe)
         _require_available_recipe(control)
-        config = control['reconnaissance']
-        if (config.get('correlation_checks')
+        candidate = 'source' in item
+        source = (production/item['source']).resolve(strict=True) if candidate else None
+        if candidate and (production not in source.parents
+                          or not _saved(source).get('shared_pool') or not shared_pool):
+            raise ValueError('Batch candidates require a completed source in the shared production tree.')
+        config = control.get('reconnaissance', {})
+        if not candidate and (config.get('correlation_checks')
                 or (config.get('probe_active_space') and config.get('probe_method', 'casci') != 'casci')):
             raise ValueError('This batch command stages orbital-only SCF or CASCI screens.')
         match = control['request_match']
@@ -470,7 +535,9 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
         if policy_file is None:
             raise ValueError('Every batch case needs a production resource policy.')
         policies.add(str(policy_file))
-        pending.append((name,request,case/'input.json',recipe,provisional))
+        if candidate and (provisional or Path(_saved(source)['request']) != request):
+            raise ValueError('Candidate batch source belongs to a different review request.')
+        pending.append((name,request,case/'input.json',recipe,provisional,source))
     if not pending:
         return dict(status='nothing_to_prepare', skipped=skipped, tasks=0)
     if len(policies)!=1:
@@ -479,28 +546,32 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
     # partially usable campaign. This performs no scheduler/native calls.
     with tempfile.TemporaryDirectory(prefix='kinbot-batch-preflight-') as tmp:
         counts = []
-        for name,request,case_input,recipe,provisional in pending:
-            result = prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional,
-                             shared_pool=shared_pool,_preflight=True)
+        for name,request,case_input,recipe,provisional,source in pending:
+            result = (candidates(source,recipe,output/name,preflight=True) if source else
+                      prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional,
+                              shared_pool=shared_pool,_preflight=True))
             counts.append(result['tasks'])
     if preflight:
         return dict(status='preflight_passed', screens=len(pending), tasks=sum(counts), skipped=skipped)
-    output.mkdir(parents=True, exist_ok=False)
-    systems, reviews, caps = [], [], []
-    for name,request,case_input,recipe,provisional in pending:
-        child = output/name
-        prepare(request,case_input,recipe,child,provisional=provisional,shared_pool=shared_pool)
-        saved = _saved(child)
-        systems.extend(saved['systems']); reviews.append(str(child)); caps.append(saved['max_jobs'])
-    atomic_json(output/'plan.json',spec)
-    record = dict(schema=1,status='prepared', shared_pool=shared_pool, request=str(pending[0][1]),
-        production_policy=next(iter(policies)),max_jobs=min(spec['max_jobs'],*caps),
-        systems=systems,reviews=reviews,skipped=skipped,
-        files={'plan.json':file_sha256(output/'plan.json')})
-    atomic_json(output/'review_launch.json',record)
-    return dict(directory=str(output),screens=len(reviews),skipped=skipped,
-        tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),max_jobs=record['max_jobs'],
-        production_model_accepted=False)
+    with _new_campaign(output):
+        systems, reviews, caps = [], [], []
+        for name,request,case_input,recipe,provisional,source in pending:
+            child = output/name
+            if source:
+                candidates(source,recipe,child)
+            else:
+                prepare(request,case_input,recipe,child,provisional=provisional,shared_pool=shared_pool)
+            saved = _saved(child)
+            systems.extend(saved['systems']); reviews.append(str(child)); caps.append(saved['max_jobs'])
+        atomic_json(output/'plan.json',spec)
+        record = dict(schema=1,status='prepared', shared_pool=shared_pool, request=str(pending[0][1]),
+            production_policy=next(iter(policies)),max_jobs=min(spec['max_jobs'],*caps),
+            systems=systems,reviews=reviews,skipped=skipped,
+            files={'plan.json':file_sha256(output/'plan.json')})
+        atomic_json(output/'review_launch.json',record)
+        return dict(directory=str(output),screens=len(reviews),skipped=skipped,
+            tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),max_jobs=record['max_jobs'],
+            production_model_accepted=False)
 
 
 def bind(source, request, *, apply=True):
@@ -735,6 +806,12 @@ def _run(output, *, queue_all=False, allow_nodes=()):
         raise ValueError('Shared review has moved outside its production policy.')
     if slots < 1 and not queue_all:
         raise ValueError('No review capacity remains reserved; production may have resumed.')
+    for system in record['systems']:
+        config = _read(system['configuration'])
+        if (config.get('probe_definition') or {}).get('orbital_source') == 'scf':
+            # Refuse changed source evidence before allocation; the executor
+            # repeats this check to close the submission-to-execution interval.
+            recon._load(system['configuration'])
     # Check setup and scheduler, without starting native work on the login node.
     manifests = [Path(s['manifest']) for s in record['systems']]
     setup = manifests[0].parent/'site_setup.sh'
@@ -1331,7 +1408,7 @@ def review_batch(production, campaign, plan, *, apply=False, require_all=False):
     in a single input revision, or none of it. Sources may be relative paths
     beneath campaign, so completed screens from separate campaigns can join.
     """
-    from contextlib import ExitStack
+    from contextlib import ExitStack, contextmanager
     from kinbot import input_refresh
     production = Path(production).expanduser().resolve(strict=True)
     campaign = Path(campaign).expanduser().resolve(strict=True)
@@ -1427,6 +1504,8 @@ def main():
     candidate_cmd = commands.add_parser('candidates')
     for name in ('source', 'recipe', 'output'):
         candidate_cmd.add_argument(name)
+    candidate_cmd.add_argument('--preflight', action='store_true')
+    candidate_cmd.add_argument('--resume', action='store_true')
     production_cmd = commands.add_parser('production-checks', help='Append native production CC/MR identity probes.')
     for name in ('production', 'output'):
         production_cmd.add_argument(name)
@@ -1473,7 +1552,8 @@ def main():
     elif args.action == 'bind':
         result = bind(args.source,args.request)
     elif args.action == 'candidates':
-        result = candidates(args.source, args.recipe, args.output)
+        result = candidates(args.source, args.recipe, args.output,
+                            preflight=args.preflight, resume=args.resume)
     elif args.action == 'production-checks':
         result = production_checks(args.production, args.output, extend=args.extend)
     elif args.action == 'retry-reference-exports':

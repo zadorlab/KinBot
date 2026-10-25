@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791671450790040000002",
+    "reaction": "791671450790040000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 3,
+        "smiles": "[H][C][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "S=[SH]"
+      }
+    ]
+  },
+  "reconnaissance": {
+    "title": "well_hom_sci_1_2_character",
+    "multiplicity": 4,
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-09,
+    "scf_options": {
+      "solver": "so_sci",
+      "max_iterations": 256
+    },
+    "probe_active_space": false,
+    "orbital_initialization": "independent",
+    "orbital_print_virtuals": 8,
+    "orbital_print_threshold": 0.05,
+    "orbital_character_only": true,
+    "coordinates": [
+      {
+        "name": "cs",
+        "bond": [
+          1,
+          2
+        ],
+        "distances_angstrom": [
+          2.0,
+          30.0
+        ],
+        "fragment_states": [
+          {
+            "charge": 0,
+            "multiplicity": 3,
+            "smiles": "[H][C][H]",
+            "atom": 1
+          },
+          {
+            "charge": 0,
+            "multiplicity": 2,
+            "smiles": "S=[SH]",
+            "atom": 2
+          }
+        ]
+      }
+    ]
+  }
+}

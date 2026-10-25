@@ -1047,7 +1047,8 @@ SCF-only recipes can set `orbital_character_only: true`,
 `orbital_print_virtuals: 8`, and `orbital_print_threshold: 0.05`. They require
 at least two distinct distances per dissociation coordinate, retain native
 checkpoints/exports, and do not trigger potential-coverage refinement from SCF
-energies. CAS probes still require at least four distances. Product-exit
+energies. Coordinate-generated CAS radial screens require at least four distances;
+explicit candidate anchors can define a smaller diagnostic comparison. Product-exit
 `geometry_source` may set `include_reference_geometry: true` to include the exact
 accepted product-complex geometry alongside the explicit translated anchors.
 Fragment internals are preserved during translation.
@@ -1080,3 +1081,55 @@ The existing refresh preserves running/pending QC and independent RotdPy owners;
 repeating it with the same code is a no-op. The panel/handoff locks prevent duplicate
 owners. Owner waits expire with a resumable error; scientific or ownership conflicts
 are retained. New active-space publication is a separate explicit review action.
+
+## Compact CASSCF probes from explicit SCF indices
+
+A completed SCF character screen may seed a compact CASSCF comparison without
+an intervening all-valence CI. This is an explicit review choice: the code does
+not infer orbital character, active counts or state averages from occupations.
+The candidate definition includes `"orbital_source": "scf"`, the chosen
+`active_electrons`, `active_orbitals`, `state_model`, and `chemical_note`.
+Do not combine this with an AVAS selector or a natural-orbital partition.
+
+Each candidate anchor specifies the target `source` anchor, an optional different
+`seed` anchor from the same source screen, and basis-specific maps:
+
+```json
+{
+  "source": "near",
+  "seed": "far",
+  "active_indices": {"dz": [3, 5, 6], "tz": [3, 5, 7]},
+  "seed_sha256": {"dz": "REVIEWED_DZ_WFU_SHA256", "tz": "REVIEWED_TZ_WFU_SHA256"}
+}
+```
+
+The above indices and hashes are illustrative, not a molecular selection.
+The source screen must be complete, and the declared WFU hashes must match its
+validated records. Preparation also binds the source input/output hashes, checks
+that every selected index is printed, requires the selected occupations to give
+the declared active electron count, and includes every singly occupied orbital.
+Each basis needs its own matching native seed. Passing these guards establishes
+consistent initialization, not the correctness of the molecular state or CAS.
+
+The native runner copies the original canonical record `2100.2` onto FILE,3,
+starts the new RHF guess and MULTI explicitly from `2100.3`, and writes new SCF
+and natural orbitals on a fresh FILE,2. Source-index exchanges occur once in
+MULTI. This prevents the preliminary RHF calculation from replacing the reviewed
+canonical indices before packing the active space. Native output, checkpoint,
+XML exports and execution provenance remain available for review.
+
+`candidates SOURCE RECIPE OUTPUT --preflight` checks without preparing output;
+`--resume` verifies an identical existing comparison. A shared `batch` can mix
+ordinary screen recipes and completed-source candidate recipes. Add
+`"source": "RELATIVE/PATH/TO/COMPLETED/SCREEN"` to each candidate entry alongside
+its `case`, `recipe` and `name`. Candidate sources must be inside the same
+production policy tree. One campaign owner applies the plan cap and the existing
+shared pool policy across all child manifests. No production model is published.
+
+Preparation preflights the whole plan before creating the campaign. A later
+failure removes only the newly created, unsubmitted staging; existing source
+screens and production work remain intact. Atomic directory ownership prevents
+a competing preparer from deleting an existing campaign. Repeated run commands
+use the campaign/manifest locks and job journals. For a new panel, a production
+controller restart is unnecessary: the new review process and workers load the
+current installed code.

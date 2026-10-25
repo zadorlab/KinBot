@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[S]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "ch_h2ss_cs_s2_donor",
+      "anchors": [
+        {
+          "source": "cs_r_2",
+          "seed": "cs_r_30",
+          "active_indices": {
+            "adz": [
+              17,
+              18,
+              21,
+              22
+            ],
+            "atz": [
+              17,
+              18,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "d771030568d3d77db99b7f5f41919995c955c42c8210851aea99e9eea58c785b",
+            "atz": "e41224dd365a0958273303daff7293108511477727175aad47993b3fe79b3a60"
+          }
+        },
+        {
+          "source": "cs_r_30",
+          "seed": "cs_r_30",
+          "active_indices": {
+            "adz": [
+              17,
+              18,
+              21,
+              22
+            ],
+            "atz": [
+              17,
+              18,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "d771030568d3d77db99b7f5f41919995c955c42c8210851aea99e9eea58c785b",
+            "atz": "e41224dd365a0958273303daff7293108511477727175aad47993b3fe79b3a60"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "orbital_source": "scf",
+        "chemical_note": "Candidate from the 30 A canonical SCF record in each basis: S2 donor 17 plus CH sigma 18 and frontier pi 21/22. Near-source virtual 22 has different mixed character, so it is not reused by ordinal. Validate optimized natural/CI character at both geometries. No production root or orbital selection is accepted.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791671450790040000002",
+    "reaction": "791671450790040000002_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 3,
+        "smiles": "[H][C][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "S=[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "well_hom_sci_1_2_inward",
+      "anchors": [
+        {
+          "source": "cs_r_30",
+          "name": "in_r_6p0",
+          "distance_angstrom": 6.0,
+          "orbital_chain": "inward",
+          "seed": "cs_r_30",
+          "seed_sha256": {
+            "adz": "60ca928de25da64a835d7e3b0902de92aa718432c2c30a62bf9817b5473515ce",
+            "atz": "cf696afbef59a9df6ecc2e503deb7c910382079f5a3973e4377596c16c37b842"
+          }
+        },
+        {
+          "source": "cs_r_30",
+          "name": "in_r_3p5",
+          "distance_angstrom": 3.5,
+          "orbital_chain": "inward",
+          "propagate": true
+        },
+        {
+          "source": "cs_r_30",
+          "name": "in_r_2p5",
+          "distance_angstrom": 2.5,
+          "orbital_chain": "inward",
+          "propagate": true
+        },
+        {
+          "source": "cs_r_2",
+          "name": "in_near",
+          "orbital_chain": "inward",
+          "propagate": true
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 3,
+        "active_orbitals": 3,
+        "chemical_note": "Diagnostic inward continuation of the completed compact CASSCF space, without changing roots, weights, internal fragment geometry or active counts. Compare character and state energies with the existing independent near solution; no automatic orbital or production approval.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 4,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 0.5
+            },
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 0.5
+            }
+          ],
+          "selected_roots": {
+            "4": 1,
+            "2": 1
+          },
+          "canonical_orbitals": true
+        },
+        "orbital_partition": {
+          "source_active_electrons": 3,
+          "source_active_orbitals": 3,
+          "close_lowest": 0,
+          "discard_highest": 0
+        }
+      },
+      "orbital_initialization": "propagated"
+    }
+  ]
+}

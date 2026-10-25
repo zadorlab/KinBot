@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_R_Addition_CSm_R_5_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "csh2_sh_exit_resolution_inward",
+      "anchors": [
+        {
+          "source": "exit_r_30p0",
+          "name": "in_r_6p0",
+          "distance_angstrom": 6.0,
+          "orbital_chain": "inward",
+          "seed": "exit_r_30p0",
+          "seed_sha256": {
+            "adz": "d31a408cf33d4926fecaa4fd129ef95cf89cbd682bea61b9a589e45fa34429b3",
+            "atz": "4b276ccd30cb001fc6d58392b07e7c564c1ce7040fedcfb00547f3383f002ef6"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "name": "in_r_3p5",
+          "distance_angstrom": 3.5,
+          "orbital_chain": "inward",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "in_near",
+          "orbital_chain": "inward",
+          "propagate": true
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 7,
+        "active_orbitals": 5,
+        "chemical_note": "Diagnostic inward continuation of the completed compact CASSCF space, without changing roots, weights, internal fragment geometry or active counts. Compare character and state energies with the existing independent near solution; no automatic orbital or production approval.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        },
+        "orbital_partition": {
+          "source_active_electrons": 7,
+          "source_active_orbitals": 5,
+          "close_lowest": 0,
+          "discard_highest": 0
+        }
+      },
+      "orbital_initialization": "propagated"
+    }
+  ]
+}

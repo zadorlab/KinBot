@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "source_attachment": "/Users/hrishikeshram/.codex/attachments/5e9d3db1-54c8-4206-b2c2-12e4d396669d/Pasted text.txt",
+  "capture_name": "compact_resolution_character.20261025T224249Z.txt",
+  "saved_file": "resolution_character_evidence.txt",
+  "sha256": "b6c78289843bf0adc26e6b4a021b95241851aec0147084f531f14767abe1a634",
+  "scope": "User-supplied monitor and character output for all 60 completed compact-resolution jobs. Native WFU/XML hashes are included; binary orbitals and full outputs remain on Blodgett.",
+  "native_followup": {
+    "capture_name": "compact_resolution_native.20261025T224531Z.txt",
+    "delivery": "Inline user message; numeric and CI excerpts transcribed in resolution_audit.md. Full text file not yet transferred.",
+    "jobs": 4
+  }
+}

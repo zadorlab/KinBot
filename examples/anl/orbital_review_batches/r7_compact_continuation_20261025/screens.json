@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "screens": [
+    {
+      "name": "well_hom_sci_1_2",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_resolution_20261025/well_hom_sci_1_2",
+      "recipe": "well_hom_sci_1_2.json"
+    },
+    {
+      "name": "csh2_sh_exit_resolution",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution",
+      "recipe": "csh2_sh_exit_resolution.json"
+    }
+  ]
+}

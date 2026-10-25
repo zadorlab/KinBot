@@ -161,7 +161,11 @@ def candidates(source, recipe, output, *, preflight=False, resume=False):
                 for key in ('active_electrons', 'active_orbitals'):
                     if partition.get('source_'+key) != loaded['_probe_space'][key]:
                         raise ValueError('Partition counts differ from the source active space.')
-            data.update(title=name, probe_method='casscf', orbital_initialization='independent',
+            initialization = item.get('orbital_initialization', 'independent')
+            if initialization not in ('independent', 'propagated') or (
+                    scf_source and initialization != 'independent'):
+                raise ValueError('Propagation requires a completed natural-orbital source.')
+            data.update(title=name, probe_method='casscf', orbital_initialization=initialization,
                         probe_active_space=True, orbital_character_only=False,
                         probe_definition=definition, anchors=[], initial_records={},
                         casscf_options=deepcopy(item['casscf_options']),
@@ -170,14 +174,40 @@ def candidates(source, recipe, output, *, preflight=False, resume=False):
             for key in ('scf_convergence', 'correlation_convergence', 'scf_options'):
                 if key in item:
                     data[key] = deepcopy(item[key])
+            chains = {}
             for choice in item['anchors']:
                 if set(choice) - {'source', 'name', 'distance_angstrom', 'rotation',
-                                  'seed', 'active_indices', 'seed_sha256'}:
+                                  'seed', 'active_indices', 'seed_sha256',
+                                  'propagate', 'orbital_chain'}:
                     raise ValueError('Unsupported candidate anchor field.')
-                if not scf_source and set(choice) & {'seed', 'active_indices', 'seed_sha256'}:
-                    raise ValueError('Explicit SCF indices/seed cannot alter a natural-orbital partition.')
+                if not scf_source and 'active_indices' in choice:
+                    raise ValueError('Explicit SCF indices cannot alter a natural-orbital partition.')
+                propagate = choice.get('propagate', False)
+                if type(propagate) is not bool or (propagate and (
+                        initialization != 'propagated' or
+                        set(choice) & {'seed', 'active_indices', 'seed_sha256'})):
+                    raise ValueError('A propagated anchor must consume its predecessor, not another seed.')
                 anchor = deepcopy(anchors[choice['source']])
                 anchor['name'] = choice.get('name', choice['source'])
+                if 'orbital_chain' in choice:
+                    anchor['orbital_chain'] = choice['orbital_chain']
+                if initialization == 'propagated':
+                    chain = anchor.get('orbital_chain')
+                    if not isinstance(chain, str) or not recon._SAFE.fullmatch(chain):
+                        raise ValueError('Propagated candidates require explicit safe orbital_chain names.')
+                    # A chain follows one mapped fragment separation. Geometry
+                    # changes remain explicit; never silently join two exits.
+                    identity = {k: anchor.get(k) for k in
+                                ('bond', 'moving_atoms', '_channel', '_context', '_rotation')}
+                    if propagate and chains.get(chain) != identity:
+                        raise ValueError('A propagated anchor needs a preceding seed on the same coordinate.')
+                    if not propagate and chain in chains:
+                        raise ValueError('An orbital chain has one seed; use a distinct chain for another start.')
+                    if not propagate and not {'seed', 'seed_sha256'} <= set(choice):
+                        raise ValueError('A continuation seed needs explicit job and basis-specific hashes.')
+                    if 'rotation' in choice:
+                        raise ValueError('Use independent candidates for new fragment orientations.')
+                    chains[chain] = identity
                 if 'distance_angstrom' in choice:
                     if 'bond' not in anchor:
                         raise ValueError('Distance changes require a dissociation coordinate.')
@@ -209,15 +239,21 @@ def candidates(source, recipe, output, *, preflight=False, resume=False):
                     if np.allclose(xyz, recon._anchor_geometry(data, anchor), atol=1e-10, rtol=0.):
                         raise ValueError('Rotation would duplicate the unchanged geometry.')
                 data['anchors'].append(anchor)
+                if propagate:
+                    continue
                 for basis in data['bases']:
                     old = jobs[basis['name']+'__'+choice.get('seed', choice['source'])]
                     wrong_space = (not scf_source and any(
                         old['probe_active_space'][key] != loaded['_probe_space'][key]
                         for key in ('active_electrons', 'active_orbitals')))
-                    if (wrong_space or old['basis'] != basis['basis']
+                    if (wrong_space or old.get('validation_errors')
+                            or not scf_source and not old.get('natural_orbital_probe')
+                            or old['basis'] != basis['basis']
                             or file_sha256(old['wfu']) != old['wfu_sha256']
                             or file_sha256(Path(old['directory'])/(old['name']+'.out')) != old['output_sha256']):
                         raise ValueError('Source checkpoint/output or model differs from validated evidence.')
+                    if 'seed_sha256' in choice and choice['seed_sha256'].get(basis['name']) != old['wfu_sha256']:
+                        raise ValueError('Source checkpoint differs from the explicitly reviewed seed hash.')
                     data['initial_records'][basis['name']+'__'+anchor['name']] = dict(
                         path=old['wfu'], sha256=old['wfu_sha256'], basis=old['basis'])
                     if scf_source:
@@ -236,10 +272,15 @@ def candidates(source, recipe, output, *, preflight=False, resume=False):
             atomic_json(path, data)
             check = recon._load(path)
             for basis in check['bases']:
+                predecessors = {}
                 for anchor in check['anchors']:
                     stem = basis['name']+'__'+anchor['name']
+                    chain = anchor.get('orbital_chain')
+                    orbital_start = check['initial_records'].get(stem) or predecessors.get(chain)
                     recon.validate_input_blocks(recon._deck(check, basis['basis'], anchor, stem,
-                        previous=check['initial_records'][stem]), stem)
+                        previous=orbital_start), stem)
+                    if initialization == 'propagated':
+                        predecessors[chain] = stem
             configurations.append(data)
     if preflight:
         return dict(status='preflight_passed', models=len(configurations),

@@ -1,5 +1,10 @@
 # Review of the completed compact panel and next minimal comparisons
 
+**Update:** the 60 jobs defined here have now completed. See the
+[results audit](resolution_audit.md) and the
+[two-case continuation handoff](../r7_compact_continuation_20261025/README.md).
+The original preparation rationale and commands below are retained as history.
+
 The user supplied `compact_review_character.20261025T203418Z.txt` on 25 October
 2026. It contains **24 completed compact CASSCF probes and 32 completed SCF
 character probes**. The complete supplied text is saved in

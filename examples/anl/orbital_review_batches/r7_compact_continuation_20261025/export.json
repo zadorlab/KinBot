@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "scope": "Remaining compact review evidence and source chains, including full native outputs, WFU/XML files, attempts, recipes and selected production review/progress metadata. Earlier selections are in the previous verified export. Per-file snapshots, not an atomic live-run snapshot or scientific approval. Run after continuation completion.",
+  "sources": [
+    {
+      "root": "production",
+      "path": "orbital_recon/remaining_character_20261025"
+    },
+    {
+      "root": "production",
+      "path": "orbital_recon/compact_followup_20261025"
+    },
+    {
+      "root": "production",
+      "path": "orbital_recon/compact_resolution_20261025"
+    },
+    {
+      "root": "production",
+      "path": "orbital_recon/compact_continuation_20261025"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/orbital_review_batches/r7_compact_followup_20261025"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/orbital_review_batches/r7_compact_resolution_20261025"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/orbital_review_batches/r7_compact_continuation_20261025"
+    },
+    {
+      "root": "production",
+      "path": ".kinbot_resource_policy.json"
+    },
+    {
+      "root": "production",
+      "path": "ch3s/input.json"
+    },
+    {
+      "root": "production",
+      "path": "ch3ss/input.json"
+    },
+    {
+      "root": "production",
+      "path": "*/.kinbot_accepted_input.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/.kinbot_input_refresh.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/pes_exploration.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/accepted_l2_network.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/orbital_review",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrc_model_review.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/scan_progress",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/scan_review",
+      "optional": true
+    }
+  ]
+}

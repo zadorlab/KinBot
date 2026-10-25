@@ -38,6 +38,24 @@ remain readable and already prepared jobs can be monitored/resumed; reproducing
 or expanding an implicit legacy recipe requires a new explicit choice. Do not
 edit a running campaign's hash-bound input to add this field.
 
+Completed natural-orbital candidates can also seed an explicitly ordered
+continuation. In a `candidates` recipe set `orbital_initialization: propagated`
+and give every anchor an `orbital_chain`. The first anchor in each chain names
+the completed `seed` job and its basis-specific `seed_sha256`; later anchors
+set `propagate: true` and consume their immediate predecessor. Anchor order is
+execution order, allowing inward or outward continuation. Keep a counted
+`orbital_partition`; zero closure/discard counts retain the source CAS.
+Different mapped coordinates cannot silently join a chain. SCF-index candidates
+remain independent; a natural checkpoint must first establish the packed space.
+
+The existing runner checks predecessor completion and WFU hashes before
+submission, journals the consumed hash, and shares the campaign resource cap.
+Use a fresh sibling campaign to retain the independent comparison. Molpro's
+`DIAB` rotates within the active space for overlap alignment; it does not prevent
+active/inactive exchange or establish electronic-state continuity. Compare
+native character, CI vectors and labeled root energies after continuation.
+See the [Molpro MULTI manual](https://www.molpro.net/manual/doku.php?id=the_mcscf_program_multi#diabatic_orbitals).
+
 Requested-review recipes and batch plans may carry `status: withdrawn` or
 `status: proposed`; preparation rejects either before creating a campaign.
 An absent status retains the existing explicit-recipe interface. `status: ready`

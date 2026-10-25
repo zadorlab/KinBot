@@ -206,7 +206,7 @@ class VTS:
         The main driver for scanning the potential.
         """
         from kinbot.pes_phase import checkpoint
-        from kinbot.vrc_multistate import SurfaceModelRequired
+        from kinbot.vrc_multistate import SurfaceModelRequired, FragmentIdentityError
         from kinbot.vrc_scan_recovery import ScanReviewRequired
         self.review_requests = []
         deferred = set()
@@ -254,33 +254,51 @@ class VTS:
                 continue
             # Resolve/review parent-local state models before any fragment QC.
             self.opt_products(reactions, submit=False)
-            self.find_scan_coos(reactions)
-            invalid = [name for name in reactions
-                       if not isinstance(self.scan_reac[name].scan_coo,
-                                         (list, tuple, np.ndarray))
-                       or len(self.scan_reac[name].scan_coo) != 2]
-            if invalid:
-                raise ValueError(
-                    'VRC scan coordinate is unavailable for: '
-                    + ', '.join(invalid))
             from kinbot.vrc_multistate import channel_for_reaction, calculate_channels
+            coordinate_errors = {}
+            for name in reactions:
+                checkpoint()
+                try:
+                    self.find_scan_coos([name])
+                    coo = self.scan_reac[name].scan_coo
+                    if (not isinstance(coo, (list, tuple, np.ndarray)) or len(coo) != 2
+                            or any(not isinstance(i, (int, np.integer)) for i in coo)):
+                        raise FragmentIdentityError('VRC scan coordinate is unavailable for '+name)
+                except FragmentIdentityError as error:
+                    coordinate_errors[name] = error
             scalar = []
             selections = {}
             for name in reactions:
                 checkpoint()
                 try:
+                    if name in coordinate_errors:
+                        raise coordinate_errors[name]
+                    coo = self.scan_reac[name].scan_coo
                     selection = channel_for_reaction(self.par, self.scan_reac[name])
+                    if selection is not None and selection[0].get('reaction') is None:
+                        aliases = [other for other in reactions if other != name
+                                   and other not in coordinate_errors
+                                   and sorted(self.scan_reac[other].scan_coo) == sorted(coo)]
+                        if aliases:
+                            raise SurfaceModelRequired('Different accepted reactions share this scan '
+                                'coordinate; supply an exact reaction-specific surface model for '+name)
                 except SurfaceModelRequired as error:
                     deferred.add(name)
                     reaction = self.scan_reac[name]
+                    coo = getattr(reaction, 'scan_coo', None)
+                    bond = ([int(i)+1 for i in coo] if isinstance(coo, (list, tuple, np.ndarray))
+                            and len(coo) == 2 and all(isinstance(i, (int, np.integer)) for i in coo)
+                            else None)
                     request = dict(schema=1, status='needs_review', reaction=name,
                         parent=routing_name(self.well), smiles=self.well.smiles,
-                        bond=[int(i)+1 for i in reaction.scan_coo],
+                        bond=bond,
                         symbols=list(self.well.atom), positions=np.asarray(self.well.geom).tolist(),
                         charge=int(self.well.charge), multiplicity=int(self.well.mult),
                         products=[dict(smiles=p.smiles, charge=int(p.charge),
                                        multiplicity=int(p.mult)) for p in reaction.products],
                         error=str(error))
+                    if isinstance(error, FragmentIdentityError):
+                        request['review_kind'] = 'fragment_identity'
                     from kinbot.execution import atomic_json
                     path = Path('vrctst/orbital_review')/name/'request.json'
                     atomic_json(path, request)
@@ -298,6 +316,8 @@ class VTS:
                     accepted.update(status='model_accepted', surface_model=selection[1] if selection else None)
                     atomic_json(review_path,accepted)
             approved = list(selections)
+            if not approved:
+                continue
             self.opt_products(approved)
             self.save_products(approved)
             self.find_scan_coos(approved)
@@ -488,11 +508,14 @@ class VTS:
         - If it's a vdw well, then find the closest atoms between
           the two parts using the core function
         """
+        from kinbot.vrc_multistate import FragmentIdentityError
 
         for reac in reactions:
             # find the fragments from the IRCs
             self.scan_reac[reac].parts, self.scan_reac[reac].maps = \
                 self.scan_reac[reac].irc_prod.start_multi_molecular()
+            if len(self.scan_reac[reac].parts) != 2:
+                raise FragmentIdentityError(f'{reac}: IRC endpoint does not contain two fragments.')
             for part in self.scan_reac[reac].parts:
                 apply_electronic_state_model(part, self.par)
                 part.name = routing_name(part)
@@ -585,14 +608,22 @@ class VTS:
         It might still scramble chirality,
         but that is perhaps a very rare edge case?
         '''
-        # match product ordering with scanned fragments' order
-        if not same_species(self.scan_reac[reac].parts[0], self.scan_reac[reac].products[0]):
-            self.scan_reac[reac].products = \
-                list(reversed(self.scan_reac[reac].products))
-        if not same_species(self.scan_reac[reac].parts[0], self.scan_reac[reac].products[0]):
-            logger.warning('IRC prod and prod are not the same!')
-        if not same_species(self.scan_reac[reac].parts[1], self.scan_reac[reac].products[1]):
-            logger.warning('IRC prod and prod are not the same!')
+        from kinbot.vrc_multistate import FragmentIdentityError
+        reaction = self.scan_reac[reac]
+        parts, products = reaction.parts, reaction.products
+        if len(parts) != 2 or len(products) != 2:
+            raise FragmentIdentityError(f'{reac}: scan requires two accepted fragments.')
+        def matches(candidate):
+            return all(same_species(p, q) and p.charge == q.charge and p.mult == q.mult
+                       for p, q in zip(parts, candidate))
+        if matches(products):
+            ordered = products
+        elif matches(products[::-1]):
+            ordered = products[::-1]
+        else:
+            raise FragmentIdentityError(f'{reac}: IRC fragments differ from accepted products '
+                                        '(connectivity, stereochemistry, charge or spin); no scan submitted.')
+        reaction.products = ordered
         # match atom ordering of individual products
         # with scanned fragment's atom order
         for fi, frag in enumerate(self.scan_reac[reac].parts):

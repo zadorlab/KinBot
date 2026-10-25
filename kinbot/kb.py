@@ -634,8 +634,8 @@ def _main():
                     par['vrc_tst_scan'] = {
                         routing_name(well0): selected_vrc}
                     logger.info(
-                        'Automatically selected accepted homolytic channel(s) '
-                        'for VRC-TST: %s', ', '.join(selected_vrc))
+                        'Automatically selected accepted VRC channels '
+                        '(homolysis or product-complex exit): %s', ', '.join(selected_vrc))
 
     # BIMOLECULAR REACTANTS
     elif par['bimol'] == 1:

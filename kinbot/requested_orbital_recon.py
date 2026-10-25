@@ -57,7 +57,9 @@ def _saved(root, *, allow_accepted=False):
     if allow_accepted and live.get('status') == 'model_accepted':
         # Acceptance changes only bookkeeping. A repeated review must still
         # match the saved chemistry/geometry and the installed channel below.
-        live.pop('surface_model', None)
+        for key in ('surface_model', 'installed_channel_sha256', 'acknowledgement'):
+            live.pop(key, None)
+            original.pop(key, None)
         live['status'] = original.get('status')
     if live != original:
         raise ValueError('Live review request changed; inspect before continuing this review.')
@@ -268,6 +270,13 @@ def product_complex_geometry(request, evidence, selection):
     if moving is None:raise ValueError('VRC coordinate does not separate the mapped fragments.')
     anchors=[dict(name='exit_r_'+str(d).replace('.','p'),bond=pair,moving_atoms=moving,
                   distance_angstrom=d) for d in selection['distances_angstrom']]
+    include_reference = selection.get('include_reference_geometry', False)
+    if not isinstance(include_reference, bool):
+        raise ValueError('include_reference_geometry must be boolean.')
+    if include_reference:
+        distance = float(np.linalg.norm(atoms.positions[pair[0]-1]-atoms.positions[pair[1]-1]))
+        anchors.insert(0, dict(name='exit_l2', bond=pair, moving_atoms=moving,
+                              distance_angstrom=distance))
     proof=dict(database=str(path),row_id=row.id,record_name=name,network=rows[0],
                symbols=evidence['symbols'],positions=atoms.positions.tolist(),fragments=fragments)
     return atoms.positions.tolist(),anchors,proof
@@ -390,7 +399,7 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
                 partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
 
 
-def batch(production, plan, output, *, shared_pool=False):
+def batch(production, plan, output, *, shared_pool=False, preflight=False, resume=False):
     """Stage independent orbital-only screens with one shared submission cap.
 
     Paths and scientific settings are explicit in the plan/recipes. Existing
@@ -407,6 +416,18 @@ def batch(production, plan, output, *, shared_pool=False):
             or spec['max_jobs'] < 1):
         raise ValueError('Batch plan requires schema 1, screens and positive max_jobs.')
     if output.exists():
+        if resume:
+            saved = _saved(output)
+            if (_read(output/'plan.json') != spec or saved.get('shared_pool', False) != shared_pool
+                    or saved['production_policy'] != str(run_policy.find(production))):
+                raise ValueError('Existing batch plan or resource ownership differs.')
+            for child in saved.get('reviews', []):
+                child = Path(child)
+                entry = next(e for e in entries if e['name'] == child.name)
+                if _read(child/'recipe.json') != _read(plan.parent/entry['recipe']):
+                    raise ValueError('Existing batch recipe changed: '+child.name)
+            return dict(status='resume_ready', directory=str(output),
+                        tasks=sum(len(_read(s['manifest'])['jobs']) for s in saved['systems']))
         raise FileExistsError('Batch already exists; use run to resume without duplicate preparation.')
     if shared_pool:
         if production not in output.parents or run_policy.find(output.parent) != run_policy.find(production):
@@ -435,7 +456,8 @@ def batch(production, plan, output, *, shared_pool=False):
             raise ValueError('Unsafe parent/reaction in batch recipe.')
         context = _read(case/'input.json')
         model = context.get('vrc_tst_surface_models', {}).get(parent, {})
-        if any(sorted(c['bond'])==sorted(match['bond']) for c in model.get('channels', [])):
+        if any(sorted(c['bond'])==sorted(match['bond'])
+               and c.get('reaction', reaction) == reaction for c in model.get('channels', [])):
             skipped.append(dict(name=name, reason='channel already supplied in case input'))
             continue
         request = case/parent/'vrctst/orbital_review'/reaction/'request.json'
@@ -456,9 +478,13 @@ def batch(production, plan, output, *, shared_pool=False):
     # Preflight the entire batch first, so a bad later recipe cannot publish a
     # partially usable campaign. This performs no scheduler/native calls.
     with tempfile.TemporaryDirectory(prefix='kinbot-batch-preflight-') as tmp:
+        counts = []
         for name,request,case_input,recipe,provisional in pending:
-            prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional,
-                    shared_pool=shared_pool,_preflight=True)
+            result = prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional,
+                             shared_pool=shared_pool,_preflight=True)
+            counts.append(result['tasks'])
+    if preflight:
+        return dict(status='preflight_passed', screens=len(pending), tasks=sum(counts), skipped=skipped)
     output.mkdir(parents=True, exist_ok=False)
     systems, reviews, caps = [], [], []
     for name,request,case_input,recipe,provisional in pending:
@@ -782,10 +808,13 @@ def evidence(output):
                     lines.append(label+' Eh '+', '.join(
                         f'{r.get("method", "")}:m{r["multiplicity"]}r{r["root"]}={r["energy_hartree"]:.10f}'
                         for r in rows))
-            n = (state['electron_count']-j['probe_active_space']['active_electrons'])//2
-            stop = n+j['probe_active_space']['active_orbitals']
+            space = j.get('probe_active_space')
+            if not space and 'energy_hartree' in j:
+                lines.append(f'SCF Eh {j["energy_hartree"]:.10f}')
             occ = j.get('natural_occupations', [])
-            if occ:
+            if occ and space:
+                n = (state['electron_count']-space['active_electrons'])//2
+                stop = n+space['active_orbitals']
                 lines.append('ACTIVE '+', '.join(f'{i+1}:{occ[i]:.6f}'
                              for i in range(n, min(stop, len(occ)))))
             for field in ('validation_errors', 'validation_warnings', 'terminal_failure'):
@@ -795,6 +824,55 @@ def evidence(output):
             lines.append('COVERAGE '+key+' '+json.dumps({k:value.get(k) for k in
                 ('status', 'asymptote_plateau', 'suggested_midpoints_angstrom',
                  'suggested_far_distance_angstrom')}))
+    return '\n'.join(lines)
+
+
+def character(output):
+    """Hash-bound printed orbital character; no population or state assignment."""
+    from kinbot.molpro_diagnostics import _orbital_tables, parse_native_output
+    root = Path(output).expanduser().resolve(strict=True)
+    record = _read(root/'review_launch.json')
+    lines = [evidence(root),
+        'AO entries are amplitudes, not populations. SCF occupations are not correlated natural occupations.',
+        'SCF character alone does not establish fragment charge/spin, roots, weights or an accepted CAS.']
+    for system in record['systems']:
+        manifest = _read(system['manifest'])
+        for job in manifest['jobs']:
+            if job.get('status') != 'complete' or job.get('validation_errors'):
+                continue
+            output = Path(job['directory'])/(job['name']+'.out')
+            if file_sha256(output) != job.get('output_sha256'):
+                raise ValueError(f'Native output changed: {output}')
+            lines.append('\nNATIVE '+str(output))
+            for kind in ('wfu', 'molden'):
+                if not job.get(kind):
+                    continue
+                path = Path(job[kind])
+                if file_sha256(path) != job.get(kind+'_sha256'):
+                    raise ValueError(f'Native {kind} changed: {path}')
+                lines.append(kind.upper()+' '+str(path)+' SHA256 '+job[kind+'_sha256'])
+            for kind, export in job.get('orbital_xml', {}).items():
+                if file_sha256(export['path']) != export['sha256']:
+                    raise ValueError('Native orbital XML changed: '+export['path'])
+                lines.append('XML '+kind+' '+export['path']+' SHA256 '+export['sha256'])
+            text = output.read_text(errors='replace')
+            if job.get('probe_active_space'):
+                audit = parse_native_output(text)
+                tables = [t for s in audit['native_sections'] for t in s.get('orbital_tables', [])
+                          if 'NATURAL' in t['heading'].upper()]
+                label = 'NATURAL'
+            else:
+                normalized = re.sub(r'(?im)^\s*ELECTRON ORBITALS\s*$', 'CANONICAL ORBITALS', text)
+                tables = _orbital_tables(normalized.splitlines(), 1, None, None)
+                label = 'SCF'
+            if not tables:
+                lines.append('ORBITAL TABLE MISSING; inspect saved Molden/WFU before selection.')
+                continue
+            for orbital in tables[-1]['orbitals']:
+                ao = sorted(orbital['ao_coefficients'], key=lambda v: abs(v['coefficient']), reverse=True)[:6]
+                lines.append(f'{label} {orbital["index"]} occ={orbital.get("occupation")} '
+                    f'energy_Eh={orbital.get("energy_Eh")} AO='+str([
+                        (v['center'], v['function'], v['component'], v['coefficient']) for v in ao]))
     return '\n'.join(lines)
 
 
@@ -1110,6 +1188,8 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
         raise ValueError('Select one source screen with basis-specific orbital records.')
     manifest = _read(saved['systems'][0]['manifest'])
     jobs = {j['name']: j for j in manifest['jobs']}
+    if any(not j.get('natural_orbital_probe') for j in manifest['jobs']):
+        raise ValueError('SCF character is not a reviewed multistate natural-orbital selection.')
     for name in chosen.get('required_complete_jobs', []):
         job = jobs[name]
         if (job['status'] != 'complete' or job.get('validation_errors')
@@ -1140,13 +1220,19 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
         states=deepcopy(chosen['states']), parameters=parameters)
     # Match JSON's string keys on repeat application (selected_roots is
     # normalized to integer keys by the state-model validator).
-    channel = json.loads(json.dumps(dict(bond=request['bond'], combination='single', bottlenecks=[stage])))
+    channel = json.loads(json.dumps(dict(bond=request['bond'], reaction=request['reaction'],
+                                         combination='single', bottlenecks=[stage])))
     parent = request['parent']
     models = deepcopy(previous.get('vrc_tst_surface_models', {}))
     prior = models.get(parent)
     model = deepcopy(prior) if prior else dict(schema=1, reviewed=True,
         review_note=chosen['review_note'], channels=[])
-    matches = [c for c in model['channels'] if sorted(c['bond']) == sorted(channel['bond'])]
+    matches = [c for c in model['channels'] if sorted(c['bond']) == sorted(channel['bond'])
+               and c.get('reaction', request['reaction']) == request['reaction']]
+    # A repeat of an already published legacy selection must remain byte-for-byte
+    # additive. It cannot convert that bond model into a scoped model implicitly.
+    if len(matches) == 1 and 'reaction' not in matches[0]:
+        channel.pop('reaction')
     if matches and matches != [channel]:
         raise ValueError('This channel already has different settings; use a scientific migration.')
     if not matches and _read(saved['request']).get('status') == 'model_accepted':
@@ -1351,6 +1437,8 @@ def main():
         batch_cmd.add_argument(name)
     batch_cmd.add_argument('--shared-pool', action='store_true',
         help='Stage within production and admit all review jobs through its existing resource policy.')
+    batch_cmd.add_argument('--preflight', action='store_true', help='Validate in temporary storage; create no campaign.')
+    batch_cmd.add_argument('--resume', action='store_true', help='Verify an identical existing campaign without restaging.')
     bind_cmd = commands.add_parser('bind',help='Bind preliminary evidence to an actual review request.')
     for name in ('source','request'):
         bind_cmd.add_argument(name)
@@ -1367,7 +1455,7 @@ def main():
     reviews_cmd.add_argument('--apply', action='store_true')
     reviews_cmd.add_argument('--require-all', action='store_true',
         help='Require every selection for one case; publish one input revision or none.')
-    for name in ('run', 'monitor', 'evidence', 'reference-report', 'production-evidence'):
+    for name in ('run', 'monitor', 'evidence', 'character', 'reference-report', 'production-evidence'):
         command = commands.add_parser(name)
         command.add_argument('output')
         if name == 'run':
@@ -1380,7 +1468,8 @@ def main():
     if args.action == 'prepare':
         result = prepare(args.request, args.case_input, args.recipe, args.output,shared_pool=args.shared_pool)
     elif args.action == 'batch':
-        result = batch(args.production,args.plan,args.output,shared_pool=args.shared_pool)
+        result = batch(args.production,args.plan,args.output,shared_pool=args.shared_pool,
+                       preflight=args.preflight, resume=args.resume)
     elif args.action == 'bind':
         result = bind(args.source,args.request)
     elif args.action == 'candidates':
@@ -1401,6 +1490,9 @@ def main():
                      queue_all=args.queue_all, allow_nodes=args.allow_node)
     elif args.action == 'evidence':
         print(evidence(args.output))
+        return
+    elif args.action == 'character':
+        print(character(args.output))
         return
     elif args.action == 'reference-report':
         print(reference_report(args.output))

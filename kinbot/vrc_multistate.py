@@ -42,13 +42,34 @@ class SurfaceModelRequired(ValueError):
     """A discovered channel needs reviewed electronic-state input."""
 
 
+class FragmentIdentityError(SurfaceModelRequired):
+    """The proposed scan fragments do not match the accepted reaction."""
+
+
+def channel_key(channel):
+    """A coordinate alone cannot identify different exits from the same well."""
+    return tuple(sorted(channel['bond'])), channel.get('reaction')
+
+
+def select_surface_channel(model, bond, reaction=None):
+    """Match an exact reaction when scoped; retain unambiguous legacy models."""
+    matches = [c for c in model['channels'] if sorted(c['bond']) == sorted(bond)
+               and (c.get('reaction') is None or c['reaction'] == reaction)]
+    if not matches:
+        raise SurfaceModelRequired(f'Accepted VRC bond {sorted(bond)}, reaction {reaction!r} '
+                                   'needs a reviewed surface channel.')
+    if len(matches) != 1:
+        raise ValueError('No unique reviewed VRC channel; specify its reaction identity.')
+    return matches[0]
+
+
 def extend_surface_model(previous, current):
     """Permit added channels while preserving every existing MR contract."""
     current = validate_surface_model(current)
     if previous is not None:
         previous = validate_surface_model(previous)
-        channels = {tuple(sorted(c['bond'])): c for c in current['channels']}
-        if any(channels.get(tuple(sorted(c['bond']))) != c for c in previous['channels']):
+        channels = {channel_key(c): c for c in current['channels']}
+        if any(channels.get(channel_key(c)) != c for c in previous['channels']):
             raise ValueError('Existing VRC channel settings changed; a scientific migration is required.')
     return current
 
@@ -63,10 +84,10 @@ def validate_surface_model(payload, *, reviewed=True):
     if reviewed and (model.get('reviewed') is not True
                      or not str(model.get('review_note', '')).strip()):
         raise ValueError('VRC surface model requires reviewed=true and a chemistry review_note.')
-    bonds = set()
+    bonds, reactions = {}, set()
     for channel in model['channels']:
         if (not isinstance(channel, dict)
-                or set(channel) - {'bond', 'combination', 'equilibration', 'bottlenecks'}):
+                or set(channel) - {'bond', 'reaction', 'combination', 'equilibration', 'bottlenecks'}):
             raise ValueError('Unknown VRC surface channel controls.')
         bond = channel.get('bond')
         if (not isinstance(bond, list) or len(bond) != 2 or bond[0] == bond[1]
@@ -74,9 +95,18 @@ def validate_surface_model(payload, *, reviewed=True):
                        or index < 1 for index in bond)):
             raise ValueError('VRC surface channel needs two one-based bond indices.')
         key = tuple(sorted(bond))
-        if key in bonds:
-            raise ValueError('Duplicate VRC surface channel bond.')
-        bonds.add(key)
+        reaction = channel.get('reaction')
+        if 'reaction' in channel and (not isinstance(reaction, str) or not _SAFE.fullmatch(reaction)):
+            raise ValueError('VRC channel reaction must be a nonempty exact reaction name.')
+        if reaction is not None and reaction in reactions:
+            raise ValueError('Duplicate VRC surface channel reaction.')
+        previous = bonds.setdefault(key, set())
+        if previous and (reaction is None or None in previous or reaction in previous):
+            raise ValueError('Duplicate VRC surface channel bond needs distinct explicit reaction names; '
+                             'do not mix bond-only and reaction-specific models.')
+        previous.add(reaction)
+        if reaction is not None:
+            reactions.add(reaction)
         combination = channel.get('combination', 'single')
         if combination not in ('single', 'statistical', 'minimum'):
             raise ValueError('VRC combination must be single, statistical, or minimum. '
@@ -249,13 +279,9 @@ def channel_for_reaction(parameters, reaction):
         return None
     model, provenance = loaded
     bond = sorted(int(index) + 1 for index in reaction.scan_coo)
-    matches = [channel for channel in model['channels'] if sorted(channel['bond']) == bond]
-    if not matches:
-        raise SurfaceModelRequired(f'Accepted VRC bond {bond} needs a reviewed surface channel.')
-    if len(matches) != 1:
-        raise ValueError(f'Accepted VRC bond {bond} has no unique reviewed surface channel.')
+    channel = select_surface_channel(model, bond, getattr(reaction, 'instance_name', None))
     if require_parent_space:
-        for stage in matches[0]['bottlenecks']:
+        for stage in channel['bottlenecks']:
             settings = stage['parameters']
             if not (settings.get('vrc_tst_state_model') or settings.get('vrc_tst_state_model_file')):
                 raise SurfaceModelRequired(f'{route}, bond {bond}: each new-parent bottleneck needs its own '
@@ -265,13 +291,13 @@ def channel_for_reaction(parameters, reaction):
     from kinbot.electronic_states import state_average_roots
     allowed = coupled_multiplicities(*(int(product.mult) for product in reaction.products))
     roots = state_average_roots(reaction.products, allowed, parameters)
-    for stage in matches[0]['bottlenecks']:
+    for stage in channel['bottlenecks']:
         from kinbot.vrc_correction import root_overrides
         counts = {**roots, **root_overrides(stage['parameters'], 'vrc_tst_state_average_roots')}
         for state in stage['states']:
             if state['multiplicity'] not in allowed or state['root'] > counts[state['multiplicity']]:
                 raise ValueError('VRC surface state is outside the declared separated-fragment terms.')
-    return deepcopy(matches[0]), provenance
+    return deepcopy(channel), provenance
 
 
 def state_parameters(parameters, stage, state, fragment_multiplicities):

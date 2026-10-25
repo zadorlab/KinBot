@@ -245,7 +245,9 @@ def test_repeated_pes_command_targets_owner_not_main(run,monkeypatch,capsys):
     assert json.loads(capsys.readouterr().out)['drivers_started']==0
 
 
-def test_mixed_reviewed_and_new_vrc_channels_continue_independently(tmp_path,monkeypatch):
+@pytest.mark.parametrize('identity_error', [False, True])
+@pytest.mark.parametrize('scoped', [False, True])
+def test_mixed_reviewed_and_new_vrc_channels_continue_independently(tmp_path,monkeypatch,identity_error,scoped):
     import numpy as np
     from kinbot.vrc_tst_scan import VTS
     from kinbot import vrc_multistate as multistate, vrc_orbitals, pes
@@ -261,21 +263,32 @@ def test_mixed_reviewed_and_new_vrc_channels_continue_independently(tmp_path,mon
     calls=[]
     monkeypatch.setattr(vts,'opt_products',lambda names,submit=True:calls.append(('products',names,submit)))
     monkeypatch.setattr(vts,'save_products',lambda names:calls.append(('save',names)))
-    monkeypatch.setattr(vts,'find_scan_coos',lambda names:None)
+    def find(names):
+        if identity_error and 'new' in names:
+            raise multistate.FragmentIdentityError('new endpoint identity differs')
+    monkeypatch.setattr(vts,'find_scan_coos',find)
     monkeypatch.setattr(vts,'find_equiv',lambda names:None)
     def selection(par,reaction):
         if reaction is vts.scan_reac['new']: raise multistate.SurfaceModelRequired('new needs review')
-        return ('reviewed',{})
+        return ({'reaction':'reviewed'} if scoped else {}, {})
     monkeypatch.setattr(multistate,'channel_for_reaction',selection)
     monkeypatch.setattr(multistate,'calculate_channels',lambda v,s:calls.extend(('calculated',n) for n in s))
     monkeypatch.setattr(pes,'create_rotdpy_inputs',lambda p,rows,*a,**k:calls.append(('rotd',[r[1] for r in rows])))
     with pytest.raises(multistate.SurfaceModelRequired,match='new'):
         vts.calculate_correction_potentials()
-    assert ('calculated','reviewed') in calls
-    assert ('products',['reviewed'],True) in calls
-    assert ('save',['reviewed']) in calls
-    assert ('rotd',['reviewed']) in calls
+    if scoped or identity_error:
+        assert ('calculated','reviewed') in calls
+        assert ('products',['reviewed'],True) in calls
+        assert ('save',['reviewed']) in calls
+        assert ('rotd',['reviewed']) in calls
+    else:
+        assert not any(c[0] in ('calculated','save','rotd') for c in calls)
+        assert not any(c[0]=='products' and c[2] for c in calls)
+        request=json.loads((tmp_path/'vrctst/orbital_review/reviewed/request.json').read_text())
+        assert request['status']=='needs_review' and 'reaction-specific' in request['error']
     assert json.loads((tmp_path/'vrctst/orbital_review/new/request.json').read_text())['status']=='needs_review'
+    if identity_error:
+        assert json.loads((tmp_path/'vrctst/orbital_review/new/request.json').read_text())['review_kind']=='fragment_identity'
 
 
 def test_review_wait_releases_on_reopen_and_restores_qc_limits(tmp_path,monkeypatch):

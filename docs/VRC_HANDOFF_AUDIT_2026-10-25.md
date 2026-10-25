@@ -1,5 +1,12 @@
 # Audit of the VRC/ANL handoff, 25 October 2026
 
+Continuation: the subsequent supplied endpoint evidence and implemented
+reaction-identity fixes are recorded in the
+[replacement character-panel handoff](../examples/anl/orbital_review_batches/r7_remaining_character_20261025/README.md).
+The historical unresolved-routing statements below describe the audit at
+`52e2c22c`; that handoff records their resolution and the remaining native
+compact-selection work. The withdrawn valence recipes remain withdrawn.
+
 The four new orbital-screen recipes handed off at `21ec57ca` are withdrawn.
 The user confirmed that the launch block was **not run**. No associated jobs
 need cancellation. This audit does not authorize a replacement QC campaign,

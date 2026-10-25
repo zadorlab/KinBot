@@ -446,7 +446,8 @@ def test_review_publishes_only_selected_parent_and_reuses_basis_specific_seeds(r
     helper.review(source,case_input,SELECTION,apply=True)
     assert len(calls)==4 and helper._read(case_input)==proposed
     live_request=Path(helper._read(source/'review_launch.json')['request'])
-    atomic_json(live_request,dict(helper._read(live_request),status='model_accepted',surface_model={}))
+    atomic_json(live_request,dict(helper._read(live_request),status='model_accepted',surface_model={},
+        installed_channel_sha256='owner acknowledgement', acknowledgement='scan remains separate'))
     helper.review(source,case_input,SELECTION,apply=True)
     assert len(calls)==6 and helper._read(case_input)==proposed
 

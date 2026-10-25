@@ -206,13 +206,14 @@ def _coordinates(data, source):
                 distances.append(distance)
                 distance *= policy['far_step_factor']
             distances.extend([asymptote, initial])
-        if (not isinstance(distances, list) or len(distances) < 4
+        minimum_points = 4 if data.get('probe_active_space', False) else 2
+        if (not isinstance(distances, list) or len(distances) < minimum_points
                 or any(isinstance(value, bool) or not isinstance(value, (int, float))
                        or not np.isfinite(value) or value <= 0. for value in distances)):
-            raise ValueError('Each coordinate needs at least four finite positive distances.')
+            raise ValueError(f'Each coordinate needs at least {minimum_points} finite positive distances.')
         distances = sorted({float(f'{value:.10g}') for value in distances})
-        if len(distances) < 4:
-            raise ValueError('Each coordinate needs at least four distinct distances.')
+        if len(distances) < minimum_points:
+            raise ValueError(f'Each coordinate needs at least {minimum_points} distinct distances.')
         context = {'multiplicities': list(multiplicities), 'roots': roots,
                    'fragment_state_source': 'declared' if declarations is not None else 'connectivity and electronic_state_models',
                    'fragment_states': [{'smiles': product.smiles,
@@ -327,6 +328,16 @@ def _load(path):
             raise ValueError(f'{key} must be a positive integer.')
     if not isinstance(data.get('probe_active_space', False), bool):
         raise ValueError('probe_active_space must be a boolean.')
+    character_only = data.get('orbital_character_only', False)
+    if not isinstance(character_only, bool) or character_only and data.get('probe_active_space'):
+        raise ValueError('orbital_character_only requires SCF-only diagnostics.')
+    virtuals = data.get('orbital_print_virtuals', 0)
+    if isinstance(virtuals, bool) or not isinstance(virtuals, int) or virtuals < 0:
+        raise ValueError('orbital_print_virtuals must be a nonnegative integer.')
+    threshold = data.get('orbital_print_threshold', .25)
+    if (isinstance(threshold, bool) or not isinstance(threshold, (int, float))
+            or not np.isfinite(threshold) or threshold < 0):
+        raise ValueError('orbital_print_threshold must be finite and nonnegative.')
     for key, choices, default in (
             ('probe_method', ('casci', 'casscf'), 'casci'),
             ('avas_reference', ('atomic', 'rhf'), 'atomic'),
@@ -662,16 +673,20 @@ def _deck(data, basis, anchor, stem, previous=None):
     if 'max_iterations' in scf_options:
         scf_command += f',maxit={scf_options["max_iterations"]}'
     basis_input = f'basis={basis}\n'
+    printing = 'gprint,orbitals,orben,civector\n'
+    if 'orbital_print_virtuals' in data:
+        printing = f'gprint,orbitals={data["orbital_print_virtuals"]},orben,civector\n'
+    if 'orbital_print_threshold' in data:
+        thresholds += f'gthresh,thrprint={data["orbital_print_threshold"]}\n'
     deck = (
         f'***,{data["title"]} orbital reconnaissance: {stem}\n'
         f'memory,{int(data.get("memory_mw", 1000))},m\n'
         f'file,2,{stem}.wfu\n'
         'angstrom\norient,noorient\nsymmetry,nosym\n'
         f'geometry={{\n{len(data["symbols"])}\n{stem}\n{rows}\n}}\n'
-        + basis_input + thresholds +
-        'gprint,orbitals,orben,civector\n'
-        + _recon_rhf(scf_command, data['_electrons'], data['multiplicity'] - 1, '2100.2') +
-        'gprint,orbitals,orben,civector\n'
+        + basis_input + thresholds + printing
+        + _recon_rhf(scf_command, data['_electrons'], data['multiplicity'] - 1, '2100.2')
+        + printing +
         f'put,molden,{stem}.molden\n'
         'reconenergy=energy\nshow,reconenergy\n')
     if data.get('probe_active_space', False):
@@ -1052,6 +1067,7 @@ def _prepare(source, output):
         'schema': 1, 'source': data['_source'], 'title': data['title'],
         'electron_count': data['_electrons'], 'jobs': records,
         'scan_policy': data.get('scan_policy'),
+        **({'orbital_character_only': True} if data.get('orbital_character_only') else {}),
         'status': 'prepared',
     }
     path = root / 'reconnaissance.json'
@@ -1736,6 +1752,10 @@ def _audit(manifest_path, *, live_job_ids=()):
 
 def _coverage(manifest):
     """Check asymptotic plateaus and flag intervals needing denser probes."""
+    if manifest.get('orbital_character_only'):
+        # This panel identifies candidate orbitals. Its SCF energies are not
+        # a reviewed interaction potential and must not drive radial refinement.
+        return {}
     policy = manifest.get('scan_policy')
     if not policy:
         return {}

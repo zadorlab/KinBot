@@ -24,6 +24,19 @@ def acknowledge_installed(parameters, species, directory):
         return []
     route = routing_name(species)
     reports = []
+    coordinate_requests = {}
+    for path in paths:
+        try:
+            saved = json.loads(path.read_text())
+            bond = saved.get('bond')
+            if (saved.get('parent') == route
+                    and saved.get('status') in ('needs_review', 'model_accepted')
+                    and saved.get('reaction') == path.parent.name
+                    and isinstance(bond, list) and len(bond) == 2
+                    and all(type(i) is int for i in bond)):
+                coordinate_requests.setdefault(tuple(sorted(bond)), set()).add(saved['reaction'])
+        except (OSError, ValueError, AttributeError):
+            pass  # The individual request below retains its validation error.
     for path in paths:
         try:
             record = json.loads(path.read_text())
@@ -31,6 +44,9 @@ def acknowledge_installed(parameters, species, directory):
                 raise ValueError('Invalid saved orbital review request.')
             if record.get('status') != 'needs_review':
                 continue
+            if record.get('review_kind') == 'fragment_identity':
+                raise ValueError('Owning VRC driver must revalidate the fragment identity; '
+                                 'an installed orbital model cannot clear this hold.')
             if (record.get('parent') != route or record.get('reaction') != path.parent.name
                     or record.get('symbols') != list(map(str, species.atom))
                     or record.get('charge') != int(species.charge)
@@ -52,10 +68,15 @@ def acknowledge_installed(parameters, species, directory):
                 fragments.append(SimpleNamespace(smiles=product['smiles'], charge=product['charge'],
                                                  mult=product['multiplicity']))
             selection = channel_for_reaction(parameters, SimpleNamespace(
-                species=species, scan_coo=[i-1 for i in bond], products=fragments))
+                species=species, instance_name=record['reaction'],
+                scan_coo=[i-1 for i in bond], products=fragments))
             if selection is None:
                 raise ValueError('No reviewed surface channel installed.')
             channel, source = selection
+            if (channel.get('reaction') is None
+                    and len(coordinate_requests.get(tuple(sorted(bond)), ())) > 1):
+                raise ValueError('Different reaction requests share this coordinate; '
+                                 'an exact reaction-specific surface model is required.')
             for stage in channel['bottlenecks']:
                 for state in stage['states']:
                     leaf = state_parameters(parameters, stage, state, [p.mult for p in fragments])

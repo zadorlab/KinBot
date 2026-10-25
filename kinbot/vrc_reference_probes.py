@@ -12,7 +12,7 @@ from ase.io import read as read_atoms
 from kinbot.execution import file_sha256
 from kinbot.molpro import continued_vrc_state_model, vrc_multireference_energy_contract
 from kinbot.vrc_correction import correction_components, spin_splitting_settings
-from kinbot.vrc_multistate import load_surface_model, state_parameters
+from kinbot.vrc_multistate import load_surface_model, state_parameters, select_surface_channel
 
 
 def read(path):
@@ -28,7 +28,9 @@ def context_fragment_multiplicities(parameters, saved):
     from kinbot.electronic_states import apply_electronic_state_model
     from kinbot.stationary_pt import StationaryPoint
     from kinbot.vrc_scan_recovery import digest
-    context = saved['context']
+    context = saved.get('context')
+    if not isinstance(context, dict):
+        raise ValueError('Missing saved fragment context for this reaction.')
     if digest(context) != saved.get('context_sha256'):
         raise ValueError('Fragment context hash is missing or changed.')
     if context['charge'] != 0 or context.get('fragment_geometry') is None:
@@ -58,13 +60,18 @@ def leaf_parameters(well, leaf, saved=None):
     override = par.get('vrc_tst_surface_models', {}).get(well.name)
     if override:
         par.update(vrc_tst_surface_model=override, vrc_tst_surface_model_file='')
-    match = re.fullmatch(r'(.+_hom_sci_(\d+)_(\d+))__(single|inner|outer)_m(\d+)_r(\d+)', leaf)
+    match = re.fullmatch(r'(.+)__(single|inner|outer)_m(\d+)_r(\d+)', leaf)
     if not match:
         raise ValueError('No unambiguous scalar leaf identity: '+leaf)
-    reaction, a, b, bottleneck, mult, root = match.groups()
+    reaction, bottleneck, mult, root = match.groups()
+    bond = None
     requested = well/'vrctst/orbital_review'/reaction/'request.json'
     if requested.is_file():
-        fragments = [p['multiplicity'] for p in read(requested)['products']]
+        request = read(requested)
+        if request.get('reaction') != reaction:
+            raise ValueError('Saved review request has a different reaction identity.')
+        fragments = [p['multiplicity'] for p in request['products']]
+        bond = request['bond']
     elif (well/'anl_automatic/network_request.json').is_file():
         network = read(well/'anl_automatic/network_request.json')['network']
         rx = next(r for r in network['reactions'] if r['name'] == reaction)
@@ -75,7 +82,16 @@ def leaf_parameters(well, leaf, saved=None):
     surface = load_surface_model(par)
     if surface is None:
         raise ValueError('No declared production surface model.')
-    channel = next(c for c in surface[0]['channels'] if sorted(c['bond']) == sorted([int(a), int(b)]))
+    if bond is None:
+        scoped = [c for c in surface[0]['channels'] if c.get('reaction') == reaction]
+        hom = re.fullmatch(r'.+_hom_sci_(\d+)_(\d+)', reaction)
+        if len(scoped) == 1:
+            bond = scoped[0]['bond']
+        elif hom:
+            bond = list(map(int, hom.groups()))
+        else:
+            raise ValueError('Non-homolysis reference needs a saved reaction-specific coordinate.')
+    channel = select_surface_channel(surface[0], bond, reaction)
     stage = next(s for s in channel['bottlenecks'] if s['name'] == bottleneck)
     state = next(s for s in stage['states'] if (s['multiplicity'], s['root']) == (int(mult), int(root)))
     return state_parameters(par, stage, state, fragments), fragments, int(mult), int(root)

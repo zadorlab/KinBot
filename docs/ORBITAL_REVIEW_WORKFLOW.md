@@ -966,7 +966,8 @@ multiple orbital types. Each basis has its own source record and index list.
 `orbital_review install-selection INPUT SELECTION OUTPUT` now embeds the
 whole selection in `OUTPUT` as `vrc_tst_state_model`; the selection JSON is
 not a runtime dependency. For distinct reaction spaces, supply `--bond i j
---stage single`: the model is embedded under
+--stage single` and, for a scoped channel, `--reaction EXACT_REACTION_NAME`:
+the model is embedded under
 `vrc_tst_surface_model.channels[].bottlenecks[].parameters`. An existing
 external surface definition can be imported with `--surface-file`, but the
 resulting output is still one JSON. No second surface JSON is written.
@@ -1019,3 +1020,63 @@ molecule-name branches in the implementation.
 The two production examples now show the full interface in their main JSON
 files, including all six aDZ/aTZ index lists. Their old duplicate state/surface
 configuration files were removed. Historical native evidence is retained.
+
+## Distinct reactions sharing a separation coordinate
+
+A channel may include `"reaction": "EXACT_REACTION_NAME"` alongside `bond`.
+Use this when different accepted reactions use the same atom pair as their
+separation coordinate. For example, a homolysis and a rearrangement's product
+complex can have the same two anchor atoms but different fragment compositions.
+The reaction name is an exact routing key, not a pattern or a chemistry rule.
+
+Two channels on one bond require distinct explicit reaction names. Mixing a
+bond-only channel with scoped channels on that bond is refused. Unambiguous
+legacy bond-only models remain valid; a collision in accepted reactions or
+current review requests requires explicit scoping. Additive publication cannot
+silently rename or rescope an installed scientific model.
+
+Selection, publication, worker acknowledgement, scan dispatch and reference
+probes use the same reaction identity. Both endpoint fragments must also match
+accepted products in connectivity, stereochemistry, charge and spin before
+fragment QC. A fragment-identity hold requires the owning scan driver to verify
+the endpoint; installing an orbital model cannot acknowledge it away.
+
+## Finite character panels and a code-refresh handoff
+
+SCF-only recipes can set `orbital_character_only: true`,
+`orbital_print_virtuals: 8`, and `orbital_print_threshold: 0.05`. They require
+at least two distinct distances per dissociation coordinate, retain native
+checkpoints/exports, and do not trigger potential-coverage refinement from SCF
+energies. CAS probes still require at least four distances. Product-exit
+`geometry_source` may set `include_reference_geometry: true` to include the exact
+accepted product-complex geometry alongside the explicit translated anchors.
+Fragment internals are preserved during translation.
+
+`requested_orbital_recon batch ROOT PLAN OUTPUT --shared-pool --preflight`
+validates the complete plan in temporary storage without staging/submitting it.
+Add `--resume` to verify an identical saved campaign. The `character OUTPUT`
+command reports hash-checked native orbital coefficients and occupations;
+SCF character is not a multistate natural-orbital selection and cannot be
+published through the reviewed-selection publisher. Assign indices, construct
+explicit compact probes, then review their optimized orbitals and states.
+
+When new installed code must be loaded as well as a new panel started:
+
+```bash
+python -m kinbot.orbital_review_handoff ROOT PLAN OUTPUT \
+  --case-input ROOT/CASE/input.json --expected-max-jobs 23
+python -m kinbot.orbital_review_handoff ROOT PLAN OUTPUT \
+  --case-input ROOT/CASE/input.json --expected-max-jobs 23 \
+  --apply --wait-idle 600 --wait-owner 120
+```
+
+The first command previews the panel. The second preflights it, uses the existing
+controller refresh under its lock, waits for replacement owners and pending input
+revisions, reconciles accepted models with live controls, stages/resumes the panel,
+and runs it. Repeat `--case-input` for more cases. No scientific model or resource
+policy is changed by this orchestration. The optional expected limit checks the
+configured pool size, not scheduler availability. Review jobs use shared admission.
+The existing refresh preserves running/pending QC and independent RotdPy owners;
+repeating it with the same code is a no-op. The panel/handoff locks prevent duplicate
+owners. Owner waits expire with a resumable error; scientific or ownership conflicts
+are retained. New active-space publication is a separate explicit review action.

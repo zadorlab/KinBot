@@ -635,7 +635,8 @@ def report(root, output, *, additional_campaigns=()):
     return output
 
 
-def install_selection(input_file, selection_file, output, *, surface_file=None, bond=None, stage=None):
+def install_selection(input_file, selection_file, output, *, surface_file=None, bond=None, stage=None,
+                      reaction=None):
     """Copy a reviewed selection into an input or one explicit bottleneck.
 
     New files only. This registers a user's choice, never selects orbitals,
@@ -670,7 +671,7 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
     updates = {'vrc_tst_active_space': space,
                'vrc_tst_state_model': resolve_state_model_paths(selection, selection_file.parent)}
     output = _fresh(output)
-    if surface_file is None and bond is None and stage is None:
+    if surface_file is None and bond is None and stage is None and reaction is None:
         if data.get('vrc_tst_surface_model_file') or data.get('vrc_tst_surface_model'):
             raise ValueError('Input has a surface model; select an explicit bond/stage.')
         data.update(updates)
@@ -696,10 +697,11 @@ def install_selection(input_file, selection_file, output, *, surface_file=None, 
                     par['vrc_tst_state_model_file'] = str((surface_base / par['vrc_tst_state_model_file']).resolve())
                 if par.get('vrc_tst_state_model'):
                     par['vrc_tst_state_model'] = resolve_state_model_paths(par['vrc_tst_state_model'], surface_base)
-                if sorted(channel['bond']) == sorted(bond) and bottleneck['name'] == stage:
+                if (sorted(channel['bond']) == sorted(bond) and bottleneck['name'] == stage
+                        and channel.get('reaction') == reaction):
                     matches.append(bottleneck)
         if len(matches) != 1:
-            raise ValueError('Selection must match exactly one declared bond/stage.')
+            raise ValueError('Selection must match exactly one declared bond/stage/reaction.')
         bottleneck = matches[0]
         for model in models.values():
             counts = {entry['multiplicity']: entry['roots'] for entry in model['state_average']}
@@ -952,6 +954,7 @@ def main(argv=None):
     install.add_argument('output')
     install.add_argument('--surface-file')
     install.add_argument('--bond', type=int, nargs=2)
+    install.add_argument('--reaction', help='Exact reaction name for a reaction-scoped surface channel.')
     install.add_argument('--stage', choices=['single', 'inner', 'outer'])
     args = parser.parse_args(argv)
     if args.command == 'assess-vrc':
@@ -959,7 +962,7 @@ def main(argv=None):
         print(assess(args.source, args.output))
     elif args.command == 'install-selection':
         print(install_selection(args.input, args.selection, args.output,
-              surface_file=args.surface_file, bond=args.bond, stage=args.stage))
+              surface_file=args.surface_file, bond=args.bond, stage=args.stage, reaction=args.reaction))
     elif args.command == 'prepare':
         print(prepare(args.source, args.output, additional_plans=args.additional_plan, reuse_from=args.reuse_from))
     elif args.command == 'repair-convergence':

@@ -124,7 +124,8 @@ def test_campaign_launch_and_resume_share_retained_production_capacity(tree, pla
     policy_path = production/'.kinbot_resource_policy.json'
     policy = json.loads(policy_path.read_text()); policy.update(fair_submission=False)
     atomic_json(policy_path, policy)
-    review.batch(production, plan/'screens.json', output, shared_pool=True)
+    prepared = review.batch(production, plan/'screens.json', output, shared_pool=True)
+    expected = prepared['tasks']
     before = policy_path.read_bytes()
     running = {str(100+i): 1 for i in range(23)}
     done, launched = set(), []
@@ -163,13 +164,13 @@ def test_campaign_launch_and_resume_share_retained_production_capacity(tree, pla
                 running.pop(ident); done.add(ident)
     monkeypatch.setattr(review.recon.time, 'sleep', finish)
     result = review.run(output, report_failures=True)
-    assert result['status'] == 'complete_review_required' and result['tasks'] == 32
-    assert len(launched) == len({d for _,d in launched}) == 32
+    assert result['status'] == 'complete_review_required' and result['tasks'] == expected
+    assert len(launched) == len({d for _,d in launched}) == expected
     assert running == {str(100+i):1 for i in range(1,23)}
     assert policy_path.read_bytes() == before
     assert json.loads((production/'.kinbot_policy_admissions.json').read_text()) == {}
     review.run(output, report_failures=True)
-    assert len(launched) == 32
+    assert len(launched) == expected
 
 
 def test_withdrawn_batch_and_individual_recipes_cannot_stage(tree, monkeypatch):

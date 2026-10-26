@@ -101,6 +101,32 @@ def capture(production):
             for extension in ('.log','.out','.err','.stderr','.result.json','.exitcode','.com','_sella.log'):
                 patterns.append(f'ch3ss/{parent}/{directory}{parent}_{suffix}{extension}')
     files={p for pattern in patterns for p in root.glob(pattern) if p.is_file() and not p.is_symlink()}
+    # The controller may already have removed/replaced the live sample streams.
+    # Follow failed allocation journals to their retained attempt streams, not
+    # just the latest same-named worker output. Never follow a path outside the
+    # captured production tree or read a pickle to obtain it.
+    for p in sorted(files):
+        if p.name != 'execution.json' or '.kinbot_slurm_io_retries' not in p.parts:
+            continue
+        journal = read_json(p)
+        if journal.get('status') != 'failed':
+            continue
+        for attempt in journal.get('attempts', []):
+            for key in ('stdout', 'stderr'):
+                if not attempt.get(key):
+                    continue
+                stream = Path(attempt[key])
+                if not stream.is_absolute():
+                    stream = p.parent/stream
+                try:
+                    resolved = stream.resolve(strict=True)
+                    resolved.relative_to(root)
+                    if stream.is_symlink() or not resolved.is_file():
+                        raise ValueError('Not a regular retained stream.')
+                except (OSError, ValueError) as error:
+                    result['errors'].append(dict(path=str(stream), error=str(error)))
+                    continue
+                files.add(resolved)
     for p in sorted(files): read(p)
     return result
 

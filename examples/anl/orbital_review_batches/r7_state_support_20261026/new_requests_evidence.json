@@ -1,0 +1,172 @@
+{
+  "source": "root-spectrum-20261026T162140Z/production_status_after.json",
+  "source_sha256": "21b54c4a0b58d3b95cd80fd9983e967fd177d9f463e767ac75f68b3f659f5811",
+  "requests": [
+    {
+      "path": "ch3ss/791671560700020000002-sdc19d1516ced03fc/vrctst/orbital_review/791671560700020000002-sdc19d1516ced03fc_hom_sci_1_2/request.json",
+      "request": {
+        "bond": [
+          1,
+          2
+        ],
+        "charge": 0,
+        "error": "791671560700020000002-sdc19d1516ced03fc: VRC needs a reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input. The initial well orbital indices cannot be silently reused.",
+        "multiplicity": 2,
+        "parent": "791671560700020000002-sdc19d1516ced03fc",
+        "positions": [
+          [
+            1.3613713254443298,
+            0.5375367699999841,
+            0.5522506298854094
+          ],
+          [
+            2.4568390905196122,
+            1.7090476447107894,
+            -0.10359121547501121
+          ],
+          [
+            0.12535738514985387,
+            -0.275003501590133,
+            -0.3503460823326994
+          ],
+          [
+            1.622960640557075,
+            2.254947646601135,
+            -1.007550798346044
+          ],
+          [
+            0.7716672242537498,
+            -0.34183449823031015,
+            -1.528623231546283
+          ],
+          [
+            1.4556581751449214,
+            0.2968269256964255,
+            1.5971232477393817
+          ]
+        ],
+        "products": [
+          {
+            "charge": 0,
+            "multiplicity": 1,
+            "smiles": "[H][C]#[S][H]"
+          },
+          {
+            "charge": 0,
+            "multiplicity": 2,
+            "smiles": "[SH]"
+          }
+        ],
+        "reaction": "791671560700020000002-sdc19d1516ced03fc_hom_sci_1_2",
+        "schema": 1,
+        "smiles": "[H][S][C]([H])=[S][H]",
+        "status": "needs_review",
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ]
+      },
+      "geometries": [],
+      "network": [
+        {
+          "barrierless": true,
+          "family": "hom_sci",
+          "name": "791671560700020000002-sdc19d1516ced03fc_hom_sci_1_2",
+          "products": [
+            "330330000000000000002",
+            "460900460020000000001"
+          ],
+          "reactant": "791671560700020000002-sdc19d1516ced03fc",
+          "transition_state": null
+        }
+      ]
+    },
+    {
+      "path": "ch3ss/791671560700020000002-sedd8f7729b69b19b/vrctst/orbital_review/791671560700020000002-sedd8f7729b69b19b_hom_sci_1_2/request.json",
+      "request": {
+        "bond": [
+          1,
+          2
+        ],
+        "charge": 0,
+        "error": "791671560700020000002-sedd8f7729b69b19b: VRC needs a reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input. The initial well orbital indices cannot be silently reused.",
+        "multiplicity": 2,
+        "parent": "791671560700020000002-sedd8f7729b69b19b",
+        "positions": [
+          [
+            1.9657966051895635,
+            0.2641465260094881,
+            0.14008958074403205
+          ],
+          [
+            2.15601251005034,
+            1.9862385832581144,
+            0.04877952369799513
+          ],
+          [
+            0.6491331953519553,
+            -0.5022624474882978,
+            -0.7150296467453162
+          ],
+          [
+            1.883286927532361,
+            2.1144110987070754,
+            -1.2616280610542783
+          ],
+          [
+            1.1292447796394582,
+            -1.754895522336082,
+            -0.6591961296567675
+          ],
+          [
+            2.3674784104227635,
+            -0.19814680604686286,
+            1.027697766996912
+          ]
+        ],
+        "products": [
+          {
+            "charge": 0,
+            "multiplicity": 1,
+            "smiles": "[H][C]#[S][H]"
+          },
+          {
+            "charge": 0,
+            "multiplicity": 2,
+            "smiles": "[SH]"
+          }
+        ],
+        "reaction": "791671560700020000002-sedd8f7729b69b19b_hom_sci_1_2",
+        "schema": 1,
+        "smiles": "[H][S][C]([H])=[S][H]",
+        "status": "needs_review",
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ]
+      },
+      "geometries": [],
+      "network": [
+        {
+          "barrierless": true,
+          "family": "hom_sci",
+          "name": "791671560700020000002-sedd8f7729b69b19b_hom_sci_1_2",
+          "products": [
+            "330330000000000000002",
+            "460900460020000000001"
+          ],
+          "reactant": "791671560700020000002-sedd8f7729b69b19b",
+          "transition_state": null
+        }
+      ]
+    }
+  ]
+}

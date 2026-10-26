@@ -1,0 +1,122 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791671560700020000002-sedd8f7729b69b19b",
+    "reaction": "791671560700020000002-sedd8f7729b69b19b_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]#[S][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ],
+    "positions": [
+      [
+        1.9657966051895635,
+        0.2641465260094881,
+        0.14008958074403205
+      ],
+      [
+        2.15601251005034,
+        1.9862385832581144,
+        0.04877952369799513
+      ],
+      [
+        0.6491331953519553,
+        -0.5022624474882978,
+        -0.7150296467453162
+      ],
+      [
+        1.883286927532361,
+        2.1144110987070754,
+        -1.2616280610542783
+      ],
+      [
+        1.1292447796394582,
+        -1.754895522336082,
+        -0.6591961296567675
+      ],
+      [
+        2.3674784104227635,
+        -0.19814680604686286,
+        1.027697766996912
+      ]
+    ]
+  },
+  "reconnaissance": {
+    "title": "new_csh_sh_b_character",
+    "multiplicity": 2,
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-09,
+    "scf_options": {
+      "solver": "so_sci",
+      "max_iterations": 256
+    },
+    "probe_active_space": false,
+    "orbital_initialization": "independent",
+    "orbital_print_virtuals": 8,
+    "orbital_print_threshold": 0.05,
+    "orbital_character_only": true,
+    "coordinates": [
+      {
+        "name": "cs",
+        "bond": [
+          1,
+          2
+        ],
+        "distances_angstrom": [
+          2,
+          30
+        ],
+        "fragment_states": [
+          {
+            "charge": 0,
+            "multiplicity": 1,
+            "smiles": "[H][C]#[S][H]",
+            "atom": 1
+          },
+          {
+            "charge": 0,
+            "multiplicity": 2,
+            "smiles": "[SH]",
+            "atom": 2
+          }
+        ]
+      }
+    ]
+  }
+}

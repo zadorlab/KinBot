@@ -1,0 +1,227 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871560500020000002-sb6e34ded5baaf03b",
+    "reaction": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]"
+      }
+    ],
+    "positions": [
+      [
+        1.7307702444546638,
+        0.27086108655526714,
+        -0.37411947020968317
+      ],
+      [
+        0.9179141106023018,
+        0.7116419777912163,
+        0.9855949608018707
+      ],
+      [
+        -0.12568800577482328,
+        -0.6857060655301334,
+        2.427706110408171
+      ],
+      [
+        -0.2354255534495347,
+        1.1636822458492646,
+        0.4645940218819718
+      ],
+      [
+        -0.655115738240081,
+        -1.4379195570260341,
+        1.4489659711224927
+      ],
+      [
+        2.589611014641109,
+        -0.37871615155200405,
+        -0.2177226387663768
+      ]
+    ]
+  },
+  "candidates": [
+    {
+      "name": "new_hcs_h2s_pi",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              19,
+              21,
+              22
+            ],
+            "atz": [
+              19,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "a3f3db41bb74775c8bfecc4b04f3b7ca0e3de64a420ddc7f32f0f17c3e16d466",
+            "atz": "7457c736bfd80756de59160ebe92d2631bd541b6bf6934a67d8dfb7c463038ec"
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              19,
+              21,
+              22
+            ],
+            "atz": [
+              19,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "a3f3db41bb74775c8bfecc4b04f3b7ca0e3de64a420ddc7f32f0f17c3e16d466",
+            "atz": "7457c736bfd80756de59160ebe92d2631bd541b6bf6934a67d8dfb7c463038ec"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "orbital_initialization": "independent",
+      "probe_definition": {
+        "active_electrons": 3,
+        "active_orbitals": 3,
+        "orbital_source": "scf",
+        "chemical_note": "CAS(3,3): far SCF HCS pi 19, radical 21, pi-star 22. This is an outer separation of the L2 HCS/H2S product complex, not parent C-H scission. One doublet. F/R requests share this exact mapped endpoint only; both retain separate reaction bindings.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    },
+    {
+      "name": "new_hcs_h2s_donor",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "atz": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "a3f3db41bb74775c8bfecc4b04f3b7ca0e3de64a420ddc7f32f0f17c3e16d466",
+            "atz": "7457c736bfd80756de59160ebe92d2631bd541b6bf6934a67d8dfb7c463038ec"
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "atz": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "seed_sha256": {
+            "adz": "a3f3db41bb74775c8bfecc4b04f3b7ca0e3de64a420ddc7f32f0f17c3e16d466",
+            "atz": "7457c736bfd80756de59160ebe92d2631bd541b6bf6934a67d8dfb7c463038ec"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "orbital_initialization": "independent",
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "orbital_source": "scf",
+        "chemical_note": "CAS(5,4) adds the H2S sulfur lone-pair orbital 20 to HCS 19/21/22. One doublet; compare the effect on endpoint relative energy and retained orbital character. H2S internal bonds remain intact and outside the active space.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    }
+  ]
+}

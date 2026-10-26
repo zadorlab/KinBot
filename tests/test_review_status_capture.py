@@ -37,3 +37,21 @@ def test_capture_reads_endpoints_and_failures_without_changing_or_creating_datab
     tail=next(f for f in result['files'] if f['path'].endswith('kinbot.log'))
     assert tail['tail_bytes']==131072 and tail['text'].endswith('END') and not tail['changed']
     assert any(f['path']=='.kinbot_live_control.json' for f in result['files'])
+
+
+def test_capture_follows_failed_attempt_streams_and_refuses_external_paths(tmp_path):
+    script = Path(__file__).resolve().parents[1]/'examples/anl/orbital_review_batches/r7_root_spectrum_20261026/capture_status.py'
+    spec = importlib.util.spec_from_file_location('capture_status', script)
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    root = tmp_path/'production'; root.mkdir()
+    journal = root/'ch3s/rotdPy/kb_example/Surface_115/jobs/.kinbot_slurm_io_retries/key/123/execution.json'
+    stream = journal.parent/'attempt-1/stderr.txt'; stream.parent.mkdir(parents=True)
+    stream.write_text('Native failure from the actual failed allocation.\n')
+    external = tmp_path/'unrelated.txt'; external.write_text('must not capture')
+    journal.write_text(json.dumps(dict(status='failed',attempts=[dict(stderr=str(stream),stdout=str(external))])))
+    before = {p:p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    result = module.capture(root)
+    assert before == {p:p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    assert any(f['path'] == str(stream.relative_to(root)) and 'actual failed allocation' in f['text'] for f in result['files'])
+    assert not any('must not capture' in f['text'] for f in result['files'])
+    assert len(result['errors']) == 1

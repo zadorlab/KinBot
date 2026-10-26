@@ -1,0 +1,181 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_R_Addition_CSm_R_5_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "csh2_sh_six_state_frontier",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_l2",
+          "seed_sha256": {
+            "adz": "34e616830c5fe229d318b9a1a5fceb3ec82af191a82f66dee83fd026916975fe",
+            "atz": "aedd0eff41231ae9412baae80d436c9fe04b2af58d305367e01f6bb339e27839"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "seed": "exit_r_30p0",
+          "seed_sha256": {
+            "adz": "8c7a56b8f41f3b7db427f21565376f9be1bdf29e1eaf37362e9ff655d778ee30",
+            "atz": "ded2a181b8c6afa79f5e2ca0c24321472ba4d186ae77a3c3683881feaba2f59e"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "orbital_initialization": "independent",
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "chemical_note": "CAS(5,4) reduction from the completed fixed CAS(9,6) diagnostic natural orbitals. Close source natural 17/18 (occupations about 1.996/1.980 near, 1.999/1.980 far); retain 19-22, the two SH p directions and two carbon-frontier directions. Four doublets and two quartets with equal per-state weights keep both singlet-fragment SH components and the triplet-fragment spin-coupling comparison in the orbital optimization. This is a probe, not a claim that the spectator orbitals are unnecessary after relaxation.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 4,
+              "weights": [
+                0.25,
+                0.25,
+                0.25,
+                0.25
+              ],
+              "block_weight": 0.6666666666666666
+            },
+            {
+              "multiplicity": 4,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 0.3333333333333333
+            }
+          ],
+          "selected_roots": {
+            "2": 1,
+            "4": 1
+          },
+          "canonical_orbitals": true
+        },
+        "orbital_partition": {
+          "source_active_electrons": 9,
+          "source_active_orbitals": 6,
+          "close_lowest": 2,
+          "discard_highest": 0,
+          "open_highest_closed": 0
+        }
+      }
+    },
+    {
+      "name": "csh2_sh_six_state_union",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_l2",
+          "seed_sha256": {
+            "adz": "34e616830c5fe229d318b9a1a5fceb3ec82af191a82f66dee83fd026916975fe",
+            "atz": "aedd0eff41231ae9412baae80d436c9fe04b2af58d305367e01f6bb339e27839"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "seed": "exit_r_30p0",
+          "seed_sha256": {
+            "adz": "8c7a56b8f41f3b7db427f21565376f9be1bdf29e1eaf37362e9ff655d778ee30",
+            "atz": "ded2a181b8c6afa79f5e2ca0c24321472ba4d186ae77a3c3683881feaba2f59e"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "orbital_initialization": "independent",
+      "probe_definition": {
+        "active_electrons": 9,
+        "active_orbitals": 6,
+        "chemical_note": "Retain the already tested CAS(9,6), now with four doublets and two quartets at equal per-state weights. The fixed-orbital spectrum retained the full intended span and separates the far D1/D2 SH pair from D3/D4=Q1/Q2. This changes the averaging support, not the CAS size, geometry or requested singlet-fragment chemistry. Compare with the paired CAS(5,4) probe; do not repeat the exhausted two-doublet optimization.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 4,
+              "weights": [
+                0.25,
+                0.25,
+                0.25,
+                0.25
+              ],
+              "block_weight": 0.6666666666666666
+            },
+            {
+              "multiplicity": 4,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 0.3333333333333333
+            }
+          ],
+          "selected_roots": {
+            "2": 1,
+            "4": 1
+          },
+          "canonical_orbitals": true
+        },
+        "orbital_partition": {
+          "source_active_electrons": 9,
+          "source_active_orbitals": 6,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 0
+        }
+      }
+    }
+  ]
+}

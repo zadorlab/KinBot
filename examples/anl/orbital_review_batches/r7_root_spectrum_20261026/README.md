@@ -1,5 +1,9 @@
 # Review update, 26 October 2026
 
+**Completion update:** all twenty jobs completed and the transferred archive
+verified. See the [native findings and next compact panel](../r7_state_support_20261026/README.md).
+The launch below is historical and need not be repeated.
+
 Twenty diagnostic jobs are prepared: **four fixed-orbital CASCI jobs** for the
 unresolved C(SH2)+SH exit and **sixteen SCF character jobs** for five newly
 requested channels. The two sulfur-shift requests share exactly the same

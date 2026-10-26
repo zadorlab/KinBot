@@ -1,0 +1,10 @@
+{
+  "archive": "examples/anl/tools/root-spectrum-20261026T162140Z/orbital-evidence.tar.gz",
+  "sha256": "005278deac5b8d5cb29ec425c52c6e37c905f167a54a2fb56544c4faa9a62e4f",
+  "verified_files": 860,
+  "collection_issues": 0,
+  "character_sha256": "0ce337132defc763b96ed6a42ced50485de5d125a82db7da6a4c96e0b7bd5f4b",
+  "selection_report_sha256": "0dd356cd0256e8a07b357da832b5906fdfab220740a08463f9fb1b83b0adcf70",
+  "production_monitor_sha256": "5f382df17519b503c81b62bb48f9e777ef6f7a6a2a1d044fb3a260ea621ec4cb",
+  "production_status_after_sha256": "21b54c4a0b58d3b95cd80fd9983e967fd177d9f463e767ac75f68b3f659f5811"
+}

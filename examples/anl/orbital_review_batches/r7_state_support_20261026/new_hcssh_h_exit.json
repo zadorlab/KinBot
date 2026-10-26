@@ -1,0 +1,284 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871560500020000002-sb6e34ded5baaf03b",
+    "reaction": "791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      5,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]#[S]#[S][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H]"
+      }
+    ],
+    "positions": [
+      [
+        1.7307702444546638,
+        0.27086108655526714,
+        -0.37411947020968317
+      ],
+      [
+        0.9179141106023018,
+        0.7116419777912163,
+        0.9855949608018707
+      ],
+      [
+        -0.12568800577482328,
+        -0.6857060655301334,
+        2.427706110408171
+      ],
+      [
+        -0.2354255534495347,
+        1.1636822458492646,
+        0.4645940218819718
+      ],
+      [
+        -0.655115738240081,
+        -1.4379195570260341,
+        1.4489659711224927
+      ],
+      [
+        2.589611014641109,
+        -0.37871615155200405,
+        -0.2177226387663768
+      ]
+    ]
+  },
+  "candidates": [
+    {
+      "name": "new_hcssh_h_somo",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              21
+            ],
+            "atz": [
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "b0f20e591f90460e53b738a24681df1ab41a035055ac77936aad984b9b023fcd",
+            "atz": "510f9e23e39985b55581d1d306ef9e61576d126f52e6f58de5d6c4ea2a9fea69"
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              21
+            ],
+            "atz": [
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "b0f20e591f90460e53b738a24681df1ab41a035055ac77936aad984b9b023fcd",
+            "atz": "510f9e23e39985b55581d1d306ef9e61576d126f52e6f58de5d6c4ea2a9fea69"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "orbital_initialization": "independent",
+      "probe_definition": {
+        "active_electrons": 1,
+        "active_orbitals": 1,
+        "orbital_source": "scf",
+        "chemical_note": "CAS(1,1) baseline: far SCF 21 is the H4 1s SOMO, with coefficient 1.00000/1.00001 in DZ/TZ; near it is 1.0022/1.00253 with small S3 mixing. One doublet. Outer H-atom separation along H5-H4; no H-H covalent cleavage.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    },
+    {
+      "name": "new_hcssh_h_s_donor",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              19,
+              21
+            ],
+            "atz": [
+              19,
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "b0f20e591f90460e53b738a24681df1ab41a035055ac77936aad984b9b023fcd",
+            "atz": "510f9e23e39985b55581d1d306ef9e61576d126f52e6f58de5d6c4ea2a9fea69"
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              19,
+              21
+            ],
+            "atz": [
+              19,
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "b0f20e591f90460e53b738a24681df1ab41a035055ac77936aad984b9b023fcd",
+            "atz": "510f9e23e39985b55581d1d306ef9e61576d126f52e6f58de5d6c4ea2a9fea69"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "orbital_initialization": "independent",
+      "probe_definition": {
+        "active_electrons": 3,
+        "active_orbitals": 2,
+        "orbital_source": "scf",
+        "chemical_note": "CAS(3,2) tests the occupied S3-rich donor 19 with H4 SOMO 21. One doublet; compare with CAS(1,1) and the distinct carbon-rich donor control. Keeps all fragment bonds outside the active set.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    },
+    {
+      "name": "new_hcssh_h_c_donor",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              20,
+              21
+            ],
+            "atz": [
+              20,
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "b0f20e591f90460e53b738a24681df1ab41a035055ac77936aad984b9b023fcd",
+            "atz": "510f9e23e39985b55581d1d306ef9e61576d126f52e6f58de5d6c4ea2a9fea69"
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "active_indices": {
+            "adz": [
+              20,
+              21
+            ],
+            "atz": [
+              20,
+              21
+            ]
+          },
+          "seed_sha256": {
+            "adz": "b0f20e591f90460e53b738a24681df1ab41a035055ac77936aad984b9b023fcd",
+            "atz": "510f9e23e39985b55581d1d306ef9e61576d126f52e6f58de5d6c4ea2a9fea69"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "orbital_initialization": "independent",
+      "probe_definition": {
+        "active_electrons": 3,
+        "active_orbitals": 2,
+        "orbital_source": "scf",
+        "chemical_note": "CAS(3,2) tests occupied C/S frontier 20 with H4 SOMO 21. One doublet; a separate identified donor control, not a larger CAS. Compare energies and character before selection.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        }
+      }
+    }
+  ]
+}

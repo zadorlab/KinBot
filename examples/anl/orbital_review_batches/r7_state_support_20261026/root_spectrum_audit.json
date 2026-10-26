@@ -1,0 +1,2562 @@
+{
+  "scope": "Four fixed-orbital CASCI diagnostics; no optimized production model or isolated-fragment spin ordering inferred.",
+  "jobs": [
+    {
+      "job": "adz__exit_l2",
+      "basis": "avdz-f12",
+      "status": "complete",
+      "source_output_sha256": "4870bcb92c8bcd009fa3374a66c70e8998372efaff069684c21f61acac59227f",
+      "native_output_sha256": "e52cd16285c2b6485a91ee7181f477916cf7d4307973dddbe97d56b34930b0e3",
+      "natural_xml_sha256": "8449f41cb3d0bc20f0e233551a5f399c9e5115355bcc51ae7574af6011cd39af",
+      "wfu_sha256": "34e616830c5fe229d318b9a1a5fceb3ec82af191a82f66dee83fd026916975fe",
+      "native_state_energies": [
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.476237686256,
+          "line": 615
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.440710196201,
+          "line": 627
+        },
+        {
+          "method": "MCSCF",
+          "state": "3.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.396624529601,
+          "line": 639
+        },
+        {
+          "method": "MCSCF",
+          "state": "4.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.391076115245,
+          "line": 651
+        },
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "Quartet",
+          "energy_Eh": -834.43402203913,
+          "line": 663
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "Quartet",
+          "energy_Eh": -834.381891685144,
+          "line": 675
+        }
+      ],
+      "reported_state_energies": [
+        {
+          "energy_hartree": -834.47623769,
+          "multiplicity": 2,
+          "root": 1
+        },
+        {
+          "energy_hartree": -834.4407102,
+          "multiplicity": 2,
+          "root": 2
+        },
+        {
+          "energy_hartree": -834.39662453,
+          "multiplicity": 2,
+          "root": 3
+        },
+        {
+          "energy_hartree": -834.39107612,
+          "multiplicity": 2,
+          "root": 4
+        },
+        {
+          "energy_hartree": -834.43402204,
+          "multiplicity": 4,
+          "root": 1
+        },
+        {
+          "energy_hartree": -834.38189169,
+          "multiplicity": 4,
+          "root": 2
+        }
+      ],
+      "gap_D2_D1_cm_inverse": 7797.3827709956895,
+      "gap_D3_D1_cm_inverse": 17473.068942636277,
+      "gap_Q1_D3_cm_inverse": -8207.804721127784,
+      "active_orbitals": [
+        {
+          "index": "17.1",
+          "occupation": 1.99561,
+          "energy_Eh": -0.62557,
+          "role": "active",
+          "line": 757,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.45067,
+              "line": 757
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.08554,
+              "line": 757
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.17599,
+              "line": 757
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.13363,
+              "line": 757
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.18556,
+              "line": 758
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.58637,
+              "line": 758
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.29466,
+              "line": 758
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.32131,
+              "line": 758
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "pz",
+              "coefficient": 0.07588,
+              "line": 759
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.17031,
+              "line": 759
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.1666,
+              "line": 759
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.06624,
+              "line": 759
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.23265,
+              "line": 760
+            }
+          ]
+        },
+        {
+          "index": "18.1",
+          "occupation": 1.97951,
+          "energy_Eh": -0.44026,
+          "role": "active",
+          "line": 761,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.73865,
+              "line": 761
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "s",
+              "coefficient": -0.17768,
+              "line": 761
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.08463,
+              "line": 761
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.47646,
+              "line": 761
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "pz",
+              "coefficient": -0.05833,
+              "line": 762
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.24766,
+              "line": 762
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.12613,
+              "line": 762
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.10879,
+              "line": 762
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.31303,
+              "line": 763
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.16484,
+              "line": 763
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.0795,
+              "line": 763
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.05303,
+              "line": 763
+            }
+          ]
+        },
+        {
+          "index": "19.1",
+          "occupation": 1.672,
+          "energy_Eh": -0.34482,
+          "role": "active",
+          "line": 764,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 4,
+              "component": "s",
+              "coefficient": 0.10566,
+              "line": 764
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": 0.07205,
+              "line": 764
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": -0.10633,
+              "line": 764
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.07799,
+              "line": 764
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": -0.11247,
+              "line": 765
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.07373,
+              "line": 765
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.76037,
+              "line": 765
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.40092,
+              "line": 765
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.34264,
+              "line": 766
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.09404,
+              "line": 766
+            },
+            {
+              "center": 6,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.05956,
+              "line": 766
+            }
+          ]
+        },
+        {
+          "index": "20.1",
+          "occupation": 1.41071,
+          "energy_Eh": -0.25137,
+          "role": "active",
+          "line": 767,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.22356,
+              "line": 767
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.12717,
+              "line": 767
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.17543,
+              "line": 767
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.1862,
+              "line": 767
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.287,
+              "line": 768
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.14648,
+              "line": 768
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.0612,
+              "line": 768
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1+",
+              "coefficient": -0.07024,
+              "line": 768
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.08341,
+              "line": 769
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.4761,
+              "line": 769
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.41443,
+              "line": 769
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.64883,
+              "line": 769
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.08983,
+              "line": 770
+            }
+          ]
+        },
+        {
+          "index": "21.1",
+          "occupation": 1.32639,
+          "energy_Eh": -0.17966,
+          "role": "active",
+          "line": 771,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.30026,
+              "line": 771
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": -0.7356,
+              "line": 771
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": -0.05779,
+              "line": 771
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.11167,
+              "line": 771
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.18223,
+              "line": 772
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "d1-",
+              "coefficient": 0.08106,
+              "line": 772
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1-",
+              "coefficient": 0.08974,
+              "line": 772
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.05024,
+              "line": 772
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.2257,
+              "line": 773
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.22577,
+              "line": 773
+            }
+          ]
+        },
+        {
+          "index": "22.1",
+          "occupation": 0.61578,
+          "energy_Eh": 0.01152,
+          "role": "active",
+          "line": 774,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.06799,
+              "line": 774
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.80106,
+              "line": 774
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.29583,
+              "line": 774
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "px",
+              "coefficient": 0.05328,
+              "line": 774
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.14001,
+              "line": 775
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": 0.08231,
+              "line": 775
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.27716,
+              "line": 775
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.14604,
+              "line": 775
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.18304,
+              "line": 776
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "px",
+              "coefficient": -0.11534,
+              "line": 776
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "py",
+              "coefficient": -0.06577,
+              "line": 776
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "d1+",
+              "coefficient": -0.05149,
+              "line": 776
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1+",
+              "coefficient": -0.06218,
+              "line": 777
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.10995,
+              "line": 777
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.26565,
+              "line": 777
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.22336,
+              "line": 777
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.28519,
+              "line": 778
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.11525,
+              "line": 778
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.13052,
+              "line": 778
+            }
+          ]
+        }
+      ],
+      "ci_tables": [
+        {
+          "line_start": 811,
+          "line_end": 832,
+          "text": " CI Coefficients of symmetry 1 (Doublet)\n =======================================\n \n 222a20        -0.03448560      0.95975031     -0.01505721      0.07299403\n 22a220        -0.00985887     -0.05747331     -0.07652967      0.94772082\n 222aba        -0.16160343      0.01501602      0.78662485      0.06618768\n 2222a0         0.74836764      0.05724319      0.17426039      0.00842615\n 222baa         0.49891425     -0.02501881     -0.31670076     -0.00827693\n 222aab        -0.33731082      0.01000279     -0.46992409     -0.05791074\n 2220a2        -0.19283102      0.00027314     -0.00826976     -0.00765067\n 22ab2a        -0.00843147      0.01677578     -0.01065490      0.13735653\n 22aa2b         0.00585386     -0.00986688      0.01422594     -0.13071878\n 2a2b2a        -0.00639483     -0.11872413      0.00212373      0.11036671\n 202a22         0.00058710     -0.10596163     -0.00054791     -0.00343964\n 20a222         0.00159843      0.00521092      0.00876072     -0.10476599\n 22220a         0.05936328      0.06516616     -0.09663539      0.00054739\n 222a02         0.01233519     -0.08942552      0.00819446     -0.01340604\n 22202a        -0.04748521     -0.08495592      0.07932008     -0.06360638\n 2a2220        -0.00027777      0.08440532     -0.01129803     -0.05524043\n 2a2a2b         0.00273264      0.07999123     -0.00118108     -0.06715401\n 22a202         0.00060388      0.00361766      0.00668568     -0.07880629\n a22b2a        -0.00140373     -0.05298960      0.00121649      0.00815303"
+        },
+        {
+          "line_start": 837,
+          "line_end": 844,
+          "text": " CI Coefficients of symmetry 1 (Quartet)\n =======================================\n \n 222aaa         0.99742917      0.03109831\n 22a2aa        -0.03065852      0.97865911\n 22aaa2        -0.00545490     -0.17423489\n 22aa2a        -0.00633830     -0.06927389\n 2a2aa2         0.03092567     -0.05610493"
+        }
+      ],
+      "subspace_comparison": {
+        "left": "production/orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml",
+        "right": "production/orbital_recon/root_spectrum_20261026/csh2_sh_exit/csh2_sh_exit_fixed_spectrum/adz__exit_l2/adz__exit_l2.natural.orbitals.xml",
+        "sha256": {
+          "production/orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml": "8ebe5a55cf7b380047bb27a71112ce811e0294e35ecf13cdff09521d4d38b67b",
+          "production/orbital_recon/root_spectrum_20261026/csh2_sh_exit/csh2_sh_exit_fixed_spectrum/adz__exit_l2/adz__exit_l2.natural.orbitals.xml": "8449f41cb3d0bc20f0e233551a5f399c9e5115355bcc51ae7574af6011cd39af"
+        },
+        "relative_reconstruction_error": 3.5284440203796747e-15,
+        "max_orthogonality_error": 5.766424968837038e-14,
+        "subspaces": {
+          "source_union_vs_fixed_active": {
+            "right_indices": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "left_indices": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "overlap_singular_values": [
+              1.0,
+              1.0,
+              0.9999999999999997,
+              0.9999999999999997,
+              0.9999999999999993,
+              0.999999999999999
+            ]
+          }
+        }
+      },
+      "real_times_seconds": [
+        0.3,
+        4.09,
+        4.51,
+        5.45
+      ]
+    },
+    {
+      "job": "adz__exit_r_30p0",
+      "basis": "avdz-f12",
+      "status": "complete",
+      "source_output_sha256": "b4efaeb04a8cbb3597874ba2403c052cf2eb6326a7665dc3e4275fce87db39cb",
+      "native_output_sha256": "1d1f1144f966c537983caef33632aea69b8b4773eba77fb61c3d37e4623cf373",
+      "natural_xml_sha256": "705fec7271a83daedaea23a8f92e7dbffe1e6c6bf0a1c6c1a4ab8cf6839a261b",
+      "wfu_sha256": "8c7a56b8f41f3b7db427f21565376f9be1bdf29e1eaf37362e9ff655d778ee30",
+      "native_state_energies": [
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.477518892452,
+          "line": 554
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.477517803756,
+          "line": 566
+        },
+        {
+          "method": "MCSCF",
+          "state": "3.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.371090513033,
+          "line": 578
+        },
+        {
+          "method": "MCSCF",
+          "state": "4.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.371088814073,
+          "line": 590
+        },
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "Quartet",
+          "energy_Eh": -834.371090513033,
+          "line": 602
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "Quartet",
+          "energy_Eh": -834.371088814073,
+          "line": 614
+        }
+      ],
+      "reported_state_energies": [
+        {
+          "energy_hartree": -834.47751889,
+          "multiplicity": 2,
+          "root": 1
+        },
+        {
+          "energy_hartree": -834.4775178,
+          "multiplicity": 2,
+          "root": 2
+        },
+        {
+          "energy_hartree": -834.37109051,
+          "multiplicity": 2,
+          "root": 3
+        },
+        {
+          "energy_hartree": -834.37108881,
+          "multiplicity": 2,
+          "root": 4
+        },
+        {
+          "energy_hartree": -834.37109051,
+          "multiplicity": 4,
+          "root": 1
+        },
+        {
+          "energy_hartree": -834.37108881,
+          "multiplicity": 4,
+          "root": 2
+        }
+      ],
+      "gap_D2_D1_cm_inverse": 0.23922736330126437,
+      "gap_D3_D1_cm_inverse": 23358.329467085026,
+      "gap_Q1_D3_cm_inverse": 0.0,
+      "active_orbitals": [
+        {
+          "index": "17.1",
+          "occupation": 1.99916,
+          "energy_Eh": -0.52861,
+          "role": "active",
+          "line": 684,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.15436,
+              "line": 684
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.09752,
+              "line": 684
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.18932,
+              "line": 684
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.22259,
+              "line": 684
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.16498,
+              "line": 685
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.7677,
+              "line": 685
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.3385,
+              "line": 685
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.22319,
+              "line": 685
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.10693,
+              "line": 686
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.15821,
+              "line": 686
+            }
+          ]
+        },
+        {
+          "index": "18.1",
+          "occupation": 1.97977,
+          "energy_Eh": -0.44124,
+          "role": "active",
+          "line": 687,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.86451,
+              "line": 687
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "s",
+              "coefficient": -0.15013,
+              "line": 687
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.06868,
+              "line": 687
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.42441,
+              "line": 687
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "pz",
+              "coefficient": -0.0514,
+              "line": 688
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.19058,
+              "line": 688
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": 0.06003,
+              "line": 688
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.05848,
+              "line": 688
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.19289,
+              "line": 689
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.06059,
+              "line": 689
+            }
+          ]
+        },
+        {
+          "index": "19.1",
+          "occupation": 1.5,
+          "energy_Eh": -0.30727,
+          "role": "active",
+          "line": 690,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.2019,
+              "line": 690
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.53268,
+              "line": 690
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.79063,
+              "line": 690
+            }
+          ]
+        },
+        {
+          "index": "20.1",
+          "occupation": 1.5,
+          "energy_Eh": -0.30727,
+          "role": "active",
+          "line": 691,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.94165,
+              "line": 691
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.23757,
+              "line": 691
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.0804,
+              "line": 691
+            }
+          ]
+        },
+        {
+          "index": "21.1",
+          "occupation": 1.33283,
+          "energy_Eh": -0.16322,
+          "role": "active",
+          "line": 692,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": -0.28113,
+              "line": 692
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.72497,
+              "line": 692
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.08533,
+              "line": 692
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.16222,
+              "line": 692
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "d1-",
+              "coefficient": -0.08719,
+              "line": 693
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1-",
+              "coefficient": -0.09133,
+              "line": 693
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.27623,
+              "line": 693
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.27231,
+              "line": 693
+            }
+          ]
+        },
+        {
+          "index": "22.1",
+          "occupation": 0.68824,
+          "energy_Eh": 0.13249,
+          "role": "active",
+          "line": 694,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.79134,
+              "line": 694
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.29702,
+              "line": 694
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.05018,
+              "line": 694
+            },
+            {
+              "center": 1,
+              "function": 3,
+              "component": "px",
+              "coefficient": 0.1583,
+              "line": 694
+            },
+            {
+              "center": 1,
+              "function": 3,
+              "component": "py",
+              "coefficient": 0.05997,
+              "line": 695
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "px",
+              "coefficient": -0.0999,
+              "line": 695
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "d1+",
+              "coefficient": -0.08183,
+              "line": 695
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "d1+",
+              "coefficient": -0.13309,
+              "line": 695
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.0597,
+              "line": 696
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.11582,
+              "line": 696
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.05866,
+              "line": 696
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.0636,
+              "line": 696
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.06109,
+              "line": 697
+            }
+          ]
+        }
+      ],
+      "ci_tables": [
+        {
+          "line_start": 719,
+          "line_end": 731,
+          "text": " CI Coefficients of symmetry 1 (Doublet)\n =======================================\n \n 222a20        -0.67291882      0.71748709     -0.00000000      0.00000000\n 22a220         0.71748709      0.67291883      0.00000000     -0.00000000\n 222baa         0.00000000      0.00000000     -0.57280155      0.58155870\n 22b2aa         0.00000000      0.00000000      0.58155869      0.57280154\n 222aab         0.00000134     -0.00000141      0.28640077     -0.29077935\n 222aba        -0.00000134      0.00000141      0.28640077     -0.29077935\n 22a2ba         0.00000142      0.00000132     -0.29077935     -0.28640077\n 22a2ab        -0.00000142     -0.00000132     -0.29077935     -0.28640077\n 202a22         0.11877712     -0.12664401      0.00000000     -0.00000000\n 20a222        -0.12664393     -0.11877729     -0.00000000      0.00000000"
+        },
+        {
+          "line_start": 736,
+          "line_end": 740,
+          "text": " CI Coefficients of symmetry 1 (Quartet)\n =======================================\n \n 222aaa        -0.70153575      0.71226103\n 22a2aa         0.71226103      0.70153574"
+        }
+      ],
+      "subspace_comparison": {
+        "left": "production/orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/adz__exit_r_30p0/adz__exit_r_30p0.natural.orbitals.xml",
+        "right": "production/orbital_recon/root_spectrum_20261026/csh2_sh_exit/csh2_sh_exit_fixed_spectrum/adz__exit_r_30p0/adz__exit_r_30p0.natural.orbitals.xml",
+        "sha256": {
+          "production/orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/adz__exit_r_30p0/adz__exit_r_30p0.natural.orbitals.xml": "8e1d65958d4950135eabf05ec97073002d046c1e9f0c607a823fadae1b8905b0",
+          "production/orbital_recon/root_spectrum_20261026/csh2_sh_exit/csh2_sh_exit_fixed_spectrum/adz__exit_r_30p0/adz__exit_r_30p0.natural.orbitals.xml": "705fec7271a83daedaea23a8f92e7dbffe1e6c6bf0a1c6c1a4ab8cf6839a261b"
+        },
+        "relative_reconstruction_error": 5.45733593609896e-15,
+        "max_orthogonality_error": 5.402126476307036e-14,
+        "subspaces": {
+          "source_union_vs_fixed_active": {
+            "right_indices": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "left_indices": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "overlap_singular_values": [
+              1.0000000000000027,
+              1.000000000000002,
+              1.0000000000000007,
+              0.9999999999999992,
+              0.9999999999999976,
+              0.9999999999999974
+            ]
+          }
+        }
+      },
+      "real_times_seconds": [
+        0.3,
+        2.51,
+        2.8,
+        3.6
+      ]
+    },
+    {
+      "job": "atz__exit_l2",
+      "basis": "avtz-f12",
+      "status": "complete",
+      "source_output_sha256": "815acedd218c96412997075591e935a66b512ca05eee08de925d3f89b028fda7",
+      "native_output_sha256": "efd2dbe8dc66d3803d16d3e153ce99c82a766e1f48475a35fab9db9a812e18f2",
+      "natural_xml_sha256": "b25690a0a3389998f687345d2678d6d3ccc8020f813649bd75c70079c903e22f",
+      "wfu_sha256": "aedd0eff41231ae9412baae80d436c9fe04b2af58d305367e01f6bb339e27839",
+      "native_state_energies": [
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.490732719613,
+          "line": 695
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.456328244823,
+          "line": 707
+        },
+        {
+          "method": "MCSCF",
+          "state": "3.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.410715824405,
+          "line": 719
+        },
+        {
+          "method": "MCSCF",
+          "state": "4.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.403929342189,
+          "line": 731
+        },
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "Quartet",
+          "energy_Eh": -834.448355915847,
+          "line": 743
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "Quartet",
+          "energy_Eh": -834.393476911473,
+          "line": 755
+        }
+      ],
+      "reported_state_energies": [
+        {
+          "energy_hartree": -834.49073272,
+          "multiplicity": 2,
+          "root": 1
+        },
+        {
+          "energy_hartree": -834.45632824,
+          "multiplicity": 2,
+          "root": 2
+        },
+        {
+          "energy_hartree": -834.41071582,
+          "multiplicity": 2,
+          "root": 3
+        },
+        {
+          "energy_hartree": -834.40392934,
+          "multiplicity": 2,
+          "root": 4
+        },
+        {
+          "energy_hartree": -834.44835592,
+          "multiplicity": 4,
+          "root": 1
+        },
+        {
+          "energy_hartree": -834.39347691,
+          "multiplicity": 4,
+          "root": 2
+        }
+      ],
+      "gap_D2_D1_cm_inverse": 7550.910565250205,
+      "gap_D3_D1_cm_inverse": 17561.67963033314,
+      "gap_Q1_D3_cm_inverse": -8261.047071993662,
+      "active_orbitals": [
+        {
+          "index": "17.1",
+          "occupation": 1.99557,
+          "energy_Eh": -0.62771,
+          "role": "active",
+          "line": 837,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.47072,
+              "line": 837
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": 0.07509,
+              "line": 837
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.08544,
+              "line": 837
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.17791,
+              "line": 837
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.14637,
+              "line": 838
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": -0.14502,
+              "line": 838
+            },
+            {
+              "center": 2,
+              "function": 7,
+              "component": "s",
+              "coefficient": -0.05019,
+              "line": 838
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.58087,
+              "line": 838
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.29645,
+              "line": 839
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.35061,
+              "line": 839
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "px",
+              "coefficient": -0.06314,
+              "line": 839
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "py",
+              "coefficient": -0.06224,
+              "line": 839
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "pz",
+              "coefficient": 0.15802,
+              "line": 840
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.17451,
+              "line": 840
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.14155,
+              "line": 840
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.19598,
+              "line": 840
+            }
+          ]
+        },
+        {
+          "index": "18.1",
+          "occupation": 1.97803,
+          "energy_Eh": -0.43696,
+          "role": "active",
+          "line": 841,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.73345,
+              "line": 841
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.17078,
+              "line": 841
+            },
+            {
+              "center": 1,
+              "function": 6,
+              "component": "s",
+              "coefficient": -0.05074,
+              "line": 841
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.48722,
+              "line": 841
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.22871,
+              "line": 842
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.12666,
+              "line": 842
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.10314,
+              "line": 842
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.31877,
+              "line": 842
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.16949,
+              "line": 843
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.06937,
+              "line": 843
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.05381,
+              "line": 843
+            }
+          ]
+        },
+        {
+          "index": "19.1",
+          "occupation": 1.67375,
+          "energy_Eh": -0.34613,
+          "role": "active",
+          "line": 844,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.05141,
+              "line": 844
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.11539,
+              "line": 844
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.0626,
+              "line": 844
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.79467,
+              "line": 844
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.42592,
+              "line": 845
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.36083,
+              "line": 845
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.10074,
+              "line": 845
+            }
+          ]
+        },
+        {
+          "index": "20.1",
+          "occupation": 1.40968,
+          "energy_Eh": -0.25003,
+          "role": "active",
+          "line": 846,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.22792,
+              "line": 846
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.13047,
+              "line": 846
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.1792,
+              "line": 846
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.16889,
+              "line": 846
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": -0.11128,
+              "line": 847
+            },
+            {
+              "center": 2,
+              "function": 7,
+              "component": "s",
+              "coefficient": -0.05765,
+              "line": 847
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.30314,
+              "line": 847
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.14483,
+              "line": 847
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.08059,
+              "line": 848
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.07489,
+              "line": 848
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.45099,
+              "line": 848
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.38775,
+              "line": 848
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.63691,
+              "line": 849
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.09298,
+              "line": 849
+            }
+          ]
+        },
+        {
+          "index": "21.1",
+          "occupation": 1.32624,
+          "energy_Eh": -0.18052,
+          "role": "active",
+          "line": 850,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": -0.30126,
+              "line": 850
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.7345,
+              "line": 850
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.05666,
+              "line": 850
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "py",
+              "coefficient": 0.07408,
+              "line": 850
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.07844,
+              "line": 851
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.11328,
+              "line": 851
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "py",
+              "coefficient": -0.05808,
+              "line": 851
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1-",
+              "coefficient": -0.08901,
+              "line": 851
+            },
+            {
+              "center": 2,
+              "function": 4,
+              "component": "d1-",
+              "coefficient": -0.08587,
+              "line": 852
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.05001,
+              "line": 852
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.2285,
+              "line": 852
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.22999,
+              "line": 852
+            }
+          ]
+        },
+        {
+          "index": "22.1",
+          "occupation": 0.61673,
+          "energy_Eh": 0.01127,
+          "role": "active",
+          "line": 853,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.05707,
+              "line": 853
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.80156,
+              "line": 853
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.29739,
+              "line": 853
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "px",
+              "coefficient": 0.07934,
+              "line": 853
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.14192,
+              "line": 854
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": 0.18373,
+              "line": 854
+            },
+            {
+              "center": 2,
+              "function": 7,
+              "component": "s",
+              "coefficient": 0.07757,
+              "line": 854
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.31629,
+              "line": 854
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.15601,
+              "line": 855
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.20349,
+              "line": 855
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "px",
+              "coefficient": -0.12599,
+              "line": 855
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1+",
+              "coefficient": -0.05636,
+              "line": 855
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.10112,
+              "line": 856
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.23098,
+              "line": 856
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.18403,
+              "line": 856
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.25628,
+              "line": 856
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.11334,
+              "line": 857
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.13177,
+              "line": 857
+            }
+          ]
+        }
+      ],
+      "ci_tables": [
+        {
+          "line_start": 903,
+          "line_end": 925,
+          "text": " CI Coefficients of symmetry 1 (Doublet)\n =======================================\n \n 222a20         0.03545913      0.95856164      0.01356085     -0.07942576\n 22a220        -0.00913116      0.06095386     -0.05567165      0.94457600\n 222aba        -0.16164899     -0.01527533      0.78742213      0.04965894\n 2222a0         0.75110563     -0.05830317      0.17502467      0.00554509\n 222baa         0.49576835      0.02556422     -0.31653232     -0.00359928\n 222aab        -0.33411936     -0.01028888     -0.47088980     -0.04605967\n 2220a2        -0.19468832     -0.00018528     -0.00827670     -0.00736353\n 22ab2a        -0.00799363     -0.01792799     -0.00761640      0.13511920\n 22aa2b         0.00548922      0.01032331      0.01145398     -0.13110151\n 2a2b2a         0.00662457     -0.12155941     -0.00442446     -0.12568987\n 202a22        -0.00056396     -0.10411245      0.00059972      0.00272794\n 20a222         0.00147604     -0.00538023      0.00634603     -0.10224305\n 22220a        -0.06025671      0.06563480      0.09900934     -0.00560548\n 222a02        -0.01276669     -0.09031410     -0.00788580      0.01693436\n 2a2220         0.00020524      0.08718635      0.01314759      0.06547562\n 22202a         0.04861572     -0.08598557     -0.07999458      0.07571997\n 2a2a2b        -0.00281958      0.08119934      0.00248191      0.07486563\n 22a202         0.00062377     -0.00379779      0.00520208     -0.07949885\n a22b2a         0.00137902     -0.05179943     -0.00132132     -0.00679884\n 2b2a2a        -0.00380498      0.04036008      0.00194255      0.05082424"
+        },
+        {
+          "line_start": 930,
+          "line_end": 937,
+          "text": " CI Coefficients of symmetry 1 (Quartet)\n =======================================\n \n 222aaa         0.99732061     -0.03344445\n 22a2aa         0.03262520      0.97777479\n 22aaa2         0.00530861     -0.17490342\n 22aa2a        -0.00572878      0.07094189\n 2a2aa2         0.03263568      0.06094567"
+        }
+      ],
+      "subspace_comparison": {
+        "left": "production/orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml",
+        "right": "production/orbital_recon/root_spectrum_20261026/csh2_sh_exit/csh2_sh_exit_fixed_spectrum/atz__exit_l2/atz__exit_l2.natural.orbitals.xml",
+        "sha256": {
+          "production/orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml": "41065cde4252fd45b0a3b57e03e99c2a939d3b0e658cdc329a18cd39d612b53f",
+          "production/orbital_recon/root_spectrum_20261026/csh2_sh_exit/csh2_sh_exit_fixed_spectrum/atz__exit_l2/atz__exit_l2.natural.orbitals.xml": "b25690a0a3389998f687345d2678d6d3ccc8020f813649bd75c70079c903e22f"
+        },
+        "relative_reconstruction_error": 6.252766314941387e-15,
+        "max_orthogonality_error": 1.039510436297519e-12,
+        "subspaces": {
+          "source_union_vs_fixed_active": {
+            "right_indices": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "left_indices": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "overlap_singular_values": [
+              1.000000000000009,
+              1.0000000000000049,
+              1.0000000000000038,
+              0.9999999999999972,
+              0.9999999999999895,
+              0.9999999999999888
+            ]
+          }
+        }
+      },
+      "real_times_seconds": [
+        0.31,
+        27.6,
+        31.57,
+        35.35
+      ]
+    },
+    {
+      "job": "atz__exit_r_30p0",
+      "basis": "avtz-f12",
+      "status": "complete",
+      "source_output_sha256": "132998d647f40ef3e9dacf1431020416a5b390b4b28cb2a46e5c7f69104b63fb",
+      "native_output_sha256": "64d313d6ff4756d0150ae608d6e1d8eb7ea47fe10a084c03161af19f0c459753",
+      "natural_xml_sha256": "c0009466d2912095ff85542577a1a3a8469eb1ff9a96943268e5bdb9483ad414",
+      "wfu_sha256": "ded2a181b8c6afa79f5e2ca0c24321472ba4d186ae77a3c3683881feaba2f59e",
+      "native_state_energies": [
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.49209004911,
+          "line": 598
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.492089060002,
+          "line": 610
+        },
+        {
+          "method": "MCSCF",
+          "state": "3.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.379559102509,
+          "line": 622
+        },
+        {
+          "method": "MCSCF",
+          "state": "4.1",
+          "spin_label": "Doublet",
+          "energy_Eh": -834.379557504592,
+          "line": 634
+        },
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "Quartet",
+          "energy_Eh": -834.379559102509,
+          "line": 646
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "Quartet",
+          "energy_Eh": -834.379557504592,
+          "line": 658
+        }
+      ],
+      "reported_state_energies": [
+        {
+          "energy_hartree": -834.49209005,
+          "multiplicity": 2,
+          "root": 1
+        },
+        {
+          "energy_hartree": -834.49208906,
+          "multiplicity": 2,
+          "root": 2
+        },
+        {
+          "energy_hartree": -834.3795591,
+          "multiplicity": 2,
+          "root": 3
+        },
+        {
+          "energy_hartree": -834.3795575,
+          "multiplicity": 2,
+          "root": 4
+        },
+        {
+          "energy_hartree": -834.3795591,
+          "multiplicity": 4,
+          "root": 1
+        },
+        {
+          "energy_hartree": -834.3795575,
+          "multiplicity": 4,
+          "root": 2
+        }
+      ],
+      "gap_D2_D1_cm_inverse": 0.21727988275439264,
+      "gap_D3_D1_cm_inverse": 24697.68876818978,
+      "gap_Q1_D3_cm_inverse": 0.0,
+      "active_orbitals": [
+        {
+          "index": "17.1",
+          "occupation": 1.99921,
+          "energy_Eh": -0.53196,
+          "role": "active",
+          "line": 729,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.16865,
+              "line": 729
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": -0.09627,
+              "line": 729
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": -0.20617,
+              "line": 729
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.21662,
+              "line": 729
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": 0.16114,
+              "line": 730
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.77316,
+              "line": 730
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.34345,
+              "line": 730
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.27333,
+              "line": 730
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.10047,
+              "line": 731
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.16073,
+              "line": 731
+            }
+          ]
+        },
+        {
+          "index": "18.1",
+          "occupation": 1.97967,
+          "energy_Eh": -0.43861,
+          "role": "active",
+          "line": 732,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.86167,
+              "line": 732
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.14641,
+              "line": 732
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.43097,
+              "line": 732
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.18256,
+              "line": 732
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.05175,
+              "line": 733
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.18824,
+              "line": 733
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.06905,
+              "line": 733
+            }
+          ]
+        },
+        {
+          "index": "19.1",
+          "occupation": 1.5,
+          "energy_Eh": -0.30736,
+          "role": "active",
+          "line": 734,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.21106,
+              "line": 734
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.54206,
+              "line": 734
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.80603,
+              "line": 734
+            }
+          ]
+        },
+        {
+          "index": "20.1",
+          "occupation": 1.5,
+          "energy_Eh": -0.30736,
+          "role": "active",
+          "line": 735,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.95941,
+              "line": 735
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.24523,
+              "line": 735
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.08632,
+              "line": 735
+            }
+          ]
+        },
+        {
+          "index": "21.1",
+          "occupation": 1.33272,
+          "energy_Eh": -0.16541,
+          "role": "active",
+          "line": 736,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.06734,
+              "line": 736
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": -0.2803,
+              "line": 736
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.72531,
+              "line": 736
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "py",
+              "coefficient": 0.07488,
+              "line": 736
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.05089,
+              "line": 737
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.07927,
+              "line": 737
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "py",
+              "coefficient": -0.05477,
+              "line": 737
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1-",
+              "coefficient": -0.09457,
+              "line": 737
+            },
+            {
+              "center": 2,
+              "function": 4,
+              "component": "d1-",
+              "coefficient": -0.09249,
+              "line": 738
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.2787,
+              "line": 738
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.27871,
+              "line": 738
+            }
+          ]
+        },
+        {
+          "index": "22.1",
+          "occupation": 0.68839,
+          "energy_Eh": 0.13617,
+          "role": "active",
+          "line": 739,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.84799,
+              "line": 739
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.31788,
+              "line": 739
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.05409,
+              "line": 739
+            },
+            {
+              "center": 1,
+              "function": 3,
+              "component": "px",
+              "coefficient": 0.07828,
+              "line": 739
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "px",
+              "coefficient": 0.09464,
+              "line": 740
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "px",
+              "coefficient": -0.13473,
+              "line": 740
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "d1+",
+              "coefficient": -0.09228,
+              "line": 740
+            },
+            {
+              "center": 1,
+              "function": 3,
+              "component": "d1+",
+              "coefficient": -0.097,
+              "line": 740
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.06248,
+              "line": 741
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": 0.06965,
+              "line": 741
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.16989,
+              "line": 741
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.07054,
+              "line": 741
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.06344,
+              "line": 742
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.06175,
+              "line": 742
+            }
+          ]
+        }
+      ],
+      "ci_tables": [
+        {
+          "line_start": 775,
+          "line_end": 787,
+          "text": " CI Coefficients of symmetry 1 (Doublet)\n =======================================\n \n 222a20        -0.67672704      0.71374332      0.00000000      0.00000000\n 22a220         0.71374332      0.67672705      0.00000000     -0.00000000\n 222baa        -0.00000000     -0.00000000      0.57806958      0.57633950\n 22b2aa         0.00000000      0.00000000     -0.57633949      0.57806957\n 222aba        -0.00000008      0.00000007     -0.28903479     -0.28816975\n 222aab         0.00000008     -0.00000007     -0.28903479     -0.28816975\n 22a2ab        -0.00000010     -0.00000008      0.28816975     -0.28903479\n 22a2ba         0.00000010      0.00000008      0.28816975     -0.28903479\n 202a22         0.11943948     -0.12597282     -0.00000000      0.00000000\n 20a222        -0.12597275     -0.11943965     -0.00000000      0.00000000"
+        },
+        {
+          "line_start": 792,
+          "line_end": 796,
+          "text": " CI Coefficients of symmetry 1 (Quartet)\n =======================================\n \n 222aaa         0.70798776      0.70586884\n 22a2aa        -0.70586883      0.70798775"
+        }
+      ],
+      "subspace_comparison": {
+        "left": "production/orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/atz__exit_r_30p0/atz__exit_r_30p0.natural.orbitals.xml",
+        "right": "production/orbital_recon/root_spectrum_20261026/csh2_sh_exit/csh2_sh_exit_fixed_spectrum/atz__exit_r_30p0/atz__exit_r_30p0.natural.orbitals.xml",
+        "sha256": {
+          "production/orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/atz__exit_r_30p0/atz__exit_r_30p0.natural.orbitals.xml": "9d06fa9bce900dd40c48ef103c189ce5f43dd758162e5b1be95d507b7b9d1241",
+          "production/orbital_recon/root_spectrum_20261026/csh2_sh_exit/csh2_sh_exit_fixed_spectrum/atz__exit_r_30p0/atz__exit_r_30p0.natural.orbitals.xml": "c0009466d2912095ff85542577a1a3a8469eb1ff9a96943268e5bdb9483ad414"
+        },
+        "relative_reconstruction_error": 5.059619364766162e-15,
+        "max_orthogonality_error": 4.812816811750054e-13,
+        "subspaces": {
+          "source_union_vs_fixed_active": {
+            "right_indices": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "left_indices": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "overlap_singular_values": [
+              1.0000000000000164,
+              1.0000000000000087,
+              1.0000000000000029,
+              1.000000000000002,
+              0.9999999999999976,
+              0.9999999999999877
+            ]
+          }
+        }
+      },
+      "real_times_seconds": [
+        0.4,
+        11.66,
+        14.7,
+        18.12
+      ]
+    }
+  ]
+}

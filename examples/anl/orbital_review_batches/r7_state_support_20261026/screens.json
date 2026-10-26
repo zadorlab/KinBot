@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "screens": [
+    {
+      "name": "csh2_sh_exit",
+      "case": "ch3ss",
+      "source": "orbital_recon/root_spectrum_20261026/csh2_sh_exit",
+      "recipe": "csh2_sh_exit.json"
+    },
+    {
+      "name": "new_cs",
+      "case": "ch3ss",
+      "source": "orbital_recon/root_spectrum_20261026/new_cs",
+      "recipe": "new_cs.json"
+    },
+    {
+      "name": "new_ss",
+      "case": "ch3ss",
+      "source": "orbital_recon/root_spectrum_20261026/new_ss",
+      "recipe": "new_ss.json"
+    },
+    {
+      "name": "new_hcs_h2s_exit",
+      "case": "ch3ss",
+      "source": "orbital_recon/root_spectrum_20261026/new_hcs_h2s_exit",
+      "recipe": "new_hcs_h2s_exit.json"
+    },
+    {
+      "name": "new_hcssh_h_exit",
+      "case": "ch3ss",
+      "source": "orbital_recon/root_spectrum_20261026/new_hcssh_h_exit",
+      "recipe": "new_hcssh_h_exit.json"
+    },
+    {
+      "name": "new_csh_sh_a",
+      "case": "ch3ss",
+      "recipe": "new_csh_sh_a.json"
+    },
+    {
+      "name": "new_csh_sh_b",
+      "case": "ch3ss",
+      "recipe": "new_csh_sh_b.json"
+    }
+  ]
+}

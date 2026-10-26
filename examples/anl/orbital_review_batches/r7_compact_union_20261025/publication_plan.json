@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "status": "held",
+  "status_reason": "Eleven selections prepared. C(SH2)+SH remains unresolved: CAS(9,6) near output has an inactive SH-p orbital at 16. No partial publication from this plan.",
+  "selections": [
+    {
+      "name": "ch_h2ss_cs",
+      "case": "ch3ss",
+      "source": "compact_followup_20261025/ch_h2ss_cs_compact",
+      "recipe": "selections/ch_h2ss_cs.json"
+    },
+    {
+      "name": "chsh2_s_ss",
+      "case": "ch3ss",
+      "source": "compact_followup_20261025/chsh2_s_ss_compact",
+      "recipe": "selections/chsh2_s_ss.json"
+    },
+    {
+      "name": "hcs_h2s_exit",
+      "case": "ch3ss",
+      "source": "compact_followup_20261025/hcs_h2s_exit_compact",
+      "recipe": "selections/hcs_h2s_exit.json",
+      "supporting_reviews": [
+        "compact_resolution_20261025/hcs_h2s_exit_resolution"
+      ]
+    },
+    {
+      "name": "well_r12_insertion_r_2_1_5",
+      "case": "ch3ss",
+      "source": "compact_resolution_20261025/well_r12_insertion_r_2_1_5",
+      "recipe": "selections/well_r12_insertion_r_2_1_5.json"
+    },
+    {
+      "name": "well_r12_insertion_r_2_1_6",
+      "case": "ch3ss",
+      "source": "compact_resolution_20261025/well_r12_insertion_r_2_1_6",
+      "recipe": "selections/well_r12_insertion_r_2_1_6.json"
+    },
+    {
+      "name": "well_hom_sci_2_3",
+      "case": "ch3ss",
+      "source": "compact_resolution_20261025/well_hom_sci_2_3",
+      "recipe": "selections/well_hom_sci_2_3.json"
+    },
+    {
+      "name": "well_r12_insertion_r_2_3_4",
+      "case": "ch3ss",
+      "source": "compact_resolution_20261025/well_r12_insertion_r_2_3_4",
+      "recipe": "selections/well_r12_insertion_r_2_3_4.json"
+    },
+    {
+      "name": "well_r12_insertion_r_5_1_6",
+      "case": "ch3ss",
+      "source": "compact_resolution_20261025/well_r12_insertion_r_5_1_6",
+      "recipe": "selections/well_r12_insertion_r_5_1_6.json"
+    },
+    {
+      "name": "well_r12_insertion_r_6_1_2",
+      "case": "ch3ss",
+      "source": "compact_resolution_20261025/well_r12_insertion_r_6_1_2",
+      "recipe": "selections/well_r12_insertion_r_6_1_2.json"
+    },
+    {
+      "name": "well_r12_insertion_r_6_1_5",
+      "case": "ch3ss",
+      "source": "compact_resolution_20261025/well_r12_insertion_r_6_1_5",
+      "recipe": "selections/well_r12_insertion_r_6_1_5.json"
+    },
+    {
+      "name": "well_hom_sci_1_2",
+      "case": "ch3ss",
+      "source": "compact_union_20261025/well_hom_sci_1_2",
+      "recipe": "selections/well_hom_sci_1_2.json"
+    }
+  ]
+}

@@ -44,9 +44,21 @@ and give every anchor an `orbital_chain`. The first anchor in each chain names
 the completed `seed` job and its basis-specific `seed_sha256`; later anchors
 set `propagate: true` and consume their immediate predecessor. Anchor order is
 execution order, allowing inward or outward continuation. Keep a counted
-`orbital_partition`; zero closure/discard counts retain the source CAS.
+`orbital_partition`; zero closure/discard/promotion counts retain the source CAS.
 Different mapped coordinates cannot silently join a chain. SCF-index candidates
 remain independent; a natural checkpoint must first establish the packed space.
+
+For a specifically reviewed occupied natural direction outside that source CAS,
+`orbital_partition.open_highest_closed: n` promotes the highest `n` inactive
+orbitals in the source checkpoint order. Each adds two electrons and one orbital;
+`close_lowest` must be zero, the source must have at least `n` closed orbitals,
+and target counts must agree. This is an explicit diagnostic model choice, never
+an automatic recovery. For example, a 41-electron CAS(7,5) checkpoint has 17
+closed orbitals and active 18–22. Opening one retains natural 17–22 as CAS(9,6)
+with `closed,16; occ,22`. It does not select canonical orbital 17 or freeze any
+orbital. The first chain point consumes the source partition; successors consume
+the completed target-space checkpoint without another promotion. Native orbital
+character must still be checked after optimization.
 
 The existing runner checks predecessor completion and WFU hashes before
 submission, journals the consumed hash, and shares the campaign resource cap.

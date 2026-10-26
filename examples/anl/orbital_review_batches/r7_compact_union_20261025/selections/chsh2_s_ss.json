@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "review_note": "Reviewed 2026-10-25. CHSH2 + S: the three atomic-sulfur 3p directions (four electrons) plus the fragment radical. Source canonical 18,20,21,22; selected near natural 19-22. Three doublets and three quartets represent the sulfur spatial manifold, with equal total spin-block weights. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote.",
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_hom_sci_2_3",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]=[S]([H])[H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 3,
+        "smiles": "[S]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 5,
+    "active_orbitals": 4,
+    "source": "Reviewed 2026-10-25. CHSH2 + S: the three atomic-sulfur 3p directions (four electrons) plus the fragment radical. Source canonical 18,20,21,22; selected near natural 19-22. Three doublets and three quartets represent the sulfur spatial manifold, with equal total spin-block weights. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__ss_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        19,
+        20,
+        21,
+        22
+      ],
+      "wfu_sha256": "8b180598cfe458d6623bbab9c3c63bcbc8914ce73db882534f808dbc4167c433",
+      "output_sha256": "7e6ff959078cf5135706edf13a51d26ee5a329293b965ef49e544002511db080"
+    },
+    "avtz-f12": {
+      "job": "atz__ss_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        19,
+        20,
+        21,
+        22
+      ],
+      "wfu_sha256": "e5622aac1cb6520e951a068766e8f2c8a1e017ae38d3686ac58127b70c47d54d",
+      "output_sha256": "8a2f88bd81ad5bce9104de3eee711efa892aa185b78b4e54572d44d0b11ab560"
+    }
+  },
+  "state_model": {
+    "canonical_orbitals": true,
+    "selected_roots": {
+      "2": 1,
+      "4": 1
+    },
+    "state_average": [
+      {
+        "block_weight": 1.0,
+        "multiplicity": 4,
+        "roots": 3,
+        "weights": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ]
+      },
+      {
+        "block_weight": 1.0,
+        "multiplicity": 2,
+        "roots": 3,
+        "weights": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ]
+      }
+    ],
+    "casscf_options": {
+      "energy_convergence": 1e-08,
+      "exact_diagonalization": true,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999,
+      "quasi_newton": true,
+      "solver": "so_sci"
+    },
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    }
+  },
+  "coordinate": "reactive",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(5,4)",
+    "vrc_tst_sample_method": "caspt2-f12(5,4)",
+    "vrc_tst_high_method": "caspt2-f12(5,4)",
+    "vrc_tst_state_average_roots": {
+      "4": 3,
+      "2": 3
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1,
+      "4": 1
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
+  },
+  "required_complete_jobs": [
+    "adz__ss_r_2",
+    "adz__ss_r_30",
+    "atz__ss_r_2",
+    "atz__ss_r_30"
+  ],
+  "source_model": "chsh2_s_ss_s_p_radical",
+  "status": "ready"
+}

@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "review_note": "Reviewed 2026-10-25. HCSSH + H product exit: retain the H SOMO, natural 21, as formal CAS(1,1). Both tested CAS(3,2) occupied-donor choices give the same endpoint energies and exactly 2/1 occupations at reported precision; no need for either occupied donor as an active orbital was established. CAS(1,1) is a compact production model choice from those single-configuration data, not a separately completed CAS(1,1) or correlated-potential validation. The filled donor stays inactive and optimized. This endpoint has its own H identity and geometry. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry.",
+  "request_match": {
+    "parent": "791671450790040000002",
+    "reaction": "791671450790040000002_r12_insertion_R_6_1_5",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      3,
+      6
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]#[S]#[S][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 1,
+    "active_orbitals": 1,
+    "source": "Reviewed 2026-10-25. HCSSH + H product exit: retain the H SOMO, natural 21, as formal CAS(1,1). Both tested CAS(3,2) occupied-donor choices give the same endpoint energies and exactly 2/1 occupations at reported precision; no need for either occupied donor as an active orbital was established. CAS(1,1) is a compact production model choice from those single-configuration data, not a separately completed CAS(1,1) or correlated-potential validation. The filled donor stays inactive and optimized. This endpoint has its own H identity and geometry. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__exit_l2",
+      "record": "2140.2",
+      "active_indices": [
+        21
+      ],
+      "wfu_sha256": "08b8edccd67ee37cb21001107c90733ca0b76ed5623fa920dc18617b934c731c",
+      "output_sha256": "016938af3f011c73dd7d61c4772990e3025b1d43cf7de8a87efbe6840596ad52"
+    },
+    "avtz-f12": {
+      "job": "atz__exit_l2",
+      "record": "2140.2",
+      "active_indices": [
+        21
+      ],
+      "wfu_sha256": "4a85e733a9273196f29bd8995a978c3bdcad3e8b4af394875f289476fcabf491",
+      "output_sha256": "827f4e483207f94dac56c3c92c2f979adefa9138b7254baacfe7801f0c4e17b5"
+    }
+  },
+  "state_model": {
+    "canonical_orbitals": true,
+    "selected_roots": {
+      "2": 1
+    },
+    "state_average": [
+      {
+        "multiplicity": 2,
+        "roots": 1,
+        "weights": [
+          1.0
+        ]
+      }
+    ],
+    "casscf_options": {
+      "energy_convergence": 1e-08,
+      "exact_diagonalization": true,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999,
+      "quasi_newton": true,
+      "solver": "so_sci"
+    },
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    }
+  },
+  "coordinate": "com",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(1,1)",
+    "vrc_tst_sample_method": "caspt2-f12(1,1)",
+    "vrc_tst_high_method": "caspt2-f12(1,1)",
+    "vrc_tst_state_average_roots": {
+      "2": 1
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
+  },
+  "required_complete_jobs": [
+    "adz__exit_l2",
+    "adz__exit_r_30p0",
+    "atz__exit_l2",
+    "atz__exit_r_30p0"
+  ],
+  "source_model": "well_r12_insertion_r_6_1_5_s_donor",
+  "status": "ready"
+}

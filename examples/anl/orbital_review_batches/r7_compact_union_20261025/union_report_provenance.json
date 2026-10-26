@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "report": "union_character_evidence.txt",
+  "sha256": "261bf3e69dae7e023e22bc77313d2a9fa1381e83612525fe60ca85abfbbfdc9d",
+  "capture_time": "2026-10-25T17:25:59-07:00",
+  "jobs_complete": 10,
+  "reviewed_for_selection": 6,
+  "held_for_character_review": 4,
+  "local_native_archive_verified": false,
+  "note": "Printed report supplied by user; binary/XML files remain on Blodgett. Earlier source archive separately verified."
+}

@@ -1,0 +1,424 @@
+Live controls: revision 1; hold failures=False; requests={'applied': 16}
+Shared pool: cap 23 across all runs/branches under /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7
+  (revision 14)
+New-submission exclusions:
+  node1,node10,node13,node14,node16,node20,node21,node22,node23,node24,node29,node30,node33,node34,node9
+Allocations under monitored root: 22 (includes diagnostic jobs).
+OVERVIEW ch3s: jobs=12; controllers=21
+  470831050000000000002: cbh_anl=running; vrc_scans/corrections=complete; rotdpy=running (2); PES stage=postprocessing
+  471030810040000000002: cbh_anl=running; vrc_scans/corrections=complete; rotdpy=running (1); PES stage=postprocessing
+  471230610040000000002: cbh_anl=running; vrc_scans/corrections=complete; rotdpy=running (1); PES stage=postprocessing
+  471430450000000000002-s06a7b4c221beb748: cbh_anl=running; vrc_scans/corrections=complete; rotdpy=no linked campaign
+    record; PES stage=postprocessing
+OVERVIEW ch3ss: jobs=10; controllers=15
+  791471490990000000002: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=running (1); PES
+    stage=vrc
+  791472110370000000002: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=no linked campaign
+    record; PES stage=vrc
+  791671450790040000002: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=no linked campaign
+    record; PES stage=vrc
+  791671580700000000002-s36f1e2b924862f12: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=no
+    linked campaign record; PES stage=vrc
+  791871710370000000002: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=no linked campaign
+    record; PES stage=vrc
+OVERVIEW diagnostics: jobs=0; controllers=0; diagnostic results require review before production use
+
+=== ch3s ===
+PES exploration: postprocessing; epoch=0; wells={'postprocessing': 4}; owner=present
+Exploration slots: 0/5; unstarted wells=0 (separate from the QC node pool).
+Outer PES L2 selection: 9 retained; 20 omitted by pathway policy.
+Slurm: 12 allocations / shared pool; local processes: 21
+JOB       STATE       NODES       ELAPSED / LIMIT   CPU  MEMORY  NAME
+52933568  PENDING                 0:00 / 31-00:00:00  8  73820M  rotd-s75-f0-n8
+  WorkDir: rotdPy/kb_470831050000000000002_hom_sci_1_2__single_m2_r1/Surface_75/jobs
+  Reason: (Priority)
+52933565  PENDING                 0:00 / 31-00:00:00  8  73820M  rotd-s85-f0-n8
+  WorkDir: rotdPy/kb_470831050000000000002_hom_sci_1_2__single_m2_r2/Surface_85/jobs
+  Reason: (Resources)
+52929239  RUNNING     node32      1-00:18:31 / 31-00:00:00  96  0  kb-ccsdtqp_dz
+  WorkDir: ANL/state_684eb53c4637f96a/ccsdtqp_dz
+52929237  RUNNING     node3       1-00:43:33 / 31-00:00:00  96  0  kb-ccsdtq_tz
+  WorkDir: ANL/state_684eb53c4637f96a/ccsdtq_tz
+52928790  RUNNING     node11      1-07:36:45 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/ts_0450141d9a891e9c/l3_geometry
+52924269  RUNNING     node26      2-11:09:02 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/state_074fcc5ef5188035/l3_geometry
+52924255  RUNNING     node18      2-12:35:23 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/state_c665c0c83e11968b/l3_geometry
+52924199  RUNNING     node28      2-15:59:21 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/state_9b7047433cae3eb9/l3_geometry
+52924181  RUNNING     node17      2-16:49:36 / 31-00:00:00  96  0  kb-ccsdtqp_dz
+  WorkDir: ANL/state_358d011bcfb05a75/ccsdtqp_dz
+52924178  RUNNING     node35      2-16:54:45 / 31-00:00:00  96  0  kb-ccsdtq_tz
+  WorkDir: ANL/state_358d011bcfb05a75/ccsdtq_tz
+52921757  RUNNING     node4       3-00:14:38 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/ts_857b1afac1911a45/l3_geometry
+52918345  RUNNING     node2       3-08:28:55 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/ts_72ecf8afb235bd9e/l3_geometry
+  Slurm exclusions: node[1,9-10,13-14,16,20-24,29-30,33-34]
+  Slurm exclusions: node[1,9-10,13-14,16,21-24,29-30,33-34]
+Local: kinbot.rotdpy PID 45784 [S]; kinbot.rotdpy PID 45785 [S]; kinbot.rotdpy PID 45787 [S]; kinbot.rotdpy_policy PID
+  45795 [S]; kinbot.rotdpy_policy PID 45800 [S]; kinbot.rotdpy_policy PID 45805 [S]; kinbot.rotdpy PID 54953 [S];
+  kinbot.rotdpy_policy PID 54955 [S]; kinbot.pes PID 1786469 [S]; kinbot.kb PID 1786495 [S]; kinbot.kb PID 1786510 [S];
+  kinbot.kb PID 1786520 [S]; kinbot.kb PID 1786551 [S]; kinbot.run_policy PID 2177334 [S]; kinbot.run_policy PID 2177335
+  [S]; kinbot.run_policy PID 2177580 [S]; kinbot.run_policy PID 2177581 [S]; kinbot.run_policy PID 2177842 [S];
+  kinbot.run_policy PID 2177843 [S]; kinbot.run_policy PID 2178416 [S]; kinbot.run_policy PID 2178417 [S]
+Composite preflight: complete; graphs checked 9/9; ready_for_dispatch
+Composite preflight: complete; graphs checked 5/5; ready_for_dispatch
+Composite preflight: complete; graphs checked 8/8; ready_for_dispatch
+Composite preflight: complete; graphs checked 1/1; ready_for_dispatch
+PES workers: total=4  running=4  finished=0
+Archived task attempts excluded: 26 graph(s).
+FAILED QC EXIT: 471030810040000000002/471030810040000000002_12_shift_S_R_2_1_5.exitcode job=52914598 exit=1
+FAILED QC EXIT: 471230610040000000002/471230610040000000002_R_Addition_CSm_R_5_1_2.exitcode job=52914761 exit=1
+FAILED QC EXIT: 471230610040000000002/471230610040000000002_r12_insertion_R_2_1_5.exitcode job=52915351 exit=1
+WORKER 470831050000000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 6, 'failed/rejected': 2}
+  Accepted searches reach 3 product group(s); counts are not unique saddles.
+WORKER 471030810040000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 10, 'failed/rejected': 11}
+  Accepted searches reach 4 product group(s); counts are not unique saddles.
+WORKER 471230610040000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 10, 'failed/rejected': 10}
+  Accepted searches reach 4 product group(s); counts are not unique saddles.
+WORKER 471430450000000000002-s06a7b4c221beb748: running; PES says Running
+  Reaction search outcomes: {'accepted': 3, 'failed/rejected': 12}
+  Accepted searches reach 2 product group(s); counts are not unique saddles.
+Dispatch tasks (246 graphs): complete=1115  skipped=28  staged=306  submitted=12  waiting=304
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 470831050000000000002_hom_sci_1_2__single_m2_r1: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 470831050000000000002_hom_sci_1_2__single_m2_r1_vts_pt_asymptote (30.0 A; may be
+      reused).
+  SCAN 470831050000000000002_hom_sci_1_2__single_m2_r2: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 470831050000000000002_hom_sci_1_2__single_m2_r2_vts_pt_asymptote (30.0 A; may be
+      reused).
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 471030810040000000002_hom_sci_1_2__single_m2_r1: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 471030810040000000002_hom_sci_1_2__single_m2_r1_vts_pt_asymptote (30.0 A; may be
+      reused).
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 471230610040000000002_hom_sci_1_2__single_m2_r1: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 471230610040000000002_hom_sci_1_2__single_m2_r1_vts_pt_asymptote (30.0 A; may be
+      reused).
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 471430450000000000002-s06a7b4c221beb748_hom_sci_1_2__single_m2_r1: operator_rejected; excluded from production;
+    old points/errors retained in --details / --json.
+ROTD CAMPAIGN 470831050000000000002_hom_sci_1_2__single_m2_r1: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD CAMPAIGN 470831050000000000002_hom_sci_1_2__single_m2_r2: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD CAMPAIGN 471030810040000000002_hom_sci_1_2__single_m2_r1: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD CAMPAIGN 471230610040000000002_hom_sci_1_2__single_m2_r1: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD rotdPy/kb_470831050000000000002_hom_sci_1_2__single_m2_r1: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+ROTD rotdPy/kb_470831050000000000002_hom_sci_1_2__single_m2_r2: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+ROTD rotdPy/kb_471030810040000000002_hom_sci_1_2__single_m2_r1: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+ROTD rotdPy/kb_471230610040000000002_hom_sci_1_2__single_m2_r1: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+  KINBOT LOGS
+    pes.log | 6.3h ago
+      11:07:15-INFO: kb: 1 for 471430450000000000002-s06a7b4c221beb748
+      11:07:16-INFO: Started job 471430450000000000002-s06a7b4c221beb748 at 2026-10-25 11:07:16.864700. PID = 1786551
+      11:07:17-INFO: len(jobs):  4
+      11:07:17-INFO: len(running):  4
+    470831050000000000002/kinbot.log | 6.2h ago
+      11:11:43-INFO: Creating rotdPy input for reaction 470831050000000000002_hom_sci_1_2__single_m2_r1
+      11:11:48-INFO: Creating rotdPy input for reaction 470831050000000000002_hom_sci_1_2__single_m2_r2
+      11:11:52-INFO: Ready VRC surface(s) sampling independently: 470831050000000000002_hom_sci_1_2
+      11:11:52-INFO: Independent VRC-TST branch is complete
+    471030810040000000002/kinbot.log | 6.2h ago
+      11:12:19-INFO: Creating rotdPy input for reaction 471030810040000000002_hom_sci_1_2
+      11:12:19-INFO: Creating rotdPy input for reaction 471030810040000000002_hom_sci_1_2__single_m2_r1
+      11:12:33-INFO: Ready VRC surface(s) sampling independently: 471030810040000000002_hom_sci_1_2
+      11:12:33-INFO: Independent VRC-TST branch is complete
+    471230610040000000002/kinbot.log | 6.2h ago
+      11:12:33-INFO: Creating rotdPy input for reaction 471230610040000000002_hom_sci_1_2
+      11:12:33-INFO: Creating rotdPy input for reaction 471230610040000000002_hom_sci_1_2__single_m2_r1
+      11:12:47-INFO: Ready VRC surface(s) sampling independently: 471230610040000000002_hom_sci_1_2
+      11:12:47-INFO: Independent VRC-TST branch is complete
+    More log tails available with --all --details (or --json).
+  QC OUTPUT
+    rotdPy/kb_471230610040000000002_hom_sci_1_2__single_m2_r1/rotdpy.log | 3.0h ago
+      07:49:26-WARNING: Slurm job 52928501 ended in state FAILED for surface 114 face 0 sample 3.
+      07:49:26-WARNING: Slurm no longer reports job 52928493 for surface 113 face 0 sample 3: slurm_load_jobs error:
+        Invalid job id specified
+      10:29:15-WARNING: Slurm no longer reports job 52930706 for surface 114 face 0 sample 4: slurm_load_jobs error:
+        Invalid job id specified
+      14:27:30-WARNING: Slurm no longer reports job 52932041 for surface 114 face 0 sample 4: slurm_load_jobs error:
+        Invalid job id specified
+      18:41:05-WARNING: Slurm no longer reports job 52926564 for surface 115 face 0 sample 1: slurm_load_jobs error:
+        Invalid job id specified
+      22:50:04-WARNING: Slurm no longer reports job 52927468 for surface 115 face 0 sample 1: slurm_load_jobs error:
+        Invalid job id specified
+    471230610040000000002/perm/471230610040000000002_r12_insertion_R_2_1_5.err | 96.3h ago
+      Worker failure: Optimization did not converge within 750 steps.
+    471230610040000000002/471230610040000000002_r12_insertion_R_2_1_5_sella.log | 96.3h ago
+      Sella 747 17:05:04   -11915.834896       0.0027       0.0000       0.0001       1.0000     894
+      Sella 748 17:05:07   -11915.834896       0.0027       0.0000       0.0001      -0.0000     895
+      Sella 749 17:05:10   -11915.834896       0.0027       0.0000       0.0001       0.0000     896
+      Sella 750 17:05:12   -11915.834896       0.0027       0.0000       0.0001      -0.0000     897
+      Worker failure: Optimization did not converge within 750 steps.
+    471230610040000000002/perm/471230610040000000002_R_Addition_CSm_R_5_1_2.err | 97.3h ago
+      Worker failure: Optimization did not converge within 750 steps.
+    More log tails available with --all --details (or --json).
+
+=== ch3ss ===
+PES exploration: exploring; epoch=0; wells={'vrc': 5, 'exploring': 5}; owner=present
+Exploration slots: 5/5; unstarted wells=0 (separate from the QC node pool).
+New ANL work waits for outer PES L2 pathway selection; retained QC may still be running.
+Slurm: 10 allocations / shared pool; local processes: 15
+JOB       STATE       NODES       ELAPSED / LIMIT   CPU  MEMORY  NAME
+52933569  PENDING                 0:00 / 31-00:00:00  8  73820M  rotd-s32-f0-n4
+  WorkDir: rotdPy/kb_791471490990000000002_hom_sci_1_2__single_m2_r1/Surface_32/jobs
+  Reason: (Priority)
+52933567  PENDING                 0:00 / 31-00:00:00  8  10G
+  791871560500020000002-s254020c87a151164_R_Addition_MultipleBond_3_2_6.sbatch
+  WorkDir: 791871560500020000002-s254020c87a151164
+  Reason: (Priority)
+52933566  PENDING                 0:00 / 31-00:00:00  8  73820M  rotd-s31-f0-n4
+  WorkDir: rotdPy/kb_791471490990000000002_hom_sci_1_2__single_m2_r1/Surface_31/jobs
+  Reason: (Priority)
+52933564  RUNNING     node36      1:21 / 31-00:00:00  96  10G
+  791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_5_3_1.sbatch
+  WorkDir: 791671560700020000002-sedd8f7729b69b19b
+52933559  RUNNING     node7       2:35 / 31-00:00:00  96  104000M  kb-relaxed_scan
+  WorkDir: VRC/791671580700000000002-s36f1e2b924862f12_hom_sci_2_3__single_m2_r1_vts_pt03_97853373194e91d1/relaxed_scan
+52933550  RUNNING     node8       3:26 / 31-00:00:00  96  10G
+  791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_4_2_1.sbatch
+  WorkDir: 791671560700020000002-sedd8f7729b69b19b
+52933520  RUNNING     node31      10:24 / 31-00:00:00  96  10G
+  791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_2.sbatch
+  WorkDir: 791671560700020000002-sedd8f7729b69b19b
+52933181  RUNNING     node15      1:18:30 / 31-00:00:00  96  104000M  kb-relaxed_scan
+  WorkDir: VRC/hom_sci_2_3__single_m2_r1_vts_pt22_c3d3306f4aa4ae41/relaxed_scan
+52931974  RUNNING     node19      3:20:45 / 31-00:00:00  96  104000M  kb-relaxed_scan
+  WorkDir: VRC/791671580700000000002-s36f1e2b924862f12_hom_sci_1_2__single_m2_r1_vts_pt01_b79548f952e38303/relaxed_scan
+52930179  RUNNING     node27      9:43:16 / 31-00:00:00  96  10G
+  791871560500020000002-sb6e34ded5baaf03b_h2_elim_5_6_high.sbatch
+  WorkDir: 791871560500020000002-sb6e34ded5baaf03b
+  Slurm exclusions: node[1,9-10,13-14,16,20-24,29-30,33-34]
+Local: kinbot.pes PID 1786470 [S]; kinbot.kb PID 1786498 [S]; kinbot.kb PID 1786513 [S]; kinbot.kb PID 1786523 [S];
+  kinbot.kb PID 1786553 [S]; kinbot.kb PID 1786591 [S]; kinbot.kb PID 1786686 [S]; kinbot.kb PID 1787063 [S]; kinbot.kb
+  PID 1801093 [S]; kinbot.kb PID 1801133 [S]; kinbot.kb PID 1819706 [S]; kinbot.rotdpy PID 1968622 [S];
+  kinbot.rotdpy_policy PID 1968658 [S]; kinbot.run_policy PID 2178497 [S]; kinbot.run_policy PID 2178498 [S]
+PES workers: total=10  running=10  finished=0
+Archived task attempts excluded: 1 graph(s).
+FAILED QC EXIT: 791471490990000000002/791471490990000000002_r12_insertion_R_4_1_5.exitcode job=52915416 exit=1
+FAILED QC EXIT: 791472110370000000002/791472110370000000002_h2_elim_5_6.exitcode job=52926389 exit=1
+FAILED QC EXIT:
+  791671580700000000002-s36f1e2b924862f12/conf/791671580700000000002-
+  s36f1e2b924862f12_r12_insertion_R_5_1_2_0002.exitcode job=52916910 exit=1
+WORKER 791471490990000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 5, 'failed/rejected': 13}
+  Accepted searches reach 4 product group(s); counts are not unique saddles.
+WORKER 791472110370000000002: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 13, 'accepted': 11}
+  Accepted searches reach 5 product group(s); counts are not unique saddles.
+WORKER 791671450790040000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 23, 'failed/rejected': 19}
+  Accepted searches reach 9 product group(s); counts are not unique saddles.
+WORKER 791671560700020000002-sdc19d1516ced03fc: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 2, 'product characterization': 1, 'TS search': 19, 'accepted': 1}
+  Accepted searches reach 1 product group(s); counts are not unique saddles.
+    791671560700020000002-sdc19d1516ced03fc_intra_H_migration_2_6: product characterization; step=16
+    791671560700020000002-sdc19d1516ced03fc_intra_H_migration_suprafacial_2_5: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_Intra_R_Add_ExoTetCyclic_F_2_3_5: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_1_2_4: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_3: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_6: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_4_2_1: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_6_1_2: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_R_Addition_MultipleBond_2_1_3: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_R_Addition_MultipleBond_2_1_6: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_R_Addition_MultipleBond_1_3_5: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_12_shift_S_F_1_2_4: TS search; step=6
+WORKER 791671560700020000002-sedd8f7729b69b19b: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 3, 'product/TS optimization': 2, 'TS search': 32, 'accepted': 1}
+  Accepted searches reach 1 product group(s); counts are not unique saddles.
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_1_5: product/TS optimization; step=16
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_2_6: product/TS optimization; step=16
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_3_4: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_suprafacial_2_5: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_suprafacial_3_4: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_2_3_5: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_3_2_4: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_1_2_4: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_1_3_5: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_2_1_3: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_2_1_6: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_2: TS search; step=12
+  Optimizing 791671560700020000002-sedd8f7729b69b19b_intra_H_migration_1_5: pending=['transition_state', 'product_0']
+    failures=[]
+  Optimizing 791671560700020000002-sedd8f7729b69b19b_intra_H_migration_2_6: pending=['transition_state', 'product_0',
+    'product_1'] failures=[]
+WORKER 791671580700000000002-s36f1e2b924862f12: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 26, 'accepted': 20}
+  Accepted searches reach 8 product group(s); counts are not unique saddles.
+WORKER 791671580700000000002-s8fc26f5f496eeb4e: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 1, 'product/TS optimization': 1, 'start product/TS optimization': 2, 'TS
+    search': 38, 'final validation': 2}
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_2_4: product/TS optimization; step=16
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_2_5: start product/TS optimization; step=16
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_6: start product/TS optimization; step=16
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_suprafacial_3_4: TS search; step=9
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_suprafacial_3_5: TS search; step=9
+    791671580700000000002-s8fc26f5f496eeb4e_Intra_R_Add_Endocyclic_F_3_1: TS search; step=21
+    791671580700000000002-s8fc26f5f496eeb4e_Intra_R_Add_Endocyclic_F_1_3: TS search; step=21
+    791671580700000000002-s8fc26f5f496eeb4e_Intra_R_Add_ExoTetCyclic_F_3_1_4: TS search; step=9
+    791671580700000000002-s8fc26f5f496eeb4e_Intra_R_Add_ExoTetCyclic_F_3_1_5: TS search; step=9
+    791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_1_2_3: TS search; step=8
+    791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_1_2_6: TS search; step=8
+    791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_2_1_4: TS search; step=8
+  Optimizing 791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_2: pending=[] failures=[]
+  Optimizing 791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3: pending=[] failures=[]
+WORKER 791871560500020000002-s254020c87a151164: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 3, 'product characterization': 2, 'TS search': 32, 'product/TS
+    optimization': 1, 'final validation': 1}
+    791871560500020000002-s254020c87a151164_intra_H_migration_2_5: product characterization; step=16
+    791871560500020000002-s254020c87a151164_intra_H_migration_2_4: product characterization; step=16
+    791871560500020000002-s254020c87a151164_intra_H_migration_suprafacial_1_4: TS search; step=7
+    791871560500020000002-s254020c87a151164_intra_H_migration_suprafacial_3_5: TS search; step=7
+    791871560500020000002-s254020c87a151164_Intra_R_Add_Endocyclic_F_3_1: TS search; step=19
+    791871560500020000002-s254020c87a151164_Intra_R_Add_ExoTetCyclic_F_1_3_4: TS search; step=7
+    791871560500020000002-s254020c87a151164_Intra_R_Add_ExoTetCyclic_F_3_1_5: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_1_2_3: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_1_2_6: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_2_3_4: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_3_2_1: TS search; step=7
+  Optimizing 791871560500020000002-s254020c87a151164_hom_sci_1_2: pending=['product_1'] failures=[]
+  Optimizing 791871560500020000002-s254020c87a151164_hom_sci_2_3: pending=[] failures=[]
+WORKER 791871560500020000002-sb6e34ded5baaf03b: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 32, 'accepted': 6, 'product/TS optimization': 1}
+  Accepted searches reach 5 product group(s); counts are not unique saddles.
+    791871560500020000002-sb6e34ded5baaf03b_h2_elim_5_6: product/TS optimization; step=23
+  Optimizing 791871560500020000002-sb6e34ded5baaf03b_h2_elim_5_6: pending=['transition_state'] failures=[]
+WORKER 791871710370000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 15, 'failed/rejected': 19}
+  Accepted searches reach 9 product group(s); counts are not unique saddles.
+Dispatch tasks (87 graphs): complete=178  submitted=3
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 791471490990000000002_hom_sci_1_2__single_m2_r1: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 791471490990000000002_hom_sci_1_2__single_m2_r1_vts_pt_asymptote (30.0 A; may be
+      reused).
+  SCAN 791471490990000000002_hom_sci_2_3__single_m2_r1: running; current pass={'accepted': 22, 'running': 1};
+    saved={'accepted': 22, 'running': 1}
+    Last accepted in this pass: 791471490990000000002_hom_sci_2_3__single_m2_r1_vts_pt21 (6.2 A; may be reused).
+    791471490990000000002_hom_sci_2_3__single_m2_r1_vts_pt22: running (6.4 A)
+MESS gate: waiting; solver: {'status': 'ready'}
+  REVIEW HOLD 791472110370000000002/vrc_model_review.json: 791472110370000000002_r12_insertion_R_2_1_5: IRC endpoint
+    does not contain two fragments.
+  REVIEW HOLD 791671450790040000002/vrc_model_review.json: Orbital/state review still required or unconfirmed for:
+    791671450790040000002_r12_insertion_R_2_1_5, 791671450790040000002_r12_insertion_R_2_1_6,
+    791671450790040000002_r12_insertion_R_2_3_4, 791671450790040000002_r12_insertion_R_5_1_6,
+    791671450790040000002_r12_insertion_R_6_1_2, 791671450790040000002_r12_insertion_R_6_1_5,
+    791671450790040000002_hom_sci_1_2, 791671450790040000002_hom_sci_2_3
+MESS gate: waiting; solver: {'status': 'ready'}
+  VRC REVIEW 791671580700000000002-s36f1e2b924862f12/vrc_model_review.json: listed channel models accepted; old
+    aggregate hold superseded (not a QC completion verdict).
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 791671580700000000002-s36f1e2b924862f12_hom_sci_1_2__single_m2_r1: running; current pass={'accepted': 1,
+    'running': 1}; saved={'accepted': 1, 'running': 1}
+    Last accepted in this pass: 791671580700000000002-s36f1e2b924862f12_hom_sci_1_2__single_m2_r1_vts_pt00 (2.0 A; may
+      be reused).
+    791671580700000000002-s36f1e2b924862f12_hom_sci_1_2__single_m2_r1_vts_pt01: running (2.2 A)
+  SCAN 791671580700000000002-s36f1e2b924862f12_hom_sci_2_3__single_m2_r1: running; current pass={'accepted': 3,
+    'running': 1}; saved={'accepted': 3, 'running': 1}
+    Last accepted in this pass: 791671580700000000002-s36f1e2b924862f12_hom_sci_2_3__single_m2_r1_vts_pt02 (2.4 A; may
+      be reused).
+    791671580700000000002-s36f1e2b924862f12_hom_sci_2_3__single_m2_r1_vts_pt03: running (2.6 A)
+MESS gate: waiting; solver: {'status': 'ready'}
+  REVIEW HOLD 791871710370000000002/vrc_model_review.json: Orbital/state review still required or unconfirmed for:
+    791871710370000000002_r12_insertion_R_2_1_5, 791871710370000000002_R_Addition_CSm_R_5_1_2,
+    791871710370000000002_hom_sci_1_2, 791871710370000000002_hom_sci_2_3
+Failures: 1 tasks/records; 1 distinct diagnostics
+  1 affected: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50 cm^-1.
+    Optimizer convergence alone does not establish the stationary-point order.
+    791671580700000000002-s36f1e2b924862f12/conf/791671580700000000002-
+      s36f1e2b924862f12_r12_insertion_R_5_1_2_0002.result.json
+ROTD CAMPAIGN 791471490990000000002_hom_sci_1_2__single_m2_r1: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD rotdPy/kb_791471490990000000002_hom_sci_1_2__single_m2_r1: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+  KINBOT LOGS
+    pes.log | 5.7h ago
+      11:44:09-INFO: Job: 791671560700020000002-sdc19d1516ced03fc
+      11:44:09-INFO: kb: 1 for 791671560700020000002-sdc19d1516ced03fc
+      11:44:10-INFO: Started job 791671560700020000002-sdc19d1516ced03fc at 2026-10-25 11:44:10.523992. PID = 1819706
+      11:44:11-INFO: len(running):  10
+    791471490990000000002/kinbot.log | 1.3h ago
+      13:41:11-INFO: Creating rotdPy input for reaction 791471490990000000002_hom_sci_1_2
+      13:41:11-INFO: Creating rotdPy input for reaction 791471490990000000002_hom_sci_1_2__single_m2_r1
+      13:41:41-INFO: Ready VRC surface(s) sampling independently: 791471490990000000002_hom_sci_1_2
+      16:06:58-INFO: Accepted 791471490990000000002_hom_sci_2_3__single_m2_r1_vts_pt21 at RS2-caspt2-f12(7,5)/avdz-f12
+        (6.200 angstrom)
+    791472110370000000002/kinbot.log | 6.1h ago
+      11:22:45-INFO: Shared scheduling pool /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7: live limit
+        23; no branch reservations.
+      11:22:45-INFO: Starting the independent VRC-TST branch
+      11:22:45-INFO: Bond to be scanned for 791472110370000000002_hom_sci_1_2 is                             [1 2]
+      11:22:45-WARNING: 791472110370000000002_r12_insertion_R_2_1_5: IRC endpoint does not contain two fragments.
+        Waiting for live review/retry input.
+    791671450790040000002/kinbot.log | 5.7h ago
+      11:44:09-WARNING: 791671450790040000002_r12_insertion_R_6_1_5 Held for orbital review: 791671450790040000002: VRC
+        needs a reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input.
+        The initial well orbital indices cannot be silently reused.
+      11:44:09-WARNING: 791671450790040000002_hom_sci_1_2 Held for orbital review: 791671450790040000002: VRC needs a
+        reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input. The
+        initial well orbital indices cannot be silently reused.
+      11:44:09-WARNING: 791671450790040000002_hom_sci_2_3 Held for orbital review: 791671450790040000002: VRC needs a
+        reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input. The
+        initial well orbital indices cannot be silently reused.
+      11:44:09-WARNING: Orbital/state review required for: 791671450790040000002_hom_sci_1_2,
+        791671450790040000002_hom_sci_2_3, 791671450790040000002_r12_insertion_R_2_1_5,
+        791671450790040000002_r12_insertion_R_2_1_6, 791671450790040000002_r12_insertion_R_2_3_4,
+        791671450790040000002_r12_insertion_R_5_1_6, 791671450790040000002_r12_insertion_R_6_1_2,
+        791671450790040000002_r12_insertion_R_6_1_5 Waiting for live review/retry input.
+    More log tails available with --all --details (or --json).
+  QC OUTPUT
+    791472110370000000002/perm/791472110370000000002_h2_elim_5_6.err | 48.1h ago
+      Worker failure: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50
+        cm^-1. Optimizer convergence alone does not establish the stationary-point order.
+    791472110370000000002/791472110370000000002_h2_elim_5_6_sella.log | 48.1h ago
+      Step     Time          Energy         fmax         cmax       rtrust          rho   trjid
+      Sella  94 17:17:10   -22754.716528       0.0038       0.0000       0.1013       1.0832     159
+      Sella  95 17:17:15   -22754.716525       0.0028       0.0000       0.0282      -0.1090     160
+      Sella  96 17:17:19   -22754.716538       0.0070       0.0000       0.0282       0.9981     161
+      Worker failure: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50
+        cm^-1. Optimizer convergence alone does not establish the stationary-point order.
+791671580700000000002-s36f1e2b924862f12/perm/conf/791671580700000000002-s36f1e2b924862f12_r12_insertion_R_5_1_2_0002.err
+      | 93.4h ago
+      Worker failure: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50
+        cm^-1. Optimizer convergence alone does not establish the stationary-point order.
+    791671580700000000002-s36f1e2b924862f12/conf/791671580700000000002-
+      s36f1e2b924862f12_r12_insertion_R_5_1_2_0002_sella.log | 93.4h ago
+      Step     Time          Energy         fmax         cmax       rtrust          rho   trjid
+      Sella  51 20:00:04   -22751.022613       0.0005       0.0000       0.0424       0.4747      77
+      Sella  52 20:00:08   -22751.022614       0.0017       0.0000       0.0424       0.8273      78
+      Sella  53 20:00:13   -22751.022614       0.0008       0.0000       0.0424       1.7781      79
+      Worker failure: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50
+        cm^-1. Optimizer convergence alone does not establish the stationary-point order.
+    More log tails available with --all --details (or --json).
+
+=== diagnostics ===
+Slurm: 0 allocations / shared pool; local processes: 0
+Dispatch tasks (1 graphs): failed=1
+Failures: 1 tasks/records; 1 distinct diagnostics
+  1 affected: ASE geometry optimization did not converge.
+    vrc_branch_probes/probe_c71c63ff9a97a602/tasks/relaxed_scan
+  QC OUTPUT
+    vrc_branch_probes/probe_c71c63ff9a97a602/tasks/relaxed_scan/slurm.stderr | 74.9h ago
+      Traceback (most recent call last):
+      RuntimeError: relaxed_scan: ASE geometry optimization did not converge.
+INACTIVE: no live jobs/controllers observed. This is not a completion verdict.
+
+Read-only | --all: reaction history / more logs | --details: full current records | --raw-logs: unfiltered tails |
+  --json: snapshot
+Archived task attempts are excluded; retained files are unchanged. Log reads are bounded (40; --all: 200).
+Tails may include earlier errors; quiet output is not proof of a stall. Statuses are not a scientific audit.
+Legacy PES Finished means exited, not successful.
+hram@blodgett:~$

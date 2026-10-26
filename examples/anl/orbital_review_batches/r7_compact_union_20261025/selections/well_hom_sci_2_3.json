@@ -1,0 +1,136 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "review_note": "Reviewed 2026-10-25. CH2S + SH: CH2S pi/pi-star plus both SH p components. Source canonical 18,19,21,22, optimized natural 19-22. The alternate donor initialization converges to the same compact solutions at both endpoints in both bases. Two equally weighted doublets support the SH orbital pair. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote.",
+  "request_match": {
+    "parent": "791671450790040000002",
+    "reaction": "791671450790040000002_hom_sci_2_3",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]([H])=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 5,
+    "active_orbitals": 4,
+    "source": "Reviewed 2026-10-25. CH2S + SH: CH2S pi/pi-star plus both SH p components. Source canonical 18,19,21,22, optimized natural 19-22. The alternate donor initialization converges to the same compact solutions at both endpoints in both bases. Two equally weighted doublets support the SH orbital pair. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__ss_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        19,
+        20,
+        21,
+        22
+      ],
+      "wfu_sha256": "45348f977fe3b5841dcacfa5e87fa46ef23cdfbb60e50aeecd0cf1e12ebb7646",
+      "output_sha256": "40e2b4516010aeabf8db5f46212cdcc032c210290c021502ee75e7542a9fc46b"
+    },
+    "avtz-f12": {
+      "job": "atz__ss_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        19,
+        20,
+        21,
+        22
+      ],
+      "wfu_sha256": "bccd9ae6012f202924dabd987e3272a06c0600bf024880c98139f300238762b3",
+      "output_sha256": "d802f5223c7f1e0e35d0cbf1a013c36e672efc6a25ad5d5f106cb7a3744270d5"
+    }
+  },
+  "state_model": {
+    "canonical_orbitals": true,
+    "selected_roots": {
+      "2": 1
+    },
+    "state_average": [
+      {
+        "block_weight": 1.0,
+        "multiplicity": 2,
+        "roots": 2,
+        "weights": [
+          0.5,
+          0.5
+        ]
+      }
+    ],
+    "casscf_options": {
+      "energy_convergence": 1e-08,
+      "exact_diagonalization": true,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999,
+      "quasi_newton": true,
+      "solver": "so_sci"
+    },
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    }
+  },
+  "coordinate": "reactive",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(5,4)",
+    "vrc_tst_sample_method": "caspt2-f12(5,4)",
+    "vrc_tst_high_method": "caspt2-f12(5,4)",
+    "vrc_tst_state_average_roots": {
+      "2": 2
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
+  },
+  "required_complete_jobs": [
+    "adz__ss_r_2",
+    "adz__ss_r_30",
+    "atz__ss_r_2",
+    "atz__ss_r_30"
+  ],
+  "source_model": "well_hom_sci_2_3_pi_sh",
+  "status": "ready"
+}

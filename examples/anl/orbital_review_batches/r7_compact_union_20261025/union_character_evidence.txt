@@ -1,0 +1,793 @@
+hram@blodgett:~$ bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+export PYTHONPATH="$PWD"
+KB_RUN="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7"
+KB_PANEL="$KB_RUN/orbital_recon/compact_union_20261025"
+KB_REPORT="$HOME/compact_union_character.$(date -u +%Y%m%dT%H%M%SZ).txt"
+
+"$PWD/.venv/bin/python" -B -m kinbot.requested_orbital_recon \
+  monitor "$KB_PANEL" >"$KB_REPORT"
+"$PWD/.venv/bin/python" -B -m kinbot.requested_orbital_recon \
+  character "$KB_PANEL" >>"$KB_REPORT"
+"$PWD/.venv/bin/python" -B -m kinbot.run_monitor \
+  "$KB_RUN" >>"$KB_REPORT"
+
+printf 'Report: %s\n' "$KB_REPORT"
+cat "$KB_REPORT"
+BASH
+Report: /home/hram/compact_union_character.20261026T002558Z.txt
+2026-10-25T17:25:59-07:00  campaign=complete_review_required  cap=3
+/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025
+manifest: total=10  VALIDATED=10
+Campaign excluded nodes: none
+Shared-pool exclusions for new submissions: node1,node10,node13,node14,node16,node20,node21,node22,node23,node24,node29,node30,node33,node34,node9
+Campaign retries (cumulative): startup=0  manual_startup=0  allocation=0
+Chains (VALIDATED = controller completion checks):
+  well_hom_sci_1_2_frontier_donor [manifest]: 6/6 validated
+  csh2_sh_exit_frontier_union [manifest]: 4/4 validated
+JOB       STATE          HOST       ELAPSED    OUT-AGE  MEM-REQ  EXCL(SLURM)  NATIVE/GUARD(RETRIES)
+52933442  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2  0 correlated roots recorded
+52933445  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_l2  0 correlated roots recorded
+52933447  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2p5  0 correlated roots recorded
+52933452  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_30  0 correlated roots recorded
+52933453  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2  0 correlated roots recorded
+52933457  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2p5  0 correlated roots recorded
+52933460  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_r_30p0  0 correlated roots recorded
+52933463  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_30  0 correlated roots recorded
+52933466  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_l2  0 correlated roots recorded
+52933469  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_r_30p0  0 correlated roots recorded
+OUT-AGE = seconds since output write; quiet output alone does not prove a stall.
+LOG = diagnostic in current file tails (128 KiB/file), not a terminal-failure verdict.
+Controller tail:
+Recorded native results; no production model has been accepted.
+well_hom_sci_1_2_frontier_donor: complete_review_required
+adz__cs_r_2 complete
+CASSCF Eh :m4r1=-834.4854309100, :m2r1=-834.6681480500
+ACTIVE 19:1.962280, 20:1.495580, 21:1.002850, 22:0.539300
+adz__cs_r_2p5 complete
+CASSCF Eh :m4r1=-834.5508684000, :m2r1=-834.6202663000
+ACTIVE 19:1.984840, 20:1.383720, 21:1.000440, 22:0.631000
+adz__cs_r_30 complete
+CASSCF Eh :m4r1=-834.5899803700, :m2r1=-834.5899803700
+ACTIVE 19:2.000000, 20:1.000000, 21:1.000000, 22:1.000000
+atz__cs_r_2 complete
+CASSCF Eh :m4r1=-834.5004746900, :m2r1=-834.6832810000
+ACTIVE 19:1.962790, 20:1.495490, 21:1.002870, 22:0.538850
+atz__cs_r_2p5 complete
+CASSCF Eh :m4r1=-834.5654156900, :m2r1=-834.6350444200
+ACTIVE 19:1.986690, 20:1.382870, 21:1.000390, 22:0.630040
+atz__cs_r_30 complete
+CASSCF Eh :m4r1=-834.6045185300, :m2r1=-834.6045185300
+ACTIVE 19:2.000000, 20:1.000000, 21:1.000000, 22:1.000000
+csh2_sh_exit_frontier_union: complete_review_required
+adz__exit_l2 complete
+CASSCF Eh :m2r1=-834.4770548000, :m2r2=-834.4419898800
+ACTIVE 17:1.998400, 18:1.993930, 19:1.967620, 20:1.489800, 21:1.311270, 22:0.238980
+adz__exit_r_30p0 complete
+CASSCF Eh :m2r1=-834.4775404300, :m2r2=-834.4775393400
+ACTIVE 17:1.999610, 18:1.998790, 19:1.938640, 20:1.500000, 21:1.500000, 22:0.062960
+atz__exit_l2 complete
+CASSCF Eh :m2r1=-834.4915718800, :m2r2=-834.4576326000
+ACTIVE 17:1.998360, 18:1.993860, 19:1.967150, 20:1.489680, 21:1.312580, 22:0.238360
+atz__exit_r_30p0 complete
+CASSCF Eh :m2r1=-834.4921169000, :m2r2=-834.4921159100
+ACTIVE 17:1.999620, 18:1.998780, 19:1.938050, 20:1.500000, 21:1.500000, 22:0.063540
+AO entries are amplitudes, not populations. SCF occupations are not correlated natural occupations.
+SCF character alone does not establish fragment charge/spin, roots, weights or an accepted CAS.
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2/adz__cs_r_2.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2/adz__cs_r_2.wfu SHA256 0abcbc48bb8f67e83d6874d8a6b9374df0e457cedffcbd895477962b5a6de761
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2/adz__cs_r_2.natural.orbitals.xml SHA256 26dfc6f750dd8ae9c127e84164e17eef356d422a69e725dff7e4cb6c1842d45c
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2/adz__cs_r_2.orbitals.xml SHA256 38077668b565bbaccfc994cefea3569139a3436355d5054bb0dbf67cabf3e42c
+NATURAL 1.1 occ=2.0 energy_Eh=-92.01301 AO=[(2, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99601 AO=[(3, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.23286 AO=[(1, 1, 's', 0.99798)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.01126 AO=[(2, 2, 's', 0.9986)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99668 AO=[(3, 2, 's', 0.99813)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.69145 AO=[(2, 1, 'px', 0.7097), (2, 1, 'pz', -0.7005)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.68962 AO=[(2, 1, 'py', 0.73417), (2, 1, 'px', 0.48619), (2, 1, 'pz', 0.47466)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.68922 AO=[(2, 1, 'py', 0.67968), (2, 1, 'pz', -0.53122), (2, 1, 'px', -0.5077)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67817 AO=[(3, 1, 'px', -0.91777), (3, 1, 'pz', 0.29049), (3, 1, 'py', 0.25869)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67696 AO=[(3, 1, 'py', 0.78619), (3, 1, 'pz', -0.61573)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67483 AO=[(3, 1, 'pz', 0.73319), (3, 1, 'py', 0.56109), (3, 1, 'px', 0.39045)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.05408 AO=[(3, 3, 's', 0.65773), (2, 3, 's', 0.5959), (4, 1, 's', 0.22749), (3, 2, 'px', 0.13969), (2, 2, 'px', -0.13432), (1, 2, 's', 0.11469)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.88971 AO=[(2, 3, 's', 0.55951), (3, 3, 's', -0.54591), (1, 2, 's', 0.4119), (4, 1, 's', -0.28633), (6, 1, 's', 0.26052), (5, 1, 's', 0.24576)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.80936 AO=[(1, 2, 's', 0.57471), (2, 3, 's', -0.46769), (5, 1, 's', 0.44416), (6, 1, 's', 0.43461), (1, 1, 'pz', -0.24449), (3, 3, 's', 0.24242)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.59662 AO=[(5, 1, 's', -0.52821), (6, 1, 's', 0.4876), (1, 1, 'px', 0.43534), (4, 1, 's', 0.3063), (1, 1, 'py', 0.29691), (2, 2, 'px', 0.22707)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.56699 AO=[(4, 1, 's', 0.53), (3, 2, 'py', 0.39916), (6, 1, 's', -0.35046), (3, 2, 'px', -0.30416), (5, 1, 's', 0.29588), (3, 3, 's', -0.26156)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48495 AO=[(2, 2, 'px', 0.58782), (3, 2, 'pz', 0.47633), (3, 2, 'px', -0.4231), (3, 2, 'py', -0.28446), (3, 3, 's', 0.23208), (2, 2, 'pz', -0.212)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.4224 AO=[(3, 2, 'pz', 0.66776), (3, 2, 'py', 0.5409), (3, 2, 'px', 0.39731), (2, 2, 'pz', 0.11557), (2, 2, 'py', 0.11122), (5, 1, 's', 0.08713)]
+NATURAL 19.1 occ=1.96228 energy_Eh=-0.50358 AO=[(2, 2, 'pz', -0.6308), (1, 1, 'pz', 0.40541), (2, 2, 'px', -0.32635), (1, 2, 's', 0.2935), (2, 2, 'py', -0.2233), (1, 1, 'py', 0.19707)]
+NATURAL 20.1 occ=1.49558 energy_Eh=-0.32412 AO=[(2, 2, 'py', 0.89186), (2, 2, 'pz', -0.27783), (2, 2, 'px', -0.20692), (4, 1, 's', -0.14991), (1, 1, 'px', -0.13494), (3, 5, 's', 0.10088)]
+NATURAL 21.1 occ=1.00285 energy_Eh=-0.10023 AO=[(1, 1, 'py', 0.6817), (1, 1, 'px', -0.5486), (2, 2, 'py', -0.22772), (1, 1, 'pz', -0.1899), (2, 2, 'pz', 0.13357), (2, 2, 'px', 0.08917)]
+NATURAL 22.1 occ=0.5393 energy_Eh=0.07851 AO=[(2, 2, 'pz', 0.63915), (1, 1, 'pz', 0.58517), (1, 2, 's', 0.49109), (1, 4, 's', 0.36378), (2, 2, 'py', 0.35805), (2, 5, 's', -0.3571)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.0478 AO=[(3, 6, 's', 3.83539), (2, 6, 's', -2.62455), (1, 5, 's', -1.87198), (3, 4, 'px', 1.65532), (2, 4, 'pz', -1.21695), (2, 4, 'px', 1.12395)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06116 AO=[(1, 5, 's', 3.13652), (2, 6, 's', -1.96717), (3, 6, 's', 1.71047), (6, 3, 's', -1.62254), (1, 4, 's', 1.22227), (4, 3, 's', -1.20351)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2p5/adz__cs_r_2p5.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2p5/adz__cs_r_2p5.wfu SHA256 9a8192697d0a1fb8d2fcc0925afd0a1c0994a3f4e2194a48de0847a5bd234be8
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2p5/adz__cs_r_2p5.natural.orbitals.xml SHA256 02bad868808cfa4b5100424139886a1d5b9ee5b7378845efd47971d67a1be107
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_2p5/adz__cs_r_2p5.orbitals.xml SHA256 5d29f2124db35a454c4b080bd8a3a2fcd9b01f788efc4332c382a1287c2fef6d
+NATURAL 1.1 occ=2.0 energy_Eh=-91.99908 AO=[(3, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99557 AO=[(2, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25318 AO=[(1, 1, 's', 0.99798)]
+NATURAL 4.1 occ=2.0 energy_Eh=-8.99879 AO=[(3, 2, 's', 0.99801)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99465 AO=[(2, 2, 's', 0.99846)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.68015 AO=[(3, 1, 'px', -0.91105), (3, 1, 'py', 0.31728), (3, 1, 'pz', 0.25078)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.67891 AO=[(3, 1, 'py', 0.76296), (3, 1, 'pz', -0.63875), (3, 1, 'px', 0.0892)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.67723 AO=[(3, 1, 'pz', 0.72789), (3, 1, 'py', 0.56318), (3, 1, 'px', 0.39668)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67471 AO=[(2, 1, 'px', 0.75763), (2, 1, 'pz', -0.64779)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67389 AO=[(2, 1, 'pz', 0.60437), (2, 1, 'py', 0.59869), (2, 1, 'px', 0.52325)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67145 AO=[(2, 1, 'py', 0.80282), (2, 1, 'pz', -0.46132), (2, 1, 'px', -0.38545)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.03896 AO=[(3, 3, 's', 0.71819), (2, 3, 's', 0.52759), (4, 1, 's', 0.25637), (3, 2, 'px', 0.14694), (2, 2, 'px', -0.1391), (2, 2, 'pz', 0.1121)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.84872 AO=[(1, 2, 's', 0.55126), (2, 3, 's', 0.46796), (6, 1, 's', 0.36686), (3, 3, 's', -0.36457), (5, 1, 's', 0.36071), (4, 1, 's', -0.20435)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.83659 AO=[(2, 3, 's', 0.60767), (1, 2, 's', -0.48678), (3, 3, 's', -0.38252), (5, 1, 's', -0.33674), (6, 1, 's', -0.33058), (4, 1, 's', -0.2462)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.59414 AO=[(6, 1, 's', 0.61811), (5, 1, 's', -0.61468), (1, 1, 'px', 0.51519), (1, 1, 'py', 0.34381), (1, 1, 'pz', -0.262), (5, 3, 's', 0.19473)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.56335 AO=[(4, 1, 's', 0.61725), (3, 2, 'py', 0.50612), (3, 2, 'px', -0.29789), (3, 3, 's', -0.29517), (2, 2, 'px', 0.19989), (2, 3, 's', 0.17486)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48065 AO=[(2, 2, 'px', 0.6277), (3, 2, 'pz', 0.47088), (3, 2, 'px', -0.45453), (3, 2, 'py', -0.23809), (3, 3, 's', 0.19087), (2, 3, 's', 0.18817)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.42732 AO=[(3, 2, 'pz', 0.66679), (3, 2, 'py', 0.48464), (3, 2, 'px', 0.36142), (2, 2, 'py', 0.28337), (2, 2, 'pz', 0.09575), (4, 1, 's', -0.05691)]
+NATURAL 19.1 occ=1.98484 energy_Eh=-0.42373 AO=[(2, 2, 'py', 0.66846), (2, 2, 'pz', -0.57029), (3, 2, 'px', -0.20768), (2, 2, 'px', -0.20475), (1, 2, 's', 0.16885), (2, 3, 's', 0.14587)]
+NATURAL 20.1 occ=1.38372 energy_Eh=-0.30062 AO=[(2, 2, 'py', -0.51092), (1, 1, 'pz', 0.4626), (2, 2, 'pz', -0.43299), (1, 2, 's', 0.25323), (2, 2, 'px', -0.24336), (3, 2, 'pz', 0.18082)]
+NATURAL 21.1 occ=1.00044 energy_Eh=-0.11492 AO=[(1, 1, 'py', 0.7188), (1, 1, 'px', -0.56453), (1, 1, 'pz', -0.16497), (1, 2, 's', 0.10289), (2, 2, 'py', -0.06991), (2, 2, 'pz', 0.063)]
+NATURAL 22.1 occ=0.631 energy_Eh=-0.03114 AO=[(1, 1, 'pz', 0.60942), (2, 2, 'pz', 0.59969), (1, 2, 's', 0.43383), (2, 2, 'py', 0.40322), (2, 2, 'px', 0.27325), (1, 1, 'py', 0.21353)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04842 AO=[(3, 6, 's', 3.60049), (2, 6, 's', -2.95563), (3, 4, 'px', 1.60637), (1, 5, 's', -1.225), (2, 4, 'pz', -1.10722), (2, 4, 'px', 1.10639)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06099 AO=[(3, 6, 's', 1.53854), (6, 3, 's', -1.42485), (1, 5, 's', 1.36583), (1, 4, 's', 1.26531), (4, 3, 's', -1.25273), (1, 5, 'pz', -1.07311)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_30/adz__cs_r_30.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_30/adz__cs_r_30.wfu SHA256 f0b046c39f88fddf4dd226d2f4505735a0a6eaa95e7ce601816de703d13ecfdb
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_30/adz__cs_r_30.natural.orbitals.xml SHA256 2d598d5f788e896e3cd03a8936665897009dfba004339247f0c51ab236a8ef38
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/adz__cs_r_30/adz__cs_r_30.orbitals.xml SHA256 d429f501542f0b75be9e6fdb34a912d93aba33e74eb760b6ea80d5ddd997864a
+NATURAL 1.1 occ=2.0 energy_Eh=-92.00884 AO=[(3, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-92.00281 AO=[(2, 1, 's', 1.00001)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.24833 AO=[(1, 1, 's', 0.99799)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.00825 AO=[(3, 2, 's', 0.99823)]
+NATURAL 5.1 occ=2.0 energy_Eh=-9.00182 AO=[(2, 2, 's', 0.99875)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.68953 AO=[(3, 1, 'px', -0.91159), (3, 1, 'py', 0.32493), (3, 1, 'pz', 0.24073)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.6883 AO=[(3, 1, 'py', 0.75821), (3, 1, 'pz', -0.64321), (3, 1, 'px', 0.10018)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.68674 AO=[(3, 1, 'pz', 0.72783), (3, 1, 'py', 0.56541), (3, 1, 'px', 0.39374)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.68195 AO=[(2, 1, 'px', 0.84177), (2, 1, 'pz', -0.52723), (2, 1, 'py', 0.09249)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.68114 AO=[(2, 1, 'pz', 0.72564), (2, 1, 'py', 0.56372), (2, 1, 'px', 0.39256)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67867 AO=[(2, 1, 'py', 0.82306), (2, 1, 'pz', -0.4411), (2, 1, 'px', -0.36656)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.04598 AO=[(3, 3, 's', 0.7224), (2, 3, 's', 0.53413), (4, 1, 's', 0.25315), (2, 2, 'px', -0.14311), (3, 2, 'px', 0.13825), (4, 3, 's', -0.08812)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.85695 AO=[(1, 2, 's', 0.75126), (5, 1, 's', 0.49739), (6, 1, 's', 0.4954), (1, 1, 'pz', -0.19562), (5, 3, 's', -0.16402), (6, 3, 's', -0.163)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.85111 AO=[(2, 3, 's', 0.78279), (3, 3, 's', -0.52744), (4, 1, 's', -0.32455), (3, 2, 'px', 0.17299), (4, 3, 's', 0.07348), (3, 2, 'pz', -0.06283)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.58783 AO=[(6, 1, 's', 0.62607), (5, 1, 's', -0.62557), (1, 1, 'px', 0.51923), (1, 1, 'py', 0.34903), (1, 1, 'pz', -0.26453), (5, 3, 's', 0.19753)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.58099 AO=[(4, 1, 's', 0.58425), (3, 2, 'py', 0.4608), (3, 2, 'px', -0.36547), (3, 3, 's', -0.26563), (2, 2, 'pz', -0.2433), (2, 2, 'py', 0.20351)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48762 AO=[(2, 2, 'px', 0.59121), (3, 2, 'px', -0.47471), (3, 2, 'pz', 0.47034), (3, 2, 'py', -0.27487), (2, 2, 'pz', -0.23214), (3, 3, 's', 0.20539)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.43702 AO=[(3, 2, 'pz', 0.66028), (3, 2, 'py', 0.51294), (3, 2, 'px', 0.3572), (2, 2, 'pz', 0.21009), (2, 2, 'py', 0.16321), (2, 2, 'px', 0.11364)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.385 AO=[(2, 2, 'py', 0.76347), (2, 2, 'pz', -0.44817), (2, 2, 'px', -0.26791), (4, 1, 's', -0.24983), (3, 5, 's', 0.13399), (3, 2, 'pz', 0.1268)]
+NATURAL 20.1 occ=1.0 energy_Eh=-0.19875 AO=[(2, 2, 'pz', 0.72506), (2, 2, 'py', 0.56326), (2, 2, 'px', 0.39224), (3, 2, 'pz', -0.25982), (3, 2, 'py', -0.20184), (3, 2, 'px', -0.14055)]
+NATURAL 21.1 occ=1.0 energy_Eh=-0.16679 AO=[(1, 1, 'pz', 0.70073), (1, 2, 's', 0.47515), (1, 1, 'py', 0.41147), (5, 1, 's', -0.22517), (6, 1, 's', -0.22509), (1, 1, 'px', 0.08063)]
+NATURAL 22.1 occ=1.0 energy_Eh=-0.10891 AO=[(1, 1, 'py', 0.64688), (1, 1, 'px', -0.59356), (1, 1, 'pz', -0.31155)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.0451 AO=[(2, 6, 's', -3.47826), (3, 6, 's', 3.18349), (3, 4, 'px', 1.47144), (2, 4, 'px', 1.263), (3, 4, 'pz', -0.83656), (2, 4, 'pz', -0.81814)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06757 AO=[(1, 5, 's', 2.64499), (1, 4, 's', 2.47954), (5, 3, 's', -2.14044), (6, 3, 's', -2.13254), (1, 4, 'pz', -0.61035), (6, 3, 'pz', -0.38423)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2/atz__cs_r_2.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2/atz__cs_r_2.wfu SHA256 e91d9f3ed52f08788f4315e4de474cec8b33d2cb85810097113f752636d74f35
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2/atz__cs_r_2.natural.orbitals.xml SHA256 652c7a0ccdcbb236336b65d16f8d1082241c9e849281d68b5f37da18f93b73f2
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2/atz__cs_r_2.orbitals.xml SHA256 dd784aac40da273b04f52b5bfe9faaca5d3a592a396fab59fda91d9920178d8a
+NATURAL 1.1 occ=2.0 energy_Eh=-92.01273 AO=[(2, 1, 's', 0.99994)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99521 AO=[(3, 1, 's', 0.99996)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.23176 AO=[(1, 1, 's', 1.00057)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.0102 AO=[(2, 2, 's', 1.00157)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99533 AO=[(3, 2, 's', 1.00038)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.69012 AO=[(2, 1, 'pz', -0.75715), (2, 1, 'px', 0.65577), (2, 1, 'py', -0.06526)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.68912 AO=[(2, 1, 'py', 0.75115), (2, 1, 'px', 0.52654), (2, 1, 'pz', 0.3898)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.68888 AO=[(2, 1, 'py', 0.6529), (2, 1, 'px', -0.54065), (2, 1, 'pz', -0.5235)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67648 AO=[(3, 1, 'px', -0.91842), (3, 1, 'py', 0.34693), (3, 1, 'pz', 0.22031)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67571 AO=[(3, 1, 'py', 0.75501), (3, 1, 'pz', -0.64198), (3, 1, 'px', 0.13332)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67469 AO=[(3, 1, 'pz', 0.72878), (3, 1, 'py', 0.552), (3, 1, 'px', 0.38318)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.05209 AO=[(3, 3, 's', 0.64695), (2, 3, 's', 0.58109), (4, 1, 's', 0.23462), (1, 2, 's', 0.1229), (2, 2, 'pz', 0.06695), (5, 1, 's', 0.05653)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.88921 AO=[(2, 3, 's', 0.55484), (3, 3, 's', -0.54775), (1, 2, 's', 0.43399), (4, 1, 's', -0.29233), (6, 1, 's', 0.27171), (5, 1, 's', 0.25676)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.80853 AO=[(1, 2, 's', 0.59593), (2, 3, 's', -0.46927), (5, 1, 's', 0.45558), (6, 1, 's', 0.44508), (1, 1, 'pz', -0.25346), (3, 3, 's', 0.24969)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.5962 AO=[(5, 1, 's', -0.54597), (6, 1, 's', 0.5063), (1, 1, 'px', 0.4532), (1, 1, 'py', 0.30881), (4, 1, 's', 0.30479), (3, 2, 'py', 0.23002)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.56627 AO=[(4, 1, 's', 0.54977), (3, 2, 'py', 0.43108), (6, 1, 's', -0.34973), (5, 1, 's', 0.2932), (3, 2, 'px', -0.26553), (3, 3, 's', -0.26004)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48383 AO=[(2, 2, 'px', 0.51493), (3, 2, 'pz', 0.43636), (3, 2, 'px', -0.33013), (3, 2, 'py', -0.29132), (3, 3, 's', 0.24333), (6, 1, 's', -0.17274)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.42308 AO=[(3, 2, 'pz', 0.6945), (3, 2, 'py', 0.55785), (3, 2, 'px', 0.40711), (2, 2, 'py', 0.08955), (5, 1, 's', 0.08668), (2, 2, 'pz', 0.07543)]
+NATURAL 19.1 occ=1.96279 energy_Eh=-0.50317 AO=[(2, 2, 'pz', -0.57989), (1, 1, 'pz', 0.4087), (2, 2, 'px', -0.34959), (1, 2, 's', 0.29127), (2, 2, 'py', -0.20964), (1, 1, 'py', 0.1993)]
+NATURAL 20.1 occ=1.49549 energy_Eh=-0.32375 AO=[(2, 2, 'py', 0.89693), (2, 2, 'pz', -0.27921), (2, 2, 'px', -0.20826), (4, 1, 's', -0.15568), (3, 2, 'py', -0.14956), (1, 1, 'px', -0.13667)]
+NATURAL 21.1 occ=1.00287 energy_Eh=-0.10079 AO=[(1, 1, 'py', 0.68455), (1, 1, 'px', -0.55071), (2, 2, 'py', -0.24972), (1, 1, 'pz', -0.19067), (2, 2, 'pz', 0.1392), (2, 2, 'px', 0.10392)]
+NATURAL 22.1 occ=0.53885 energy_Eh=0.07878 AO=[(2, 2, 'pz', 0.66087), (1, 1, 'pz', 0.5765), (1, 2, 's', 0.48026), (2, 2, 'py', 0.35607), (2, 3, 's', -0.35085), (2, 2, 'px', 0.27508)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04165 AO=[(3, 7, 's', 5.89715), (2, 7, 's', -4.4761), (1, 6, 's', -2.61971), (3, 5, 'px', 2.26346), (3, 6, 'px', 2.12568), (1, 5, 's', -2.08104)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.04775 AO=[(3, 7, 's', 3.75951), (4, 4, 's', -3.1644), (3, 6, 's', 2.32469), (1, 6, 'pz', -1.95388), (2, 6, 'px', 1.5146), (6, 4, 's', -1.46909)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2p5/atz__cs_r_2p5.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2p5/atz__cs_r_2p5.wfu SHA256 918c6e03f28e0c18bba89f7cef45befddc4a610cfb4f57b3a947486341c44c4d
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2p5/atz__cs_r_2p5.natural.orbitals.xml SHA256 d864a163973dc9f9a3eae06e57a71c4e1023a70f8ca744ca1b83e5d5e21c40b8
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_2p5/atz__cs_r_2p5.orbitals.xml SHA256 8307413bdaeb6bea8fa2cafc079a39e5a3d7aa4d59c4f212c07ccb48c3ea6627
+NATURAL 1.1 occ=2.0 energy_Eh=-91.99804 AO=[(3, 1, 's', 0.99996)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99489 AO=[(2, 1, 's', 0.99994)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25212 AO=[(1, 1, 's', 1.00048)]
+NATURAL 4.1 occ=2.0 energy_Eh=-8.99721 AO=[(3, 2, 's', 1.00022)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.9934 AO=[(2, 2, 's', 1.0011)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.67826 AO=[(3, 1, 'px', -0.89537), (3, 1, 'py', 0.42865), (3, 1, 'pz', 0.15569)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.67745 AO=[(3, 1, 'py', 0.7077), (3, 1, 'pz', -0.66835), (3, 1, 'px', 0.22459)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.67679 AO=[(3, 1, 'pz', 0.72182), (3, 1, 'py', 0.55709), (3, 1, 'px', 0.39198)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.6731 AO=[(2, 1, 'pz', -0.806), (2, 1, 'px', 0.56965), (2, 1, 'py', -0.18347)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67282 AO=[(2, 1, 'px', 0.73123), (2, 1, 'py', 0.5657), (2, 1, 'pz', 0.38906)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67134 AO=[(2, 1, 'py', 0.7973), (2, 1, 'pz', -0.44844), (2, 1, 'px', -0.3782)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.03645 AO=[(3, 3, 's', 0.70914), (2, 3, 's', 0.5129), (4, 1, 's', 0.26531), (2, 2, 'pz', 0.06564), (3, 6, 's', -0.05148)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.84533 AO=[(1, 2, 's', 0.58413), (2, 3, 's', 0.45315), (6, 1, 's', 0.38341), (5, 1, 's', 0.3768), (3, 3, 's', -0.36059), (4, 1, 's', -0.20296)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.83561 AO=[(2, 3, 's', 0.61808), (1, 2, 's', -0.49454), (3, 3, 's', -0.39317), (5, 1, 's', -0.33983), (6, 1, 's', -0.33298), (4, 1, 's', -0.2553)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.59406 AO=[(6, 1, 's', 0.63441), (5, 1, 's', -0.62991), (1, 1, 'px', 0.5311), (1, 1, 'py', 0.35445), (1, 1, 'pz', -0.27049), (6, 4, 's', -0.22075)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.56173 AO=[(4, 1, 's', 0.63473), (3, 2, 'py', 0.55227), (3, 3, 's', -0.29716), (3, 2, 'px', -0.25039), (3, 2, 'pz', -0.22153), (2, 3, 's', 0.18635)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.47914 AO=[(2, 2, 'px', 0.55879), (3, 2, 'pz', 0.41648), (3, 2, 'px', -0.36068), (3, 2, 'py', -0.22152), (2, 3, 's', 0.20552), (3, 3, 's', 0.1946)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.42757 AO=[(3, 2, 'pz', 0.6934), (3, 2, 'py', 0.47913), (3, 2, 'px', 0.37661), (2, 2, 'py', 0.28171), (4, 1, 's', -0.0624), (2, 2, 'pz', 0.06133)]
+NATURAL 19.1 occ=1.98669 energy_Eh=-0.42803 AO=[(2, 2, 'py', 0.72027), (2, 2, 'pz', -0.56331), (2, 2, 'px', -0.22503), (3, 2, 'py', -0.18812), (1, 2, 's', 0.18024), (3, 2, 'px', -0.16117)]
+NATURAL 20.1 occ=1.38287 energy_Eh=-0.30038 AO=[(2, 2, 'py', -0.47751), (1, 1, 'pz', 0.46835), (2, 2, 'pz', -0.37788), (1, 2, 's', 0.25053), (2, 2, 'px', -0.23642), (3, 2, 'pz', 0.2027)]
+NATURAL 21.1 occ=1.00039 energy_Eh=-0.1152 AO=[(1, 1, 'py', 0.72391), (1, 1, 'px', -0.56835), (1, 1, 'pz', -0.16571), (1, 2, 's', 0.09813), (2, 2, 'py', -0.08134), (2, 2, 'pz', 0.06787)]
+NATURAL 22.1 occ=0.63004 energy_Eh=-0.02993 AO=[(2, 2, 'pz', 0.61536), (1, 1, 'pz', 0.613), (1, 2, 's', 0.41202), (2, 2, 'py', 0.38324), (2, 2, 'px', 0.26272), (1, 1, 'py', 0.21483)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04208 AO=[(3, 7, 's', 5.85851), (2, 7, 's', -5.01525), (3, 5, 'px', 2.14802), (3, 6, 'px', 2.08156), (2, 6, 's', -1.9244), (1, 6, 's', -1.8128)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.04655 AO=[(4, 4, 's', -2.90176), (3, 7, 's', 2.7358), (1, 6, 'pz', -2.5206), (3, 6, 's', 1.65413), (1, 5, 'pz', -1.60256), (2, 7, 's', 1.17384)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_30/atz__cs_r_30.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_30/atz__cs_r_30.wfu SHA256 c20d479a17b09d7c2aff6d379e1417c588dbe7aa39b1abf8528e16630a00256d
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_30/atz__cs_r_30.natural.orbitals.xml SHA256 c3178cc9ea77efdd7d9a6112806051ebd70924aa9a1ccdedf9e4e78cd2e63aad
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/well_hom_sci_1_2/well_hom_sci_1_2_frontier_donor/atz__cs_r_30/atz__cs_r_30.orbitals.xml SHA256 1f6dc9ca1693b6791b66598fe7778835c33f62217de1523701753beafd467a1d
+NATURAL 1.1 occ=2.0 energy_Eh=-92.00771 AO=[(3, 1, 's', 0.99996)]
+NATURAL 2.1 occ=2.0 energy_Eh=-92.0023 AO=[(2, 1, 's', 0.99996)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.24725 AO=[(1, 1, 's', 1.00044)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.00657 AO=[(3, 2, 's', 1.00035)]
+NATURAL 5.1 occ=2.0 energy_Eh=-9.00074 AO=[(2, 2, 's', 1.00091)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.68756 AO=[(3, 1, 'px', -0.8911), (3, 1, 'py', 0.44313), (3, 1, 'pz', 0.13781)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.68676 AO=[(3, 1, 'py', 0.69623), (3, 1, 'pz', -0.67323), (3, 1, 'px', 0.2447)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.68618 AO=[(3, 1, 'pz', 0.72111), (3, 1, 'py', 0.56019), (3, 1, 'px', 0.3901)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.68046 AO=[(2, 1, 'px', 0.84638), (2, 1, 'pz', -0.5312), (2, 1, 'py', 0.09435)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.68026 AO=[(2, 1, 'pz', 0.72913), (2, 1, 'py', 0.56644), (2, 1, 'px', 0.39447)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67876 AO=[(2, 1, 'py', 0.81165), (2, 1, 'pz', -0.43403), (2, 1, 'px', -0.36323)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.04364 AO=[(3, 3, 's', 0.71044), (2, 3, 's', 0.52182), (4, 1, 's', 0.26082), (4, 4, 's', -0.06563), (2, 2, 'px', -0.05719), (3, 6, 's', -0.05296)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.85673 AO=[(1, 2, 's', 0.78439), (5, 1, 's', 0.51173), (6, 1, 's', 0.50968), (1, 1, 'pz', -0.20399), (5, 3, 's', -0.16802), (6, 3, 's', -0.16701)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.8498 AO=[(2, 3, 's', 0.78242), (3, 3, 's', -0.53318), (4, 1, 's', -0.33111), (3, 2, 'px', 0.16314), (2, 2, 'px', 0.07798), (4, 3, 's', 0.06263)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.58781 AO=[(6, 1, 's', 0.64178), (5, 1, 's', -0.64124), (1, 1, 'px', 0.53472), (1, 1, 'py', 0.35943), (1, 1, 'pz', -0.27244), (5, 4, 's', 0.2071)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.57994 AO=[(4, 1, 's', 0.5989), (3, 2, 'py', 0.48398), (3, 2, 'px', -0.30818), (3, 3, 's', -0.25967), (2, 2, 'pz', -0.21931), (3, 2, 'pz', -0.20926)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48631 AO=[(2, 2, 'px', 0.51339), (3, 2, 'pz', 0.41617), (3, 2, 'px', -0.37553), (3, 2, 'py', -0.2742), (3, 3, 's', 0.21347), (2, 3, 's', 0.20627)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.43733 AO=[(3, 2, 'pz', 0.67513), (3, 2, 'py', 0.52448), (3, 2, 'px', 0.36523), (2, 2, 'pz', 0.18031), (2, 2, 'py', 0.14008), (2, 2, 'px', 0.09754)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.38565 AO=[(2, 2, 'py', 0.81643), (2, 2, 'pz', -0.4713), (2, 2, 'px', -0.30122), (4, 1, 's', -0.2607), (3, 2, 'py', -0.20154), (3, 2, 'pz', 0.16572)]
+NATURAL 20.1 occ=1.0 energy_Eh=-0.19783 AO=[(2, 2, 'pz', 0.69285), (2, 2, 'py', 0.53824), (2, 2, 'px', 0.37481), (3, 2, 'pz', -0.28462), (3, 2, 'py', -0.22111), (3, 2, 'px', -0.15397)]
+NATURAL 21.1 occ=1.0 energy_Eh=-0.16667 AO=[(1, 1, 'pz', 0.70828), (1, 2, 's', 0.45774), (1, 1, 'py', 0.41588), (5, 1, 's', -0.22773), (6, 1, 's', -0.22767), (1, 5, 's', 0.08605)]
+NATURAL 22.1 occ=1.0 energy_Eh=-0.10903 AO=[(1, 1, 'py', 0.65166), (1, 1, 'px', -0.59794), (1, 1, 'pz', -0.31385)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.03983 AO=[(2, 7, 's', -6.07346), (3, 7, 's', 5.32311), (3, 5, 'px', 2.21792), (3, 6, 'px', 2.02367), (2, 6, 's', -1.88264), (2, 5, 'px', 1.81985)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.05456 AO=[(4, 4, 's', -5.40023), (3, 7, 's', 5.02378), (3, 6, 's', 2.86625), (3, 5, 'py', 1.95533), (2, 7, 's', -1.666), (3, 5, 'px', -1.43291)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_l2/adz__exit_l2.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_l2/adz__exit_l2.wfu SHA256 0a409a6df522d78385b137c01d7e52b649b45d4318a657b5b56db6fd2323c90a
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml SHA256 81736ceffb2ca90e5949dd8c12d275640b88b2911bdbf6fde51c74c9e5c2c927
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_l2/adz__exit_l2.orbitals.xml SHA256 d7acb6ff79cd8d8c0950ae3e65df3d164d6c506522aeda7523fc7c21a3f5ac80
+NATURAL 1.1 occ=2.0 energy_Eh=-92.09287 AO=[(2, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.97042 AO=[(3, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.26187 AO=[(1, 1, 's', 0.9986)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.08807 AO=[(2, 2, 's', 0.99806)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.97311 AO=[(3, 2, 's', 0.99813)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.76969 AO=[(2, 1, 'pz', -0.76392), (2, 1, 'px', 0.58444), (2, 1, 'py', 0.27246)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.76932 AO=[(2, 1, 'py', 0.95794), (2, 1, 'pz', 0.2602), (2, 1, 'px', -0.10488)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.76922 AO=[(2, 1, 'px', 0.80449), (2, 1, 'pz', 0.58807), (2, 1, 'py', -0.07092)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.65344 AO=[(3, 1, 'py', 0.66947), (3, 1, 'px', 0.60938), (3, 1, 'pz', -0.41957)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.65318 AO=[(3, 1, 'pz', 0.80307), (3, 1, 'py', 0.5861), (3, 1, 'px', -0.09131)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.65076 AO=[(3, 1, 'px', 0.78825), (3, 1, 'py', -0.45389), (3, 1, 'pz', 0.42074)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.0588 AO=[(2, 3, 's', 0.69632), (3, 3, 's', 0.44336), (4, 1, 's', 0.32826), (6, 1, 's', 0.32661), (2, 2, 'pz', 0.19366), (2, 5, 's', -0.18172)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.90432 AO=[(3, 3, 's', 0.72689), (5, 1, 's', 0.36771), (2, 3, 's', -0.2858), (4, 1, 's', -0.27523), (6, 1, 's', -0.26919), (2, 2, 'px', -0.22344)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.68213 AO=[(6, 1, 's', -0.56167), (4, 1, 's', 0.52964), (2, 2, 'py', 0.50185), (2, 2, 'px', -0.22802), (6, 3, 's', 0.1441), (4, 3, 's', -0.13096)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.54373 AO=[(5, 1, 's', -0.6338), (3, 2, 'py', 0.47014), (3, 2, 'pz', 0.33425), (3, 3, 's', 0.29967), (3, 5, 's', 0.16921), (4, 1, 's', -0.15364)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.39469 AO=[(3, 2, 'px', -0.75521), (3, 2, 'py', 0.40051), (3, 2, 'pz', -0.36189), (2, 6, 's', -0.10483), (2, 5, 's', -0.08427), (6, 3, 's', 0.06778)]
+NATURAL 17.1 occ=1.9984 energy_Eh=-0.82857 AO=[(2, 3, 's', -0.50216), (1, 2, 's', -0.39137), (2, 2, 'pz', 0.35714), (2, 2, 'px', 0.33357), (1, 1, 'pz', -0.27542), (3, 3, 's', 0.25587)]
+NATURAL 18.1 occ=1.99393 energy_Eh=-0.62722 AO=[(2, 2, 'px', 0.58893), (1, 2, 's', 0.44872), (2, 2, 'pz', -0.29655), (2, 2, 'py', 0.29298), (3, 2, 'pz', 0.26901), (3, 3, 's', 0.19566)]
+NATURAL 19.1 occ=1.96762 energy_Eh=-0.45323 AO=[(1, 2, 's', -0.72421), (1, 1, 'pz', 0.48423), (2, 2, 'pz', -0.32952), (2, 3, 's', 0.25408), (1, 4, 's', -0.18901), (3, 2, 'pz', 0.15564)]
+NATURAL 20.1 occ=1.4898 energy_Eh=-0.22955 AO=[(1, 1, 'py', -0.74443), (1, 1, 'px', 0.2762), (4, 1, 's', 0.23402), (6, 1, 's', -0.21986), (2, 2, 'py', -0.19661), (2, 3, 'd1-', 0.09334)]
+NATURAL 21.1 occ=1.31127 energy_Eh=-0.21784 AO=[(3, 2, 'pz', -0.55671), (3, 2, 'px', 0.44456), (1, 1, 'px', 0.40571), (3, 2, 'py', 0.34069), (2, 2, 'px', 0.24924), (1, 1, 'pz', 0.19863)]
+NATURAL 22.1 occ=0.23898 energy_Eh=0.04161 AO=[(1, 1, 'px', 0.73533), (3, 2, 'pz', 0.40008), (3, 2, 'px', -0.35885), (2, 2, 'px', -0.34091), (3, 2, 'py', -0.29478), (1, 1, 'py', 0.28026)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04096 AO=[(1, 5, 's', -3.7733), (2, 6, 's', 2.64243), (2, 4, 'pz', -2.0261), (2, 3, 'pz', -1.13095), (1, 4, 's', -0.97685), (1, 4, 'pz', -0.8285)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06012 AO=[(3, 6, 's', -4.20228), (1, 5, 's', 3.67677), (2, 4, 'pz', 2.74405), (2, 4, 'px', -2.12284), (3, 4, 'pz', 1.30097), (3, 4, 'px', -1.26571)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_r_30p0/adz__exit_r_30p0.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_r_30p0/adz__exit_r_30p0.wfu SHA256 35e9263b9d77e16dfb5851fdc1f9e4f3145704ca817ef4f7d6ef3262ee4c1761
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_r_30p0/adz__exit_r_30p0.natural.orbitals.xml SHA256 c7681e55bdc4824ffb54bd67c3b04d5a042b47da7f77fa5b8a57c9d77765aabb
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/adz__exit_r_30p0/adz__exit_r_30p0.orbitals.xml SHA256 7224ac9040f24d5830579741f0ef1bccf9551d4766193bea46a9e016801194c5
+NATURAL 1.1 occ=2.0 energy_Eh=-92.05739 AO=[(2, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.98638 AO=[(3, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25984 AO=[(1, 1, 's', 0.99867)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.05464 AO=[(2, 2, 's', 0.99787)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.98772 AO=[(3, 2, 's', 0.99841)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.73642 AO=[(2, 1, 'px', 0.88527), (2, 1, 'py', 0.36147), (2, 1, 'pz', -0.29658)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.73618 AO=[(2, 1, 'pz', 0.95043), (2, 1, 'px', 0.30212)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.73583 AO=[(2, 1, 'py', 0.9299), (2, 1, 'px', -0.35463), (2, 1, 'pz', 0.07338)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.66766 AO=[(3, 1, 'py', 0.80019), (3, 1, 'pz', 0.57809), (3, 1, 'px', 0.1525)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.66645 AO=[(3, 1, 'px', 0.84803), (3, 1, 'pz', -0.49393), (3, 1, 'py', 0.19521)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.66645 AO=[(3, 1, 'pz', 0.64955), (3, 1, 'py', -0.5662), (3, 1, 'px', 0.50866)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.08845 AO=[(2, 3, 's', 0.90046), (6, 1, 's', 0.2656), (4, 1, 's', 0.25398), (2, 5, 's', -0.21502), (1, 1, 'pz', 0.20301), (1, 2, 's', 0.18891)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.94 AO=[(3, 3, 's', 0.90819), (5, 1, 's', 0.4088), (5, 3, 's', -0.11542), (3, 5, 's', -0.07363)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.7237 AO=[(2, 2, 'pz', 0.53947), (4, 1, 's', 0.38423), (6, 1, 's', 0.3617), (1, 1, 'pz', -0.35409), (1, 2, 's', -0.31468), (2, 2, 'px', 0.18179)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.65323 AO=[(6, 1, 's', -0.56537), (4, 1, 's', 0.56008), (2, 2, 'py', 0.48199), (2, 2, 'px', -0.19539), (6, 3, 's', 0.11847), (4, 3, 's', -0.11589)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.54386 AO=[(5, 1, 's', -0.63248), (3, 2, 'py', 0.48472), (3, 3, 's', 0.35059), (3, 2, 'pz', 0.35017), (3, 5, 's', 0.16044), (5, 3, 's', 0.09883)]
+NATURAL 17.1 occ=1.99961 energy_Eh=-0.50906 AO=[(2, 2, 'px', 0.76183), (2, 2, 'py', 0.35804), (2, 3, 's', -0.23664), (2, 2, 'pz', -0.20271), (1, 1, 'pz', 0.17847), (2, 5, 's', -0.16184)]
+NATURAL 18.1 occ=1.99879 energy_Eh=-0.31175 AO=[(1, 1, 'py', -0.73245), (1, 1, 'px', 0.28669), (2, 2, 'py', -0.22024), (4, 1, 's', 0.20744), (6, 1, 's', -0.20729), (2, 2, 'px', 0.11522)]
+NATURAL 19.1 occ=1.93864 energy_Eh=-0.49895 AO=[(1, 2, 's', -0.86452), (1, 1, 'pz', 0.41856), (2, 2, 'pz', -0.197), (2, 3, 's', 0.19094), (1, 4, 's', -0.15063), (1, 1, 'py', -0.07751)]
+NATURAL 20.1 occ=1.5 energy_Eh=-0.30714 AO=[(3, 2, 'pz', -0.78765), (3, 2, 'py', 0.52481), (3, 2, 'px', 0.23193)]
+NATURAL 21.1 occ=1.5 energy_Eh=-0.30714 AO=[(3, 2, 'px', 0.93471), (3, 2, 'py', -0.25449), (3, 2, 'pz', 0.10567)]
+NATURAL 22.1 occ=0.06296 energy_Eh=0.20755 AO=[(1, 1, 'px', 0.78688), (1, 1, 'py', 0.30062), (1, 3, 'px', 0.15958), (2, 2, 'px', -0.13734), (1, 2, 'd1+', -0.12858), (1, 4, 'px', -0.09493)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.0362 AO=[(1, 5, 's', -4.28352), (2, 6, 's', 3.48762), (2, 4, 'pz', -2.18877), (2, 3, 'pz', -1.15282), (1, 4, 's', -1.08541), (1, 5, 'pz', -0.97628)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06907 AO=[(5, 3, 's', -2.6195), (3, 6, 's', 2.43994), (3, 3, 'py', -0.89644), (3, 5, 's', 0.80989), (5, 3, 'py', -0.76785), (3, 3, 'pz', -0.64738)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_l2/atz__exit_l2.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_l2/atz__exit_l2.wfu SHA256 f355f9c5dd2bdbe74016ae8aa1caf07987dca8ee0c6199c52b725fad878720c3
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml SHA256 1f07bc53ea3934261a3021a4d8d67f55cfb6855c7e34858f04816c6584854377
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_l2/atz__exit_l2.orbitals.xml SHA256 cae8130652461b97d40a6d782cd24ed1b52f42b31718472e8cb70fdd66cf1615
+NATURAL 1.1 occ=2.0 energy_Eh=-92.09189 AO=[(2, 1, 's', 0.99994)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.97044 AO=[(3, 1, 's', 0.99996)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25983 AO=[(1, 1, 's', 1.00052)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.08619 AO=[(2, 2, 's', 1.00088)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.97278 AO=[(3, 2, 's', 1.00036)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.76839 AO=[(2, 1, 'px', 0.85422), (2, 1, 'py', 0.41424), (2, 1, 'pz', -0.30051)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.76777 AO=[(2, 1, 'py', 0.90774), (2, 1, 'px', -0.36678), (2, 1, 'pz', 0.20839)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.76743 AO=[(2, 1, 'pz', 0.92794), (2, 1, 'px', 0.35993), (2, 1, 'py', -0.06792)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.65306 AO=[(3, 1, 'px', -0.61412), (3, 1, 'pz', 0.57161), (3, 1, 'py', -0.55298)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.65277 AO=[(3, 1, 'pz', 0.71241), (3, 1, 'py', 0.70359)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.65141 AO=[(3, 1, 'px', 0.78501), (3, 1, 'py', -0.44814), (3, 1, 'pz', 0.4103)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.05701 AO=[(2, 3, 's', 0.68175), (3, 3, 's', 0.44641), (4, 1, 's', 0.33919), (6, 1, 's', 0.3367), (2, 2, 'pz', 0.17672), (2, 6, 's', -0.16933)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.90445 AO=[(3, 3, 's', 0.73327), (5, 1, 's', 0.37686), (4, 1, 's', -0.2821), (2, 3, 's', -0.27929), (6, 1, 's', -0.276), (2, 2, 'px', -0.22432)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.68147 AO=[(6, 1, 's', -0.57363), (2, 2, 'py', 0.54512), (4, 1, 's', 0.54283), (2, 2, 'px', -0.24398), (6, 4, 's', 0.11749), (4, 4, 's', -0.11335)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.54327 AO=[(5, 1, 's', -0.65424), (3, 2, 'py', 0.52265), (3, 2, 'pz', 0.38412), (3, 3, 's', 0.30535), (4, 1, 's', -0.15864), (3, 6, 's', 0.1176)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.396 AO=[(3, 2, 'px', -0.78895), (3, 2, 'py', 0.42605), (3, 2, 'pz', -0.38136), (2, 2, 'pz', -0.0651), (6, 1, 's', 0.05949), (1, 5, 's', -0.0514)]
+NATURAL 17.1 occ=1.99836 energy_Eh=-0.82572 AO=[(2, 3, 's', -0.48645), (2, 2, 'pz', 0.41016), (1, 2, 's', -0.4026), (2, 2, 'px', 0.34925), (1, 1, 'pz', -0.28702), (3, 3, 's', 0.25601)]
+NATURAL 18.1 occ=1.99386 energy_Eh=-0.62786 AO=[(2, 2, 'px', 0.58415), (1, 2, 's', 0.46297), (2, 2, 'pz', -0.32176), (2, 2, 'py', 0.29613), (3, 2, 'pz', 0.23348), (3, 3, 's', 0.20072)]
+NATURAL 19.1 occ=1.96715 energy_Eh=-0.45046 AO=[(1, 2, 's', -0.72158), (1, 1, 'pz', 0.4951), (2, 2, 'pz', -0.33165), (2, 3, 's', 0.23615), (1, 5, 's', -0.1627), (3, 2, 'pz', 0.15063)]
+NATURAL 20.1 occ=1.48968 energy_Eh=-0.23035 AO=[(1, 1, 'py', 0.74364), (1, 1, 'px', -0.27664), (4, 1, 's', -0.23721), (6, 1, 's', 0.2241), (2, 2, 'py', 0.12786), (2, 3, 'd1-', -0.09218)]
+NATURAL 21.1 occ=1.31258 energy_Eh=-0.21722 AO=[(3, 2, 'pz', -0.55101), (3, 2, 'px', 0.43043), (1, 1, 'px', 0.40907), (3, 2, 'py', 0.32182), (2, 2, 'px', 0.25229), (1, 1, 'pz', 0.20283)]
+NATURAL 22.1 occ=0.23836 energy_Eh=0.04207 AO=[(1, 1, 'px', 0.73565), (2, 2, 'px', -0.3801), (3, 2, 'pz', 0.36825), (3, 2, 'px', -0.31895), (1, 1, 'py', 0.2817), (3, 2, 'py', -0.24912)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.03275 AO=[(1, 6, 's', -2.97175), (6, 4, 's', 2.90213), (1, 5, 's', -2.60027), (2, 5, 'pz', -2.51515), (2, 7, 's', 2.33879), (3, 6, 's', -1.6418)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.04994 AO=[(3, 7, 's', -6.5832), (1, 6, 's', 5.58745), (2, 5, 'pz', 3.85099), (2, 6, 'pz', 3.51489), (2, 6, 'px', -2.87456), (1, 5, 's', 2.73012)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_r_30p0/atz__exit_r_30p0.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_r_30p0/atz__exit_r_30p0.wfu SHA256 26dfc34d68b761e92c35ef34f554e7279fbf9c027b8416af31b781a04acf1e68
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_r_30p0/atz__exit_r_30p0.natural.orbitals.xml SHA256 ccf53eddf428b5ab24329ea1ef3c00d156d015cd20ffc8aba2e2cf3e24caab22
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_union_20261025/csh2_sh_exit_resolution/csh2_sh_exit_frontier_union/atz__exit_r_30p0/atz__exit_r_30p0.orbitals.xml SHA256 0427d71434cadce91eb69be0966a1ce64e24fe81b4c6218d02af0bf63cd07af1
+NATURAL 1.1 occ=2.0 energy_Eh=-92.05653 AO=[(2, 1, 's', 0.99995)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.98627 AO=[(3, 1, 's', 0.99997)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25703 AO=[(1, 1, 's', 1.00042)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.053 AO=[(2, 2, 's', 1.00031)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.98732 AO=[(3, 2, 's', 1.00032)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.73558 AO=[(2, 1, 'px', 0.89722), (2, 1, 'py', 0.39645), (2, 1, 'pz', -0.165)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.7345 AO=[(2, 1, 'py', 0.90879), (2, 1, 'px', -0.36122), (2, 1, 'pz', 0.21841)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.73439 AO=[(2, 1, 'pz', 0.95977), (2, 1, 'px', 0.23977), (2, 1, 'py', -0.13589)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.66715 AO=[(3, 1, 'py', 0.80183), (3, 1, 'pz', 0.57927), (3, 1, 'px', 0.15281)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.66651 AO=[(3, 1, 'px', -0.851), (3, 1, 'pz', 0.48773), (3, 1, 'py', -0.19018)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.66651 AO=[(3, 1, 'pz', 0.6527), (3, 1, 'py', -0.56697), (3, 1, 'px', 0.50078)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.0867 AO=[(2, 3, 's', 0.88506), (6, 1, 's', 0.27447), (4, 1, 's', 0.26229), (1, 1, 'pz', 0.20951), (1, 2, 's', 0.19477), (2, 6, 's', -0.14835)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.93936 AO=[(3, 3, 's', 0.9112), (5, 1, 's', 0.4187), (5, 4, 's', -0.1015), (5, 3, 's', -0.09006)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.7212 AO=[(2, 2, 'pz', 0.582), (4, 1, 's', 0.39307), (6, 1, 's', 0.37285), (1, 1, 'pz', -0.36532), (1, 2, 's', -0.32139), (2, 2, 'px', 0.213)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.65299 AO=[(6, 1, 's', -0.57851), (4, 1, 's', 0.57737), (2, 2, 'py', 0.53342), (2, 2, 'px', -0.2168), (6, 4, 's', 0.12716), (4, 4, 's', -0.12422)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.54342 AO=[(5, 1, 's', -0.65257), (3, 2, 'py', 0.54554), (3, 2, 'pz', 0.39411), (3, 3, 's', 0.34915), (5, 4, 's', 0.10862), (3, 2, 'px', 0.10399)]
+NATURAL 17.1 occ=1.99962 energy_Eh=-0.51058 AO=[(2, 2, 'px', 0.76832), (2, 2, 'py', 0.36613), (2, 2, 'pz', -0.24575), (2, 3, 's', -0.23407), (1, 1, 'pz', 0.19133), (2, 6, 's', -0.15719)]
+NATURAL 18.1 occ=1.99878 energy_Eh=-0.31421 AO=[(1, 1, 'py', 0.73216), (1, 1, 'px', -0.28608), (6, 1, 's', 0.21299), (4, 1, 's', -0.20967), (2, 2, 'py', 0.14416), (2, 3, 'd1-', -0.0885)]
+NATURAL 19.1 occ=1.93805 energy_Eh=-0.49675 AO=[(1, 2, 's', -0.86292), (1, 1, 'pz', 0.42394), (2, 2, 'pz', -0.19318), (2, 3, 's', 0.18307), (1, 5, 's', -0.14727), (1, 1, 'py', -0.08244)]
+NATURAL 20.1 occ=1.5 energy_Eh=-0.30723 AO=[(3, 2, 'px', 0.95346), (3, 2, 'py', -0.25956), (3, 2, 'pz', 0.10773)]
+NATURAL 21.1 occ=1.5 energy_Eh=-0.30723 AO=[(3, 2, 'pz', -0.80344), (3, 2, 'py', 0.53534), (3, 2, 'px', 0.23651)]
+NATURAL 22.1 occ=0.06354 energy_Eh=0.2119 AO=[(1, 1, 'px', 0.84332), (1, 1, 'py', 0.3223), (2, 2, 'px', -0.18656), (1, 5, 'px', -0.13311), (1, 4, 'px', 0.09614), (1, 3, 'd1+', -0.09392)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.02983 AO=[(1, 6, 's', -5.16412), (2, 5, 'pz', -3.77078), (1, 5, 's', -3.76878), (2, 7, 's', 3.53075), (2, 6, 'pz', -2.45247), (1, 5, 'pz', -1.88921)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.05288 AO=[(5, 4, 's', -5.08623), (3, 7, 's', 3.24822), (3, 6, 's', 2.89035), (3, 5, 'py', -1.90956), (3, 5, 'pz', -1.37933), (5, 3, 's', -0.87223)]
+KINBOT  2026-10-25T17:25:59-07:00
+/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7
+Live controls: revision 1; hold failures=False; requests={'applied': 16}
+Shared pool: cap 23 across all runs/branches under /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7
+  (revision 14)
+New-submission exclusions:
+  node1,node10,node13,node14,node16,node20,node21,node22,node23,node24,node29,node30,node33,node34,node9
+Allocations under monitored root: 22 (includes diagnostic jobs).
+OVERVIEW ch3s: jobs=12; controllers=21
+  470831050000000000002: cbh_anl=running; vrc_scans/corrections=complete; rotdpy=running (2); PES stage=postprocessing
+  471030810040000000002: cbh_anl=running; vrc_scans/corrections=complete; rotdpy=running (1); PES stage=postprocessing
+  471230610040000000002: cbh_anl=running; vrc_scans/corrections=complete; rotdpy=running (1); PES stage=postprocessing
+  471430450000000000002-s06a7b4c221beb748: cbh_anl=running; vrc_scans/corrections=complete; rotdpy=no linked campaign
+    record; PES stage=postprocessing
+OVERVIEW ch3ss: jobs=10; controllers=15
+  791471490990000000002: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=running (1); PES
+    stage=vrc
+  791472110370000000002: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=no linked campaign
+    record; PES stage=vrc
+  791671450790040000002: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=no linked campaign
+    record; PES stage=vrc
+  791671580700000000002-s36f1e2b924862f12: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=no
+    linked campaign record; PES stage=vrc
+  791871710370000000002: cbh_anl=waiting_for_l2_selection; vrc_scans/corrections=running; rotdpy=no linked campaign
+    record; PES stage=vrc
+OVERVIEW diagnostics: jobs=0; controllers=0; diagnostic results require review before production use
+
+=== ch3s ===
+PES exploration: postprocessing; epoch=0; wells={'postprocessing': 4}; owner=present
+Exploration slots: 0/5; unstarted wells=0 (separate from the QC node pool).
+Outer PES L2 selection: 9 retained; 20 omitted by pathway policy.
+Slurm: 12 allocations / shared pool; local processes: 21
+JOB       STATE       NODES       ELAPSED / LIMIT   CPU  MEMORY  NAME
+52933568  PENDING                 0:00 / 31-00:00:00  8  73820M  rotd-s75-f0-n8
+  WorkDir: rotdPy/kb_470831050000000000002_hom_sci_1_2__single_m2_r1/Surface_75/jobs
+  Reason: (Priority)
+52933565  PENDING                 0:00 / 31-00:00:00  8  73820M  rotd-s85-f0-n8
+  WorkDir: rotdPy/kb_470831050000000000002_hom_sci_1_2__single_m2_r2/Surface_85/jobs
+  Reason: (Resources)
+52929239  RUNNING     node32      1-00:18:31 / 31-00:00:00  96  0  kb-ccsdtqp_dz
+  WorkDir: ANL/state_684eb53c4637f96a/ccsdtqp_dz
+52929237  RUNNING     node3       1-00:43:33 / 31-00:00:00  96  0  kb-ccsdtq_tz
+  WorkDir: ANL/state_684eb53c4637f96a/ccsdtq_tz
+52928790  RUNNING     node11      1-07:36:45 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/ts_0450141d9a891e9c/l3_geometry
+52924269  RUNNING     node26      2-11:09:02 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/state_074fcc5ef5188035/l3_geometry
+52924255  RUNNING     node18      2-12:35:23 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/state_c665c0c83e11968b/l3_geometry
+52924199  RUNNING     node28      2-15:59:21 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/state_9b7047433cae3eb9/l3_geometry
+52924181  RUNNING     node17      2-16:49:36 / 31-00:00:00  96  0  kb-ccsdtqp_dz
+  WorkDir: ANL/state_358d011bcfb05a75/ccsdtqp_dz
+52924178  RUNNING     node35      2-16:54:45 / 31-00:00:00  96  0  kb-ccsdtq_tz
+  WorkDir: ANL/state_358d011bcfb05a75/ccsdtq_tz
+52921757  RUNNING     node4       3-00:14:38 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/ts_857b1afac1911a45/l3_geometry
+52918345  RUNNING     node2       3-08:28:55 / 31-00:00:00  96  0  kb-l3_geometry
+  WorkDir: ANL/ts_72ecf8afb235bd9e/l3_geometry
+  Slurm exclusions: node[1,9-10,13-14,16,20-24,29-30,33-34]
+  Slurm exclusions: node[1,9-10,13-14,16,21-24,29-30,33-34]
+Local: kinbot.rotdpy PID 45784 [S]; kinbot.rotdpy PID 45785 [S]; kinbot.rotdpy PID 45787 [S]; kinbot.rotdpy_policy PID
+  45795 [S]; kinbot.rotdpy_policy PID 45800 [S]; kinbot.rotdpy_policy PID 45805 [S]; kinbot.rotdpy PID 54953 [S];
+  kinbot.rotdpy_policy PID 54955 [S]; kinbot.pes PID 1786469 [S]; kinbot.kb PID 1786495 [S]; kinbot.kb PID 1786510 [S];
+  kinbot.kb PID 1786520 [S]; kinbot.kb PID 1786551 [S]; kinbot.run_policy PID 2177334 [S]; kinbot.run_policy PID 2177335
+  [S]; kinbot.run_policy PID 2177580 [S]; kinbot.run_policy PID 2177581 [S]; kinbot.run_policy PID 2177842 [S];
+  kinbot.run_policy PID 2177843 [S]; kinbot.run_policy PID 2178416 [S]; kinbot.run_policy PID 2178417 [S]
+Composite preflight: complete; graphs checked 9/9; ready_for_dispatch
+Composite preflight: complete; graphs checked 5/5; ready_for_dispatch
+Composite preflight: complete; graphs checked 8/8; ready_for_dispatch
+Composite preflight: complete; graphs checked 1/1; ready_for_dispatch
+PES workers: total=4  running=4  finished=0
+Archived task attempts excluded: 26 graph(s).
+FAILED QC EXIT: 471030810040000000002/471030810040000000002_12_shift_S_R_2_1_5.exitcode job=52914598 exit=1
+FAILED QC EXIT: 471230610040000000002/471230610040000000002_R_Addition_CSm_R_5_1_2.exitcode job=52914761 exit=1
+FAILED QC EXIT: 471230610040000000002/471230610040000000002_r12_insertion_R_2_1_5.exitcode job=52915351 exit=1
+WORKER 470831050000000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 6, 'failed/rejected': 2}
+  Accepted searches reach 3 product group(s); counts are not unique saddles.
+WORKER 471030810040000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 10, 'failed/rejected': 11}
+  Accepted searches reach 4 product group(s); counts are not unique saddles.
+WORKER 471230610040000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 10, 'failed/rejected': 10}
+  Accepted searches reach 4 product group(s); counts are not unique saddles.
+WORKER 471430450000000000002-s06a7b4c221beb748: running; PES says Running
+  Reaction search outcomes: {'accepted': 3, 'failed/rejected': 12}
+  Accepted searches reach 2 product group(s); counts are not unique saddles.
+Dispatch tasks (246 graphs): complete=1115  skipped=28  staged=306  submitted=12  waiting=304
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 470831050000000000002_hom_sci_1_2__single_m2_r1: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 470831050000000000002_hom_sci_1_2__single_m2_r1_vts_pt_asymptote (30.0 A; may be
+      reused).
+  SCAN 470831050000000000002_hom_sci_1_2__single_m2_r2: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 470831050000000000002_hom_sci_1_2__single_m2_r2_vts_pt_asymptote (30.0 A; may be
+      reused).
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 471030810040000000002_hom_sci_1_2__single_m2_r1: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 471030810040000000002_hom_sci_1_2__single_m2_r1_vts_pt_asymptote (30.0 A; may be
+      reused).
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 471230610040000000002_hom_sci_1_2__single_m2_r1: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 471230610040000000002_hom_sci_1_2__single_m2_r1_vts_pt_asymptote (30.0 A; may be
+      reused).
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 471430450000000000002-s06a7b4c221beb748_hom_sci_1_2__single_m2_r1: operator_rejected; excluded from production;
+    old points/errors retained in --details / --json.
+ROTD CAMPAIGN 470831050000000000002_hom_sci_1_2__single_m2_r1: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD CAMPAIGN 470831050000000000002_hom_sci_1_2__single_m2_r2: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD CAMPAIGN 471030810040000000002_hom_sci_1_2__single_m2_r1: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD CAMPAIGN 471230610040000000002_hom_sci_1_2__single_m2_r1: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD rotdPy/kb_470831050000000000002_hom_sci_1_2__single_m2_r1: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+ROTD rotdPy/kb_470831050000000000002_hom_sci_1_2__single_m2_r2: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+ROTD rotdPy/kb_471030810040000000002_hom_sci_1_2__single_m2_r1: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+ROTD rotdPy/kb_471230610040000000002_hom_sci_1_2__single_m2_r1: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+  KINBOT LOGS
+    pes.log | 6.3h ago
+      11:07:15-INFO: kb: 1 for 471430450000000000002-s06a7b4c221beb748
+      11:07:16-INFO: Started job 471430450000000000002-s06a7b4c221beb748 at 2026-10-25 11:07:16.864700. PID = 1786551
+      11:07:17-INFO: len(jobs):  4
+      11:07:17-INFO: len(running):  4
+    470831050000000000002/kinbot.log | 6.2h ago
+      11:11:43-INFO: Creating rotdPy input for reaction 470831050000000000002_hom_sci_1_2__single_m2_r1
+      11:11:48-INFO: Creating rotdPy input for reaction 470831050000000000002_hom_sci_1_2__single_m2_r2
+      11:11:52-INFO: Ready VRC surface(s) sampling independently: 470831050000000000002_hom_sci_1_2
+      11:11:52-INFO: Independent VRC-TST branch is complete
+    471030810040000000002/kinbot.log | 6.2h ago
+      11:12:19-INFO: Creating rotdPy input for reaction 471030810040000000002_hom_sci_1_2
+      11:12:19-INFO: Creating rotdPy input for reaction 471030810040000000002_hom_sci_1_2__single_m2_r1
+      11:12:33-INFO: Ready VRC surface(s) sampling independently: 471030810040000000002_hom_sci_1_2
+      11:12:33-INFO: Independent VRC-TST branch is complete
+    471230610040000000002/kinbot.log | 6.2h ago
+      11:12:33-INFO: Creating rotdPy input for reaction 471230610040000000002_hom_sci_1_2
+      11:12:33-INFO: Creating rotdPy input for reaction 471230610040000000002_hom_sci_1_2__single_m2_r1
+      11:12:47-INFO: Ready VRC surface(s) sampling independently: 471230610040000000002_hom_sci_1_2
+      11:12:47-INFO: Independent VRC-TST branch is complete
+    More log tails available with --all --details (or --json).
+  QC OUTPUT
+    rotdPy/kb_471230610040000000002_hom_sci_1_2__single_m2_r1/rotdpy.log | 3.0h ago
+      07:49:26-WARNING: Slurm job 52928501 ended in state FAILED for surface 114 face 0 sample 3.
+      07:49:26-WARNING: Slurm no longer reports job 52928493 for surface 113 face 0 sample 3: slurm_load_jobs error:
+        Invalid job id specified
+      10:29:15-WARNING: Slurm no longer reports job 52930706 for surface 114 face 0 sample 4: slurm_load_jobs error:
+        Invalid job id specified
+      14:27:30-WARNING: Slurm no longer reports job 52932041 for surface 114 face 0 sample 4: slurm_load_jobs error:
+        Invalid job id specified
+      18:41:05-WARNING: Slurm no longer reports job 52926564 for surface 115 face 0 sample 1: slurm_load_jobs error:
+        Invalid job id specified
+      22:50:04-WARNING: Slurm no longer reports job 52927468 for surface 115 face 0 sample 1: slurm_load_jobs error:
+        Invalid job id specified
+    471230610040000000002/perm/471230610040000000002_r12_insertion_R_2_1_5.err | 96.3h ago
+      Worker failure: Optimization did not converge within 750 steps.
+    471230610040000000002/471230610040000000002_r12_insertion_R_2_1_5_sella.log | 96.3h ago
+      Sella 747 17:05:04   -11915.834896       0.0027       0.0000       0.0001       1.0000     894
+      Sella 748 17:05:07   -11915.834896       0.0027       0.0000       0.0001      -0.0000     895
+      Sella 749 17:05:10   -11915.834896       0.0027       0.0000       0.0001       0.0000     896
+      Sella 750 17:05:12   -11915.834896       0.0027       0.0000       0.0001      -0.0000     897
+      Worker failure: Optimization did not converge within 750 steps.
+    471230610040000000002/perm/471230610040000000002_R_Addition_CSm_R_5_1_2.err | 97.3h ago
+      Worker failure: Optimization did not converge within 750 steps.
+    More log tails available with --all --details (or --json).
+
+=== ch3ss ===
+PES exploration: exploring; epoch=0; wells={'vrc': 5, 'exploring': 5}; owner=present
+Exploration slots: 5/5; unstarted wells=0 (separate from the QC node pool).
+New ANL work waits for outer PES L2 pathway selection; retained QC may still be running.
+Slurm: 10 allocations / shared pool; local processes: 15
+JOB       STATE       NODES       ELAPSED / LIMIT   CPU  MEMORY  NAME
+52933569  PENDING                 0:00 / 31-00:00:00  8  73820M  rotd-s32-f0-n4
+  WorkDir: rotdPy/kb_791471490990000000002_hom_sci_1_2__single_m2_r1/Surface_32/jobs
+  Reason: (Priority)
+52933567  PENDING                 0:00 / 31-00:00:00  8  10G
+  791871560500020000002-s254020c87a151164_R_Addition_MultipleBond_3_2_6.sbatch
+  WorkDir: 791871560500020000002-s254020c87a151164
+  Reason: (Priority)
+52933566  PENDING                 0:00 / 31-00:00:00  8  73820M  rotd-s31-f0-n4
+  WorkDir: rotdPy/kb_791471490990000000002_hom_sci_1_2__single_m2_r1/Surface_31/jobs
+  Reason: (Priority)
+52933564  RUNNING     node36      1:21 / 31-00:00:00  96  10G
+  791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_5_3_1.sbatch
+  WorkDir: 791671560700020000002-sedd8f7729b69b19b
+52933559  RUNNING     node7       2:35 / 31-00:00:00  96  104000M  kb-relaxed_scan
+  WorkDir: VRC/791671580700000000002-s36f1e2b924862f12_hom_sci_2_3__single_m2_r1_vts_pt03_97853373194e91d1/relaxed_scan
+52933550  RUNNING     node8       3:26 / 31-00:00:00  96  10G
+  791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_4_2_1.sbatch
+  WorkDir: 791671560700020000002-sedd8f7729b69b19b
+52933520  RUNNING     node31      10:24 / 31-00:00:00  96  10G
+  791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_2.sbatch
+  WorkDir: 791671560700020000002-sedd8f7729b69b19b
+52933181  RUNNING     node15      1:18:30 / 31-00:00:00  96  104000M  kb-relaxed_scan
+  WorkDir: VRC/hom_sci_2_3__single_m2_r1_vts_pt22_c3d3306f4aa4ae41/relaxed_scan
+52931974  RUNNING     node19      3:20:45 / 31-00:00:00  96  104000M  kb-relaxed_scan
+  WorkDir: VRC/791671580700000000002-s36f1e2b924862f12_hom_sci_1_2__single_m2_r1_vts_pt01_b79548f952e38303/relaxed_scan
+52930179  RUNNING     node27      9:43:16 / 31-00:00:00  96  10G
+  791871560500020000002-sb6e34ded5baaf03b_h2_elim_5_6_high.sbatch
+  WorkDir: 791871560500020000002-sb6e34ded5baaf03b
+  Slurm exclusions: node[1,9-10,13-14,16,20-24,29-30,33-34]
+Local: kinbot.pes PID 1786470 [S]; kinbot.kb PID 1786498 [S]; kinbot.kb PID 1786513 [S]; kinbot.kb PID 1786523 [S];
+  kinbot.kb PID 1786553 [S]; kinbot.kb PID 1786591 [S]; kinbot.kb PID 1786686 [S]; kinbot.kb PID 1787063 [S]; kinbot.kb
+  PID 1801093 [S]; kinbot.kb PID 1801133 [S]; kinbot.kb PID 1819706 [S]; kinbot.rotdpy PID 1968622 [S];
+  kinbot.rotdpy_policy PID 1968658 [S]; kinbot.run_policy PID 2178497 [S]; kinbot.run_policy PID 2178498 [S]
+PES workers: total=10  running=10  finished=0
+Archived task attempts excluded: 1 graph(s).
+FAILED QC EXIT: 791471490990000000002/791471490990000000002_r12_insertion_R_4_1_5.exitcode job=52915416 exit=1
+FAILED QC EXIT: 791472110370000000002/791472110370000000002_h2_elim_5_6.exitcode job=52926389 exit=1
+FAILED QC EXIT:
+  791671580700000000002-s36f1e2b924862f12/conf/791671580700000000002-
+  s36f1e2b924862f12_r12_insertion_R_5_1_2_0002.exitcode job=52916910 exit=1
+WORKER 791471490990000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 5, 'failed/rejected': 13}
+  Accepted searches reach 4 product group(s); counts are not unique saddles.
+WORKER 791472110370000000002: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 13, 'accepted': 11}
+  Accepted searches reach 5 product group(s); counts are not unique saddles.
+WORKER 791671450790040000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 23, 'failed/rejected': 19}
+  Accepted searches reach 9 product group(s); counts are not unique saddles.
+WORKER 791671560700020000002-sdc19d1516ced03fc: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 2, 'product characterization': 1, 'TS search': 19, 'accepted': 1}
+  Accepted searches reach 1 product group(s); counts are not unique saddles.
+    791671560700020000002-sdc19d1516ced03fc_intra_H_migration_2_6: product characterization; step=16
+    791671560700020000002-sdc19d1516ced03fc_intra_H_migration_suprafacial_2_5: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_Intra_R_Add_ExoTetCyclic_F_2_3_5: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_1_2_4: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_3: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_6: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_4_2_1: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_6_1_2: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_R_Addition_MultipleBond_2_1_3: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_R_Addition_MultipleBond_2_1_6: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_R_Addition_MultipleBond_1_3_5: TS search; step=6
+    791671560700020000002-sdc19d1516ced03fc_12_shift_S_F_1_2_4: TS search; step=6
+WORKER 791671560700020000002-sedd8f7729b69b19b: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 3, 'product/TS optimization': 2, 'TS search': 32, 'accepted': 1}
+  Accepted searches reach 1 product group(s); counts are not unique saddles.
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_1_5: product/TS optimization; step=16
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_2_6: product/TS optimization; step=16
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_3_4: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_suprafacial_2_5: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_intra_H_migration_suprafacial_3_4: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_2_3_5: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_3_2_4: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_1_2_4: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_1_3_5: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_2_1_3: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_2_1_6: TS search; step=12
+    791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_2: TS search; step=12
+  Optimizing 791671560700020000002-sedd8f7729b69b19b_intra_H_migration_1_5: pending=['transition_state', 'product_0']
+    failures=[]
+  Optimizing 791671560700020000002-sedd8f7729b69b19b_intra_H_migration_2_6: pending=['transition_state', 'product_0',
+    'product_1'] failures=[]
+WORKER 791671580700000000002-s36f1e2b924862f12: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 26, 'accepted': 20}
+  Accepted searches reach 8 product group(s); counts are not unique saddles.
+WORKER 791671580700000000002-s8fc26f5f496eeb4e: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 1, 'product/TS optimization': 1, 'start product/TS optimization': 2, 'TS
+    search': 38, 'final validation': 2}
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_2_4: product/TS optimization; step=16
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_2_5: start product/TS optimization; step=16
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_6: start product/TS optimization; step=16
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_suprafacial_3_4: TS search; step=9
+    791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_suprafacial_3_5: TS search; step=9
+    791671580700000000002-s8fc26f5f496eeb4e_Intra_R_Add_Endocyclic_F_3_1: TS search; step=21
+    791671580700000000002-s8fc26f5f496eeb4e_Intra_R_Add_Endocyclic_F_1_3: TS search; step=21
+    791671580700000000002-s8fc26f5f496eeb4e_Intra_R_Add_ExoTetCyclic_F_3_1_4: TS search; step=9
+    791671580700000000002-s8fc26f5f496eeb4e_Intra_R_Add_ExoTetCyclic_F_3_1_5: TS search; step=9
+    791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_1_2_3: TS search; step=8
+    791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_1_2_6: TS search; step=8
+    791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_2_1_4: TS search; step=8
+  Optimizing 791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_2: pending=[] failures=[]
+  Optimizing 791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3: pending=[] failures=[]
+WORKER 791871560500020000002-s254020c87a151164: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 3, 'product characterization': 2, 'TS search': 32, 'product/TS
+    optimization': 1, 'final validation': 1}
+    791871560500020000002-s254020c87a151164_intra_H_migration_2_5: product characterization; step=16
+    791871560500020000002-s254020c87a151164_intra_H_migration_2_4: product characterization; step=16
+    791871560500020000002-s254020c87a151164_intra_H_migration_suprafacial_1_4: TS search; step=7
+    791871560500020000002-s254020c87a151164_intra_H_migration_suprafacial_3_5: TS search; step=7
+    791871560500020000002-s254020c87a151164_Intra_R_Add_Endocyclic_F_3_1: TS search; step=19
+    791871560500020000002-s254020c87a151164_Intra_R_Add_ExoTetCyclic_F_1_3_4: TS search; step=7
+    791871560500020000002-s254020c87a151164_Intra_R_Add_ExoTetCyclic_F_3_1_5: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_1_2_3: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_1_2_6: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_2_3_4: TS search; step=7
+    791871560500020000002-s254020c87a151164_r12_insertion_R_3_2_1: TS search; step=7
+  Optimizing 791871560500020000002-s254020c87a151164_hom_sci_1_2: pending=['product_1'] failures=[]
+  Optimizing 791871560500020000002-s254020c87a151164_hom_sci_2_3: pending=[] failures=[]
+WORKER 791871560500020000002-sb6e34ded5baaf03b: running; PES says Running
+  Reaction search outcomes: {'failed/rejected': 32, 'accepted': 6, 'product/TS optimization': 1}
+  Accepted searches reach 5 product group(s); counts are not unique saddles.
+    791871560500020000002-sb6e34ded5baaf03b_h2_elim_5_6: product/TS optimization; step=23
+  Optimizing 791871560500020000002-sb6e34ded5baaf03b_h2_elim_5_6: pending=['transition_state'] failures=[]
+WORKER 791871710370000000002: running; PES says Running
+  Reaction search outcomes: {'accepted': 15, 'failed/rejected': 19}
+  Accepted searches reach 9 product group(s); counts are not unique saddles.
+Dispatch tasks (87 graphs): complete=178  submitted=3
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 791471490990000000002_hom_sci_1_2__single_m2_r1: resolved; current pass={'accepted': 48}; saved={'accepted': 48}
+    Last accepted in this pass: 791471490990000000002_hom_sci_1_2__single_m2_r1_vts_pt_asymptote (30.0 A; may be
+      reused).
+  SCAN 791471490990000000002_hom_sci_2_3__single_m2_r1: running; current pass={'accepted': 22, 'running': 1};
+    saved={'accepted': 22, 'running': 1}
+    Last accepted in this pass: 791471490990000000002_hom_sci_2_3__single_m2_r1_vts_pt21 (6.2 A; may be reused).
+    791471490990000000002_hom_sci_2_3__single_m2_r1_vts_pt22: running (6.4 A)
+MESS gate: waiting; solver: {'status': 'ready'}
+  REVIEW HOLD 791472110370000000002/vrc_model_review.json: 791472110370000000002_r12_insertion_R_2_1_5: IRC endpoint
+    does not contain two fragments.
+  REVIEW HOLD 791671450790040000002/vrc_model_review.json: Orbital/state review still required or unconfirmed for:
+    791671450790040000002_r12_insertion_R_2_1_5, 791671450790040000002_r12_insertion_R_2_1_6,
+    791671450790040000002_r12_insertion_R_2_3_4, 791671450790040000002_r12_insertion_R_5_1_6,
+    791671450790040000002_r12_insertion_R_6_1_2, 791671450790040000002_r12_insertion_R_6_1_5,
+    791671450790040000002_hom_sci_1_2, 791671450790040000002_hom_sci_2_3
+MESS gate: waiting; solver: {'status': 'ready'}
+  VRC REVIEW 791671580700000000002-s36f1e2b924862f12/vrc_model_review.json: listed channel models accepted; old
+    aggregate hold superseded (not a QC completion verdict).
+MESS gate: waiting; solver: {'status': 'ready'}
+  SCAN 791671580700000000002-s36f1e2b924862f12_hom_sci_1_2__single_m2_r1: running; current pass={'accepted': 1,
+    'running': 1}; saved={'accepted': 1, 'running': 1}
+    Last accepted in this pass: 791671580700000000002-s36f1e2b924862f12_hom_sci_1_2__single_m2_r1_vts_pt00 (2.0 A; may
+      be reused).
+    791671580700000000002-s36f1e2b924862f12_hom_sci_1_2__single_m2_r1_vts_pt01: running (2.2 A)
+  SCAN 791671580700000000002-s36f1e2b924862f12_hom_sci_2_3__single_m2_r1: running; current pass={'accepted': 3,
+    'running': 1}; saved={'accepted': 3, 'running': 1}
+    Last accepted in this pass: 791671580700000000002-s36f1e2b924862f12_hom_sci_2_3__single_m2_r1_vts_pt02 (2.4 A; may
+      be reused).
+    791671580700000000002-s36f1e2b924862f12_hom_sci_2_3__single_m2_r1_vts_pt03: running (2.6 A)
+MESS gate: waiting; solver: {'status': 'ready'}
+  REVIEW HOLD 791871710370000000002/vrc_model_review.json: Orbital/state review still required or unconfirmed for:
+    791871710370000000002_r12_insertion_R_2_1_5, 791871710370000000002_R_Addition_CSm_R_5_1_2,
+    791871710370000000002_hom_sci_1_2, 791871710370000000002_hom_sci_2_3
+Failures: 1 tasks/records; 1 distinct diagnostics
+  1 affected: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50 cm^-1.
+    Optimizer convergence alone does not establish the stationary-point order.
+    791671580700000000002-s36f1e2b924862f12/conf/791671580700000000002-
+      s36f1e2b924862f12_r12_insertion_R_5_1_2_0002.result.json
+ROTD CAMPAIGN 791471490990000000002_hom_sci_1_2__single_m2_r1: running; owner=present; correction review=scan evidence
+  checked before sampling/result use; no separate correction approval
+ROTD rotdPy/kb_791471490990000000002_hom_sci_1_2__single_m2_r1: 0/116 surface output files; file counts only, final flux
+  validation is separate.
+  KINBOT LOGS
+    pes.log | 5.7h ago
+      11:44:09-INFO: Job: 791671560700020000002-sdc19d1516ced03fc
+      11:44:09-INFO: kb: 1 for 791671560700020000002-sdc19d1516ced03fc
+      11:44:10-INFO: Started job 791671560700020000002-sdc19d1516ced03fc at 2026-10-25 11:44:10.523992. PID = 1819706
+      11:44:11-INFO: len(running):  10
+    791471490990000000002/kinbot.log | 1.3h ago
+      13:41:11-INFO: Creating rotdPy input for reaction 791471490990000000002_hom_sci_1_2
+      13:41:11-INFO: Creating rotdPy input for reaction 791471490990000000002_hom_sci_1_2__single_m2_r1
+      13:41:41-INFO: Ready VRC surface(s) sampling independently: 791471490990000000002_hom_sci_1_2
+      16:06:58-INFO: Accepted 791471490990000000002_hom_sci_2_3__single_m2_r1_vts_pt21 at RS2-caspt2-f12(7,5)/avdz-f12
+        (6.200 angstrom)
+    791472110370000000002/kinbot.log | 6.1h ago
+      11:22:45-INFO: Shared scheduling pool /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7: live limit
+        23; no branch reservations.
+      11:22:45-INFO: Starting the independent VRC-TST branch
+      11:22:45-INFO: Bond to be scanned for 791472110370000000002_hom_sci_1_2 is                             [1 2]
+      11:22:45-WARNING: 791472110370000000002_r12_insertion_R_2_1_5: IRC endpoint does not contain two fragments.
+        Waiting for live review/retry input.
+    791671450790040000002/kinbot.log | 5.7h ago
+      11:44:09-WARNING: 791671450790040000002_r12_insertion_R_6_1_5 Held for orbital review: 791671450790040000002: VRC
+        needs a reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input.
+        The initial well orbital indices cannot be silently reused.
+      11:44:09-WARNING: 791671450790040000002_hom_sci_1_2 Held for orbital review: 791671450790040000002: VRC needs a
+        reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input. The
+        initial well orbital indices cannot be silently reused.
+      11:44:09-WARNING: 791671450790040000002_hom_sci_2_3 Held for orbital review: 791671450790040000002: VRC needs a
+        reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input. The
+        initial well orbital indices cannot be silently reused.
+      11:44:09-WARNING: Orbital/state review required for: 791671450790040000002_hom_sci_1_2,
+        791671450790040000002_hom_sci_2_3, 791671450790040000002_r12_insertion_R_2_1_5,
+        791671450790040000002_r12_insertion_R_2_1_6, 791671450790040000002_r12_insertion_R_2_3_4,
+        791671450790040000002_r12_insertion_R_5_1_6, 791671450790040000002_r12_insertion_R_6_1_2,
+        791671450790040000002_r12_insertion_R_6_1_5 Waiting for live review/retry input.
+    More log tails available with --all --details (or --json).
+  QC OUTPUT
+    791472110370000000002/perm/791472110370000000002_h2_elim_5_6.err | 48.1h ago
+      Worker failure: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50
+        cm^-1. Optimizer convergence alone does not establish the stationary-point order.
+    791472110370000000002/791472110370000000002_h2_elim_5_6_sella.log | 48.1h ago
+      Step     Time          Energy         fmax         cmax       rtrust          rho   trjid
+      Sella  94 17:17:10   -22754.716528       0.0038       0.0000       0.1013       1.0832     159
+      Sella  95 17:17:15   -22754.716525       0.0028       0.0000       0.0282      -0.1090     160
+      Sella  96 17:17:19   -22754.716538       0.0070       0.0000       0.0282       0.9981     161
+      Worker failure: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50
+        cm^-1. Optimizer convergence alone does not establish the stationary-point order.
+791671580700000000002-s36f1e2b924862f12/perm/conf/791671580700000000002-s36f1e2b924862f12_r12_insertion_R_5_1_2_0002.err
+      | 93.4h ago
+      Worker failure: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50
+        cm^-1. Optimizer convergence alone does not establish the stationary-point order.
+    791671580700000000002-s36f1e2b924862f12/conf/791671580700000000002-
+      s36f1e2b924862f12_r12_insertion_R_5_1_2_0002_sella.log | 93.4h ago
+      Step     Time          Energy         fmax         cmax       rtrust          rho   trjid
+      Sella  51 20:00:04   -22751.022613       0.0005       0.0000       0.0424       0.4747      77
+      Sella  52 20:00:08   -22751.022614       0.0017       0.0000       0.0424       0.8273      78
+      Sella  53 20:00:13   -22751.022614       0.0008       0.0000       0.0424       1.7781      79
+      Worker failure: Frequency validation failed for transition state: imaginary modes [cm^-1] = none; 0 below -50
+        cm^-1. Optimizer convergence alone does not establish the stationary-point order.
+    More log tails available with --all --details (or --json).
+
+=== diagnostics ===
+Slurm: 0 allocations / shared pool; local processes: 0
+Dispatch tasks (1 graphs): failed=1
+Failures: 1 tasks/records; 1 distinct diagnostics
+  1 affected: ASE geometry optimization did not converge.
+    vrc_branch_probes/probe_c71c63ff9a97a602/tasks/relaxed_scan
+  QC OUTPUT
+    vrc_branch_probes/probe_c71c63ff9a97a602/tasks/relaxed_scan/slurm.stderr | 74.9h ago
+      Traceback (most recent call last):
+      RuntimeError: relaxed_scan: ASE geometry optimization did not converge.
+INACTIVE: no live jobs/controllers observed. This is not a completion verdict.
+
+Read-only | --all: reaction history / more logs | --details: full current records | --raw-logs: unfiltered tails |
+  --json: snapshot
+Archived task attempts are excluded; retained files are unchanged. Log reads are bounded (40; --all: 200).
+Tails may include earlier errors; quiet output is not proof of a stall. Statuses are not a scientific audit.
+Legacy PES Finished means exited, not successful.
+hram@blodgett:~$

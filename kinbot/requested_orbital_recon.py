@@ -1311,10 +1311,11 @@ def proposal(source, case_input, recipe, output):
     previous = _read(case_input)
     proposed, summary, chosen = _selection(source, case_input, recipe, previous)
     saved = _saved(source, allow_accepted=True)
-    manifest_path = Path(saved['systems'][0]['manifest'])
+    system = _selected_system(saved, chosen)
+    manifest_path = Path(system['manifest'])
     manifest = _read(manifest_path)
     files = [recipe, source/'request.json', Path(saved['request']), manifest_path,
-             source/'review_launch.json', Path(saved['systems'][0]['configuration'])]
+             source/'review_launch.json', Path(system['configuration'])]
     required = set(chosen.get('required_complete_jobs', [])) | {
         v['job'] for v in chosen['basis_seeds'].values()}
     for job in manifest['jobs']:
@@ -1332,6 +1333,18 @@ def proposal(source, case_input, recipe, output):
                 sha256=file_sha256(output))
 
 
+def _selected_system(saved, chosen):
+    """Resolve an explicitly named candidate, never the first candidate by default."""
+    systems = saved['systems']
+    title = chosen.get('source_model')
+    matches = ([s for s in systems if s.get('title') == title]
+               if title is not None else systems)
+    if len(matches) != 1:
+        raise ValueError('Select one source screen with basis-specific orbital records; '
+                         'source_model must identify exactly one candidate title.')
+    return matches[0]
+
+
 def _selection(source, case_input, recipe, previous, *, bind_request=None):
     from kinbot import input_refresh
     from kinbot.molpro import validate_vrc_state_model
@@ -1343,6 +1356,7 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
         raise ValueError('Bind the completed screen to the actual VRC review request before selection.')
     request = _read(bind_request or source/'request.json')
     chosen = _read(recipe)
+    _require_available_recipe(chosen)
     if chosen.get('diagnostic_only'):
         raise ValueError('A diagnostic-only orbital seed cannot be published to production.')
     if (chosen.get('schema') != 1 or chosen.get('reviewed') is not True
@@ -1358,9 +1372,8 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
         raise ValueError('Selected orbital recipe does not match this review request.')
     if case_input.parent not in Path(saved['request']).parents:
         raise ValueError('Case input does not belong to this review request.')
-    if len(saved['systems']) != 1:
-        raise ValueError('Select one source screen with basis-specific orbital records.')
-    manifest = _read(saved['systems'][0]['manifest'])
+    system = _selected_system(saved, chosen)
+    manifest = _read(system['manifest'])
     jobs = {j['name']: j for j in manifest['jobs']}
     if any(not j.get('natural_orbital_probe') for j in manifest['jobs']):
         raise ValueError('SCF character is not a reviewed multistate natural-orbital selection.')
@@ -1374,10 +1387,14 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
     basis_models = {}
     for basis, selection in chosen['basis_seeds'].items():
         job = jobs[selection['job']]
-        if (job['status'] != 'complete' or job['basis'] != basis
+        if (job['status'] != 'complete' or job.get('validation_errors') or job['basis'] != basis
                 or file_sha256(job['wfu']) != job['wfu_sha256']
                 or file_sha256(Path(job['directory'])/(job['name']+'.out')) != job['output_sha256']):
             raise ValueError('Selected native seed is not unchanged, complete and basis matched.')
+        for key in ('wfu_sha256', 'output_sha256'):
+            if key in selection and selection[key] != job[key]:
+                raise ValueError('Selected native seed differs from the explicitly reviewed hash: '
+                                 + job['name'] + ' ' + key)
         model = deepcopy(chosen['state_model'])
         model['orbital_selection'] = dict(mode='molpro_record', path=job['wfu'],
             sha256=job['wfu_sha256'], record=selection['record'], orbital_type='natural',
@@ -1418,7 +1435,7 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
     input_refresh.validate_models(previous, proposed, case_input.parent)
     if input_refresh.owner_directory(case_input) is None:
         raise ValueError('No live PES owner for this input; no driver was launched.')
-    config = _read(saved['systems'][0]['configuration'])
+    config = _read(system['configuration'])
     a = np.asarray(config['geometry_angstrom'], dtype=float)
     b = np.asarray(request['positions'], dtype=float)
     distances = lambda xyz: np.linalg.norm(xyz[:, None]-xyz[None, :], axis=2)
@@ -1426,7 +1443,8 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
     effective = {**previous, **parameters}
     summary = dict(status='reviewed', parent=parent, active_space=active,
         basis_seeds={b:m['orbital_selection'] for b,m in basis_models.items()},
-        source_screen=str(source), request=str(bind_request or saved['request']),
+        source_screen=str(source), source_model=system.get('title'),
+        request=str(bind_request or saved['request']),
         geometry_provenance=dict(coordinates_equal=bool(np.array_equal(a, b)),
             max_pair_distance_change_angstrom=float(np.max(abs(distances(a)-distances(b)))),
             note='Source is a fixed-geometry orbital screen; production reoptimizes the current geometry.'),
@@ -1511,6 +1529,7 @@ def review_batch(production, campaign, plan, *, apply=False, require_all=False):
     campaign = Path(campaign).expanduser().resolve(strict=True)
     plan = Path(plan).expanduser().resolve(strict=True)
     controls = _read(plan)
+    _require_available_recipe(controls)
     if controls.get('schema') != 1 or not controls.get('selections'):
         raise ValueError('Expected an explicit selection plan.')
     cases = {}
@@ -1549,7 +1568,9 @@ def review_batch(production, campaign, plan, *, apply=False, require_all=False):
                 if saved.get('provisional') and not actual.is_file():
                     waiting.append(dict(channel=item['name'], reason='waiting_for_accepted_channel', request=str(actual)))
                     continue
-                manifest = _read(saved['systems'][0]['manifest'])
+                chosen_recipe = _read(plan.parent/item['recipe'])
+                _require_available_recipe(chosen_recipe)
+                manifest = _read(_selected_system(saved, chosen_recipe)['manifest'])
                 if any(j['status'] != 'complete' for j in manifest['jobs']):
                     waiting.append(dict(channel=item['name'], reason='waiting_for_native_completion'))
                     continue

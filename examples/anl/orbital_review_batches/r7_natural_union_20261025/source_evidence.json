@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "provenance": "Selected numeric fields transcribed from the user-supplied read-only comparison and CI output, 2026-10-25; not a verbatim terminal capture. Original natural XML hashes and source WFU/output hashes cross-checked against the already verified compact-continuation archive. New canonical-trial XML itself has not yet been transferred.",
+  "original_natural_union": [
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+  ],
+  "canonical_trial_active": [
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+  ],
+  "canonical_trial_replaced": [
+    16,
+    18,
+    19,
+    20,
+    21,
+    22
+  ],
+  "bases": {
+    "adz": {
+      "original_xml_sha256": "8ebe5a55cf7b380047bb27a71112ce811e0294e35ecf13cdff09521d4d38b67b",
+      "canonical_trial_xml_sha256": "81736ceffb2ca90e5949dd8c12d275640b88b2911bdbf6fde51c74c9e5c2c927",
+      "singular_values_active": [
+        0.9999998987092498,
+        0.9999973048304687,
+        0.9999787323774101,
+        0.999875709483063,
+        0.9997380010760356,
+        0.1218444608831246
+      ],
+      "singular_values_replace_17_by_16": [
+        0.9999998987371115,
+        0.9999972989249358,
+        0.999971053030334,
+        0.9998757004884945,
+        0.9995509661893268,
+        0.9904734758929785
+      ],
+      "new_17_squared_overlaps_old_14_12_13_17": [
+        0.6874934900646982,
+        0.1811181915715969,
+        0.10868673182729487,
+        0.014704910215033916
+      ],
+      "reconstruction_error": 3.4197454291610973e-15,
+      "orthogonality_error": 1.2420950359251724e-13,
+      "D1_CI_222a20": 0.87654791,
+      "D2_CI_2222a0": 0.9317706,
+      "source_wfu_sha256": "20cb03e26c6500c89dfdb767297d1c93f094cc2c884842e65ba7c8e79c7e5491",
+      "source_output_sha256": "4870bcb92c8bcd009fa3374a66c70e8998372efaff069684c21f61acac59227f"
+    },
+    "atz": {
+      "original_xml_sha256": "41065cde4252fd45b0a3b57e03e99c2a939d3b0e658cdc329a18cd39d612b53f",
+      "canonical_trial_xml_sha256": "1f07bc53ea3934261a3021a4d8d67f55cfb6855c7e34858f04816c6584854377",
+      "singular_values_active": [
+        0.999999883817723,
+        0.9999970900881253,
+        0.9999776714505589,
+        0.9998726524326877,
+        0.9997425510969252,
+        0.12240924500767787
+      ],
+      "singular_values_replace_17_by_16": [
+        0.9999998838940071,
+        0.9999970938492273,
+        0.9999657942483284,
+        0.9998726362403049,
+        0.9995446129109656,
+        0.9902396593992141
+      ],
+      "new_17_squared_overlaps_old_14_12_13_17": [
+        0.6922650011454845,
+        0.1795066621279355,
+        0.1052751505037823,
+        0.014839631653053225
+      ],
+      "reconstruction_error": 5.524077790244471e-15,
+      "orthogonality_error": 9.326748273239177e-13,
+      "D1_CI_222a20": 0.87734003,
+      "D2_CI_2222a0": 0.93149849,
+      "source_wfu_sha256": "6916ea49d341f6a60ccfa703557203a1de1d06c51f1a05395a5acf09e46198f5",
+      "source_output_sha256": "815acedd218c96412997075591e935a66b512ca05eee08de925d3f89b028fda7"
+    }
+  }
+}

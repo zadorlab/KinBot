@@ -474,16 +474,22 @@ def _load(path):
             if partition is not None:
                 keys = {'source_active_electrons', 'source_active_orbitals',
                         'close_lowest', 'discard_highest'}
+                # Explicit model refinement: promote the highest occupied
+                # inactive natural orbitals, preserving their checkpoint order.
+                # This is not an automatic expansion or a canonical selector.
+                opened = partition.get('open_highest_closed', 0) if isinstance(partition, dict) else 0
                 if (not isinstance(partition, dict) or not keys <= set(partition)
-                        or set(partition) - keys - {'orbital_swaps'}
+                        or set(partition) - keys - {'orbital_swaps', 'open_highest_closed'}
                         or any(type(partition[key]) is not int or partition[key] < 0 for key in keys)
+                        or type(opened) is not int or opened < 0
+                        or (opened and partition['close_lowest'])
                         or partition['source_active_electrons'] < 1
                         or partition['source_active_orbitals'] < 1
                         or partition['source_active_electrons'] > 2 * partition['source_active_orbitals']
-                        or partition['source_active_electrons'] - 2 * partition['close_lowest']
+                        or partition['source_active_electrons'] - 2 * partition['close_lowest'] + 2 * opened
                             != definition['active_electrons']
                         or partition['source_active_orbitals'] - partition['close_lowest']
-                            - partition['discard_highest'] != definition['active_orbitals']
+                            - partition['discard_highest'] + opened != definition['active_orbitals']
                         or model.get('orbital_selection') is not None
                         or data.get('probe_method') != 'casscf'):
                     raise ValueError('An orbital partition requires consistent source/target counts, '
@@ -495,7 +501,8 @@ def _load(path):
                                for i in pair) or pair[0] == pair[1] for pair in swaps)):
                     raise ValueError('orbital_swaps must contain distinct one-based source-active index pairs.')
                 if (electrons - partition['source_active_electrons'] < 0
-                        or (electrons - partition['source_active_electrons']) % 2):
+                        or (electrons - partition['source_active_electrons']) % 2
+                        or opened > (electrons - partition['source_active_electrons']) // 2):
                     raise ValueError('Source active electron count is incompatible with the molecule.')
             elif not scf_seed and model.get('orbital_selection', {}).get('mode') != 'avas':
                 raise ValueError('A reconnaissance candidate requires explicit AVAS targets.')

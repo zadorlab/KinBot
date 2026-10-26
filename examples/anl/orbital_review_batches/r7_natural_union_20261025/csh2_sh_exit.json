@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_R_Addition_CSm_R_5_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "csh2_sh_exit_natural_union",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_l2",
+          "orbital_chain": "outward",
+          "seed_sha256": {
+            "adz": "20cb03e26c6500c89dfdb767297d1c93f094cc2c884842e65ba7c8e79c7e5491",
+            "atz": "6916ea49d341f6a60ccfa703557203a1de1d06c51f1a05395a5acf09e46198f5"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "orbital_chain": "outward",
+          "propagate": true
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 9,
+        "active_orbitals": 6,
+        "chemical_note": "Initialization test at fixed CAS(9,6) and two equally weighted doublets. Use the completed independent near CAS(7,5) natural checkpoint 2140.2, whose inactive orbital 17 is the missing SH p direction; retain its natural 18-22. Source closed=17 becomes closed=16, so the initial active window is exactly the identified natural union 17-22. The preceding far-canonical-17 trial substituted occupied sigma character: its active span overlaps this intended union with minimum singular value 0.12184/0.12241 (DZ/TZ), versus 0.99047/0.99024 after replacing its new 17 with its inactive SH 16. This tests an explicit natural identity, not another CAS enlargement, root change, or orbital freeze. Optimize at the unchanged L2 product endpoint, then propagate that completed target checkpoint to the unchanged 30 angstrom geometry. Four jobs total; inspect full active/inactive character and CI vectors before any selection.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ],
+          "selected_roots": {
+            "2": 1
+          },
+          "canonical_orbitals": true
+        },
+        "orbital_partition": {
+          "source_active_electrons": 7,
+          "source_active_orbitals": 5,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 1
+        }
+      },
+      "orbital_initialization": "propagated"
+    }
+  ],
+  "status": "ready"
+}

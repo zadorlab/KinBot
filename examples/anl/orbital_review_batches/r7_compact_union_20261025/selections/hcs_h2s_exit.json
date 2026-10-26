@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "review_note": "Reviewed 2026-10-25. HCS + H2S product exit: HCS pi/radical/pi-star from source canonical 19,21,22 and selected natural 20-22. The extra occupied HCS orbital tested in CAS(5,4) changes the near-minus-far CASSCF energy by about -0.22/-0.21 kcal/mol in DZ/TZ; it is not retained. Only repaired v8 results are used; obsolete core-substituted results are excluded. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry.",
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_r12_insertion_R_2_1_5",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 3,
+    "active_orbitals": 3,
+    "source": "Reviewed 2026-10-25. HCS + H2S product exit: HCS pi/radical/pi-star from source canonical 19,21,22 and selected natural 20-22. The extra occupied HCS orbital tested in CAS(5,4) changes the near-minus-far CASSCF energy by about -0.22/-0.21 kcal/mol in DZ/TZ; it is not retained. Only repaired v8 results are used; obsolete core-substituted results are excluded. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__exit_l2",
+      "record": "2140.2",
+      "active_indices": [
+        20,
+        21,
+        22
+      ],
+      "wfu_sha256": "f98d9df1cbc93af82b405fc4579d555974cd5588458413ee828eabf4be4f7bbc",
+      "output_sha256": "de1a9536942a4e405acecd160da5836ceb0763379f623da267b3e96991738b78"
+    },
+    "avtz-f12": {
+      "job": "atz__exit_l2",
+      "record": "2140.2",
+      "active_indices": [
+        20,
+        21,
+        22
+      ],
+      "wfu_sha256": "82de7ed0aea202ba7c49942177327b08cd77da758d3424ae0586c9a7c12739a3",
+      "output_sha256": "e480c3427e6ac0869857f44444bcabf78f9f85cd6d3b589d7e57175168224001"
+    }
+  },
+  "state_model": {
+    "canonical_orbitals": true,
+    "selected_roots": {
+      "2": 1
+    },
+    "state_average": [
+      {
+        "block_weight": 1.0,
+        "multiplicity": 2,
+        "roots": 1,
+        "weights": [
+          1.0
+        ]
+      }
+    ],
+    "casscf_options": {
+      "energy_convergence": 1e-08,
+      "exact_diagonalization": true,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999,
+      "quasi_newton": true,
+      "solver": "so_sci"
+    },
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    }
+  },
+  "coordinate": "com",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(3,3)",
+    "vrc_tst_sample_method": "caspt2-f12(3,3)",
+    "vrc_tst_high_method": "caspt2-f12(3,3)",
+    "vrc_tst_state_average_roots": {
+      "2": 1
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
+  },
+  "required_complete_jobs": [
+    "adz__exit_l2",
+    "adz__exit_r_30p0",
+    "atz__exit_l2",
+    "atz__exit_r_30p0"
+  ],
+  "source_model": "hcs_h2s_exit_hcs_pi",
+  "status": "ready"
+}

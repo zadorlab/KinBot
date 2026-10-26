@@ -160,3 +160,7 @@ models remain unchanged. Replacement compact selections and reaction-specific
 channel routing remain prerequisites to a new publication handoff. The accepted
 model inheritance repair has local evidence but still needs remote worker-level
 confirmation. No controller restart or new QC launch is part of this audit.
+
+## 17:25 PDT compact-union result
+
+All ten native probes completed. The [result audit](../examples/anl/orbital_review_batches/r7_compact_union_20261025/union_audit.md) selects CH2/HSS CAS(5,4), records eleven prepared selections, and retains the C(SH2)/SH hold because an SH p direction is inactive in the proposed CAS(9,6) near solution. The subsequently supplied full XML/CI evidence confirms that the far-canonical-17 trial did not retain the identified near natural union (minimum overlap singular value about 0.122, versus 0.990 after replacing it with the inactive SH direction). The [four-job natural-seed handoff](../examples/anl/orbital_review_batches/r7_natural_union_20261025/README.md) tests the identified natural 17–22 directly, with CAS(9,6), roots, weights and endpoint geometries unchanged. No production restart or earlier-step retry has been performed; combined publication remains held.

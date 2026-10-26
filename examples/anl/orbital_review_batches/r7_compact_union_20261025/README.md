@@ -1,5 +1,16 @@
 # Native review, driver fix, and ten targeted probes — 25 October 2026
 
+**Completion update, 17:25:59 PDT:** all ten compact-union jobs are complete.
+CH2/HSS supports CAS(5,4); C(SH2)/SH still shows an inactive SH-p direction.
+See the [new result audit](union_audit.md) for the evidence and eleven prepared
+selections. The combined publication remains held; do not treat the historical
+probe hypotheses below as accepted models.
+
+**Follow-up after the full XML comparison:** the last canonical-seed trial
+selected occupied sigma character instead of the identified missing SH direction.
+Use the [four-job natural-union handoff](../r7_natural_union_20261025/README.md).
+The ten-job launch below is historical and need not be repeated.
+
 The 14-job continuation is complete. The transferred native archive has been
 verified, and the VRC endpoint-discovery bug is fixed locally. Two active-space
 questions remain; this folder prepares **ten CASSCF calculations for those two

@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_R_Addition_CSm_R_5_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "csh2_sh_exit_fixed_spectrum",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_l2",
+          "seed_sha256": {
+            "adz": "20cb03e26c6500c89dfdb767297d1c93f094cc2c884842e65ba7c8e79c7e5491",
+            "atz": "6916ea49d341f6a60ccfa703557203a1de1d06c51f1a05395a5acf09e46198f5"
+          }
+        },
+        {
+          "source": "exit_r_30p0",
+          "seed": "exit_r_30p0",
+          "seed_sha256": {
+            "adz": "d31a408cf33d4926fecaa4fd129ef95cf89cbd682bea61b9a589e45fa34429b3",
+            "atz": "4b276ccd30cb001fc6d58392b07e7c564c1ce7040fedcfb00547f3383f002ef6"
+          }
+        }
+      ],
+      "casscf_options": {},
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 9,
+        "active_orbitals": 6,
+        "chemical_note": "Fixed-orbital state diagnosis only, not a production selection. Use the independently completed CAS(7,5) natural checkpoint at each unchanged geometry and basis; open its highest inactive orbital 17 to retain natural 17-22, CAS(9,6). At the near geometry this adds the missing SH p direction; at 30 angstrom it adds the carbon p direction outside the previous five-orbital span. Four doublets and two quartets test the two SH orbital components coupled to singlet versus triplet carbon-fragment character. This root count is a diagnostic window, not a declaration that higher states cannot enter it. NOEXTRA suppresses extra-symmetry adaptation; CASCI does not optimize orbitals. Equal weights over six states define only the diagnostic natural density, not reactive flux or production optimization weights. Preserve all prior CASSCF attempts; do not change fragment identities, geometry, spin assignments or production parameters.",
+        "state_model": {
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 4,
+              "weights": [
+                0.25,
+                0.25,
+                0.25,
+                0.25
+              ],
+              "block_weight": 0.6666666666666666
+            },
+            {
+              "multiplicity": 4,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 0.3333333333333333
+            }
+          ],
+          "selected_roots": {
+            "2": 1,
+            "4": 1
+          },
+          "canonical_orbitals": true
+        },
+        "orbital_partition": {
+          "source_active_electrons": 7,
+          "source_active_orbitals": 5,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 1
+        }
+      },
+      "orbital_initialization": "independent",
+      "probe_method": "casci"
+    }
+  ],
+  "status": "ready",
+  "diagnostic_only": true
+}

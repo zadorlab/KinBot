@@ -1,0 +1,1987 @@
+{
+  "schema": 1,
+  "jobs": [
+    {
+      "path": "natural_union_20261025/csh2_sh_exit/csh2_sh_exit_natural_union/adz__exit_l2",
+      "sha256": {
+        "adz__exit_l2.out": "64f6cc3238f76e212ce8dc8dc32edd14b8ed2a6fc28044d4e4cbef212656d861",
+        "adz__exit_l2.native.inp": "d5df2c2099cb6e9077b783f1216b6bc4e827355c819d8a8d25805d20109e7dd5",
+        "adz__exit_l2.natural.orbitals.xml": "bd6fbc624c95ea37fec42f652be5530a00dd174465c52c521b75235d8272a003",
+        "execution.json": "b0521368ae8d1660631d17fdfb685ab64d6c28ba8797bf89caeb45bf5c6fdc2b"
+      },
+      "execution": {
+        "status": "complete",
+        "slurm_job_id": "52933786",
+        "input_transform": "native_xml_mr_state_energy_v4",
+        "returncode": 0
+      },
+      "normal_termination": true,
+      "state_energies": [
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "",
+          "energy_Eh": -834.477054809332,
+          "line": 597
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "",
+          "energy_Eh": -834.441989877345,
+          "line": 609
+        }
+      ],
+      "orbitals": [
+        {
+          "index": "16.1",
+          "occupation": 2.0,
+          "energy_Eh": -0.39469,
+          "role": "closed",
+          "line": 668,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.75521,
+              "line": 669
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.40051,
+              "line": 669
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.36189,
+              "line": 669
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": 0.10483,
+              "line": 669
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": 0.08427,
+              "line": 668
+            },
+            {
+              "center": 6,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.06778,
+              "line": 670
+            }
+          ]
+        },
+        {
+          "index": "17.1",
+          "occupation": 1.9984,
+          "energy_Eh": -0.82857,
+          "role": "active",
+          "line": 671,
+          "ao_coefficients": [
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.50215,
+              "line": 672
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.39137,
+              "line": 671
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.35715,
+              "line": 673
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.33357,
+              "line": 672
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": -0.27542,
+              "line": 672
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.25587,
+              "line": 673
+            }
+          ]
+        },
+        {
+          "index": "18.1",
+          "occupation": 1.99393,
+          "energy_Eh": -0.62722,
+          "role": "active",
+          "line": 676,
+          "ao_coefficients": [
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.58893,
+              "line": 677
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.44872,
+              "line": 676
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.29655,
+              "line": 677
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.29298,
+              "line": 677
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.26901,
+              "line": 679
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.19566,
+              "line": 678
+            }
+          ]
+        },
+        {
+          "index": "19.1",
+          "occupation": 1.96762,
+          "energy_Eh": -0.45323,
+          "role": "active",
+          "line": 680,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.72421,
+              "line": 680
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.48423,
+              "line": 680
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.32952,
+              "line": 682
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.25409,
+              "line": 681
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "s",
+              "coefficient": -0.18901,
+              "line": 680
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.15564,
+              "line": 682
+            }
+          ]
+        },
+        {
+          "index": "20.1",
+          "occupation": 1.4898,
+          "energy_Eh": -0.22955,
+          "role": "active",
+          "line": 683,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": -0.74443,
+              "line": 683
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.2762,
+              "line": 683
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.23402,
+              "line": 684
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.21986,
+              "line": 685
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.19661,
+              "line": 684
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1-",
+              "coefficient": 0.09334,
+              "line": 684
+            }
+          ]
+        },
+        {
+          "index": "21.1",
+          "occupation": 1.31128,
+          "energy_Eh": -0.21784,
+          "role": "active",
+          "line": 686,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.55671,
+              "line": 689
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.44456,
+              "line": 688
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.40571,
+              "line": 686
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.34069,
+              "line": 689
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.24924,
+              "line": 687
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.19863,
+              "line": 686
+            }
+          ]
+        },
+        {
+          "index": "22.1",
+          "occupation": 0.23897,
+          "energy_Eh": 0.04161,
+          "role": "active",
+          "line": 690,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.73533,
+              "line": 690
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.40008,
+              "line": 693
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.35885,
+              "line": 693
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.34091,
+              "line": 691
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.29478,
+              "line": 693
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.28026,
+              "line": 690
+            }
+          ]
+        }
+      ],
+      "ci_tables": [
+        {
+          "line_start": 727,
+          "line_end": 745,
+          "text": " CI Coefficients of symmetry 1\n =============================\n \n 2222a0         0.04465844      0.93177059\n 222a20         0.87654802     -0.04194465\n 222a02        -0.30978977      0.01096179\n 222aba        -0.28587557     -0.00030589\n 22220a         0.01077898     -0.26247432\n 222baa         0.16331340      0.00043410\n 222aab         0.12256217     -0.00012821\n 22a2ba        -0.00393425     -0.10587881\n 2202a2        -0.00334452     -0.09589657\n 22a220         0.00085079      0.09411110\n 22202a        -0.00548948      0.07504170\n 2220a2        -0.00793159     -0.06799252\n 22a202        -0.00285394     -0.06718325\n 22b2aa         0.00218466      0.05676346\n 22baa2        -0.05222969     -0.00014469\n 22aab2         0.05139953     -0.00251786"
+        }
+      ],
+      "real_times_seconds": [
+        0.36,
+        4.7,
+        5.22,
+        10.23
+      ]
+    },
+    {
+      "path": "natural_union_20261025/csh2_sh_exit/csh2_sh_exit_natural_union/adz__exit_r_30p0",
+      "sha256": {
+        "adz__exit_r_30p0.out": "11958eea0b50b9e85e78ca1d4c5ce4c9b63cb52743a8ca187b24859473dccdee",
+        "adz__exit_r_30p0.native.inp": "1657b0c0ee28947e6db523e3115adf65876b802b8bbbf7692b7c3e1702c87065",
+        "adz__exit_r_30p0.natural.orbitals.xml": "de538875dc83df934638cc87cbcf665c12a4642ff5a75d62bdd4ae9fb971c51f",
+        "execution.json": "b032899b8371d239e0e89a9b4098e373e0ccd2dde3c26f9152dadb2dafbfa8a1"
+      },
+      "execution": {
+        "status": "complete",
+        "slurm_job_id": "52933793",
+        "input_transform": "native_xml_mr_state_energy_v4",
+        "returncode": 0
+      },
+      "normal_termination": true,
+      "state_energies": [
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "",
+          "energy_Eh": -834.481898752232,
+          "line": 728
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "",
+          "energy_Eh": -834.470943757414,
+          "line": 740
+        }
+      ],
+      "orbitals": [
+        {
+          "index": "16.1",
+          "occupation": 2.0,
+          "energy_Eh": -0.39077,
+          "role": "closed",
+          "line": 962,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.93224,
+              "line": 962
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.16584,
+              "line": 962
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.05788,
+              "line": 962
+            }
+          ]
+        },
+        {
+          "index": "17.1",
+          "occupation": 1.99966,
+          "energy_Eh": -0.74577,
+          "role": "active",
+          "line": 963,
+          "ao_coefficients": [
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.55571,
+              "line": 965
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": -0.4329,
+              "line": 964
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.30756,
+              "line": 963
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.28785,
+              "line": 964
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.26863,
+              "line": 966
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.26376,
+              "line": 966
+            }
+          ]
+        },
+        {
+          "index": "18.1",
+          "occupation": 1.99831,
+          "energy_Eh": -0.50345,
+          "role": "active",
+          "line": 967,
+          "ao_coefficients": [
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.7733,
+              "line": 968
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.34924,
+              "line": 968
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.26891,
+              "line": 967
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.17549,
+              "line": 969
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.1711,
+              "line": 968
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.16946,
+              "line": 967
+            }
+          ]
+        },
+        {
+          "index": "19.1",
+          "occupation": 1.98353,
+          "energy_Eh": -0.52569,
+          "role": "active",
+          "line": 970,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.87834,
+              "line": 970
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.36724,
+              "line": 970
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.18714,
+              "line": 971
+            },
+            {
+              "center": 1,
+              "function": 4,
+              "component": "s",
+              "coefficient": -0.17118,
+              "line": 970
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.16591,
+              "line": 971
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": 0.1025,
+              "line": 971
+            }
+          ]
+        },
+        {
+          "index": "20.1",
+          "occupation": 1.48748,
+          "energy_Eh": -0.21487,
+          "role": "active",
+          "line": 972,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": -0.74358,
+              "line": 972
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.28979,
+              "line": 972
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.22444,
+              "line": 973
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.2175,
+              "line": 974
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.19511,
+              "line": 973
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.0884,
+              "line": 972
+            }
+          ]
+        },
+        {
+          "index": "21.1",
+          "occupation": 1.0,
+          "energy_Eh": -0.22177,
+          "role": "active",
+          "line": 975,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.81687,
+              "line": 975
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.61059,
+              "line": 975
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.1074,
+              "line": 975
+            }
+          ]
+        },
+        {
+          "index": "22.1",
+          "occupation": 0.53103,
+          "energy_Eh": 0.00074,
+          "role": "active",
+          "line": 976,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.8358,
+              "line": 976
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.32024,
+              "line": 976
+            },
+            {
+              "center": 2,
+              "function": 5,
+              "component": "s",
+              "coefficient": 0.17165,
+              "line": 977
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.1465,
+              "line": 980
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.14244,
+              "line": 979
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.14102,
+              "line": 978
+            }
+          ]
+        }
+      ],
+      "ci_tables": [
+        {
+          "line_start": 919,
+          "line_end": 928,
+          "text": " CI Coefficients of symmetry 1\n =============================\n \n 2222a0         0.00000000      0.98119076\n 222aba         0.81279924     -0.00000000\n 222baa        -0.40639962      0.01363160\n 222aab        -0.40639962     -0.01363160\n 2202a2        -0.00000000     -0.11440124\n 2220a2        -0.00000000     -0.11170738\n 2a2ab2         0.06549996      0.00000000"
+        },
+        {
+          "line_start": 1000,
+          "line_end": 1008,
+          "text": " CI Coefficients of symmetry 1\n =============================\n \n 2222a0         0.00000000      0.98445168\n 222aba         0.81616634     -0.00000000\n 222baa        -0.40808317      0.00000476\n 222aab        -0.40808317     -0.00000476\n 2202a2        -0.00000000     -0.12812157\n 2220a2        -0.00000000     -0.11189910"
+        }
+      ],
+      "real_times_seconds": [
+        0.31,
+        2.51,
+        19.65,
+        35.55
+      ]
+    },
+    {
+      "path": "natural_union_20261025/csh2_sh_exit/csh2_sh_exit_natural_union/atz__exit_l2",
+      "sha256": {
+        "atz__exit_l2.out": "40494c6f931aab48b7362598d258e7ad394f53d5af578a76dd185f2ba4dcae85",
+        "atz__exit_l2.native.inp": "297abb670dfebe09d38d64e1fb504c365f58f4a449fcb04b41083d90eb59930b",
+        "atz__exit_l2.natural.orbitals.xml": "36cc569c2abce1d2e7b8a5a1ec1675baa978494755c85aafdd16ba12ef6cae64",
+        "execution.json": "c9398b27f22fafd37ce7a9a50b0f2d18502e33c717e712c3873f27b40e1a3203"
+      },
+      "execution": {
+        "status": "complete",
+        "slurm_job_id": "52933797",
+        "input_transform": "native_xml_mr_state_energy_v4",
+        "returncode": 0
+      },
+      "normal_termination": true,
+      "state_energies": [
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "",
+          "energy_Eh": -834.491571890347,
+          "line": 677
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "",
+          "energy_Eh": -834.457632584248,
+          "line": 689
+        }
+      ],
+      "orbitals": [
+        {
+          "index": "16.1",
+          "occupation": 2.0,
+          "energy_Eh": -0.396,
+          "role": "closed",
+          "line": 749,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.78895,
+              "line": 749
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.42605,
+              "line": 749
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.38137,
+              "line": 750
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.0651,
+              "line": 749
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.05949,
+              "line": 750
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": 0.0514,
+              "line": 749
+            }
+          ]
+        },
+        {
+          "index": "17.1",
+          "occupation": 1.99836,
+          "energy_Eh": -0.82571,
+          "role": "active",
+          "line": 751,
+          "ao_coefficients": [
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.48646,
+              "line": 752
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.41016,
+              "line": 753
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.4026,
+              "line": 751
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.34924,
+              "line": 752
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.28702,
+              "line": 751
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.25602,
+              "line": 753
+            }
+          ]
+        },
+        {
+          "index": "18.1",
+          "occupation": 1.99386,
+          "energy_Eh": -0.62786,
+          "role": "active",
+          "line": 755,
+          "ao_coefficients": [
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.58415,
+              "line": 756
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.46297,
+              "line": 755
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.32176,
+              "line": 757
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.29613,
+              "line": 756
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.23348,
+              "line": 758
+            },
+            {
+              "center": 3,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.20072,
+              "line": 758
+            }
+          ]
+        },
+        {
+          "index": "19.1",
+          "occupation": 1.96715,
+          "energy_Eh": -0.45046,
+          "role": "active",
+          "line": 759,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.72158,
+              "line": 759
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.4951,
+              "line": 759
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.33165,
+              "line": 760
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.23616,
+              "line": 759
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.1627,
+              "line": 759
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.15063,
+              "line": 761
+            }
+          ]
+        },
+        {
+          "index": "20.1",
+          "occupation": 1.48968,
+          "energy_Eh": -0.23035,
+          "role": "active",
+          "line": 762,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.74364,
+              "line": 762
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": -0.27664,
+              "line": 762
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.23721,
+              "line": 764
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.2241,
+              "line": 764
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.12786,
+              "line": 763
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1-",
+              "coefficient": -0.09218,
+              "line": 763
+            }
+          ]
+        },
+        {
+          "index": "21.1",
+          "occupation": 1.31258,
+          "energy_Eh": -0.21722,
+          "role": "active",
+          "line": 765,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.55101,
+              "line": 768
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.43042,
+              "line": 767
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.40907,
+              "line": 765
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.32182,
+              "line": 768
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.25229,
+              "line": 766
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.20283,
+              "line": 765
+            }
+          ]
+        },
+        {
+          "index": "22.1",
+          "occupation": 0.23836,
+          "energy_Eh": 0.04207,
+          "role": "active",
+          "line": 769,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.73565,
+              "line": 769
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.3801,
+              "line": 770
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": 0.36824,
+              "line": 772
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.31895,
+              "line": 771
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.2817,
+              "line": 769
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.24912,
+              "line": 772
+            }
+          ]
+        }
+      ],
+      "ci_tables": [
+        {
+          "line_start": 818,
+          "line_end": 836,
+          "text": " CI Coefficients of symmetry 1\n =============================\n \n 2222a0        -0.04467318      0.93149852\n 222a20         0.87734008      0.04197048\n 222a02        -0.30910429     -0.01104824\n 222aba        -0.28432730      0.00008989\n 22220a        -0.01034377     -0.26133984\n 222baa         0.16331655     -0.00030734\n 222aab         0.12101074      0.00021745\n 22a2ba         0.00402786     -0.10778476\n 22a220        -0.00095044      0.09607734\n 2202a2         0.00334162     -0.09484489\n 22202a         0.00536883      0.07525114\n 22a202         0.00290544     -0.06876016\n 2220a2         0.00782999     -0.06857841\n 22b2aa        -0.00224791      0.05810215\n 22baa2        -0.05353034      0.00006621\n 22aab2         0.05254099      0.00259642"
+        }
+      ],
+      "real_times_seconds": [
+        0.31,
+        27.15,
+        31.12,
+        67.94
+      ]
+    },
+    {
+      "path": "natural_union_20261025/csh2_sh_exit/csh2_sh_exit_natural_union/atz__exit_r_30p0",
+      "sha256": {
+        "atz__exit_r_30p0.out": "8eb050baafc282c98316c0e73e5c9ca87a3aefd2c1ed49292579404dd8fe45d6",
+        "atz__exit_r_30p0.native.inp": "533f5b5be7f37a346143881dcbe2fd6c862fe5c1b53d15ce85a5ae7cef27cfc9",
+        "atz__exit_r_30p0.natural.orbitals.xml": "a37da56acf1b6c9bbde4e184937eaeaedb1aea39cc2b26cd3c6fb0e8558daad7",
+        "execution.json": "780f359442c902c519cf8428baeab7b66339e8e474a23b7c0f055181551a1ed9"
+      },
+      "execution": {
+        "status": "complete",
+        "slurm_job_id": "52933811",
+        "input_transform": "native_xml_mr_state_energy_v4",
+        "returncode": 0
+      },
+      "normal_termination": true,
+      "state_energies": [
+        {
+          "method": "MCSCF",
+          "state": "1.1",
+          "spin_label": "",
+          "energy_Eh": -834.496164694357,
+          "line": 827
+        },
+        {
+          "method": "MCSCF",
+          "state": "2.1",
+          "spin_label": "",
+          "energy_Eh": -834.486039847537,
+          "line": 839
+        }
+      ],
+      "orbitals": [
+        {
+          "index": "16.1",
+          "occupation": 2.0,
+          "energy_Eh": -0.3921,
+          "role": "closed",
+          "line": 1075,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.99783,
+              "line": 1075
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": -0.16753,
+              "line": 1075
+            }
+          ]
+        },
+        {
+          "index": "17.1",
+          "occupation": 1.99964,
+          "energy_Eh": -0.74492,
+          "role": "active",
+          "line": 1076,
+          "ao_coefficients": [
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.60684,
+              "line": 1077
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.45177,
+              "line": 1076
+            },
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": 0.31579,
+              "line": 1076
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.2784,
+              "line": 1077
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.27028,
+              "line": 1078
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.26644,
+              "line": 1078
+            }
+          ]
+        },
+        {
+          "index": "18.1",
+          "occupation": 1.99833,
+          "energy_Eh": -0.50329,
+          "role": "active",
+          "line": 1079,
+          "ao_coefficients": [
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.79079,
+              "line": 1080
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.35977,
+              "line": 1080
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": -0.27542,
+              "line": 1079
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.19286,
+              "line": 1080
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.1821,
+              "line": 1081
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.16668,
+              "line": 1081
+            }
+          ]
+        },
+        {
+          "index": "19.1",
+          "occupation": 1.98372,
+          "energy_Eh": -0.52522,
+          "role": "active",
+          "line": 1082,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 2,
+              "component": "s",
+              "coefficient": -0.88511,
+              "line": 1082
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "pz",
+              "coefficient": 0.36983,
+              "line": 1082
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "s",
+              "coefficient": 0.17783,
+              "line": 1083
+            },
+            {
+              "center": 1,
+              "function": 5,
+              "component": "s",
+              "coefficient": -0.16522,
+              "line": 1082
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.14336,
+              "line": 1083
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": 0.06033,
+              "line": 1083
+            }
+          ]
+        },
+        {
+          "index": "20.1",
+          "occupation": 1.48683,
+          "energy_Eh": -0.21596,
+          "role": "active",
+          "line": 1084,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.74344,
+              "line": 1084
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": -0.28959,
+              "line": 1084
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.22822,
+              "line": 1086
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": 0.22184,
+              "line": 1086
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.12176,
+              "line": 1085
+            },
+            {
+              "center": 2,
+              "function": 3,
+              "component": "d1-",
+              "coefficient": -0.08892,
+              "line": 1085
+            }
+          ]
+        },
+        {
+          "index": "21.1",
+          "occupation": 1.0,
+          "energy_Eh": -0.22046,
+          "role": "active",
+          "line": 1087,
+          "ao_coefficients": [
+            {
+              "center": 3,
+              "function": 2,
+              "component": "pz",
+              "coefficient": -0.77283,
+              "line": 1087
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "py",
+              "coefficient": 0.54548,
+              "line": 1087
+            },
+            {
+              "center": 3,
+              "function": 2,
+              "component": "px",
+              "coefficient": 0.06728,
+              "line": 1087
+            }
+          ]
+        },
+        {
+          "index": "22.1",
+          "occupation": 0.53148,
+          "energy_Eh": 0.00025,
+          "role": "active",
+          "line": 1088,
+          "ao_coefficients": [
+            {
+              "center": 1,
+              "function": 1,
+              "component": "px",
+              "coefficient": 0.83554,
+              "line": 1088
+            },
+            {
+              "center": 1,
+              "function": 1,
+              "component": "py",
+              "coefficient": 0.31998,
+              "line": 1088
+            },
+            {
+              "center": 2,
+              "function": 2,
+              "component": "px",
+              "coefficient": -0.18613,
+              "line": 1089
+            },
+            {
+              "center": 6,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.14868,
+              "line": 1091
+            },
+            {
+              "center": 2,
+              "function": 6,
+              "component": "s",
+              "coefficient": 0.14391,
+              "line": 1089
+            },
+            {
+              "center": 4,
+              "function": 1,
+              "component": "s",
+              "coefficient": -0.1437,
+              "line": 1090
+            }
+          ]
+        }
+      ],
+      "ci_tables": [
+        {
+          "line_start": 1028,
+          "line_end": 1037,
+          "text": " CI Coefficients of symmetry 1\n =============================\n \n 2222a0         0.00000000      0.98072499\n 222aba         0.81270540      0.00000000\n 222aab        -0.40635270      0.01240286\n 222baa        -0.40635270     -0.01240286\n 2220a2         0.00000000     -0.11460514\n 2202a2         0.00000000     -0.11276638\n 2a2ab2         0.06619267     -0.00000000"
+        },
+        {
+          "line_start": 1119,
+          "line_end": 1127,
+          "text": " CI Coefficients of symmetry 1\n =============================\n \n 2222a0        -0.00000000      0.98422091\n 222aba         0.81617653      0.00000000\n 222aab        -0.40808827      0.00000340\n 222baa        -0.40808827     -0.00000340\n 2202a2        -0.00000000     -0.12733758\n 2220a2         0.00000000     -0.11476746"
+        }
+      ],
+      "real_times_seconds": [
+        0.3,
+        10.45,
+        215.11,
+        354.19
+      ]
+    }
+  ],
+  "comparisons": [
+    {
+      "left": "older/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml",
+      "right": "newer/natural_union_20261025/csh2_sh_exit/csh2_sh_exit_natural_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml",
+      "sha256": {
+        "older/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml": "8ebe5a55cf7b380047bb27a71112ce811e0294e35ecf13cdff09521d4d38b67b",
+        "newer/natural_union_20261025/csh2_sh_exit/csh2_sh_exit_natural_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml": "bd6fbc624c95ea37fec42f652be5530a00dd174465c52c521b75235d8272a003"
+      },
+      "relative_reconstruction_error": 3.5188533084871768e-15,
+      "max_orthogonality_error": 4.736143883699038e-14,
+      "subspaces": {
+        "intended_union_vs_optimized_active": {
+          "right_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "left_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "overlap_singular_values": [
+            0.9999998986992015,
+            0.9999973049868875,
+            0.9999787327905569,
+            0.9998757147218328,
+            0.9997380153049793,
+            0.12184606628188946
+          ]
+        },
+        "replace_new_17_with_inactive_SH_16": {
+          "right_indices": [
+            16,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "left_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "overlap_singular_values": [
+            0.9999998987270011,
+            0.9999972990408876,
+            0.9999710545891441,
+            0.9998757056841829,
+            0.9995509778348428,
+            0.9904733120068612
+          ]
+        }
+      },
+      "right_orbitals_in_left_basis": {
+        "17": [
+          {
+            "index": 14,
+            "squared_overlap": 0.6874970261100726
+          },
+          {
+            "index": 12,
+            "squared_overlap": 0.18111725667989462
+          },
+          {
+            "index": 13,
+            "squared_overlap": 0.10868428180509015
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.014705303310329501
+          },
+          {
+            "index": 16,
+            "squared_overlap": 0.0034396236950055745
+          },
+          {
+            "index": 18,
+            "squared_overlap": 0.0031939032764557694
+          }
+        ],
+        "18": [
+          {
+            "index": 18,
+            "squared_overlap": 0.9962947463009856
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.0014037598115854545
+          },
+          {
+            "index": 13,
+            "squared_overlap": 0.001034861084377083
+          },
+          {
+            "index": 12,
+            "squared_overlap": 0.0008526795821431605
+          },
+          {
+            "index": 16,
+            "squared_overlap": 0.00022195109647508995
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.00015216875934788448
+          }
+        ],
+        "19": [
+          {
+            "index": 19,
+            "squared_overlap": 0.999553332169485
+          },
+          {
+            "index": 13,
+            "squared_overlap": 0.0001466234151043724
+          },
+          {
+            "index": 14,
+            "squared_overlap": 9.809769793526247e-05
+          },
+          {
+            "index": 21,
+            "squared_overlap": 7.767962003134805e-05
+          },
+          {
+            "index": 16,
+            "squared_overlap": 6.163976167363902e-05
+          },
+          {
+            "index": 17,
+            "squared_overlap": 3.338523726537199e-05
+          }
+        ],
+        "20": [
+          {
+            "index": 20,
+            "squared_overlap": 0.99999842220615
+          },
+          {
+            "index": 21,
+            "squared_overlap": 7.679654420116571e-07
+          },
+          {
+            "index": 19,
+            "squared_overlap": 2.1890397296598712e-07
+          },
+          {
+            "index": 14,
+            "squared_overlap": 1.7237689217020604e-07
+          },
+          {
+            "index": 18,
+            "squared_overlap": 1.0728363116276293e-07
+          },
+          {
+            "index": 15,
+            "squared_overlap": 5.1851264445428485e-08
+          }
+        ],
+        "21": [
+          {
+            "index": 21,
+            "squared_overlap": 0.9998897092441306
+          },
+          {
+            "index": 19,
+            "squared_overlap": 7.660123965689454e-05
+          },
+          {
+            "index": 14,
+            "squared_overlap": 1.6682368954282362e-05
+          },
+          {
+            "index": 17,
+            "squared_overlap": 7.259308835989991e-06
+          },
+          {
+            "index": 12,
+            "squared_overlap": 1.420456949230757e-06
+          },
+          {
+            "index": 22,
+            "squared_overlap": 9.809741339266986e-07
+          }
+        ],
+        "22": [
+          {
+            "index": 22,
+            "squared_overlap": 0.9997269605904905
+          },
+          {
+            "index": 37,
+            "squared_overlap": 3.788038332638184e-05
+          },
+          {
+            "index": 36,
+            "squared_overlap": 2.318362931598407e-05
+          },
+          {
+            "index": 18,
+            "squared_overlap": 1.994182609680515e-05
+          },
+          {
+            "index": 32,
+            "squared_overlap": 1.912334510186745e-05
+          },
+          {
+            "index": 48,
+            "squared_overlap": 1.8309724677699227e-05
+          }
+        ]
+      }
+    },
+    {
+      "left": "older/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml",
+      "right": "newer/natural_union_20261025/csh2_sh_exit/csh2_sh_exit_natural_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml",
+      "sha256": {
+        "older/compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml": "41065cde4252fd45b0a3b57e03e99c2a939d3b0e658cdc329a18cd39d612b53f",
+        "newer/natural_union_20261025/csh2_sh_exit/csh2_sh_exit_natural_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml": "36cc569c2abce1d2e7b8a5a1ec1675baa978494755c85aafdd16ba12ef6cae64"
+      },
+      "relative_reconstruction_error": 6.322267693108085e-15,
+      "max_orthogonality_error": 9.334408183591085e-13,
+      "subspaces": {
+        "intended_union_vs_optimized_active": {
+          "right_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "left_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "overlap_singular_values": [
+            0.9999998837789086,
+            0.9999970905441243,
+            0.9999776759322386,
+            0.9998726589073552,
+            0.9997425385490649,
+            0.12240913246617457
+          ]
+        },
+        "replace_new_17_with_inactive_SH_16": {
+          "right_indices": [
+            16,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "left_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "overlap_singular_values": [
+            0.9999998838561597,
+            0.9999970942097947,
+            0.9999657923695784,
+            0.9998726427309924,
+            0.9995446102957738,
+            0.9902395803689863
+          ]
+        }
+      },
+      "right_orbitals_in_left_basis": {
+        "17": [
+          {
+            "index": 14,
+            "squared_overlap": 0.6922601956427259
+          },
+          {
+            "index": 12,
+            "squared_overlap": 0.1795061242631326
+          },
+          {
+            "index": 13,
+            "squared_overlap": 0.10527958301029765
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.014839633788304813
+          },
+          {
+            "index": 18,
+            "squared_overlap": 0.0035849329010544328
+          },
+          {
+            "index": 16,
+            "squared_overlap": 0.003154044287697707
+          }
+        ],
+        "18": [
+          {
+            "index": 18,
+            "squared_overlap": 0.9959298583396162
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.0016551426782035205
+          },
+          {
+            "index": 13,
+            "squared_overlap": 0.0010650910789773715
+          },
+          {
+            "index": 12,
+            "squared_overlap": 0.0009437439962992827
+          },
+          {
+            "index": 16,
+            "squared_overlap": 0.00021841143791505546
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.00015263234293881763
+          }
+        ],
+        "19": [
+          {
+            "index": 19,
+            "squared_overlap": 0.999590179283088
+          },
+          {
+            "index": 13,
+            "squared_overlap": 0.00014256078781904908
+          },
+          {
+            "index": 14,
+            "squared_overlap": 7.722837815535012e-05
+          },
+          {
+            "index": 21,
+            "squared_overlap": 7.439545559098487e-05
+          },
+          {
+            "index": 16,
+            "squared_overlap": 6.356489381020702e-05
+          },
+          {
+            "index": 17,
+            "squared_overlap": 3.1820250420844736e-05
+          }
+        ],
+        "20": [
+          {
+            "index": 20,
+            "squared_overlap": 0.9999984921025631
+          },
+          {
+            "index": 21,
+            "squared_overlap": 6.808769708296248e-07
+          },
+          {
+            "index": 19,
+            "squared_overlap": 1.9935950388115467e-07
+          },
+          {
+            "index": 14,
+            "squared_overlap": 1.6725292534372757e-07
+          },
+          {
+            "index": 18,
+            "squared_overlap": 1.1444172486225535e-07
+          },
+          {
+            "index": 22,
+            "squared_overlap": 5.052428895505223e-08
+          }
+        ],
+        "21": [
+          {
+            "index": 21,
+            "squared_overlap": 0.999894017711353
+          },
+          {
+            "index": 19,
+            "squared_overlap": 7.34870427492889e-05
+          },
+          {
+            "index": 14,
+            "squared_overlap": 1.5804493099189146e-05
+          },
+          {
+            "index": 17,
+            "squared_overlap": 7.20581405099841e-06
+          },
+          {
+            "index": 12,
+            "squared_overlap": 1.277569878039377e-06
+          },
+          {
+            "index": 22,
+            "squared_overlap": 7.598425057006173e-07
+          }
+        ],
+        "22": [
+          {
+            "index": 22,
+            "squared_overlap": 0.9997198980950012
+          },
+          {
+            "index": 37,
+            "squared_overlap": 3.459449388754214e-05
+          },
+          {
+            "index": 48,
+            "squared_overlap": 3.443821009051194e-05
+          },
+          {
+            "index": 57,
+            "squared_overlap": 2.8762090488905377e-05
+          },
+          {
+            "index": 18,
+            "squared_overlap": 2.090720587769651e-05
+          },
+          {
+            "index": 45,
+            "squared_overlap": 1.4950618449721235e-05
+          }
+        ]
+      }
+    }
+  ],
+  "method": "Native MULTI results and complete same-geometry MO change of basis; AO coefficients are qualitative character, not populations."
+}

@@ -83,7 +83,7 @@ def _saved(root, *, allow_accepted=False):
 
 
 def candidates(source, recipe, output, *, preflight=False, resume=False):
-    """Prepare explicit compact CASSCF guesses from validated native seeds.
+    """Prepare compact CASSCF or fixed-orbital CASCI from validated seeds.
 
     This does not select orbitals by occupation or accept a production model.
     Every partition, seed geometry and native check comes from the recipe.
@@ -162,10 +162,15 @@ def candidates(source, recipe, output, *, preflight=False, resume=False):
                     if partition.get('source_'+key) != loaded['_probe_space'][key]:
                         raise ValueError('Partition counts differ from the source active space.')
             initialization = item.get('orbital_initialization', 'independent')
+            method = item.get('probe_method', 'casscf')
+            if method not in ('casscf', 'casci'):
+                raise ValueError('Candidate probe_method must be casscf or casci.')
+            if method == 'casci' and (scf_source or initialization != 'independent'):
+                raise ValueError('Seeded CASCI diagnostics require independent natural checkpoints.')
             if initialization not in ('independent', 'propagated') or (
                     scf_source and initialization != 'independent'):
                 raise ValueError('Propagation requires a completed natural-orbital source.')
-            data.update(title=name, probe_method='casscf', orbital_initialization=initialization,
+            data.update(title=name, probe_method=method, orbital_initialization=initialization,
                         probe_active_space=True, orbital_character_only=False,
                         probe_definition=definition, anchors=[], initial_records={},
                         casscf_options=deepcopy(item['casscf_options']),
@@ -243,6 +248,10 @@ def candidates(source, recipe, output, *, preflight=False, resume=False):
                     continue
                 for basis in data['bases']:
                     old = jobs[basis['name']+'__'+choice.get('seed', choice['source'])]
+                    if method == 'casci' and not np.allclose(
+                            old['geometry_angstrom'], recon._anchor_geometry(data, anchor),
+                            atol=1.e-12, rtol=0.):
+                        raise ValueError('Seeded CASCI diagnostics require the source geometry unchanged.')
                     wrong_space = (not scf_source and any(
                         old['probe_active_space'][key] != loaded['_probe_space'][key]
                         for key in ('active_electrons', 'active_orbitals')))
@@ -1374,6 +1383,11 @@ def _selection(source, case_input, recipe, previous, *, bind_request=None):
         raise ValueError('Case input does not belong to this review request.')
     system = _selected_system(saved, chosen)
     manifest = _read(system['manifest'])
+    if any(j.get('probe_method') == 'casci' and
+           (j.get('probe_active_space') or {}).get('orbital_partition')
+           for j in manifest['jobs']):
+        raise ValueError('Seeded fixed-orbital CASCI is diagnostic only; '
+                         'optimize and review the production state model first.')
     jobs = {j['name']: j for j in manifest['jobs']}
     if any(not j.get('natural_orbital_probe') for j in manifest['jobs']):
         raise ValueError('SCF character is not a reviewed multistate natural-orbital selection.')

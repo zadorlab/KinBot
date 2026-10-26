@@ -48,7 +48,8 @@
         21,
         22
       ],
-      "wfu_sha256": "0abcbc48bb8f67e83d6874d8a6b9374df0e457cedffcbd895477962b5a6de761"
+      "wfu_sha256": "0abcbc48bb8f67e83d6874d8a6b9374df0e457cedffcbd895477962b5a6de761",
+      "output_sha256": "2179dc843761451ca59e8261694eb0e8d0907e03cb65752c841a46364f2af7cf"
     },
     "avtz-f12": {
       "job": "atz__cs_r_2",
@@ -59,7 +60,8 @@
         21,
         22
       ],
-      "wfu_sha256": "e91d9f3ed52f08788f4315e4de474cec8b33d2cb85810097113f752636d74f35"
+      "wfu_sha256": "e91d9f3ed52f08788f4315e4de474cec8b33d2cb85810097113f752636d74f35",
+      "output_sha256": "15944903fdb909d51e34429995d866a55f932aff5588acb59c4d4a57d5862d25"
     }
   },
   "state_model": {

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "status": "held",
-  "status_reason": "Eleven selections prepared. C(SH2)+SH remains unresolved: CAS(9,6) near output has an inactive SH-p orbital at 16. No partial publication from this plan.",
+  "status_reason": "Eleven selections prepared. Both canonical and explicit natural CAS(9,6) initialization leave SH-p inactive at 16; fixed-orbital root diagnosis is staged. Five additional requests discovered 26 October need their own character/compact review before the final inventory is complete. No partial publication from this plan.",
   "selections": [
     {
       "name": "ch_h2ss_cs",

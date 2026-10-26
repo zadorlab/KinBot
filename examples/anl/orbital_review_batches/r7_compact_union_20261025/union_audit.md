@@ -4,8 +4,11 @@ All ten jobs completed with native completion checks and zero recorded startup,
 manual-startup or allocation retries. `complete_review_required` is the correct
 campaign state: completion does not publish or approve the orbitals. The supplied
 [report](union_character_evidence.txt) and [provenance](union_report_provenance.json)
-are retained verbatim. The new WFU/XML files have not yet been transferred and
-independently verified locally; the report includes their remote hashes.
+are retained verbatim. The WFU/XML/native files were subsequently verified in
+the natural-union export (731 files, zero collection issues). Selected CH2/HSS
+outputs are now hash-bound as well. See the [26 October update](../r7_root_spectrum_20261026/status_audit.md)
+for archive hashes and the current native conclusions; the proposed natural-start
+follow-up below has completed without resolving the last channel.
 
 ## CH2 + HSS C1–S2 homolysis: select CAS(5,4)
 

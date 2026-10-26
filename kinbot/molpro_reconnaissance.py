@@ -490,10 +490,13 @@ def _load(path):
                             != definition['active_electrons']
                         or partition['source_active_orbitals'] - partition['close_lowest']
                             - partition['discard_highest'] + opened != definition['active_orbitals']
-                        or model.get('orbital_selection') is not None
-                        or data.get('probe_method') != 'casscf'):
+                        or model.get('orbital_selection') is not None):
                     raise ValueError('An orbital partition requires consistent source/target counts, '
-                                     'optimized CASSCF and no competing orbital selector.')
+                                     'and no competing orbital selector.')
+                if data.get('probe_method', 'casci') == 'casci' and (
+                        data.get('orbital_initialization', 'propagated') != 'independent'
+                        or data.get('casscf_options') or model.get('casscf_options')):
+                    raise ValueError('Seeded CASCI requires independent checkpoints and no CASSCF options.')
                 swaps = partition.get('orbital_swaps', [])
                 if (not isinstance(swaps, list) or any(
                         not isinstance(pair, list) or len(pair) != 2
@@ -772,8 +775,12 @@ def _deck(data, basis, anchor, stem, previous=None):
         if avas and data.get('avas_reference') == 'rhf':
             avas = avas.replace('}\n', 'start,2100.2\n}\n', 1)
         if previous is not None:
-            start = ('start,2140.2,type=natural' if method == 'casscf'
-                     else 'start,2140.2')
+            start = 'start,2140.2,type=natural'
+            if method == 'casci':
+                # CAS-CI fixes the subspaces. NOEXTRA also disables implicit
+                # extra-symmetry adaptation of the reviewed starting orbitals.
+                # NATORB may rotate within those subspaces after the CI solve.
+                deck = deck.replace('symmetry,nosym\n', 'symmetry,nosym\nnoextra\n', 1)
             if isinstance(previous, dict) and previous.get('project_orbitals'):
                 # An explicitly declared cross-basis seed is a projected guess,
                 # not a reviewed wavefunction in the destination basis.
@@ -781,7 +788,7 @@ def _deck(data, basis, anchor, stem, previous=None):
             # A source checkpoint may need a one-time partition/reordering.
             # A propagated predecessor already contains the target CAS.
             initial_partition = bool(space.get('orbital_partition') and isinstance(previous, dict))
-            diab = '' if initial_partition else '\ndiab,2140.2'
+            diab = '' if initial_partition or method == 'casci' else '\ndiab,2140.2'
             partition = space.get('orbital_partition', {})
             if space.get('orbital_source') == 'scf':
                 from kinbot.recon_scf_seed import start as scf_start
@@ -1039,9 +1046,12 @@ def _prepare(source, output):
                         or (seed.get('project_orbitals') and not seed.get('basis'))
                         or (seed.get('basis') and seed['basis'].lower() != basis['basis'].lower()
                             and not seed.get('project_orbitals'))
-                        or data.get('probe_method') != 'casscf'
+                        or (data.get('probe_method') != 'casscf' and not (
+                            data.get('probe_method') == 'casci'
+                            and (data.get('_probe_space') or {}).get('orbital_partition')
+                            and not seed.get('project_orbitals')))
                         or not Path(seed['path']).is_file() or file_sha256(seed['path']) != seed['sha256']):
-                    raise ValueError('Initial CASSCF record requires a verified checkpoint; '
+                    raise ValueError('Initial orbital record requires a verified checkpoint; '
                                      'a different declared basis requires project_orbitals=true '
                                      'and a declared source basis.')
                 predecessor = None

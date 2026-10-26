@@ -1,5 +1,11 @@
 # Four natural-orbital initialization checks, 25 October 2026
 
+**Completed and locally archived, 26 October:** all four jobs completed, but
+the intended SH-p direction again left the optimized active space. Do not
+repeat this panel. See the [native audit and current handoff](../r7_root_spectrum_20261026/README.md)
+for the fixed-orbital root diagnostic and newly discovered requests. The text
+below records the original hypothesis and launch, not a production approval.
+
 Eleven of the twelve new channel selections are prepared. The final
 C(SH2) + SH product exit remains held. The ten-job panel is complete and does
 not need repeating. This panel contains **four jobs only**, with **CAS(9,6),
@@ -21,7 +27,7 @@ identity; they do not establish the correctness of either optimized branch.
 The [numeric evidence and hashes](source_evidence.json) are an explicitly
 labeled transcription of the supplied comparison. Original source hashes were
 checked against the already verified compact-continuation archive. The last
-canonical-trial XML itself still awaits local export. Its native completion
+canonical-trial XML was subsequently verified in the natural-union archive. Its native completion
 is distinct from scientific acceptance.
 
 ## Exact initialization

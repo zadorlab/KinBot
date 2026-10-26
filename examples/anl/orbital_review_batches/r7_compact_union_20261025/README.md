@@ -8,7 +8,9 @@ probe hypotheses below as accepted models.
 
 **Follow-up after the full XML comparison:** the last canonical-seed trial
 selected occupied sigma character instead of the identified missing SH direction.
-Use the [four-job natural-union handoff](../r7_natural_union_20261025/README.md).
+That [four-job natural-union panel](../r7_natural_union_20261025/README.md) is now
+complete and archived. It did not resolve the last channel. Use the
+[26 October diagnostic handoff](../r7_root_spectrum_20261026/README.md).
 The ten-job launch below is historical and need not be repeated.
 
 The 14-job continuation is complete. The transferred native archive has been

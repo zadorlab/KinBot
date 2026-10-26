@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "aliases": [
+    {
+      "screen": "new_hcs_h2s_exit",
+      "case": "ch3ss",
+      "primary_recipe": "new_hcs_h2s_exit.json",
+      "alias_recipe": "new_hcs_h2s_exit_reverse.json",
+      "note": "Distinct reaction records; only the exactly equal supplied orbital-screen geometries are shared. Recheck live endpoints before staging and before binding a selection."
+    }
+  ]
+}

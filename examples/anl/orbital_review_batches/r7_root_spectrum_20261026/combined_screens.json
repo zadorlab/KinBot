@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "max_jobs": 3,
+  "status": "ready",
+  "screens": [
+    {
+      "name": "csh2_sh_exit",
+      "case": "ch3ss",
+      "source": "orbital_recon/compact_resolution_20261025/csh2_sh_exit_resolution",
+      "recipe": "csh2_sh_exit.json"
+    },
+    {
+      "name": "new_cs",
+      "case": "ch3ss",
+      "recipe": "new_cs.json"
+    },
+    {
+      "name": "new_ss",
+      "case": "ch3ss",
+      "recipe": "new_ss.json"
+    },
+    {
+      "name": "new_hcs_h2s_exit",
+      "case": "ch3ss",
+      "recipe": "new_hcs_h2s_exit.json"
+    },
+    {
+      "name": "new_hcssh_h_exit",
+      "case": "ch3ss",
+      "recipe": "new_hcssh_h_exit.json"
+    }
+  ]
+}

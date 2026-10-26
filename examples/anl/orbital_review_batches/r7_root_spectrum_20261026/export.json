@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "scope": "Four fixed-orbital CASCI root diagnostics, sixteen SCF character jobs for five new requests, native-failure capture and production metadata; no scientific approval or production publication.",
+  "sources": [
+    {
+      "root": "production",
+      "path": ".kinbot_resource_policy.json"
+    },
+    {
+      "root": "production",
+      "path": ".kinbot_live_control.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "ch3s/input.json"
+    },
+    {
+      "root": "production",
+      "path": "ch3ss/input.json"
+    },
+    {
+      "root": "production",
+      "path": "*/.kinbot_accepted_input.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/.kinbot_input_refresh.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/pes_exploration.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/accepted_l2_network.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/orbital_review",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrc_model_review.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/scan_progress",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/scan_review",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "orbital_recon/root_spectrum_20261026"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/orbital_review_batches/r7_root_spectrum_20261026"
+    }
+  ]
+}

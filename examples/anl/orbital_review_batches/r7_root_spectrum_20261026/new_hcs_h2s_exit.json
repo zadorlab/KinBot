@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871560500020000002-sb6e34ded5baaf03b",
+    "reaction": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      1,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]"
+      }
+    ],
+    "positions": [
+      [
+        1.7307702444546638,
+        0.27086108655526714,
+        -0.37411947020968317
+      ],
+      [
+        0.9179141106023018,
+        0.7116419777912163,
+        0.9855949608018707
+      ],
+      [
+        -0.12568800577482328,
+        -0.6857060655301334,
+        2.427706110408171
+      ],
+      [
+        -0.2354255534495347,
+        1.1636822458492646,
+        0.4645940218819718
+      ],
+      [
+        -0.655115738240081,
+        -1.4379195570260341,
+        1.4489659711224927
+      ],
+      [
+        2.589611014641109,
+        -0.37871615155200405,
+        -0.2177226387663768
+      ]
+    ]
+  },
+  "reconnaissance": {
+    "title": "new_hcs_h2s_exit_orbital_character",
+    "multiplicity": 2,
+    "bases": [
+      {
+        "name": "adz",
+        "basis": "avdz-f12"
+      },
+      {
+        "name": "atz",
+        "basis": "avtz-f12"
+      }
+    ],
+    "ppn": 8,
+    "memory_mw": 1000,
+    "memory_mb": 104000,
+    "walltime": "partition_max",
+    "scf_convergence": 1e-9,
+    "scf_options": {
+      "solver": "so_sci",
+      "max_iterations": 256
+    },
+    "probe_active_space": false,
+    "orbital_initialization": "independent",
+    "orbital_print_virtuals": 8,
+    "orbital_print_threshold": 0.05,
+    "orbital_character_only": true
+  },
+  "geometry_source": {
+    "product_complex": "791230350000000000002",
+    "record_name": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4_IRC_F_prod_high",
+    "fragments": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]=[S]",
+        "atoms": [
+          1,
+          2,
+          6
+        ]
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]",
+        "atoms": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "distances_angstrom": [
+      30
+    ],
+    "include_reference_geometry": true
+  }
+}

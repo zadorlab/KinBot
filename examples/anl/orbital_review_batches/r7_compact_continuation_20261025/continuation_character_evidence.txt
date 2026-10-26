@@ -1,0 +1,495 @@
+hram@blodgett:~$ bash <<'BASH'
+set -euo pipefail
+cd "$HOME/KinBot"
+export PYTHONPATH="$PWD"
+KB_PANEL="$HOME/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025"
+KB_REPORT="$HOME/compact_continuation_character.$(date -u +%Y%m%dT%H%M%SZ).txt"
+
+"$PWD/.venv/bin/python" -B -m kinbot.requested_orbital_recon monitor "$KB_PANEL" >"$KB_REPORT"
+"$PWD/.venv/bin/python" -B -m kinbot.requested_orbital_recon character "$KB_PANEL" >>"$KB_REPORT"
+cat "$KB_REPORT"
+printf '\nSaved report: %s\n' "$KB_REPORT"
+BASH
+2026-10-25T16:20:12-07:00  campaign=complete_review_required  cap=3
+/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025
+manifest: total=14  VALIDATED=14
+Campaign excluded nodes: none
+Shared-pool exclusions for new submissions: node1,node10,node13,node14,node16,node20,node21,node22,node23,node24,node29,node30,node33,node34,node9
+Campaign retries (cumulative): startup=0  manual_startup=0  allocation=0
+Chains (VALIDATED = controller completion checks):
+  well_hom_sci_1_2_inward [manifest]: 8/8 validated
+  csh2_sh_exit_resolution_inward [manifest]: 6/6 validated
+JOB       STATE          HOST       ELAPSED    OUT-AGE  MEM-REQ  EXCL(SLURM)  NATIVE/GUARD(RETRIES)
+52933182  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_6p0  0 correlated roots recorded
+52933183  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_6p0  0 correlated roots recorded
+52933187  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_3p5  0 correlated roots recorded
+52933188  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_6p0  0 correlated roots recorded
+52933191  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_3p5  0 correlated roots recorded
+52933194  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_2p5  0 correlated roots recorded
+52933205  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_near  0 correlated roots recorded
+52933209  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_near  0 correlated roots recorded
+52933211  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_6p0  0 correlated roots recorded
+52933214  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_3p5  0 correlated roots recorded
+52933221  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_3p5  0 correlated roots recorded
+52933222  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_2p5  0 correlated roots recorded
+52933229  VALIDATED      well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_near  0 correlated roots recorded
+52933231  VALIDATED      csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_near  0 correlated roots recorded
+OUT-AGE = seconds since output write; quiet output alone does not prove a stall.
+LOG = diagnostic in current file tails (128 KiB/file), not a terminal-failure verdict.
+Controller tail:
+Recorded native results; no production model has been accepted.
+well_hom_sci_1_2_inward: complete_review_required
+adz__in_r_6p0 complete
+CASSCF Eh :m4r1=-834.5899792400, :m2r1=-834.5899804100
+ACTIVE 20:1.002290, 21:1.000000, 22:0.997710
+adz__in_r_3p5 complete
+CASSCF Eh :m4r1=-834.5877275900, :m2r1=-834.5913817900
+ACTIVE 20:1.098980, 21:0.999970, 22:0.901050
+adz__in_r_2p5 complete
+CASSCF Eh :m4r1=-834.5496306600, :m2r1=-834.6185678200
+ACTIVE 20:1.369080, 21:0.999780, 22:0.631140
+adz__in_near complete
+CASSCF Eh :m4r1=-834.4917778600, :m2r1=-834.6476364400
+ACTIVE 20:1.496850, 21:0.999910, 22:0.503230
+atz__in_r_6p0 complete
+CASSCF Eh :m4r1=-834.6045118800, :m2r1=-834.6045130000
+ACTIVE 20:1.002290, 21:1.000000, 22:0.997710
+atz__in_r_3p5 complete
+CASSCF Eh :m4r1=-834.6022296000, :m2r1=-834.6058983300
+ACTIVE 20:1.099110, 21:0.999970, 22:0.900920
+atz__in_r_2p5 complete
+CASSCF Eh :m4r1=-834.5642113600, :m2r1=-834.6334303900
+ACTIVE 20:1.369390, 21:0.999790, 22:0.630820
+atz__in_near complete
+CASSCF Eh :m4r1=-834.5052240000, :m2r1=-834.6629661700
+ACTIVE 20:1.496750, 21:0.999910, 22:0.503340
+csh2_sh_exit_resolution_inward: complete_review_required
+adz__in_r_6p0 complete
+CASSCF Eh :m2r1=-834.4777294600, :m2r2=-834.4773471500
+ACTIVE 18:1.999580, 19:1.937410, 20:1.500000, 21:1.500000, 22:0.063000
+adz__in_r_3p5 complete
+CASSCF Eh :m2r1=-834.4758741900, :m2r2=-834.4734274300
+ACTIVE 18:1.999560, 19:1.937720, 20:1.500000, 21:1.499990, 22:0.062730
+adz__in_near complete
+CASSCF Eh :m2r1=-834.4448145900, :m2r2=-834.4053180400
+ACTIVE 18:1.998100, 19:1.937160, 20:1.501290, 21:1.498310, 22:0.065140
+atz__in_r_6p0 complete
+CASSCF Eh :m2r1=-834.4922830900, :m2r2=-834.4919351200
+ACTIVE 18:1.999590, 19:1.936820, 20:1.500000, 21:1.500000, 22:0.063590
+atz__in_r_3p5 complete
+CASSCF Eh :m2r1=-834.4904470900, :m2r2=-834.4879538300
+ACTIVE 18:1.999570, 19:1.937130, 20:1.500000, 21:1.499990, 22:0.063310
+atz__in_near complete
+CASSCF Eh :m2r1=-834.4601144900, :m2r2=-834.4199440000
+ACTIVE 18:1.998140, 19:1.936590, 20:1.501240, 21:1.498350, 22:0.065670
+AO entries are amplitudes, not populations. SCF occupations are not correlated natural occupations.
+SCF character alone does not establish fragment charge/spin, roots, weights or an accepted CAS.
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_6p0/adz__in_r_6p0.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_6p0/adz__in_r_6p0.wfu SHA256 b42a8103295a8a41a898fce4d4f193d72d5b51b8a7a8d23e06679f718ad7735d
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_6p0/adz__in_r_6p0.natural.orbitals.xml SHA256 a38e13c97c91491e29cead407e835bc7e6a091fac7dd9137f089966b55097679
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_6p0/adz__in_r_6p0.orbitals.xml SHA256 55ad14eb8a616cefb6e0f175faa2a8fc6c0232daec725ee1b5684b38a65fd542
+NATURAL 1.1 occ=2.0 energy_Eh=-92.00736 AO=[(3, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-92.00128 AO=[(2, 1, 's', 1.00001)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.24796 AO=[(1, 1, 's', 0.99798)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.00677 AO=[(3, 2, 's', 0.99823)]
+NATURAL 5.1 occ=2.0 energy_Eh=-9.00029 AO=[(2, 2, 's', 0.99873)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.68805 AO=[(3, 1, 'px', -0.91149), (3, 1, 'py', 0.32562), (3, 1, 'pz', 0.24019)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.68682 AO=[(3, 1, 'py', 0.75782), (3, 1, 'pz', -0.64356), (3, 1, 'px', 0.10092)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.68525 AO=[(3, 1, 'pz', 0.7277), (3, 1, 'py', 0.56553), (3, 1, 'px', 0.3938)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.68041 AO=[(2, 1, 'px', 0.84141), (2, 1, 'pz', -0.52791), (2, 1, 'py', 0.09193)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67961 AO=[(2, 1, 'pz', 0.72545), (2, 1, 'py', 0.56316), (2, 1, 'px', 0.39364)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67714 AO=[(2, 1, 'py', 0.8235), (2, 1, 'pz', -0.44055), (2, 1, 'px', -0.36623)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.04448 AO=[(3, 3, 's', 0.72232), (2, 3, 's', 0.5336), (4, 1, 's', 0.25327), (2, 2, 'px', -0.14313), (3, 2, 'px', 0.13823), (2, 2, 'pz', 0.08662)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.85657 AO=[(1, 2, 's', 0.7514), (5, 1, 's', 0.49734), (6, 1, 's', 0.49538), (1, 1, 'pz', -0.19564), (5, 3, 's', -0.16261), (6, 3, 's', -0.16167)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.8496 AO=[(2, 3, 's', 0.7828), (3, 3, 's', -0.52725), (4, 1, 's', -0.32451), (3, 2, 'px', 0.17308), (4, 3, 's', 0.07442), (3, 2, 'pz', -0.06279)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.58745 AO=[(6, 1, 's', 0.62607), (5, 1, 's', -0.6256), (1, 1, 'px', 0.51923), (1, 1, 'py', 0.34902), (1, 1, 'pz', -0.2645), (5, 3, 's', 0.19803)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.57954 AO=[(4, 1, 's', 0.58429), (3, 2, 'py', 0.46085), (3, 2, 'px', -0.36524), (3, 3, 's', -0.26568), (2, 2, 'pz', -0.24284), (2, 2, 'py', 0.20353)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48614 AO=[(2, 2, 'px', 0.59136), (3, 2, 'px', -0.4749), (3, 2, 'pz', 0.47038), (3, 2, 'py', -0.27464), (2, 2, 'pz', -0.23213), (3, 3, 's', 0.20517)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.43553 AO=[(3, 2, 'pz', 0.66027), (3, 2, 'py', 0.51274), (3, 2, 'px', 0.35735), (2, 2, 'pz', 0.20893), (2, 2, 'py', 0.16339), (2, 2, 'px', 0.11307)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.38347 AO=[(2, 2, 'py', 0.76379), (2, 2, 'pz', -0.44782), (2, 2, 'px', -0.26792), (4, 1, 's', -0.24973), (3, 5, 's', 0.13393), (3, 2, 'pz', 0.12583)]
+NATURAL 20.1 occ=1.00229 energy_Eh=-0.18055 AO=[(1, 1, 'pz', -0.53527), (2, 2, 'pz', 0.51134), (2, 2, 'py', 0.39715), (1, 2, 's', -0.32379), (2, 2, 'px', 0.27706), (3, 2, 'pz', -0.18346)]
+NATURAL 21.1 occ=1.0 energy_Eh=-0.11254 AO=[(1, 1, 'py', 0.73224), (1, 1, 'px', -0.55149), (1, 2, 's', 0.12452), (1, 1, 'pz', -0.11654), (5, 1, 's', -0.05928), (6, 1, 's', -0.05921)]
+NATURAL 22.1 occ=0.99771 energy_Eh=-0.17898 AO=[(1, 1, 'pz', 0.53666), (2, 2, 'pz', 0.51461), (2, 2, 'py', 0.39826), (1, 2, 's', 0.32449), (2, 2, 'px', 0.27744), (3, 2, 'pz', -0.18392)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04582 AO=[(2, 6, 's', -3.41305), (3, 6, 's', 3.08034), (3, 4, 'px', 1.46078), (2, 4, 'px', 1.21232), (3, 4, 'pz', -0.84176), (2, 4, 'pz', -0.79738)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06187 AO=[(1, 5, 's', 1.88693), (1, 4, 's', 1.78105), (3, 6, 's', 1.75904), (4, 3, 's', -1.57626), (6, 3, 's', -1.54395), (5, 3, 's', -1.48789)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_3p5/adz__in_r_3p5.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_3p5/adz__in_r_3p5.wfu SHA256 1a6ff99b25fa62137373c97c6bec2b295e33e89783e06075af66b6e269f46a8f
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_3p5/adz__in_r_3p5.natural.orbitals.xml SHA256 2bc446e8c9043458c456afaf3a6d5b32615f9c972c49f51128f91acc9747d80a
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_3p5/adz__in_r_3p5.orbitals.xml SHA256 9c30948c34709590574b3a9c5c1fc324a3afc8cde298318bed157522ddcb9b25
+NATURAL 1.1 occ=2.0 energy_Eh=-92.00471 AO=[(3, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99868 AO=[(2, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.24843 AO=[(1, 1, 's', 0.99797)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.00416 AO=[(3, 2, 's', 0.99819)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.9977 AO=[(2, 2, 's', 0.99868)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.68546 AO=[(3, 1, 'px', -0.91038), (3, 1, 'py', 0.32852), (3, 1, 'pz', 0.2401)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.68423 AO=[(3, 1, 'py', 0.75508), (3, 1, 'pz', -0.64658), (3, 1, 'px', 0.10169)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.68266 AO=[(3, 1, 'pz', 0.72494), (3, 1, 'py', 0.56747), (3, 1, 'px', 0.396)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.6778 AO=[(2, 1, 'px', 0.83504), (2, 1, 'pz', -0.53914), (2, 1, 'py', 0.08328)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67699 AO=[(2, 1, 'pz', 0.72301), (2, 1, 'py', 0.55252), (2, 1, 'px', 0.41191)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67452 AO=[(2, 1, 'py', 0.83155), (2, 1, 'pz', -0.43001), (2, 1, 'px', -0.36045)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.04211 AO=[(3, 3, 's', 0.72149), (2, 3, 's', 0.53279), (4, 1, 's', 0.25347), (2, 2, 'px', -0.14393), (3, 2, 'px', 0.13848), (2, 2, 'pz', 0.08936)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.85751 AO=[(1, 2, 's', 0.73912), (5, 1, 's', 0.48768), (6, 1, 's', 0.48627), (1, 1, 'pz', -0.1919), (5, 3, 's', -0.15408), (6, 3, 's', -0.15155)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.84691 AO=[(2, 3, 's', 0.76948), (3, 3, 's', -0.51721), (4, 1, 's', -0.31892), (3, 2, 'px', 0.17054), (1, 2, 's', -0.13879), (5, 1, 's', -0.09353)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.58803 AO=[(5, 1, 's', -0.62455), (6, 1, 's', 0.62442), (1, 1, 'px', 0.51852), (1, 1, 'py', 0.3485), (1, 1, 'pz', -0.26373), (5, 3, 's', 0.19809)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.57727 AO=[(4, 1, 's', 0.58335), (3, 2, 'py', 0.45946), (3, 2, 'px', -0.36448), (3, 3, 's', -0.26495), (2, 2, 'pz', -0.2405), (2, 2, 'py', 0.20425)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48384 AO=[(2, 2, 'px', 0.59058), (3, 2, 'px', -0.47545), (3, 2, 'pz', 0.46864), (3, 2, 'py', -0.27554), (2, 2, 'pz', -0.23149), (3, 3, 's', 0.20462)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.43324 AO=[(3, 2, 'pz', 0.66339), (3, 2, 'py', 0.51085), (3, 2, 'px', 0.35523), (2, 2, 'pz', 0.19628), (2, 2, 'py', 0.16611), (2, 2, 'px', 0.11064)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.38113 AO=[(2, 2, 'py', 0.76802), (2, 2, 'pz', -0.44092), (2, 2, 'px', -0.26534), (4, 1, 's', -0.24966), (3, 5, 's', 0.13466), (3, 2, 'py', -0.12597)]
+NATURAL 20.1 occ=1.09898 energy_Eh=-0.21104 AO=[(1, 1, 'pz', -0.51243), (2, 2, 'pz', 0.49124), (2, 2, 'py', 0.38523), (1, 2, 's', -0.31011), (2, 2, 'px', 0.27474), (3, 2, 'pz', -0.18263)]
+NATURAL 21.1 occ=0.99997 energy_Eh=-0.11196 AO=[(1, 1, 'py', 0.72337), (1, 1, 'px', -0.56002), (1, 1, 'pz', -0.14579), (1, 2, 's', 0.10724), (5, 1, 's', -0.05124), (6, 1, 's', -0.05059)]
+NATURAL 22.1 occ=0.90105 energy_Eh=-0.14545 AO=[(1, 1, 'pz', 0.55447), (2, 2, 'pz', 0.54983), (2, 2, 'py', 0.39888), (1, 2, 's', 0.34809), (2, 2, 'px', 0.28421), (1, 1, 'py', 0.18696)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04695 AO=[(2, 6, 's', -3.24287), (3, 6, 's', 3.16196), (3, 4, 'px', 1.52316), (2, 4, 'px', 1.09629), (3, 4, 'pz', -0.94537), (2, 4, 'pz', -0.92081)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06212 AO=[(1, 5, 's', 1.8482), (3, 6, 's', 1.67181), (1, 4, 's', 1.64406), (6, 3, 's', -1.61773), (5, 3, 's', -1.31917), (4, 3, 's', -1.28004)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_2p5/adz__in_r_2p5.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_2p5/adz__in_r_2p5.wfu SHA256 8048a700cd080627cfb681e7362bfa42191f0c0260a836c4431c9544d99199e7
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_2p5/adz__in_r_2p5.natural.orbitals.xml SHA256 26598c835b5569a854248f96e1cf7d8e717c6fcd41965ca7b605bfb2b9df2cc3
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_r_2p5/adz__in_r_2p5.orbitals.xml SHA256 6d047f82eb85053655b9cbff2ab0b49fd46ee2435e10d991582a47e4372d171e
+NATURAL 1.1 occ=2.0 energy_Eh=-91.99888 AO=[(3, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99479 AO=[(2, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.2538 AO=[(1, 1, 's', 0.99796)]
+NATURAL 4.1 occ=2.0 energy_Eh=-8.99856 AO=[(3, 2, 's', 0.99805)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.994 AO=[(2, 2, 's', 0.99851)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.67992 AO=[(3, 1, 'px', -0.90783), (3, 1, 'py', 0.32387), (3, 1, 'pz', 0.25432)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.67868 AO=[(3, 1, 'py', 0.75057), (3, 1, 'pz', -0.65403), (3, 1, 'px', 0.08397)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.67702 AO=[(3, 1, 'pz', 0.71294), (3, 1, 'py', 0.57598), (3, 1, 'px', 0.40534)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67402 AO=[(2, 1, 'px', 0.72337), (2, 1, 'pz', -0.68566)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67328 AO=[(2, 1, 'pz', 0.61716), (2, 1, 'px', 0.60064), (2, 1, 'py', 0.50553)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.6707 AO=[(2, 1, 'py', 0.86475), (2, 1, 'pz', -0.38226), (2, 1, 'px', -0.33501)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.03992 AO=[(3, 3, 's', 0.71025), (2, 3, 's', 0.54351), (4, 1, 's', 0.24896), (2, 2, 'px', -0.14446), (3, 2, 'px', 0.13785), (3, 2, 'pz', -0.09019)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.87373 AO=[(1, 2, 's', 0.64326), (6, 1, 's', 0.41647), (5, 1, 's', 0.41259), (2, 3, 's', 0.37196), (3, 3, 's', -0.31535), (4, 1, 's', -0.17279)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.83724 AO=[(2, 3, 's', 0.6771), (3, 3, 's', -0.43701), (1, 2, 's', -0.39044), (4, 1, 's', -0.27665), (5, 1, 's', -0.2709), (6, 1, 's', -0.26418)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.59555 AO=[(5, 1, 's', -0.61074), (6, 1, 's', 0.60027), (1, 1, 'px', 0.50678), (1, 1, 'py', 0.34241), (1, 1, 'pz', -0.25155), (5, 3, 's', 0.19373)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.57322 AO=[(4, 1, 's', 0.57064), (3, 2, 'py', 0.44334), (3, 2, 'px', -0.36065), (3, 3, 's', -0.25887), (2, 2, 'pz', -0.22712), (2, 2, 'py', 0.20518)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48146 AO=[(2, 2, 'px', 0.59157), (3, 2, 'px', -0.47388), (3, 2, 'pz', 0.45028), (3, 2, 'py', -0.28847), (2, 2, 'pz', -0.22351), (3, 3, 's', 0.2086)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.43073 AO=[(3, 2, 'pz', 0.67299), (3, 2, 'py', 0.50457), (3, 2, 'px', 0.35153), (2, 2, 'py', 0.16917), (2, 2, 'pz', 0.16646), (2, 2, 'px', 0.10436)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.38042 AO=[(2, 2, 'py', 0.78353), (2, 2, 'pz', -0.41108), (4, 1, 's', -0.25169), (2, 2, 'px', -0.2474), (3, 2, 'py', -0.14707), (3, 5, 's', 0.13596)]
+NATURAL 20.1 occ=1.36908 energy_Eh=-0.30227 AO=[(2, 2, 'pz', 0.50697), (1, 1, 'pz', -0.48334), (2, 2, 'py', 0.37348), (2, 2, 'px', 0.28563), (1, 2, 's', -0.26626), (1, 1, 'py', -0.19088)]
+NATURAL 21.1 occ=0.99978 energy_Eh=-0.11584 AO=[(1, 1, 'py', 0.72079), (1, 1, 'px', -0.56348), (1, 1, 'pz', -0.16005), (1, 2, 's', 0.10516), (2, 2, 'pz', 0.06528), (2, 2, 'py', -0.05835)]
+NATURAL 22.1 occ=0.63114 energy_Eh=-0.03123 AO=[(2, 2, 'pz', 0.62816), (1, 1, 'pz', 0.60213), (1, 2, 's', 0.42337), (2, 2, 'py', 0.38675), (2, 2, 'px', 0.29227), (1, 1, 'py', 0.20218)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04851 AO=[(3, 6, 's', 3.61017), (2, 6, 's', -2.95355), (3, 4, 'px', 1.60429), (1, 5, 's', -1.22314), (2, 4, 'px', 1.10815), (2, 4, 'pz', -1.10708)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06085 AO=[(3, 6, 's', 1.50119), (6, 3, 's', -1.40923), (1, 5, 's', 1.31244), (1, 4, 's', 1.25564), (4, 3, 's', -1.24417), (1, 5, 'pz', -1.11068)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_near/adz__in_near.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_near/adz__in_near.wfu SHA256 7a87697bc2d5763f63d74510574ce9db036a5cab061b6bf3b27f85b70951d7ba
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_near/adz__in_near.natural.orbitals.xml SHA256 5d0920f6d1c59405026c520e32eb2dd2e16cd179b79cfa4c97e47bb4eb4f6bbb
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/adz__in_near/adz__in_near.orbitals.xml SHA256 5260dc19dff425e762dfed0ef2114a4d99f6f4e22abd0c925ba0e37986c2e770
+NATURAL 1.1 occ=2.0 energy_Eh=-92.0228 AO=[(2, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.95944 AO=[(3, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.29308 AO=[(1, 1, 's', 0.99817)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.01942 AO=[(2, 2, 's', 0.99879)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.96282 AO=[(3, 2, 's', 0.99791)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.69967 AO=[(2, 1, 'pz', -0.76785), (2, 1, 'px', 0.63726)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.69802 AO=[(2, 1, 'py', 0.62101), (2, 1, 'px', 0.59275), (2, 1, 'pz', 0.5119)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.69729 AO=[(2, 1, 'py', 0.78423), (2, 1, 'px', -0.49255), (2, 1, 'pz', -0.38092)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.64405 AO=[(3, 1, 'px', -0.91802), (3, 1, 'pz', 0.33677), (3, 1, 'py', 0.19671)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.64288 AO=[(3, 1, 'py', 0.80878), (3, 1, 'pz', -0.5844)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.64086 AO=[(3, 1, 'pz', 0.73865), (3, 1, 'py', 0.55312), (3, 1, 'px', 0.38973)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.05 AO=[(2, 3, 's', 0.64546), (3, 3, 's', 0.55895), (1, 2, 's', 0.24559), (4, 1, 's', 0.18707), (3, 2, 'px', 0.13916), (2, 2, 'px', -0.13314)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.92853 AO=[(1, 2, 's', 0.62591), (3, 3, 's', -0.52077), (6, 1, 's', 0.33586), (5, 1, 's', 0.32207), (4, 1, 's', -0.22936), (2, 3, 's', 0.1965)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.82825 AO=[(2, 3, 's', 0.64424), (3, 3, 's', -0.43042), (1, 2, 's', -0.4107), (5, 1, 's', -0.31542), (6, 1, 's', -0.29415), (4, 1, 's', -0.26702)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.62456 AO=[(5, 1, 's', -0.60555), (6, 1, 's', 0.57688), (1, 1, 'px', 0.51464), (1, 1, 'py', 0.35088), (1, 1, 'pz', -0.24082), (5, 3, 's', 0.19503)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.56626 AO=[(4, 1, 's', 0.53689), (3, 2, 'px', -0.41951), (2, 2, 'pz', -0.39282), (3, 2, 'py', 0.32456), (1, 1, 'pz', 0.28555), (6, 1, 's', -0.27828)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.5087 AO=[(2, 2, 'pz', -0.46038), (3, 2, 'py', -0.43754), (1, 1, 'pz', 0.33693), (2, 2, 'py', -0.32407), (4, 1, 's', -0.26576), (3, 3, 's', 0.22918)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.47671 AO=[(2, 2, 'px', 0.67432), (3, 2, 'pz', 0.52348), (3, 2, 'px', -0.3071), (3, 3, 's', 0.19529), (2, 3, 's', 0.17845), (5, 1, 's', 0.14998)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.37069 AO=[(3, 2, 'pz', 0.63141), (3, 2, 'py', 0.45464), (3, 2, 'px', 0.37577), (1, 1, 'pz', 0.22352), (2, 2, 'px', -0.19946), (2, 2, 'pz', -0.19255)]
+NATURAL 20.1 occ=1.49685 energy_Eh=-0.32045 AO=[(2, 2, 'py', 0.87182), (2, 2, 'pz', -0.30176), (3, 2, 'py', -0.19762), (4, 1, 's', -0.18045), (3, 2, 'px', -0.17771), (2, 2, 'px', -0.14096)]
+NATURAL 21.1 occ=0.99991 energy_Eh=-0.13172 AO=[(1, 1, 'py', 0.70497), (1, 1, 'px', -0.57065), (1, 1, 'pz', -0.19477), (2, 2, 'py', -0.17339), (2, 2, 'pz', 0.1256), (1, 2, 's', 0.09255)]
+NATURAL 22.1 occ=0.50323 energy_Eh=0.0415 AO=[(2, 2, 'px', 0.69284), (3, 2, 'px', 0.68242), (3, 2, 'pz', -0.42894), (2, 3, 's', -0.38988), (2, 2, 'pz', -0.31739), (2, 5, 's', -0.29204)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.05099 AO=[(3, 6, 's', 2.14357), (1, 5, 'pz', -2.13889), (1, 5, 's', -1.79058), (2, 6, 's', 1.59592), (2, 4, 'pz', -1.05262), (4, 3, 's', -0.85353)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06212 AO=[(1, 5, 's', 4.97763), (6, 3, 's', -1.92591), (2, 6, 's', -1.9213), (2, 4, 'pz', 1.49745), (1, 4, 's', 1.37361), (1, 5, 'pz', 0.99685)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_6p0/atz__in_r_6p0.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_6p0/atz__in_r_6p0.wfu SHA256 50e01ba51e2b768ca7462823196957b66744a9e96e054d6ae7547a893e0bc2d0
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_6p0/atz__in_r_6p0.natural.orbitals.xml SHA256 bd68a1140c6def3b9c9658286ee075ef7c85a69f3b6603a80dcba30ae7cb4e93
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_6p0/atz__in_r_6p0.orbitals.xml SHA256 e066c91d1555b1c56da619128992ed2d50ed030b412618f040b2fa447b7a2e41
+NATURAL 1.1 occ=2.0 energy_Eh=-92.00622 AO=[(3, 1, 's', 0.99996)]
+NATURAL 2.1 occ=2.0 energy_Eh=-92.00077 AO=[(2, 1, 's', 0.99996)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.24688 AO=[(1, 1, 's', 1.00044)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.00509 AO=[(3, 2, 's', 1.00035)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99921 AO=[(2, 2, 's', 1.00093)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.68608 AO=[(3, 1, 'px', -0.89078), (3, 1, 'py', 0.44401), (3, 1, 'pz', 0.13711)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.68528 AO=[(3, 1, 'py', 0.69546), (3, 1, 'pz', -0.67373), (3, 1, 'px', 0.24556)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.6847 AO=[(3, 1, 'pz', 0.72079), (3, 1, 'py', 0.56045), (3, 1, 'px', 0.3903)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67892 AO=[(2, 1, 'px', 0.84475), (2, 1, 'pz', -0.53425), (2, 1, 'py', 0.09194)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67873 AO=[(2, 1, 'pz', 0.72727), (2, 1, 'py', 0.56613), (2, 1, 'px', 0.39832)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67722 AO=[(2, 1, 'py', 0.81213), (2, 1, 'pz', -0.43344), (2, 1, 'px', -0.36286)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.04215 AO=[(3, 3, 's', 0.71052), (2, 3, 's', 0.52166), (4, 1, 's', 0.26103), (4, 4, 's', -0.05887), (2, 2, 'px', -0.05751), (3, 6, 's', -0.05221)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.85636 AO=[(1, 2, 's', 0.78434), (5, 1, 's', 0.51176), (6, 1, 's', 0.50973), (1, 1, 'pz', -0.20403), (5, 3, 's', -0.16872), (6, 3, 's', -0.16794)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.84829 AO=[(2, 3, 's', 0.78258), (3, 3, 's', -0.53293), (4, 1, 's', -0.33108), (3, 2, 'px', 0.1633), (2, 2, 'px', 0.07802), (4, 3, 's', 0.06264)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.58744 AO=[(6, 1, 's', 0.6418), (5, 1, 's', -0.64126), (1, 1, 'px', 0.53472), (1, 1, 'py', 0.35942), (1, 1, 'pz', -0.27242), (6, 4, 's', -0.21028)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.57849 AO=[(4, 1, 's', 0.59896), (3, 2, 'py', 0.48401), (3, 2, 'px', -0.30806), (3, 3, 's', -0.25984), (2, 2, 'pz', -0.2189), (3, 2, 'pz', -0.20933)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48484 AO=[(2, 2, 'px', 0.51348), (3, 2, 'pz', 0.41649), (3, 2, 'px', -0.37595), (3, 2, 'py', -0.27422), (3, 3, 's', 0.21318), (2, 3, 's', 0.20652)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.43584 AO=[(3, 2, 'pz', 0.67532), (3, 2, 'py', 0.52408), (3, 2, 'px', 0.36521), (2, 2, 'pz', 0.1794), (2, 2, 'py', 0.14042), (2, 2, 'px', 0.09709)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.38411 AO=[(2, 2, 'py', 0.81676), (2, 2, 'pz', -0.47098), (2, 2, 'px', -0.30105), (4, 1, 's', -0.26061), (3, 2, 'py', -0.20204), (3, 2, 'pz', 0.16477)]
+NATURAL 20.1 occ=1.00229 energy_Eh=-0.18003 AO=[(1, 1, 'pz', -0.54098), (2, 2, 'pz', 0.48884), (2, 2, 'py', 0.37968), (1, 2, 's', -0.31188), (2, 2, 'px', 0.26473), (3, 2, 'pz', -0.2012)]
+NATURAL 21.1 occ=1.0 energy_Eh=-0.11267 AO=[(1, 1, 'py', 0.73817), (1, 1, 'px', -0.55534), (1, 2, 's', 0.1203), (1, 1, 'pz', -0.11627), (5, 1, 's', -0.06011), (6, 1, 's', -0.06004)]
+NATURAL 22.1 occ=0.99771 energy_Eh=-0.17845 AO=[(1, 1, 'pz', 0.54227), (2, 2, 'pz', 0.49184), (2, 2, 'py', 0.3806), (1, 2, 's', 0.31284), (2, 2, 'px', 0.26556), (3, 2, 'pz', -0.20102)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04007 AO=[(2, 7, 's', -5.73883), (3, 7, 's', 5.00441), (3, 5, 'px', 2.17923), (3, 6, 'px', 1.9776), (2, 6, 's', -1.89263), (2, 5, 'px', 1.74164)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.04858 AO=[(1, 5, 's', 4.32548), (3, 7, 's', 3.44975), (4, 4, 's', -3.35804), (6, 4, 's', -2.98755), (5, 4, 's', -2.48529), (1, 6, 's', 2.37212)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_3p5/atz__in_r_3p5.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_3p5/atz__in_r_3p5.wfu SHA256 50dd400fbc67318d3c3fde3bff684579358fc3bfbf75abdff671175522b9807f
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_3p5/atz__in_r_3p5.natural.orbitals.xml SHA256 fc1eec7261587258b98a8816aefbe8fc6cde85d217155cb83c1367db79416f97
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_3p5/atz__in_r_3p5.orbitals.xml SHA256 ed46ac6d42a9c1a53f73bae2ac374bf54c68ccf9efd1ea8f8d560a25a92e452c
+NATURAL 1.1 occ=2.0 energy_Eh=-92.00357 AO=[(3, 1, 's', 0.99996)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99813 AO=[(2, 1, 's', 0.99995)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.24729 AO=[(1, 1, 's', 1.00046)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.00249 AO=[(3, 2, 's', 1.00038)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99659 AO=[(2, 2, 's', 1.00105)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.6835 AO=[(3, 1, 'px', -0.88937), (3, 1, 'py', 0.44662), (3, 1, 'pz', 0.138)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.68269 AO=[(3, 1, 'py', 0.68974), (3, 1, 'pz', -0.68043), (3, 1, 'px', 0.2434)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.6821 AO=[(3, 1, 'pz', 0.71434), (3, 1, 'py', 0.56542), (3, 1, 'px', 0.3948)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67629 AO=[(2, 1, 'px', 0.82045), (2, 1, 'pz', -0.57515), (2, 1, 'py', 0.05999)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67609 AO=[(2, 1, 'pz', 0.70229), (2, 1, 'py', 0.55762), (2, 1, 'px', 0.45138)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67458 AO=[(2, 1, 'py', 0.82068), (2, 1, 'pz', -0.42244), (2, 1, 'px', -0.35649)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.03977 AO=[(3, 3, 's', 0.71074), (2, 3, 's', 0.52129), (4, 1, 's', 0.26134), (2, 2, 'px', -0.0572), (4, 4, 's', -0.05061)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.85721 AO=[(1, 2, 's', 0.77305), (5, 1, 's', 0.50391), (6, 1, 's', 0.50239), (1, 1, 'pz', -0.20061), (5, 3, 's', -0.16932), (6, 3, 's', -0.16793)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.84561 AO=[(2, 3, 's', 0.77217), (3, 3, 's', -0.52408), (4, 1, 's', -0.32633), (3, 2, 'px', 0.16185), (1, 2, 's', -0.13235), (5, 1, 's', -0.08817)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.58798 AO=[(6, 1, 's', 0.64036), (5, 1, 's', -0.64034), (1, 1, 'px', 0.53411), (1, 1, 'py', 0.35896), (1, 1, 'pz', -0.27176), (6, 4, 's', -0.21943)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.57621 AO=[(4, 1, 's', 0.59818), (3, 2, 'py', 0.48303), (3, 2, 'px', -0.30741), (3, 3, 's', -0.25988), (2, 2, 'pz', -0.21618), (3, 2, 'pz', -0.20866)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48253 AO=[(2, 2, 'px', 0.5131), (3, 2, 'pz', 0.41464), (3, 2, 'px', -0.37767), (3, 2, 'py', -0.27523), (3, 3, 's', 0.21283), (2, 3, 's', 0.20711)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.43354 AO=[(3, 2, 'pz', 0.67883), (3, 2, 'py', 0.52196), (3, 2, 'px', 0.36515), (2, 2, 'pz', 0.16917), (2, 2, 'py', 0.14447), (2, 2, 'px', 0.0922)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.38174 AO=[(2, 2, 'py', 0.82175), (2, 2, 'pz', -0.46317), (2, 2, 'px', -0.29703), (4, 1, 's', -0.26052), (3, 2, 'py', -0.20976), (3, 2, 'pz', 0.15354)]
+NATURAL 20.1 occ=1.09911 energy_Eh=-0.21058 AO=[(1, 1, 'pz', -0.51854), (2, 2, 'pz', 0.46969), (2, 2, 'py', 0.36933), (1, 2, 's', -0.29878), (2, 2, 'px', 0.26405), (3, 2, 'pz', -0.2012)]
+NATURAL 21.1 occ=0.99997 energy_Eh=-0.11205 AO=[(1, 1, 'py', 0.7289), (1, 1, 'px', -0.56429), (1, 1, 'pz', -0.14685), (1, 2, 's', 0.10283), (5, 1, 's', -0.05156), (6, 1, 's', -0.05084)]
+NATURAL 22.1 occ=0.90092 energy_Eh=-0.14472 AO=[(1, 1, 'pz', 0.56029), (2, 2, 'pz', 0.52362), (2, 2, 'py', 0.37702), (1, 2, 's', 0.33585), (2, 2, 'px', 0.26933), (3, 2, 'pz', -0.19892)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04081 AO=[(2, 7, 's', -5.43728), (3, 7, 's', 5.31586), (3, 5, 'px', 2.11732), (3, 6, 'px', 2.00708), (2, 6, 's', -1.97319), (2, 5, 'px', 1.72746)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.04836 AO=[(1, 5, 's', 3.03372), (3, 7, 's', 2.92901), (4, 4, 's', -2.84988), (6, 4, 's', -2.18346), (5, 4, 's', -2.15293), (3, 6, 's', 1.7655)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_2p5/atz__in_r_2p5.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_2p5/atz__in_r_2p5.wfu SHA256 66b95256bb29504420ec4e2981fe8d586e6245444a7773d56afda8634bc9d744
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_2p5/atz__in_r_2p5.natural.orbitals.xml SHA256 57d623e20383fda130c3039e42f8e89ef8f5e9b58ebeb24dc800eacbde5c5c26
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_r_2p5/atz__in_r_2p5.orbitals.xml SHA256 dbdc68c1a3cf96b23664327fdeed2eed643c226c01a29ed7ebfa4f1da2d7d396
+NATURAL 1.1 occ=2.0 energy_Eh=-91.9978 AO=[(3, 1, 's', 0.99996)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99421 AO=[(2, 1, 's', 0.99994)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25262 AO=[(1, 1, 's', 1.00047)]
+NATURAL 4.1 occ=2.0 energy_Eh=-8.99696 AO=[(3, 2, 's', 1.00026)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99285 AO=[(2, 2, 's', 1.00114)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.67801 AO=[(3, 1, 'px', -0.89114), (3, 1, 'py', 0.4358), (3, 1, 'pz', 0.16024)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.6772 AO=[(3, 1, 'pz', -0.69758), (3, 1, 'py', 0.68334), (3, 1, 'px', 0.21089)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.67655 AO=[(3, 1, 'pz', 0.69283), (3, 1, 'py', 0.5813), (3, 1, 'px', 0.40881)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67253 AO=[(2, 1, 'pz', -0.87659), (2, 1, 'px', 0.44066), (2, 1, 'py', -0.21427)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67226 AO=[(2, 1, 'px', 0.83682), (2, 1, 'py', 0.45857), (2, 1, 'pz', 0.30954)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67072 AO=[(2, 1, 'py', 0.85459), (2, 1, 'pz', -0.37416), (2, 1, 'px', -0.32981)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.03761 AO=[(3, 3, 's', 0.70046), (2, 3, 's', 0.53136), (4, 1, 's', 0.25693), (2, 2, 'px', -0.05347)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.87312 AO=[(1, 2, 's', 0.67567), (6, 1, 's', 0.43162), (5, 1, 's', 0.42777), (2, 3, 's', 0.36493), (3, 3, 's', -0.31338), (4, 1, 's', -0.17353)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.8361 AO=[(2, 3, 's', 0.68217), (3, 3, 's', -0.44479), (1, 2, 's', -0.39767), (4, 1, 's', -0.28421), (5, 1, 's', -0.27489), (6, 1, 's', -0.26745)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.59533 AO=[(5, 1, 's', -0.62644), (6, 1, 's', 0.61642), (1, 1, 'px', 0.52285), (1, 1, 'py', 0.3532), (1, 1, 'pz', -0.26008), (5, 4, 's', 0.21697)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.57223 AO=[(4, 1, 's', 0.58596), (3, 2, 'py', 0.46599), (3, 2, 'px', -0.30436), (3, 3, 's', -0.25552), (3, 2, 'pz', -0.2113), (2, 2, 'pz', -0.19943)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.48019 AO=[(2, 2, 'px', 0.5167), (3, 2, 'pz', 0.39722), (3, 2, 'px', -0.38049), (3, 2, 'py', -0.28882), (3, 3, 's', 0.21633), (2, 3, 's', 0.19737)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.43101 AO=[(3, 2, 'pz', 0.69103), (3, 2, 'py', 0.51647), (3, 2, 'px', 0.36383), (2, 2, 'py', 0.15323), (2, 2, 'pz', 0.13714), (2, 2, 'px', 0.08776)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.381 AO=[(2, 2, 'py', 0.83806), (2, 2, 'pz', -0.4276), (2, 2, 'px', -0.27626), (4, 1, 's', -0.26268), (3, 2, 'py', -0.2338), (3, 3, 's', 0.12986)]
+NATURAL 20.1 occ=1.36939 energy_Eh=-0.30195 AO=[(1, 1, 'pz', -0.48689), (2, 2, 'pz', 0.44069), (2, 2, 'py', 0.34437), (2, 2, 'px', 0.27598), (1, 2, 's', -0.26241), (3, 2, 'pz', -0.20995)]
+NATURAL 21.1 occ=0.99979 energy_Eh=-0.11598 AO=[(1, 1, 'py', 0.72555), (1, 1, 'px', -0.56737), (1, 1, 'pz', -0.16138), (1, 2, 's', 0.10027), (2, 2, 'py', -0.07025), (2, 2, 'pz', 0.06877)]
+NATURAL 22.1 occ=0.63082 energy_Eh=-0.03005 AO=[(2, 2, 'pz', 0.62805), (1, 1, 'pz', 0.60618), (1, 2, 's', 0.40187), (2, 2, 'py', 0.37351), (2, 2, 'px', 0.2743), (1, 1, 'py', 0.2043)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04214 AO=[(3, 7, 's', 5.89223), (2, 7, 's', -5.00565), (3, 5, 'px', 2.13648), (3, 6, 'px', 2.07728), (2, 6, 's', -1.92131), (1, 6, 's', -1.81839)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.04642 AO=[(4, 4, 's', -2.89615), (3, 7, 's', 2.64754), (1, 6, 'pz', -2.52963), (3, 6, 's', 1.62596), (1, 5, 'pz', -1.60424), (2, 7, 's', 1.27398)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_near/atz__in_near.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_near/atz__in_near.wfu SHA256 d11fa87d8d4abcc708aedefeda16cb23857969afe990a9eff68cc1e74a8a05c0
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_near/atz__in_near.natural.orbitals.xml SHA256 b77e8d3f71da3434344475a5685bb50c56ff7bbaee2c3e359d12f9d46bbe8779
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/well_hom_sci_1_2/well_hom_sci_1_2_inward/atz__in_near/atz__in_near.orbitals.xml SHA256 484f14bcf41c7d124136d8c225dcdeb4f47a61e2f42ab8ff0c0e2513a0f854e2
+NATURAL 1.1 occ=2.0 energy_Eh=-92.02308 AO=[(2, 1, 's', 0.99993)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.95919 AO=[(3, 1, 's', 0.99996)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.29127 AO=[(1, 1, 's', 1.00078)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.01889 AO=[(2, 2, 's', 1.00188)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.96196 AO=[(3, 2, 's', 1.00011)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.69905 AO=[(2, 1, 'pz', -0.74224), (2, 1, 'px', 0.66876), (2, 1, 'py', 0.06726)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.6978 AO=[(2, 1, 'py', 0.67993), (2, 1, 'pz', 0.52726), (2, 1, 'px', 0.50885)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.69752 AO=[(2, 1, 'py', 0.72638), (2, 1, 'px', -0.53555), (2, 1, 'pz', -0.41943)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.64294 AO=[(3, 1, 'px', -0.92372), (3, 1, 'pz', 0.34011), (3, 1, 'py', 0.19957)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.64212 AO=[(3, 1, 'py', 0.81271), (3, 1, 'pz', -0.58295)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.64108 AO=[(3, 1, 'pz', 0.73361), (3, 1, 'py', 0.54625), (3, 1, 'px', 0.38812)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.04836 AO=[(2, 3, 's', 0.62994), (3, 3, 's', 0.55249), (1, 2, 's', 0.25535), (4, 1, 's', 0.19309), (5, 1, 's', 0.10475), (6, 1, 's', 0.09826)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.92764 AO=[(1, 2, 's', 0.6464), (3, 3, 's', -0.52056), (6, 1, 's', 0.34707), (5, 1, 's', 0.33341), (4, 1, 's', -0.23578), (2, 3, 's', 0.19554)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.82729 AO=[(2, 3, 's', 0.64323), (3, 3, 's', -0.43707), (1, 2, 's', -0.42444), (5, 1, 's', -0.32399), (6, 1, 's', -0.30178), (4, 1, 's', -0.27299)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.62402 AO=[(5, 1, 's', -0.61868), (6, 1, 's', 0.59074), (1, 1, 'px', 0.52925), (1, 1, 'py', 0.36047), (1, 1, 'pz', -0.24919), (5, 4, 's', 0.22939)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.5653 AO=[(4, 1, 's', 0.55161), (3, 2, 'px', -0.36555), (3, 2, 'py', 0.34784), (2, 2, 'pz', -0.31419), (1, 1, 'pz', 0.2893), (6, 1, 's', -0.2816)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.50825 AO=[(3, 2, 'py', -0.44855), (2, 2, 'pz', -0.38966), (1, 1, 'pz', 0.34165), (2, 2, 'py', -0.2911), (4, 1, 's', -0.2722), (5, 1, 's', -0.23194)]
+NATURAL 18.1 occ=2.0 energy_Eh=-0.47618 AO=[(2, 2, 'px', 0.63064), (3, 2, 'pz', 0.49034), (3, 2, 'px', -0.24393), (3, 3, 's', 0.20714), (2, 3, 's', 0.19024), (5, 1, 's', 0.15054)]
+NATURAL 19.1 occ=2.0 energy_Eh=-0.37154 AO=[(3, 2, 'pz', 0.66535), (3, 2, 'py', 0.45624), (3, 2, 'px', 0.38729), (1, 1, 'pz', 0.22471), (2, 2, 'px', -0.21659), (2, 2, 'pz', -0.19344)]
+NATURAL 20.1 occ=1.49675 energy_Eh=-0.32065 AO=[(2, 2, 'py', 0.88352), (2, 2, 'pz', -0.2969), (3, 2, 'py', -0.26055), (4, 1, 's', -0.1864), (2, 2, 'px', -0.1561), (3, 2, 'px', -0.13856)]
+NATURAL 21.1 occ=0.99991 energy_Eh=-0.13185 AO=[(1, 1, 'py', 0.70605), (1, 1, 'px', -0.57161), (2, 2, 'py', -0.19728), (1, 1, 'pz', -0.19524), (2, 2, 'pz', 0.12821), (2, 2, 'px', 0.09954)]
+NATURAL 22.1 occ=0.50334 energy_Eh=0.0436 AO=[(2, 2, 'px', 0.68746), (3, 2, 'px', 0.6006), (3, 2, 'pz', -0.38521), (2, 3, 's', -0.3815), (2, 2, 'pz', -0.30233), (3, 3, 's', 0.27445)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.03943 AO=[(1, 6, 'pz', -3.19924), (1, 6, 's', -3.17344), (3, 7, 's', 2.97774), (2, 7, 's', 2.94356), (4, 4, 's', -2.23011), (1, 5, 'pz', -1.59138)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.05162 AO=[(1, 6, 's', -7.26621), (1, 5, 's', -5.01178), (2, 7, 's', 3.93626), (6, 4, 's', 3.29814), (4, 4, 's', 2.1198), (2, 6, 'pz', -1.88587)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_6p0/adz__in_r_6p0.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_6p0/adz__in_r_6p0.wfu SHA256 7f34e930d5b191a8eb6b60c03bb9ec1368057199015edc74cbf19e7c8d02de4a
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_6p0/adz__in_r_6p0.natural.orbitals.xml SHA256 c877ede150b1e1b8a32e0242c89f49a8896d7f997e6524ca4f667dee8331a8c4
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_6p0/adz__in_r_6p0.orbitals.xml SHA256 86bf0aeaa415069bdd2d6f6676e50fe686f5bd122e98f7879ea419a981702fb7
+NATURAL 1.1 occ=2.0 energy_Eh=-92.05674 AO=[(2, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99161 AO=[(3, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25897 AO=[(1, 1, 's', 0.99864)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.05398 AO=[(2, 2, 's', 0.99787)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99295 AO=[(3, 2, 's', 0.99839)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.73576 AO=[(2, 1, 'px', 0.88316), (2, 1, 'py', 0.36136), (2, 1, 'pz', -0.30286)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.73552 AO=[(2, 1, 'pz', 0.94784), (2, 1, 'px', 0.31079)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.73517 AO=[(2, 1, 'py', 0.93015), (2, 1, 'px', -0.35235), (2, 1, 'pz', 0.08091)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.6729 AO=[(3, 1, 'py', 0.80023), (3, 1, 'pz', 0.57823), (3, 1, 'px', 0.15171)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.6717 AO=[(3, 1, 'px', 0.87186), (3, 1, 'pz', -0.46131), (3, 1, 'py', 0.16802)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67169 AO=[(3, 1, 'pz', 0.67298), (3, 1, 'py', -0.57478), (3, 1, 'px', 0.46685)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.0876 AO=[(2, 3, 's', 0.90405), (6, 1, 's', 0.26152), (4, 1, 's', 0.25446), (2, 5, 's', -0.21293), (1, 1, 'pz', 0.19912), (1, 2, 's', 0.18625)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.94521 AO=[(3, 3, 's', 0.9082), (5, 1, 's', 0.40848), (5, 3, 's', -0.11369), (3, 5, 's', -0.0737)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.72215 AO=[(2, 2, 'pz', 0.53576), (4, 1, 's', 0.39068), (6, 1, 's', 0.36256), (1, 1, 'pz', -0.34657), (1, 2, 's', -0.31091), (2, 2, 'px', 0.19753)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.65791 AO=[(6, 1, 's', -0.53733), (4, 1, 's', 0.52723), (2, 2, 'py', 0.5184), (2, 2, 'px', -0.18373), (1, 1, 'py', 0.12647), (6, 3, 's', 0.12282)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.54904 AO=[(5, 1, 's', -0.63239), (3, 2, 'py', 0.48535), (3, 2, 'pz', 0.34988), (3, 3, 's', 0.34955), (3, 5, 's', 0.15988), (5, 3, 's', 0.10083)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.31443 AO=[(1, 1, 'py', 0.70692), (6, 1, 's', 0.3002), (4, 1, 's', -0.24667), (1, 1, 'px', -0.24591), (2, 2, 'py', 0.24258), (1, 1, 'pz', 0.12653)]
+NATURAL 18.1 occ=1.99958 energy_Eh=-0.50121 AO=[(2, 2, 'px', 0.76207), (2, 2, 'py', 0.28625), (2, 2, 'pz', -0.22093), (2, 3, 's', -0.21874), (1, 1, 'px', 0.18113), (4, 1, 's', 0.16936)]
+NATURAL 19.1 occ=1.93741 energy_Eh=-0.49876 AO=[(1, 2, 's', -0.86497), (1, 1, 'pz', 0.41875), (2, 2, 'pz', -0.1959), (2, 3, 's', 0.18984), (1, 4, 's', -0.15101), (1, 1, 'py', -0.07518)]
+NATURAL 20.1 occ=1.5 energy_Eh=-0.31233 AO=[(3, 2, 'px', 0.64529), (3, 2, 'pz', 0.52792), (3, 2, 'py', -0.5047)]
+NATURAL 21.1 occ=1.5 energy_Eh=-0.31261 AO=[(3, 2, 'px', 0.71338), (3, 2, 'pz', -0.59421), (3, 2, 'py', 0.29128)]
+NATURAL 22.1 occ=0.063 energy_Eh=0.21049 AO=[(1, 1, 'px', 0.78857), (1, 1, 'py', 0.29649), (1, 3, 'px', 0.15835), (2, 2, 'px', -0.13396), (1, 2, 'd1+', -0.13358), (1, 4, 'px', -0.09881)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.03771 AO=[(1, 5, 's', -3.9548), (2, 6, 's', 3.10295), (2, 4, 'pz', -1.98759), (2, 3, 'pz', -1.12072), (1, 4, 's', -1.04418), (1, 5, 'pz', -0.9298)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06147 AO=[(5, 3, 's', -1.80485), (3, 6, 's', 1.6636), (2, 6, 's', -1.14539), (4, 3, 's', 0.85316), (2, 4, 'py', -0.80763), (2, 4, 'px', -0.73504)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_3p5/adz__in_r_3p5.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_3p5/adz__in_r_3p5.wfu SHA256 52329b053632779d77f03a64b3bd3fe4f4841825a3f5e85d7a3bf4043d910ece
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_3p5/adz__in_r_3p5.natural.orbitals.xml SHA256 6a34f870f23acc87c559ad46252ab126248ed8105ec5ae1fc62db70e1771808c
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_r_3p5/adz__in_r_3p5.orbitals.xml SHA256 125348ad6c2939e7a2fc97544d7cee10b7f05ead751728aae15bacfb674a390d
+NATURAL 1.1 occ=2.0 energy_Eh=-92.05378 AO=[(2, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99648 AO=[(3, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25712 AO=[(1, 1, 's', 0.9986)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.05115 AO=[(2, 2, 's', 0.99784)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99813 AO=[(3, 2, 's', 0.99829)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.73291 AO=[(2, 1, 'px', 0.85112), (2, 1, 'pz', -0.38933), (2, 1, 'py', 0.35487)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.73264 AO=[(2, 1, 'pz', 0.91417), (2, 1, 'px', 0.39732), (2, 1, 'py', 0.05181)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.73228 AO=[(2, 1, 'py', 0.93177), (2, 1, 'px', -0.34381), (2, 1, 'pz', 0.09658)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67806 AO=[(3, 1, 'py', 0.79977), (3, 1, 'pz', 0.57943), (3, 1, 'px', 0.14857)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67691 AO=[(3, 1, 'px', 0.88525), (3, 1, 'pz', -0.4394), (3, 1, 'py', 0.15373)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67687 AO=[(3, 1, 'pz', 0.68617), (3, 1, 'py', -0.57909), (3, 1, 'px', 0.44139)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.08586 AO=[(2, 3, 's', 0.90152), (6, 1, 's', 0.26237), (4, 1, 's', 0.25554), (2, 5, 's', -0.21844), (1, 1, 'pz', 0.2013), (1, 2, 's', 0.18846)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.95184 AO=[(3, 3, 's', 0.90739), (5, 1, 's', 0.40704), (5, 3, 's', -0.1108), (3, 5, 's', -0.0727)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.72085 AO=[(2, 2, 'pz', 0.53849), (4, 1, 's', 0.39077), (6, 1, 's', 0.35978), (1, 1, 'pz', -0.34806), (1, 2, 's', -0.31321), (2, 2, 'px', 0.18652)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.65611 AO=[(6, 1, 's', -0.53997), (4, 1, 's', 0.52369), (2, 2, 'py', 0.51419), (2, 2, 'px', -0.1913), (1, 1, 'py', 0.12692), (6, 3, 's', 0.12551)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.55551 AO=[(5, 1, 's', -0.6326), (3, 2, 'py', 0.48573), (3, 2, 'pz', 0.34734), (3, 3, 's', 0.34514), (3, 5, 's', 0.15821), (5, 3, 's', 0.11178)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.30752 AO=[(1, 1, 'py', 0.71333), (6, 1, 's', 0.29349), (4, 1, 's', -0.25826), (1, 1, 'px', -0.2553), (2, 2, 'py', 0.22453), (1, 1, 'pz', 0.11793)]
+NATURAL 18.1 occ=1.99956 energy_Eh=-0.50457 AO=[(2, 2, 'px', 0.75865), (2, 2, 'py', 0.30145), (2, 3, 's', -0.23393), (2, 2, 'pz', -0.2112), (1, 1, 'px', 0.167), (1, 1, 'pz', 0.16505)]
+NATURAL 19.1 occ=1.93772 energy_Eh=-0.49683 AO=[(1, 2, 's', -0.86297), (1, 1, 'pz', 0.41929), (2, 2, 'pz', -0.19446), (2, 3, 's', 0.19033), (1, 4, 's', -0.15378), (1, 1, 'py', -0.07462)]
+NATURAL 20.1 occ=1.5 energy_Eh=-0.31736 AO=[(3, 2, 'pz', 0.74817), (3, 2, 'py', -0.58075), (3, 2, 'px', 0.22114), (2, 2, 'px', -0.05271)]
+NATURAL 21.1 occ=1.49999 energy_Eh=-0.31825 AO=[(3, 2, 'px', 0.92887), (3, 2, 'pz', -0.26311), (2, 2, 'px', 0.06164)]
+NATURAL 22.1 occ=0.06273 energy_Eh=0.21308 AO=[(1, 1, 'px', 0.78732), (1, 1, 'py', 0.29693), (1, 3, 'px', 0.15788), (2, 2, 'px', -0.13819), (1, 2, 'd1+', -0.13438), (1, 4, 'px', -0.09488)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04236 AO=[(1, 5, 's', -4.45953), (2, 6, 's', 2.97303), (2, 4, 'pz', -2.49683), (2, 3, 'pz', -1.1971), (1, 4, 's', -0.97566), (1, 5, 'pz', -0.9613)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.06234 AO=[(2, 4, 'px', -1.78788), (1, 5, 's', 1.55086), (2, 4, 'pz', 1.34804), (2, 6, 's', -0.9856), (2, 4, 'py', -0.89711), (3, 4, 'px', -0.89434)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_near/adz__in_near.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_near/adz__in_near.wfu SHA256 6204ee0c40bd2261f12ec0b2f2094b9e802b5adc90c5b4c5cc86caa26ddc9bf4
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_near/adz__in_near.natural.orbitals.xml SHA256 071bcfe7eceefdadf4e20c94f734e988da15f4566b3aa46c338198af53f87bea
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_near/adz__in_near.orbitals.xml SHA256 39446efe36ca4a474769fe934b3771af83539472f69a7fa480a14dc5dbfeb1a4
+NATURAL 1.1 occ=2.0 energy_Eh=-92.0575 AO=[(2, 1, 's', 1.00002)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.9961 AO=[(3, 1, 's', 1.00002)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25223 AO=[(1, 1, 's', 0.99861)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.05472 AO=[(2, 2, 's', 0.99792)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99997 AO=[(3, 2, 's', 0.99802)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.73682 AO=[(2, 1, 'px', 0.71125), (2, 1, 'pz', -0.61292), (2, 1, 'py', 0.34431)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.73562 AO=[(2, 1, 'pz', 0.76559), (2, 1, 'px', 0.63925)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.73523 AO=[(2, 1, 'py', 0.93585), (2, 1, 'px', -0.292), (2, 1, 'pz', 0.18607)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67942 AO=[(3, 1, 'py', 0.79409), (3, 1, 'pz', 0.59091), (3, 1, 'px', 0.12977)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67887 AO=[(3, 1, 'px', 0.67423), (3, 1, 'pz', -0.64086), (3, 1, 'py', 0.36618)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67837 AO=[(3, 1, 'px', 0.72671), (3, 1, 'pz', 0.48898), (3, 1, 'py', -0.48275)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.09425 AO=[(2, 3, 's', 0.87662), (6, 1, 's', 0.25914), (4, 1, 's', 0.25069), (3, 3, 's', 0.20376), (2, 5, 's', -0.18591), (1, 1, 'pz', 0.14891)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.96116 AO=[(3, 3, 's', 0.88132), (5, 1, 's', 0.39328), (2, 3, 's', -0.24797), (5, 3, 's', -0.10683), (6, 1, 's', -0.07721), (4, 1, 's', -0.07311)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.69343 AO=[(2, 2, 'pz', 0.45382), (4, 1, 's', 0.40641), (2, 2, 'px', 0.39017), (6, 1, 's', 0.3647), (1, 1, 'pz', -0.28059), (1, 2, 's', -0.26499)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.66373 AO=[(6, 1, 's', -0.54654), (2, 2, 'py', 0.50709), (4, 1, 's', 0.50317), (2, 2, 'px', -0.21643), (6, 3, 's', 0.13632), (4, 3, 's', -0.12716)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.56422 AO=[(5, 1, 's', -0.62808), (3, 2, 'py', 0.48088), (3, 2, 'pz', 0.34011), (3, 3, 's', 0.31893), (3, 5, 's', 0.16453), (4, 1, 's', -0.15615)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.30841 AO=[(1, 1, 'py', 0.6975), (6, 1, 's', 0.27955), (4, 1, 's', -0.2663), (2, 2, 'py', 0.24642), (1, 1, 'px', -0.23365), (1, 1, 'pz', 0.14634)]
+NATURAL 18.1 occ=1.9981 energy_Eh=-0.58123 AO=[(2, 2, 'px', 0.63956), (2, 2, 'pz', -0.34137), (1, 2, 's', 0.28224), (2, 2, 'py', 0.26183), (1, 1, 'pz', 0.24987), (3, 2, 'pz', 0.21229)]
+NATURAL 19.1 occ=1.93716 energy_Eh=-0.4867 AO=[(1, 2, 's', -0.84881), (1, 1, 'pz', 0.41735), (2, 3, 's', 0.212), (2, 2, 'pz', -0.19993), (1, 4, 's', -0.14106), (3, 2, 'px', -0.08824)]
+NATURAL 20.1 occ=1.50129 energy_Eh=-0.3148 AO=[(3, 2, 'px', 0.94438), (3, 2, 'py', -0.17373), (2, 2, 'px', 0.14977), (1, 1, 'pz', 0.13157), (2, 3, 's', -0.1029), (6, 1, 's', -0.09332)]
+NATURAL 21.1 occ=1.49831 energy_Eh=-0.28853 AO=[(3, 2, 'pz', 0.77379), (3, 2, 'py', -0.57073), (2, 2, 'px', -0.24215), (2, 3, 's', 0.1584), (2, 2, 'py', -0.11333), (1, 1, 'pz', -0.11277)]
+NATURAL 22.1 occ=0.06514 energy_Eh=0.20859 AO=[(1, 1, 'px', 0.79337), (1, 1, 'py', 0.28739), (2, 2, 'px', -0.18636), (1, 3, 'px', 0.14836), (1, 2, 'd1+', -0.12928), (3, 2, 'pz', 0.11606)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.04048 AO=[(1, 5, 's', -4.28052), (2, 4, 'pz', -2.49302), (2, 6, 's', 2.4636), (2, 3, 'pz', -1.24242), (1, 4, 's', -0.97292), (1, 4, 'pz', -0.86839)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.05921 AO=[(3, 6, 's', -3.66707), (2, 6, 's', 2.24504), (2, 4, 'px', -2.05768), (2, 4, 'pz', 1.45173), (1, 5, 's', 1.44017), (3, 4, 'px', -1.30831)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_6p0/atz__in_r_6p0.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_6p0/atz__in_r_6p0.wfu SHA256 3c5d955589064393c5b39017ed1adde763650bf3b0fa4b9383799c1c3f783861
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_6p0/atz__in_r_6p0.natural.orbitals.xml SHA256 45cca3f186b873d884ce2cd62193c4222981df22964938704ec71807f7a56058
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_6p0/atz__in_r_6p0.orbitals.xml SHA256 2a03a3822bbdd4bfca76ed5012f9b13fa866137d757df15df1d8bcbf2af2c12f
+NATURAL 1.1 occ=2.0 energy_Eh=-92.05589 AO=[(2, 1, 's', 0.99995)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.9915 AO=[(3, 1, 's', 0.99997)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.256 AO=[(1, 1, 's', 1.0004)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.05234 AO=[(2, 2, 's', 1.00032)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99255 AO=[(3, 2, 's', 1.00033)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.73493 AO=[(2, 1, 'px', 0.89705), (2, 1, 'py', 0.39589), (2, 1, 'pz', -0.16724)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.73384 AO=[(2, 1, 'py', 0.91207), (2, 1, 'px', -0.36596), (2, 1, 'pz', 0.1957)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.73374 AO=[(2, 1, 'pz', 0.96427), (2, 1, 'px', 0.23314), (2, 1, 'py', -0.11372)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67238 AO=[(3, 1, 'py', 0.80157), (3, 1, 'pz', 0.57995), (3, 1, 'px', 0.15143)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67176 AO=[(3, 1, 'px', -0.88421), (3, 1, 'pz', 0.43997), (3, 1, 'py', -0.15129)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67175 AO=[(3, 1, 'pz', 0.68522), (3, 1, 'py', -0.5789), (3, 1, 'px', 0.44001)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.08561 AO=[(2, 3, 's', 0.88922), (6, 1, 's', 0.27017), (4, 1, 's', 0.26278), (1, 1, 'pz', 0.20427), (1, 2, 's', 0.19123), (2, 6, 's', -0.14748)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.94456 AO=[(3, 3, 's', 0.91138), (5, 1, 's', 0.41836), (5, 4, 's', -0.09753), (5, 3, 's', -0.08904)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.71914 AO=[(2, 2, 'pz', 0.5752), (4, 1, 's', 0.40053), (6, 1, 's', 0.37443), (1, 1, 'pz', -0.35583), (1, 2, 's', -0.31661), (2, 2, 'px', 0.23568)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.65764 AO=[(2, 2, 'py', 0.56164), (6, 1, 's', -0.54978), (4, 1, 's', 0.54403), (2, 2, 'px', -0.19835), (1, 1, 'py', 0.12696), (6, 4, 's', 0.12383)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.5486 AO=[(5, 1, 's', -0.65244), (3, 2, 'py', 0.54645), (3, 2, 'pz', 0.39381), (3, 3, 's', 0.34824), (5, 4, 's', 0.10723), (3, 2, 'px', 0.10538)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.31862 AO=[(1, 1, 'py', 0.70191), (6, 1, 's', 0.30903), (4, 1, 's', -0.24757), (1, 1, 'px', -0.2403), (2, 2, 'py', 0.17388), (2, 2, 'px', 0.16245)]
+NATURAL 18.1 occ=1.99959 energy_Eh=-0.50207 AO=[(2, 2, 'px', -0.75353), (2, 2, 'py', -0.30641), (2, 2, 'pz', 0.26773), (2, 3, 's', 0.21163), (1, 1, 'px', -0.18791), (1, 1, 'pz', -0.17685)]
+NATURAL 19.1 occ=1.93682 energy_Eh=-0.49647 AO=[(1, 2, 's', -0.8633), (1, 1, 'pz', 0.42444), (2, 2, 'pz', -0.19259), (2, 3, 's', 0.18223), (1, 5, 's', -0.15193), (1, 1, 'py', -0.07945)]
+NATURAL 20.1 occ=1.5 energy_Eh=-0.31242 AO=[(3, 2, 'px', 0.65787), (3, 2, 'pz', 0.53878), (3, 2, 'py', -0.51494)]
+NATURAL 21.1 occ=1.5 energy_Eh=-0.31268 AO=[(3, 2, 'px', 0.72804), (3, 2, 'pz', -0.60572), (3, 2, 'py', 0.29705)]
+NATURAL 22.1 occ=0.06359 energy_Eh=0.21485 AO=[(1, 1, 'px', 0.84521), (1, 1, 'py', 0.31763), (2, 2, 'px', -0.18763), (1, 5, 'px', -0.13598), (1, 3, 'd1+', -0.09751), (1, 4, 'px', 0.09492)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.03081 AO=[(1, 6, 's', -4.33266), (2, 5, 'pz', -3.37564), (1, 5, 's', -3.30824), (2, 7, 's', 2.70597), (2, 6, 'pz', -2.03465), (6, 4, 's', 1.84943)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.04955 AO=[(5, 4, 's', -3.37299), (3, 7, 's', 2.10706), (3, 6, 's', 2.03792), (4, 4, 's', 1.58623), (1, 5, 's', -1.45267), (2, 5, 'pz', -1.3546)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_3p5/atz__in_r_3p5.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_3p5/atz__in_r_3p5.wfu SHA256 5f808fdc6f8e19fdf6c9349cbd41db3f3717ccd3877338e2971211db5cdb6927
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_3p5/atz__in_r_3p5.natural.orbitals.xml SHA256 282b10ae5737ff40c701f39fe8f99bb96d873b8b135ddb4da177a158df0a0107
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_r_3p5/atz__in_r_3p5.orbitals.xml SHA256 a11648b7b2a6b63f470c3b3d6af71aa711c4878e84e73f5d2caf3de6d37fee71
+NATURAL 1.1 occ=2.0 energy_Eh=-92.05291 AO=[(2, 1, 's', 0.99995)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99635 AO=[(3, 1, 's', 0.99997)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.25426 AO=[(1, 1, 's', 1.00046)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.0495 AO=[(2, 2, 's', 1.00035)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99771 AO=[(3, 2, 's', 1.00044)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.73206 AO=[(2, 1, 'px', 0.89402), (2, 1, 'py', 0.39144), (2, 1, 'pz', -0.1915)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.73094 AO=[(2, 1, 'py', 0.91744), (2, 1, 'px', -0.36535), (2, 1, 'pz', 0.17026)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.73085 AO=[(2, 1, 'pz', 0.96463), (2, 1, 'px', 0.24527), (2, 1, 'py', -0.08152)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67753 AO=[(3, 1, 'py', 0.79787), (3, 1, 'pz', 0.58733), (3, 1, 'px', 0.14278)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67694 AO=[(3, 1, 'px', -0.81131), (3, 1, 'pz', 0.52915), (3, 1, 'py', -0.24434)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67692 AO=[(3, 1, 'pz', 0.61185), (3, 1, 'px', 0.56552), (3, 1, 'py', -0.55159)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.08409 AO=[(2, 3, 's', 0.88548), (6, 1, 's', 0.27126), (4, 1, 's', 0.26438), (1, 1, 'pz', 0.20683), (1, 2, 's', 0.19407), (2, 6, 's', -0.17982)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.95117 AO=[(3, 3, 's', 0.91102), (5, 1, 's', 0.41708), (5, 4, 's', -0.09073), (5, 3, 's', -0.08661)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.71824 AO=[(2, 2, 'pz', 0.57997), (4, 1, 's', 0.40093), (6, 1, 's', 0.37047), (1, 1, 'pz', -0.35765), (1, 2, 's', -0.3193), (2, 2, 'px', 0.21868)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.65585 AO=[(2, 2, 'py', 0.55797), (6, 1, 's', -0.55315), (4, 1, 's', 0.53911), (2, 2, 'px', -0.20748), (1, 1, 'py', 0.12781), (6, 4, 's', 0.12455)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.55506 AO=[(5, 1, 's', -0.65211), (3, 2, 'py', 0.54622), (3, 2, 'pz', 0.39213), (3, 3, 's', 0.34527), (5, 4, 's', 0.1113), (3, 2, 'px', 0.10848)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.31049 AO=[(1, 1, 'py', 0.71056), (6, 1, 's', 0.30158), (4, 1, 's', -0.26112), (1, 1, 'px', -0.25171), (2, 2, 'py', 0.15149), (1, 1, 'pz', 0.12419)]
+NATURAL 18.1 occ=1.99957 energy_Eh=-0.5057 AO=[(2, 2, 'px', -0.7638), (2, 2, 'py', -0.32226), (2, 2, 'pz', 0.25832), (2, 3, 's', 0.22675), (1, 1, 'pz', -0.17779), (1, 1, 'px', -0.17251)]
+NATURAL 19.1 occ=1.93713 energy_Eh=-0.49455 AO=[(1, 2, 's', -0.86221), (1, 1, 'pz', 0.42512), (2, 2, 'pz', -0.19121), (2, 3, 's', 0.18282), (1, 5, 's', -0.16778), (1, 1, 'py', -0.07849)]
+NATURAL 20.1 occ=1.5 energy_Eh=-0.31759 AO=[(3, 2, 'pz', 0.75165), (3, 2, 'py', -0.59258), (3, 2, 'px', 0.26281), (2, 2, 'px', -0.0539)]
+NATURAL 21.1 occ=1.49999 energy_Eh=-0.3181 AO=[(3, 2, 'px', 0.94057), (3, 2, 'pz', -0.30286), (2, 2, 'px', 0.06266)]
+NATURAL 22.1 occ=0.06331 energy_Eh=0.21753 AO=[(1, 1, 'px', 0.84386), (1, 1, 'py', 0.31828), (2, 2, 'px', -0.19196), (1, 5, 'px', -0.14821), (1, 3, 'd1+', -0.09892), (1, 4, 'px', 0.09558)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.03447 AO=[(1, 6, 's', -4.17669), (2, 5, 'pz', -3.39355), (1, 5, 's', -3.19844), (6, 4, 's', 2.41955), (2, 7, 's', 2.22942), (2, 6, 'pz', -2.09767)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.05085 AO=[(2, 6, 's', -2.47832), (4, 4, 's', 2.01148), (2, 6, 'px', -1.96363), (5, 4, 's', -1.88646), (1, 6, 's', 1.6435), (2, 6, 'pz', 1.38009)]
+
+NATIVE /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_near/atz__in_near.out
+WFU /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_near/atz__in_near.wfu SHA256 75d085d1a330789014263be8a468e43034d55d001911bcd3007a84273f60a735
+XML natural /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_near/atz__in_near.natural.orbitals.xml SHA256 d3c1819cb3fc7479b52e271c2423385b13ebcbd3639ef152cbe869d634697a15
+XML scf /home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7/orbital_recon/compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_near/atz__in_near.orbitals.xml SHA256 573f11cc2f766cc4385d5c10ef0671dc8266f971e24e58ed658a317c8c21b9be
+NATURAL 1.1 occ=2.0 energy_Eh=-92.05667 AO=[(2, 1, 's', 0.99994)]
+NATURAL 2.1 occ=2.0 energy_Eh=-91.99616 AO=[(3, 1, 's', 0.99996)]
+NATURAL 3.1 occ=2.0 energy_Eh=-11.24989 AO=[(1, 1, 's', 1.00057)]
+NATURAL 4.1 occ=2.0 energy_Eh=-9.05305 AO=[(2, 2, 's', 1.00062)]
+NATURAL 5.1 occ=2.0 energy_Eh=-8.99963 AO=[(3, 2, 's', 1.00045)]
+NATURAL 6.1 occ=2.0 energy_Eh=-6.73573 AO=[(2, 1, 'px', 0.82961), (2, 1, 'pz', -0.40159), (2, 1, 'py', 0.37527)]
+NATURAL 7.1 occ=2.0 energy_Eh=-6.73399 AO=[(2, 1, 'pz', 0.83554), (2, 1, 'px', 0.50249), (2, 1, 'py', -0.21697)]
+NATURAL 8.1 occ=2.0 energy_Eh=-6.73391 AO=[(2, 1, 'py', 0.90173), (2, 1, 'pz', 0.3702), (2, 1, 'px', -0.22924)]
+NATURAL 9.1 occ=2.0 energy_Eh=-6.67902 AO=[(3, 1, 'pz', 0.7877), (3, 1, 'py', 0.61135), (3, 1, 'px', -0.08873)]
+NATURAL 10.1 occ=2.0 energy_Eh=-6.67893 AO=[(3, 1, 'py', -0.65252), (3, 1, 'px', -0.61965), (3, 1, 'pz', 0.43371)]
+NATURAL 11.1 occ=2.0 energy_Eh=-6.67854 AO=[(3, 1, 'px', 0.77939), (3, 1, 'py', -0.44949), (3, 1, 'pz', 0.43663)]
+NATURAL 12.1 occ=2.0 energy_Eh=-1.09245 AO=[(2, 3, 's', 0.85913), (6, 1, 's', 0.26862), (4, 1, 's', 0.26077), (3, 3, 's', 0.20546), (2, 6, 's', -0.19244), (1, 1, 'pz', 0.15358)]
+NATURAL 13.1 occ=2.0 energy_Eh=-0.9602 AO=[(3, 3, 's', 0.88359), (5, 1, 's', 0.40289), (2, 3, 's', -0.2436), (6, 1, 's', -0.08225), (5, 4, 's', -0.08015), (5, 3, 's', -0.07944)]
+NATURAL 14.1 occ=2.0 energy_Eh=-0.69113 AO=[(2, 2, 'pz', 0.49553), (4, 1, 's', 0.4168), (2, 2, 'px', 0.4028), (6, 1, 's', 0.36912), (1, 1, 'pz', -0.28964), (1, 2, 's', -0.2708)]
+NATURAL 15.1 occ=2.0 energy_Eh=-0.66358 AO=[(6, 1, 's', -0.56136), (2, 2, 'py', 0.54462), (4, 1, 's', 0.5145), (2, 2, 'px', -0.23356), (6, 4, 's', 0.12083), (4, 4, 's', -0.11841)]
+NATURAL 16.1 occ=2.0 energy_Eh=-0.56378 AO=[(5, 1, 's', -0.64761), (3, 2, 'py', 0.53216), (3, 2, 'pz', 0.38511), (3, 3, 's', 0.32222), (4, 1, 's', -0.16101), (2, 2, 'py', -0.12468)]
+NATURAL 17.1 occ=2.0 energy_Eh=-0.30897 AO=[(1, 1, 'py', 0.69792), (6, 1, 's', 0.28478), (4, 1, 's', -0.27289), (1, 1, 'px', -0.23555), (2, 2, 'py', 0.16641), (1, 1, 'pz', 0.14757)]
+NATURAL 18.1 occ=1.99814 energy_Eh=-0.58371 AO=[(2, 2, 'px', -0.63098), (2, 2, 'pz', 0.37998), (1, 2, 's', -0.2898), (2, 2, 'py', -0.2835), (1, 1, 'pz', -0.26251), (3, 2, 'pz', -0.18732)]
+NATURAL 19.1 occ=1.93659 energy_Eh=-0.48474 AO=[(1, 2, 's', -0.85009), (1, 1, 'pz', 0.42286), (2, 3, 's', 0.20177), (2, 2, 'pz', -0.19783), (1, 5, 's', -0.16112), (1, 1, 'py', -0.08775)]
+NATURAL 20.1 occ=1.50124 energy_Eh=-0.31485 AO=[(3, 2, 'px', 0.95024), (3, 2, 'py', -0.17481), (1, 1, 'pz', 0.13563), (2, 2, 'px', 0.12689), (2, 6, 's', -0.10276), (6, 1, 's', -0.09666)]
+NATURAL 21.1 occ=1.49835 energy_Eh=-0.28812 AO=[(3, 2, 'pz', 0.7932), (3, 2, 'py', -0.57212), (2, 2, 'px', -0.26935), (2, 3, 's', 0.15884), (1, 1, 'pz', -0.11514), (2, 6, 's', 0.11182)]
+NATURAL 22.1 occ=0.06567 energy_Eh=0.21278 AO=[(1, 1, 'px', 0.84519), (1, 1, 'py', 0.30804), (2, 2, 'px', -0.24118), (1, 5, 'px', -0.13367), (3, 2, 'pz', 0.11112), (2, 2, 'py', -0.10274)]
+NATURAL 23.1 occ=0.0 energy_Eh=0.03261 AO=[(1, 6, 's', -3.81727), (2, 5, 'pz', -3.16472), (1, 5, 's', -3.0009), (6, 4, 's', 2.80807), (2, 6, 'pz', -2.0424), (2, 7, 's', 1.92971)]
+NATURAL 24.1 occ=0.0 energy_Eh=0.0486 AO=[(3, 7, 's', -5.90899), (2, 7, 's', 3.89424), (2, 6, 'px', -2.78905), (2, 5, 'pz', 2.62671), (2, 5, 'px', -2.52299), (1, 6, 's', 2.21012)]
+
+Saved report: /home/hram/compact_continuation_character.20261025T232012Z.txt
+hram@blodgett:~$

@@ -531,11 +531,17 @@ class VTS:
                 logger.info(f'Bond to be scanned for {reac} is \
                             {np.array(self.scan_reac[reac].scan_coo)+1}')
             elif self.scan_reac[reac].do_vdW:
-                self.scan_reac[reac].scan_coo = [None, None]
-                self.scan_reac[reac].scan_coo[0], \
-                    self.scan_reac[reac].scan_coo[1] = \
-                    self.scan_reac[reac].irc_prod.make_extra_bond(
-                        self.scan_reac[reac].parts, self.scan_reac[reac].maps)
+                # This discovery runs before model selection and again before
+                # dispatch (and on live-review retries). A synthetic bond on
+                # irc_prod joins the fragments and breaks the next discovery.
+                # Use the matched atom maps and endpoint coordinates directly;
+                # match_order may have reordered maps to the product order.
+                reaction = self.scan_reac[reac]
+                xyz = np.asarray(reaction.irc_prod.geom, dtype=float)
+                reaction.scan_coo = list(min(
+                    ((int(i), int(j)) for i in reaction.maps[0]
+                     for j in reaction.maps[1]),
+                    key=lambda pair: np.linalg.norm(xyz[pair[0]]-xyz[pair[1]])))
             else:
                 # adding up bond breaks only
                 nreacbond = np.sum(np.array([b for bb in

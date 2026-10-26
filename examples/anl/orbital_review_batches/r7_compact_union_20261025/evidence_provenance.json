@@ -1,0 +1,13 @@
+{
+  "archive": "../../tools/compact-continuation-20261025T232718Z/orbital-evidence.tar.gz",
+  "sha256": "7db5f41aee419391295616af5fd029ed02ab36ff93f2a013548f2f611e8a63f1",
+  "verified_files": 4056,
+  "text_files_extracted": 3804,
+  "issues": [],
+  "monitor": {
+    "path": "production_monitor_163104.txt",
+    "sha256": "1f75ef7d9705469d59debde2f9b70405f4c9bf9337b2e85f5c3305dbb16c81ef",
+    "time": "2026-10-25T16:31:04-07:00"
+  },
+  "scope": "Archive and every member verified against exported manifest; scientific acceptance is separate. The monitor is a later supplied snapshot, not an atomic snapshot of the archive."
+}

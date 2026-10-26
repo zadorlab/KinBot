@@ -1,0 +1,443 @@
+{
+  "method": "Complete same-geometry orthonormal MO change of basis; no occupation cutoff, AO-population proxy or cross-geometry overlap.",
+  "comparisons": [
+    {
+      "left": "compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml",
+      "right": "compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_near/adz__in_near.natural.orbitals.xml",
+      "sha256": {
+        "compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/adz__exit_l2/adz__exit_l2.natural.orbitals.xml": "8ebe5a55cf7b380047bb27a71112ce811e0294e35ecf13cdff09521d4d38b67b",
+        "compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/adz__in_near/adz__in_near.natural.orbitals.xml": "071bcfe7eceefdadf4e20c94f734e988da15f4566b3aa46c338198af53f87bea"
+      },
+      "relative_reconstruction_error": 3.454832573246329e-15,
+      "max_orthogonality_error": 7.38458651363318e-14,
+      "subspaces": {
+        "active_five": {
+          "right_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "left_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "overlap_singular_values": [
+            0.9994865165968314,
+            0.9983880113812431,
+            0.9962700326604401,
+            0.9410252561690496,
+            0.0254677011999786
+          ]
+        },
+        "include_inactive_17": {
+          "right_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "left_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "overlap_singular_values": [
+            0.9995606697130072,
+            0.9994909374488451,
+            0.9983917177369518,
+            0.9974320105323239,
+            0.9935360452377104,
+            0.9410183234044517
+          ]
+        }
+      },
+      "right_orbitals_in_left_basis": {
+        "17": [
+          {
+            "index": 20,
+            "squared_overlap": 0.9396954263577229
+          },
+          {
+            "index": 18,
+            "squared_overlap": 0.03912498194126953
+          },
+          {
+            "index": 19,
+            "squared_overlap": 0.010206834535678827
+          },
+          {
+            "index": 15,
+            "squared_overlap": 0.006828320396095467
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.0011911752632514305
+          },
+          {
+            "index": 16,
+            "squared_overlap": 0.0006818828352346612
+          }
+        ],
+        "18": [
+          {
+            "index": 18,
+            "squared_overlap": 0.8963519517501165
+          },
+          {
+            "index": 20,
+            "squared_overlap": 0.04641618542520155
+          },
+          {
+            "index": 19,
+            "squared_overlap": 0.04159228131518485
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.005601148312541602
+          },
+          {
+            "index": 21,
+            "squared_overlap": 0.005440326000455849
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.002440002480208446
+          }
+        ],
+        "19": [
+          {
+            "index": 19,
+            "squared_overlap": 0.9328492996073519
+          },
+          {
+            "index": 18,
+            "squared_overlap": 0.053015332550154115
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.004628504330833255
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.003440119603589084
+          },
+          {
+            "index": 20,
+            "squared_overlap": 0.0030480018547503155
+          },
+          {
+            "index": 12,
+            "squared_overlap": 0.001454751714763952
+          }
+        ],
+        "20": [
+          {
+            "index": 17,
+            "squared_overlap": 0.7524834493641457
+          },
+          {
+            "index": 21,
+            "squared_overlap": 0.21380670592899995
+          },
+          {
+            "index": 22,
+            "squared_overlap": 0.028857488823868623
+          },
+          {
+            "index": 19,
+            "squared_overlap": 0.0021001002390506006
+          },
+          {
+            "index": 20,
+            "squared_overlap": 0.001385050572273321
+          },
+          {
+            "index": 37,
+            "squared_overlap": 0.00018587185252336697
+          }
+        ],
+        "21": [
+          {
+            "index": 21,
+            "squared_overlap": 0.6601572262718365
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.2353620995227492
+          },
+          {
+            "index": 22,
+            "squared_overlap": 0.08873827691839169
+          },
+          {
+            "index": 18,
+            "squared_overlap": 0.0067267111489612225
+          },
+          {
+            "index": 19,
+            "squared_overlap": 0.006022029622758684
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.0008314415436358874
+          }
+        ],
+        "22": [
+          {
+            "index": 22,
+            "squared_overlap": 0.7855805390551561
+          },
+          {
+            "index": 21,
+            "squared_overlap": 0.10043257557538902
+          },
+          {
+            "index": 60,
+            "squared_overlap": 0.013220206035834134
+          },
+          {
+            "index": 84,
+            "squared_overlap": 0.007581981269985037
+          },
+          {
+            "index": 57,
+            "squared_overlap": 0.007578925190417706
+          },
+          {
+            "index": 94,
+            "squared_overlap": 0.005352820773699561
+          }
+        ]
+      }
+    },
+    {
+      "left": "compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml",
+      "right": "compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_near/atz__in_near.natural.orbitals.xml",
+      "sha256": {
+        "compact_resolution_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_union/atz__exit_l2/atz__exit_l2.natural.orbitals.xml": "41065cde4252fd45b0a3b57e03e99c2a939d3b0e658cdc329a18cd39d612b53f",
+        "compact_continuation_20261025/csh2_sh_exit_resolution/csh2_sh_exit_resolution_inward/atz__in_near/atz__in_near.natural.orbitals.xml": "d3c1819cb3fc7479b52e271c2423385b13ebcbd3639ef152cbe869d634697a15"
+      },
+      "relative_reconstruction_error": 6.3231118446513984e-15,
+      "max_orthogonality_error": 1.3305851253240279e-13,
+      "subspaces": {
+        "active_five": {
+          "right_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "left_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "overlap_singular_values": [
+            0.9993945714521777,
+            0.9983089927632499,
+            0.9961444449741038,
+            0.939229884116157,
+            0.02393440894696607
+          ]
+        },
+        "include_inactive_17": {
+          "right_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "left_indices": [
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "overlap_singular_values": [
+            0.9995608305082859,
+            0.9993982575890884,
+            0.9983109428562446,
+            0.9972831377674236,
+            0.9935827723726255,
+            0.939223412319121
+          ]
+        }
+      },
+      "right_orbitals_in_left_basis": {
+        "17": [
+          {
+            "index": 20,
+            "squared_overlap": 0.9434359657742913
+          },
+          {
+            "index": 18,
+            "squared_overlap": 0.034975457805200005
+          },
+          {
+            "index": 19,
+            "squared_overlap": 0.010768247897919489
+          },
+          {
+            "index": 15,
+            "squared_overlap": 0.006983631336182784
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.0010217988195723136
+          },
+          {
+            "index": 16,
+            "squared_overlap": 0.0006747957805905157
+          }
+        ],
+        "18": [
+          {
+            "index": 18,
+            "squared_overlap": 0.8956835656882768
+          },
+          {
+            "index": 19,
+            "squared_overlap": 0.04640530719580028
+          },
+          {
+            "index": 20,
+            "squared_overlap": 0.042524139848002615
+          },
+          {
+            "index": 21,
+            "squared_overlap": 0.005385314112980122
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.005320679012112877
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.0023986477267041043
+          }
+        ],
+        "19": [
+          {
+            "index": 19,
+            "squared_overlap": 0.92689634445737
+          },
+          {
+            "index": 18,
+            "squared_overlap": 0.05824175890778583
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.004664052315275893
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.0036157548066224556
+          },
+          {
+            "index": 20,
+            "squared_overlap": 0.003354814371152371
+          },
+          {
+            "index": 12,
+            "squared_overlap": 0.0015552286940340898
+          }
+        ],
+        "20": [
+          {
+            "index": 17,
+            "squared_overlap": 0.7529897314031435
+          },
+          {
+            "index": 21,
+            "squared_overlap": 0.21296217467972697
+          },
+          {
+            "index": 22,
+            "squared_overlap": 0.029340276798145017
+          },
+          {
+            "index": 19,
+            "squared_overlap": 0.0020636850333126226
+          },
+          {
+            "index": 20,
+            "squared_overlap": 0.0012409869088399078
+          },
+          {
+            "index": 15,
+            "squared_overlap": 0.00017031635432704676
+          }
+        ],
+        "21": [
+          {
+            "index": 21,
+            "squared_overlap": 0.6586766819755882
+          },
+          {
+            "index": 17,
+            "squared_overlap": 0.23515385266863492
+          },
+          {
+            "index": 22,
+            "squared_overlap": 0.09031539765156651
+          },
+          {
+            "index": 18,
+            "squared_overlap": 0.006424102798944689
+          },
+          {
+            "index": 19,
+            "squared_overlap": 0.006313038338580937
+          },
+          {
+            "index": 14,
+            "squared_overlap": 0.0008520604213985762
+          }
+        ],
+        "22": [
+          {
+            "index": 22,
+            "squared_overlap": 0.7808644572787746
+          },
+          {
+            "index": 21,
+            "squared_overlap": 0.10178597203186865
+          },
+          {
+            "index": 60,
+            "squared_overlap": 0.010191018840896026
+          },
+          {
+            "index": 90,
+            "squared_overlap": 0.007303461864934151
+          },
+          {
+            "index": 62,
+            "squared_overlap": 0.005380450507410724
+          },
+          {
+            "index": 81,
+            "squared_overlap": 0.00524473304563663
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,317 @@
+{
+  "schema": 1,
+  "source_attachment": "/Users/hrishikeshram/.codex/attachments/f2bd1037-6bcd-4af2-b582-db8976705b40/Pasted text.txt",
+  "capture_name": "compact_continuation_character.20261025T232012Z.txt",
+  "monitor_timestamp": "2026-10-25T16:20:12-07:00",
+  "saved_file": "continuation_character_evidence.txt",
+  "sha256": "5f1de8755d95a92d55753d103c6f1f34fb6db5bc6ba41fbb066255dfc66bdad6",
+  "scope": "User-supplied monitor and character report for all 14 completed continuation jobs. WFU/XML hashes are recorded; the binary files and full native outputs have not yet been transferred for this panel. VALIDATED is controller completion checking, not scientific acceptance.",
+  "jobs": [
+    {
+      "candidate": "well_hom_sci_1_2_inward",
+      "job": "adz__in_r_6p0",
+      "energies_hartree": [
+        {
+          "multiplicity": 4,
+          "root": 1,
+          "energy": -834.58997924
+        },
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.58998041
+        }
+      ],
+      "natural_occupations": {
+        "20": 1.00229,
+        "21": 1.0,
+        "22": 0.99771
+      }
+    },
+    {
+      "candidate": "well_hom_sci_1_2_inward",
+      "job": "adz__in_r_3p5",
+      "energies_hartree": [
+        {
+          "multiplicity": 4,
+          "root": 1,
+          "energy": -834.58772759
+        },
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.59138179
+        }
+      ],
+      "natural_occupations": {
+        "20": 1.09898,
+        "21": 0.99997,
+        "22": 0.90105
+      }
+    },
+    {
+      "candidate": "well_hom_sci_1_2_inward",
+      "job": "adz__in_r_2p5",
+      "energies_hartree": [
+        {
+          "multiplicity": 4,
+          "root": 1,
+          "energy": -834.54963066
+        },
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.61856782
+        }
+      ],
+      "natural_occupations": {
+        "20": 1.36908,
+        "21": 0.99978,
+        "22": 0.63114
+      }
+    },
+    {
+      "candidate": "well_hom_sci_1_2_inward",
+      "job": "adz__in_near",
+      "energies_hartree": [
+        {
+          "multiplicity": 4,
+          "root": 1,
+          "energy": -834.49177786
+        },
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.64763644
+        }
+      ],
+      "natural_occupations": {
+        "20": 1.49685,
+        "21": 0.99991,
+        "22": 0.50323
+      }
+    },
+    {
+      "candidate": "well_hom_sci_1_2_inward",
+      "job": "atz__in_r_6p0",
+      "energies_hartree": [
+        {
+          "multiplicity": 4,
+          "root": 1,
+          "energy": -834.60451188
+        },
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.604513
+        }
+      ],
+      "natural_occupations": {
+        "20": 1.00229,
+        "21": 1.0,
+        "22": 0.99771
+      }
+    },
+    {
+      "candidate": "well_hom_sci_1_2_inward",
+      "job": "atz__in_r_3p5",
+      "energies_hartree": [
+        {
+          "multiplicity": 4,
+          "root": 1,
+          "energy": -834.6022296
+        },
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.60589833
+        }
+      ],
+      "natural_occupations": {
+        "20": 1.09911,
+        "21": 0.99997,
+        "22": 0.90092
+      }
+    },
+    {
+      "candidate": "well_hom_sci_1_2_inward",
+      "job": "atz__in_r_2p5",
+      "energies_hartree": [
+        {
+          "multiplicity": 4,
+          "root": 1,
+          "energy": -834.56421136
+        },
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.63343039
+        }
+      ],
+      "natural_occupations": {
+        "20": 1.36939,
+        "21": 0.99979,
+        "22": 0.63082
+      }
+    },
+    {
+      "candidate": "well_hom_sci_1_2_inward",
+      "job": "atz__in_near",
+      "energies_hartree": [
+        {
+          "multiplicity": 4,
+          "root": 1,
+          "energy": -834.505224
+        },
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.66296617
+        }
+      ],
+      "natural_occupations": {
+        "20": 1.49675,
+        "21": 0.99991,
+        "22": 0.50334
+      }
+    },
+    {
+      "candidate": "csh2_sh_exit_resolution_inward",
+      "job": "adz__in_r_6p0",
+      "energies_hartree": [
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.47772946
+        },
+        {
+          "multiplicity": 2,
+          "root": 2,
+          "energy": -834.47734715
+        }
+      ],
+      "natural_occupations": {
+        "18": 1.99958,
+        "19": 1.93741,
+        "20": 1.5,
+        "21": 1.5,
+        "22": 0.063
+      }
+    },
+    {
+      "candidate": "csh2_sh_exit_resolution_inward",
+      "job": "adz__in_r_3p5",
+      "energies_hartree": [
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.47587419
+        },
+        {
+          "multiplicity": 2,
+          "root": 2,
+          "energy": -834.47342743
+        }
+      ],
+      "natural_occupations": {
+        "18": 1.99956,
+        "19": 1.93772,
+        "20": 1.5,
+        "21": 1.49999,
+        "22": 0.06273
+      }
+    },
+    {
+      "candidate": "csh2_sh_exit_resolution_inward",
+      "job": "adz__in_near",
+      "energies_hartree": [
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.44481459
+        },
+        {
+          "multiplicity": 2,
+          "root": 2,
+          "energy": -834.40531804
+        }
+      ],
+      "natural_occupations": {
+        "18": 1.9981,
+        "19": 1.93716,
+        "20": 1.50129,
+        "21": 1.49831,
+        "22": 0.06514
+      }
+    },
+    {
+      "candidate": "csh2_sh_exit_resolution_inward",
+      "job": "atz__in_r_6p0",
+      "energies_hartree": [
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.49228309
+        },
+        {
+          "multiplicity": 2,
+          "root": 2,
+          "energy": -834.49193512
+        }
+      ],
+      "natural_occupations": {
+        "18": 1.99959,
+        "19": 1.93682,
+        "20": 1.5,
+        "21": 1.5,
+        "22": 0.06359
+      }
+    },
+    {
+      "candidate": "csh2_sh_exit_resolution_inward",
+      "job": "atz__in_r_3p5",
+      "energies_hartree": [
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.49044709
+        },
+        {
+          "multiplicity": 2,
+          "root": 2,
+          "energy": -834.48795383
+        }
+      ],
+      "natural_occupations": {
+        "18": 1.99957,
+        "19": 1.93713,
+        "20": 1.5,
+        "21": 1.49999,
+        "22": 0.06331
+      }
+    },
+    {
+      "candidate": "csh2_sh_exit_resolution_inward",
+      "job": "atz__in_near",
+      "energies_hartree": [
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "energy": -834.46011449
+        },
+        {
+          "multiplicity": 2,
+          "root": 2,
+          "energy": -834.419944
+        }
+      ],
+      "natural_occupations": {
+        "18": 1.99814,
+        "19": 1.93659,
+        "20": 1.50124,
+        "21": 1.49835,
+        "22": 0.06567
+      }
+    }
+  ]
+}

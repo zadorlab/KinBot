@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "scope": "Ten compact-union probes and production progress metadata. Source campaigns are retained in the previously verified compact-continuation export; no need to retransmit them. Per-file snapshots, not an atomic live-run snapshot or scientific approval.",
+  "sources": [
+    {
+      "root": "production",
+      "path": ".kinbot_resource_policy.json"
+    },
+    {
+      "root": "production",
+      "path": "ch3s/input.json"
+    },
+    {
+      "root": "production",
+      "path": "ch3ss/input.json"
+    },
+    {
+      "root": "production",
+      "path": "*/.kinbot_accepted_input.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/.kinbot_input_refresh.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/pes_exploration.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/accepted_l2_network.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/orbital_review",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrc_model_review.json",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/scan_progress",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "*/[0-9]*/vrctst/scan_review",
+      "optional": true
+    },
+    {
+      "root": "production",
+      "path": "orbital_recon/compact_union_20261025"
+    },
+    {
+      "root": "repo",
+      "path": "examples/anl/orbital_review_batches/r7_compact_union_20261025"
+    }
+  ]
+}

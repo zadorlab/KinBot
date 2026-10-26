@@ -1,5 +1,10 @@
 # Completed compact-resolution panel: 25 October 2026
 
+**Later evidence:** the [full native review and driver handoff](../r7_compact_union_20261025/README.md)
+includes the verified transferred archive, quantitative same-geometry orbital
+comparisons, the explicit HCSSH/H compact choice, and ten targeted probes for
+the two unresolved channels. It supersedes the status and next-step text below.
+
 The supplied monitor at 15:42:50 PDT reports **60/60 completed calculations**,
 15 candidates with four jobs each, and no recorded startup/manual/allocation
 retries. The campaign remains `complete_review_required`: no selection was
@@ -110,6 +115,12 @@ by the number of averaged roots. The outer exits remain product-side separation
 problems, with their inner TSs represented separately.
 
 ## Next bounded diagnostic and publication status
+
+**Update, 16:20:12 PDT:** all 14 continuation jobs below have completed. See
+the [continuation audit](../r7_compact_continuation_20261025/continuation_audit.md).
+CH2/HSS reproduces the earlier near solution; C(SH2)/SH retains the SH pair
+along the inward route but reaches a higher near solution. Completion has not
+resolved the two scientific selection questions or triggered publication.
 
 The [continuation plan](../r7_compact_continuation_20261025/README.md) has
 **14 CASSCF jobs for only the two unresolved subspaces**, starting from each

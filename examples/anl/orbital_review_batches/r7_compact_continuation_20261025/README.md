@@ -1,5 +1,13 @@
 # Same-space continuation of two unresolved orbital reviews
 
+**Native archive now received:** see the [current audit and handoff](../r7_compact_union_20261025/README.md).
+
+**Completed:** the supplied monitor at 16:20:12 PDT on 25 October reports
+14/14 jobs complete, with no recorded retries. The
+[completed-panel audit](continuation_audit.md) compares both initialization
+routes and explains the remaining scientific questions. The launch commands
+below are retained as provenance; rerunning the completed panel is unnecessary.
+
 The [completed-panel audit](../r7_compact_resolution_20261025/resolution_audit.md)
 records why the two near solutions still need examination. This finite plan
 retains their existing compact active spaces and state averages. It changes
@@ -100,6 +108,8 @@ KB_EXPORT="$HOME/kinbot-evidence/compact-continuation-$(date -u +%Y%m%dT%H%M%SZ)
   examples/anl/orbital_review_batches/r7_compact_continuation_20261025/export.json \
   --repo "$PWD" --runs "$HOME/kinbot-runs" --production "$KB_RUN" \
   --output-directory "$KB_EXPORT"
+"$PWD/.venv/bin/python" -B -m kinbot.run_monitor "$KB_RUN" --all --details \
+  >"$KB_EXPORT/production_monitor.txt"
 printf 'Evidence directory: %s\n' "$KB_EXPORT"
 ```
 
@@ -107,6 +117,9 @@ The exporter reads source files without changing jobs, verifies archived bytes
 against its manifest, and writes `.sha256` and `.manifest.json` alongside the
 archive. Collection issues give exit status 2; inspect them before treating the
 export as complete. This supplements the earlier verified selection archive.
+The separate `production_monitor.txt` is a fresh read-only production snapshot;
+it is saved alongside the archive and is not covered by the archive manifest.
+Transfer the entire printed directory, including that snapshot and sidecars.
 
 ## Local validation
 

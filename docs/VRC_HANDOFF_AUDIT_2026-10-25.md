@@ -1,5 +1,13 @@
 # Audit of the VRC/ANL handoff, 25 October 2026
 
+**Latest native review:** the [verified archive, 16:31 driver snapshot, endpoint
+graph fix, and final two compact comparisons](../examples/anl/orbital_review_batches/r7_compact_union_20261025/README.md)
+supersede the historical status below. Two of the earlier five published models
+are demonstrably scanning; the other parent's VRC preparation encounters the
+now-fixed graph mutation. Ten remaining compact choices are documented, while
+two require the finite ten-job native comparison. Final combined publication
+and controller refresh follow that review; no earlier PES/ANL rerun is indicated.
+
 Continuation: the subsequent supplied endpoint evidence and implemented
 reaction-identity fixes are recorded in the
 [replacement character-panel handoff](../examples/anl/orbital_review_batches/r7_remaining_character_20261025/README.md).

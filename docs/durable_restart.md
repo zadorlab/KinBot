@@ -77,6 +77,51 @@ or symlinked files produce an explicit incomplete status. Default limits are
 driver, QC executable, submission or cancellation is run. This is a sequential
 audit of a quiescent source, not a live filesystem snapshot or a full run backup.
 
+## Periodic native checkpoint candidates
+
+The shared local-scratch workspace can periodically publish named native files
+to `.kinbot_checkpoints/native/<label>/<attempt>/` in the result directory.
+This applies to callers of `qc_scratch.workspace`; it does not change native
+input theory, geometry, state definitions, or restart keywords.
+
+```json
+{
+  "qc_checkpoint_interval": 600,
+  "qc_checkpoint_max_mb": 16384,
+  "qc_checkpoint_generations": 2
+}
+```
+
+The interval defaults to zero (disabled); `_r8`'s staged overrides enable a
+ten-minute interval, a 16 GiB ceiling per candidate set, and two retained
+generations per native invocation. The copy worker polls every 30 seconds.
+The ceiling is not a total run storage quota: each force evaluation or other
+native invocation has its own attempt directory. Older attempts remain intact.
+
+The publisher copies recognized `.wfu`, `.chk`, `.rwf`, `.gbw` and named MRCC/
+CFOUR restart files from the invocation's private scratch directory (at most two
+directory levels below it). It records exact staged-input and task hashes,
+Slurm identity, file hashes, and bounded native output tails. It rejects symlinks,
+nonregular files, oversized sets, and files that change or grow during copying.
+The entire recognized set must remain stable across the copy. File bytes and
+directory entries are flushed before publishing the generation pointer. Readers
+must verify that pointer and every file hash before considering native reuse.
+
+Publication/storage failures retain the prior complete generation and retry
+with backoff up to an hour. Interrupted pointer publication can leave one extra
+uncommitted generation; subsequent attempts prune old orphans while preserving
+the pointed-to generation. A failed final copy retains local scratch. The live
+output mirror also retries after transient filesystem failures. Normal
+exit joins the copy thread before cleanup; partial copies never replace a good
+pointer. The Slurm rollback wrapper excludes `.kinbot_checkpoints`.
+
+These files are labelled `restart_candidate_requires_native_validation`.
+Stable bytes are not proof of a consistent native restart phase, especially
+when several native files must agree. A hard kill before the first successful
+publication, or a shared filesystem unavailable for the entire invocation,
+can still leave no durable candidate. Backend-specific restart validation and
+automatic selection/restoration are separate work and are not claimed here.
+
 ## Validation and work still required
 
 Local tests exercise actual ASE BFGS and Sella with synthetic force calculators,
@@ -84,11 +129,14 @@ abrupt interruption, preservation of accepted points and step budgets, archive
 transaction interruption, fresh drivers, scheduler/requeue/admission races,
 completed/live sibling preservation and repeated invocation. They also exercise
 SQLite WAL and failed-search-history capture without changing the source files.
+The periodic publisher tests include a real subprocess hard kill before normal
+workspace finalization followed by removal of its local scratch, changing files,
+interrupted pointer writes, copy ceilings, and shared-storage outage/recovery.
 These are local simulated-site checks, not a verified native QC restart.
 
 Still required for the complete migration: a general independent seed importer
 with compatibility and path-rebinding proofs; retention of terminal PES failures;
-reassessment of accepted paths under a changed L1 policy; durable native checkpoint
-publication and backend-specific restart validation; consistent integration into
+reassessment of accepted paths under a changed L1 policy; backend-specific native
+restart validation and restoration; consistent retry integration into
 the ordinary QC and orbital owners; and remote native verification. The new run
 must not be labelled ready based only on the features documented above.

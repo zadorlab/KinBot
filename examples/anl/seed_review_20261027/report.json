@@ -1,0 +1,671 @@
+{
+  "archive_sha256": "e1d601d46211fc12106df565bc6fb6676dba1ec30c6ec30bed08f3665ad74732",
+  "cases": {
+    "ch3s": {
+      "database_rows": 8089,
+      "recorded_component_statuses": {
+        "blocked": 60,
+        "complete": 1121,
+        "failed": 4,
+        "skipped": 29,
+        "staged": 320,
+        "submitted": 9,
+        "submitting": 1
+      },
+      "search_statuses": {
+        "-1": 29,
+        "-999": 35
+      },
+      "workers": [
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3s/470831050000000000002/kinbot.db",
+            "sha256": "7c22c91055a3817ec51fe8bed20ae07d0ad9b9666972e5b48a3a8f589aa01bb6"
+          },
+          "database_check": "ok",
+          "database_rows": 3499,
+          "ledger": {
+            "path": "run/ch3s/470831050000000000002/.kinbot_search_state.json",
+            "sha256": "05aa6b9ab5d99d3e716ba1efa183e903240a9ba36fa7da3a6d113b618af7c66b"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 6,
+            "-999": 2
+          },
+          "worker": "470831050000000000002"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3s/471030810040000000002/kinbot.db",
+            "sha256": "8a62b93653b01edfd2757ba43d4772829f1c1f111f755f228d0131c025e5a7b1"
+          },
+          "database_check": "ok",
+          "database_rows": 2348,
+          "ledger": {
+            "path": "run/ch3s/471030810040000000002/.kinbot_search_state.json",
+            "sha256": "e4e10c7a548a9e6208e46037d95b8655ecc09208484457e7ae55bef352a45b0c"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 10,
+            "-999": 11
+          },
+          "worker": "471030810040000000002"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3s/471230610040000000002/kinbot.db",
+            "sha256": "a9256b9580845d47b7b1e7f9b2967722b6bdba45fa18f5b5006dd39cc0787c17"
+          },
+          "database_check": "ok",
+          "database_rows": 1823,
+          "ledger": {
+            "path": "run/ch3s/471230610040000000002/.kinbot_search_state.json",
+            "sha256": "6786b3f237039af471372537d63c25f83c30301ad678ada55cd75f262c4b55aa"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 10,
+            "-999": 10
+          },
+          "worker": "471230610040000000002"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3s/471430450000000000002-s06a7b4c221beb748/kinbot.db",
+            "sha256": "5e37f0007cb5bef701599069c0b3ff909d6fa206b63866427943fc42fae78399"
+          },
+          "database_check": "ok",
+          "database_rows": 419,
+          "ledger": {
+            "path": "run/ch3s/471430450000000000002-s06a7b4c221beb748/.kinbot_search_state.json",
+            "sha256": "d33dca0c0470374425a65e6bbb4aec98af99070f6821667f089edbe294d674dc"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 3,
+            "-999": 12
+          },
+          "worker": "471430450000000000002-s06a7b4c221beb748"
+        }
+      ]
+    },
+    "ch3ss": {
+      "database_rows": 11658,
+      "recorded_component_statuses": {
+        "complete": 205,
+        "submitted": 3
+      },
+      "search_statuses": {
+        "-1": 131,
+        "-999": 234,
+        "0": 101,
+        "4": 6
+      },
+      "workers": [
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791471490990000000002/kinbot.db",
+            "sha256": "d1c096b8bd6fbb036fcb428a215a63058942b14d402907a66c4d834d7a34edb9"
+          },
+          "database_check": "ok",
+          "database_rows": 1170,
+          "ledger": {
+            "path": "run/ch3ss/791471490990000000002/.kinbot_search_state.json",
+            "sha256": "c8d9b079b0269b599199952067f1fb7f2e6c76fdaca763e23071765e7c2612be"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 5,
+            "-999": 13
+          },
+          "worker": "791471490990000000002"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791472110370000000002/kinbot.db",
+            "sha256": "57b0290f34cf670d4072a954f865782e65571c6a7f03dbbc838531393a0c06c5"
+          },
+          "database_check": "ok",
+          "database_rows": 590,
+          "ledger": {
+            "path": "run/ch3ss/791472110370000000002/.kinbot_search_state.json",
+            "sha256": "57e2872459d03cbe69214b7a7855631b7d95a17d9624d8e9a5bede3c9f3c9ce3"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 11,
+            "-999": 13
+          },
+          "worker": "791472110370000000002"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791671450790040000002/kinbot.db",
+            "sha256": "bbb9c8529ae8211f30d80637e8b7e5ffec6b3a37251e7372e81ebcdfacb7bf72"
+          },
+          "database_check": "ok",
+          "database_rows": 1922,
+          "ledger": {
+            "path": "run/ch3ss/791671450790040000002/.kinbot_search_state.json",
+            "sha256": "e1183a3e221a191a4f44d1608cc00923511db2223bfa67c271d18c0e0002379a"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 23,
+            "-999": 19
+          },
+          "worker": "791671450790040000002"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791671560700020000002-s893815ff03c7331d/kinbot.db",
+            "sha256": "883887999479b084fff07ebe4f9610c3736b948d9e3eafa3d837962fb07812e7"
+          },
+          "database_check": "ok",
+          "database_rows": 242,
+          "ledger": {
+            "path": "run/ch3ss/791671560700020000002-s893815ff03c7331d/.kinbot_search_state.json",
+            "sha256": "a73847611f413aa16b20a543837083157da2325a9291c0ba00ddc19115edf958"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 1,
+            "-999": 3,
+            "0": 19,
+            "4": 1
+          },
+          "worker": "791671560700020000002-s893815ff03c7331d"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791671560700020000002-sdc19d1516ced03fc/kinbot.db",
+            "sha256": "2a2043b8dfd2b040c726ccdf7b1992689e0db7df539f4d1d321c49a1edc4f1ef"
+          },
+          "database_check": "ok",
+          "database_rows": 461,
+          "ledger": {
+            "path": "run/ch3ss/791671560700020000002-sdc19d1516ced03fc/.kinbot_search_state.json",
+            "sha256": "e51e48e2dd98cf9f44e56be222a3e71c64ab4eee72fd882ddc1bfaf87eed1896"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 6,
+            "-999": 17
+          },
+          "worker": "791671560700020000002-sdc19d1516ced03fc"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791671560700020000002-sedd8f7729b69b19b/kinbot.db",
+            "sha256": "680c6f11cc83d2839ccceb2d35f630690c10019b6cba4844084aee62441834a3"
+          },
+          "database_check": "ok",
+          "database_rows": 779,
+          "ledger": {
+            "path": "run/ch3ss/791671560700020000002-sedd8f7729b69b19b/.kinbot_search_state.json",
+            "sha256": "8fb148f1ec16b904cb08da5c18025b19253c57b210a0da0fca25d8ec7e688ffc"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 13,
+            "-999": 25
+          },
+          "worker": "791671560700020000002-sedd8f7729b69b19b"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791671580700000000002-s36f1e2b924862f12/kinbot.db",
+            "sha256": "93729832261f8eeb3ac24d79ec3194140d863dcbeea2a98ce0ee132d44d7d88b"
+          },
+          "database_check": "ok",
+          "database_rows": 1475,
+          "ledger": {
+            "path": "run/ch3ss/791671580700000000002-s36f1e2b924862f12/.kinbot_search_state.json",
+            "sha256": "249a5066a8f259909a24261c4a4be576aee37f6e1627571746f10963bf16584a"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 20,
+            "-999": 26
+          },
+          "worker": "791671580700000000002-s36f1e2b924862f12"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791671580700000000002-s8fc26f5f496eeb4e/kinbot.db",
+            "sha256": "a8f667c0717e970b8f4aaf264679607eeae5ad2f187b24af00cde4bd3b6e90c7"
+          },
+          "database_check": "ok",
+          "database_rows": 926,
+          "ledger": {
+            "path": "run/ch3ss/791671580700000000002-s8fc26f5f496eeb4e/.kinbot_search_state.json",
+            "sha256": "85525fbffe418e41d4617be6b7de4de5d817aadd1bc72974026067f5ef5fa865"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 18,
+            "-999": 26
+          },
+          "worker": "791671580700000000002-s8fc26f5f496eeb4e"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791871560500020000002-s1a4d7914034ddafc/kinbot.db",
+            "sha256": "3499736a557e297a9f1165b08961eaf58fbefe13f2854d0b1b6308c2d7d7603b"
+          },
+          "database_check": "ok",
+          "database_rows": 30,
+          "ledger": {
+            "path": "run/ch3ss/791871560500020000002-s1a4d7914034ddafc/.kinbot_search_state.json",
+            "sha256": "9448d4a965b6e29996ebca2ea8cb3fdf62d65d04861bda41db34b62759c647da"
+          },
+          "pending_submissions": {
+            "791871560500020000002-s1a4d7914034ddafc_R_Addition_MultipleBond_2_3_5": {
+              "next_step": 1,
+              "previous_job_id": null,
+              "step": 0
+            }
+          },
+          "search_statuses": {
+            "0": 39
+          },
+          "worker": "791871560500020000002-s1a4d7914034ddafc"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791871560500020000002-s254020c87a151164/kinbot.db",
+            "sha256": "0c0d9feddadb377cbf73c2c275d3203c357edd54a41bf75b090fe39f74f11895"
+          },
+          "database_check": "ok",
+          "database_rows": 828,
+          "ledger": {
+            "path": "run/ch3ss/791871560500020000002-s254020c87a151164/.kinbot_search_state.json",
+            "sha256": "0305ca69b5073f65cabe988381c21773b318161c45da110f0d156ab15ed464dd"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 9,
+            "-999": 28,
+            "4": 2
+          },
+          "worker": "791871560500020000002-s254020c87a151164"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791871560500020000002-sb6e34ded5baaf03b/kinbot.db",
+            "sha256": "1e1a82339260e56074393229e39ebe4eea66bc85c5b4c64871ff8444657fd26f"
+          },
+          "database_check": "ok",
+          "database_rows": 1384,
+          "ledger": {
+            "path": "run/ch3ss/791871560500020000002-sb6e34ded5baaf03b/.kinbot_search_state.json",
+            "sha256": "a5f87cb4ee91545c3c1d45cdd5a528e1cd97c5401fd176ca81594836dbccf7e3"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 6,
+            "-999": 33
+          },
+          "worker": "791871560500020000002-sb6e34ded5baaf03b"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791871560500020000002-sc9062a2d39c6d51a/kinbot.db",
+            "sha256": "f1ff821f86c123be8729281076d4eafb07ff984a0015f23bb9496e359b1f038c"
+          },
+          "database_check": "ok",
+          "database_rows": 370,
+          "ledger": {
+            "path": "run/ch3ss/791871560500020000002-sc9062a2d39c6d51a/.kinbot_search_state.json",
+            "sha256": "d91bbc9c35e9f0506ab5d16835699417ba7ee8c4d33d52948dfd3e8264926ead"
+          },
+          "pending_submissions": {
+            "791871560500020000002-sc9062a2d39c6d51a_h2_elim_5_6": {
+              "next_step": 9,
+              "previous_job_id": "52942130",
+              "step": 8
+            }
+          },
+          "search_statuses": {
+            "-1": 2,
+            "-999": 3,
+            "0": 32,
+            "4": 2
+          },
+          "worker": "791871560500020000002-sc9062a2d39c6d51a"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/791871710370000000002/kinbot.db",
+            "sha256": "3d34876aeb4b66855df3c2f992cb5fc14628ce38079beabaeec5a9b04f10ad6f"
+          },
+          "database_check": "ok",
+          "database_rows": 1228,
+          "ledger": {
+            "path": "run/ch3ss/791871710370000000002/.kinbot_search_state.json",
+            "sha256": "b4246e9047f2c047fbc63e407ecfc42b90e3bcb76fff5f11a6d610717a837d1a"
+          },
+          "pending_submissions": {},
+          "search_statuses": {
+            "-1": 15,
+            "-999": 19
+          },
+          "worker": "791871710370000000002"
+        },
+        {
+          "contract_matches": true,
+          "database": {
+            "path": "run/ch3ss/792071710170000000002-s1b0c8a00a2bddd95/kinbot.db",
+            "sha256": "ef50420415b85e83065e5b870268b49372441016cc1329848b0582e9bb064223"
+          },
+          "database_check": "ok",
+          "database_rows": 253,
+          "ledger": {
+            "path": "run/ch3ss/792071710170000000002-s1b0c8a00a2bddd95/.kinbot_search_state.json",
+            "sha256": "d9eb6cc89a50df3500555e83b1d22e1a822c065fad727228a9b98cec51d16cfc"
+          },
+          "pending_submissions": {
+            "792071710170000000002-s1b0c8a00a2bddd95_R_Addition_MultipleBond_1_2_5": {
+              "next_step": 13,
+              "previous_job_id": "52942572",
+              "step": 12
+            }
+          },
+          "search_statuses": {
+            "-1": 2,
+            "-999": 9,
+            "0": 11,
+            "4": 1
+          },
+          "worker": "792071710170000000002-s1b0c8a00a2bddd95"
+        }
+      ]
+    }
+  },
+  "geometry_candidates": [
+    {
+      "accepted_frame": 12,
+      "energy_ev": -11904.471180096001,
+      "evaluations": 13,
+      "evidence": {
+        "log": {
+          "path": "run/ch3s/470831050000000000002/anl_automatic/states/ts_72ecf8afb235bd9e/composite/tasks/l3_geometry/.kinbot_slurm_io_retries/2ab21129c432017601db/52918345/restart-1/interrupted/optimization.log",
+          "sha256": "0b64c1b33f813ed85815f27fd586a827394570bd1cfd00ca3b379b48407d5d35"
+        },
+        "starting_geometry": {
+          "path": "run/ch3s/470831050000000000002/anl_automatic/states/ts_72ecf8afb235bd9e/composite/tasks/l3_geometry/geometry.xyz",
+          "sha256": "d3b70536f9fcc6017c71d0934c2d54a9a98930976e6993c9c7fc26377f3bb92a"
+        },
+        "task": {
+          "path": "run/ch3s/470831050000000000002/anl_automatic/states/ts_72ecf8afb235bd9e/composite/tasks/l3_geometry/task.json",
+          "sha256": "f2560914f0159641a333077ecb31b3d6e3d9545029c951aba5f02aeaf70579bd"
+        },
+        "trajectory": {
+          "path": "run/ch3s/470831050000000000002/anl_automatic/states/ts_72ecf8afb235bd9e/composite/tasks/l3_geometry/.kinbot_slurm_io_retries/2ab21129c432017601db/52918345/restart-1/interrupted/optimization.traj",
+          "sha256": "3cc2971e8027a920eb4749a875cde1db9066ed48047e8f8c09a3748dfafb581c"
+        }
+      },
+      "force_max_ev_angstrom": 0.008474832752973636,
+      "last_logged_step": 2,
+      "positions": [
+        [
+          1.3547535443566612,
+          -0.012165443309759893,
+          0.5086759223288829
+        ],
+        [
+          0.3915909580372566,
+          -0.42941804560844044,
+          1.7327454812825518
+        ],
+        [
+          -0.6918021607921037,
+          -0.0695773842735315,
+          -2.1531190237016786
+        ],
+        [
+          1.2368285318921852,
+          0.9323365686409112,
+          -0.0158001646750205
+        ],
+        [
+          2.1552865965060004,
+          -0.6604737254491791,
+          0.1622585447652645
+        ]
+      ],
+      "status": "geometry_seed_candidate_recompute_force_and_hessian",
+      "symbols": [
+        "C",
+        "S",
+        "H",
+        "H",
+        "H"
+      ],
+      "target_fmax": 0.0005,
+      "task": "ch3s/470831050000000000002/anl_automatic/states/ts_72ecf8afb235bd9e/composite/tasks/l3_geometry"
+    },
+    {
+      "accepted_frame": 0,
+      "energy_ev": -11902.498145372143,
+      "evaluations": 1,
+      "evidence": {
+        "log": {
+          "path": "run/ch3s/471030810040000000002/anl_automatic/states/ts_0450141d9a891e9c/composite/tasks/l3_geometry/.kinbot_slurm_io_retries/2ab21129c432017601db/52928790/restart-1/interrupted/optimization.log",
+          "sha256": "98ed474c2203c546cf59049e77a3d710b462084a0b21fab264eadcf15fdd4356"
+        },
+        "starting_geometry": {
+          "path": "run/ch3s/471030810040000000002/anl_automatic/states/ts_0450141d9a891e9c/composite/tasks/l3_geometry/geometry.xyz",
+          "sha256": "bfad07bc84ec15d12499e52425442a826a532c93a9ad580fe70c49a9df6c68fe"
+        },
+        "task": {
+          "path": "run/ch3s/471030810040000000002/anl_automatic/states/ts_0450141d9a891e9c/composite/tasks/l3_geometry/task.json",
+          "sha256": "053dc03daf8390f82bcb50459be136602c341fbf042da25a083ac129dc72668b"
+        },
+        "trajectory": {
+          "path": "run/ch3s/471030810040000000002/anl_automatic/states/ts_0450141d9a891e9c/composite/tasks/l3_geometry/.kinbot_slurm_io_retries/2ab21129c432017601db/52928790/restart-1/interrupted/optimization.traj",
+          "sha256": "0e25e19e529cb45bf5e8f7ca90216fb803105ac8dbcf82ae64336323e58d51ef"
+        }
+      },
+      "force_max_ev_angstrom": 0.023054095433010877,
+      "last_logged_step": 0,
+      "positions": [
+        [
+          0.02691492,
+          -0.13655028,
+          0.39495178
+        ],
+        [
+          1.08364626,
+          0.92025379,
+          1.10157435
+        ],
+        [
+          0.32323395,
+          2.03566695,
+          1.12641956
+        ],
+        [
+          0.61384991,
+          -1.07251185,
+          0.35453515
+        ],
+        [
+          2.60963048,
+          -0.97657095,
+          -1.71805008
+        ]
+      ],
+      "status": "geometry_seed_candidate_recompute_force_and_hessian",
+      "symbols": [
+        "C",
+        "S",
+        "H",
+        "H",
+        "H"
+      ],
+      "target_fmax": 0.0001,
+      "task": "ch3s/471030810040000000002/anl_automatic/states/ts_0450141d9a891e9c/composite/tasks/l3_geometry"
+    }
+  ],
+  "mrcc_candidates": [
+    {
+      "converged_ccsdt_energy": [
+        "-40.441308731182"
+      ],
+      "input_text": "basis=aug-cc-pVTZ\ncalc=CCSDT(Q)\nccprog=mrcc\nscftype=RHF\ncore=frozen\ncharge=0\nmult=1\nsctol=8\ncctol=7\nmem=88200MB\nmolden=off\nsymm=off\nunit=angs\ngeom=xyz\n5\n\nC   1.036438430000  0.061949580000 -0.069539730000\nH   0.673905380000 -0.939733210000 -0.288752210000\nH   0.673921240000  0.372928900000  0.907501160000\nH   0.673919020000  0.752602150000 -0.827392870000\nH   2.123976170000  0.061940860000 -0.069540200000\n",
+      "last_iteration": [
+        "Iteration 14  CC energy:   -40.44130873  Energy decrease:   3.0443E-09"
+      ],
+      "native_input": {
+        "path": "evidence/checkpoints/nodes/node3-b0c30c75/files/df989e252cb534f3/work/MINP",
+        "sha256": "62534e4e8d6b1ca1a26c7f97ad7abeecdea2f7c3992aefc8d355b7475f4f0484"
+      },
+      "output": {
+        "path": "evidence/checkpoints/nodes/node3-b0c30c75/files/df989e252cb534f3/work/ccsdtq_tz.out",
+        "sha256": "ffb9514563cc78dbee3167f5dc0bf27edc2546cf85f1d1cd77a4379e84924009"
+      },
+      "preserved_checkpoint": {
+        "attribution": "recorded",
+        "bytes": 475979776,
+        "mtime_ns": 1792914801695026705,
+        "offset": 0,
+        "runtime_sources": [
+          "ch3s/470831050000000000002/anl_automatic/states/state_684eb53c4637f96a/composite/tasks/ccsdtq_tz/.kinbot_slurm_io_retries/c7ccb61c38deeca2adf7/52929237/restart-1/interrupted/ccsdtq_tz.runtime.json"
+        ],
+        "sha256": "665cf47f3fb8f3a187e6a08913c0398e062be16c8e4869c254d132c3c9b7e8ff",
+        "source": "/scratch/hram/kinbot-mrcc-btscbyz1/work/fort.16",
+        "source_stable": true,
+        "target": "/home/hram/kinbot-evidence/r7-outage.OMot4WR0/checkpoints/nodes/node3-b0c30c75/files/df989e252cb534f3/work/fort.16",
+        "verified_copy": true
+      },
+      "receipt": {
+        "path": "evidence/checkpoints/nodes/node3-b0c30c75/preservation.json",
+        "sha256": "c82e3cf46418555fbcf435401fcebbce4af743bfd4f99a393f2a5f436340b855"
+      },
+      "runtime": {
+        "path": "run/ch3s/470831050000000000002/anl_automatic/states/state_684eb53c4637f96a/composite/tasks/ccsdtq_tz/.kinbot_slurm_io_retries/c7ccb61c38deeca2adf7/52929237/restart-1/interrupted/ccsdtq_tz.runtime.json",
+        "sha256": "2e3ac56aa31e56abde4de3b29685e805559eb02bd4f1740e0b4627a7954dad6e"
+      },
+      "spin_cases_started": [
+        "1",
+        "2",
+        "3",
+        "1",
+        "2",
+        "3"
+      ],
+      "status": "attributed_candidate_native_restart_not_verified"
+    },
+    {
+      "converged_ccsdt_energy": [],
+      "input_text": "basis=aug-cc-pVTZ\ncalc=CCSDT(Q)\nccprog=mrcc\nscftype=RHF\ncore=frozen\ncharge=0\nmult=1\nsctol=8\ncctol=7\nmem=88200MB\nmolden=off\nsymm=off\nunit=angs\ngeom=xyz\n5\n\nC   1.036438430000  0.061949580000 -0.069539730000\nH   0.673905380000 -0.939733210000 -0.288752210000\nH   0.673921240000  0.372928900000  0.907501160000\nH   0.673919020000  0.752602150000 -0.827392870000\nH   2.123976170000  0.061940860000 -0.069540200000\n",
+      "last_iteration": [
+        "Iteration  9  CC energy:   -40.44130856  Energy decrease:   0.00000006"
+      ],
+      "native_input": {
+        "path": "evidence/checkpoints/nodes/node35-13e8b323/files/24d5da75b50d82c4/work/MINP",
+        "sha256": "62534e4e8d6b1ca1a26c7f97ad7abeecdea2f7c3992aefc8d355b7475f4f0484"
+      },
+      "output": {
+        "path": "evidence/checkpoints/nodes/node35-13e8b323/files/24d5da75b50d82c4/work/ccsdtq_tz.out",
+        "sha256": "1555a3a925449e74dc414a719df382b9cb541d400563d7db5d7033bee4df5fe9"
+      },
+      "preserved_checkpoint": {
+        "attribution": "recorded",
+        "bytes": 475979776,
+        "mtime_ns": 1793066776234864008,
+        "offset": 0,
+        "runtime_sources": [
+          "ch3s/470831050000000000002/anl_automatic/states/state_684eb53c4637f96a/composite/tasks/ccsdtq_tz/ccsdtq_tz.runtime.json"
+        ],
+        "sha256": "c5bc45c5574b22055780432dc144587904914e28a8005b122f92ba75562ab8b5",
+        "source": "/scratch/hram/kinbot-mrcc-0isreltv/work/fort.16",
+        "source_stable": true,
+        "target": "/home/hram/kinbot-evidence/r7-outage.OMot4WR0/checkpoints/nodes/node35-13e8b323/files/24d5da75b50d82c4/work/fort.16",
+        "verified_copy": true
+      },
+      "receipt": {
+        "path": "evidence/checkpoints/nodes/node35-13e8b323/preservation.json",
+        "sha256": "37f8709b6a44a2cef64f4d3d307f8c1520a9f347f2b2cfff319e494e21708534"
+      },
+      "runtime": {
+        "path": "run/ch3s/470831050000000000002/anl_automatic/states/state_684eb53c4637f96a/composite/tasks/ccsdtq_tz/ccsdtq_tz.runtime.json",
+        "sha256": "bb2a83152702fda051b7c6c614c9f9e086b97fcff9cba303b5fb950d41f0b10d"
+      },
+      "spin_cases_started": [
+        "1",
+        "2",
+        "3"
+      ],
+      "status": "attributed_candidate_native_restart_not_verified"
+    },
+    {
+      "converged_ccsdt_energy": [],
+      "input_text": "basis=aug-cc-pVTZ\ncalc=CCSDT(Q)\nccprog=mrcc\nscftype=RHF\ncore=frozen\ncharge=0\nmult=1\nsctol=8\ncctol=7\nmem=88200MB\nmolden=off\nsymm=off\nunit=angs\ngeom=xyz\n5\n\nC   1.036438430000  0.061949580000 -0.069539730000\nH   0.673905380000 -0.939733210000 -0.288752210000\nH   0.673921240000  0.372928900000  0.907501160000\nH   0.673919020000  0.752602150000 -0.827392870000\nH   2.123976170000  0.061940860000 -0.069540200000\n",
+      "last_iteration": [
+        "Iteration  6  CC energy:   -40.44130239  Energy decrease:   0.00000957"
+      ],
+      "native_input": {
+        "path": "evidence/checkpoints/nodes/node4-5d64a97b/files/abbab95304929432/work/MINP",
+        "sha256": "62534e4e8d6b1ca1a26c7f97ad7abeecdea2f7c3992aefc8d355b7475f4f0484"
+      },
+      "output": {
+        "path": "evidence/checkpoints/nodes/node4-5d64a97b/files/abbab95304929432/work/ccsdtq_tz.out",
+        "sha256": "87fd21847ce804b8c53627353b5bba2b642aca7fca7a0b06076acf4010f9c603"
+      },
+      "preserved_checkpoint": {
+        "attribution": "recorded",
+        "bytes": 475979776,
+        "mtime_ns": 1793049838444004354,
+        "offset": 0,
+        "runtime_sources": [
+          "ch3s/470831050000000000002/anl_automatic/states/state_684eb53c4637f96a/composite/tasks/ccsdtq_tz/.kinbot_slurm_io_retries/c7ccb61c38deeca2adf7/52929237/restart-2/interrupted/ccsdtq_tz.runtime.json"
+        ],
+        "sha256": "574aca2f5076789d7cb09ea1a49b70ecdb004e7ea2f1f73bb7990d0f5bd2df6a",
+        "source": "/scratch/hram/kinbot-mrcc-gp6k4lpv/work/fort.16",
+        "source_stable": true,
+        "target": "/home/hram/kinbot-evidence/r7-outage.OMot4WR0/checkpoints/nodes/node4-5d64a97b/files/abbab95304929432/work/fort.16",
+        "verified_copy": true
+      },
+      "receipt": {
+        "path": "evidence/checkpoints/nodes/node4-5d64a97b/preservation.json",
+        "sha256": "61b049156987d377069d1decd53d097b2701714464f53312e787ff930aa4ebd6"
+      },
+      "runtime": {
+        "path": "run/ch3s/470831050000000000002/anl_automatic/states/state_684eb53c4637f96a/composite/tasks/ccsdtq_tz/.kinbot_slurm_io_retries/c7ccb61c38deeca2adf7/52929237/restart-2/interrupted/ccsdtq_tz.runtime.json",
+        "sha256": "7c15207c86a72e08415e63562f8d9b1e45b661264874158375c4ce6889cc450f"
+      },
+      "spin_cases_started": [
+        "1",
+        "2",
+        "3"
+      ],
+      "status": "attributed_candidate_native_restart_not_verified"
+    }
+  ],
+  "native_restart_verified": false,
+  "reuse_approved": false,
+  "schema": 1,
+  "source_root": "/home/hram/kinbot-runs/ch3s_ch3ss_caspt2_production_20261021_r7",
+  "verified_files": 4628
+}

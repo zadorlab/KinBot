@@ -1000,8 +1000,9 @@ def _run_external(directory, record):
                                             stderr=stderr, check=False, env=child_env)
                     if result.returncode and task['backend'].lower() == 'mrcc':
                         # Retain once after a handled native failure for manual
-                        # review. Never mirror large amplitudes during a run or
-                        # add them to every successful job's shared outputs.
+                        # review. Optional periodic checkpoint publication has
+                        # its own bounded generations; do not add amplitudes
+                        # to every successful job's ordinary shared outputs.
                         outputs.extend(['fort.16', 'fort.17'])
             except OSError as exc:
                 raise CalculationUnavailableError(f'Could not start native program: {exc}') from exc

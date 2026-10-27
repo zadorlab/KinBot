@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 
 
 LOCAL_FILESYSTEMS = {'ext2', 'ext3', 'ext4', 'xfs', 'btrfs', 'zfs', 'ufs',
@@ -44,6 +45,8 @@ def configure(parameters):
     # Compute-node NSS need not expose every submitting account. Carry the
     # login-host identity, bound to its numeric UID, through sbatch --export.
     os.environ['KINBOT_QC_ACCOUNT'] = json.dumps(account_identity())
+    from kinbot.native_checkpoints import configure as configure_checkpoints
+    configure_checkpoints(parameters)
     if 'qc_scratch_retries' in parameters:
         value = parameters['qc_scratch_retries']
         if type(value) is not int:
@@ -315,10 +318,16 @@ def workspace(directory, runtime, *, backend, inputs, outputs=(), label='native'
     runtime_file = directory / f'{_basename(label)}.runtime.json'
     from kinbot.execution import atomic_json
     atomic_json(runtime_file, runtime)
+    from kinbot.native_checkpoints import Publisher
+    publisher=Publisher(directory,work,runtime,backend,label,staged)
     stop = threading.Event()
     live = directory / f'{label}.live.log'
     def mirror():
+        retry_at=0.;failures=0
         while not stop.wait(30):
+            publisher.poll(stop=stop)
+            if time.monotonic()<retry_at:
+                continue
             try:
                 paths = sorted((p for p in work.iterdir() if p.suffix in ('.out', '.log', '.err', '.stderr')),
                                key=lambda p: p.stat().st_mtime)[-3:]
@@ -329,15 +338,23 @@ def workspace(directory, runtime, *, backend, inputs, outputs=(), label='native'
                         chunks.append(path.name + '\n' + stream.read().decode(errors='replace'))
                 if chunks:
                     live.write_text('\n'.join(chunks))
+                failures=0
             except OSError:
-                return  # Do not repeatedly hammer an unavailable result filesystem.
+                failures+=1
+                retry_at=time.monotonic()+min(3600,30*2**min(failures,6))
     thread = threading.Thread(target=mirror, daemon=True)
     thread.start()
     try:
         yield work
     finally:
         stop.set()
-        thread.join(timeout=1)
+        # Do not remove local scratch while a checkpoint copy still reads it.
+        # In-flight copies observe stop between chunks and leave the previous
+        # complete generation in place.
+        thread.join()
+        publisher.poll(force=True)
+        if runtime.get('native_checkpoint_error'):
+            runtime['retain_scratch'] = True
         try:
             explicit = set(outputs) | staged
             suffixes = {'.out', '.log', '.err', '.stdout', '.stderr', '.xml', '.xyz',

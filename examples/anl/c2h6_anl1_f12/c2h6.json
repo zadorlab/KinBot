@@ -1,0 +1,41 @@
+{
+  "title": "c2h6_anl1_f12",
+  "smiles": "CC",
+  "mult": 1,
+  "pes": 1,
+  "barrier_threshold": 150.0,
+  "conformer_search": 1,
+  "high_level": 1,
+  "rotor_scan": 1,
+  "theory_preset": "b3lyp-b2plyp-anl",
+  "composite_method": "ANL1-F12",
+  "anl_f12_augmented": 1,
+  "vrc_tst_accuracy_preset": "anl1-f12",
+  "vrc_tst_active_space": "radical_pair",
+  "vrc_tst_surface_model_file": "orbital_review/surfaces.json",
+  "vrc_tst_fragment_geometry": "asymptotic_scan",
+  "vrc_tst_spin_splitting": {
+    "reference": {
+      "basis": ["avtz-f12", "avqz-f12"]
+    },
+    "gap_levels": [
+      {
+        "label": "caspt2_f12",
+        "method": "caspt2-f12(2,2)",
+        "basis": ["avtz-f12", "avqz-f12"],
+        "extrapolation_power": 3.7,
+        "shift": 0.1,
+        "ipea": 0.25
+      }
+    ]
+  },
+  "rotdpy_run": 1,
+  "rotdpy_validation_profile": "production",
+  "queuing": "slurm",
+  "queue_name": "month-long-cpu",
+  "ppn": 8,
+  "single_point_ppn": 8,
+  "rotdpy_processors": 8,
+  "queue_job_limit": 10,
+  "queue_live_policy": {"max_jobs": 10}
+}

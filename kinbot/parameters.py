@@ -113,6 +113,9 @@ class Parameters:
             # Additional threshold if L2 screening is desired instead of L1
             'barrier_threshold_L2': None,
             'pes_barrier_reference': None,
+            # Optional absolute L1 E+ZPE ceiling relative to the initial PES well.
+            # Missing/incomparable evidence is retained; existing L2 rules still apply.
+            'l1_pes_energy_ceiling': None,
             # Threshold allowance for L1 relative to L2
             'barrier_threshold_add': 10.,
             # Additional barrier allowance for homolytic scissions
@@ -1096,6 +1099,8 @@ class Parameters:
 
         from kinbot.barrier_policy import validate as validate_barrier_reference
         validate_barrier_reference(self.par['pes_barrier_reference'])
+        from kinbot.l1_screening import validate as validate_l1_ceiling
+        validate_l1_ceiling(self.par['l1_pes_energy_ceiling'])
         if self.par['barrier_threshold'] == 'none':
             self.par['barrier_threshold'] = None
         if self.par['barrier_threshold_L2'] == 'none':

@@ -48,6 +48,20 @@ class ReactionGenerator:
         from kinbot.barrier_policy import apply as apply_barrier_reference
         apply_barrier_reference(species, par)
 
+    def _screen_l1(self, obj, names, kind, *, comparable=True):
+        # Replay preserves previously accepted scientific decisions. Applying a
+        # new ceiling to those requires an explicit network selection.
+        if obj.instance_name in self.search_checkpoint.replaying:
+            return False
+        from kinbot.l1_screening import screen
+        rejected = screen(self.par, names, reaction=obj.instance_name,
+                          kind=kind, comparable=comparable)
+        if rejected:
+            obj.l1_screening_rejection = kind
+            logger.info('%s: excluded by absolute initial-well L1 %s ceiling; '
+                        'native evidence retained.', obj.instance_name, kind)
+        return rejected
+
     def _publish_product_well(self, reaction):
         if (not self.par['pes'] or self.par.get('stop_product_reaction_search',0)
                 or len(reaction.products)!=1):
@@ -421,6 +435,10 @@ class ReactionGenerator:
                             else:
                                 ending = 'well'
                                 thresh = self.par['barrier_threshold']
+                            if self._screen_l1(obj, [obj.instance_name], 'barrier',
+                                               comparable=ending == 'well' and not self.par['bimol']):
+                                self.species.reac_ts_done[index] = -999
+                                continue
                             if self.par['bimol']:
                                 fragments = (self.species.fragA, self.species.fragB)
                                 sp_energy = sum(self.qc.get_qc_energy(
@@ -653,6 +671,15 @@ class ReactionGenerator:
                                 else:
                                     logger.info(f'\t{obj.irc_prod.name} was not succesfully identified as a vdW well. Well depth is {np.round(obj.vdW_depth, 2)} kcal/mol.')
 
+                            # Screen the retained L1 well/complex when one exists,
+                            # otherwise the complete product asymptote. A high
+                            # asymptote must not erase a lower vdW intermediate.
+                            screened_names = ([obj.irc_prod.name] if getattr(obj, 'do_vdW', False)
+                                              else [routing_name(p)+'_well' for p in obj.products])
+                            if self._screen_l1(obj, screened_names, 'products',
+                                               comparable=not self.par['bimol']):
+                                self.species.reac_ts_done[index] = -999
+                                continue
                             if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                                 hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                                 if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
@@ -817,7 +844,8 @@ class ReactionGenerator:
                     elif self.species.reac_ts_done[index] == -999:
                         if (self.par['delete_intermediate_files'] == 1
                                 and live_control.find() is None
-                                and not getattr(obj, 'stereochemical_rejection', None)):
+                                and not getattr(obj, 'stereochemical_rejection', None)
+                                and not getattr(obj, 'l1_screening_rejection', None)):
                             if not self.species.reac_obj[index].instance_name in deleted:
                                 self.delete_files(self.species.reac_obj[index].instance_name)
                                 deleted.append(self.species.reac_obj[index].instance_name)

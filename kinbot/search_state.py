@@ -236,6 +236,8 @@ class SearchState:
                 species.reac_step[i] = entry['step']
                 if entry.get('stereochemical_rejection'):
                     obj.stereochemical_rejection = entry['stereochemical_rejection']
+                if entry.get('l1_screening_rejection'):
+                    obj.l1_screening_rejection = entry['l1_screening_rejection']
             elif status == 0:
                 step = entry['step']
                 if entry.get('unverified_step'):
@@ -302,6 +304,8 @@ class SearchState:
                      scan_energy_job=self.scan_seen.get(name))
         if getattr(obj, 'stereochemical_rejection', None):
             entry['stereochemical_rejection'] = obj.stereochemical_rejection
+        if getattr(obj, 'l1_screening_rejection', None):
+            entry['l1_screening_rejection'] = obj.l1_screening_rejection
         if previous.get('pending_submission'):
             entry['pending_submission'] = previous['pending_submission']
         if previous.get('history'):

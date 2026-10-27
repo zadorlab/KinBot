@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "screens": [
+    {
+      "name": "stereo_cs",
+      "case": "ch3ss",
+      "recipe": "stereo_cs.json"
+    },
+    {
+      "name": "stereo_ss",
+      "case": "ch3ss",
+      "recipe": "stereo_ss.json"
+    },
+    {
+      "name": "stereo_h_exit",
+      "case": "ch3ss",
+      "recipe": "stereo_h_exit.json"
+    },
+    {
+      "name": "stereo_ch2_hss_exit",
+      "case": "ch3ss",
+      "recipe": "stereo_ch2_hss_exit.json"
+    }
+  ]
+}

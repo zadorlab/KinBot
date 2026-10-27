@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "scope": "Detached state-support and additional character probes, full current request inventory; no scientific approval.",
+  "sources": [
+    {"root": "runs", "path": "ch3s_ch3ss_orbital_reviews_20261027"},
+    {"root": "production", "path": "ch3s/input.json"},
+    {"root": "production", "path": "ch3ss/input.json"},
+    {"root": "repo", "path": "examples/anl/orbital_review_batches/r7_state_support_20261026"},
+    {"root": "repo", "path": "examples/anl/orbital_review_batches/r7_additional_requests_20261027"}
+  ]
+}

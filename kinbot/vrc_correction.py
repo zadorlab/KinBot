@@ -438,15 +438,17 @@ def active_space_settings(parameters, symbols=None, charge=0):
         if additions:
             raise ValueError('additional_orbitals requires full_valence mode.')
         return None
-    if mode == 'radical_pair':
+    if mode in ('radical_pair', 'auto_radical_pair'):
         if additions:
             raise ValueError('additional_orbitals requires full_valence mode.')
         return {
             'active_electrons': 2,
             'active_orbitals': 2,
             'orbital_selection': None,
-            'selection': 'two_doublet_radical_pair',
-            'validation': 'accepted_products_must_be_two_doublets',
+            'selection': ('verified_radical_pair' if mode == 'auto_radical_pair'
+                          else 'two_doublet_radical_pair'),
+            'validation': ('native_verification_required' if mode == 'auto_radical_pair'
+                           else 'accepted_products_must_be_two_doublets'),
         }
     if mode in ('selected', 'targeted'):
         if not isinstance(request, dict):
@@ -478,7 +480,7 @@ def active_space_settings(parameters, symbols=None, charge=0):
         }
     if mode != 'full_valence':
         raise ValueError(
-            'vrc_tst_active_space must be explicit, radical_pair, '
+            'vrc_tst_active_space must be explicit, radical_pair, auto_radical_pair, '
             'selected, full_valence, or an object with one of those modes.')
     if symbols is None:
         return {'selection': 'whole_molecule_main_group_valence',
@@ -532,7 +534,8 @@ def validate_vrc_levels(parameters):
         inline = (isinstance(state_model, dict)
                   and ((isinstance(state_model.get('orbital_selection'), dict)
                         and state_model['orbital_selection'].get('mode') in ('molpro_record', 'avas'))
-                       or (state_model.get('schema') == 2 and bool(state_model.get('basis_models')))))
+                       or (state_model.get('schema') == 2 and bool(state_model.get('basis_models')))
+                       or (state_model.get('schema') == 3 and bool(state_model.get('spin_models')))))
         external = isinstance(state_file, str) and bool(state_file.strip())
         if inline and external:
             raise ValueError('Configure either vrc_tst_state_model or '
@@ -553,7 +556,7 @@ def validate_vrc_levels(parameters):
     sampling_settings(parameters, active_space=active_space)
     model = correction_model(parameters)
     if (active_space is not None
-            and active_space.get('selection') == 'two_doublet_radical_pair'):
+            and active_space.get('selection') in ('two_doublet_radical_pair', 'verified_radical_pair')):
         if model != 'spin_splitting':
             raise ValueError(
                 'The radical_pair active space requires the spin_splitting '
@@ -631,7 +634,7 @@ def root_overrides(parameters, key):
 
 
 def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
-                         basis=None):
+                         basis=None, multiplicity=None):
     """Resolve an explicit model or build the automatic whole-molecule model."""
     roots = {**({} if roots is None else {int(key): value for key, value in roots.items()}),
              **root_overrides(parameters, 'vrc_tst_state_average_roots')}
@@ -643,7 +646,7 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
     if explicit is not None and isinstance(state_file, str) and state_file.strip():
         raise ValueError('Configure either vrc_tst_state_model or '
                          'vrc_tst_state_model_file, not both.')
-    payload = explicit if isinstance(explicit, dict) and explicit.get('schema') == 2 else None
+    payload = explicit if isinstance(explicit, dict) and explicit.get('schema') in (2, 3) else None
     path = Path(parameters.get('input_file') or Path.cwd() / 'input.json').expanduser().resolve()
     if explicit is None and isinstance(state_file, str) and state_file.strip():
         path = Path(state_file).expanduser()
@@ -658,6 +661,19 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
                 f'Reviewed VRC state-model file is unavailable: {path}. '
                 'Run and audit the Molpro orbital reconnaissance first.')
         payload = json.loads(path.read_text())
+    spin_specific = payload is not None and payload.get('schema') == 3
+    if spin_specific:
+        chosen_spin = int(multiplicity or (settings or {}).get('target_multiplicity')
+                          or parameters.get('mult', 1))
+        models = payload.get('spin_models', {})
+        if str(chosen_spin) not in models:
+            raise ValueError('Reviewed spin-specific model omits the requested multiplicity.')
+        payload = deepcopy(models[str(chosen_spin)])
+        if payload.get('schema') != 2 or payload.get('state_average_policy') != 'reviewed':
+            raise ValueError('Spin-specific orbital models require reviewed basis-specific children.')
+        roots = {key: value for key, value in roots.items() if key == chosen_spin}
+        selected_overrides = {key: value for key, value in selected_overrides.items()
+                              if key == chosen_spin}
     if payload is not None:
         if (not isinstance(payload, dict) or payload.get('schema') not in (1, 2)
                 or not isinstance(payload.get('active_space'), dict)):
@@ -738,9 +754,12 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
         elif external:
             counts = {entry['multiplicity']: entry['roots'] for entry in explicit['state_average']}
             overrides = root_overrides(parameters, 'vrc_tst_state_average_roots')
+            if spin_specific:
+                overrides = {key: value for key, value in overrides.items() if key == chosen_spin}
             if any(counts.get(mult) != count for mult, count in overrides.items()):
                 raise ValueError('Root-count overrides conflict with the reviewed state average.')
-            required = ([settings['target_multiplicity'], settings['reference_multiplicity']]
+            required = ([chosen_spin] if spin_specific else
+                        [settings['target_multiplicity'], settings['reference_multiplicity']]
                         if settings is not None else [int(parameters.get('mult', 1))])
             if any(mult not in counts for mult in required):
                 raise ValueError('Reviewed state average omits a required target/reference multiplicity.')
@@ -757,6 +776,8 @@ def resolved_state_model(parameters, symbols, charge, settings, *, roots=None,
                            for symbol in symbols) - charge),
             atom_count=None if symbols is None else len(symbols))
     active_space = active_space_settings(parameters, symbols, charge)
+    if active_space is not None and active_space.get('selection') == 'verified_radical_pair':
+        raise ValueError('Automatic radical-pair verification has not supplied an accepted orbital model.')
     if active_space is None:
         return None
     if settings is None:
@@ -777,12 +798,12 @@ def correction_components(parameters, *, symbols=None, charge=0,
     sampling = sampling_settings(parameters, active_space=active_space)
     if settings is None and correction_model(parameters) == 'spin_splitting':
         settings = spin_splitting_settings(parameters)
-    def state_model_for(basis):
+    def state_model_for(basis, multiplicity=None):
         return (deepcopy(parameters.get('vrc_tst_state_model'))
                 if active_space is None else
                 resolved_state_model(
                     parameters, symbols, charge, settings,
-                    roots=state_roots, basis=basis))
+                    roots=state_roots, basis=basis, multiplicity=multiplicity))
     sample_bases = (sampling['basis'] if isinstance(sampling['basis'], list)
                     else [sampling['basis']])
     sample_components = []
@@ -822,7 +843,7 @@ def correction_components(parameters, *, symbols=None, charge=0,
     bases = reference['basis'] if isinstance(reference['basis'], list) \
         else [reference['basis']]
     for index, basis in enumerate(bases):
-        reference_model = state_model_for(basis)
+        reference_model = state_model_for(basis, settings['reference_multiplicity'])
         validate_vrc_single_reference_root(reference['method'], reference_model,
                                            settings['reference_multiplicity'])
         stem = 'triplet_reference' if legacy_states else 'reference'
@@ -857,7 +878,7 @@ def correction_components(parameters, *, symbols=None, charge=0,
                 components.append({
                     'role': role, 'suffix': suffix,
                     'geometry': 'relaxed', 'multiplicity': multiplicity,
-                    'basis': basis, 'state_model': state_model_for(basis),
+                    'basis': basis, 'state_model': state_model_for(basis, multiplicity),
                     **common,
                 })
     return components
@@ -886,7 +907,7 @@ def expected_levels(parameters, *, symbols=None, charge=0, settings=None,
             'weighting': settings['weighting'],
         }
     external = parameters.get('vrc_tst_state_model_file', '')
-    inline_basis_model = (parameters.get('vrc_tst_state_model') or {}).get('schema') == 2
+    inline_basis_model = (parameters.get('vrc_tst_state_model') or {}).get('schema') in (2, 3)
     state_models = None
     if active_space is not None and (inline_basis_model or (isinstance(external, str) and external.strip())):
         bases = (list(sampling['basis']) if isinstance(sampling['basis'], list)
@@ -922,6 +943,17 @@ def expected_levels(parameters, *, symbols=None, charge=0, settings=None,
     }
     if state_models is not None:
         result['state_models_by_basis'] = state_models
+        payload = parameters.get('vrc_tst_state_model') or {}
+        if external:
+            path = Path(external).expanduser()
+            if not path.is_absolute():
+                path = Path(parameters.get('input_file') or Path.cwd()/'input.json').resolve().parent/path
+            payload = json.loads(path.read_text())
+        if payload.get('schema') == 3:
+            result['state_models_by_spin'] = {
+                str(mult): {basis: resolved_state_model(parameters, symbols, charge, settings,
+                    roots=state_roots, basis=basis, multiplicity=mult) for basis in state_models}
+                for mult in multiplicities}
     return result
 
 

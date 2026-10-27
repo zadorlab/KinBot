@@ -317,6 +317,10 @@ def _load(path):
     if (electrons < 1 or data['multiplicity'] - 1 > electrons
             or (electrons - data['multiplicity'] + 1) % 2):
         raise ValueError('Charge and multiplicity have inconsistent parity.')
+    initial_spin = data.get('scf_multiplicity', data['multiplicity'])
+    if (type(initial_spin) is not int or initial_spin < 1 or initial_spin > electrons+1
+            or (electrons-initial_spin+1) % 2):
+        raise ValueError('scf_multiplicity has inconsistent electron/spin parity.')
     bases = data['bases']
     if (not isinstance(bases, list) or not bases
             or any(not isinstance(item, dict)
@@ -350,6 +354,10 @@ def _load(path):
     if (isinstance(threshold, bool) or not isinstance(threshold, (int, float))
             or not np.isfinite(threshold) or threshold < 0):
         raise ValueError('orbital_print_threshold must be finite and nonnegative.')
+    if 'ci_print_threshold' in data:
+        fortran_threshold(data['ci_print_threshold'], 'ci_print_threshold')
+    if data.get('ci_basis', 'det') not in ('det', 'csf'):
+        raise ValueError('ci_basis must be det or csf.')
     for key, choices, default in (
             ('probe_method', ('casci', 'casscf'), 'casci'),
             ('avas_reference', ('atomic', 'rhf'), 'atomic'),
@@ -531,8 +539,16 @@ def _load(path):
                 data['_probe_space']['orbital_source'] = 'scf'
                 seeds = data.get('initial_records', {})
                 for basis in data['bases']:
+                    seen_chains = set()
                     for anchor in anchors:
+                        chain = anchor.get('orbital_chain', anchor.get('_channel'))
+                        propagated = (chain and chain in seen_chains and
+                                      data.get('orbital_initialization', 'propagated') == 'propagated')
                         seed = seeds.get(basis['name']+'__'+anchor['name'], {})
+                        if chain:
+                            seen_chains.add(chain)
+                        if propagated and not seed:
+                            continue
                         if seed.get('basis') != basis['basis'] or seed.get('project_orbitals'):
                             raise ValueError('SCF selections require a separate native seed in each matching basis.')
                         validate(seed, electrons, definition['active_electrons'], definition['active_orbitals'])
@@ -728,6 +744,8 @@ def _deck(data, basis, anchor, stem, previous=None):
         printing = f'gprint,orbitals={data["orbital_print_virtuals"]},orben,civector\n'
     if 'orbital_print_threshold' in data:
         thresholds += f'gthresh,thrprint={data["orbital_print_threshold"]}\n'
+    if 'ci_print_threshold' in data:
+        thresholds += 'gthresh,printci=' + fortran_threshold(data['ci_print_threshold'], 'ci_print_threshold') + '\n'
     deck = (
         f'***,{data["title"]} orbital reconnaissance: {stem}\n'
         f'memory,{int(data.get("memory_mw", 1000))},m\n'
@@ -735,7 +753,7 @@ def _deck(data, basis, anchor, stem, previous=None):
         'angstrom\norient,noorient\nsymmetry,nosym\n'
         f'geometry={{\n{len(data["symbols"])}\n{stem}\n{rows}\n}}\n'
         + basis_input + thresholds + printing
-        + _recon_rhf(scf_command, data['_electrons'], data['multiplicity'] - 1, '2100.2')
+        + _recon_rhf(scf_command, data['_electrons'], data.get('scf_multiplicity', data['multiplicity']) - 1, '2100.2')
         + printing +
         f'put,molden,{stem}.molden\n'
         'reconenergy=energy\nshow,reconenergy\n')
@@ -754,6 +772,10 @@ def _deck(data, basis, anchor, stem, previous=None):
         method = data.get('probe_method', 'casci')
         opening = '{multi,cas-ci;' if method == 'casci' else '{multi,'
         multi = multi.replace('{multi,', opening)
+        if data.get('ci_basis') == 'csf':
+            if len(model['state_average']) != 1:
+                raise ValueError('Explicit CSF probes require a single spin manifold.')
+            multi = multi.replace(opening, opening+'\nconfig,csf\n', 1)
         # Always emit natural orbitals, including when canonical_orbitals=false.
         multi = multi.replace('canonical,2141.2\n', '')
         if data.get('correlation_checks'):
@@ -802,10 +824,8 @@ def _deck(data, basis, anchor, stem, previous=None):
             initial_partition = bool(space.get('orbital_partition') and isinstance(previous, dict))
             diab = '' if initial_partition or method == 'casci' else '\ndiab,2140.2'
             partition = space.get('orbital_partition', {})
-            if space.get('orbital_source') == 'scf':
+            if space.get('orbital_source') == 'scf' and isinstance(previous, dict):
                 from kinbot.recon_scf_seed import start as scf_start
-                if not isinstance(previous, dict):
-                    raise ValueError('SCF source indices require an explicit initial record.')
                 start = scf_start(previous, data['_electrons'], space['active_electrons'])
                 diab = ''
             if initial_partition and partition.get('orbital_swaps'):
@@ -1245,7 +1265,8 @@ def _execute(job):
     seed = job.get('initial_record') or {}
     cross_basis = bool(seed.get('project_orbitals') and
                        seed.get('basis', '').lower() != job['basis'].lower())
-    scf_seed = (job.get('probe_active_space') or {}).get('orbital_source') == 'scf'
+    scf_seed = (bool(seed) and
+                (job.get('probe_active_space') or {}).get('orbital_source') == 'scf')
     separate_seed = cross_basis or scf_seed
     seed_name = molpro_wfu_name(name + '_source') if separate_seed else None
     if scf_seed:

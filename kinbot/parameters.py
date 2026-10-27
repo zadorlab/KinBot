@@ -991,7 +991,7 @@ class Parameters:
                                            validate_vrc_levels)
         from kinbot.molpro import validate_vrc_state_model
         state_model = self.par['vrc_tst_state_model']
-        if not (isinstance(state_model, dict) and state_model.get('schema') == 2):
+        if not (isinstance(state_model, dict) and state_model.get('schema') in (2, 3)):
             validate_vrc_state_model(state_model)
         validate_vrc_levels(self.par)
         if correction_model(self.par) == 'spin_splitting':

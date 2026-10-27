@@ -1,69 +1,53 @@
 # Ethane / methyl recombination
 
-`c2h6.json` stages an ethane PES exploration including C–C homolysis to
-CH3 + CH3. It uses ordinary reaction discovery and CBH selection defaults;
-there is no molecule-specific reaction list, geometry, orbital index or root
-assignment in the input. This example is separate from the sulfur campaigns.
-KinBot requires a barrier threshold; this demo sets the L1 threshold to
-150 kcal/mol.
+`c2h6.json` explores the ethane PES, including C–C homolysis to CH3 + CH3,
+with augmented ANL1-F12. The input uses ordinary reaction discovery and the
+B3LYP/B2PLYP search/refinement preset. No geometry, orbital indices, probe
+recipe, or external surface file is required.
 
-The requested calculation uses augmented ANL1-F12 with the existing
-B3LYP/B2PLYP search/refinement preset. Its VRC correction reconstructs the
-singlet potential from the RHF-UCCSD(T)-F12b triplet reference at CBS(T,Q) plus
-the CASPT2-F12 singlet–triplet gap at CBS(T,Q). These are the
-`avtz-f12` / `avqz-f12` basis pair, with the existing 3.7 extrapolation power.
-The VRC accuracy preset supplies CASPT2-F12/AVTZ-F12 relaxed scans and
-CASPT2-F12/AVDZ-F12 sampling. The explicit gap list is needed because the
-current preset defaults to CBS(D,T), and lists are replaced as a whole.
+The opt-in parameter is:
 
-The ten-job live pool covers the PES workers and downstream calculations
-together. Ordinary QC, composite and VRC tasks request up to eight processors;
-ROTD_py samples request eight. Whole-node exclusivity is already the default.
-No node names or executable locations are embedded. This input leaves
-pressure-dependent MESS kinetics disabled: bath-gas collision parameters have
-not been specified for this demo.
+```json
+"vrc_tst_active_space": "auto_radical_pair"
+```
 
-## Native orbital verification is still required
+Before submitting a supported channel's production VRC calculations, its
+owning driver runs the [automatic native verification workflow](../../../docs/automatic_radical_pair.md).
+It identifies the two radical orbitals from independent fragment calculations,
+optimizes separate single-state singlet and triplet CAS(2,2) wavefunctions,
+and tests their orbital/CI identities and interaction potentials. The tests
+include relaxed radial and angular geometries, return and independent starts,
+all-atom full-valence comparisons, shift sensitivity, MRCI-F12+Q, and the
+triplet CC reference. For ethane, the full-valence comparator is CAS(14,14).
+This is a substantial diagnostic campaign under the same shared job limit.
 
-**This is a staged input, not a native-validated VRC example.** The existing
-`radical_pair` option requests CAS(2,2) and checks the two-doublet spin contract.
-It does **not** implement the requested automatic orbital-probe, verification
-and promotion workflow. In particular, it must not be treated as proof that
-frontier orbitals retain the intended dissociation character.
+Only a passing native report creates the selected surface model. The driver
+then continues automatically. A failed calculation, unsupported channel, or
+failed scientific check retains its evidence and produces a review request;
+it does not approve frontier orbitals by assumption. Reattaching a driver
+reuses completed verification work and accepted receipts. Existing explicit
+surface models take precedence.
 
-The required `orbital_review/surfaces.json` is deliberately absent. The VRC
-driver requires that reviewed file before submitting its fragment or scan work;
-it cannot silently fall back to the unverified shortcut. Do not remove that
-requirement to launch production. No artificial `reviewed: true` model or
-dummy checkpoint is supplied. PES discovery and ANL setup are independently
-configured, but this example is not ready for a complete VRC run yet.
+The requested production correction is the RHF-UCCSD(T)-F12b triplet potential
+at CBS(T,Q), plus the CASPT2-F12 singlet–triplet gap at CBS(T,Q), using
+`avtz-f12` / `avqz-f12` and extrapolation power 3.7. The accuracy preset supplies
+CASPT2-F12/AVTZ-F12 relaxation and CASPT2-F12/AVDZ-F12 sampling. The explicit
+gap list changes the preset's CBS(D,T) default. The singlet is the physical
+reactive surface, with root 1 and weight 1; the triplet is the correction
+reference. These are separate single-state optimizations, not a state average.
 
-For CH3 + CH3 the candidate subspace is the two fragment radical orbitals
-(the C–C bonding/antibonding pair on association). The eventual native review
-must establish their identities and continuity, the matched singlet/triplet
-asymptote and CC reference, and radial, angular, return-path and relevant
-expanded-space comparisons under this T/Q protocol. Root counts and weights
-belong to that evidence. Other channels discovered by the default PES search
-need their own applicability checks and models; this request does not approve
-every two-doublet fragmentation.
+The ten-job live pool covers PES workers and downstream calculations together.
+QC, composite, VRC and ROTD_py jobs request eight processors, with whole-node
+exclusivity supplied by default. No node names or executable paths are embedded.
+The required barrier threshold is 150 kcal/mol. Pressure-dependent MESS kinetics
+remain disabled because bath-gas collision parameters are not supplied.
 
-The general automatic CAS(2,2) verification feature remains separate unfinished
-work. Once it is implemented and validated, it can replace this file
-prerequisite without adding manual orbital recipes to the molecular input.
-
-To check input parsing without starting any calculations, run from the
-repository root:
+Launch in a fresh run directory using the installed KinBot environment:
 
 ```bash
-.venv/bin/python -B - <<'PY'
-from kinbot.parameters import Parameters
-from kinbot.vrc_correction import spin_splitting_settings
-p = Parameters('examples/anl/c2h6_anl1_f12/c2h6.json').par
-s = spin_splitting_settings(p)
-print('Composite:', p['composite_method'], 'augmented:', p['anl_f12_augmented'])
-print('CC reference:', s['reference'])
-print('MR gaps:', s['gap_levels'])
-print('Shared job cap:', p['queue_live_policy']['max_jobs'])
-print('VRC prerequisite:', p['vrc_tst_surface_model_file'])
-PY
+python -m kinbot.pes /absolute/path/to/copied/c2h6.json
 ```
+
+Local tests verify orchestration, generated native inputs, evidence checks,
+and promotion/refusal behavior. They do not establish ethane's native result;
+that decision is made from the Molpro outputs generated by the run itself.

@@ -1,8 +1,9 @@
 """Explicit, native-evidence review gate for new spin-splitting selections.
 
-Density comparisons are diagnostics, never an automatic chemical approval.
-Legacy unchanged models can continue; newly accepted spin-splitting models
-must carry this review. Direct MR potentials do not need a CC reference.
+Density comparisons alone cannot approve a model. The restricted automatic
+radical-pair policy additionally binds fragment identity, CI, expanded-space,
+independent-correlation and potential tests. Other new selections require an
+explicit review. Direct MR potentials do not need a CC reference.
 """
 from copy import deepcopy
 import hashlib
@@ -113,6 +114,10 @@ def validate(parameters, base):
     if file_sha256(path) != binding['sha256']:
         raise ValueError('CC/MR reference review receipt changed.')
     saved = json.loads(path.read_text())
+    if saved.get('kind') == 'automatic_radical_pair_v1':
+        from kinbot.auto_radical_pair import validate_receipt
+        validate_receipt(parameters, saved)
+        return
     fields = ('state_pairing', 'cc_quality', 'degenerate_subspaces', 'orbital_continuity')
     if (saved.get('approved') is not True or
             any(not str(saved.get('findings', {}).get(k, '')).strip() for k in fields)):

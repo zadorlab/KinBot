@@ -177,6 +177,12 @@ def resolve_state_model_paths(payload, base):
     """Resolve binary record paths relative to the containing single input."""
     from kinbot.molpro import resolve_orbital_record_path
     model = deepcopy(payload)
+    if isinstance(model, dict) and model.get('schema') == 3:
+        if not isinstance(model.get('spin_models'), dict) or not model['spin_models']:
+            raise ValueError('Spin-specific state model needs spin_models.')
+        model['spin_models'] = {m: resolve_state_model_paths(p, base)
+                                for m, p in model['spin_models'].items()}
+        return model
     if isinstance(model, dict) and model.get('schema') == 2:
         if not isinstance(model.get('active_space'), dict) or not isinstance(model.get('basis_models'), dict) or not model['basis_models']:
             raise ValueError('Inline state model requires active_space and nonempty basis_models.')
@@ -274,6 +280,12 @@ def channel_for_reaction(parameters, reaction):
             raise SurfaceModelRequired(f'{route}: VRC needs a reviewed surface model for this newly explored well; '
                              'set vrc_tst_surface_models[species] in the input. '
                              'The initial well orbital indices cannot be silently reused.')
+    from kinbot.vrc_correction import active_space_settings
+    space = active_space_settings(parameters)
+    if (space or {}).get('selection') == 'verified_radical_pair' and not (
+            parameters.get('vrc_tst_surface_model') or parameters.get('vrc_tst_surface_model_file')):
+        from kinbot.auto_radical_pair import ensure
+        return ensure(parameters, reaction)
     loaded = load_surface_model(parameters)
     if loaded is None:
         return None

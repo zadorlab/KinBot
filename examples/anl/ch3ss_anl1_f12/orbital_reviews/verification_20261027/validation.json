@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "scope": "Local staging and simulated-site orchestration; no new native QC executed or approved.",
+  "command": "PYTHONPATH=. .venv/bin/python -m pytest tests/test_verification_review_panel.py tests/test_molpro_reconnaissance.py tests/test_vrc_relaxation_recon.py tests/test_closure_selections.py -q",
+  "result": "136 passed in 13.15s",
+  "local_render": {
+    "configurations": 112,
+    "fixed_jobs": 1149,
+    "deferred_relaxation_contracts": 46,
+    "deferred_relaxed_single_point_contracts": 208,
+    "reused_fixed_points": 19,
+    "reused_geometries": 4
+  },
+  "checks": [
+    "Shell syntax checks",
+    "Python compilation",
+    "Changed tracked files whitespace check",
+    "All fixed decks validated before staging",
+    "All 46 conditional optimization specifications validated",
+    "No submission performed",
+    "52 source natural-orbital tables extracted with source hashes and line numbers; all requested trial indices printed"
+  ],
+  "production_model_accepted": false,
+  "owner_runtime_regressions": {
+    "command": "PYTHONPATH=. .venv/bin/python -m pytest tests/test_allocation_recovery.py tests/test_submission_recovery.py tests/test_optimization_progress.py tests/test_slurm_retry.py tests/test_run_policy.py tests/test_anl_dispatch.py tests/test_vrc_graph.py -q",
+    "result": "214 passed in 18.51s"
+  },
+  "capacity_update_validation": {
+    "command": "PYTHONPATH=. .venv/bin/python -m pytest tests/test_verification_review_panel.py tests/test_molpro_reconnaissance.py tests/test_vrc_relaxation_recon.py tests/test_closure_selections.py tests/test_run_policy.py -q",
+    "result": "167 passed in 15.57s",
+    "max_jobs": 23,
+    "checks": [
+      "Both recon phases admit up to 23 jobs; shared pool still governs all phases",
+      "Existing node exclusions retained",
+      "Capacity-only revision preserves native inputs and submitted job identity",
+      "Active owner blocks restaging",
+      "Scientific changes and pool above 23 refused"
+    ]
+  },
+  "git_handoff_validation": {
+    "base_commit": "820c01c976737156337bf3742db53c4654deeb11",
+    "scope": "Exact 22-file overlay on a clean Git archive; unpublished reorganization and recovery edits excluded.",
+    "command": "python -m pytest tests/test_verification_review_panel.py tests/test_molpro_reconnaissance.py tests/test_vrc_relaxation_recon.py tests/test_allocation_recovery.py tests/test_submission_recovery.py tests/test_optimization_progress.py tests/test_slurm_retry.py tests/test_run_policy.py tests/test_anl_dispatch.py tests/test_vrc_graph.py -q",
+    "result": "349 passed in 25.37s",
+    "checks": [
+      "Imported KinBot from the clean candidate tree",
+      "Plan regenerated identically from verified native export and frozen provenance inputs",
+      "112 configurations / 1149 fixed inputs rendered",
+      "Analyzer read 19 reused native points and correctly marked 1149 uncomputed points incomplete",
+      "Collector helper resolved from existing tracked path",
+      "Launcher and collector shell syntax passed"
+    ],
+    "production_model_accepted": false
+  }
+}

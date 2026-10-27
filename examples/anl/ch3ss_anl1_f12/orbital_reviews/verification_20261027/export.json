@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "scope": "Verification calculations only, with original archive and source hashes in plan.json. No scientific approval.",
+  "sources": [
+    {"root": "runs", "path": "ch3s_ch3ss_orbital_reviews_20261027/verification"},
+    {"root": "repo", "path": "examples/anl/ch3ss_anl1_f12/orbital_reviews/verification_20261027"}
+  ]
+}

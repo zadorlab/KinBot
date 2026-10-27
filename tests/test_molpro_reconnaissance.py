@@ -1543,3 +1543,34 @@ def test_new_preparation_requires_explicit_space_but_legacy_evidence_stays_reada
     data['probe_space'] = {'mode': 'full_valence'}
     source.write_text(json.dumps(data))
     assert prepare(source, output).is_file()
+
+
+def test_explicit_external_pair_control_and_transport(tmp_path):
+    data = _partition_chain_configuration(tmp_path)
+    data['probe_definition']['active_orbitals'] = 8
+    data['probe_definition']['orbital_partition']['open_lowest_external'] = 2
+    source=tmp_path/'external.json';source.write_text(json.dumps(data))
+    manifest=json.loads(prepare(source,tmp_path/'external').read_text())
+    for job in manifest['jobs']:
+        deck=(Path(job['directory'])/(job['name']+'.inp')).read_text()
+        assert 'occ,12\nclosed,4' in deck
+        assert ('rotate,5.1,7.1,0' in deck)==(job['anchor']=='far')
+        assert ('diab,2140.2' in deck)==(job['anchor']!='far')
+    assert json.loads(prepare(source,tmp_path/'external').read_text())['jobs']==manifest['jobs']
+
+
+@pytest.mark.parametrize('value', [-1,True,1.5])
+def test_external_promotion_rejects_invalid_counts(tmp_path,value):
+    data=_partition_chain_configuration(tmp_path)
+    data['probe_definition']['orbital_partition']['open_lowest_external']=value
+    source=tmp_path/'bad_external.json';source.write_text(json.dumps(data))
+    with pytest.raises(ValueError,match='consistent source/target'):
+        prepare(source,tmp_path/'bad')
+
+
+def test_external_promotion_cannot_hide_discarded_active_orbitals(tmp_path):
+    data=_partition_chain_configuration(tmp_path)
+    data['probe_definition']['orbital_partition'].update(open_lowest_external=1,discard_highest=1)
+    source=tmp_path/'conflicting_external.json';source.write_text(json.dumps(data))
+    with pytest.raises(ValueError,match='consistent source/target'):
+        prepare(source,tmp_path/'bad')

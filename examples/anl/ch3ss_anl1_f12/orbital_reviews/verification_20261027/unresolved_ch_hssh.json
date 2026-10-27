@@ -1,0 +1,176 @@
+{
+  "schema": 1,
+  "reviewed": false,
+  "review_note": "UNRESOLVED CH + HSSH: the candidate partition comprises the three-electron CH frontier span plus the occupied sulfur donor on bound S2, CAS(5,4). This is a hypothesis, not an approved production model. The fixed-orbital controls preserve the original frontier exactly: opening source 18 changes the near-minus-far D1 energy by -0.9402/-0.9300 kcal/mol (DZ/TZ), versus -0.0831/-0.0792 for source 19. Near source 18 is S2-rich; 19 is the distal S3 lone pair. The proposed source natural indices are 18,20,21,22 from the optimized CAS(3,3) checkpoint; the noncontiguous indices deliberately include the chemically participating donor. Do not publish the fixed-CASCI checkpoint or substitute the optimized CAS(7,5) union, whose occupied directions reorganize. The new CAS(5,4) partition has controlled CI evidence, not a separately verified optimized CAS(5,4) curve. It cannot pass the review gate without that evidence. Two equal doublets would support the CH spatial pair; the proposed reactive state is D1. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here.",
+  "request_match": {
+    "parent": "791871560500020000002-sb6e34ded5baaf03b",
+    "reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        1.7307702444546638,
+        0.27086108655526714,
+        -0.37411947020968317
+      ],
+      [
+        0.9179141106023018,
+        0.7116419777912163,
+        0.9855949608018707
+      ],
+      [
+        -0.12568800577482328,
+        -0.6857060655301334,
+        2.427706110408171
+      ],
+      [
+        -0.2354255534495347,
+        1.1636822458492646,
+        0.4645940218819718
+      ],
+      [
+        -0.655115738240081,
+        -1.4379195570260341,
+        1.4489659711224927
+      ],
+      [
+        2.589611014641109,
+        -0.37871615155200405,
+        -0.2177226387663768
+      ]
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][S][H]"
+      }
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 5,
+    "active_orbitals": 4,
+    "source": "UNRESOLVED CH + HSSH: the candidate partition comprises the three-electron CH frontier span plus the occupied sulfur donor on bound S2, CAS(5,4). This is a hypothesis, not an approved production model. The fixed-orbital controls preserve the original frontier exactly: opening source 18 changes the near-minus-far D1 energy by -0.9402/-0.9300 kcal/mol (DZ/TZ), versus -0.0831/-0.0792 for source 19. Near source 18 is S2-rich; 19 is the distal S3 lone pair. The proposed source natural indices are 18,20,21,22 from the optimized CAS(3,3) checkpoint; the noncontiguous indices deliberately include the chemically participating donor. Do not publish the fixed-CASCI checkpoint or substitute the optimized CAS(7,5) union, whose occupied directions reorganize. The new CAS(5,4) partition has controlled CI evidence, not a separately verified optimized CAS(5,4) curve. It cannot pass the review gate without that evidence. Two equal doublets would support the CH spatial pair; the proposed reactive state is D1. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__cs_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        18,
+        20,
+        21,
+        22
+      ],
+      "wfu_sha256": "c21d6a2276e13c5396659381643caa5dc2663d387da2af366830557a78dc2151",
+      "output_sha256": "859eefa33ba4977a21a04e0bf502a2a39d09cb18cf8d28f53d7bb55c21d29649",
+      "export_wfu": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_cs/new_cs_ch_frontier/adz__cs_r_2/adz__cs_r_2.wfu",
+      "export_output": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_cs/new_cs_ch_frontier/adz__cs_r_2/adz__cs_r_2.out"
+    },
+    "avtz-f12": {
+      "job": "atz__cs_r_2",
+      "record": "2140.2",
+      "active_indices": [
+        18,
+        20,
+        21,
+        22
+      ],
+      "wfu_sha256": "9c93bb224112efd6c4abf1da6b828e695ca428b3508d75984626225babd32231",
+      "output_sha256": "ea747882bcd90fa1727e1d347a33f1558365089bd8fe6487562a3fb234bca761",
+      "export_wfu": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_cs/new_cs_ch_frontier/atz__cs_r_2/atz__cs_r_2.wfu",
+      "export_output": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_cs/new_cs_ch_frontier/atz__cs_r_2/atz__cs_r_2.out"
+    }
+  },
+  "state_model": {
+    "canonical_orbitals": true,
+    "selected_roots": {
+      "2": 1
+    },
+    "state_average": [
+      {
+        "block_weight": 1.0,
+        "multiplicity": 2,
+        "roots": 2,
+        "weights": [
+          0.5,
+          0.5
+        ]
+      }
+    ],
+    "casscf_options": {
+      "energy_convergence": 1e-08,
+      "exact_diagonalization": true,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999,
+      "quasi_newton": true,
+      "solver": "so_sci"
+    },
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    }
+  },
+  "coordinate": "com",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(5,4)",
+    "vrc_tst_sample_method": "caspt2-f12(5,4)",
+    "vrc_tst_high_method": "caspt2-f12(5,4)",
+    "vrc_tst_state_average_roots": {
+      "2": 2
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
+  },
+  "required_complete_jobs": [
+    "adz__cs_r_2",
+    "adz__cs_r_30",
+    "atz__cs_r_2",
+    "atz__cs_r_30"
+  ],
+  "source_model": "new_cs_ch_frontier",
+  "status": "blocked",
+  "source_panel": "state_support",
+  "evidence_archive_sha256": "c213d108b7c27721684eed9921d1fb9d2a86bc8ad7c3e0ba4933cee60b83ebef",
+  "diagnostic_only": true,
+  "unresolved_reason": "The exact proposed CAS(5,4) has no exported optimized native validation. Fixed CI is not a substitute for that evidence."
+}

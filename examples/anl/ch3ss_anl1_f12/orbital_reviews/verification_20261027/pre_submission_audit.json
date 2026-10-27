@@ -1,0 +1,1613 @@
+{
+  "schema": 1,
+  "status": "known_question_coverage_checked_native_outcomes_pending",
+  "plan_sha256": "b95b93946a47cd805f0be4944957c3c5a3e3bd725e882062cb6c4bb3dc8c5f0a",
+  "archive_sha256": "15b6ef48db20e9aa97b901a3e15759003728bc3bea585865cffcef4c90f3a256",
+  "counts": {
+    "known_channels": 34,
+    "in_scope": 29,
+    "excluded": 5,
+    "inherited_native_reviews": 3,
+    "channel_identities_with_new_tests": 26,
+    "distinct_verification_cases": 25,
+    "max_concurrent_jobs": 23
+  },
+  "inherited_channels": [
+    {
+      "reaction": "470831050000000000002_hom_sci_1_2",
+      "case": "ch3s",
+      "selection": {
+        "decision": "retain_or_pending_L1_checks",
+        "note": "Missing matched-ZPE vdW and L1 checks remain pruning gates; orbital approval is recorded separately in disposition."
+      },
+      "action": "existing_native_review",
+      "evidence": "examples/anl/ch3s_anl1_f12/orbital_reviews/ACTIVE_SPACE.md",
+      "ledger_row": 0,
+      "verification_case": 0
+    },
+    {
+      "reaction": "791471490990000000002_hom_sci_1_2",
+      "case": "ch3ss",
+      "selection": {
+        "decision": "retain_or_pending_L1_checks",
+        "note": "Missing matched-ZPE vdW and L1 checks remain pruning gates; orbital approval is recorded separately in disposition."
+      },
+      "action": "existing_native_review",
+      "evidence": "examples/anl/ch3ss_anl1_f12/orbital_reviews/ACTIVE_SPACE.md",
+      "ledger_row": 4,
+      "verification_case": 4
+    },
+    {
+      "reaction": "791471490990000000002_hom_sci_2_3",
+      "case": "ch3ss",
+      "selection": {
+        "decision": "retain_or_pending_L1_checks",
+        "note": "Missing matched-ZPE vdW and L1 checks remain pruning gates; orbital approval is recorded separately in disposition."
+      },
+      "action": "existing_native_review",
+      "evidence": "examples/anl/ch3ss_anl1_f12/orbital_reviews/ACTIVE_SPACE.md",
+      "ledger_row": 5,
+      "verification_case": 5
+    }
+  ],
+  "cases": [
+    {
+      "case_id": 1,
+      "reactions": [
+        "471030810040000000002_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              11,
+              12,
+              13,
+              14
+            ],
+            "avtz-f12": [
+              11,
+              12,
+              13,
+              14
+            ]
+          },
+          "purpose": "Existing selected active space."
+        },
+        {
+          "name": "sh_sigma_pair",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "avtz-f12": [
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ]
+          },
+          "purpose": "Add the identified SH sigma/antibonding pair."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 2,
+      "reactions": [
+        "471230610040000000002_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              8,
+              12,
+              13,
+              14
+            ],
+            "avtz-f12": [
+              8,
+              12,
+              13,
+              14
+            ]
+          },
+          "purpose": "Existing selected active space."
+        },
+        {
+          "name": "h2s_acceptor",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              8,
+              12,
+              13,
+              14,
+              15
+            ],
+            "avtz-f12": [
+              8,
+              12,
+              13,
+              14,
+              15
+            ]
+          },
+          "purpose": "Add the identified H2S antibonding direction."
+        },
+        {
+          "name": "h2s_pair",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              8,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "avtz-f12": [
+              8,
+              11,
+              12,
+              13,
+              14,
+              15
+            ]
+          },
+          "purpose": "Add its occupied H2S partner as a genuine pair control."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 6,
+      "reactions": [
+        "791472110370000000002_h2_elim_4_5"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              15,
+              19,
+              20,
+              21,
+              22,
+              25
+            ],
+            "avtz-f12": [
+              15,
+              19,
+              20,
+              21,
+              22,
+              25
+            ]
+          },
+          "purpose": "Existing selected active space."
+        },
+        {
+          "name": "without_h2_pair",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Determine whether the H2 sigma/antibonding pair is necessary."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 7,
+      "reactions": [
+        "791472110370000000002_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          "purpose": "Existing selected active space."
+        },
+        {
+          "name": "frontier_only",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test whether the occupied/antibonding pair beyond the SH/frontier manifold is necessary."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 8,
+      "reactions": [
+        "791472110370000000002_r12_insertion_R_2_1_5"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Existing selected active space."
+        },
+        {
+          "name": "sigma_pair",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          "purpose": "Test the identified additional valence sigma/antibonding pair."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 9,
+      "reactions": [
+        "791671450790040000002_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25 from six completed compact-union CASSCF probes at 2, 2.5 and 30 angstrom in both bases. Select CAS(5,4), natural 19-22 of the 2 angstrom record. Added occupied S2 donor canonical 19 joins the original CH2-frontier/HSS-radical source 20-22. At separation the occupations are 2/1/1/1; near 19 and 22 carry C/S bonding-antibonding character, 20 sulfur p and 21 carbon p. Near occupations are 1.96228,1.49558,1.00285,0.53930 (DZ) and 1.96279,1.49549,1.00287,0.53885 (TZ). This corrects the missing carbon-frontier character of the CAS(3,3) near solution without adding other valence bonds. One Q and one D have total weights 0.5 each. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test the next sulfur occupied direction while retaining the three radical frontier directions."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 10,
+      "reactions": [
+        "791671450790040000002_hom_sci_2_3"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25. CH2S + SH: CH2S pi/pi-star plus both SH p components. Source canonical 18,19,21,22, optimized natural 19-22. The alternate donor initialization converges to the same compact solutions at both endpoints in both bases. Two equally weighted doublets support the SH orbital pair. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test the adjacent sulfur occupied direction; reject any frontier substitution."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 11,
+      "reactions": [
+        "791671450790040000002_r12_insertion_R_2_1_5"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 3,
+          "indices": {
+            "avdz-f12": [
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25. CH2 + HSS product exit: two CH2 frontier directions plus the HSS radical, three electrons in three orbitals. Natural 20-22 retain that span at the actual L2 product endpoint and 30 angstrom in both bases. Use this exit-specific checkpoint and atom map, rather than the inner C-S homolysis geometry. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+        },
+        {
+          "name": "donor",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test sulfur donation into the three radical frontier directions at this outer endpoint."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 12,
+      "reactions": [
+        "791671450790040000002_r12_insertion_R_2_1_6"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 3,
+          "indices": {
+            "avdz-f12": [
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25. CH2 + HSS product exit: two CH2 frontier directions plus the HSS radical, three electrons in three orbitals. Natural 20-22 retain that span at the actual L2 product endpoint and 30 angstrom in both bases. Use this exit-specific checkpoint and atom map, rather than the inner C-S homolysis geometry. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+        },
+        {
+          "name": "donor",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test sulfur donation at this independently mapped outer endpoint."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 13,
+      "reactions": [
+        "791671450790040000002_r12_insertion_R_2_3_4"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25. CH2S + SH: CH2S pi/pi-star plus both SH p components. Source canonical 18,19,21,22, optimized natural 19-22. The alternate donor initialization converges to the same compact solutions at both endpoints in both bases. Two equally weighted doublets support the SH orbital pair. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test the adjacent occupied direction without losing either SH pi component."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 14,
+      "reactions": [
+        "791671450790040000002_r12_insertion_R_5_1_6"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 1,
+          "indices": {
+            "avdz-f12": [
+              21
+            ],
+            "avtz-f12": [
+              21
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25. HCSSH + H product exit: retain the H SOMO, natural 21, as formal CAS(1,1). Both tested CAS(3,2) occupied-donor choices give the same endpoint energies and exactly 2/1 occupations at reported precision; no need for either occupied donor as an active orbital was established. CAS(1,1) is a compact production model choice from those single-configuration data, not a separately completed CAS(1,1) or correlated-potential validation. The filled donor stays inactive and optimized. This endpoint has its own H identity and geometry. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+        },
+        {
+          "name": "pair_union",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          "purpose": "Two occupied valence directions, H SOMO and two external trial directions; inspect virtual character explicitly. This is not the previous one-hole CAS(3,2)."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [
+        "Pair-expansion CAS and independent MRCI+Q control; external trial orbital character must be established from native results."
+      ],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 15,
+      "reactions": [
+        "791671450790040000002_r12_insertion_R_6_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 1,
+          "indices": {
+            "avdz-f12": [
+              21
+            ],
+            "avtz-f12": [
+              21
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25. HCSSH + H product exit: retain the H SOMO, natural 21, as formal CAS(1,1). Both tested CAS(3,2) occupied-donor choices give the same endpoint energies and exactly 2/1 occupations at reported precision; no need for either occupied donor as an active orbital was established. CAS(1,1) is a compact production model choice from those single-configuration data, not a separately completed CAS(1,1) or correlated-potential validation. The filled donor stays inactive and optimized. This endpoint has its own H identity and geometry. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+        },
+        {
+          "name": "pair_union",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          "purpose": "Own-endpoint two-donor/two-external pair control; virtuals are trial directions, not assumed valence orbitals."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [
+        "Pair-expansion CAS and independent MRCI+Q control; external trial orbital character must be established from native results."
+      ],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 16,
+      "reactions": [
+        "791671450790040000002_r12_insertion_R_6_1_5"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 1,
+          "indices": {
+            "avdz-f12": [
+              21
+            ],
+            "avtz-f12": [
+              21
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25. HCSSH + H product exit: retain the H SOMO, natural 21, as formal CAS(1,1). Both tested CAS(3,2) occupied-donor choices give the same endpoint energies and exactly 2/1 occupations at reported precision; no need for either occupied donor as an active orbital was established. CAS(1,1) is a compact production model choice from those single-configuration data, not a separately completed CAS(1,1) or correlated-potential validation. The filled donor stays inactive and optimized. This endpoint has its own H identity and geometry. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+        },
+        {
+          "name": "pair_union",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          "purpose": "Own-endpoint two-donor/two-external pair control; confirm resulting valence character."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [
+        "Pair-expansion CAS and independent MRCI+Q control; external trial orbital character must be established from native results."
+      ],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 17,
+      "reactions": [
+        "791671560700020000002-sdc19d1516ced03fc_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "HCSH + SH from the sdc19 parent: select its own optimized CAS(5,4) natural 19-22, two equal doublets, reactive D1. The separated SH (atom 2) pair has 1.5/1.5 occupations and the HCSH frontier pair has 1.96962/0.03038 in DZ. Near the four occupations are 1.95164,1.93409,0.57920,0.53507, with the C-S bonding reorganization inside the selected span. The TZ evidence retains the same chemical roles. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test omitted sulfur donor; keep both SH pi components and the molecular frontier pair."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 18,
+      "reactions": [
+        "791671560700020000002-sedd8f7729b69b19b_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "HCSH + SH from the sedd8 parent: select its own optimized CAS(5,4) natural 19-22, two equal doublets, reactive D1. Separated SH atom 2 retains both p components (1.5 each). The other pair is the HCSH carbon-rich occupied frontier and vacancy (1.93278/0.06722 in DZ); it must not be mislabeled as the identical pi pair of another geometry. Near occupations 1.95434,1.92122,0.58872,0.53572 retain C-S bonding reorganization. Separate TZ and DZ seeds preserve this parent atom map. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Same chemical test at this distinct parent/atom mapping."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 19,
+      "reactions": [
+        "791671580700000000002-s36f1e2b924862f12_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Existing selected active space."
+        },
+        {
+          "name": "sigma_pair",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          "purpose": "Identified molecular C-S occupied/antibonding pair beyond CH2/HSS frontier."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 20,
+      "reactions": [
+        "791671580700000000002-s36f1e2b924862f12_hom_sci_2_3"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Existing selected active space."
+        },
+        {
+          "name": "donor",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test bound-sulfur donor while preserving all three departing-atom S p directions."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 21,
+      "reactions": [
+        "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "CH2(triplet) + HSS(doublet) inner C-S cleavage: select CAS(5,4), the two CH2 frontier directions, HSS radical and bound-sulfur donor. The CAS(3,3) near solution substitutes sulfur-rich character for one carbon bonding direction. The donor CAS restores its C/S character and changes the near-minus-far D1 energy by -2.9448/-2.9443 kcal/mol. Added occupation is 1.97873 near (DZ) and 2 at separation; the three frontier occupations become 1,1,1 far. Use natural 19-22, one quartet and one doublet with equal total weights; only D1 contributes flux. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test second occupied sulfur direction beyond the already necessary bound-sulfur donor."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 22,
+      "reactions": [
+        "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "CH2SH(doublet) + S(triplet): select CAS(7,5). Retain all three atomic S3 p directions (four electrons), the molecular radical, and the occupied bound-S2 donor that participates in association. Compared with CAS(5,4), the donor changes the relative D1 energy by -3.4508/-2.9842 kcal/mol (DZ/TZ), with CI donor-hole configurations and near donor occupation 1.99050/1.98956. At separation it becomes 2, atomic p occupations are 4/3 each, and the radical is 1; all three doublets and three quartets coincide within 4e-7 Eh. Use natural 18-22, equal spin-block weights and equal roots within each block; only D1 contributes flux. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 9,
+          "indices": {
+            "avdz-f12": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              17,
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test the adjacent molecular valence sigma direction; preserve atomic p completeness."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 24,
+      "reactions": [
+        "791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_2_1_5"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 3,
+          "indices": {
+            "avdz-f12": [
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "CH2 + HSS outer exit: select CAS(3,3), two CH2 frontier directions and the HSS radical, natural 20-22. This uses the reverse IRC product endpoint (row 762), not the inner cleavage geometry. Adding the occupied sulfur donor changes the relative D1 energy by only -0.00502/-0.00492 kcal/mol, and its occupation stays 1.99999 near and 2 far. One doublet and one quartet have equal orbital weight; D1 is the single reactive channel. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+        },
+        {
+          "name": "bound_s_donor",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              18,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Open bound-S2 donor 18, not distal-S3 donor 19, at the reverse product endpoint."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 25,
+      "reactions": [
+        "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4",
+        "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_R_3_2_4"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 3,
+          "indices": {
+            "avdz-f12": [
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "HCS + H2S outer exit: retain CAS(3,3), HCS occupied pi/SOMO/pi-star natural 20-22, one doublet D1. The fixed control opening the actual H2S lone pair (source 19) changes the near energy by only 1.7e-7/1.5e-7 Eh (DZ/TZ), with no reported far change and added occupation 2.00000. Opening source 18 instead adds HCS correlation, not the H2S donor. The optimized occupied union expels the intended H2S direction and is not evidence for adding it. Both shift labels share the verified product endpoint but retain their own request identities. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+        },
+        {
+          "name": "h2s_donor",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Open the actual H2S donor 19. Its optimized retention must be checked, not inferred from fixed CI."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 27,
+      "reactions": [
+        "791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_2"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              18,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "UNRESOLVED CH + HSSH: the candidate partition comprises the three-electron CH frontier span plus the occupied sulfur donor on bound S2, CAS(5,4). This is a hypothesis, not an approved production model. The fixed-orbital controls preserve the original frontier exactly: opening source 18 changes the near-minus-far D1 energy by -0.9402/-0.9300 kcal/mol (DZ/TZ), versus -0.0831/-0.0792 for source 19. Near source 18 is S2-rich; 19 is the distal S3 lone pair. The proposed source natural indices are 18,20,21,22 from the optimized CAS(3,3) checkpoint; the noncontiguous indices deliberately include the chemically participating donor. Do not publish the fixed-CASCI checkpoint or substitute the optimized CAS(7,5) union, whose occupied directions reorganize. The new CAS(5,4) partition has controlled CI evidence, not a separately verified optimized CAS(5,4) curve. It cannot pass the review gate without that evidence. Two equal doublets would support the CH spatial pair; the proposed reactive state is D1. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+        },
+        {
+          "name": "frontier_only",
+          "electrons": 3,
+          "indices": {
+            "avdz-f12": [
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Matched actual CASPT2-F12 reference for the donor effect."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Bound and distal sulfur occupied union: test whether the proposed smaller space survives and is sufficient."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [
+        "Independent inward starts from both far sulfur occupied combinations, plus frontier-only and occupied-union controls."
+      ],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 28,
+      "reactions": [
+        "791871560500020000002-sb6e34ded5baaf03b_hom_sci_2_3"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "HCSH + SH: select CAS(5,4), the HCSH frontier pair and both SH pi components. The added occupied direction in the fixed CAS(7,5) control leaves the original four-orbital span intact. Its occupation is 1.99957/1.99963 near and 1.99851/1.99875 far; the relative D1 change is +0.1941/+0.1700 kcal/mol. The earlier optimized larger space exchanged a frontier direction and was not a valid pair-convergence test. Retain the own optimized CAS(5,4) natural 19-22, two equal doublets, reactive D1. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+        },
+        {
+          "name": "occupied_union",
+          "electrons": 7,
+          "indices": {
+            "avdz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Repeat the optimized union only with actual correlated potential and transport; prior substituted solution is not accepted evidence."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 29,
+      "reactions": [
+        "791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 1,
+          "indices": {
+            "avdz-f12": [
+              21
+            ],
+            "avtz-f12": [
+              21
+            ]
+          },
+          "purpose": "Reviewed from the detached 68-job native export. HCSSH + H4 outer product exit: select the explicit CAS(1,1), natural 21, one doublet D1. The H4 SOMO remains H-centered at the actual L2 product geometry and 30 angstrom in avdz-f12 and avtz-f12. Both CAS(3,2) occupied-donor controls give the same reported D1 energy at every anchor; the H SOMO squared overlap is at least 0.9999999999993. Select the formal single-reference radical minimum without an extra filled donor. The one-hole CAS(3,2) comparisons do not establish additional pair-correlation or CASPT2 convergence. Preserve production orbital, state, geometry and connectivity checks, the mapped product-side geometry, the direct CASPT2-F12 avdz/avtz protocol with power 3.7, the separate 30 angstrom asymptote, and the configured COM dividing surfaces and mapped correction-scan anchor. This prepared selection is not installed in retired _r7 or an _r8 run."
+        },
+        {
+          "name": "pair_union",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          "purpose": "Two occupied valence directions plus H SOMO and two external trial directions; verify valence character and pair participation."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [
+        "Pair-expansion CAS and independent MRCI+Q control; external trial orbital character must be established from native results."
+      ],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    },
+    {
+      "case_id": 33,
+      "reactions": [
+        "791871710370000000002_r12_insertion_R_2_1_5"
+      ],
+      "trials": [
+        {
+          "name": "candidate",
+          "electrons": 3,
+          "indices": {
+            "avdz-f12": [
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Reviewed 2026-10-25. HCS + H2S product exit: HCS pi/radical/pi-star from source canonical 19,21,22 and selected natural 20-22. The extra occupied HCS orbital tested in CAS(5,4) changes the near-minus-far CASSCF energy by about -0.22/-0.21 kcal/mol in DZ/TZ; it is not retained. Only repaired v8 results are used; obsolete core-substituted results are excluded. Selected from native occupations and AO coefficients, not an energy-window rule. These fixed-geometry CASSCF screens select a production model; they do not establish quantitative CASPT2-F12, angular or asymptotic-plateau convergence. Preserve production orbital, root and connectivity checks. State averaging is optimization support; only D1 contributes reactive flux. Direct CASPT2-F12 uses avdz-f12/avtz-f12 CBS power 3.7 and the separate 30 angstrom asymptote. Outer dividing surfaces use fragment COM separation; the correction scan uses the mapped interfragment anchor of the saved product complex. Preserve both explicitly configured grids and the product-side geometry."
+        },
+        {
+          "name": "h2s_donor",
+          "electrons": 5,
+          "indices": {
+            "avdz-f12": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "avtz-f12": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          "purpose": "Test the actual H2S donor rather than the previously tested additional HCS occupied orbital."
+        }
+      ],
+      "question_checks": {
+        "minimum_chemical_space": "Compare the named compact/control spaces, native CI and fragment orbital character; identify which added directions matter to the interaction potential.",
+        "optimized_orbital_retention": "Inspect complete native orbitals and same-geometry subspaces; reject substitution of a required fragment direction.",
+        "fragment_and_state_correlation": "Inspect native CI/root energies and all supported multiplicities at separation against the requested fragment states; no silent root or product relabeling.",
+        "path_branch_dependence": "Compare near/back_near and r6/back6 energies, CI and orbital spans in both bases.",
+        "separated_reference": "Compare 20 and 30 angstrom and use each model/orientation own asymptote.",
+        "angular_dependence": "Compare two independent angular configurations with their corresponding separated references.",
+        "relaxation_dependence": "Inspect near/mid candidate relaxations, unchanged fragment connectivity and all spaces on the same final geometries.",
+        "basis_dependence": "Compare matched aDZ-F12/aTZ-F12 interaction energies and D/T extrapolations."
+      },
+      "additional_checks": [],
+      "evidence_status": "planned_not_native_passed",
+      "promotion_ready": false
+    }
+  ],
+  "immediate_promotion_certified": false,
+  "pending_decisions": [
+    "Native numerical and chemical acceptance for each candidate/control; normal termination does not imply acceptance.",
+    "Matched-ZPE L1 shallow-well decisions for 13 channels are separate from orbital review. All remain included.",
+    "Final basis-specific output/WFU hashes, optimized active indices, roots and weights must be bound into the selected R8 models after review.",
+    "The run importer, recovery handoff and R8 input/preflight are separate readiness requirements."
+  ],
+  "limits": [
+    "This is a coverage audit, not a prediction that every calculation or candidate will succeed.",
+    "Unexpected state switches, substituted/diffuse trial orbitals or material control differences remain failures requiring scientific resolution.",
+    "No numerical tolerance or approved model was relaxed to make this audit pass."
+  ]
+}

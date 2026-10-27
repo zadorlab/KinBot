@@ -478,11 +478,14 @@ def _load(path):
                 # inactive natural orbitals, preserving their checkpoint order.
                 # This is not an automatic expansion or a canonical selector.
                 opened = partition.get('open_highest_closed', 0) if isinstance(partition, dict) else 0
+                external = partition.get('open_lowest_external', 0) if isinstance(partition, dict) else 0
                 if (not isinstance(partition, dict) or not keys <= set(partition)
                         or set(partition) - keys - {'orbital_swaps', 'open_highest_closed',
-                                                   'closed_orbital_swaps'}
+                                                   'closed_orbital_swaps', 'open_lowest_external'}
                         or any(type(partition[key]) is not int or partition[key] < 0 for key in keys)
                         or type(opened) is not int or opened < 0
+                        or type(external) is not int or external < 0
+                        or (external and partition['discard_highest'])
                         or (opened and partition['close_lowest'])
                         or partition['source_active_electrons'] < 1
                         or partition['source_active_orbitals'] < 1
@@ -490,7 +493,7 @@ def _load(path):
                         or partition['source_active_electrons'] - 2 * partition['close_lowest'] + 2 * opened
                             != definition['active_electrons']
                         or partition['source_active_orbitals'] - partition['close_lowest']
-                            - partition['discard_highest'] + opened != definition['active_orbitals']
+                            - partition['discard_highest'] + opened + external != definition['active_orbitals']
                         or model.get('orbital_selection') is not None):
                     raise ValueError('An orbital partition requires consistent source/target counts, '
                                      'and no competing orbital selector.')

@@ -208,13 +208,14 @@ def allocations(report_path, freeze_path, output_parent, *, max_gib=128):
     by_node, omitted = {}, []
     for job in jobs:
         node = job.get('reason', '')
-        if (job['job_id'] not in stopped or job['state'] != 'RUNNING'
+        if (job['job_id'] not in stopped or job['state'] not in ('RUNNING', 'STOPPED')
                 or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', node)):
             omitted.append(job)
             continue
         by_node.setdefault(node, job)
     if not by_node:
-        raise RuntimeError('No currently running, STOP-signalled single-node allocation found.')
+        raise RuntimeError('No RUNNING/STOPPED allocation matches the freeze receipt; '
+                           f'no copy steps started. Observed scoped jobs: {jobs!r}')
     output_parent = Path(output_parent).expanduser().resolve()
     if output_parent == root or output_parent.is_relative_to(root):
         raise ValueError('Copy destination must be outside the source run.')

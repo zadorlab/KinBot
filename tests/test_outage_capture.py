@@ -164,13 +164,14 @@ def test_default_leaves_unattributed_and_wrong_host_uncopied(tmp_path, monkeypat
     assert result['files'] == 0
 
 
-def test_copy_orchestration_preserves_frozen_allocations_and_repeats(tmp_path, monkeypatch):
+@pytest.mark.parametrize('state', ['RUNNING', 'STOPPED'])
+def test_copy_orchestration_preserves_frozen_allocations_and_repeats(tmp_path, monkeypatch, state):
     root = tmp_path/'run'; root.mkdir()
     report, freeze = tmp_path/'report.json', tmp_path/'freeze.json'
     put(report, {'root': str(root), 'scratch_locations': []})
     put(freeze, {'root': str(root), 'actions': [dict(action='freeze_running', returncode=0, jobs=['41', '42'])]})
     monkeypatch.setattr('kinbot.run_cleanup._processes', lambda root: [{'state': 'T'}])
-    jobs = [dict(job_id=j, state='RUNNING', reason=n, directory=str(root/'work'))
+    jobs = [dict(job_id=j, state=state, reason=n, directory=str(root/'work'))
             for j,n in [('41','node1'), ('42','node1'), ('43','node2')]]
     monkeypatch.setattr('kinbot.run_cleanup._jobs', lambda root: jobs)
     calls = []

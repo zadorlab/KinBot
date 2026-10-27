@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "screens": [
+    {
+      "name": "new_csh_sh_a",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "state_support/new_csh_sh_a",
+      "recipe": "new_csh_sh_a.json"
+    },
+    {
+      "name": "new_csh_sh_b",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "state_support/new_csh_sh_b",
+      "recipe": "new_csh_sh_b.json"
+    },
+    {
+      "name": "stereo_cs",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "additional_requests/stereo_cs",
+      "recipe": "stereo_cs.json"
+    },
+    {
+      "name": "stereo_ss",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "additional_requests/stereo_ss",
+      "recipe": "stereo_ss.json"
+    },
+    {
+      "name": "stereo_ch2_hss_exit",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "additional_requests/stereo_ch2_hss_exit",
+      "recipe": "stereo_ch2_hss_exit.json"
+    },
+    {
+      "name": "stereo_h_exit",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "additional_requests/stereo_h_exit",
+      "recipe": "stereo_h_exit.json"
+    },
+    {
+      "name": "new_cs",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "state_support/new_cs",
+      "recipe": "new_cs.json"
+    },
+    {
+      "name": "new_hcs_h2s_exit",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "state_support/new_hcs_h2s_exit",
+      "recipe": "new_hcs_h2s_exit.json"
+    },
+    {
+      "name": "new_ss",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "state_support/new_ss",
+      "recipe": "new_ss.json"
+    },
+    {
+      "name": "csh2_sh_exit",
+      "case": "ch3ss",
+      "source_root": "resource",
+      "source": "state_support/csh2_sh_exit",
+      "recipe": "csh2_sh_exit.json"
+    }
+  ]
+}

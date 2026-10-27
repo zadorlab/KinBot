@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "scope": "Closure diagnostics and immutable predecessors, not automatic scientific approval.",
+  "sources": [
+    {"root": "runs", "path": "ch3s_ch3ss_orbital_reviews_20261027"},
+    {"root": "production", "path": "ch3s/input.json"},
+    {"root": "production", "path": "ch3ss/input.json"},
+    {"root": "repo", "path": "examples/anl/orbital_review_batches/r7_closure_20261027"},
+    {"root": "repo", "path": "examples/anl/orbital_review_batches/r7_detached_review_20261027"}
+  ]
+}

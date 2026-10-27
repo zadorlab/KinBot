@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871560500020000002-sb6e34ded5baaf03b",
+    "reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_2_3",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        1.7307702444546638,
+        0.27086108655526714,
+        -0.37411947020968317
+      ],
+      [
+        0.9179141106023018,
+        0.7116419777912163,
+        0.9855949608018707
+      ],
+      [
+        -0.12568800577482328,
+        -0.6857060655301334,
+        2.427706110408171
+      ],
+      [
+        -0.2354255534495347,
+        1.1636822458492646,
+        0.4645940218819718
+      ],
+      [
+        -0.655115738240081,
+        -1.4379195570260341,
+        1.4489659711224927
+      ],
+      [
+        2.589611014641109,
+        -0.37871615155200405,
+        -0.2177226387663768
+      ]
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]#[S][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "new_ss_fixed_sigma",
+      "probe_method": "casci",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "ss_r_2",
+          "seed": "ss_r_2",
+          "seed_sha256": {
+            "adz": "7dcaee1b779139a7ed23a1b7bfdca7e0600cef422daf9ab36a68551c29876cb9",
+            "atz": "c59dff5d5de4ca496e7148ffc06fede4b04888f4f8aa57d90b6fa2c95702af82"
+          }
+        },
+        {
+          "source": "ss_r_30",
+          "seed": "ss_r_30",
+          "seed_sha256": {
+            "adz": "7d47d710fbc4ee76263c775c5a72490cb8ab3176d14e715e21a74de74364167c",
+            "atz": "43861928c5cc88e26f4531fff125120439044872a3e5314223eb21539c2807bb"
+          }
+        }
+      ],
+      "casscf_options": {},
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 7,
+        "active_orbitals": 5,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Fixed same-geometry CASCI adds occupied source 18 to the optimized SH plus HCSH frontier 19-22. Measures CI response without changing the original frontier virtual. The prior optimized comparison reorganized that virtual; do not mislabel its energy change an isolated sigma increment.",
+        "orbital_partition": {
+          "source_active_electrons": 5,
+          "source_active_orbitals": 4,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 1
+        }
+      }
+    }
+  ],
+  "source_model": "new_ss_sh_pi"
+}

@@ -479,7 +479,8 @@ def _load(path):
                 # This is not an automatic expansion or a canonical selector.
                 opened = partition.get('open_highest_closed', 0) if isinstance(partition, dict) else 0
                 if (not isinstance(partition, dict) or not keys <= set(partition)
-                        or set(partition) - keys - {'orbital_swaps', 'open_highest_closed'}
+                        or set(partition) - keys - {'orbital_swaps', 'open_highest_closed',
+                                                   'closed_orbital_swaps'}
                         or any(type(partition[key]) is not int or partition[key] < 0 for key in keys)
                         or type(opened) is not int or opened < 0
                         or (opened and partition['close_lowest'])
@@ -507,6 +508,14 @@ def _load(path):
                         or (electrons - partition['source_active_electrons']) % 2
                         or opened > (electrons - partition['source_active_electrons']) // 2):
                     raise ValueError('Source active electron count is incompatible with the molecule.')
+                closed_swaps = partition.get('closed_orbital_swaps', [])
+                source_closed = (electrons - partition['source_active_electrons']) // 2
+                if (not isinstance(closed_swaps, list) or (closed_swaps and not opened)
+                        or any(not isinstance(pair, list) or len(pair) != 2
+                               or any(type(i) is not int or not 1 <= i <= source_closed for i in pair)
+                               or pair[0] == pair[1] for pair in closed_swaps)):
+                    raise ValueError('closed_orbital_swaps require opening closed orbitals and distinct '
+                                     'one-based source-closed index pairs.')
             elif not scf_seed and model.get('orbital_selection', {}).get('mode') != 'avas':
                 raise ValueError('A reconnaissance candidate requires explicit AVAS targets.')
             if data['multiplicity'] not in {entry['multiplicity'] for entry in model['state_average']}:
@@ -803,6 +812,11 @@ def _deck(data, basis, anchor, stem, previous=None):
                 # MULTI documents angle=0 as its explicit exchange operation.
                 start += ''.join(f'\nrotate,{source_closed + a}.1,{source_closed + b}.1,0'
                                  for a, b in partition['orbital_swaps'])
+            if initial_partition and partition.get('closed_orbital_swaps'):
+                # Promote a chemically identified inactive direction rather
+                # than assuming the highest inactive ordinal is that orbital.
+                start += ''.join(f'\nrotate,{a}.1,{b}.1,0'
+                                 for a, b in partition['closed_orbital_swaps'])
             multi = multi.replace(opening, opening + f'\n{start}{diab}', 1)
             deck = '! Initial orbital checkpoint SHA-256: {{PREVIOUS_WFU_SHA256}}\n' + deck
         if method == 'casscf' and controls:

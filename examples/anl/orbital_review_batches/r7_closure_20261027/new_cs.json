@@ -1,0 +1,245 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871560500020000002-sb6e34ded5baaf03b",
+    "reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        1.7307702444546638,
+        0.27086108655526714,
+        -0.37411947020968317
+      ],
+      [
+        0.9179141106023018,
+        0.7116419777912163,
+        0.9855949608018707
+      ],
+      [
+        -0.12568800577482328,
+        -0.6857060655301334,
+        2.427706110408171
+      ],
+      [
+        -0.2354255534495347,
+        1.1636822458492646,
+        0.4645940218819718
+      ],
+      [
+        -0.655115738240081,
+        -1.4379195570260341,
+        1.4489659711224927
+      ],
+      [
+        2.589611014641109,
+        -0.37871615155200405,
+        -0.2177226387663768
+      ]
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][S][H]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "new_cs_fixed_18",
+      "probe_method": "casci",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "cs_r_2",
+          "seed": "cs_r_2",
+          "seed_sha256": {
+            "adz": "c21d6a2276e13c5396659381643caa5dc2663d387da2af366830557a78dc2151",
+            "atz": "9c93bb224112efd6c4abf1da6b828e695ca428b3508d75984626225babd32231"
+          }
+        },
+        {
+          "source": "cs_r_30",
+          "seed": "cs_r_30",
+          "seed_sha256": {
+            "adz": "01c9f72bf1acffcc17075dea070876ae000ee791db336b3c46f1e0c260c3fd4e",
+            "atz": "7f4763bcdaeb13dccc8e6713d18e329da58398dde69ca8bbda6d2c7afc7e6dae"
+          }
+        }
+      ],
+      "casscf_options": {},
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Fixed-orbital CASCI: add source inactive 18 to the identical optimized frontier 20-22. Report the identity and CI participation of this direction at each endpoint; do not equate near/far ordinals with a conserved donor. Separates CI-space response from the orbital substitution in the earlier optimized control.",
+        "orbital_partition": {
+          "source_active_electrons": 3,
+          "source_active_orbitals": 3,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 1,
+          "closed_orbital_swaps": [
+            [
+              18,
+              19
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "new_cs_fixed_19",
+      "probe_method": "casci",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "cs_r_2",
+          "seed": "cs_r_2",
+          "seed_sha256": {
+            "adz": "c21d6a2276e13c5396659381643caa5dc2663d387da2af366830557a78dc2151",
+            "atz": "9c93bb224112efd6c4abf1da6b828e695ca428b3508d75984626225babd32231"
+          }
+        },
+        {
+          "source": "cs_r_30",
+          "seed": "cs_r_30",
+          "seed_sha256": {
+            "adz": "01c9f72bf1acffcc17075dea070876ae000ee791db336b3c46f1e0c260c3fd4e",
+            "atz": "7f4763bcdaeb13dccc8e6713d18e329da58398dde69ca8bbda6d2c7afc7e6dae"
+          }
+        }
+      ],
+      "casscf_options": {},
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Fixed-orbital CASCI: add source inactive 19 to the identical optimized frontier 20-22. Report the identity and CI participation of this direction at each endpoint; do not equate near/far ordinals with a conserved donor. Separates CI-space response from the orbital substitution in the earlier optimized control.",
+        "orbital_partition": {
+          "source_active_electrons": 3,
+          "source_active_orbitals": 3,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 1
+        }
+      }
+    },
+    {
+      "name": "new_cs_occupied_union",
+      "probe_method": "casscf",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "cs_r_2",
+          "seed": "cs_r_2",
+          "seed_sha256": {
+            "adz": "c21d6a2276e13c5396659381643caa5dc2663d387da2af366830557a78dc2151",
+            "atz": "9c93bb224112efd6c4abf1da6b828e695ca428b3508d75984626225babd32231"
+          }
+        },
+        {
+          "source": "cs_r_30",
+          "seed": "cs_r_30",
+          "seed_sha256": {
+            "adz": "01c9f72bf1acffcc17075dea070876ae000ee791db336b3c46f1e0c260c3fd4e",
+            "atz": "7f4763bcdaeb13dccc8e6713d18e329da58398dde69ca8bbda6d2c7afc7e6dae"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 7,
+        "active_orbitals": 5,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Union of both occupied alternatives 18/19 and the reviewed frontier 20-22. Native optimized character and CI must show whether a smaller chemically complete subset can be retained; total-energy lowering is not the acceptance rule.",
+        "orbital_partition": {
+          "source_active_electrons": 3,
+          "source_active_orbitals": 3,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 2
+        }
+      }
+    }
+  ],
+  "source_model": "new_cs_ch_frontier"
+}

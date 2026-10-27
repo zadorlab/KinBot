@@ -146,13 +146,12 @@ def candidates(source, recipe, output, *, preflight=False, resume=False, resourc
         raise ValueError('Keep reconnaissance outside the production run directory.')
     # A single completed source manifest is explicit. Multi-model successors
     # require choosing a source, rather than silently picking one candidate.
-    if len(previous['systems']) != 1:
-        raise ValueError('Choose one source model for a new partition comparison.')
-    manifest_path = Path(previous['systems'][0]['manifest'])
+    system = _selected_system(previous, controls)
+    manifest_path = Path(system['manifest'])
     original = _read(manifest_path)
     if not original['jobs'] or any(j['status'] != 'complete' for j in original['jobs']):
         raise ValueError('Finish the source screen before preparing candidates.')
-    loaded = recon._load(previous['systems'][0]['configuration'])
+    loaded = recon._load(system['configuration'])
     scf_source = not bool(loaded.get('_probe_space'))
     anchors = {a['name']: a for a in loaded['anchors']}
     jobs = {j['name']: j for j in original['jobs']}
@@ -529,6 +528,22 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
                     partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
 
 
+def _batch_source(production, item, resource_root):
+    """Resolve an explicit source within its declared read-only evidence tree."""
+    if 'source' not in item:
+        if 'source_root' in item:
+            raise ValueError('source_root requires a source review.')
+        return None
+    kind = item.get('source_root', 'production')
+    if kind not in ('production', 'resource') or (kind == 'resource' and resource_root is None):
+        raise ValueError('source_root must be production, or resource with an explicit resource root.')
+    root = Path(resource_root if kind == 'resource' else production).resolve(strict=True)
+    source = (root/item['source']).resolve(strict=True)
+    if root not in source.parents:
+        raise ValueError('Source review escapes its declared evidence tree.')
+    return source
+
+
 def batch(production, plan, output, *, shared_pool=False, preflight=False, resume=False,
           resource_root=None):
     """Stage explicit SCF, CASCI or seeded compact probes under one review cap.
@@ -561,7 +576,7 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
                 if _read(child/'recipe.json') != _read(plan.parent/entry['recipe']):
                     raise ValueError('Existing batch recipe changed: '+child.name)
                 if 'source' in entry:
-                    candidates(production/entry['source'], plan.parent/entry['recipe'], child,
+                    candidates(_batch_source(production, entry, resource_root), plan.parent/entry['recipe'], child,
                                resume=True, resource_root=resource_root)
             return dict(status='resume_ready', directory=str(output),
                         tasks=sum(len(_read(s['manifest'])['jobs']) for s in saved['systems']))
@@ -584,10 +599,9 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
         control = _read(recipe)
         _require_available_recipe(control)
         candidate = 'source' in item
-        source = (production/item['source']).resolve(strict=True) if candidate else None
-        if candidate and (production not in source.parents
-                          or not _saved(source).get('shared_pool') or not shared_pool):
-            raise ValueError('Batch candidates require a completed source in the shared production tree.')
+        source = _batch_source(production, item, resource_root)
+        if candidate and (not _saved(source).get('shared_pool') or not shared_pool):
+            raise ValueError('Batch candidates require a completed source with shared-pool ownership.')
         config = control.get('reconnaissance', {})
         if not candidate and (config.get('correlation_checks')
                 or (config.get('probe_active_space') and config.get('probe_method', 'casci') != 'casci')):

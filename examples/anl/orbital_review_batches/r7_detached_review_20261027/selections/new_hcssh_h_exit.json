@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "reviewed": true,
+  "review_note": "Reviewed from the detached 68-job native export. HCSSH + H4 outer product exit: select the explicit CAS(1,1), natural 21, one doublet D1. The H4 SOMO remains H-centered at the actual L2 product geometry and 30 angstrom in avdz-f12 and avtz-f12. Both CAS(3,2) occupied-donor controls give the same reported D1 energy at every anchor; the H SOMO squared overlap is at least 0.9999999999993. Select the formal single-reference radical minimum without an extra filled donor. The one-hole CAS(3,2) comparisons do not establish additional pair-correlation or CASPT2 convergence. Preserve production orbital, state, geometry and connectivity checks, the mapped product-side geometry, the direct CASPT2-F12 avdz/avtz protocol with power 3.7, the separate 30 angstrom asymptote, and the configured COM dividing surfaces and mapped correction-scan anchor. This prepared selection is not installed in retired _r7 or an _r8 run.",
+  "request_match": {
+    "parent": "791871560500020000002-sb6e34ded5baaf03b",
+    "reaction": "791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "bond": [
+      5,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]#[S]#[S][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H]"
+      }
+    ],
+    "positions": [
+      [
+        1.7307702444546638,
+        0.27086108655526714,
+        -0.37411947020968317
+      ],
+      [
+        0.9179141106023018,
+        0.7116419777912163,
+        0.9855949608018707
+      ],
+      [
+        -0.12568800577482328,
+        -0.6857060655301334,
+        2.427706110408171
+      ],
+      [
+        -0.2354255534495347,
+        1.1636822458492646,
+        0.4645940218819718
+      ],
+      [
+        -0.655115738240081,
+        -1.4379195570260341,
+        1.4489659711224927
+      ],
+      [
+        2.589611014641109,
+        -0.37871615155200405,
+        -0.2177226387663768
+      ]
+    ]
+  },
+  "active_space": {
+    "mode": "selected",
+    "active_electrons": 1,
+    "active_orbitals": 1,
+    "source": "Reviewed from the detached 68-job native export. HCSSH + H4 outer product exit: select the explicit CAS(1,1), natural 21, one doublet D1. The H4 SOMO remains H-centered at the actual L2 product geometry and 30 angstrom in avdz-f12 and avtz-f12. Both CAS(3,2) occupied-donor controls give the same reported D1 energy at every anchor; the H SOMO squared overlap is at least 0.9999999999993. Select the formal single-reference radical minimum without an extra filled donor. The one-hole CAS(3,2) comparisons do not establish additional pair-correlation or CASPT2 convergence. Preserve production orbital, state, geometry and connectivity checks, the mapped product-side geometry, the direct CASPT2-F12 avdz/avtz protocol with power 3.7, the separate 30 angstrom asymptote, and the configured COM dividing surfaces and mapped correction-scan anchor. This prepared selection is not installed in retired _r7 or an _r8 run."
+  },
+  "basis_seeds": {
+    "avdz-f12": {
+      "job": "adz__exit_l2",
+      "record": "2140.2",
+      "active_indices": [
+        21
+      ],
+      "wfu_sha256": "4f22325ab2973beb505579d252c3667a34da53463243dab605b5d0256531d08a",
+      "output_sha256": "ee44e15423029c03d500a49c47569a6fab1084edd312b32a05ffe1d3bb4fca30"
+    },
+    "avtz-f12": {
+      "job": "atz__exit_l2",
+      "record": "2140.2",
+      "active_indices": [
+        21
+      ],
+      "wfu_sha256": "c7fc36b258a20bb1f527d761b38bddbeb027ba28487b1fa5d0f91598b37a6f8d",
+      "output_sha256": "1012fa3e6cfd3472026232b64117bea360e22a4c91b0b751351510d30b00daf4"
+    }
+  },
+  "state_model": {
+    "canonical_orbitals": true,
+    "selected_roots": {
+      "2": 1
+    },
+    "state_average": [
+      {
+        "multiplicity": 2,
+        "roots": 1,
+        "weights": [
+          1.0
+        ]
+      }
+    ],
+    "casscf_options": {
+      "energy_convergence": 1e-08,
+      "exact_diagonalization": true,
+      "gradient_convergence": 1e-05,
+      "max_iterations": 999,
+      "quasi_newton": true,
+      "solver": "so_sci"
+    },
+    "correlation_options": {
+      "max_iterations": 2000,
+      "max_reference_iterations": 2000,
+      "max_reference_vectors": 60,
+      "energy_convergence": 1e-08,
+      "coefficient_convergence": 1e-05,
+      "reference_policy": "state_average"
+    }
+  },
+  "coordinate": "com",
+  "distances_parameter": "rotdpy_dist",
+  "states": [
+    {
+      "multiplicity": 2,
+      "root": 1,
+      "weight": 1.0,
+      "energy_offset_cm_inverse": 0.0,
+      "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+    }
+  ],
+  "parameters": {
+    "vrc_tst_scan_method": "caspt2-f12(1,1)",
+    "vrc_tst_sample_method": "caspt2-f12(1,1)",
+    "vrc_tst_high_method": "caspt2-f12(1,1)",
+    "vrc_tst_state_average_roots": {
+      "2": 1
+    },
+    "vrc_tst_selected_roots": {
+      "2": 1
+    },
+    "vrc_tst_correction_model": "direct",
+    "vrc_tst_high_basis": [
+      "avdz-f12",
+      "avtz-f12"
+    ],
+    "vrc_tst_high_extrapolation_power": 3.7
+  },
+  "required_complete_jobs": [
+    "adz__exit_l2",
+    "adz__exit_r_30",
+    "atz__exit_l2",
+    "atz__exit_r_30"
+  ],
+  "source_model": "new_hcssh_h_somo",
+  "status": "ready"
+}

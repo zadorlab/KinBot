@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791671560700020000002-sdc19d1516ced03fc",
+    "reaction": "791671560700020000002-sdc19d1516ced03fc_hom_sci_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        1.3613713254443298,
+        0.5375367699999841,
+        0.5522506298854094
+      ],
+      [
+        2.4568390905196122,
+        1.7090476447107894,
+        -0.10359121547501121
+      ],
+      [
+        0.12535738514985387,
+        -0.275003501590133,
+        -0.3503460823326994
+      ],
+      [
+        1.622960640557075,
+        2.254947646601135,
+        -1.007550798346044
+      ],
+      [
+        0.7716672242537498,
+        -0.34183449823031015,
+        -1.528623231546283
+      ],
+      [
+        1.4556581751449214,
+        0.2968269256964255,
+        1.5971232477393817
+      ]
+    ],
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]#[S][H]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "new_csh_sh_a_frontier",
+      "probe_method": "casscf",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "cs_r_2",
+          "seed": "cs_r_30",
+          "seed_sha256": {
+            "adz": "025cd74b84e225ac1c4b1be539ae113eb95fa789e0ec511307a2dd436cf2cd53",
+            "atz": "7369d5f49091b357260bab8a87ce22b47c4354911c33a73aacf4eb759c30f04f"
+          },
+          "active_indices": {
+            "adz": [
+              18,
+              19,
+              21,
+              22
+            ],
+            "atz": [
+              18,
+              19,
+              21,
+              22
+            ]
+          }
+        },
+        {
+          "source": "cs_r_30",
+          "seed": "cs_r_30",
+          "seed_sha256": {
+            "adz": "025cd74b84e225ac1c4b1be539ae113eb95fa789e0ec511307a2dd436cf2cd53",
+            "atz": "7369d5f49091b357260bab8a87ce22b47c4354911c33a73aacf4eb759c30f04f"
+          },
+          "active_indices": {
+            "adz": [
+              18,
+              19,
+              21,
+              22
+            ],
+            "atz": [
+              18,
+              19,
+              21,
+              22
+            ]
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Own HCSH pi/pi-star pair and complete SH pi pair. Use the earlier CH2S/SH exit selection as chemical guidance, never its ordinal checkpoint.",
+        "orbital_source": "scf"
+      }
+    }
+  ]
+}

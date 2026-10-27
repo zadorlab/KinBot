@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "archive_sha256": "e4c5bbe1dc5346b95db594f41d9d59319173bbc3fc8a0790892adaba2bcfe2a8",
+  "sources": [
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_csh_sh_a/native/reconnaissance.json",
+      "sha256": "19a1cd9fcaa45d993b110a43092c3ee6386fc99cc7ac444529fc72b904685819"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_csh_sh_b/native/reconnaissance.json",
+      "sha256": "fe2c058f1358d083f28f27a03dcbdad6161b123d8c934105448488c77ca8c53a"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/additional_requests/stereo_cs/native/reconnaissance.json",
+      "sha256": "125bb22f4d2a4153aacb412ac2ad159561ed1d12f2df4e07896723c27f0f096e"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/additional_requests/stereo_ss/native/reconnaissance.json",
+      "sha256": "310ad6a057b0e1c99fdec803187c2b758d321e2c9e5d85d9831a46f8c8d84aef"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/additional_requests/stereo_ch2_hss_exit/native/reconnaissance.json",
+      "sha256": "e5aee8649d642ca3217ea748d91dcd5352d678406856f0a99f2ee8beaeccccde"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/additional_requests/stereo_h_exit/native/reconnaissance.json",
+      "sha256": "ca4adba51d2800da39ee673cee443bbdc87895e11b9d1ea2fed73025b7d7d8d6"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_cs/new_cs_ch_frontier/reconnaissance.json",
+      "sha256": "d5385654a97cb5d56db4ee7e32ac276d94952842d78c201f4218d8a405d2bcb9"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_hcs_h2s_exit/new_hcs_h2s_pi/reconnaissance.json",
+      "sha256": "f69c7ac9a6f3c40f026eea1b955c617e0cb80787ad1a25aea9dd90d8131fdbfb"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/new_ss/new_ss_sh_pi/reconnaissance.json",
+      "sha256": "51558cb8d9e81161254c54fd466c2d8ca622b8691d15df2f6ebd8ace235c8d5f"
+    },
+    {
+      "manifest": "runs/ch3s_ch3ss_orbital_reviews_20261027/state_support/csh2_sh_exit/csh2_sh_six_state_frontier/reconnaissance.json",
+      "sha256": "58292a07b9d15a046f3745adf532512415cdbd5c5dde47571d35354226f21320"
+    }
+  ],
+  "note": "Scientific hypotheses only. No CAS selection or production approval is implied."
+}

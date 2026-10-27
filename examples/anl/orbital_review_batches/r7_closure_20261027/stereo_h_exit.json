@@ -1,0 +1,139 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791671580700000000002-s8fc26f5f496eeb4e",
+    "reaction": "791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_2_5",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        0.3355773977002209,
+        -0.71749412541219,
+        0.35322753535113305
+      ],
+      [
+        0.6043485885987534,
+        0.37174297211598306,
+        1.6820645582025335
+      ],
+      [
+        -0.3063039845597809,
+        -0.247151902304043,
+        3.337180049735536
+      ],
+      [
+        1.0597336310482994,
+        -0.7409053937936192,
+        -0.4461417199490593
+      ],
+      [
+        -0.6670640951332626,
+        -1.0942457715941958,
+        0.243674947967765
+      ],
+      [
+        1.9386031034490805,
+        0.108893931314972,
+        1.7801821540149658
+      ]
+    ],
+    "bond": [
+      4,
+      5
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]#[S]([H])=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "stereo_h_exit_somo",
+      "probe_method": "casscf",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_r_30",
+          "seed_sha256": {
+            "adz": "4a0193692fe6de020e62cad39d9c1ede604671ce5696db70f4bab10bce7eb815",
+            "atz": "25766f207b68cb466a23b2859424c8b801f0a0e64979cb54fb578bdd1fdb68da"
+          },
+          "active_indices": {
+            "adz": [
+              21
+            ],
+            "atz": [
+              21
+            ]
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "seed_sha256": {
+            "adz": "4a0193692fe6de020e62cad39d9c1ede604671ce5696db70f4bab10bce7eb815",
+            "atz": "25766f207b68cb466a23b2859424c8b801f0a0e64979cb54fb578bdd1fdb68da"
+          },
+          "active_indices": {
+            "adz": [
+              21
+            ],
+            "atz": [
+              21
+            ]
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 1,
+        "active_orbitals": 1,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Own departing H5 1s SOMO and closed-shell HCSSH fragment at the verified forward L2 endpoint. Confirm the formal radical minimum as for previously reviewed H exits; no one-hole donor comparison is repeated.",
+        "orbital_source": "scf"
+      }
+    }
+  ]
+}

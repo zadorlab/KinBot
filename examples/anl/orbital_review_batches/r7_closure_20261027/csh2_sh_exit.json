@@ -1,0 +1,283 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871710370000000002",
+    "reaction": "791871710370000000002_R_Addition_CSm_R_5_1_2",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        0.5846511503115959,
+        -0.4473894706201628,
+        -0.2784601779532531
+      ],
+      [
+        0.575829259100462,
+        0.08822847380033334,
+        1.3556121135846924
+      ],
+      [
+        -0.3934694339188291,
+        -0.4816026987731529,
+        2.9599609456852365
+      ],
+      [
+        0.4488465799514408,
+        1.4374948831700918,
+        1.2061461932292064
+      ],
+      [
+        -0.12573832349725744,
+        -1.2795037814491745,
+        -0.3408185512544808
+      ],
+      [
+        1.908852058798488,
+        0.1575620792914991,
+        1.6336098268919377
+      ]
+    ],
+    "bond": [
+      2,
+      3
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S]([H])=[C]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "csh2_sh_branch_out",
+      "probe_method": "casscf",
+      "orbital_initialization": "propagated",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "name": "out_3p0",
+          "distance_angstrom": 3.0,
+          "orbital_chain": "out",
+          "seed": "exit_l2",
+          "seed_sha256": {
+            "adz": "a47cebf7b6717078e46427166c777bbdacdf6a5b7fff9d7341099f78022faec7",
+            "atz": "af3c90560b9c2d2ac64b212b43cffe2206a1236e5054eb7946ea6b21a1a2e2f8"
+          }
+        },
+        {
+          "source": "exit_l2",
+          "name": "out_3p5",
+          "distance_angstrom": 3.5,
+          "orbital_chain": "out",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "out_4p0",
+          "distance_angstrom": 4.0,
+          "orbital_chain": "out",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "out_5p0",
+          "distance_angstrom": 5.0,
+          "orbital_chain": "out",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "out_6p0",
+          "distance_angstrom": 6.0,
+          "orbital_chain": "out",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "out_8p0",
+          "distance_angstrom": 8.0,
+          "orbital_chain": "out",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "out_12p0",
+          "distance_angstrom": 12.0,
+          "orbital_chain": "out",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "out_20p0",
+          "distance_angstrom": 20.0,
+          "orbital_chain": "out",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "out_30p0",
+          "distance_angstrom": 30.0,
+          "orbital_chain": "out",
+          "propagate": true
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1,
+            "4": 1
+          },
+          "state_average": [
+            {
+              "block_weight": 0.6666666666666666,
+              "multiplicity": 2,
+              "roots": 4,
+              "weights": [
+                0.25,
+                0.25,
+                0.25,
+                0.25
+              ]
+            },
+            {
+              "block_weight": 0.3333333333333333,
+              "multiplicity": 4,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ]
+            }
+          ]
+        },
+        "chemical_note": "SH retention is already established. Correlate the 4D/2Q states through separation: far D3/D4 are singlet-fragment plus SH whereas far D1/D2 coincide with quartet triplet-fragment branches. Record crossings/mixing, not a forced lowest-root assignment.",
+        "orbital_partition": {
+          "source_active_electrons": 5,
+          "source_active_orbitals": 4,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 0
+        }
+      }
+    },
+    {
+      "name": "csh2_sh_branch_back",
+      "probe_method": "casscf",
+      "orbital_initialization": "propagated",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "name": "back_0",
+          "distance_angstrom": 8.0,
+          "orbital_chain": "back",
+          "seed": "exit_r_30p0",
+          "seed_sha256": {
+            "adz": "1c4df29ccffdc3645e0a276e66f9cee475009e063b2a59770ab58db2bef63d3a",
+            "atz": "777e7568ff2001b7ebb5841d8838c51493976b038782837ed3268fc402058d41"
+          }
+        },
+        {
+          "source": "exit_l2",
+          "name": "back_1",
+          "distance_angstrom": 4.0,
+          "orbital_chain": "back",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "back_2",
+          "distance_angstrom": 3.0,
+          "orbital_chain": "back",
+          "propagate": true
+        },
+        {
+          "source": "exit_l2",
+          "name": "back_3",
+          "distance_angstrom": 2.4857243464237877,
+          "orbital_chain": "back",
+          "propagate": true
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1,
+            "4": 1
+          },
+          "state_average": [
+            {
+              "block_weight": 0.6666666666666666,
+              "multiplicity": 2,
+              "roots": 4,
+              "weights": [
+                0.25,
+                0.25,
+                0.25,
+                0.25
+              ]
+            },
+            {
+              "block_weight": 0.3333333333333333,
+              "multiplicity": 4,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ]
+            }
+          ]
+        },
+        "chemical_note": "Return branch check from independently optimized 30 A seed, retaining the identical six-state manifold. Test path dependence of the near optimized solution.",
+        "orbital_partition": {
+          "source_active_electrons": 5,
+          "source_active_orbitals": 4,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 0
+        }
+      }
+    }
+  ],
+  "source_model": "csh2_sh_six_state_frontier"
+}

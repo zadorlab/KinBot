@@ -1,0 +1,242 @@
+{
+  "schema": 1,
+  "status": "ready",
+  "max_jobs": 3,
+  "request_match": {
+    "parent": "791871560500020000002-sb6e34ded5baaf03b",
+    "reaction": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        1.7307702444546638,
+        0.27086108655526714,
+        -0.37411947020968317
+      ],
+      [
+        0.9179141106023018,
+        0.7116419777912163,
+        0.9855949608018707
+      ],
+      [
+        -0.12568800577482328,
+        -0.6857060655301334,
+        2.427706110408171
+      ],
+      [
+        -0.2354255534495347,
+        1.1636822458492646,
+        0.4645940218819718
+      ],
+      [
+        -0.655115738240081,
+        -1.4379195570260341,
+        1.4489659711224927
+      ],
+      [
+        2.589611014641109,
+        -0.37871615155200405,
+        -0.2177226387663768
+      ]
+    ],
+    "bond": [
+      1,
+      4
+    ],
+    "charge": 0,
+    "multiplicity": 2,
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[H][C]=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][S][H]"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "name": "new_hcs_h2s_exit_fixed_18",
+      "probe_method": "casci",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_l2",
+          "seed_sha256": {
+            "adz": "e5cdc493e21c98414e9ef9684f1a132bcecbb4b72dd7129947b2e9c201873060",
+            "atz": "4efabf43d2c655fa890a8a3641016305fc20908a8dd4dee9569828f05903afc9"
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "seed_sha256": {
+            "adz": "e94ac5c06fd27412a51f8354876738295a4aa7aa2d672327fe06a6c9713db762",
+            "atz": "f3d16ab4cf5573ff129c3ae2112f532474f04dc7b1279a59d245b4c84d3f716f"
+          }
+        }
+      ],
+      "casscf_options": {},
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Fixed-orbital CASCI: add source inactive 18 to the identical optimized frontier 20-22. Report the identity and CI participation of this direction at each endpoint; do not equate near/far ordinals with a conserved donor. Separates CI-space response from the orbital substitution in the earlier optimized control.",
+        "orbital_partition": {
+          "source_active_electrons": 3,
+          "source_active_orbitals": 3,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 1,
+          "closed_orbital_swaps": [
+            [
+              18,
+              19
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "new_hcs_h2s_exit_fixed_19",
+      "probe_method": "casci",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_l2",
+          "seed_sha256": {
+            "adz": "e5cdc493e21c98414e9ef9684f1a132bcecbb4b72dd7129947b2e9c201873060",
+            "atz": "4efabf43d2c655fa890a8a3641016305fc20908a8dd4dee9569828f05903afc9"
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "seed_sha256": {
+            "adz": "e94ac5c06fd27412a51f8354876738295a4aa7aa2d672327fe06a6c9713db762",
+            "atz": "f3d16ab4cf5573ff129c3ae2112f532474f04dc7b1279a59d245b4c84d3f716f"
+          }
+        }
+      ],
+      "casscf_options": {},
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Fixed-orbital CASCI: add source inactive 19 to the identical optimized frontier 20-22. Report the identity and CI participation of this direction at each endpoint; do not equate near/far ordinals with a conserved donor. Separates CI-space response from the orbital substitution in the earlier optimized control.",
+        "orbital_partition": {
+          "source_active_electrons": 3,
+          "source_active_orbitals": 3,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 1
+        }
+      }
+    },
+    {
+      "name": "new_hcs_h2s_exit_occupied_union",
+      "probe_method": "casscf",
+      "orbital_initialization": "independent",
+      "anchors": [
+        {
+          "source": "exit_l2",
+          "seed": "exit_l2",
+          "seed_sha256": {
+            "adz": "e5cdc493e21c98414e9ef9684f1a132bcecbb4b72dd7129947b2e9c201873060",
+            "atz": "4efabf43d2c655fa890a8a3641016305fc20908a8dd4dee9569828f05903afc9"
+          }
+        },
+        {
+          "source": "exit_r_30",
+          "seed": "exit_r_30",
+          "seed_sha256": {
+            "adz": "e94ac5c06fd27412a51f8354876738295a4aa7aa2d672327fe06a6c9713db762",
+            "atz": "f3d16ab4cf5573ff129c3ae2112f532474f04dc7b1279a59d245b4c84d3f716f"
+          }
+        }
+      ],
+      "casscf_options": {
+        "solver": "so_sci",
+        "quasi_newton": true,
+        "exact_diagonalization": true,
+        "energy_convergence": 1e-08,
+        "gradient_convergence": 1e-05,
+        "max_iterations": 999
+      },
+      "correlation_checks": [],
+      "probe_definition": {
+        "active_electrons": 7,
+        "active_orbitals": 5,
+        "state_model": {
+          "canonical_orbitals": true,
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 1,
+              "weights": [
+                1.0
+              ],
+              "block_weight": 1.0
+            }
+          ]
+        },
+        "chemical_note": "Union of both occupied alternatives 18/19 and the reviewed frontier 20-22. Native optimized character and CI must show whether a smaller chemically complete subset can be retained; total-energy lowering is not the acceptance rule.",
+        "orbital_partition": {
+          "source_active_electrons": 3,
+          "source_active_orbitals": 3,
+          "close_lowest": 0,
+          "discard_highest": 0,
+          "open_highest_closed": 2
+        }
+      }
+    }
+  ],
+  "source_model": "new_hcs_h2s_pi"
+}

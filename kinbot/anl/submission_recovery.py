@@ -129,7 +129,8 @@ claim/receipt or live allocation may exist. Real sbatch uncertainty is retained.
     from kinbot import run_policy, run_cleanup
     from kinbot.anl import dispatch
     graph, spec, state = dispatch._load(graph)
-    pending = [n for n, e in state['tasks'].items() if e.get('status') == 'submitting']
+    pending = [n for n, e in state['tasks'].items() if e.get('status') == 'submitting'
+               and not e.get('job_id') and not e.get('submission_started_utc')]
     if not pending:
         return state
     policy = run_policy.find(graph)

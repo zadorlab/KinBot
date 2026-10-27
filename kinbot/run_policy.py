@@ -138,6 +138,13 @@ def _initial_exclusions(root):
 
 
 def _validate_timeout(value):
+    allocation_retries = value.get('allocation_retries', 0)
+    if type(allocation_retries) is not int or not 0 <= allocation_retries <= 10:
+        raise ValueError('allocation_retries must be an integer from 0 to 10.')
+    delay = value.get('allocation_retry_delay', 300)
+    cap = value.get('allocation_retry_max_delay', 3600)
+    if type(delay) is not int or type(cap) is not int or not 1 <= delay <= cap <= 86400:
+        raise ValueError('Allocation retry delays must be integers: 1 <= delay <= maximum <= 86400 seconds.')
     steps = value.get('optimization_step_retries', 2)
     if type(steps) is not int or not 0 <= steps <= 10:
         raise ValueError('optimization_step_retries must be an integer from 0 to 10.')
@@ -152,7 +159,8 @@ def _validate_timeout(value):
 
 def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
            timeout_retries=None, timeout_walltime_factor=None, manage_pending=None,
-           optimization_step_retries=None, orbital_review_reserve=None, fair_submission=None):
+           optimization_step_retries=None, orbital_review_reserve=None, fair_submission=None,
+           allocation_retries=None, allocation_retry_delay=None, allocation_retry_max_delay=None):
     root = Path(root).resolve(strict=True)
     path = root/NAME
     ancestor = find(root.parent)
@@ -192,6 +200,11 @@ def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
             value['minimum_walltime'] = minimum_walltime
         if timeout_retries is not None:
             value['timeout_retries'] = timeout_retries
+        for key, option in (('allocation_retries', allocation_retries),
+                            ('allocation_retry_delay', allocation_retry_delay),
+                            ('allocation_retry_max_delay', allocation_retry_max_delay)):
+            if option is not None:
+                value[key] = option
         if timeout_walltime_factor is not None:
             value['timeout_walltime_factor'] = timeout_walltime_factor
         if optimization_step_retries is not None:
@@ -220,6 +233,7 @@ def validate_options(options):
     if not isinstance(options, dict) or set(options) - {
             'max_jobs', 'excluded_nodes', 'minimum_walltime',
             'timeout_retries', 'timeout_walltime_factor', 'manage_pending', 'optimization_step_retries',
+            'allocation_retries', 'allocation_retry_delay', 'allocation_retry_max_delay',
             'orbital_review_reserve', 'fair_submission'}:
         raise ValueError('Invalid queue_live_policy option.')
     if type(options.get('max_jobs')) is not int or options['max_jobs'] < 0:
@@ -250,6 +264,9 @@ def initialize(directory, options):
                fair_submission=options.get('fair_submission'),
                minimum_walltime=options.get('minimum_walltime'),
                timeout_retries=options.get('timeout_retries'),
+               allocation_retries=options.get('allocation_retries'),
+               allocation_retry_delay=options.get('allocation_retry_delay'),
+               allocation_retry_max_delay=options.get('allocation_retry_max_delay'),
                optimization_step_retries=options.get('optimization_step_retries'),
                orbital_review_reserve=options.get('orbital_review_reserve'),
                manage_pending=options.get('manage_pending'),
@@ -481,6 +498,9 @@ def main(argv=None):
     change.add_argument('--exclude', action='append', default=[], help='Comma-separated explicit node names to exclude.')
     change.add_argument('--allow', action='append', default=[], help='Remove explicit/learned exclusions for these nodes.')
     change.add_argument('--timeout-retries', type=int, help='Bounded clean retries after confirmed walltime exhaustion (0 disables).')
+    change.add_argument('--allocation-retries', type=int, help='Bounded retries after confirmed node/boot failure or preemption (default 0).')
+    change.add_argument('--allocation-retry-delay', type=int, help='Initial allocation retry delay, seconds (default 300).')
+    change.add_argument('--allocation-retry-max-delay', type=int, help='Maximum exponential retry delay, seconds (default 3600).')
     change.add_argument('--timeout-walltime-factor', type=float, help='Multiply the previous time limit for a timeout retry (default 2).')
     change.add_argument('--optimization-step-retries', type=int, help='Extra same-optimizer step chunks (default 2; zero disables).')
     change.add_argument('--orbital-review-reserve', type=int,
@@ -496,6 +516,9 @@ def main(argv=None):
     if args.action == 'set':
         result = update(args.root, max_jobs=args.max_jobs,
                         timeout_retries=args.timeout_retries,
+                        allocation_retries=args.allocation_retries,
+                        allocation_retry_delay=args.allocation_retry_delay,
+                        allocation_retry_max_delay=args.allocation_retry_max_delay,
                         optimization_step_retries=args.optimization_step_retries,
                         orbital_review_reserve=args.orbital_review_reserve,
                         fair_submission=args.fair_submission,

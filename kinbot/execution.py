@@ -15,15 +15,21 @@ SLURM_TERMINAL_STATES = {
 }
 
 
-def slurm_job_record(job_id, *, timeout=15):
-    """Best-effort retained scheduler evidence; does not require accounting."""
+def slurm_job_record(job_id, *, timeout=15, strict=False):
+    """Retained scheduler evidence; strict mode distinguishes outage from purge."""
     try:
         result = subprocess.run(
             ['scontrol', 'show', 'job', '-o', str(job_id)],
             capture_output=True, text=True, check=False, timeout=timeout)
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as error:
+        if strict:
+            raise OSError(f'Cannot query Slurm job {job_id}: {error}') from error
         return {}
     if result.returncode or not result.stdout.strip():
+        if strict and not (result.returncode and not result.stdout.strip() and re.fullmatch(
+                r'(?:slurm_load_jobs error:\s*)?Invalid job id specified',
+                result.stderr.strip(), re.I)):
+            raise OSError(f'Slurm job query was not observed: {result.stderr.strip()}')
         return {}
     return {match.group(1): match.group(2)
             for match in re.finditer(r'(\w+)=([^\s]+)', result.stdout)}

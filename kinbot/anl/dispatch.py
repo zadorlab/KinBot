@@ -814,6 +814,9 @@ def _stage_task(run_dir, spec, state, task):
     pending = state.get('pending_retries', {})
     if ident in pending:
         lineage = pending.pop(ident)
+        if task['kind'] == 'ase_optimize' and lineage.get('previous_attempt'):
+            from kinbot.anl.optimization_progress import stage_previous
+            stage_previous(directory, lineage['previous_attempt'])
         state['tasks'][ident].update({key: lineage[key] for key in
             ('attempt', 'previous_attempt', 'outage_recovery_reason') if key in lineage})
 
@@ -1331,6 +1334,12 @@ def reparse_failed(run_dir, ident):
 
 
 def _run_ase_optimize(directory, record):
+    from kinbot.anl.optimization_progress import ownership
+    with ownership(directory):
+        return _run_ase_optimize_owned(directory, record)
+
+
+def _run_ase_optimize_owned(directory, record):
     task = record['task']
     atoms = read(directory / 'geometry.xyz')
     if len(atoms) == 1:
@@ -1356,6 +1365,14 @@ def _run_ase_optimize(directory, record):
     initial_positions = atoms.positions.copy()
     from kinbot.anl.optimization_recovery import load_seed
     used_chunks = load_seed(directory, record, atoms)
+    from kinbot.optimization_budget import step_retries
+    from kinbot.anl.optimization_progress import Progress
+    options = task.get('optimizer', {})
+    max_chunks=1+options.get('step_retries',step_retries(directory))
+    progress=Progress(directory,record,atoms,used_chunks=used_chunks,
+                      chunk_steps=options.get('steps',100),max_chunks=max_chunks)
+    archived=progress.archive_previous_attempt(task['id'])
+    progress.receipt(archived)
     # UMA/OMol reads these from Atoms.info; XYZ does not preserve them.
     atoms.info['charge'] = record['molecule']['charge']
     atoms.info['spin'] = record['molecule']['multiplicity']
@@ -1363,7 +1380,6 @@ def _run_ase_optimize(directory, record):
     atoms.calc = build_calculator(profile, directory, {
         'name': task['id'], 'charge': record['molecule']['charge'],
         'mult': record['molecule']['multiplicity']})
-    options = task.get('optimizer', {})
     common = {'trajectory': str(directory / 'optimization.traj'),
               'logfile': str(directory / 'optimization.log')}
 
@@ -1389,12 +1405,13 @@ def _run_ase_optimize(directory, record):
                 **common, **options.get('sella_kwargs', {}))
         else:
             optimizer = BFGS(atoms, **common)
-        from kinbot.optimization_budget import run_optimizer, step_retries
+        progress.attach(optimizer,atoms)
+        from kinbot.optimization_budget import run_optimizer
         return run_optimizer(optimizer, fmax=options.get('fmax', 0.03),
                              steps=options.get('steps', 100),
-                             chunks=max(1, 1 + options.get('step_retries',
-                                 step_retries(directory)) - used_chunks),
-                             used=used_chunks, report=directory/'optimization_budget.json')
+                             chunks=max(1,max_chunks-used_chunks),
+                             used=used_chunks, report=directory/'optimization_budget.json',
+                             remaining_steps=progress.remaining(),used_steps=progress.steps)
 
     recovery_files = []
     if 'minimum_recovery' in options:
@@ -1409,6 +1426,8 @@ def _run_ase_optimize(directory, record):
         'energy_ev': energy_ev, 'energy_hartree': energy_ev / Hartree,
         'optimizer': profile.optimizer if len(atoms) > 2 else 'bfgs_or_atom',
         'order': options.get('order', 0),
+        'optimization_restart': dict(checkpoint=progress.loaded,steps_used=progress.steps,
+                                    step_limit=progress.limit,scope='geometry_only'),
         'generated_files': [*getattr(atoms.calc, 'generated_files', []),
                             *recovery_files],
     }
@@ -1461,7 +1480,8 @@ def run_task(task_file):
             names.update(task.get('files_from_env', {}))
             names.update(details.get('generated_files', []))
         else:
-            names |= {'final.xyz', 'optimization.log', 'continuation.xyz', 'optimization_budget.json'}
+            names |= {'final.xyz', 'optimization.log', 'continuation.xyz', 'optimization_budget.json',
+                      'optimization_resume.json'}
             if (directory / 'optimization.traj').is_file():
                 names.add('optimization.traj')
             names.update(_basename(name, 'calculator artifact')
@@ -1696,6 +1716,8 @@ def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False,
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)
     timeout_recovery.resume(run_dir)
+    from kinbot.anl import allocation_recovery
+    allocation_recovery.resume(run_dir)
     lock_recovery.resume(run_dir)
     optimization_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
@@ -2295,6 +2317,8 @@ def advance(run_dir, submit=False, submit_only=None):
     account_recovery.resume(run_dir)
     scratch_recovery.resume(run_dir)
     timeout_recovery.resume(run_dir)
+    from kinbot.anl import allocation_recovery
+    allocation_recovery.resume(run_dir)
     lock_recovery.resume(run_dir)
     optimization_recovery.resume(run_dir)
     run_dir, spec, state = _load(run_dir)
@@ -2375,7 +2399,7 @@ def advance(run_dir, submit=False, submit_only=None):
         task = by_id[ident]
         if entry['status'] == 'submitting':
             raise RuntimeError(f'{ident}: submission outcome uncertain; reconcile Slurm job manually.')
-        if entry['status'] in ('staged', 'submitted', 'complete'):
+        if entry['status'] in ('staged', 'submitted', 'complete', 'retry_wait'):
             _verify_stage_files(run_dir, task, entry)
         if entry['status'] == 'complete':
             outcome = run_dir / 'tasks' / ident / 'execution.json'
@@ -2385,12 +2409,14 @@ def advance(run_dir, submit=False, submit_only=None):
                                             json.loads(outcome.read_text()))
             if actual_hash != entry.get('final_geometry_sha256'):
                 raise RuntimeError(f'{ident}: completed geometry state changed.')
-        if entry['status'] not in ('staged', 'submitted'):
+        if entry['status'] not in ('staged', 'submitted', 'retry_wait'):
             continue
         # The retry guard may replace execution.json while this allocation
         # is alive. Query first, then read the final record, never a failed
         # intermediate attempt captured before a slow scheduler response.
-        if entry['status'] == 'submitted' and _job_active(entry['job_id']):
+        if entry['status'] in ('submitted', 'retry_wait') and _job_active(entry['job_id']):
+            entry['status'] = 'submitted'
+            entry.pop('allocation_retry_wait', None)
             timeout_retry.observe(run_dir / 'tasks' / ident, entry['job_id'])
             entry.pop('missing_since', None)
             continue
@@ -2424,6 +2450,9 @@ def advance(run_dir, submit=False, submit_only=None):
             entry['status'] = 'failed'
             entry['error'] = 'Slurm job disappeared without execution.json.'
             entry['failure_phase'] = 'scheduler'
+
+    if not refining:
+        state = allocation_recovery.recover(run_dir, spec, state)
 
     # Old pinned workers may fail after replacement controllers start. Repair
     # only this recognized startup bug, once, before deriving component skips.

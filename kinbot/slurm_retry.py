@@ -137,7 +137,7 @@ def _artifacts(prefixes, directories, journal):
         # to snapshot all earlier WFU/output archives again.
         for parent, folders, filenames in os.walk(directory):
             folders[:] = [name for name in folders if name not in
-                          ('attempts', '.kinbot_slurm_io_retries')]
+                          ('attempts', '.kinbot_slurm_io_retries', '.kinbot_checkpoints')]
             paths.update(path for name in filenames for path in [Path(parent) / name]
                          if path.is_file() and not path.is_symlink() and journal not in path.parents)
     for prefix in prefixes:

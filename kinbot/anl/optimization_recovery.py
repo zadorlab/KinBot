@@ -28,6 +28,8 @@ def _last_point(directory, task, original):
     record = json.loads((directory/'task.json').read_text())
     expected = original.copy()
     load_seed(directory, record, expected)
+    from kinbot.anl.optimization_progress import restore_attempt_start
+    restore_attempt_start(directory,record,expected)
     if not np.allclose(first.positions, expected.positions, atol=1.e-6, rtol=0):
         raise RuntimeError('Optimizer trajectory does not start at its staged geometry.')
     energy, forces = last.get_potential_energy(), last.get_forces()

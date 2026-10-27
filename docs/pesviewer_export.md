@@ -5,12 +5,21 @@ Use a separate PESViewer Python environment. The old conda-forge PESViewer
 reading an input. Upstream commit
 [`ee0e18fcdb6bc8de6fddaa3e4726a0143c785a73`](https://github.com/zadorlab/PESViewer/commit/ee0e18fcdb6bc8de6fddaa3e4726a0143c785a73)
 removes the obsolete drawing APIs, but retains the version number 1.1.0.
-Install that revision in the viewer environment, preserving its dependencies:
+KinBot includes a 23 KiB, platform-independent wheel of that exact revision in
+`external/pesviewer_wheel`. Its Python source files were verified byte for byte
+against upstream; the license and hashes are included beside the wheel. From
+the KinBot checkout, install it in the viewer environment:
 
 ```bash
-"$HOME/.local/envs/pesviewer/bin/python" -m pip install --no-deps --force-reinstall \
-  "https://github.com/zadorlab/PESViewer/archive/ee0e18fcdb6bc8de6fddaa3e4726a0143c785a73.tar.gz"
+"$HOME/.local/envs/pesviewer/bin/python" -m pip --disable-pip-version-check install \
+  --no-index --no-deps --force-reinstall \
+  external/pesviewer_wheel/pesviewer-1.1.0-py3-none-any.whl
 ```
+
+This installation uses no package index, downloads no build tools or runtime
+dependencies, and leaves certificate verification unchanged. Installing the
+GitHub source archive instead invokes an isolated setuptools build; that can
+fail on sites where Python cannot verify the package index's certificate.
 
 From the KinBot checkout, use that same interpreter to export a saved run:
 

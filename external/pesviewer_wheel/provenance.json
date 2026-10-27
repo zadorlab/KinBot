@@ -1,0 +1,13 @@
+{
+  "upstream": "https://github.com/zadorlab/PESViewer",
+  "commit": "ee0e18fcdb6bc8de6fddaa3e4726a0143c785a73",
+  "wheel": "pesviewer-1.1.0-py3-none-any.whl",
+  "sha256": "f565bd319f079e81f737aa5fe5be2761c5f2174085c5730ebb63f6ee1f1d7f9f",
+  "source_files_verified_byte_for_byte": {
+    "pesviewer/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pesviewer/gen_resonant_structs.py": "be0d1f98bf0f24c7d0ec1f917e3051ba5cef223c2f880cdfaf911d8d2de2d4c2",
+    "pesviewer/pesviewer.py": "0b44e82e8c254665abd217a4f906af8a6b9bce8f7e8f49b1729523a80e0865da"
+  },
+  "platform": "py3-none-any",
+  "changes_to_upstream_source": false
+}

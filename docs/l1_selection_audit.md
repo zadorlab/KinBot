@@ -12,16 +12,42 @@ PES well at the same recorded L1 theory. The 150 kcal/mol ceiling is absolute
 relative to that initial well, not relative to each newly explored well.
 Missing ZPE, mismatched stoichiometry/theory/charge, and ambiguous IRC endpoints
 remain `unknown`; they cannot justify deleting work. Special legacy MP2/BLS
-barrier calculations need a matched reference and are left unclassified.
+barrier calculations need a matched reference. A family name alone does not
+prove a different theory: profiled inputs can resolve scan/BLS method and basis
+to the same L1 model. Explicit different overrides remain unclassified.
 
 For neutral unimolecular searches, the two optimized L1 IRC endpoints are
 assigned with the same stereochemical identity test as the owning IRC driver.
 The product-side fragment identities must agree with the accepted product map.
+Endpoint assignment does not require endpoint ZPE. Sella/FC IRC templates save
+optimized endpoint geometry and electronic energy without a Hessian; ordinary
+single-product reactions can still use the independently completed product-well
+E+ZPE after the endpoint identity is established.
 The binding depth is the sum of isolated fragment E+ZPE minus complex E+ZPE.
 A complex is retained only when its depth is **strictly greater** than the
 requested threshold. `vdW_detection` already defaults to 0.5 kcal/mol; the audit
 also reports each worker's saved value and live search override. Reapplying the
 same threshold may therefore remove no additional complexes.
+
+Schema 2 also reports two depth diagnostics, **without applying them to the
+selection**:
+
+- `electronic_only`: isolated-fragment electronic energies minus the endpoint
+  electronic energy, omitting ZPE on both sides.
+- `legacy_zero_zpe_diagnostic`: the calculation made by the existing detector
+  when `get_qc_zpe` substitutes zero for an absent endpoint ZPE, while retaining
+  fragment ZPE. This can inflate apparent binding and is not a matched 0 K
+  binding energy. It is omitted for an invalid/nonfinite ZPE.
+
+`threshold_only_replay` compares the saved `vdW_detection` threshold with the
+requested threshold using that legacy formula (or matched E+ZPE when complete).
+It answers what changing the threshold alone would do with the same inputs;
+it does not certify a physical depth or reconstruct a historical attempt.
+The main `vdw`, VRC, cascade, and work-selection decisions remain `unknown`
+where matched ZPE is missing. No missing ZPE is silently supplied from L2,
+from separated fragments, or by zero. Choosing electronic-only filtering or
+calculating the missing L1 endpoint Hessians is a separate model/workflow choice
+before a production handoff. This audit does not change the existing detector.
 
 A shallow complex loses its separate complex-to-fragments VRC channel. Its
 preceding tight-TS reaction can remain. A homolytic channel is not a vdW complex

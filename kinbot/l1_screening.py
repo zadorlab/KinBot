@@ -44,8 +44,36 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
-def read_points(directory, names, profile=None, *, geometry=False):
-    """Read latest rows without creating a database, journal, or ASE lock file."""
+def finite_number(value):
+    return (not isinstance(value, bool) and isinstance(value, (int, float))
+            and math.isfinite(value))
+
+
+def comparable_family(parameters, profile, family):
+    """Do legacy family overrides actually change the recorded L1 model?
+
+    Profiled Gaussian inputs default scan/BLS theory to L1, whereas explicit
+    overrides can still select a different model. Neural backends do not use
+    these method/basis overrides. Include search-checkpoint family spellings.
+    """
+    if family == 'unknown':
+        return False
+    special = family in (*constants.mp2_list, 'radditionmultiplebond',
+                          'biradrecombinationr', 'r12cycloaddition', 'r14iradscission')
+    bls = family in ('barrierless_saddle', 'barrierlesssaddle')
+    if not (special or bls) or profile.get('calculator') in ('fairchem', 'nn_pes'):
+        return True
+    prefix = 'scan' if special else 'barrierless_saddle'
+    return all(str(parameters.get(prefix+'_'+key, '')).casefold()
+               == str(profile.get(key, '')).casefold() for key in ('method', 'basis'))
+
+
+def read_points(directory, names, profile=None, *, geometry=False, require_zpe=True):
+    """Read latest rows without creating a database, journal, or ASE lock file.
+
+    Geometry-only IRC endpoint identification must not require a Hessian. An
+    absent ZPE stays absent, including when electronic energies are available.
+    """
     from ase.db import connect
     directory = Path(directory)
     if profile is not None:
@@ -76,11 +104,15 @@ def read_points(directory, names, profile=None, *, geometry=False):
                 raise ValueError(f'{name}: no normally completed L1 row.')
             row = rows[0]
             energy, zpe = row.data.get('energy'), row.data.get('zpe')
-            if any(isinstance(v, bool) or not isinstance(v, (int, float))
-                   or not math.isfinite(v) for v in (energy, zpe)):
-                raise ValueError(f'{name}: missing/nonfinite energy or ZPE.')
+            if not finite_number(energy):
+                raise ValueError(f'{name}: missing/nonfinite electronic energy.')
+            if require_zpe and not finite_number(zpe):
+                raise ValueError(f'{name}: missing/nonfinite ZPE.')
             points.append(dict(name=name, row_id=row.id, symbols=row.toatoms().get_chemical_symbols(),
-                energy_hartree=energy*constants.EVtoHARTREE, zpe_hartree=zpe))
+                energy_hartree=energy*constants.EVtoHARTREE,
+                zpe_hartree=zpe if finite_number(zpe) else None))
+            if not finite_number(zpe):
+                points[-1]['zpe_status'] = 'missing' if zpe is None else 'invalid'
             if geometry:
                 points[-1]['positions'] = row.positions.tolist()
                 points[-1]['frequencies'] = list(map(float, row.data.get('frequencies', [])))
@@ -121,6 +153,9 @@ def evaluate(ref, profile, points, limit, *, comparable=True, charge=None):
     symbols = Counter(s for p in points for s in p['symbols'])
     if not points or symbols != Counter(ref['point']['symbols']):
         return dict(result, decision='unknown', reason='Different stoichiometry; cannot compare absolute energies.')
+    if any(not finite_number(p.get(key)) for p in [*points, ref['point']]
+           for key in ('energy_hartree', 'zpe_hartree')):
+        return dict(result, decision='unknown', reason='Missing/nonfinite energy or ZPE; no zero substitution.')
     value = sum(p['energy_hartree']+p['zpe_hartree'] for p in points)
     zero = ref['point']['energy_hartree']+ref['point']['zpe_hartree']
     relative = (value-zero)*constants.AUtoKCAL

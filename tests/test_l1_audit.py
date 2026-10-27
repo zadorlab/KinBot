@@ -23,6 +23,21 @@ def test_vdw_is_strict_depth_not_absolute_energy():
     assert audit.depth_decision(point(-1, ['C']), fragments, .5)['decision'] == 'unknown'
 
 
+def test_missing_endpoint_zpe_does_not_turn_fragment_zpe_into_binding():
+    endpoint = dict(point(-1-.2/constants.AUtoKCAL), zpe_hartree=None, zpe_status='missing')
+    fragments = [dict(point(-.5, ['H']), zpe_hartree=.01)]*2
+    result = audit.depth_decision(endpoint, fragments, .5)
+    assert result['decision'] == 'unknown'
+    assert 'depth_kcal_mol' not in result
+    assert result['electronic_only']['decision'] == 'exclude'
+    assert result['electronic_only']['depth_kcal_mol'] == pytest.approx(.2)
+    old = result['legacy_zero_zpe_diagnostic']
+    assert old['decision'] == 'retain'
+    assert old['depth_kcal_mol'] == pytest.approx(.2+.02*constants.AUtoKCAL)
+    endpoint['zpe_status'] = 'invalid'
+    assert 'legacy_zero_zpe_diagnostic' not in audit.depth_decision(endpoint, fragments, .5)
+
+
 def worker(name, targets=(), height='retain'):
     return dict(worker=name, well=dict(decision=height), work=dict(graphs=[]), channels=[
         dict(reaction=name+'_'+target, accepted_l2=True, operator_rejected=False,
@@ -56,7 +71,8 @@ def test_high_parent_removes_all_local_vrc_but_shallow_complex_keeps_tight_react
     assert rows[1]['channels'][0]['vrc']['decision']=='exclude'
 
 
-def test_report_readonly_depth_review_plan_and_work_counts(tmp_path,monkeypatch):
+@pytest.mark.parametrize('missing_zpe', [False, True])
+def test_report_readonly_depth_review_plan_and_work_counts(tmp_path,monkeypatch,missing_zpe):
     w,par=case(tmp_path)
     routes=json.loads((w/'.kinbot_theory_jobs.json').read_text())
     routes['jobs'].update({'100_exit':dict(level='l1'),'100_IRC_F':dict(level='l1')})
@@ -67,6 +83,8 @@ def test_report_readonly_depth_review_plan_and_work_counts(tmp_path,monkeypatch)
     db.write(Atoms('H2'),name='100_exit',data=dict(status='normal',energy=-.95/constants.EVtoHARTREE,zpe=0.))
     db.write(Atoms('H'),name='H_well',data=dict(status='normal',energy=-.48/constants.EVtoHARTREE,zpe=0.))
     endpoint=dict(point(-.96-.2/constants.AUtoKCAL),name='100_exit_IRC_F_prod',row_id=9)
+    if missing_zpe:
+        endpoint.update(zpe_hartree=None, zpe_status='missing')
     monkeypatch.setattr(audit,'product_side',lambda *a:(endpoint,['H','H']))
     atomic_json(w/'accepted_l2_network.json',dict(network=dict(reactions=[
         dict(name='100_exit',family='test',products=['H','H'],product_complex='complex') ])))
@@ -78,10 +96,11 @@ def test_report_readonly_depth_review_plan_and_work_counts(tmp_path,monkeypatch)
     before={str(p):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
     result=audit.report(tmp_path,150,.5,[plan])
     c=result['workers'][0]['channels'][0]
-    assert c['decision']=='retain'
-    assert c['vrc']['decision']=='exclude'
-    assert c['vdw']['depth_kcal_mol']==pytest.approx(.2)
-    assert result['review_plans'][0]['vrc_decision']=='exclude'
+    assert c['decision']==('unknown' if missing_zpe else 'retain')
+    assert c['vrc']['decision']==('unknown' if missing_zpe else 'exclude')
+    assert c['vdw']['electronic_only']['depth_kcal_mol']==pytest.approx(.2)
+    assert result['review_plans'][0]['vrc_decision']==c['vrc']['decision']
+    assert c['vdw']['threshold_only_replay']['requested_decision']=='exclude'
     assert result['counts']['recorded_task_statuses']=={'complete':1}
     assert result['workers'][0]['work']['graphs'][0]['dedicated_vrc_reactions']==['100_exit']
     assert before=={str(p):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
@@ -97,6 +116,25 @@ def test_incomplete_endpoint_preserves_low_complex_when_fragments_high(tmp_path,
     assert c['isolated_products']['decision']=='exclude'
     assert c['products']['decision']=='unknown'
     assert c['vrc']['decision']=='unknown'
+
+
+def test_missing_endpoint_hessian_does_not_hide_completed_single_product(tmp_path,monkeypatch):
+    w, par = case(tmp_path)
+    db = connect(w/'kinbot.db')
+    db.write(Atoms('H2', positions=[[0,0,0],[0,0,.7]]), name='100_well',
+             data=dict(status='normal', energy=-1/constants.EVtoHARTREE, zpe=0.))
+    db.write(Atoms('H2'), name='100_test',
+             data=dict(status='normal', energy=-.95/constants.EVtoHARTREE, zpe=0.))
+    endpoint = dict(point(-.96), zpe_hartree=None, zpe_status='missing')
+    monkeypatch.setattr(audit, 'product_side', lambda *a: (endpoint, ['200']))
+    atomic_json(w/'accepted_l2_network.json', dict(network=dict(reactions=[
+        dict(name='100_test', family='test', products=['200'])])))
+    result = audit.report(tmp_path)
+    channel = result['workers'][0]['channels'][0]
+    assert channel['product_complex']['decision'] == 'unknown'
+    assert channel['products']['decision'] == 'retain'
+    assert channel['products']['relative_kcal_mol'] == pytest.approx(150)
+    assert channel['decision'] == 'retain'
 
 
 def test_missing_initial_reference_is_reported_not_used_as_zero(tmp_path):
@@ -122,7 +160,8 @@ def test_irc_child_uses_recorded_parent_route_only(tmp_path):
         l1.read_points(w,['100_IRC_F_prod'],l1.theory(par))
 
 
-def test_real_product_side_identity_selects_opposite_endpoint(tmp_path):
+@pytest.mark.parametrize('zpe', [0., None])
+def test_real_product_side_identity_selects_opposite_endpoint(tmp_path,zpe):
     w,par=case(tmp_path)
     routes=json.loads((w/'.kinbot_theory_jobs.json').read_text())
     routes['jobs'].update({n:dict(level='l1') for n in ('rxn_IRC_F','rxn_IRC_R')})
@@ -130,11 +169,14 @@ def test_real_product_side_identity_selects_opposite_endpoint(tmp_path):
     db=connect(w/'kinbot.db')
     for side,distance in [('F',4.),('R',.7)]:
         db.write(Atoms('H2',positions=[[0,0,0],[0,0,distance]]),name='rxn_IRC_'+side+'_prod',
-            data=dict(status='normal',energy=-1,zpe=0.))
+            data=dict(status='normal',energy=-1,zpe=zpe))
     parent=audit.species(dict(point(-1),name='parent',positions=[[0,0,0],[0,0,.7]]),par)
     chosen,fragments=audit.product_side(w,'rxn',par,l1.theory(par),parent)
     assert chosen['name']=='rxn_IRC_F_prod'
     assert len(fragments)==2
+    if zpe is None:
+        assert chosen['zpe_hartree'] is None
+        assert chosen['zpe_status']=='missing'
     db.write(Atoms('H2',positions=[[0,0,0],[0,0,.7]]),name='rxn_IRC_F_prod',
         data=dict(status='normal',energy=-1,zpe=0.))
     with pytest.raises(ValueError,match='exactly one'):

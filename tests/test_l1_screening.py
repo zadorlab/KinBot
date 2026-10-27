@@ -63,6 +63,31 @@ def test_sum_fragments_only_for_same_stoichiometry(tmp_path):
     assert not screen.screen(other,['H_well','H_well'],reaction='test',kind='products',directory=worker)
 
 
+def test_optional_zpe_preserves_missing_value_but_energy_screen_requires_it(tmp_path):
+    worker, par = case(tmp_path)
+    db = connect(worker/'kinbot.db')
+    db.write(Atoms('H2'), name='200_well', data=dict(status='normal', energy=-.2))
+    points = screen.read_points(worker, ['200_well'], screen.theory(par), require_zpe=False)
+    assert points[0]['zpe_hartree'] is None
+    assert screen.evaluate(screen.reference(tmp_path), screen.theory(par), points,
+                           150, charge=0)['decision'] == 'unknown'
+    with pytest.raises(ValueError, match='ZPE'):
+        screen.read_points(worker, ['200_well'], screen.theory(par))
+
+
+def test_family_names_do_not_imply_mp2_when_profile_overrides_match(tmp_path):
+    _, par = case(tmp_path)
+    profile = screen.theory(par)
+    assert par['scan_method'] == profile['method']
+    assert screen.comparable_family(par, profile, 'R_Addition_MultipleBond')
+    assert screen.comparable_family(par, profile, 'radditionmultiplebond')
+    assert screen.comparable_family(par, profile, 'barrierless_saddle')
+    par['scan_method'] = 'mp2'
+    assert not screen.comparable_family(par, profile, 'R_Addition_MultipleBond')
+    assert screen.comparable_family(par, dict(calculator='fairchem'), 'R_Addition_MultipleBond')
+    assert not screen.comparable_family(par, profile, 'unknown')
+
+
 def test_disabled_makes_no_files_or_database_reads(tmp_path):
     assert not screen.screen({},['no-db'],reaction='x',kind='barrier',directory=tmp_path)
     assert not list(tmp_path.iterdir())

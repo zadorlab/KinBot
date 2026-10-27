@@ -66,7 +66,8 @@ def product_side(worker, name, par, profile, parent):
     from kinbot.electronic_states import apply_electronic_state_model
     if par.get('bimol') or par['charge'] != 0:
         raise ValueError('Bimolecular/charged endpoint assignment needs a separate identity audit.')
-    points = l1.read_points(worker, [name+'_IRC_F_prod', name+'_IRC_R_prod'], profile, geometry=True)
+    points = l1.read_points(worker, [name+'_IRC_F_prod', name+'_IRC_R_prod'], profile,
+                            geometry=True, require_zpe=False)
     reference = require_supported_identity(parent)
     objects = [species(p, par) for p in points]
     matches = [identity_matches(reference, require_supported_identity(o),
@@ -83,13 +84,28 @@ def product_side(worker, name, par, profile, parent):
 def depth_decision(endpoint, fragments, threshold):
     if Counter(endpoint['symbols']) != Counter(s for p in fragments for s in p['symbols']):
         return unknown('L1 complex and isolated fragments have different stoichiometry.')
-    depth = (sum(p['energy_hartree']+p['zpe_hartree'] for p in fragments)
-             - endpoint['energy_hartree'] - endpoint['zpe_hartree'])*constants.AUtoKCAL
-    if not math.isfinite(depth):
-        return unknown('Nonfinite vdW depth.')
-    return dict(decision='retain' if depth > threshold else 'exclude',
-                depth_kcal_mol=depth, threshold_kcal_mol=threshold,
-                endpoint=endpoint, fragments=fragments)
+    evidence = dict(threshold_kcal_mol=threshold, endpoint=endpoint, fragments=fragments)
+    if any(not l1.finite_number(p.get('energy_hartree')) for p in [endpoint, *fragments]):
+        return dict(unknown('Nonfinite electronic energy.'), **evidence)
+    electronic = (sum(p['energy_hartree'] for p in fragments)
+                  - endpoint['energy_hartree'])*constants.AUtoKCAL
+    def comparison(depth, basis):
+        return dict(decision='retain' if depth > threshold else 'exclude',
+                    depth_kcal_mol=depth, threshold_kcal_mol=threshold, basis=basis)
+    evidence['electronic_only'] = comparison(electronic, 'electronic_energy_without_ZPE')
+    if any(not l1.finite_number(p.get('zpe_hartree')) for p in [endpoint, *fragments]):
+        # QC.get_qc_zpe historically returns zero for an absent value. Show
+        # that counterfactual explicitly, never as a matched E+ZPE decision.
+        if (endpoint.get('zpe_status') == 'missing'
+                and all(l1.finite_number(p.get('zpe_hartree')) for p in fragments)):
+            old_depth = electronic + sum(p['zpe_hartree'] for p in fragments)*constants.AUtoKCAL
+            evidence['legacy_zero_zpe_diagnostic'] = comparison(
+                old_depth, 'fragment_E_plus_ZPE_minus_endpoint_E_with_missing_ZPE_set_to_zero')
+        return dict(unknown('L1 endpoint/fragment ZPE unavailable; electronic and legacy depths are diagnostic only.'),
+                    **evidence)
+    depth = electronic + (sum(p['zpe_hartree'] for p in fragments)
+                          - endpoint['zpe_hartree'])*constants.AUtoKCAL
+    return dict(comparison(depth, 'matched_E_plus_ZPE'), **evidence)
 
 
 def reachability(workers, initial):
@@ -216,10 +232,11 @@ def report(case, limit=150., vdw_depth=.5, plans=()):
     if isinstance(vdw_depth, bool) or not math.isfinite(vdw_depth) or vdw_depth < 0:
         raise ValueError('vdW depth must be finite and nonnegative.')
     case = Path(case).resolve(strict=True)
-    output = dict(schema=1, case=str(case), captured_utc=datetime.now(timezone.utc).isoformat(),
+    output = dict(schema=2, case=str(case), captured_utc=datetime.now(timezone.utc).isoformat(),
         limit_kcal_mol=limit, vdw_depth_kcal_mol=vdw_depth, workers=[], issues=[],
         limitations=[
-            'All energies are L1 electronic energy plus ZPE, relative to the initial L1 well; no L1/L2 mixing.',
+            'Selection uses L1 electronic energy plus ZPE, relative to the initial L1 well; no L1/L2 mixing.',
+            'Electronic-only and missing-ZPE-zero depth comparisons are diagnostic only and never exclude channels.',
             'Unknown evidence is retained for review. L1 filtering is approximate, not a kinetic flux criterion.',
             'A shallow complex loses its separate exit VRC channel, not automatically its preceding tight-TS reaction.',
             'Reachability uses reversible single-product edges in the saved accepted graph. Disconnection is a candidate, not proof for an unfinished exploration.',
@@ -272,8 +289,8 @@ def report(case, limit=150., vdw_depth=.5, plans=()):
         for name in sorted(set(entries) | set(reactions) | requests):
             saved, entry = reactions.get(name, {}), entries.get(name, {})
             family = saved.get('family', entry.get('signature', {}).get('family', 'unknown'))
-            hom = family == 'hom_sci' or saved.get('barrierless', False)
-            comparable = family not in constants.mp2_list and family not in ('unknown', 'barrierless_saddle')
+            hom = family in ('hom_sci', 'hs') or saved.get('barrierless', False)
+            comparable = l1.comparable_family(par, profile, family)
             ts = None if hom else measure([name], comparable)
             product_ids = saved.get('products', [])
             endpoint, endpoint_points = unknown('No verified product-side L1 endpoint.'), []
@@ -288,7 +305,8 @@ def report(case, limit=150., vdw_depth=.5, plans=()):
                         raise ValueError('L1 endpoint fragment identities differ from accepted L2 products.')
                     product_ids = inferred
                     endpoint_points = [point]
-                    endpoint = (l1.evaluate(ref, profile, endpoint_points, limit, charge=par['charge'])
+                    endpoint = (l1.evaluate(ref, profile, endpoint_points, limit,
+                                           comparable=comparable, charge=par['charge'])
                                 if ref else unknown('Initial L1 reference unavailable.'))
                 except (OSError, ValueError, sqlite3.Error) as error:
                     identity_issue = str(error)
@@ -299,6 +317,17 @@ def report(case, limit=150., vdw_depth=.5, plans=()):
                     if not endpoint_points or not comparable:
                         raise ValueError(identity_issue or 'Unverified L1 complex or theory.')
                     vdw = depth_decision(endpoint_points[0], points([p+'_well' for p in product_ids]), vdw_depth)
+                    historical = vdw.get('legacy_zero_zpe_diagnostic')
+                    if historical is None and vdw['decision'] != 'unknown':
+                        historical = vdw
+                    if historical is not None:
+                        old_limit = par.get('vdW_detection')
+                        if l1.finite_number(old_limit):
+                            vdw['threshold_only_replay'] = dict(
+                                old_threshold_kcal_mol=old_limit,
+                                old_decision='retain' if historical['depth_kcal_mol'] > old_limit else 'exclude',
+                                requested_decision=historical['decision'],
+                                basis=historical['basis'], diagnostic_only=True)
                 except (OSError, ValueError, sqlite3.Error) as error:
                     vdw = unknown(error)
             if identity_issue:
@@ -364,6 +393,11 @@ def counts(workers):
         accepted_reaction_cascade_candidates=sum(c['cascade_candidate'] and c['decision'] != 'exclude' for c in accepted),
         vrc_decisions=dict(Counter(c['vrc']['decision'] for c in vrc)),
         existing_vrc_decisions=dict(Counter(c['vrc']['decision'] for c in vrc if c['vrc']['existing'])),
+        vdw_diagnostic_decisions={key: dict(Counter(c['vdw'][key]['decision'] for c in channels
+            if key in c['vdw'])) for key in ('electronic_only', 'legacy_zero_zpe_diagnostic')},
+        vdw_threshold_only_replay=dict(Counter(
+            c['vdw']['threshold_only_replay']['old_decision']+'->'+c['vdw']['threshold_only_replay']['requested_decision']
+            for c in channels if 'threshold_only_replay' in c['vdw'])),
         vrc_cascade_candidates=sum(c['cascade_candidate'] and c['vrc']['decision'] != 'exclude' for c in vrc),
         vrc_review_status_kept_or_unknown=dict(Counter(c['vrc']['review']['request_status'] for c in vrc if c['vrc']['decision'] != 'exclude')),
         vdw_depth_decisions=dict(Counter(c['vdw']['decision'] for c in channels if c['vdw']['decision'] != 'not_applicable')),
@@ -385,6 +419,9 @@ def summarize(report):
                     ts_kcal=(c['barrier'] or {}).get('relative_kcal_mol'),
                     products_kcal=c['products'].get('relative_kcal_mol'),
                     vdw_depth=c['vdw'].get('depth_kcal_mol'), vdw=c['vdw']['decision'],
+                    electronic_depth=c['vdw'].get('electronic_only'),
+                    legacy_zero_zpe_depth=c['vdw'].get('legacy_zero_zpe_diagnostic'),
+                    threshold_only_replay=c['vdw'].get('threshold_only_replay'),
                     vrc=c['vrc']['decision'], review=c['vrc']['review']['request_status'],
                     reasons=[v['reason'] for v in [c['barrier'], c['products'], c['vdw']] if v and v.get('reason')]), sort_keys=True))
     for item in report.get('review_plans', []):

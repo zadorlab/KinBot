@@ -170,3 +170,24 @@ The unresolved tasks remain explicit:
 No complete production handoff or successful native recovery is claimed by this
 update. The local tests cover all 52 plans, source preservation, shared-pool
 admission with live jobs, repeated invocation, and failed-stream capture.
+# Detached execution after retirement of the source run
+
+The source `_r7` is now retired. Use `run_detached_blodgett.sh` instead of
+`run_blodgett.sh`. It stages the same 52 explicit probes beneath
+`~/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/state_support`, with a separate
+three-job resource policy and inherited node exclusions. It reads the original
+requests, completed outputs and hash-bound checkpoints without editing them.
+The general `requested_orbital_recon --resource-root` option separates the
+evidence tree from the scheduling owner; it does not copy or restart PES workers.
+
+The launcher also captures **all** current orbital-review requests, their
+installed channel definitions, accepted reaction records and both IRC endpoint
+directions. Energy pruning and orbital approval remain independent: this panel
+still includes the C(SH2)+SH channel even though the 150 kcal/mol audit excludes
+its asymptote. Further pending requests are reconciled against the inventory;
+the seven-screen panel is not a claim that every requested model is approved.
+
+Local simulated-site tests exercise all 52 jobs, admission at the new pool,
+unchanged source files, unrelated live work, and repeated invocation. Native
+results and scientific CAS acceptance remain pending until the remote probes
+finish and their evidence is reviewed.

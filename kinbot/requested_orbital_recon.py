@@ -82,7 +82,25 @@ def _saved(root, *, allow_accepted=False):
     return record
 
 
-def candidates(source, recipe, output, *, preflight=False, resume=False):
+def _review_policy(request, output, resource_root=None, *, preflight=False):
+    """Separate immutable scientific evidence from a new scheduling owner."""
+    source_policy = run_policy.find(Path(request).parent)
+    if resource_root is None:
+        return source_policy, run_policy.read(Path(request).parent) or {}
+    root = Path(resource_root).expanduser().resolve(strict=True)
+    policy = run_policy.find(root)
+    if policy != root/run_policy.NAME:
+        raise ValueError('The explicit review resource root needs its own scheduling policy.')
+    if source_policy is None or (root.is_relative_to(source_policy.parent)
+                                or source_policy.parent.is_relative_to(root)):
+        raise ValueError('A detached review pool must be disjoint from its evidence policy tree.')
+    if not preflight and (not output.is_relative_to(root) or output == root
+                         or run_policy.find(output.parent) != policy):
+        raise ValueError('Detached reviews must stay beneath their explicit resource root.')
+    return policy, run_policy.read(root)
+
+
+def candidates(source, recipe, output, *, preflight=False, resume=False, resource_root=None):
     """Prepare compact CASSCF or fixed-orbital CASCI from validated seeds.
 
     This does not select orbitals by occupation or accept a production model.
@@ -99,9 +117,8 @@ def candidates(source, recipe, output, *, preflight=False, resume=False):
     for key, value in controls['request_match'].items():
         if request.get(key) != value:
             raise ValueError(f'Request differs from candidate recipe: {key}.')
-    policy_path = run_policy.find(Path(previous['request']).parent)
-    policy = run_policy.read(Path(previous['request']).parent) or {}
-    shared = previous.get('shared_pool', False)
+    policy_path, policy = _review_policy(previous['request'], output, resource_root)
+    shared = resource_root is not None or previous.get('shared_pool', False)
     slots = (policy.get('configured_max_jobs', policy.get('max_jobs', 0)) if shared
              else policy.get('orbital_review_reserved_slots', 0))
     cap = controls.get('max_jobs', previous['max_jobs'])
@@ -320,6 +337,8 @@ def candidates(source, recipe, output, *, preflight=False, resume=False):
                       max_jobs=min(cap, slots), production_policy=str(policy_path),
                       files={name: file_sha256(output/name) for name in files}, systems=systems,
                       candidate_comparison=True, source_review=str(source))
+        if resource_root is not None:
+            record['resource_root'] = str(policy_path.parent)
         atomic_json(output/'review_launch.json', record)
         return dict(directory=str(output), models=len(systems), max_jobs=record['max_jobs'],
                     tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),
@@ -391,7 +410,7 @@ def product_complex_geometry(request, evidence, selection):
 
 
 def prepare(request, case_input, recipe, output, *, provisional=False, shared_pool=False,
-            _preflight=False):
+            _preflight=False, resource_root=None):
     request, case_input, recipe = [Path(p).expanduser().resolve(strict=True)
                                     for p in (request, case_input, recipe)]
     output = Path(output).expanduser().resolve()
@@ -433,8 +452,9 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
             raise ValueError('Provisional cleavage is not an active/accepted search in this well.')
     if case_input.parent not in request.parents:
         raise ValueError('The case input must belong to the requested calculation tree.')
-    policy_file = run_policy.find(request.parent)
-    policy = run_policy.read(request.parent) or {}
+    if resource_root is not None and not shared_pool:
+        raise ValueError('An explicit resource root requires shared-pool scheduling.')
+    policy_file, policy = _review_policy(request, output, resource_root, preflight=_preflight)
     slots = (policy.get('configured_max_jobs', policy.get('max_jobs', 0)) if shared_pool
              else policy.get('orbital_review_reserved_slots', 0))
     if slots < 1:
@@ -494,6 +514,8 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
                              ('request.json', 'recipe.json', 'electronic_context.json', 'input.json')},
                       systems=[dict(title=config['title'], configuration=str(output/'input.json'),
                                     manifest=str(manifest))])
+        if resource_root is not None:
+            record['resource_root'] = str(policy_file.parent)
         if provisional:
             record['provisional'] = True
             record['files']['provisional_source.json'] = file_sha256(output/'provisional_source.json')
@@ -507,7 +529,8 @@ def prepare(request, case_input, recipe, output, *, provisional=False, shared_po
                     partition=config['partition'], excluded_nodes=policy['excluded_nodes'])
 
 
-def batch(production, plan, output, *, shared_pool=False, preflight=False, resume=False):
+def batch(production, plan, output, *, shared_pool=False, preflight=False, resume=False,
+          resource_root=None):
     """Stage explicit SCF, CASCI or seeded compact probes under one review cap.
 
     Paths and scientific settings are explicit in the plan/recipes. Existing
@@ -517,6 +540,9 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
     production = Path(production).expanduser().resolve(strict=True)
     plan = Path(plan).expanduser().resolve(strict=True)
     output = Path(output).expanduser().resolve()
+    if resource_root is not None and not shared_pool:
+        raise ValueError('An explicit resource root requires shared-pool scheduling.')
+    policy_file, _ = _review_policy(production/'input.json', output, resource_root)
     spec = _read(plan)
     _require_available_recipe(spec)
     entries = spec.get('screens', [])
@@ -527,7 +553,7 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
         if resume:
             saved = _saved(output)
             if (_read(output/'plan.json') != spec or saved.get('shared_pool', False) != shared_pool
-                    or saved['production_policy'] != str(run_policy.find(production))):
+                    or saved['production_policy'] != str(policy_file)):
                 raise ValueError('Existing batch plan or resource ownership differs.')
             for child in saved.get('reviews', []):
                 child = Path(child)
@@ -535,11 +561,12 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
                 if _read(child/'recipe.json') != _read(plan.parent/entry['recipe']):
                     raise ValueError('Existing batch recipe changed: '+child.name)
                 if 'source' in entry:
-                    candidates(production/entry['source'], plan.parent/entry['recipe'], child, resume=True)
+                    candidates(production/entry['source'], plan.parent/entry['recipe'], child,
+                               resume=True, resource_root=resource_root)
             return dict(status='resume_ready', directory=str(output),
                         tasks=sum(len(_read(s['manifest'])['jobs']) for s in saved['systems']))
         raise FileExistsError('Batch already exists; use run to resume without duplicate preparation.')
-    if shared_pool:
+    if shared_pool and resource_root is None:
         if production not in output.parents or run_policy.find(output.parent) != run_policy.find(production):
             raise ValueError('Shared-pool reviews must be inside their production policy tree.')
     elif production == output or production in output.parents:
@@ -581,7 +608,7 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
             if not item.get('allow_provisional', False):
                 raise ValueError(f'{name}: no live orbital review request yet.')
             request = case/parent/(parent+'.json')
-        policy_file = run_policy.find(case)
+        policy_file, _ = _review_policy(case/'input.json', output, resource_root)
         if policy_file is None:
             raise ValueError('Every batch case needs a production resource policy.')
         policies.add(str(policy_file))
@@ -597,9 +624,10 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
     with tempfile.TemporaryDirectory(prefix='kinbot-batch-preflight-') as tmp:
         counts = []
         for name,request,case_input,recipe,provisional,source in pending:
-            result = (candidates(source,recipe,output/name,preflight=True) if source else
+            result = (candidates(source,recipe,output/name,preflight=True,
+                                 resource_root=resource_root) if source else
                       prepare(request,case_input,recipe,Path(tmp)/name,provisional=provisional,
-                              shared_pool=shared_pool,_preflight=True))
+                              shared_pool=shared_pool,_preflight=True,resource_root=resource_root))
             counts.append(result['tasks'])
     if preflight:
         return dict(status='preflight_passed', screens=len(pending), tasks=sum(counts), skipped=skipped)
@@ -608,9 +636,10 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
         for name,request,case_input,recipe,provisional,source in pending:
             child = output/name
             if source:
-                candidates(source,recipe,child)
+                candidates(source,recipe,child,resource_root=resource_root)
             else:
-                prepare(request,case_input,recipe,child,provisional=provisional,shared_pool=shared_pool)
+                prepare(request,case_input,recipe,child,provisional=provisional,
+                        shared_pool=shared_pool,resource_root=resource_root)
             saved = _saved(child)
             systems.extend(saved['systems']); reviews.append(str(child)); caps.append(saved['max_jobs'])
         atomic_json(output/'plan.json',spec)
@@ -618,6 +647,8 @@ def batch(production, plan, output, *, shared_pool=False, preflight=False, resum
             production_policy=next(iter(policies)),max_jobs=min(spec['max_jobs'],*caps),
             systems=systems,reviews=reviews,skipped=skipped,
             files={'plan.json':file_sha256(output/'plan.json')})
+        if resource_root is not None:
+            record['resource_root'] = str(policy_file.parent)
         atomic_json(output/'review_launch.json',record)
         return dict(directory=str(output),screens=len(reviews),skipped=skipped,
             tasks=sum(len(_read(s['manifest'])['jobs']) for s in systems),max_jobs=record['max_jobs'],
@@ -903,7 +934,7 @@ def _reference_preflight(record, manifests):
 def _run(output, *, queue_all=False, allow_nodes=()):
     root = Path(output).expanduser().resolve(strict=True)
     record = _saved(root)
-    policy = run_policy.read(Path(record['request']).parent) or {}
+    policy = run_policy.read(record.get('resource_root', Path(record['request']).parent)) or {}
     shared = record.get('shared_pool', False)
     if shared and (queue_all or allow_nodes):
         raise ValueError('Shared-pool reviews use the live pool limit and node exclusions.')
@@ -1650,6 +1681,9 @@ def main():
         help='Stage within production and admit all review jobs through its existing resource policy.')
     batch_cmd.add_argument('--preflight', action='store_true', help='Validate in temporary storage; create no campaign.')
     batch_cmd.add_argument('--resume', action='store_true', help='Verify an identical existing campaign without restaging.')
+    for command in (prepare_cmd, candidate_cmd, batch_cmd):
+        command.add_argument('--resource-root', type=Path,
+            help='Use a separate existing scheduling pool; source requests/checkpoints remain read-only.')
     bind_cmd = commands.add_parser('bind',help='Bind preliminary evidence to an actual review request.')
     for name in ('source','request'):
         bind_cmd.add_argument(name)
@@ -1681,15 +1715,16 @@ def main():
             command.add_argument('--allow-node', action='append', default=[])
     args = parser.parse_args()
     if args.action == 'prepare':
-        result = prepare(args.request, args.case_input, args.recipe, args.output,shared_pool=args.shared_pool)
+        result = prepare(args.request, args.case_input, args.recipe, args.output,
+                         shared_pool=args.shared_pool, resource_root=args.resource_root)
     elif args.action == 'batch':
         result = batch(args.production,args.plan,args.output,shared_pool=args.shared_pool,
-                       preflight=args.preflight, resume=args.resume)
+                       preflight=args.preflight, resume=args.resume, resource_root=args.resource_root)
     elif args.action == 'bind':
         result = bind(args.source,args.request)
     elif args.action == 'candidates':
         result = candidates(args.source, args.recipe, args.output,
-                            preflight=args.preflight, resume=args.resume)
+                            preflight=args.preflight, resume=args.resume, resource_root=args.resource_root)
     elif args.action == 'production-checks':
         result = production_checks(args.production, args.output, extend=args.extend)
     elif args.action == 'retry-reference-exports':

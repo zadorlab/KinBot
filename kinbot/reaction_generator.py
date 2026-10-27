@@ -62,6 +62,33 @@ class ReactionGenerator:
                         'native evidence retained.', obj.instance_name, kind)
         return rejected
 
+    def _endpoint_l1_check(self, obj):
+        """Wait at L1 for a matched endpoint Hessian before deciding vdW depth."""
+        if (not self.par.get('l1_vdw_depth_check', False)
+                or obj.instance_name in self.search_checkpoint.replaying):
+            return None
+        from kinbot.l1_endpoint import ensure
+        result = ensure(self.qc, obj.irc_prod, self.par, family=obj.family_name)
+        if result['status'] == 'complete':
+            fragments = []
+            for fragment in obj.products:
+                point = copy.copy(fragment)
+                point.name = routing_name(fragment)+'_well'
+                checked = ensure(self.qc, point, self.par, family='fragment')
+                if checked['status'] != 'complete':
+                    result = checked
+                    break
+                fragments.append(checked['point'])
+            else:
+                result = dict(result, fragment_points=fragments)
+        if result['status'] != 'complete':
+            reason = result.get('reason', result['status'])
+            if getattr(obj, '_l1_endpoint_wait', None) != reason:
+                logger.info('%s: L1 endpoint check %s: %s', obj.instance_name,
+                            result['status'], reason)
+                obj._l1_endpoint_wait = reason
+        return result
+
     def _publish_product_well(self, reaction):
         if (not self.par['pes'] or self.par.get('stop_product_reaction_search',0)
                 or len(reaction.products)!=1):
@@ -435,8 +462,11 @@ class ReactionGenerator:
                             else:
                                 ending = 'well'
                                 thresh = self.par['barrier_threshold']
-                            if self._screen_l1(obj, [obj.instance_name], 'barrier',
-                                               comparable=ending == 'well' and not self.par['bimol']):
+                            from kinbot.l1_screening import comparable_family, theory
+                            comparable = (not self.par['bimol'] and (ending == 'well' or
+                                self.par.get('l1_pes_energy_ceiling') is not None and
+                                comparable_family(self.par, theory(self.par), self.species.reac_type[index])))
+                            if self._screen_l1(obj, [obj.instance_name], 'barrier', comparable=comparable):
                                 self.species.reac_ts_done[index] = -999
                                 continue
                             if self.par['bimol']:
@@ -651,6 +681,7 @@ class ReactionGenerator:
                             prods_energy = sum([p.energy + p.zpe for p in obj.products])
 
                             # Select reactions potentially leading to vdW wells
+                            endpoint_check = None
                             if len(obj.products) == 2 and 'hom_sci' not in obj.instance_name:
                                 logger.info('\tChecking vdW well for {}.'.format(obj.instance_name))
                                 obj.irc_prod.characterize()
@@ -658,10 +689,23 @@ class ReactionGenerator:
                                 e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
                                 e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
                                 e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom)
+                                endpoint_check = self._endpoint_l1_check(obj)
+                                if endpoint_check is not None:
+                                    if endpoint_check['status'] != 'complete':
+                                        continue  # Do not submit L2 or guess a depth from missing ZPE.
+                                    point = endpoint_check['point']
+                                    obj.irc_prod.energy = point['energy_hartree']
+                                    obj.irc_prod.zpe = point['zpe_hartree']
+                                    obj.irc_prod.freq = point['frequencies']
+                                    for fragment, checked in zip(obj.irc_fragments, endpoint_check['fragment_points']):
+                                        fragment.energy = checked['energy_hartree']
+                                        fragment.zpe = checked['zpe_hartree']
+                                        fragment.freq = checked['frequencies']
                                 self._debug_fragment_freqs(f"{obj.instance_name}:irc_prod_after_get_qc_freq", obj.irc_prod)
                                 for this_frag in obj.irc_fragments:
                                     self._debug_fragment_freqs(f"{obj.instance_name}:frag_after_get_qc_freq", this_frag)
-                                    e, this_frag.freq = self.qc.get_qc_freq(f'{this_frag.name}_well', this_frag.natom)
+                                    if endpoint_check is None:
+                                        e, this_frag.freq = self.qc.get_qc_freq(f'{this_frag.name}_well', this_frag.natom)
                                     logger.debug(f'{this_frag.freq}')
                                 fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
                                 obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe)) * constants.AUtoKCAL
@@ -669,6 +713,7 @@ class ReactionGenerator:
                                     logger.info(f'\tvdW well detected for {obj.irc_prod.name}. Depth: {np.round(obj.vdW_depth, 2)} kcal/mol.')
                                     obj.do_vdW = True
                                 else:
+                                    obj.do_vdW = False
                                     logger.info(f'\t{obj.irc_prod.name} was not succesfully identified as a vdW well. Well depth is {np.round(obj.vdW_depth, 2)} kcal/mol.')
 
                             # Screen the retained L1 well/complex when one exists,
@@ -676,6 +721,10 @@ class ReactionGenerator:
                             # asymptote must not erase a lower vdW intermediate.
                             screened_names = ([obj.irc_prod.name] if getattr(obj, 'do_vdW', False)
                                               else [routing_name(p)+'_well' for p in obj.products])
+                            if getattr(obj, 'do_vdW', False) and endpoint_check is not None:
+                                screened_names = [endpoint_check['point']['name']]
+                            elif endpoint_check is not None:
+                                screened_names = [p['name'] for p in endpoint_check['fragment_points']]
                             if self._screen_l1(obj, screened_names, 'products',
                                                comparable=not self.par['bimol']):
                                 self.species.reac_ts_done[index] = -999

@@ -394,10 +394,11 @@ class ProfiledQuantumChemistry:
         self._record(job, 'l2', self.l2.job_ids.get(job))
         return job
 
-    def qc_freq(self, species, source_job, high_level=0):
+    def qc_freq(self, species, source_job, high_level=0, *, endpoint=False):
         level = 'l2' if high_level else self._level_for(source_job)
         result = self.backends[level].qc_freq(
-            species, source_job, high_level=int(level == 'l2'))
+            species, source_job, high_level=int(level == 'l2'),
+            **({'endpoint': True} if endpoint else {}))
         self._record(result, level,
                      self.backends[level].job_ids.get(result))
         return result

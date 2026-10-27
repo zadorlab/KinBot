@@ -100,3 +100,41 @@ assignment, missing/mismatched evidence, alternate/reverse paths, depth and
 energy decisions, panel mapping, and rejection persistence through the owning
 reaction driver. These are local simulated calculations, not native remote
 restarts.
+
+# Automatic endpoint checks for new exploration
+
+Set `l1_vdw_depth_check: true` with `vdW_detection: 0.5` to require matched
+L1 electronic energies and ZPEs before deciding whether an IRC product complex
+is a vdW intermediate. This option defaults to false for compatibility. The
+separate `l1_pes_energy_ceiling: 150.0` applies the absolute initial-well ceiling
+before the corresponding L2 work; its default remains disabled.
+
+The owning reaction driver reuses existing validated L1 endpoint/fragment
+records. Missing ZPE triggers a separate fixed-geometry Gaussian or Q-Chem
+frequency calculation through the ordinary QC owner and resource policy. It
+preserves the original endpoint and uses its immutable database row ID in the
+new job name. Repeated polls and driver restarts adopt the same job; live,
+completed and terminally failed worker scripts are not rewritten. The driver
+waits at L1 for completion. It requires matching theory routes, atom order and
+coordinates, finite energies/ZPE, the existing minimum-frequency criterion,
+and electronic energy agreement within 2 microhartree. It uses no L2 ZPE and
+does not replace a missing value with zero. Atomic fragment ZPE may be exactly
+zero in a normally completed record.
+
+An unsupported backend, failed frequency calculation or inconsistent evidence
+remains unresolved in `l1_endpoint_checks.json`; it cannot silently eliminate
+a channel or advance its L2 work. This check adds no unbounded retry loop and
+does not itself implement general outage recovery. Existing owner recovery
+controls still apply. The journal retains earlier observations when evidence
+changes. Existing accepted-network replay is preserved; changing its selection
+requires the separate migration/selection workflow.
+
+Local orchestration tests restart the actual reaction-search driver while an
+endpoint job and a shared fragment job are pending. The owner reconstructs
+from its search checkpoint, waits without creating L2 work, reuses both jobs,
+and applies depths on either side of the cutoff after matching the results.
+These tests simulate native completion; they are not a Blodgett validation.
+
+The proposed `_r8` overrides are in `examples/anl/tools/r8_input_overrides.json`.
+They are staged configuration, not an `_r8` launch: independent source seeding,
+outage recovery and reviewed CAS transfer must pass their own checks first.

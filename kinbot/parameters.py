@@ -116,6 +116,9 @@ class Parameters:
             # Optional absolute L1 E+ZPE ceiling relative to the initial PES well.
             # Missing/incomparable evidence is retained; existing L2 rules still apply.
             'l1_pes_energy_ceiling': None,
+            # Fill missing IRC endpoint ZPE before a matched L1 vdW-depth test.
+            # Native Gaussian/Q-Chem Hessians; unresolved evidence waits at L1.
+            'l1_vdw_depth_check': False,
             # Threshold allowance for L1 relative to L2
             'barrier_threshold_add': 10.,
             # Additional barrier allowance for homolytic scissions
@@ -1101,6 +1104,8 @@ class Parameters:
         validate_barrier_reference(self.par['pes_barrier_reference'])
         from kinbot.l1_screening import validate as validate_l1_ceiling
         validate_l1_ceiling(self.par['l1_pes_energy_ceiling'])
+        if type(self.par['l1_vdw_depth_check']) is not bool:
+            raise ValueError('l1_vdw_depth_check must be boolean.')
         if self.par['barrier_threshold'] == 'none':
             self.par['barrier_threshold'] = None
         if self.par['barrier_threshold_L2'] == 'none':

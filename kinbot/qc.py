@@ -1083,13 +1083,13 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_freq(self, species, source_job, high_level=0):
+    def qc_freq(self, species, source_job, high_level=0, *, endpoint=False):
         """Recover native frequencies/Hessian at the selected, fixed geometry.
 
         Native jobs can lack a checkpoint or printed Hessian. Keep their
         records intact and use a separate, same-level frequency calculation.
         """
-        if ((self.use_sella and self.frequency_mode != 'native_hessian')
+        if ((self.use_sella and self.frequency_mode != 'native_hessian' and not endpoint)
                 or self.qc not in ('gauss', 'qchem')):
             raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
         rows = list(self.db.select(name=source_job))
@@ -1097,6 +1097,10 @@ class QuantumChemistry:
         # Include the immutable source observation to avoid reusing a recovery
         # after the same optimization name has been calculated again.
         job = f'{source_job}_freq_recovery_{source_id}'
+        if endpoint and self.check_qc(job) in ('running', 'normal', 'error'):
+            # Polling/restarting an owner cannot rewrite a live worker script,
+            # repeat a failed native calculation, or discard a valid result.
+            return job
         kwargs = self.get_qc_arguments(job, species.mult, species.charge,
             species.nel, ts=species.wellorts, step=1, max_step=1,
             high_level=high_level)
@@ -1104,6 +1108,9 @@ class QuantumChemistry:
             kwargs = self.merge_kwargs(kwargs)
         kwargs.pop('opt', None)
         if self.qc == 'gauss':
+            if endpoint:
+                from kinbot.ase_modules.calculators.gaussian import fixed_frequency_parameters
+                kwargs = fixed_frequency_parameters(kwargs)
             # Recovery has no predecessor checkpoint under its new job name.
             # Preserve electronic-state choices (e.g. broken-symmetry Mix).
             guess = kwargs.get('guess')
@@ -1120,11 +1127,14 @@ class QuantumChemistry:
             kwargs.update(jobtype='freq', vibman_print='4', xc_grid='3',
                           label=job + '_freq')
             template_file = f'{kb_path}/tpl/ase_qchem_freq.tpl.py'
+        if endpoint:
+            template_file = f'{kb_path}/tpl/ase_endpoint_freq.tpl.py'
         with open(template_file) as handle:
             template = handle.read().format(label=job, kwargs=kwargs,
                 atom=plain_symbols(species.atom), geom=plain_geometry(species.geom),
                 ppn=min(species.nel, self.ppn), qc_command=self.qc_command,
-                working_dir=os.getcwd())
+                working_dir=os.getcwd(), code=self.qc,
+                imagfreq_threshold=self.par['imagfreq_threshold'])
         with open(job + '.py', 'w') as handle:
             handle.write(template)
         self.submit_qc(job, min(species.nel, self.ppn))

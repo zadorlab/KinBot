@@ -342,6 +342,31 @@ class TestSelectedHessian(unittest.TestCase):
                     self.assertEqual(kwargs.get('guess'), expected)
                     self.assertNotIn('opt', kwargs)
 
+    def test_endpoint_frequency_polling_preserves_live_and_terminal_worker_files(self):
+        self.qc.use_sella = True
+        self.qc.frequency_mode = 'auto'
+        for backend in ('gauss', 'qchem'):
+            self.qc.qc = backend
+            self.job = backend+'_IRC_F_prod'
+            self.record(self.job)
+            with patch.object(self.qc, 'check_qc', return_value=0):
+                recovery = self.qc.qc_freq(self.species, self.job, endpoint=True)
+            path = Path(recovery+'.py'); before = path.read_bytes()
+            tree = ast.parse(before)
+            kwargs = next(ast.literal_eval(node.value) for node in tree.body
+                if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+                    and target.id == 'kwargs' for target in node.targets))
+            self.assertNotIn('opt', kwargs)
+            self.assertNotIn('force', kwargs)
+            self.assertEqual(kwargs['method'].lower(), 'hf')
+            self.assertEqual(kwargs['basis'].lower(), 'sto-3g')
+            self.qc.submit_qc.reset_mock()
+            for status in ('running', 'normal', 'error'):
+                with patch.object(self.qc, 'check_qc', return_value=status):
+                    self.assertEqual(self.qc.qc_freq(self.species, self.job, endpoint=True), recovery)
+                self.assertEqual(path.read_bytes(), before)
+            self.qc.submit_qc.assert_not_called()
+
     def test_native_database_hessian_needs_no_checkpoint(self):
         self.record(self.job, self.hess)
         Path(self.job + '.log').write_text('done\n')

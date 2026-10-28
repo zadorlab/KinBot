@@ -1,0 +1,84 @@
+{
+  "status": "input_and_routing_checks_passed",
+  "remote_run": "not_launched",
+  "input_sha256": "e1feb61a45f942a43ffd42344643416857f8646ad7df825eea912008421f7406",
+  "initial": "470831050000000000002",
+  "theory": {
+    "l1": {
+      "name": "l1",
+      "calculator": "gaussian",
+      "method": "B3LYP",
+      "basis": "cc-pVDZ",
+      "command": "g16",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "scf": "xqc,conver=8",
+        "integral": "UltraFine"
+      },
+      "optimizer": "sella",
+      "frequency_mode": "native_hessian",
+      "label": "B3LYP-D3(BJ)/cc-pVDZ",
+      "model_path": "",
+      "task_name": "omol",
+      "device": "cpu"
+    },
+    "l2": {
+      "name": "l2",
+      "calculator": "gaussian",
+      "method": "B2PLYP",
+      "basis": "cc-pVTZ",
+      "command": "g16",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "scf": "xqc,conver=8",
+        "integral": "UltraFine"
+      },
+      "optimizer": "sella",
+      "frequency_mode": "native_hessian",
+      "label": "B2PLYP-D3(BJ)/cc-pVTZ",
+      "model_path": "",
+      "task_name": "omol",
+      "device": "cpu"
+    }
+  },
+  "gaussian_only": true,
+  "composite_requested": false,
+  "rotdpy_lookup": null,
+  "temperature_grid_K": [
+    300,
+    400,
+    500,
+    600,
+    800,
+    1000,
+    1200,
+    1500,
+    1800,
+    2000
+  ],
+  "pressure_grid_torr": [
+    0.01,
+    0.1,
+    1.0,
+    10.0,
+    100.0,
+    760.0
+  ],
+  "default_pst_potential": {
+    "prefactor_au": 0.6,
+    "power_exponent": 6
+  },
+  "pst_high_pressure_rate_validation": "deferred_until_MESS_execution",
+  "rotor_points": 12,
+  "automatic_mess_input": true,
+  "automatic_mess_execution": false,
+  "cross_run_import": false,
+  "local_regression": {
+    "command": ".venv/bin/python -m pytest -q tests/test_complex_mess.py tests/test_l1_screening.py tests/test_mess_networks.py",
+    "tests_passed": 52,
+    "subtests_passed": 29,
+    "native_remote_run": false
+  }
+}

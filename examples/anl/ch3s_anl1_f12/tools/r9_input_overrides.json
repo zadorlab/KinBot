@@ -1,0 +1,8 @@
+{
+  "l1_pes_energy_ceiling": 150.0,
+  "l1_vdw_depth_check": true,
+  "vdW_detection": 0.5,
+  "qc_checkpoint_interval": 600,
+  "qc_checkpoint_max_mb": 16384,
+  "qc_checkpoint_generations": 2
+}

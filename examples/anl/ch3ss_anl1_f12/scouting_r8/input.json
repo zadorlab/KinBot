@@ -49,7 +49,7 @@
   "queue_name": "month-long-cpu",
   "ppn": 8,
   "queue_exclusive": 1,
-  "queue_job_limit": 23,
+  "queue_job_limit": 20,
   "simultaneous_kinbot": 5,
   "qc_checkpoint_interval": 600,
   "qc_checkpoint_max_mb": 16384,

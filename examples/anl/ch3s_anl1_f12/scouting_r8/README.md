@@ -14,7 +14,7 @@ The paired CH3SS input is at `../../ch3ss_anl1_f12/scouting_r8/input.json`.
 | vdW selection | Matched L1 E+ZPE check, depth 0.5 kcal/mol |
 | Barrierless kinetics | Existing PST, coefficient 0.6 au, exponent 6 |
 | MESS | `me=1`, `run_me=0`: assemble automatically, analyze afterward |
-| Scheduling | Eight processors, exclusive nodes, shared cap of 23 QC jobs |
+| Scheduling | Eight processors, exclusive nodes, shared cap of 20 QC jobs |
 | Native checkpoint copies | Every 600 s; two generations, 16 GiB ceiling |
 
 The existing MESS workflow requires `rotor_scan=1`; the standard 12-point
@@ -40,7 +40,7 @@ The inputs specify 300, 400, 500, 600, 800, 1000, 1200, 1500, 1800 and 2000 K.
 Pressures span 0.01–760 torr. The standard model energy limit is 400 kcal/mol.
 The 193 nm photon energy (148.142152 kcal/mol) is a separate microcanonical
 comparison, not a temperature. MESS's existing 0–200 kcal/mol microcanonical
-output grid includes it. Thermal rates and photon-energy branching answer
+output grid brackets it at 148 and 149 kcal/mol. Thermal rates and photon-energy branching answer
 different scouting questions and should be labeled separately.
 
 ## Stage on Blodgett: no submissions
@@ -62,7 +62,7 @@ mkdir "$KB_RUN/ch3s" "$KB_RUN/ch3ss"
 cp examples/anl/ch3s_anl1_f12/scouting_r8/input.json "$KB_RUN/ch3s/input.json"
 cp examples/anl/ch3ss_anl1_f12/scouting_r8/input.json "$KB_RUN/ch3ss/input.json"
 "$PWD/.venv/bin/python" -B -m kinbot.run_policy set "$KB_RUN" \
-  --max-jobs 23 --timeout-retries 1 --optimization-step-retries 2 \
+  --max-jobs 20 --timeout-retries 1 --optimization-step-retries 2 \
   --exclude node1,node9,node10,node13,node14,node16,node20,node21,node22,node23,node24,node29,node30,node33,node34
 "$PWD/.venv/bin/python" -B - "$KB_RUN" <<'PY'
 import sys
@@ -76,6 +76,7 @@ for case in ('ch3s', 'ch3ss'):
     assert not p['rotdpy_run'] and not p['vrc_tst_scan'] and not p['vrc_tst_noscan']
     assert p['rotdpy_mess_mode'] == 'off' and p['me'] == 1 and p['run_me'] == 0
     assert p['high_level'] == 1 and p['rotor_scan'] == 1
+    assert p['queue_job_limit'] == 20 and p['queue_exclusive'] == 1 and p['ppn'] == 8
     print('STAGED', case, path, 'L1/L2 -> MESS/PST; no chemistry submitted')
 PY
 BASH

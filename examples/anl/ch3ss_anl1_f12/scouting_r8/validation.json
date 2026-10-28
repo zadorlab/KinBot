@@ -1,7 +1,7 @@
 {
   "status": "input_and_routing_checks_passed",
   "remote_run": "not_launched",
-  "input_sha256": "2205d5fff9eaa9ca85e6e7a81a0e7c53304c8bc7c25fcd6ab9c31a1858734960",
+  "input_sha256": "54335a35596431469ba24f4a2da926f1654e1edc248ef0ee50f3028e1352bb37",
   "initial": "791471490990000000002",
   "theory": {
     "l1": {
@@ -79,6 +79,12 @@
     "command": ".venv/bin/python -m pytest -q tests/test_complex_mess.py tests/test_l1_screening.py tests/test_mess_networks.py",
     "tests_passed": 52,
     "subtests_passed": 29,
+    "native_remote_run": false
+  },
+  "shared_job_limit": 20,
+  "gaussian_recovery_regression": {
+    "command": ".venv/bin/python -m pytest -q tests/test_gaussian_scf_recovery.py tests/test_gaussian_input_routes.py tests/test_gaussian_runtime.py tests/test_gaussian_hessian_frame.py tests/test_sella_worker_results.py",
+    "tests_passed": 89,
     "native_remote_run": false
   }
 }

@@ -59,6 +59,40 @@ def production(tmp_path, monkeypatch):
     return root, case
 
 
+def test_grouped_runs_without_manifest_are_separate_read_only_cases(tmp_path, monkeypatch):
+    root = tmp_path/'runs'
+    first, second = root/'first', root/'second'
+    for case in (first, second):
+        put(case/'input.json', {'queue_job_limit': 20})
+        put(case/'pes_exploration.json', {'phase': 'exploring', 'workers': {}})
+    put(first/'worker'/'input.json', {})
+    put(root/'.hidden'/'input.json', {})
+    outside = tmp_path/'outside'
+    put(outside/'input.json', {})
+    (root/'external').symlink_to(outside, target_is_directory=True)
+    (root/'linked-input').mkdir()
+    (root/'linked-input'/'input.json').symlink_to(outside/'input.json')
+    monkeypatch.setattr(monitor, 'queue', lambda: ([], None))
+    from kinbot import run_cleanup
+    monkeypatch.setattr(run_cleanup, '_processes', lambda *a: [])
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    for _ in range(2):
+        report = monitor.snapshot(root)
+        assert [c['name'] for c in report['cases']] == ['first', 'second']
+        text = monitor.render(report)
+        assert 'OVERVIEW first:' in text and 'OVERVIEW second:' in text
+        assert all(c['exploration']['phase'] == 'exploring' for c in report['cases'])
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    assert not (root/'prepared.json').exists()
+
+    # An individual PES remains one case even if it has child input files.
+    assert len(monitor.snapshot(first)['cases']) == 1
+    assert monitor.snapshot(first)['cases'][0]['directory'] == str(first)
+    # An explicit manifest is authoritative over inferred children.
+    put(root/'prepared.json', {'inputs': [str(second/'input.json')]})
+    assert [c['name'] for c in monitor.snapshot(root)['cases']] == ['second']
+
+
 def test_retired_vrc_graph_hidden_only_when_unchanged_and_not_live(production, monkeypatch):
     from kinbot.execution import file_sha256
     root, case = production

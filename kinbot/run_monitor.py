@@ -1,7 +1,7 @@
 """Read-only PES dashboard and log follower, independent of Slurm accounting.
 
 Usage: python -m kinbot.run_monitor RUN [--all] [--follow] [--json]
-RUN can be one PES or a handoff directory containing prepared.json.
+RUN can be one PES, a handoff containing prepared.json, or a parent of PES inputs.
 No controller, dispatcher, database, or restart code is executed by this view.
 """
 import argparse
@@ -554,7 +554,15 @@ def snapshot(root, *, include_all=False, log_lines=4):
     root = Path(root).expanduser().resolve(strict=True)
     warnings = []
     prepared = read_json(root/'prepared.json', warnings)
-    directories = [Path(p).parent.resolve() for p in prepared.get('inputs', [])] or [root]
+    directories = [Path(p).parent.resolve() for p in prepared.get('inputs', [])]
+    if not directories and not (root/'input.json').is_file():
+        # Fresh grouped runs need no production-handoff manifest. Inspect only
+        # immediate children; workers beneath an individual PES stay in that PES.
+        directories = [p.resolve() for p in sorted(root.iterdir())
+                       if not p.name.startswith('.') and not p.is_symlink()
+                       and p.is_dir() and (p/'input.json').is_file()
+                       and not (p/'input.json').is_symlink()]
+    directories = directories or [root]
     if any(not inside(d, root) for d in directories):
         raise ValueError('Prepared input directory is outside the monitored tree.')
     diagnostics = root/'diagnostics'

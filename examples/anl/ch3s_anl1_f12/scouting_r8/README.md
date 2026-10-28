@@ -124,3 +124,32 @@ runs during exploration; 1%/5% kinetic trimming happens afterward. This cannot
 guarantee a smaller discovery tree before rate analysis. Retain all results for
 choosing R9's explicit production channels. Standalone orbital diagnostics can
 finish independently and be reviewed only for the channels selected for R9.
+
+## Monitor both PES runs
+
+The read-only monitor recognizes this parent without a `prepared.json` file.
+It shows the shared pool, separate PES overviews, Slurm jobs, local processes,
+reaction stages, recovery records, and recent controller/native QC progress.
+The top-level `driver.log` may contain only the license banner while work is
+reported in `pes.log`, worker `kinbot.log` files, and native outputs.
+
+```bash
+cd "$HOME/KinBot"
+export PYTHONPATH="$PWD"
+KB_RUN="$HOME/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8"
+watch -n 15 -x "$PWD/.venv/bin/python" -B -m kinbot.run_monitor "$KB_RUN" --lines 2
+```
+
+Ctrl-C stops only the display. The dashboard update needs no controller restart.
+To capture a complete expanded snapshot, including rows below the screen:
+
+```bash
+cd "$HOME/KinBot"
+export PYTHONPATH="$PWD"
+KB_RUN="$HOME/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8"
+mkdir -p "$HOME/kinbot-evidence"
+KB_REPORT=$(mktemp "$HOME/kinbot-evidence/r8-monitor.XXXXXXXX.txt")
+"$PWD/.venv/bin/python" -B -m kinbot.run_monitor "$KB_RUN" \
+  --all --details --lines 6 > "$KB_REPORT"
+printf 'MONITOR_REPORT %s\n' "$KB_REPORT"
+```

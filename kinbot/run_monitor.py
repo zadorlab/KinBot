@@ -26,6 +26,9 @@ ERROR = re.compile(r'-ERROR:|-CRITICAL:|Traceback \(most recent|QPErr|'
                    r'Permission denied|No space left|oom.kill|OUT_OF_MEMORY|'
                    r'Worker failure:|Frequency validation failed|'
                    r'Converged but frequency check failed', re.I)
+TECHNICAL_ERROR = re.compile(r'QPErr|ModuleNotFoundError:|ImportError:|'
+                             r'Permission denied|No space left on device|'
+                             r'Input/output error|command not found', re.I)
 PROGRESS = re.compile(r'PROGRAM\s*\*|SCF Done:|Step number|Optimization completed|'
                       r'Normal termination|Maximum Force|RMS Force|Maximum Displacement|'
                       r'RMS Displacement|^\s*(?:Sella|BFGS|LBFGS|FIRE)(?::|\s+\d+\s)|'
@@ -49,7 +52,7 @@ STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'scan_review.json'}
 INVENTORY_DIRECTORY_LIMIT = 30000
 INVENTORY_LOG_LIMIT = 30000
-REACTION_STAGES = {-999: 'failed/rejected', -1: 'accepted', 0: 'TS search',
+REACTION_STAGES = {-999: 'not retained', -1: 'accepted', 0: 'TS search',
                    1: 'barrier/IRC', 2: 'product characterization',
                    3: 'start product/TS optimization', 4: 'product/TS optimization',
                    5: 'final validation'}
@@ -175,9 +178,11 @@ def log_record(path, root, now, *, tail_lines=4):
     headers = [line.strip() for line in lines if TABLE_HEADER.match(line)]
     stat = path.stat()
     return {'path': str(path.relative_to(root)), 'mtime': stat.st_mtime,
+            'mtime_ns': stat.st_mtime_ns,
             'age_seconds': max(0, now-stat.st_mtime),
             'bytes': stat.st_size, 'events': events[-max(8, tail_lines):],
             'errors': errors[-6:], 'progress': progress[-max(6, tail_lines):],
+            'technical_errors': [line.strip() for line in lines if TECHNICAL_ERROR.search(line)][-6:],
             'table_header': headers[-1] if headers else None,
             'raw_tail': lines[-tail_lines:]}
 
@@ -203,9 +208,11 @@ def pes_summary(path, warnings):
 
 def reaction_summary(path, warnings):
     rows = []
+    observed_mtime_ns = None
     checkpoint = read_json(Path(path).parent/'.kinbot_search_state.json', warnings)
     retained = checkpoint.get('reactions', {}) if checkpoint.get('schema') == 1 else {}
     try:
+        observed_mtime_ns = Path(path).stat().st_mtime_ns
         for line in tail(path).splitlines():
             parts = line.split()
             if len(parts) < 3:
@@ -217,11 +224,59 @@ def reaction_summary(path, warnings):
             saved = retained.get(parts[2], {})
             if state >= 0 and saved.get('status') == -1 and not saved.get('reassess'):
                 rows[-1]['stage'] = 'restoring accepted QC'
+        if Path(path).stat().st_mtime_ns != observed_mtime_ns:
+            observed_mtime_ns = None  # Do not close diagnostics across a changing snapshot.
     except (OSError, ValueError) as error:
+        observed_mtime_ns = None
         warnings.append(f'{path}: {error}')
-    return {'path': str(path), 'counts': dict(Counter(r['stage'] for r in rows)), 'rows': rows,
+    return {'path': str(path), 'observed_mtime_ns': observed_mtime_ns,
+            'counts': dict(Counter(r['stage'] for r in rows)), 'rows': rows,
             'accepted_product_groups': len({tuple(sorted(r['products'])) for r in rows
                                             if r['code'] == -1 and r['products']})}
+
+
+def qc_search_context(path, searches, mtime_ns):
+    """Associate flat QC attempts with a later search outcome, never a cure.
+
+    Shared fragment calculations and unrelated tasks remain unclassified.
+    A not-retained search is not proof that a physical pathway cannot exist;
+    an accepted search is not proof that every one of its QC attempts worked.
+    """
+    path = Path(path)
+    directory = path.parent.parent if path.parent.name in {'perm', 'conf'} else path.parent
+    summary = searches.get(str(directory), {})
+    name = path.name
+    for suffix in ('.result.json', '.scf_recovery.json', '.exitcode',
+                   '_sella.log', '.log', '.err', '.stderr', '.stdout', '.out'):
+        if name.endswith(suffix):
+            name = name[:-len(suffix)]
+            break
+    else:
+        return {}
+    matches = [r for r in summary.get('rows', [])
+               if name == r['name'] or name.startswith(r['name'] + '_')]
+    if not matches:
+        return {}
+    row = max(matches, key=lambda r: len(r['name']))
+    stamp = summary.get('observed_mtime_ns')
+    current = stamp is not None and mtime_ns is not None and mtime_ns <= stamp
+    outcome = ({-999: 'not_retained', -1: 'accepted'}.get(row['code'], 'active')
+               if current else 'unclassified')
+    return dict(reaction=row['name'], code=row['code'], stage=row['stage'],
+                outcome=outcome, source=summary['path'])
+
+
+def closed_search(item):
+    return item.get('search_context', {}).get('outcome') in {'not_retained', 'accepted'}
+
+
+def qc_outcome_counts(items):
+    labels = {'not_retained': 'under not-retained searches',
+              'accepted': 'under accepted searches', 'active': 'search still active',
+              'unclassified': 'outcome unclassified'}
+    counts = Counter(labels[item.get('search_context', {}).get('outcome', 'unclassified')]
+                     for item in items)
+    return '; '.join(f'{key}={value}' for key, value in sorted(counts.items()))
 
 
 def previous_controller_record(path, root, warnings):
@@ -452,18 +507,39 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
             warnings.append(f'{path}: {error}')
     par = read_json(root/'input.json', warnings)
     summary = pes_summary(root/'pes_summary.txt', warnings)
+    workers = []
+    worker_dirs = {p.parent for p in files if p.name in
+                   {'kinbot.log', 'kinbot_monitor.out', 'kinbot_status.json'}}
+    for directory in sorted(worker_dirs):
+        name = str(directory.relative_to(root))
+        status = read_json(directory/'kinbot_status.json', warnings)
+        rows = reaction_summary(directory/'kinbot_monitor.out', warnings) if (directory/'kinbot_monitor.out').exists() else {}
+        optimization = read_json(directory/'kinbot_optimization_monitor.json', warnings)
+        workers.append({'directory': name, 'reported_pes_state': summary['workers'].get(name),
+                        'status': status, 'events': [],
+                        'reactions': rows, 'optimizations': optimization.get('reactions', [])})
+    searches = {w['directory']: w['reactions'] for w in workers}
+    for item in exit_records + task_records:
+        try:
+            item['search_context'] = qc_search_context(
+                item['path'], searches, (root/item['path']).stat().st_mtime_ns)
+        except OSError:
+            item['search_context'] = {}
     logs = [p for p in files if p.name in LOG_NAMES or p.suffix in {'.log', '.err', '.stderr', '.stdout'}
             or (p.suffix == '.out' and p.name != 'kinbot_monitor.out')]
-    mtimes = {}
+    mtimes, contexts = {}, {}
     for path in logs:
         try:
-            mtimes[path] = path.stat().st_mtime
+            stat = path.stat()
+            mtimes[path] = stat.st_mtime
+            contexts[path] = qc_search_context(path.relative_to(root), searches, stat.st_mtime_ns)
         except OSError as error:
             warnings.append(str(error))
     # Failed jobs' native/worker diagnostics must not be crowded out by many
     # newer successful calculations. Controller logs retain first priority.
     chosen = sorted(mtimes, key=lambda p: (
         p.name in LOG_NAMES and p.parent.relative_to(root) not in completed_workers,
+        contexts[p].get('outcome') not in {'not_retained', 'accepted'},
         p.name in failed_log_names or p.parent in failed_dirs,
         p.parent in live_dirs, mtimes[p]), reverse=True)
     # Read one tail per task before filling the remaining budget with older
@@ -481,6 +557,8 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
             record['completed_worker'] = (path.name in LOG_NAMES and
                                           path.parent.relative_to(root) in completed_workers)
             record['live_task'] = path.parent in live_dirs
+            record['search_context'] = qc_search_context(
+                record['path'], searches, record['mtime_ns'])
             record['historical_events'] = []
             if path.name in LOG_NAMES:
                 for line in set(record['errors'] + record['events']):
@@ -490,22 +568,16 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
                         if any(e['path'] == marker and e['archived_failure'] and
                                e['returncode'] == int(match[2]) for e in exit_records):
                             record['historical_events'].append(line)
+                        elif any(e['path'] == marker and closed_search(e) and
+                                 e['returncode'] == int(match[2]) for e in exit_records):
+                            record.setdefault('closed_search_events', []).append(line)
             records.append(record)
         except OSError as error:
             warnings.append(f'{path}: {error}')
     record_by_path = {r['path']: r for r in records}
-    workers = []
-    worker_dirs = {p.parent for p in files if p.name in
-                   {'kinbot.log', 'kinbot_monitor.out', 'kinbot_status.json'}}
-    for directory in sorted(worker_dirs):
-        name = str(directory.relative_to(root))
-        status = read_json(directory/'kinbot_status.json', warnings)
-        log = record_by_path.get(str((directory/'kinbot.log').relative_to(root)), {})
-        rows = reaction_summary(directory/'kinbot_monitor.out', warnings) if (directory/'kinbot_monitor.out').exists() else {}
-        optimization = read_json(directory/'kinbot_optimization_monitor.json', warnings)
-        workers.append({'directory': name, 'reported_pes_state': summary['workers'].get(name),
-                        'status': status, 'events': log.get('events', []),
-                        'reactions': rows, 'optimizations': optimization.get('reactions', [])})
+    for worker in workers:
+        log = record_by_path.get(str(Path(worker['directory'])/'kinbot.log'), {})
+        worker['events'] = log.get('events', [])
     sampling = []
     campaigns = []
     # Bind sampling to a well through its saved correction source, not its
@@ -658,9 +730,11 @@ def log_content(log, *, lines=4, raw=False, details=False):
     if raw:
         return log.get('raw_tail', [])[-lines:]
     historical = set() if details else set(log.get('historical_events', []))
+    if not details:
+        historical.update(log.get('closed_search_events', []))
     events = [s for s in log['events'] if s not in historical]
     errors = [s for s in log['errors'] if s not in historical]
-    content = events[-lines:] + log['progress'][-lines:] + errors
+    content = events[-lines:] + log['progress'][-lines:] + errors + log.get('technical_errors', [])
     if log.get('table_header') and any(
             ITERATION.match(line) or re.match(r'^(?:Sella|BFGS|LBFGS|FIRE)(?::|\s)', line)
             for line in content):
@@ -675,6 +749,8 @@ def render_logs(case, *, include_all=False, lines=4, raw=False, details=False):
         logs = [log for log in case['logs'] if (Path(log['path']).name in LOG_NAMES) == controller]
         if not details:
             logs = [log for log in logs if not log.get('completed_worker')]
+        if not (details or include_all or raw):
+            logs = [log for log in logs if not closed_search(log) or log.get('technical_errors')]
         if controller:
             logs.sort(key=lambda r: (Path(r['path']).name != 'pes.log',
                                     len(Path(r['path']).parts), r['path']))
@@ -686,7 +762,7 @@ def render_logs(case, *, include_all=False, lines=4, raw=False, details=False):
             group = log_group(log['path'])
             if not details and group in groups and not log['errors']:
                 continue
-            content = log_content(log, lines=lines, raw=raw, details=details)
+            content = log_content(log, lines=lines, raw=raw, details=details or include_all)
             if not content:
                 continue
             if not shown:
@@ -713,6 +789,7 @@ def render_status_summary(case):
     out, counts = [], Counter()
     graphs = [item for item in case['artifacts'] if 'tasks' in item]
     owners, failures, retries, intermediate = {}, {}, [], set()
+    qc_records = []
     live = {str(j['job_id']) for j in case['jobs']}
     blocked = 0
     def failure(label, error):
@@ -737,6 +814,17 @@ def render_status_summary(case):
                    '  '.join(f'{k}={v}' for k, v in sorted(counts.items())))
     for item in case['artifacts']:
         label = display_path(item['path'], case['directory'])
+        if item['path'].endswith(('.result.json', '.scf_recovery.json')):
+            # These describe individual evaluations, including discarded TS
+            # guesses/conformers. Do not call them channel/controller failures.
+            if item['status'] in ('error', 'failed', 'unavailable', 'blocked') or (
+                    item.get('error') and item['status'] not in ('complete', 'normal', 'retrying', 'running')):
+                qc_records.append(item)
+                if TECHNICAL_ERROR.search(str(item.get('error', ''))):
+                    out.append(f'  Technical QC diagnostic {label}: {item["error"]}')
+            elif item['status'] in ('retrying', 'running'):
+                retries.append(f'  RECOVERY {label}: {item["status"]}')
+            continue
         if item.get('scan'):
             scan = item['scan']
             if item['status'] == 'operator_rejected':
@@ -789,7 +877,7 @@ def render_status_summary(case):
         elif item.get('recovery', {}).get('selected'):
             retries.append(f'  RECOVERY {label}: {item["status"]}; selected={item["recovery"]["selected"]}')
     if failures:
-        out.append(f'Failures: {sum(len(v) for v in failures.values())} tasks/records; '
+        out.append(f'Task/controller errors: {sum(len(v) for v in failures.values())} tasks/records; '
                    f'{len(failures)} distinct diagnostics')
         for error, labels in sorted(failures.items(), key=lambda pair: (-len(pair[1]), pair[0]))[:5]:
             excerpt = error if len(error) <= 240 else error[:237] + '...'
@@ -800,6 +888,9 @@ def render_status_summary(case):
             out.append(f'  {len(failures)-5} additional diagnostics in --details / --json.')
     if blocked:
         out.append(f'Dependency blocks: {blocked} tasks waiting on failed prerequisites (not independent failures).')
+    if qc_records:
+        out.append(f'Non-successful QC records: {len(qc_records)}; {qc_outcome_counts(qc_records)}.')
+        out.append('  Attempt diagnostics, not a channel-failure or retry verdict; records in --all / --json.')
     if intermediate:
         out.append(f'Live tasks with earlier/intermediate failure records: {len(intermediate)}; final outcomes pending.')
     out.extend(retries[:3])
@@ -979,8 +1070,14 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             out.append(f'Archived task attempts excluded: {len(case["archived_attempt_directories"])} graph(s).')
         if case.get('retired_scan_directories'):
             out.append(f'Old VRC scan graphs retained for comparison: {len(case["retired_scan_directories"])} (excluded from current progress).')
-        for failure in failures:
-            out.append(f'FAILED QC EXIT: {failure["path"]} job={failure["job_id"] or "unknown"} exit={failure["returncode"]}')
+        if failures:
+            out.append(f'Nonzero QC exits: {len(failures)}; {qc_outcome_counts(failures)}.')
+            out.append('  Exit codes alone do not establish a broken pathway or a useful retry.')
+        if include_all or details:
+            for failure in failures:
+                context = failure.get('search_context', {})
+                out.append(f'QC EXIT: {failure["path"]} job={failure["job_id"] or "unknown"} '
+                           f'exit={failure["returncode"]}; search={context.get("outcome", "unclassified")}')
         workers = case['workers']
         if not details:
             completed = [w for w in workers if '/' in w['directory']
@@ -1029,7 +1126,7 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                 continue  # Already in the WORKER row above.
             historical = ' [previous controller]' if item.get('previous_controller') else ''
             out.append(f'RECORD {item["path"]}{historical}: {item["status"]}')
-            for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error', 'scan',
+            for key in ('counts', 'branches', 'mess_gate', 'final_solver', 'recovery', 'error', 'scan', 'search_context',
                         'vrc_tst_scope', 'decision', 'review_channels', 'recorded_status', 'recorded_error'):
                 if item.get(key) is not None:
                     value = item[key]

@@ -191,13 +191,13 @@ def test_excluded_scan_errors_are_history_only_until_reincluded(production, deci
         assert not item.get('error')
         assert 'OLD CONNECTIVITY ERROR' not in text
         assert 'pt04: needs_review' not in text
-        assert 'Failures: 1 tasks/records' in text
+        assert 'Task/controller errors: 1 tasks/records' in text
         assert 'OLD CONNECTIVITY ERROR' in monitor.render(report, details=True)
     else:
         assert item['status'] == 'running'
         assert 'OLD CONNECTIVITY ERROR' in text
         assert 'pt04: needs_review' in text
-        assert 'Failures: 2 tasks/records' in text
+        assert 'Task/controller errors: 2 tasks/records' in text
     assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
 
 
@@ -261,7 +261,7 @@ def test_initial_failure_visible_even_without_accounting_or_driver_output(produc
     before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
     report = monitor.snapshot(root)
     text = monitor.render(report)
-    assert 'QPErr' in text and 'FAILED QC EXIT' in text
+    assert 'QPErr' in text and 'Nonzero QC exits:' in text
     assert 'Starting high level optimization' in text
     assert 'Finished means exited, not successful' in text
     assert 'INACTIVE:' in text and 'completion verdict' in text
@@ -351,10 +351,10 @@ def test_archived_failure_is_cached_outcome_but_new_attempt_is_visible(productio
         'archived_failure_exits': {'well/rejected.exitcode': file_sha256(marker)}})
     text = monitor.render(monitor.snapshot(root))
     assert 'Cached rejected QC outcomes: 1' in text
-    assert 'FAILED QC EXIT' not in text
+    assert 'Nonzero QC exits:' not in text
     put(marker, '43 1\n')
     text = monitor.render(monitor.snapshot(root))
-    assert 'FAILED QC EXIT' in text
+    assert 'Nonzero QC exits:' in text
 
 
 def test_legacy_live_preflight_import_is_identified(production, monkeypatch):
@@ -699,7 +699,7 @@ def test_older_failed_product_spectrum_not_hidden_by_newer_jobs(production):
     for i in range(45):
         put(case/f'well/recent_{i}.log', 'Normal termination of Gaussian 16\n')
     text = monitor.render(monitor.snapshot(root))
-    assert 'FAILED QC EXIT' in text
+    assert 'Nonzero QC exits:' in text
     assert 'Converged but frequency check failed' in text
     assert '-53.062370746758766' in text
 
@@ -881,7 +881,7 @@ def test_archived_dispatch_failure_excluded_but_current_retry_failure_visible(pr
     report = monitor.snapshot(root)
     for details in (False, True):
         text = monitor.render(report, details=details)
-        assert 'OLD' not in text and 'FAILED QC EXIT' not in text
+        assert 'OLD' not in text and 'Nonzero QC exits:' not in text
     assert 'RETRY ANL/state_x/gaussian_vpt2: staged' in monitor.render(report)
     assert 'OLD' not in json.dumps(report)
     assert len(report['cases'][0]['archived_attempt_directories']) == 1
@@ -935,7 +935,7 @@ def test_intermediate_execution_record_does_not_duplicate_live_retry_failure(pro
     report = monitor.snapshot(root)
     text = monitor.render(report)
     assert 'Live tasks with earlier/intermediate failure records: 1' in text
-    assert 'Failures:' not in text
+    assert 'Task/controller errors:' not in text
     assert 'old attempt' in monitor.render(report, details=True)
     monkeypatch.setattr(monitor, 'queue', lambda: ([], None))
     assert 'old attempt' in monitor.render(monitor.snapshot(root))
@@ -963,7 +963,7 @@ def test_only_hash_matched_cached_worker_error_is_collapsed(production):
     put(marker, '43 1\n')
     text = monitor.render(monitor.snapshot(root))
     assert text.count('rejected exited with worker status 1') == 2
-    assert 'FAILED QC EXIT' in text
+    assert 'Nonzero QC exits:' in text
 
 
 def test_completed_reference_and_rejections_have_details_without_crowding_live_logs(production):
@@ -975,7 +975,7 @@ def test_completed_reference_and_rejections_have_details_without_crowding_live_l
     put(ref/'kinbot.log', '18-Oct-26 12:36:05-WARNING: Stale reference advice\n')
     report = monitor.snapshot(root)
     text = monitor.render(report)
-    assert "'failed/rejected': 1" in text and 'Reference/subtask workers: 1 complete' in text
+    assert "'not retained': 1" in text and 'Reference/subtask workers: 1 complete' in text
     assert 'Live main worker' in text and 'live_rxn' in text
     assert 'Stale reference advice' not in text and 'rejected_rxn' not in text
     details = monitor.render(report, details=True)
@@ -1018,3 +1018,108 @@ def test_molpro_dataset_numbers_are_not_solver_iterations(tmp_path):
     assert '-437.48412474' in text and 'ITER.' in text
     assert '1100 1400' not in text and '1.054795' not in text
     assert '1100 1400' in '\n'.join(monitor.log_content(record, raw=True))
+
+
+def test_qc_attempts_follow_search_outcomes_without_declaring_pathways_broken(production):
+    root, case = production
+    worker = case/'well'
+    names = ['rxn_1', 'retained_rxn', 'active_rxn', 'rxn_10', 'shared_product_well']
+    for index, name in enumerate(names):
+        put(worker/(name+'.exitcode'), f'{index+40} 1\n')
+        put(worker/(name+'.result.json'), {'status': 'error', 'error': 'Frequency validation failed '+name})
+        put(worker/(name+'_sella.log'), 'Worker failure: no acceptable stationary point '+name+'\ndone\n')
+    put(worker/'retained_rxn_IRC_R_prod.scf_recovery.json',
+        {'status': 'failed', 'error': 'SCF did not converge'})
+    put(worker/'kinbot.log', '28-Oct-26 21:00:00-ERROR: rxn_1 exited with worker status 1.\n'
+        '28-Oct-26 21:00:00-ERROR: UNRELATED diagnostic remains visible\n')
+    put(worker/'kinbot_monitor.out', '-999 5 rxn_1\n-1 5 retained_rxn product\n1 5 active_rxn\n')
+    for p in worker.iterdir():
+        os.utime(p, ns=(100, 100))
+    os.utime(worker/'kinbot_monitor.out', ns=(200, 200))
+    # Identical job names in another well have no demonstrated search outcome.
+    put(case/'other/rxn_1.exitcode', '60 1\n')
+    put(case/'other/kinbot_monitor.out', '0 5 rxn_1\n')
+    os.utime(case/'other/rxn_1.exitcode', ns=(100, 100))
+    os.utime(case/'other/kinbot_monitor.out', ns=(200, 200))
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    for _ in range(2):
+        report = monitor.snapshot(root)
+        current = report['cases'][0]
+        contexts = {e['path']: e['search_context'].get('outcome') for e in current['exit_records']}
+        assert contexts == {'well/rxn_1.exitcode': 'not_retained',
+            'well/retained_rxn.exitcode': 'accepted', 'well/active_rxn.exitcode': 'active',
+            'well/rxn_10.exitcode': None, 'well/shared_product_well.exitcode': None,
+            'other/rxn_1.exitcode': 'active'}
+        text = monitor.render(report, width=200)
+        assert 'Nonzero QC exits: 6;' in text
+        assert 'under not-retained searches=1' in text and 'under accepted searches=1' in text
+        assert 'Task/controller errors:' not in text and 'FAILED QC EXIT' not in text
+        assert 'Non-successful QC records: 6;' in text
+        assert 'no acceptable stationary point rxn_1\n' not in text
+        assert 'rxn_1 exited with worker status 1' not in text
+        assert 'UNRELATED diagnostic' in text
+        details = monitor.render(report, details=True)
+        assert 'rxn_1 exited with worker status 1' in details
+        assert 'no acceptable stationary point retained_rxn' in details
+        assert 'SCF did not converge' in details
+        assert 'no acceptable stationary point rxn_1' in monitor.render(report, raw_logs=True)
+        assert all(e['returncode'] == 1 for e in current['exit_records'])
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+
+def test_new_qc_evidence_is_not_closed_by_an_older_search_decision(production):
+    root, case = production
+    worker = case/'well'
+    put(worker/'kinbot_monitor.out', '-999 5 candidate\n')
+    put(worker/'candidate.exitcode', '42 1\n')
+    put(worker/'candidate_sella.log', 'Worker failure: NEW evaluation failed\n')
+    os.utime(worker/'kinbot_monitor.out', ns=(100, 100))
+    for name in ('candidate.exitcode', 'candidate_sella.log'):
+        os.utime(worker/name, ns=(200, 200))
+    report = monitor.snapshot(root)
+    assert report['cases'][0]['exit_records'][0]['search_context']['outcome'] == 'unclassified'
+    text = monitor.render(report)
+    assert 'outcome unclassified=1' in text and 'NEW evaluation failed' in text
+
+
+def test_search_rejection_does_not_hide_technical_or_controller_errors(production):
+    root, case = production
+    worker = case/'well'
+    put(worker/'candidate.result.json', {'status': 'error', 'error': 'ModuleNotFoundError: missing_backend'})
+    put(worker/'candidate.log', 'QPErr --- A syntax error was detected\n')
+    put(worker/'kinbot_monitor.out', '-999 5 candidate\n')
+    put(worker/'kinbot_status.json', {'status': 'failed', 'error': 'controller stopped unexpectedly'})
+    for p in worker.iterdir():
+        os.utime(p, ns=(100, 100))
+    os.utime(worker/'kinbot_monitor.out', ns=(200, 200))
+    text = monitor.render(monitor.snapshot(root))
+    assert 'under not-retained searches=1' in text
+    assert 'Technical QC diagnostic' in text and 'ModuleNotFoundError' in text
+    assert 'QPErr' in text and 'controller stopped unexpectedly' in text
+
+
+def test_completed_scf_recovery_original_error_is_not_a_current_task_failure(production):
+    root, case = production
+    put(case/'well/candidate.scf_recovery.json', {'status': 'complete',
+        'error': 'Original SCF failure', 'reason': 'Gaussian QC-SCF failure in Link 508'})
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert 'Task/controller errors:' not in text
+    assert 'Non-successful QC records:' not in text
+    assert 'Original SCF failure' in monitor.render(report, details=True)
+
+
+@pytest.mark.parametrize('changing', [False, True])
+def test_incomplete_or_changing_search_snapshot_keeps_attempt_unclassified(tmp_path, monkeypatch, changing):
+    path = tmp_path/'kinbot_monitor.out'
+    put(path, '-999 2 candidate\n' + ('' if changing else 'broken 2 other\n'))
+    os.utime(path, ns=(100, 100))
+    original_tail = monitor.tail
+    if changing:
+        def read_and_change(p, *args, **kwargs):
+            value = original_tail(p, *args, **kwargs)
+            os.utime(p, ns=(200, 200))
+            return value
+        monkeypatch.setattr(monitor, 'tail', read_and_change)
+    summary = monitor.reaction_summary(path, [])
+    assert monitor.qc_search_context('candidate.exitcode', {'.': summary}, 50)['outcome'] == 'unclassified'

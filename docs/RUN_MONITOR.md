@@ -33,7 +33,26 @@ Both PES overviews appear before either expanded section. Routine successful
 result records are omitted from the default view. Dispatch task counts are
 aggregated across graphs; current failures, pending retries and dependencies
 blocked by failure are expanded. Completed reaction rejections are counted
-as search outcomes, with individual rows under `--all` or `--details`.
+as **not-retained searches**, with individual rows under `--all` or `--details`.
+This is the driver's decision about that search, not proof that the physical
+pathway cannot exist. Unsuccessful TS guesses, incorrect IRC connections and
+discarded conformers can be ordinary exploration outcomes.
+
+Nonzero QC exits and unsuccessful `.result.json`/`.scf_recovery.json` records
+are counted separately from task/controller errors. Where a later reaction
+monitor identifies the owning search, counts distinguish not-retained,
+accepted and still-active searches. Shared fragments, unmatched jobs and QC
+evidence newer than the search decision remain unclassified. These are counts
+of attempt records, not counts of broken channels or recommendations to retry.
+Only a same-worker, exact reaction-name prefix with an underscore boundary is
+matched; records from different wells are never combined by job name alone.
+
+Default QC tails omit older attempts under terminal searches. `--all`,
+`--details`, `--raw-logs` and JSON retain their diagnostics within the log read
+limits. Explicit input-syntax, missing-module and I/O diagnostics remain
+visible even under a rejected search, as do controller/task errors. Those
+diagnostics identify technical problems; they do not certify that a native
+retry will succeed. Scientific rejection alone is not a repair request.
 A waiting task is not a failed QC calculation. Completed reference-worker
 log tails are available under `--details`, keeping the main `kinbot.log` and
 `pes.log` visible by default.
@@ -73,9 +92,10 @@ The snapshot shows:
 - After the explicit saved-results migration, hash-matched rejected QC exit
   markers are shown as cached outcomes, with their original native attempts
   in the external archive. A marker written by a new failed attempt is shown
-  as a current failure. The exact matching `exited with worker status` message
+  as a new attempt outcome. The exact matching `exited with worker status` message
   is also collapsed in the default controller tail, but remains in `--details`,
   raw tails and JSON. Other errors are not hidden based on age or job name alone.
+  The same message is collapsed when a later owning search is terminal.
   This does not turn a rejected reaction into a success.
 - Dispatcher `attempts/` folders beside `workflow.json` are historical and are
   excluded from the dashboard, JSON and log follower. Their paths are listed in

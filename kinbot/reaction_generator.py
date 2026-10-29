@@ -550,7 +550,12 @@ class ReactionGenerator:
                             obj.prod_done = 1
 
                         product_cache_failed = False
-                        for frag in obj.products:
+                        for fragii, frag in enumerate(obj.products):
+                            # A relaxed fragment may already have been replaced
+                            # by another connectivity/configuration. Its old
+                            # request remains evidence, not an active QC job.
+                            if not obj.valid_prod[fragii]:
+                                continue
                             try:
                                 self.qc.qc_opt(frag, frag.geom)
                             except StereoRoutingError as error:
@@ -572,14 +577,13 @@ class ReactionGenerator:
                         products_orig = [copy.copy(opr) for opr in obj.products]
                         ndone = 0
                         for fragii, frag in enumerate(products_orig):
+                            if not obj.valid_prod[fragii]:
+                                ndone += 1
+                                continue
                             if same_species(frag, self.species):
                                 logger.info(f'Product in {obj.instance_name} is identical to the reactant. Reaction deleted.')
                                 self.species.reac_ts_done[index] = -999
                                 break
-                            # do not look at already invalid fragments again
-                            elif not obj.valid_prod[fragii]:
-                                ndone += 1
-                                continue
                             chemid_orig = frag.chemid
                             requested_fragment = copy.copy(frag)
                             # OpenBabel handles cannot be deep-copied; only freeze

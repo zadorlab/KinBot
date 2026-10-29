@@ -47,15 +47,18 @@ class TestProductOptimizationReuse(unittest.TestCase):
                         endpoint.start_multi_molecular = Mock(return_value=(
                             [copy.copy(p) for p in fragments], None))
                         reactions.append(SimpleNamespace(instance_name=f'hom_sci_{i}',
-                            species=parent, instance=[1, 2], products=[], prod_opt=[],
+                            species=parent, instance=[1, 2], family_name='hom_sci',
+                            max_step=0, scan=False, products=[], prod_opt=[],
                             do_vdW=False, irc_prod=endpoint))
                     parent.reac_obj = reactions
                     parent.reac_inst = [[1, 2], [1, 2]]
                     parent.reac_type = ['hom_sci', 'hom_sci']
                     parent.reac_name = [r.instance_name for r in reactions]
                     parent.reac_step = [0, 0]
+                    parent.reac_scan_energy = [[], []]
                     parent.reac_ts_done = [2, 2]
-                    qc = Mock()
+                    qc = Mock(spec=['db', 'qc_opt', 'get_qc_geom',
+                                    'get_qc_energy', 'get_qc_zpe'])
                     qc.db.select.return_value = []
                     active_channel = [None]
 

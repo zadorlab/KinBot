@@ -87,6 +87,10 @@ class TestSpeciesRouting(unittest.TestCase):
         for reflected in (False, True):
             for selector in (legacy, exact):
                 with self.subTest(reflected=reflected, selector=selector):
+                    # Each selector is an independent discovery, not a restart
+                    # adopting the preceding subtest's terminal decisions.
+                    Path('.kinbot_search_state.json').unlink(missing_ok=True)
+                    Path('kinbot_monitor.out').unlink(missing_ok=True)
                     parent = copy.deepcopy(seed)
                     if reflected:
                         parent.geom *= [-1., 1., 1.]
@@ -98,7 +102,7 @@ class TestSpeciesRouting(unittest.TestCase):
                     parent.reac_obj, parent.reac_inst = [reaction], [reaction.instance]
                     parent.reac_name, parent.reac_type = [reaction.instance_name], ['intra_H_migration']
                     parent.reac_ts_done, parent.reac_step = [0], [0]
-                    qc = Mock()
+                    qc = Mock(spec=['check_qc'])
                     qc.check_qc.side_effect = RuntimeError('unexcluded reaction reached QC')
                     with patch('kinbot.reaction_generator.time.sleep'):
                         generator = ReactionGenerator(parent, par, qc, 'input.json')

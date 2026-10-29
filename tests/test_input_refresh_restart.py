@@ -13,6 +13,9 @@ from tests.test_input_refresh import run, change, surface
 
 @pytest.fixture(autouse=True)
 def isolated_phase(monkeypatch):
+    # Explicit simulated Linux identity keeps owner tests portable to macOS.
+    monkeypatch.setattr(phase, 'process_identity', lambda pid: dict(
+        host='test-host', pid=pid, start='test-start', boot='test-boot') if pid == os.getpid() else None)
     for name in ('_ROOT', '_WORKER', '_EPOCH'):
         monkeypatch.setattr(phase, name, None)
 

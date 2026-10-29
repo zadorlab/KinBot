@@ -11,6 +11,9 @@ from kinbot.execution import atomic_json
 
 @pytest.fixture
 def root(tmp_path, monkeypatch):
+    # These orchestration tests simulate a live Linux owner on any test host.
+    monkeypatch.setattr(phase, 'process_identity', lambda pid: dict(
+        host='test-host', pid=pid, start='test-start', boot='test-boot') if pid == os.getpid() else None)
     monkeypatch.setattr(phase, '_ROOT', None)
     monkeypatch.setattr(phase, '_WORKER', None)
     monkeypatch.setattr(phase, '_EPOCH', None)

@@ -111,6 +111,32 @@ def same_species(first, second, context='species reuse'):
             and left['mirror_id'] == right['id'])
 
 
+def completed_product_observation(qc, species):
+    """Inspect completed L1 product output before requesting its old geometry.
+
+    The reaction owner must still classify the observed output and run ordinary
+    replacement/validation steps. A normal result does not establish that the
+    requested configuration survived. Ordinary well reuse stays stricter.
+    """
+    if not hasattr(qc, 'db') or not callable(getattr(qc, 'check_qc', None)):
+        return False
+    job = routing_name(species) + '_well'
+    backend = qc._backend_for(job) if hasattr(qc, '_backend_for') else qc
+    reference = next(backend.db.select(name='stereochemistry/' + job,
+                                      sort='-id', limit=1), None)
+    result = next(backend.db.select(name=job, sort='-id', limit=1), None)
+    if (reference is None or reference.data.get('status') != 'input_reference'
+            or result is None or result.data.get('status') != 'normal'
+            or qc.check_qc(job) != 'normal'):
+        return False
+    prepare = getattr(backend, '_prepare_stereochemistry', None)
+    if callable(prepare):
+        prepare(species)
+    from kinbot.stereo_routing import guard_well_job
+    guard_well_job(backend, species, species.geom, job, product_observation=True)
+    return True
+
+
 def reusable_cached_product(qc, species):
     """Adopt a verified product's saved atom ordering before optimization.
 

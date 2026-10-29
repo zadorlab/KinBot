@@ -37,7 +37,8 @@ def point(smiles, mult=1):
 
 @pytest.mark.parametrize('case', CASES, ids=lambda c: c['worker'].split('-')[-1])
 @pytest.mark.parametrize('delayed', [False, True])
-def test_retired_product_is_not_resubmitted_or_revalidated(case, delayed, tmp_path, monkeypatch):
+@pytest.mark.parametrize('precompleted', [False, True])
+def test_retired_product_is_not_resubmitted_or_revalidated(case, delayed, precompleted, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     Path('input.json').write_text('{"barrier_threshold": 100.0}')
     par = Parameters('input.json', show_warnings=False).par
@@ -107,6 +108,16 @@ def test_retired_product_is_not_resubmitted_or_revalidated(case, delayed, tmp_pa
     qc.get_qc_geom.side_effect = read_geom
     qc.get_qc_energy.return_value = (0, -100.)
     qc.get_qc_zpe.return_value = (0, .01)
+    if precompleted:
+        # Fresh controller: the original request and its differently configured
+        # output already exist. No submission under that old name is allowed.
+        submit(original, original.geom)
+        original_result.append(qc.db.write(Atoms(original.atom, positions=case['output_positions']),
+            name=old_job, data={'status': 'normal', 'energy': -100./constants.EVtoHARTREE,
+                              'zpe': .01, 'frequencies': [100.] * (3*original.natom-6)}))
+        requests.clear()
+        qc.check_qc = lambda job: 'normal' if job == old_job else 'running'
+        requested = copy.deepcopy(original)
     optimizers = []
 
     def optimize(p, *args):
@@ -129,9 +140,50 @@ def test_retired_product_is_not_resubmitted_or_revalidated(case, delayed, tmp_pa
     assert Counter(routing_name(p) for p in reaction.products) == Counter([
         case['observed_route'], routing_name(hydrogen)])
     assert len(optimizers) == 2
-    assert requests[old_job] == (2 if delayed else 1)
+    assert requests[old_job] == (0 if precompleted else (2 if delayed else 1))
     assert len(original_result) == 1
     row = qc.db.get(original_result[0])
     assert row.name == old_job and row.data['status'] == 'normal'
     np.testing.assert_array_equal(row.positions, case['output_positions'])
     assert not Path('unsupported_observations').exists()
+    if precompleted:
+        # An observation check must not poison the ordinary well-reuse cache.
+        from kinbot.stereo_routing import StereoRoutingError
+        with pytest.raises(StereoRoutingError, match='different stereoisomer'):
+            guard_well_job(qc, requested, requested.geom, old_job)
+
+
+@pytest.mark.parametrize('condition', ['missing_reference', 'running', 'error', 'wrong_charge', 'wrong_input_state'])
+def test_product_observation_requires_owned_completed_state(condition, tmp_path, monkeypatch):
+    from kinbot.species_routing import completed_product_observation
+    from kinbot.stereo_routing import StereoRoutingError
+    monkeypatch.chdir(tmp_path)
+    case = CASES[0]
+    p = StationaryPoint('product', case['charge'], case['multiplicity'],
+                        atom=case['input_symbols'], geom=np.array(case['input_positions']))
+    p.characterize()
+    for key, value in case['input_context'].items():
+        if value is not None:
+            setattr(p, key, np.array(value) if key in ('bond', 'bond01') else copy.deepcopy(value))
+    optical_scope(p, 'specified')
+    job = routing_name(p) + '_well'
+    qc = SimpleNamespace(db=connect('kinbot.db'), check_qc=lambda job: 'normal')
+    guard_well_job(qc, p, p.geom, job)
+    ref = qc.db.get(name='stereochemistry/' + job)
+    data = dict(status='normal', energy=-100., zpe=.01)
+    if condition == 'wrong_charge':
+        data['charge'] = 1
+    if condition == 'error':
+        data['status'] = 'error'
+    qc.db.write(Atoms(p.atom, positions=case['output_positions']), name=job, data=data)
+    if condition == 'missing_reference':
+        qc.db.delete([ref.id])
+    elif condition == 'running':
+        qc.check_qc = lambda job: 'running'
+    elif condition == 'wrong_input_state':
+        qc.db.update(ref.id, data=dict(ref.data, input_charge=1))
+    if condition in ('wrong_charge', 'wrong_input_state'):
+        with pytest.raises(StereoRoutingError):
+            completed_product_observation(qc, p)
+    else:
+        assert not completed_product_observation(qc, p)

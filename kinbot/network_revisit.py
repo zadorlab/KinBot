@@ -14,7 +14,13 @@ def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None):
         raise ValueError('vdW_detection must be finite and nonnegative.')
     if barrier_l2 is not None and (isinstance(barrier_l2,bool) or not math.isfinite(barrier_l2) or barrier_l2<=0):
         raise ValueError('L2 barrier ceiling must be positive and finite.')
-    return dict(vdW_detection=vdw, rejected=bool(rejected), deduplicate_ts=bool(deduplicate), barrier_threshold_L2=barrier_l2)
+    if isinstance(rejected, list):
+        if not rejected or any(not isinstance(x, str) or not x or '/' in x for x in rejected):
+            raise ValueError('Provide nonempty exact reaction names for a targeted revisit.')
+        rejected = sorted(set(rejected))
+    elif not isinstance(rejected, bool):
+        raise ValueError('Rejected selection must be a boolean or a list of exact reaction names.')
+    return dict(vdW_detection=vdw, rejected=rejected, deduplicate_ts=bool(deduplicate), barrier_threshold_L2=barrier_l2)
 
 
 def revisits_search(options):
@@ -103,6 +109,8 @@ def plan(root, jobs, options):
             monitor = worker/'kinbot_monitor.out'
             rows = [line.split() for line in monitor.read_text().splitlines()] if monitor.exists() else []
             rejected = [r[2] for r in rows if len(r)>=3 and r[0]=='-999'] if options['rejected'] else []
+            if isinstance(options['rejected'], list):
+                rejected = [name for name in rejected if name in options['rejected']]
             workers.append(dict(path=str(worker.relative_to(root)), rejected=rejected,
                                 automatic_directory=previous.get('anl_automatic_directory','anl_automatic')))
             base = worker/previous.get('anl_automatic_directory','anl_automatic')
@@ -143,6 +151,11 @@ def plan(root, jobs, options):
                 retired,owned=retirement(root,live,graph,canonical,target['record']['molecule'])
                 remove.append(retired);selected.extend(owned)
             external.append(dict(case=str(scope),mapping=mapping,remove=remove))
+    if isinstance(options['rejected'], list):
+        found = [name for worker in workers for name in worker['rejected']]
+        if sorted(found) != options['rejected']:
+            raise ValueError('Every selected reaction must occur exactly once as a rejected '
+                             'search in the current worker inventories; no broad retry is substituted.')
     return dict(settings=options, inputs=edits, workers=workers, aliases=aliases,
                 external_ts=external, selected_jobs=selected, prepared_before=prepared,
                 prepared_sha256=file_sha256(root/'prepared.json'), revision=uuid.uuid4().hex)

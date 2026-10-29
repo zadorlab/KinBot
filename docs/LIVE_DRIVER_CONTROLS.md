@@ -6,6 +6,34 @@ already include this implementation. An older running Python process needs one
 controller refresh; subsequent control commands do not require refreshes.
 Running allocations keep their immutable inputs and code snapshot.
 
+To load a fix and reopen only specified rejected searches, use
+`python -m kinbot.run_refresh ROOT --revisit-reaction EXACT_REACTION --apply`.
+Repeat `--revisit-reaction` for each full reaction name. Omit `--apply` for a
+preview. Each name must match exactly one currently rejected monitor entry;
+an absent, ambiguous, accepted or active selection stops preflight. This option
+cannot be combined with `--revisit-rejected`, which selects every rejection.
+The owning reaction drivers archive only each selected reaction's attempts,
+retain shared product calculations and unrelated search decisions, and grant
+one reconsideration per handoff. Repeating the same completed handoff is a
+no-op. The ordinary chemistry gates still decide each outcome.
+
+A completed product that relaxed into another configuration is read as an
+observation of its original, verified input. The reaction driver classifies it
+under its observed identity before further optimization/validation. This does
+not authorize ordinary well-cache reuse under the original isomer's identity;
+that stricter guard remains in force. Missing input provenance, contradictory
+electronic states, active generations and unsuccessful calculations do not
+qualify for this observation path.
+
+For ordinary PES cases originally launched without managed receipts (for
+example with `nohup python -m kinbot.pes input.json`), first run
+`python -m kinbot.run_adopt ROOT --apply` on the original controller host.
+It records existing case inputs and launch observations without changing
+calculations or processes. It explicitly records the original loaded code
+revision as unknown. A subsequent `run_refresh` performs the full ownership
+preflight and installs an immutable code snapshot. Registration alone does
+not reload a running controller. Repeating a completed registration is a no-op.
+
 After an outage, `kinbot.run_refresh ROOT --apply` archives the previous PES
 coordination records after verifying controller shutdown and acquiring the
 worker locks. This includes an empty or truncated `pes_exploration.json`:
@@ -23,7 +51,7 @@ IDs, reused PIDs, unrelated hosts and changed scientific contracts still stop
 adoption or signalling.
 
 For a complete retained-run handoff from a checkout, use
-`bash examples/anl/tools/refresh_retained_run.sh ROOT MAX_JOBS`.
+`bash examples/anl/ch3s_anl1_f12/tools/refresh_retained_run.sh ROOT MAX_JOBS`.
 It adds currently down/unknown/draining/failed nodes to the existing exclusions,
 updates the shared admission cap, refreshes PES/KB owners, resumes eligible
 independent ROTD owners, then reconciles saved dispatcher results and applicable

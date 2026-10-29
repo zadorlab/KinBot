@@ -509,6 +509,93 @@ def test_network_revisit_handoff_preserves_live_and_pending_graphs(live_tree):
     assert len(t.launches)==2
 
 
+@pytest.mark.parametrize('ordinary', [False, True])
+def test_exact_revisit_refresh_and_owner_application_are_bounded(sampling_tree, monkeypatch, ordinary):
+    from ase import Atoms
+    from ase.db import connect
+    from kinbot import network_revisit, search_control
+    t = sampling_tree
+    for case in ('ch3s', 'ch3ss'):
+        worker = t.root/case/'123'
+        atomic_json(worker/'123.json', dict(pes_phase_policy='exploration_first', profiled_l1_reuse_only=0))
+        (worker/'kinbot_monitor.out').write_text(
+            f'-1 0 accepted\n-999 0 {case}_selected\n-999 0 {case}_unrelated\n')
+    options = network_revisit.settings(rejected=['ch3ss_selected'])
+    before = scientific_files(t.root)
+    jobs = deepcopy(t.jobs)
+    if ordinary:
+        from kinbot import run_adopt
+        for name in ('prepared.json', 'salvage.json'):
+            (t.root/name).unlink()
+        for case in ('ch3s', 'ch3ss'):
+            folder = t.root/case
+            (folder/'launch.json').unlink()
+            p = folder/'pes_status.json'
+            status = json.loads(p.read_text())
+            atomic_json(p, dict(status, schema=1, started_utc='2026-01-01T00:00:00+00:00'))
+            (folder/'launch.pid').write_text(str(status['pid']))
+        assert run_adopt.register(t.root)['phase'] == 'reviewed'
+        assert not (t.root/'prepared.json').exists()
+        registration = run_adopt.register(t.root, apply=True)
+        assert registration['phase'] == 'registered'
+        assert run_salvage._controller_history(t.root)['code'] is None
+        assert scientific_files(t.root) == before and not t.signals
+        # Exercise actual source pinning from the explicitly unversioned start.
+        monkeypatch.setattr(run_salvage, '_pin_code', PIN_CODE)
+    result = run_refresh.refresh(t.root, apply=True, network_options=options)
+    assert result['phase'] == 'launched' and t.jobs == jobs
+    assert scientific_files(t.root) == before
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    assert json.loads((t.root/'ch3s/123/.kinbot_revisit.json').read_text())['rejected'] == []
+    worker = t.root/'ch3ss/123'
+    assert json.loads((worker/'.kinbot_revisit.json').read_text())['rejected'] == ['ch3ss_selected']
+    assert run_refresh.refresh(t.root, apply=True, network_options=options) == result
+    assert len(t.launches) == 2
+    if ordinary:
+        assert run_adopt.register(t.root, apply=True) == registration
+        assert (Path(result['code'])/'manifest.json').is_file()
+
+    # Apply the published intent through the actual reaction-owner retire/reset
+    # procedure, retaining the shared product and unrelated search histories.
+    monkeypatch.chdir(worker)
+    qc = SimpleNamespace(db=connect('owner-test.db'), job_ids={})
+    ids = {n: qc.db.write(Atoms('H'), name=n, data={'status': 'normal'})
+           for n in ('ch3ss_selected', 'ch3ss_unrelated', 'product_well')}
+    (worker/'ch3ss_selected.log').write_text('retained original attempt')
+    (worker/'ch3ss_unrelated.log').write_text('unrelated attempt')
+    class Reaction:
+        def __init__(self, species, qc, par, instance, name):
+            self.instance, self.instance_name = instance, name
+    species = SimpleNamespace(reac_ts_done=[-1, -999, -999], reac_step=[0, 0, 0])
+    species.reac_obj = [Reaction(species, qc, {}, [], n)
+                        for n in ('accepted', 'ch3ss_selected', 'ch3ss_unrelated')]
+    generator = SimpleNamespace(species=species, qc=qc, par={}, inp='123.json')
+    search_control.reactions(generator)
+    assert species.reac_ts_done == [-1, 0, -999]
+    assert qc.db.get(ids['ch3ss_selected']).data['status'] == 'normal'
+    assert len(list(qc.db.select(name='product_well'))) == 1
+    assert len(list(qc.db.select(name='ch3ss_unrelated'))) == 1
+    assert (worker/'ch3ss_unrelated.log').read_text() == 'unrelated attempt'
+    assert list((worker/'.kinbot_controls/attempts').glob('*/files/ch3ss_selected.log'))
+    species.reac_ts_done[1] = -999
+    count = qc.db.count()
+    search_control.reactions(generator)
+    assert species.reac_ts_done == [-1, -999, -999] and qc.db.count() == count
+
+
+@pytest.mark.parametrize('selection', [['absent'], ['accepted'], ['ambiguous']])
+def test_exact_revisit_refuses_invalid_selection_before_stopping(live_tree, selection):
+    from kinbot.network_revisit import settings
+    t = live_tree
+    for case in ('ch3s', 'ch3ss'):
+        worker = t.root/case/'123'
+        atomic_json(worker/'123.json', {})
+        (worker/'kinbot_monitor.out').write_text('-1 0 accepted\n-999 0 ambiguous\n')
+    with pytest.raises(ValueError, match='exactly once'):
+        run_refresh.refresh(t.root, apply=True, network_options=settings(rejected=selection))
+    assert not t.signals and not t.launches
+
+
 def test_deduplicate_refresh_cancels_only_verified_duplicate_and_retains_chain(live_tree, monkeypatch):
     from tests.test_vrc_graph import graph, spec
     t = live_tree

@@ -164,7 +164,7 @@ def _row_species(species, row, job, input_reference=None):
     return point
 
 
-def guard_well_job(qc, species, geom, job):
+def guard_well_job(qc, species, geom, job, *, product_observation=False):
     """Check both input-reference and completed cache geometry before job reuse.
 
     Ordinary optimized fragments may dissociate; changed connectivity remains
@@ -185,10 +185,19 @@ def guard_well_job(qc, species, geom, job):
             'stereo_ignored_atoms', 'stereo_ignored_bonds')}
     }), sort_keys=True).encode()).hexdigest()
     cache = getattr(qc, '_verified_well_jobs', {})
-    state = (request, _row_revision(reference), _row_revision(result))
+    # Observation lets the reaction owner classify a relaxed product; it is
+    # never permission to reuse that result as the requested isomer.
+    observation = bool(product_observation and reference is not None
+                       and reference.data.get('status') == 'input_reference'
+                       and reference.data.get('input_charge') == requested.charge
+                       and reference.data.get('input_multiplicity') == requested.mult
+                       and result is not None and result.data.get('status') == 'normal')
+    label = ('verified product input; output requires classification' if observation
+             else 'verified configured request')
+    state = (request, _row_revision(reference), _row_revision(result), observation)
     previous_check = cache.get(job)
     if previous_check is not None and previous_check[0] is qc.db and previous_check[1] == state:
-        species.stereo_routing_status = 'verified configured request'
+        species.stereo_routing_status = label
         return
     identity = require_supported_identity(requested)
     declared = getattr(requested, 'optical_reference', {}) or {}
@@ -219,15 +228,15 @@ def guard_well_job(qc, species, geom, job):
     if cached is not None:
         from kinbot.species_routing import require_cache_atom_order
         require_cache_atom_order(requested, cached, job)
-        if cached.chemid == species.chemid:
+        if cached.chemid == species.chemid and not observation:
             require_same_configuration(requested, cached, f'{job}: completed cache')
     if reference is None:
         reference = qc.db.get(_write_reference(qc, requested, name, identity))
     # ASE writes and updates change the row revision. A newly completed result,
     # changed request, or changed reference must pass the full checks again.
-    cache[job] = (qc.db, (request, _row_revision(reference), _row_revision(result)))
+    cache[job] = (qc.db, (request, _row_revision(reference), _row_revision(result), observation))
     qc._verified_well_jobs = cache
-    species.stereo_routing_status = 'verified configured request'
+    species.stereo_routing_status = label
 
 
 def _row_revision(row):

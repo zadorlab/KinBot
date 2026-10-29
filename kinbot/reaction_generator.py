@@ -1,5 +1,6 @@
 from kinbot.species_routing import (routing_key, routing_name, same_species,
-                                   reusable_cached_product, matches_name)
+                                   reusable_cached_product, matches_name,
+                                   completed_product_observation)
 import os, sys
 import shutil
 import time
@@ -557,7 +558,8 @@ class ReactionGenerator:
                             if not obj.valid_prod[fragii]:
                                 continue
                             try:
-                                self.qc.qc_opt(frag, frag.geom)
+                                if not completed_product_observation(self.qc, frag):
+                                    self.qc.qc_opt(frag, frag.geom)
                             except StereoRoutingError as error:
                                 logger.warning('%s: product calculation cannot be reused: %s. '
                                                'Omitting this channel; saved calculations retained.',

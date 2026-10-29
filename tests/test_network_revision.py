@@ -151,6 +151,9 @@ def test_new_role_retains_geometry_graph_revision():
 def test_live_network_revisit_replays_cache_and_grants_one_failed_attempt(tmp_path,monkeypatch):
     import os
     from kinbot import pes_phase,live_control,search_control
+    # Simulate Linux identity rather than requiring /proc on the test host.
+    monkeypatch.setattr(pes_phase, 'process_identity', lambda pid: dict(
+        host='test-host', pid=pid, start='test-start', boot='test-boot') if pid == os.getpid() else None)
     live_control.configure(tmp_path)
     pes_phase.initialize(tmp_path)
     worker=tmp_path/'123';worker.mkdir()

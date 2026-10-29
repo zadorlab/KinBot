@@ -214,13 +214,16 @@ def _pin_code(root, *, refresh=False):
     import kinbot
     source = Path(kinbot.__file__).parent
     record = _controller_history(root)
-    pin = Path(record.get('code', root / '.salvage_code'))
     if refresh:
         hashes = {str(p.relative_to(source)): file_sha256(p)
                   for p in source.rglob('*') if p.is_file()
                   and '__pycache__' not in p.parts and p.suffix != '.pyc'}
         digest = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
         pin = root / ('.salvage_code.' + digest[:16])
+    else:
+        if 'code' in record and record['code'] is None:
+            raise ValueError('The original ordinary launch has no pinned code; use run_refresh first.')
+        pin = Path(record.get('code', root / '.salvage_code'))
     if pin.parent != root or not pin.name.startswith('.salvage_code') or pin.is_symlink():
         raise ValueError('Pinned source must be a local salvage code directory.')
     if not pin.exists():

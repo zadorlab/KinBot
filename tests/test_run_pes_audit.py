@@ -168,3 +168,10 @@ def test_rejected_searches_separate_endpoint_evidence_from_inconclusive_searches
         'transition_state_identity_mismatch', 'stationary_point_validation_failed',
         'optimization_not_converged']
     assert not errors and all(r['proves_channel_absent'] is False for r in result)
+
+
+def test_rejection_log_evidence_does_not_mix_similarly_numbered_searches(tmp_path):
+    (tmp_path/'kinbot.log').write_text('rx_10: Neither IRC leads to the initial well\n')
+    rows = audit.rejected_searches(tmp_path, '-999 0 rx_1\n-999 0 rx_10\n', [])
+    assert rows[0]['category'] == 'reason_requires_review' and not rows[0]['log_evidence']
+    assert rows[1]['category'] == 'wrong_irc_endpoints'

@@ -117,6 +117,9 @@ def failure_inventory(worker, errors):
     failures = []
     for p in sorted([*worker.glob('*.exitcode'), *worker.glob('conf/*.exitcode')]):
         try:
+            related = (p, p.with_suffix('.result.json'), p.with_name(p.stem+'_sella.log'))
+            if any(q.is_symlink() or not q.resolve().is_relative_to(worker.resolve()) for q in related):
+                raise ValueError('Symlink/outside-worker outcome evidence excluded')
             marker = _worker_exit_status(p)
             if marker is None or marker[0] == 0:
                 continue
@@ -143,11 +146,13 @@ def rejected_searches(worker, monitor_text, errors):
     lines, truncated = [], False
     try:
         if log.exists():
+            if log.is_symlink() or not log.resolve().is_relative_to(worker.resolve()):
+                raise ValueError('Symlink/outside-worker controller log excluded')
             with log.open('rb') as f:
                 truncated = log.stat().st_size > 8*1024*1024
                 f.seek(max(0, log.stat().st_size-8*1024*1024))
                 lines = f.read().decode(errors='replace').splitlines()
-    except OSError as error:
+    except (OSError, ValueError) as error:
         errors.append(dict(file=str(log), error=str(error)))
     failures = failure_inventory(worker, errors)
     result = []
@@ -156,7 +161,10 @@ def rejected_searches(worker, monitor_text, errors):
         if len(fields) < 3 or fields[0] != '-999':
             continue
         name = fields[2]
-        evidence = [s.strip() for s in lines if name in s and re.search(
+        # A reaction numbered ..._1 must not borrow the rejection of ..._10.
+        # Underscore suffixes are allowed for its IRC/conformer/QC children.
+        belongs = re.compile(r'(?<![A-Za-z0-9_])'+re.escape(name)+r'(?![A-Za-z0-9])')
+        evidence = [s.strip() for s in lines if belongs.search(s) and re.search(
             r'fail|error|identical|No product|barrier|imaginar|connect|reject|same|IRC', s, re.I)][-6:]
         native = [f for f in failures if f['job'] == name or f['job'].startswith(name+'_')]
         joined = '\n'.join(evidence)

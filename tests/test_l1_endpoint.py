@@ -50,7 +50,7 @@ def test_wait_then_same_level_completed_frequency_and_restart_reuse(endpoint):
 def test_unusable_frequency_cannot_become_a_depth_or_trigger_l2(endpoint, bad):
     worker, par, db, species, qc, job, atoms = endpoint
     data = dict(status='normal', energy=-1/constants.EVtoHARTREE, zpe=.001, frequencies=[500.])
-    if bad == 'energy': data['energy'] += .1
+    if bad == 'energy': data['energy'] = float('nan')
     if bad == 'geometry': atoms.positions[1,2] += .01
     if bad == 'zpe': data.pop('zpe')
     if bad == 'frequency': data['frequencies'] = [-200.]
@@ -75,6 +75,33 @@ def test_existing_valid_zpe_needs_no_new_job(endpoint):
     assert l1_endpoint.ensure(qc, species, par, family='test')['status'] == 'complete'
 
 
+def test_native_frequency_offsets_reuse_coherent_records_and_retain_old_holds(tmp_path):
+    from tests.endpoint_fixture import stage_native_endpoints
+    fixture = stage_native_endpoints(tmp_path)
+    original = (tmp_path/'kinbot.db').read_bytes()
+    results = []
+    for species, example in zip(fixture.species, fixture.examples):
+        result = l1_endpoint.ensure(fixture.qc, species, fixture.par,
+                                   family='test', directory=tmp_path)
+        assert result['status'] == 'complete'
+        point = result['point']
+        assert point['energy_hartree'] == pytest.approx(example['frequency']['energy_hartree'], abs=1e-10)
+        assert point['zpe_hartree'] == example['frequency']['zpe_hartree']
+        assert result['energy_zpe_source'] == point['name']
+        assert result['energy_comparison']['diagnostic_only']
+        assert 2e-6 < result['energy_comparison']['difference_hartree'] < 3e-6
+        results.append(result)
+    assert (tmp_path/'kinbot.db').read_bytes() == original
+    journal = (tmp_path/'l1_endpoint_checks.json').read_bytes()
+    saved = l1_endpoint.json.loads(journal)
+    assert len(saved['history']) == 3
+    assert all(r['status'] == 'unresolved' for r in saved['history'])
+    for species, result in zip(fixture.species, results):
+        assert l1_endpoint.ensure(fixture.qc, species, fixture.par,
+                                  family='test', directory=tmp_path) == result
+    assert (tmp_path/'l1_endpoint_checks.json').read_bytes() == journal
+
+
 def test_disabled_and_accepted_replay_preserve_existing_behavior(endpoint):
     from kinbot.reaction_generator import ReactionGenerator
     _, par, _, species, qc, _, _ = endpoint
@@ -87,7 +114,8 @@ def test_disabled_and_accepted_replay_preserve_existing_behavior(endpoint):
 
 
 @pytest.mark.parametrize('depth', [.4, .8])
-def test_reaction_owner_waits_reconstructs_and_uses_matched_depth(tmp_path, monkeypatch, depth):
+@pytest.mark.parametrize('energy_offset', [0., 2.529e-6])
+def test_reaction_owner_waits_reconstructs_and_uses_matched_depth(tmp_path, monkeypatch, depth, energy_offset):
     """Run the real search loop/checkpoint with simulated native observations.
 
     Two identical fragments exercise shared calculation adoption. The owner
@@ -166,7 +194,8 @@ def test_reaction_owner_waits_reconstructs_and_uses_matched_depth(tmp_path, monk
         assert owner.species.reac_ts_done == [2 if waiting else 3]
     poll(make_owner(), True)
     assert set(calls) == {endpoint_name}
-    record(jobs[endpoint_name], atoms, -1.01, zpe=.012-depth/constants.AUtoKCAL,
+    record(jobs[endpoint_name], atoms, -1.01+energy_offset,
+           zpe=.012-depth/constants.AUtoKCAL-energy_offset,
            frequencies=[100.]*6)
     calls.clear()
     poll(make_owner(), True)

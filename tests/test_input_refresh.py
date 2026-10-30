@@ -10,6 +10,15 @@ from kinbot import input_refresh as refresh, pes_phase as phase, live_control as
 from kinbot.execution import atomic_json, file_sha256
 
 
+@pytest.fixture(autouse=True)
+def simulated_process_identity(monkeypatch):
+    # Model a live owner without depending on host /proc or sandboxed ps.
+    # Tests still exercise identity comparison and reject obsolete starts.
+    monkeypatch.setattr(phase, 'process_identity', lambda pid: dict(
+        host='test-host', pid=pid, start='test-start', boot='test-boot')
+        if pid == os.getpid() else None)
+
+
 def surface(bond=(1,2)):
     return dict(schema=1,reviewed=True,review_note='Reviewed fixture orbitals',channels=[dict(
         bond=list(bond),combination='single',bottlenecks=[dict(name='single',coordinate='reactive',

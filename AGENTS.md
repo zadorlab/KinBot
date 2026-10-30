@@ -18,3 +18,7 @@
   as well as the changed helper: transient submission/staging races, preservation
   of live work, decision application, sampling adoption, and repeated invocation.
   Distinguish local simulated-site validation from a verified remote handoff.
+- For a fixable run problem, carry diagnosis through implementation, validation,
+  publication, and concrete pull/update/refresh commands. Diagnosis alone is not
+  a completed task. If evidence or access prevents a fix, state that specific
+  blocker rather than presenting an unverified change as a solution.

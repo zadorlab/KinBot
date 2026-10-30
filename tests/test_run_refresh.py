@@ -65,6 +65,37 @@ def test_refresh_preserves_campaign_tree_and_allocations(sampling_tree):
     assert any(j['job_id'] == '800' for j in t.jobs)
 
 
+def test_refresh_then_owner_adopts_completed_endpoint_checks_without_retry(sampling_tree, monkeypatch):
+    from tests.endpoint_fixture import stage_native_endpoints
+    from kinbot.reaction_generator import ReactionGenerator
+    t = sampling_tree
+    worker = t.root/'ch3ss/123'
+    (worker/'kinbot.db').unlink()  # Replace the fixture's placeholder bytes only.
+    fixture = stage_native_endpoints(worker)
+    atomic_json(worker/'123.json', fixture.par)
+    before = scientific_files(t.root)
+    endpoint_history = (worker/'l1_endpoint_checks.json').read_bytes()
+    jobs = deepcopy(t.jobs)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30)
+    assert result['phase'] == 'launched' and t.jobs == jobs
+    assert scientific_files(t.root) == before
+    assert (worker/'l1_endpoint_checks.json').read_bytes() == endpoint_history
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    assert run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30) == result
+    assert len(t.launches) == 2
+    monkeypatch.chdir(worker)
+    owner = SimpleNamespace(qc=fixture.qc, par=fixture.par,
+                            search_checkpoint=SimpleNamespace(replaying=set()))
+    for endpoint in fixture.species:
+        obj = SimpleNamespace(instance_name=endpoint.name.removesuffix('_IRC_F_prod'),
+                              family_name='test', irc_prod=endpoint, products=[])
+        check = ReactionGenerator._endpoint_l1_check(owner, obj)
+        assert check['status'] == 'complete'
+        assert check['point']['name'] == check['energy_zpe_source']
+        assert ReactionGenerator._endpoint_l1_check(owner, obj) == check
+    assert scientific_files(t.root) == before and t.jobs == jobs
+
+
 def test_full_refresh_reads_proc_and_retains_four_owners_after_hostname_change(sampling_tree, monkeypatch):
     """Real /proc parsing + identity checks, not a mocked campaign filter."""
     from kinbot import rotdpy_campaign as campaign

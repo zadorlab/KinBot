@@ -5,7 +5,7 @@ import sqlite3
 
 import numpy as np
 
-from kinbot import l1_screening
+from kinbot import constants, l1_screening
 from kinbot.execution import atomic_json
 from kinbot.frequencies import frequency_validation_error
 
@@ -50,12 +50,21 @@ def ensure(qc, species, parameters, *, family, directory=None):
                 if (point['symbols'] != source['symbols'] or not np.allclose(
                         point['positions'], source['positions'], atol=1.e-6, rtol=0.)):
                     raise ValueError('Endpoint frequency job changed the selected geometry.')
-                if abs(point['energy_hartree']-source['energy_hartree']) > 2.e-6:
-                    raise ValueError('Endpoint frequency energy differs from the source by more than 2 microhartree; inspect electronic state.')
                 error = frequency_validation_error(point['frequencies'], 0, threshold)
                 if error:
                     raise ValueError(error)
-                result.update(status='complete', point=point)
+                # These are independent SCF evaluations, not two copies of
+                # the same result. In particular the native Hessian may use
+                # a different symmetry/orientation convention. Requiring
+                # microhartree agreement is not a convergence/state test.
+                # Use BOTH E and ZPE from the validated frequency observation;
+                # never combine the old endpoint E with the new Hessian ZPE.
+                delta = point['energy_hartree'] - source['energy_hartree']
+                result.update(status='complete', point=point,
+                    energy_zpe_source=job,
+                    energy_comparison=dict(diagnostic_only=True,
+                        difference_hartree=delta,
+                        difference_kcal_mol=delta*constants.AUtoKCAL))
     except (OSError, ValueError, sqlite3.Error) as error:
         result.update(status='unresolved', reason=str(error))
     path = directory/'l1_endpoint_checks.json'

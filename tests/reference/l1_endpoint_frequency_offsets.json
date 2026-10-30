@@ -1,0 +1,789 @@
+{
+  "archive_sha256": "4080c334d5c5de1b929d7345ed4311e83d7e0d8fd03238e1c6362fce3f95db0a",
+  "records": [
+    {
+      "frequency": {
+        "energy_hartree": -836.1846766820001,
+        "frequencies": [
+          100.9745,
+          122.4262,
+          215.7109,
+          256.9923,
+          422.5062,
+          884.5,
+          904.3969,
+          954.6917,
+          1087.0305,
+          2506.261,
+          2548.807,
+          2646.1436
+        ],
+        "name": "791671560700020000002-s893815ff03c7331d_12_shift_S_R_2_1_6_IRC_F_prod_freq_recovery_396",
+        "positions": [
+          [
+            1.9687127999689014,
+            -0.7138982994952295,
+            -0.17205336782331793
+          ],
+          [
+            1.3667051479397516,
+            1.9262774178440571,
+            1.3180939280648913
+          ],
+          [
+            0.6365585985860397,
+            -0.2992350970156167,
+            -1.0905529214953813
+          ],
+          [
+            2.2437638594212252,
+            2.529288891318879,
+            0.46892976414612675
+          ],
+          [
+            0.6760816770876983,
+            -1.3642005318096828,
+            -1.960187182324856
+          ],
+          [
+            2.08012554530605,
+            0.09024011327739533,
+            0.6348950999406349
+          ]
+        ],
+        "row_id": 427,
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "zpe_hartree": 0.02882
+      },
+      "native": [
+        {
+          "input_sha256": "5764a4eaca9c2cf6be25e7df6f7f90c8b12b02dc4ddade6d83182164885730ac",
+          "input_text": "%mem=700MW\n%chk=791671560700020000002-s893815ff03c7331d_12_shift_S_R_2_1_6_IRC_F_prod\n%nprocshared=8\n#P B3LYP/cc-pVDZ ! ASE formatted method and basis\nSymm(None)\nscf(xqc,conver=8)\npop(None)\nEmpiricalDispersion(GD3BJ)\nintegral(UltraFine)\nforce\n\nGaussian input prepared by ASE\n\n0 2\nC(iso=12.0)        1.9687128000       -0.7138982995       -0.1720533678\nS(iso=31.9720711744)        1.3667051479        1.9262774178        1.3180939281\nS(iso=31.9720711744)        0.6365585986       -0.2992350970       -1.0905529215\nH(iso=1.00782503223)        2.2437638594        2.5292888913        0.4689297641\nH(iso=1.00782503223)        0.6760816771       -1.3642005318       -1.9601871823\nH(iso=1.00782503223)        2.0801255453        0.0902401133        0.6348950999\n\n\n",
+          "output_evidence": [
+            " SCF Done:  E(UB3LYP) =  -836.184679047     A.U. after   22 cycles",
+            " S**2 before annihilation     0.7564,   after     0.7500",
+            " Normal termination of Gaussian 16 at Thu Oct 29 01:15:18 2026."
+          ],
+          "output_sha256": "0be4a4aff0d027f7f39cb46367aebdacf1ca447acee78987bfa1dd52bf1fc914",
+          "parameters": {
+            "basis": "cc-pvdz",
+            "charge": 0,
+            "chk": "791671560700020000002-s893815ff03c7331d_12_shift_s_r_2_1_6_irc_f_prod",
+            "empiricaldispersion": "gd3bj",
+            "force": null,
+            "integral": "ultrafine",
+            "isolist": [
+              12.0,
+              31.9720711744,
+              31.9720711744,
+              1.00782503223,
+              1.00782503223,
+              1.00782503223
+            ],
+            "mem": "700mw",
+            "method": "b3lyp",
+            "mult": 2,
+            "nmagmlist": null,
+            "nprocshared": "8",
+            "output_type": "p",
+            "pop": "none",
+            "qmomlist": null,
+            "radnuclearlist": null,
+            "scf": "xqc,conver=8",
+            "spinlist": null,
+            "symm": "none",
+            "zefflist": null,
+            "znuclist": null
+          }
+        },
+        {
+          "input_sha256": "caae69522487d8552054a24ea3b0feac2002645bdc1f50ccb20ba1f9bd329fca",
+          "input_text": "%mem=700MW\n%chk=791671560700020000002-s893815ff03c7331d_12_shift_S_R_2_1_6_IRC_F_prod_freq_recovery_396\n%nprocshared=8\n#P B3LYP/cc-pVDZ ! ASE formatted method and basis\nscf(xqc,conver=8)\npop(None)\nfreq\nEmpiricalDispersion(GD3BJ)\nintegral(UltraFine)\nsymmetry(PG=C1)\n\nGaussian input prepared by ASE\n\n0 2\nC                 1.9687128000       -0.7138982995       -0.1720533678\nS                 1.3667051479        1.9262774178        1.3180939281\nS                 0.6365585986       -0.2992350970       -1.0905529215\nH                 2.2437638594        2.5292888913        0.4689297641\nH                 0.6760816771       -1.3642005318       -1.9601871823\nH                 2.0801255453        0.0902401133        0.6348950999\n\n\n",
+          "output_evidence": [
+            " SCF Done:  E(UB3LYP) =  -836.184676682     A.U. after   22 cycles",
+            " S**2 before annihilation     0.7564,   after     0.7500",
+            " Frequencies --    100.9745               122.4262               215.7109",
+            " Frequencies --    256.9923               422.5062               884.5000",
+            " Frequencies --    904.3969               954.6917              1087.0305",
+            " Frequencies --   2506.2610              2548.8070              2646.1436",
+            " Zero-point correction=                           0.028820 (Hartree/Particle)",
+            " Normal termination of Gaussian 16 at Thu Oct 29 01:18:42 2026."
+          ],
+          "output_sha256": "53aa6b168e8b1ce199b032e2e6dfd034fe55692b26765e9b3c46ce145e040af7",
+          "parameters": {
+            "basis": "cc-pvdz",
+            "charge": 0,
+            "chk": "791671560700020000002-s893815ff03c7331d_12_shift_s_r_2_1_6_irc_f_prod_freq_recovery_396",
+            "empiricaldispersion": "gd3bj",
+            "freq": null,
+            "integral": "ultrafine",
+            "isolist": null,
+            "mem": "700mw",
+            "method": "b3lyp",
+            "mult": 2,
+            "nmagmlist": null,
+            "nprocshared": "8",
+            "output_type": "p",
+            "pop": "none",
+            "qmomlist": null,
+            "radnuclearlist": null,
+            "scf": "xqc,conver=8",
+            "spinlist": null,
+            "symmetry": "pg=c1",
+            "zefflist": null,
+            "znuclist": null
+          }
+        }
+      ],
+      "old_check": {
+        "frequency_job": "791671560700020000002-s893815ff03c7331d_12_shift_S_R_2_1_6_IRC_F_prod_freq_recovery_396",
+        "reason": "Endpoint frequency energy differs from the source by more than 2 microhartree; inspect electronic state.",
+        "source": {
+          "energy_hartree": -836.1846790470001,
+          "frequencies": [],
+          "name": "791671560700020000002-s893815ff03c7331d_12_shift_S_R_2_1_6_IRC_F_prod",
+          "positions": [
+            [
+              1.9687127999689014,
+              -0.7138982994952295,
+              -0.17205336782331793
+            ],
+            [
+              1.3667051479397516,
+              1.9262774178440571,
+              1.3180939280648913
+            ],
+            [
+              0.6365585985860397,
+              -0.2992350970156167,
+              -1.0905529214953813
+            ],
+            [
+              2.2437638594212252,
+              2.529288891318879,
+              0.46892976414612675
+            ],
+            [
+              0.6760816770876983,
+              -1.3642005318096828,
+              -1.960187182324856
+            ],
+            [
+              2.08012554530605,
+              0.09024011327739533,
+              0.6348950999406349
+            ]
+          ],
+          "row_id": 396,
+          "symbols": [
+            "C",
+            "S",
+            "S",
+            "H",
+            "H",
+            "H"
+          ],
+          "zpe_hartree": null,
+          "zpe_status": "missing"
+        },
+        "source_job": "791671560700020000002-s893815ff03c7331d_12_shift_S_R_2_1_6_IRC_F_prod",
+        "source_sha256": "19a923be1fed29e4ce3532807781f9490b8bd0afff4acc4cb0524008c4406a07",
+        "status": "unresolved",
+        "theory": {
+          "basis": "cc-pVDZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "frequency_mode": "native_hessian",
+          "method": "B3LYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        }
+      },
+      "source": {
+        "energy_hartree": -836.1846790470001,
+        "frequencies": [],
+        "name": "791671560700020000002-s893815ff03c7331d_12_shift_S_R_2_1_6_IRC_F_prod",
+        "positions": [
+          [
+            1.9687127999689014,
+            -0.7138982994952295,
+            -0.17205336782331793
+          ],
+          [
+            1.3667051479397516,
+            1.9262774178440571,
+            1.3180939280648913
+          ],
+          [
+            0.6365585985860397,
+            -0.2992350970156167,
+            -1.0905529214953813
+          ],
+          [
+            2.2437638594212252,
+            2.529288891318879,
+            0.46892976414612675
+          ],
+          [
+            0.6760816770876983,
+            -1.3642005318096828,
+            -1.960187182324856
+          ],
+          [
+            2.08012554530605,
+            0.09024011327739533,
+            0.6348950999406349
+          ]
+        ],
+        "row_id": 396,
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "zpe_hartree": null,
+        "zpe_status": "missing"
+      },
+      "worker": "791671560700020000002-s893815ff03c7331d"
+    },
+    {
+      "frequency": {
+        "energy_hartree": -836.1846766840001,
+        "frequencies": [
+          100.9534,
+          122.4131,
+          215.6752,
+          256.9625,
+          422.4742,
+          884.4955,
+          904.3981,
+          954.6769,
+          1087.0334,
+          2506.3014,
+          2548.8959,
+          2646.1465
+        ],
+        "name": "791671560700020000002-s893815ff03c7331d_r12_insertion_R_2_1_6_IRC_F_prod_freq_recovery_388",
+        "positions": [
+          [
+            1.8678197149623428,
+            -0.7520238881778106,
+            -0.1360923993312898
+          ],
+          [
+            1.4061723957017325,
+            1.9641080744705495,
+            1.2650851354461503
+          ],
+          [
+            0.7058802478869239,
+            -0.20430395507865007,
+            -1.2038573183013943
+          ],
+          [
+            2.438192529145425,
+            2.4492388036968076,
+            0.5210982474030338
+          ],
+          [
+            0.7223100705915255,
+            -1.2812865962546898,
+            -2.059311235858731
+          ],
+          [
+            1.9776422919781498,
+            0.0476604127873199,
+            0.6754767068145136
+          ]
+        ],
+        "row_id": 414,
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "zpe_hartree": 0.02882
+      },
+      "native": [
+        {
+          "input_sha256": "8380383886b3106a1e435668ca3ebbbe3ce381dc6b67e2b6b42547738523ca6d",
+          "input_text": "%mem=700MW\n%chk=791671560700020000002-s893815ff03c7331d_r12_insertion_R_2_1_6_IRC_F_prod\n%nprocshared=8\n#P B3LYP/cc-pVDZ ! ASE formatted method and basis\nSymm(None)\nscf(xqc,conver=8)\npop(None)\nEmpiricalDispersion(GD3BJ)\nintegral(UltraFine)\nforce\n\nGaussian input prepared by ASE\n\n0 2\nC(iso=12.0)        1.8678197150       -0.7520238882       -0.1360923993\nS(iso=31.9720711744)        1.4061723957        1.9641080745        1.2650851354\nS(iso=31.9720711744)        0.7058802479       -0.2043039551       -1.2038573183\nH(iso=1.00782503223)        2.4381925291        2.4492388037        0.5210982474\nH(iso=1.00782503223)        0.7223100706       -1.2812865963       -2.0593112359\nH(iso=1.00782503223)        1.9776422920        0.0476604128        0.6754767068\n\n\n",
+          "output_evidence": [
+            " SCF Done:  E(UB3LYP) =  -836.184679213     A.U. after   22 cycles",
+            " S**2 before annihilation     0.7564,   after     0.7500",
+            " Normal termination of Gaussian 16 at Thu Oct 29 01:13:23 2026."
+          ],
+          "output_sha256": "bcabcfee8e80a1cbf05795c5a59112671124e8615cd74867e7eab8b1a5db742c",
+          "parameters": {
+            "basis": "cc-pvdz",
+            "charge": 0,
+            "chk": "791671560700020000002-s893815ff03c7331d_r12_insertion_r_2_1_6_irc_f_prod",
+            "empiricaldispersion": "gd3bj",
+            "force": null,
+            "integral": "ultrafine",
+            "isolist": [
+              12.0,
+              31.9720711744,
+              31.9720711744,
+              1.00782503223,
+              1.00782503223,
+              1.00782503223
+            ],
+            "mem": "700mw",
+            "method": "b3lyp",
+            "mult": 2,
+            "nmagmlist": null,
+            "nprocshared": "8",
+            "output_type": "p",
+            "pop": "none",
+            "qmomlist": null,
+            "radnuclearlist": null,
+            "scf": "xqc,conver=8",
+            "spinlist": null,
+            "symm": "none",
+            "zefflist": null,
+            "znuclist": null
+          }
+        },
+        {
+          "input_sha256": "33afac631e56e7d5740f6aaf33732f05366f6afa147491a429c08096a04fe8e3",
+          "input_text": "%mem=700MW\n%chk=791671560700020000002-s893815ff03c7331d_r12_insertion_R_2_1_6_IRC_F_prod_freq_recovery_388\n%nprocshared=8\n#P B3LYP/cc-pVDZ ! ASE formatted method and basis\nscf(xqc,conver=8)\npop(None)\nfreq\nEmpiricalDispersion(GD3BJ)\nintegral(UltraFine)\nsymmetry(PG=C1)\n\nGaussian input prepared by ASE\n\n0 2\nC                 1.8678197150       -0.7520238882       -0.1360923993\nS                 1.4061723957        1.9641080745        1.2650851354\nS                 0.7058802479       -0.2043039551       -1.2038573183\nH                 2.4381925291        2.4492388037        0.5210982474\nH                 0.7223100706       -1.2812865963       -2.0593112359\nH                 1.9776422920        0.0476604128        0.6754767068\n\n\n",
+          "output_evidence": [
+            " SCF Done:  E(UB3LYP) =  -836.184676684     A.U. after   22 cycles",
+            " S**2 before annihilation     0.7564,   after     0.7500",
+            " Frequencies --    100.9534               122.4131               215.6752",
+            " Frequencies --    256.9625               422.4742               884.4955",
+            " Frequencies --    904.3981               954.6769              1087.0334",
+            " Frequencies --   2506.3014              2548.8959              2646.1465",
+            " Zero-point correction=                           0.028820 (Hartree/Particle)",
+            " Normal termination of Gaussian 16 at Thu Oct 29 01:17:35 2026."
+          ],
+          "output_sha256": "0cd998e9508690ea0253984f25e361a0f688dec6b90054ca0f755d376894cc5e",
+          "parameters": {
+            "basis": "cc-pvdz",
+            "charge": 0,
+            "chk": "791671560700020000002-s893815ff03c7331d_r12_insertion_r_2_1_6_irc_f_prod_freq_recovery_388",
+            "empiricaldispersion": "gd3bj",
+            "freq": null,
+            "integral": "ultrafine",
+            "isolist": null,
+            "mem": "700mw",
+            "method": "b3lyp",
+            "mult": 2,
+            "nmagmlist": null,
+            "nprocshared": "8",
+            "output_type": "p",
+            "pop": "none",
+            "qmomlist": null,
+            "radnuclearlist": null,
+            "scf": "xqc,conver=8",
+            "spinlist": null,
+            "symmetry": "pg=c1",
+            "zefflist": null,
+            "znuclist": null
+          }
+        }
+      ],
+      "old_check": {
+        "frequency_job": "791671560700020000002-s893815ff03c7331d_r12_insertion_R_2_1_6_IRC_F_prod_freq_recovery_388",
+        "reason": "Endpoint frequency energy differs from the source by more than 2 microhartree; inspect electronic state.",
+        "source": {
+          "energy_hartree": -836.184679213,
+          "frequencies": [],
+          "name": "791671560700020000002-s893815ff03c7331d_r12_insertion_R_2_1_6_IRC_F_prod",
+          "positions": [
+            [
+              1.8678197149623428,
+              -0.7520238881778106,
+              -0.1360923993312898
+            ],
+            [
+              1.4061723957017325,
+              1.9641080744705495,
+              1.2650851354461503
+            ],
+            [
+              0.7058802478869239,
+              -0.20430395507865007,
+              -1.2038573183013943
+            ],
+            [
+              2.438192529145425,
+              2.4492388036968076,
+              0.5210982474030338
+            ],
+            [
+              0.7223100705915255,
+              -1.2812865962546898,
+              -2.059311235858731
+            ],
+            [
+              1.9776422919781498,
+              0.0476604127873199,
+              0.6754767068145136
+            ]
+          ],
+          "row_id": 388,
+          "symbols": [
+            "C",
+            "S",
+            "S",
+            "H",
+            "H",
+            "H"
+          ],
+          "zpe_hartree": null,
+          "zpe_status": "missing"
+        },
+        "source_job": "791671560700020000002-s893815ff03c7331d_r12_insertion_R_2_1_6_IRC_F_prod",
+        "source_sha256": "31c718e30e88093127db11ee08b3b3b66ed359ab30153d928432106a2bc57333",
+        "status": "unresolved",
+        "theory": {
+          "basis": "cc-pVDZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "frequency_mode": "native_hessian",
+          "method": "B3LYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        }
+      },
+      "source": {
+        "energy_hartree": -836.184679213,
+        "frequencies": [],
+        "name": "791671560700020000002-s893815ff03c7331d_r12_insertion_R_2_1_6_IRC_F_prod",
+        "positions": [
+          [
+            1.8678197149623428,
+            -0.7520238881778106,
+            -0.1360923993312898
+          ],
+          [
+            1.4061723957017325,
+            1.9641080744705495,
+            1.2650851354461503
+          ],
+          [
+            0.7058802478869239,
+            -0.20430395507865007,
+            -1.2038573183013943
+          ],
+          [
+            2.438192529145425,
+            2.4492388036968076,
+            0.5210982474030338
+          ],
+          [
+            0.7223100705915255,
+            -1.2812865962546898,
+            -2.059311235858731
+          ],
+          [
+            1.9776422919781498,
+            0.0476604127873199,
+            0.6754767068145136
+          ]
+        ],
+        "row_id": 388,
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "zpe_hartree": null,
+        "zpe_status": "missing"
+      },
+      "worker": "791671560700020000002-s893815ff03c7331d"
+    },
+    {
+      "frequency": {
+        "energy_hartree": -836.1846766780001,
+        "frequencies": [
+          100.9652,
+          122.4157,
+          215.6815,
+          257.0047,
+          422.607,
+          884.4945,
+          904.3969,
+          954.6869,
+          1087.0236,
+          2506.2712,
+          2548.8714,
+          2646.1768
+        ],
+        "name": "791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_6_IRC_F_prod_freq_recovery_556",
+        "positions": [
+          [
+            0.7924426658331785,
+            -1.1841098365951601,
+            0.6262433741100787
+          ],
+          [
+            2.0254938306523713,
+            -0.7862180952649851,
+            1.6805145657395426
+          ],
+          [
+            -0.5808446299899123,
+            1.3312102215333823,
+            1.784000148485971
+          ],
+          [
+            -1.1918615697414467,
+            0.5052295965618253,
+            2.6774960833338444
+          ],
+          [
+            2.8499410429619,
+            -1.8528969069915242,
+            1.4076496086332506
+          ],
+          [
+            -0.003305831672722697,
+            -0.366779210478791,
+            0.7209263853345237
+          ]
+        ],
+        "row_id": 618,
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "zpe_hartree": 0.02882
+      },
+      "native": [
+        {
+          "input_sha256": "b6ac37a3e22889f2e10c445328e639f80b550df0575017aa9773a5fef31b136d",
+          "input_text": "%mem=700MW\n%chk=791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_6_IRC_F_prod\n%nprocshared=8\n#P B3LYP/cc-pVDZ ! ASE formatted method and basis\nSymm(None)\nscf(xqc,conver=8)\npop(None)\nEmpiricalDispersion(GD3BJ)\nintegral(UltraFine)\nforce\n\nGaussian input prepared by ASE\n\n0 2\nC(iso=12.0)        0.7924426658       -1.1841098366        0.6262433741\nS(iso=31.9720711744)        2.0254938307       -0.7862180953        1.6805145657\nS(iso=31.9720711744)       -0.5808446300        1.3312102215        1.7840001485\nH(iso=1.00782503223)       -1.1918615697        0.5052295966        2.6774960833\nH(iso=1.00782503223)        2.8499410430       -1.8528969070        1.4076496086\nH(iso=1.00782503223)       -0.0033058317       -0.3667792105        0.7209263853\n\n\n",
+          "output_evidence": [
+            " SCF Done:  E(UB3LYP) =  -836.184678757     A.U. after   22 cycles",
+            " S**2 before annihilation     0.7564,   after     0.7500",
+            " Normal termination of Gaussian 16 at Wed Oct 28 18:36:42 2026."
+          ],
+          "output_sha256": "6e84044b3d5a5dd1760a0a5550bab315384d84fd5c0d8da791525f0c36b4ed08",
+          "parameters": {
+            "basis": "cc-pvdz",
+            "charge": 0,
+            "chk": "791671560700020000002-sedd8f7729b69b19b_r12_insertion_r_3_1_6_irc_f_prod",
+            "empiricaldispersion": "gd3bj",
+            "force": null,
+            "integral": "ultrafine",
+            "isolist": [
+              12.0,
+              31.9720711744,
+              31.9720711744,
+              1.00782503223,
+              1.00782503223,
+              1.00782503223
+            ],
+            "mem": "700mw",
+            "method": "b3lyp",
+            "mult": 2,
+            "nmagmlist": null,
+            "nprocshared": "8",
+            "output_type": "p",
+            "pop": "none",
+            "qmomlist": null,
+            "radnuclearlist": null,
+            "scf": "xqc,conver=8",
+            "spinlist": null,
+            "symm": "none",
+            "zefflist": null,
+            "znuclist": null
+          }
+        },
+        {
+          "input_sha256": "eca88741679e91d8cf820da9cdb6f67688e5bed8a10ad5a6a8583a51dcb288ec",
+          "input_text": "%mem=700MW\n%chk=791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_6_IRC_F_prod_freq_recovery_556\n%nprocshared=8\n#P B3LYP/cc-pVDZ ! ASE formatted method and basis\nscf(xqc,conver=8)\npop(None)\nfreq\nEmpiricalDispersion(GD3BJ)\nintegral(UltraFine)\nsymmetry(PG=C1)\n\nGaussian input prepared by ASE\n\n0 2\nC                 0.7924426658       -1.1841098366        0.6262433741\nS                 2.0254938307       -0.7862180953        1.6805145657\nS                -0.5808446300        1.3312102215        1.7840001485\nH                -1.1918615697        0.5052295966        2.6774960833\nH                 2.8499410430       -1.8528969070        1.4076496086\nH                -0.0033058317       -0.3667792105        0.7209263853\n\n\n",
+          "output_evidence": [
+            " SCF Done:  E(UB3LYP) =  -836.184676678     A.U. after   22 cycles",
+            " S**2 before annihilation     0.7564,   after     0.7500",
+            " Frequencies --    100.9652               122.4157               215.6815",
+            " Frequencies --    257.0047               422.6070               884.4945",
+            " Frequencies --    904.3969               954.6869              1087.0236",
+            " Frequencies --   2506.2712              2548.8714              2646.1768",
+            " Zero-point correction=                           0.028820 (Hartree/Particle)",
+            " Normal termination of Gaussian 16 at Wed Oct 28 19:22:40 2026."
+          ],
+          "output_sha256": "16ec903a132a00c24d84adae514340c694efb40bb45190734c827a8943260d66",
+          "parameters": {
+            "basis": "cc-pvdz",
+            "charge": 0,
+            "chk": "791671560700020000002-sedd8f7729b69b19b_r12_insertion_r_3_1_6_irc_f_prod_freq_recovery_556",
+            "empiricaldispersion": "gd3bj",
+            "freq": null,
+            "integral": "ultrafine",
+            "isolist": null,
+            "mem": "700mw",
+            "method": "b3lyp",
+            "mult": 2,
+            "nmagmlist": null,
+            "nprocshared": "8",
+            "output_type": "p",
+            "pop": "none",
+            "qmomlist": null,
+            "radnuclearlist": null,
+            "scf": "xqc,conver=8",
+            "spinlist": null,
+            "symmetry": "pg=c1",
+            "zefflist": null,
+            "znuclist": null
+          }
+        }
+      ],
+      "old_check": {
+        "frequency_job": "791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_6_IRC_F_prod_freq_recovery_556",
+        "reason": "Endpoint frequency energy differs from the source by more than 2 microhartree; inspect electronic state.",
+        "source": {
+          "energy_hartree": -836.1846787570001,
+          "frequencies": [],
+          "name": "791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_6_IRC_F_prod",
+          "positions": [
+            [
+              0.7924426658331785,
+              -1.1841098365951601,
+              0.6262433741100787
+            ],
+            [
+              2.0254938306523713,
+              -0.7862180952649851,
+              1.6805145657395426
+            ],
+            [
+              -0.5808446299899123,
+              1.3312102215333823,
+              1.784000148485971
+            ],
+            [
+              -1.1918615697414467,
+              0.5052295965618253,
+              2.6774960833338444
+            ],
+            [
+              2.8499410429619,
+              -1.8528969069915242,
+              1.4076496086332506
+            ],
+            [
+              -0.003305831672722697,
+              -0.366779210478791,
+              0.7209263853345237
+            ]
+          ],
+          "row_id": 556,
+          "symbols": [
+            "C",
+            "S",
+            "S",
+            "H",
+            "H",
+            "H"
+          ],
+          "zpe_hartree": null,
+          "zpe_status": "missing"
+        },
+        "source_job": "791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_6_IRC_F_prod",
+        "source_sha256": "a706cb2d6bbb82d3fe86651dc5a5321cd2250fb7c61a11a27629328856941e36",
+        "status": "unresolved",
+        "theory": {
+          "basis": "cc-pVDZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "frequency_mode": "native_hessian",
+          "method": "B3LYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        }
+      },
+      "source": {
+        "energy_hartree": -836.1846787570001,
+        "frequencies": [],
+        "name": "791671560700020000002-sedd8f7729b69b19b_r12_insertion_R_3_1_6_IRC_F_prod",
+        "positions": [
+          [
+            0.7924426658331785,
+            -1.1841098365951601,
+            0.6262433741100787
+          ],
+          [
+            2.0254938306523713,
+            -0.7862180952649851,
+            1.6805145657395426
+          ],
+          [
+            -0.5808446299899123,
+            1.3312102215333823,
+            1.784000148485971
+          ],
+          [
+            -1.1918615697414467,
+            0.5052295965618253,
+            2.6774960833338444
+          ],
+          [
+            2.8499410429619,
+            -1.8528969069915242,
+            1.4076496086332506
+          ],
+          [
+            -0.003305831672722697,
+            -0.366779210478791,
+            0.7209263853345237
+          ]
+        ],
+        "row_id": 556,
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "zpe_hartree": null,
+        "zpe_status": "missing"
+      },
+      "worker": "791671560700020000002-sedd8f7729b69b19b"
+    }
+  ],
+  "source_export": "r8-qc-decisions.IXLLO8dm"
+}

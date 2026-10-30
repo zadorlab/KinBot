@@ -49,7 +49,7 @@ STATE_NAMES = {'state.json', 'final_report.json', 'execution.json',
                'mess_execution.json', '.kinbot_post_reaction_branches.json',
                'kinbot_status.json', 'pes_status.json', 'recovery.json',
                'minimum_recovery.json', 'composite_preflight.json', 'vrc_model_review.json',
-               'scan_review.json'}
+               'scan_review.json', 'l1_endpoint_checks.json'}
 INVENTORY_DIRECTORY_LIMIT = 30000
 INVENTORY_LOG_LIMIT = 30000
 REACTION_STAGES = {-999: 'not retained', -1: 'accepted', 0: 'TS search',
@@ -368,6 +368,8 @@ def vrc_review_status(path, data, warnings):
 def artifacts(paths, root, warnings):
     results = []
     for path in paths:
+        if path.name == 'l1_endpoint_checks.json':
+            continue  # Render these with their owning search, not as QC failures.
         if path.name not in STATE_NAMES and not path.name.endswith(('.execution.json', '.rotdpy.json', '.result.json', '.scf_recovery.json')):
             continue
         data = read_json(path, warnings)
@@ -515,9 +517,11 @@ def case_snapshot(root, jobs, processes, now, *, log_limit=40, log_lines=4):
         status = read_json(directory/'kinbot_status.json', warnings)
         rows = reaction_summary(directory/'kinbot_monitor.out', warnings) if (directory/'kinbot_monitor.out').exists() else {}
         optimization = read_json(directory/'kinbot_optimization_monitor.json', warnings)
+        endpoints = read_json(directory/'l1_endpoint_checks.json', warnings)
         workers.append({'directory': name, 'reported_pes_state': summary['workers'].get(name),
                         'status': status, 'events': [],
-                        'reactions': rows, 'optimizations': optimization.get('reactions', [])})
+                        'reactions': rows, 'optimizations': optimization.get('reactions', []),
+                        'endpoint_checks': endpoints.get('checks', {})})
     searches = {w['directory']: w['reactions'] for w in workers}
     for item in exit_records + task_records:
         try:
@@ -1100,6 +1104,19 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                 out.append(f'  Optimizing {row["reaction"]}: pending={row.get("pending")} failures={row.get("failures")}')
                 if include_all:
                     out.append('    '+json.dumps(row.get('optimizers', [])))
+            for name, check in worker.get('endpoint_checks', {}).items():
+                if check.get('status') == 'complete':
+                    continue
+                # Old endpoint journals also contain abandoned/closed searches.
+                matches = [r for r in worker['reactions'].get('rows', [])
+                           if name == r['name'] or name.startswith(r['name']+'_')]
+                if matches and max(matches, key=lambda r: len(r['name']))['code'] < 0:
+                    continue
+                state = ('blocked' if check.get('status') == 'unresolved'
+                         else check.get('status', 'unresolved'))
+                out.append(f'  L1 endpoint {state}: {name}; {check.get("reason", "No reason recorded")}')
+                if state == 'blocked':
+                    out.append('    Pending scientific check; not a rejected channel or proof a retry will help.')
         if not details and not include_all:
             out.extend(render_status_summary(case))
         items = [item for item in case['artifacts']

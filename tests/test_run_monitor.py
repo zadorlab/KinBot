@@ -59,6 +59,31 @@ def production(tmp_path, monkeypatch):
     return root, case
 
 
+def test_endpoint_holds_visible_without_mislabeling_closed_searches(production):
+    root, case = production
+    worker = case/'123'
+    put(worker/'kinbot_status.json', {'status': 'running'})
+    put(worker/'kinbot_monitor.out', '2 13 active\n-999 13 rejected\n-1 13 accepted\n')
+    checks = {n+'_IRC_F_prod': dict(status='unresolved', reason='missing ZPE')
+              for n in ('active', 'rejected', 'accepted')}
+    checks['other_IRC_F_prod'] = dict(status='waiting', reason='Waiting for native job.')
+    put(worker/'l1_endpoint_checks.json', {'checks': checks})
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    for options in ({}, {'details': True}, {'include_all': True}):
+        rendered = monitor.render(report, **options)
+        assert 'L1 endpoint blocked: active_IRC_F_prod' in rendered
+        assert 'L1 endpoint waiting: other_IRC_F_prod' in rendered
+        assert 'blocked: rejected_IRC_F_prod' not in rendered
+        assert 'blocked: accepted_IRC_F_prod' not in rendered
+        assert 'Task/controller errors:' not in rendered
+    assert before == {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    checks['active_IRC_F_prod'] = dict(status='complete')
+    checks['other_IRC_F_prod'] = dict(status='complete')
+    put(worker/'l1_endpoint_checks.json', {'checks': checks})
+    assert 'L1 endpoint blocked:' not in monitor.render(monitor.snapshot(root))
+
+
 def test_grouped_runs_without_manifest_are_separate_read_only_cases(tmp_path, monkeypatch):
     root = tmp_path/'runs'
     first, second = root/'first', root/'second'

@@ -2,7 +2,7 @@
 from copy import deepcopy
 import json
 from pathlib import Path
-from types import SimpleNamespace
+from types import SimpleNamespace, MethodType
 
 from ase import Atoms
 from ase.db import connect
@@ -41,3 +41,42 @@ def stage_native_endpoints(worker):
         return jobs[source_job]  # Completed native job, no execution.
     qc = SimpleNamespace(db=db, qc_freq=completed_frequency, check_qc=lambda job: 'normal')
     return SimpleNamespace(par=par, qc=qc, species=species, examples=fixture['records'], calls=calls)
+
+
+def stage_native_replay(worker, example):
+    """Rebase exported row IDs into a disposable DB, preserving observations."""
+    from kinbot.qc import QuantumChemistry
+    profile=example['theory']
+    par=dict(qc='gauss', qc_command='g16', method=profile['method'], basis=profile['basis'],
+             high_level_method='B2PLYP', high_level_basis='cc-pVTZ', l1_profile=profile,
+             scan_method=profile['method'], scan_basis=profile['basis'],
+             imagfreq_threshold=50., l1_vdw_depth_check=True, vdW_detection=.5)
+    db=connect(worker/'kinbot.db');routes={}
+    def write(point):
+        routes[point['name']]=dict(level='l1')
+        return db.write(Atoms(point['symbols'],positions=point['positions']),name=point['name'],
+                        data=dict(status='normal',energy=point['energy_hartree']/constants.EVtoHARTREE,
+                                  zpe=point['zpe_hartree'],frequencies=point['frequencies']))
+    source=example['source'];frequency=deepcopy(example['frequency'])
+    source_id=write(source)
+    frequency['name']=source['name']+'_freq_recovery_'+str(source_id)
+    write(frequency)
+    products=[]
+    for point in example['fragments']:
+        write(point)
+        products.append(SimpleNamespace(name=point['name'].removesuffix('_well'),
+            chemid=point['name'].removesuffix('_well'),atom=point['symbols'],geom=point['positions'],
+            optical_reference={'status':'assigned','canonical_graphs':[]}))
+    atomic_json(worker/'.kinbot_theory_jobs.json',dict(schema=1,profiles={'l1':profile},
+                profile_sha256='native-replay-fixture',jobs=routes))
+    def status(job):
+        rows=list(db.select(name=job))
+        return rows[-1].data['status'] if rows else 0
+    qc=SimpleNamespace(db=db,qc='gauss',use_sella=True,frequency_mode='native_hessian',
+                       check_qc=status,_search_replay=example['reaction'])
+    qc.qc_freq=MethodType(QuantumChemistry.qc_freq,qc)
+    qc.submit_qc=MethodType(QuantumChemistry.submit_qc,qc)
+    obj=SimpleNamespace(instance_name=example['reaction'],
+        family_name=example['search_entry']['signature']['family'],products=products,
+        irc_prod=SimpleNamespace(name=source['name'],atom=source['symbols'],geom=source['positions']))
+    return SimpleNamespace(qc=qc,par=par,reaction=obj,frequency=frequency)

@@ -65,7 +65,8 @@ def test_refresh_preserves_campaign_tree_and_allocations(sampling_tree):
     assert any(j['job_id'] == '800' for j in t.jobs)
 
 
-def test_refresh_then_owner_adopts_completed_endpoint_checks_without_retry(sampling_tree, monkeypatch):
+@pytest.mark.parametrize('accepted_replay', [False, True])
+def test_refresh_then_owner_adopts_completed_endpoint_checks_without_retry(sampling_tree, monkeypatch, accepted_replay):
     from tests.endpoint_fixture import stage_native_endpoints
     from kinbot.reaction_generator import ReactionGenerator
     t = sampling_tree
@@ -89,6 +90,8 @@ def test_refresh_then_owner_adopts_completed_endpoint_checks_without_retry(sampl
     for endpoint in fixture.species:
         obj = SimpleNamespace(instance_name=endpoint.name.removesuffix('_IRC_F_prod'),
                               family_name='test', irc_prod=endpoint, products=[])
+        if accepted_replay:
+            owner.search_checkpoint.replaying.add(obj.instance_name)
         check = ReactionGenerator._endpoint_l1_check(owner, obj)
         assert check['status'] == 'complete'
         assert check['point']['name'] == check['energy_zpe_source']

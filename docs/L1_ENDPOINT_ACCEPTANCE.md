@@ -78,3 +78,37 @@ The following checks serve different purposes and were retained:
 No other demonstrable false rejection of these normally completed endpoint
 results was found in this audit. This is not a claim that every QC failure or
 every possible acceptance criterion across all backends has been validated.
+
+## Accepted-reaction restart regression
+
+The subsequent native restart exposed a separate reconstruction bug:
+`_endpoint_l1_check` skipped accepted searches. That skipped observation reuse,
+not just re-screening. The old raw IRC row often has no ZPE, so replay recomputed
+the complex depth using zero endpoint ZPE and tried to optimize an invented
+L2 complex. The no-new-QC replay guard correctly stopped that request, but the
+owning worker and PES then exited before reaching unfinished searches.
+
+Accepted replay now reads the same validated endpoint and fragment observations
+as the original search. `qc_freq` adopts an existing frequency job; the guard
+against missing/replacement QC is retained. Previously rejected searches and
+accepted absolute-energy screening decisions are unchanged. No reset or new
+endpoint/high-level job is required to repair these six cases.
+
+`tests/reference/l1_accepted_replay.json` records the six reported examples,
+source row IDs, endpoint/fragment observations, native frequency-output hashes
+and relevant native lines from the same exported archive. Native energy, ZPE
+and frequencies were checked against the database. Matched depths are
+0.169140, -0.115794, 0.181514, 0.050335, -0.002648 and 0.221489 kcal/mol;
+the erroneous zero-endpoint-ZPE depths were 13.013–17.695 kcal/mol. All six
+therefore remain below the configured 0.5 kcal/mol complex threshold.
+
+The old test expecting accepted replay to skip this check was removed. New
+regressions use all six exported cases and run the real reaction loop through
+accepted reconstruction, complex classification, L2 dispatch and final complex
+assessment. Simulated cached QC exercises the actual fixed-frequency adoption
+and submission guard: shallow complexes deliberately have no `_prod_high`
+result, and retained complexes have one. Repeated interruption/restart preserves
+the terminal search record and leaves database and screening records unchanged.
+Refresh tests cover both active and accepted endpoint adoption after relaunch.
+These are local replay/simulated-site checks, not a claim that the new remote
+controllers have already finished.

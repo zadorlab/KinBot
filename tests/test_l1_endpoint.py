@@ -102,15 +102,38 @@ def test_native_frequency_offsets_reuse_coherent_records_and_retain_old_holds(tm
     assert (tmp_path/'l1_endpoint_checks.json').read_bytes() == journal
 
 
-def test_disabled_and_accepted_replay_preserve_existing_behavior(endpoint):
+def test_disabled_check_preserves_existing_behavior(endpoint):
     from kinbot.reaction_generator import ReactionGenerator
     _, par, _, species, qc, _, _ = endpoint
     obj = SimpleNamespace(instance_name='accepted', irc_prod=species)
-    qc.qc_freq = lambda *a, **k: pytest.fail('No calculation for disabled check or accepted replay')
+    qc.qc_freq = lambda *a, **k: pytest.fail('No calculation for disabled check')
     generator = SimpleNamespace(qc=qc, par=par, search_checkpoint=SimpleNamespace(replaying={'accepted'}))
+    generator.par = dict(par, l1_vdw_depth_check=False)
     assert ReactionGenerator._endpoint_l1_check(generator, obj) is None
-    generator.search_checkpoint.replaying.clear(); generator.par = dict(par, l1_vdw_depth_check=False)
-    assert ReactionGenerator._endpoint_l1_check(generator, obj) is None
+
+
+NATIVE_REPLAYS=l1_endpoint.json.loads((Path(__file__).parent/'reference/l1_accepted_replay.json').read_text())['records']
+
+
+@pytest.mark.parametrize('example',NATIVE_REPLAYS,ids=lambda e:e['reaction'])
+def test_accepted_native_replay_reads_completed_zpe_instead_of_inventing_complex(tmp_path,monkeypatch,example):
+    from tests.endpoint_fixture import stage_native_replay
+    from kinbot.reaction_generator import ReactionGenerator
+    fixture=stage_native_replay(tmp_path,example);monkeypatch.chdir(tmp_path)
+    owner=SimpleNamespace(qc=fixture.qc,par=fixture.par,
+        search_checkpoint=SimpleNamespace(replaying={example['reaction']}))
+    before=(tmp_path/'kinbot.db').read_bytes()
+    for _ in range(2):
+        checked=ReactionGenerator._endpoint_l1_check(owner,fixture.reaction)
+        assert checked is not None and checked['status']=='complete'
+        point=checked['point']
+        separated=sum(p['energy_hartree']+p['zpe_hartree'] for p in checked['fragment_points'])
+        depth=(separated-point['energy_hartree']-point['zpe_hartree'])*constants.AUtoKCAL
+        assert depth==pytest.approx(example['matched_depth_kcal_mol'],abs=1e-7)
+        assert depth<.5<example['missing_zpe_depth_kcal_mol']
+        assert fixture.qc.check_qc(example['source']['name']+'_high')==0
+    assert (tmp_path/'kinbot.db').read_bytes()==before
+    assert not list(tmp_path.glob('*.py')) and not list(tmp_path.glob('*.sbatch'))
 
 
 @pytest.mark.parametrize('depth', [.4, .8])
@@ -179,7 +202,8 @@ def test_reaction_owner_waits_reconstructs_and_uses_matched_depth(tmp_path, monk
     class StopPoll(Exception): pass
     def make_owner():
         obj = SimpleNamespace(instance_name='100_test', family_name='test', instance=[0,1],
-            max_step=12, scan=False, skip=False, products=[], irc_prod=point(endpoint_name), do_vdW=False)
+            max_step=12, scan=False, skip=False, products=[], prod_opt=[],
+            irc_prod=point(endpoint_name), do_vdW=False)
         species = point('parent')
         species.reac_obj=[obj]; species.reac_inst=[[0,1]]; species.reac_type=['test']
         species.reac_ts_done=[2]; species.reac_step=[13]; species.reac_scan_energy=[[]]
@@ -212,6 +236,68 @@ def test_reaction_owner_waits_reconstructs_and_uses_matched_depth(tmp_path, monk
     expected = [jobs[endpoint_name]] if depth > .5 else [jobs[fragment_name]]*2
     assert [p['name'] for p in decision['points']] == expected
     assert all(fragment.freq == [500.] for fragment in reaction.irc_fragments)
+
+    # Complete cached L2 observations represent an already accepted search.
+    # The shallow endpoint deliberately has NO *_prod_high job. Restoring
+    # it must not turn missing raw-IRC ZPE into an invented deep complex.
+    from kinbot.qc import QuantumChemistry
+    from types import MethodType
+    record('100_test_high', atoms, -.99, zpe=.001, frequencies=[-500.])
+    record(fragment_name+'_high', fragment_atoms, -.5, zpe=.001, frequencies=[500.])
+    if depth > .5:
+        record(endpoint_name+'_high', atoms, -1.01+energy_offset,
+               zpe=.012-depth/constants.AUtoKCAL-energy_offset,
+               frequencies=[100.]*6)
+    qc.check_qc = lambda name: 'normal' if db.count(name=name) else 0
+    qc.use_sella=True; qc.frequency_mode='native_hessian'
+    # Use the real fixed-frequency cache adoption and QC submission guard.
+    qc.qc_freq = MethodType(QuantumChemistry.qc_freq, qc)
+    qc.qc_opt = lambda sp, geom, **kw: QuantumChemistry._submit_qc(
+        qc, routing_name(sp)+'_well', 1)
+    dispatched = []
+    class CachedOptimize:
+        def __init__(self, sp, par, backend, just_high=False):
+            self.species=sp; self.just_high=just_high
+            self.name=(sp.name if just_high or sp.wellorts else routing_name(sp)+'_well')+'_high'
+            self.shigh=1; self.shir=1
+        def do_optimization(self):
+            dispatched.append(self.name)
+            QuantumChemistry._submit_qc(qc, self.name, 1)
+            observed = row(self.name)
+            self.species.energy = observed.data['energy']*constants.EVtoHARTREE
+            self.species.zpe = observed.data['zpe']
+            self.species.freq = list(observed.data['frequencies'])
+            self.species.reduced_freqs = list(self.species.freq)
+    monkeypatch.setattr(module, 'Optimize', CachedOptimize)
+    owner.species.reac_ts_done[0] = -1
+    owner.search_checkpoint.save(0)
+    db_before=(worker/'kinbot.db').read_bytes()
+    screening_before=(worker/'l1_screening.json').read_bytes()
+    for _ in range(2):
+        replay = make_owner()
+        def stop_after_dispatch(_):
+            if replay.species.reac_ts_done == [4]: raise StopPoll
+        monkeypatch.setattr(module.time, 'sleep', stop_after_dispatch)
+        with pytest.raises(StopPoll): replay.generate()
+        assert replay.species.reac_obj[0].do_vdW == (depth > .5)
+        assert replay.species.reac_obj[0].vdW_depth == pytest.approx(depth)
+        assert l1_endpoint.json.loads(replay.search_checkpoint.path.read_text())['reactions']['100_test']['status']==-1
+    assert (endpoint_name+'_high' in dispatched) == (depth > .5)
+    # Also finish final product-complex reassessment and re-publish the
+    # accepted reaction, rather than stopping at the dispatch boundary only.
+    published=[]
+    monkeypatch.setattr(module.postprocess, 'createPESViewerInput',
+                        lambda *a: published.append(True))
+    polls=[]
+    def bounded_poll(_):
+        polls.append(True)
+        assert len(polls)<30, 'Accepted replay failed to complete'
+    monkeypatch.setattr(module.time, 'sleep', bounded_poll)
+    final=make_owner(); final.generate()
+    assert final.species.reac_ts_done==[-1] and published
+    assert final.species.reac_obj[0].do_vdW == (depth>.5)
+    assert (worker/'kinbot.db').read_bytes()==db_before
+    assert (worker/'l1_screening.json').read_bytes()==screening_before
 
 
 @pytest.mark.parametrize('code', ['gauss', 'qchem'])

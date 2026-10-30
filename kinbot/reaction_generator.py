@@ -65,9 +65,13 @@ class ReactionGenerator:
 
     def _endpoint_l1_check(self, obj):
         """Wait at L1 for a matched endpoint Hessian before deciding vdW depth."""
-        if (not self.par.get('l1_vdw_depth_check', False)
-                or obj.instance_name in self.search_checkpoint.replaying):
+        if not self.par.get('l1_vdw_depth_check', False):
             return None
+        # Accepted replay still needs the matched endpoint/fragment E and ZPE
+        # to reconstruct the original vdW topology. Skipping this read would
+        # fall back to a raw IRC endpoint with missing ZPE and invent a deep
+        # complex. Completed frequency jobs are adopted by qc_freq; the replay
+        # submission guard continues to forbid missing/replacement QC.
         from kinbot.l1_endpoint import ensure
         result = ensure(self.qc, obj.irc_prod, self.par, family=obj.family_name)
         if result['status'] == 'complete':

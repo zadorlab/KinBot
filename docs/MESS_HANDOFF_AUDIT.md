@@ -15,7 +15,9 @@ controllers, or change acceptance decisions. The capture includes:
 - Complete worker MESS fragments, summaries and the ordered `chemids` lists.
 - Full databases and SQLite sidecars, preserving selected observations and
   conformer records, plus shallow input, search and decision JSON files.
-- PES/worker controller logs, `me` files and XYZ structures.
+- PES/worker controller logs, `me` files and XYZ structures. Immediate
+  directory names are retained even when empty, so optional backend/plot
+  directories do not disappear when the archive is unpacked.
 
 It does not traverse QC scratch, orbital campaigns or sampling trees. It has a
 2 GiB total default limit and a 256 MiB per-file limit; omissions, symlinks,

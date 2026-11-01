@@ -108,6 +108,11 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
         raise ValueError('Write this audit outside the supplied evidence tree.')
     if type(max_mb) is not int or max_mb<1:raise ValueError('max_mb must be positive.')
     selected=sources(root,tasks,evidence,mess_handoff=mess_handoff)
+    def handoff_directories():
+        scopes=_scopes(root)
+        return {p for scope in scopes for p in (scope,*scope.iterdir())
+                if p.is_dir() and not p.is_symlink()}
+    directories=handoff_directories() if mess_handoff else set()
     if not selected:raise ValueError('No recognized seed evidence in source run.')
     output=output_parent/('seed-audit-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8])
     output.mkdir(parents=True)
@@ -135,7 +140,10 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
         current=sources(root,tasks,evidence,mess_handoff=True)
         if {str(p) for p,_,_ in current}!={str(p) for p,_,_ in selected}:
             issues.append(dict(source=str(root),error='MESS handoff inventory changed during capture.'))
+        if handoff_directories()!=directories:
+            issues.append(dict(source=str(root),error='MESS handoff directory inventory changed during capture.'))
     manifest=dict(schema=1,root=str(root),files=entries,issues=issues,
+                  directories=[str(Path('run')/p.relative_to(root)) for p in sorted(directories)],
                   status='captured' if not issues else 'incomplete',captured_bytes=used,
                   purpose='mess_handoff_replay' if mess_handoff else 'seed_and_restart_audit_only',
                   native_checkpoint_backup=False,
@@ -144,6 +152,9 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     archive=output/'seed-evidence.tar.gz'
     with tarfile.open(archive,'w:gz') as tar:
         tar.add(output/'manifest.json',arcname='manifest.json',recursive=False)
+        for name in manifest['directories']:
+            path=output/name;path.mkdir(parents=True,exist_ok=True)
+            tar.add(path,arcname=name,recursive=False)
         for item in entries:tar.add(output/item['path'],arcname=item['path'],recursive=False)
     return dict(directory=str(output),archive=str(archive),sha256=file_sha256(archive),
                 files=len(entries),bytes=used,issues=len(issues),status=manifest['status'])

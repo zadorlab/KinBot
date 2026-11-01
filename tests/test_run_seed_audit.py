@@ -84,6 +84,7 @@ def test_mess_handoff_roundtrip_replays_native_worker_artifacts(tmp_path):
     cases=stage_collision_network(scope)
     atomic_json(scope/'input.json',cases[0].par)
     (scope/'chemids').write_text('\n'.join(c.worker.name for c in cases)+'\n')
+    (scope/'molpro').mkdir()  # Empty backend directories are part of the handoff.
     for c in cases:write_worker(c)
     expected=assemble_collision_network(cases)
     for c in cases:
@@ -97,6 +98,7 @@ def test_mess_handoff_roundtrip_replays_native_worker_artifacts(tmp_path):
     with tarfile.open(result['archive']) as archive:archive.extractall(dest,filter='data')
     manifest=json.loads((dest/'manifest.json').read_text())
     assert manifest['purpose']=='mess_handoff_replay' and not manifest['submits_jobs']
+    assert (dest/'run/case/molpro').is_dir()
     assert all(file_sha256(dest/item['path'])==item['sha256'] for item in manifest['files'])
     assert not any(item['path'].endswith(('.chk','ignored.out')) for item in manifest['files'])
     copied=[SimpleNamespace(**dict(vars(c),root=dest/'run/case',

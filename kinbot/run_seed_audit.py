@@ -40,13 +40,25 @@ def _scopes(root):
     return sorted(scopes)
 
 
-def sources(root, tasks=(), evidence=None):
+def sources(root, tasks=(), evidence=None, *, mess_handoff=False):
     paths = set()
     for name in ('prepared.json', '.kinbot_resource_policy.json', '.kinbot_live_control.json'):
         if (root/name).is_file():paths.add(root/name)
     for scope in _scopes(root):
         for name in METADATA | {scope.name+'.json', 'kinbot.db', 'kinbot.db-wal', 'kinbot.db-shm'}:
             if (scope/name).is_file():paths.add(scope/name)
+        if mess_handoff:
+            # Complete, shallow assembly handoff: no QC/sampling tree traversal.
+            # Full databases retain atom mapping, selected observations and all
+            # conformer records needed to replay final PES energy selection.
+            for pattern in ('*.json', '*.mess', 'summary_*.out'):
+                paths.update(scope.glob(pattern))
+            for name in ('chemids', 'pes.log', 'driver.log', 'kinbot.log', 'kinbot.err',
+                         'pes_summary.txt', 'reactionList.log'):
+                if (scope/name).is_file():paths.add(scope/name)
+            for folder in ('me', 'xyz'):
+                paths.update(p for p in (scope/folder).glob('*') if p.is_file())
+            continue
         paths.update(scope.glob('vrctst/orbital_review/*/request.json'))
         graphs = {*scope.glob('anl_automatic/states/*/composite/workflow.json'),
                   *scope.glob('vrctst/*/*/workflow.json')}
@@ -87,7 +99,7 @@ def sources(root, tasks=(), evidence=None):
     return result
 
 
-def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048):
+def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_handoff=False):
     root=Path(root).resolve(strict=True);output_parent=Path(output_parent).resolve()
     evidence=Path(evidence).resolve(strict=True) if evidence else None
     if output_parent==root or output_parent.is_relative_to(root):
@@ -95,7 +107,7 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048):
     if evidence and (output_parent==evidence or output_parent.is_relative_to(evidence)):
         raise ValueError('Write this audit outside the supplied evidence tree.')
     if type(max_mb) is not int or max_mb<1:raise ValueError('max_mb must be positive.')
-    selected=sources(root,tasks,evidence)
+    selected=sources(root,tasks,evidence,mess_handoff=mess_handoff)
     if not selected:raise ValueError('No recognized seed evidence in source run.')
     output=output_parent/('seed-audit-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8])
     output.mkdir(parents=True)
@@ -117,9 +129,16 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048):
             if source.stat().st_mtime_ns!=entry['mtime_ns'] or file_sha256(source)!=entry['sha256']:
                 issues.append(dict(source=str(source),error='Source changed before capture completed.'))
         except OSError as error:issues.append(dict(source=str(source),error=str(error)))
+    if mess_handoff:
+        # A new/replaced worker or late-created artifact must not disappear
+        # from an otherwise successful capture of the old file inventory.
+        current=sources(root,tasks,evidence,mess_handoff=True)
+        if {str(p) for p,_,_ in current}!={str(p) for p,_,_ in selected}:
+            issues.append(dict(source=str(root),error='MESS handoff inventory changed during capture.'))
     manifest=dict(schema=1,root=str(root),files=entries,issues=issues,
                   status='captured' if not issues else 'incomplete',captured_bytes=used,
-                  purpose='seed_and_restart_audit_only',native_checkpoint_backup=False,
+                  purpose='mess_handoff_replay' if mess_handoff else 'seed_and_restart_audit_only',
+                  native_checkpoint_backup=False,
                   consistent_live_snapshot=False,submits_jobs=False,modifies_source=False)
     atomic_json(output/'manifest.json',manifest)
     archive=output/'seed-evidence.tar.gz'
@@ -137,8 +156,16 @@ def main(argv=None):
     parser.add_argument('--evidence',type=Path)
     parser.add_argument('--task',action='append',default=[])
     parser.add_argument('--max-mb',type=int,default=2048)
+    parser.add_argument('--mess-handoff',action='store_true',
+                        help='Include complete MESS artifacts, summaries and PES assembly metadata.')
     a=parser.parse_args(argv)
-    print(json.dumps(capture(a.root,a.output_parent,tasks=a.task,evidence=a.evidence,max_mb=a.max_mb),indent=2))
+    if a.mess_handoff:
+        print('Capturing MESS handoff: reading source files; no jobs or source changes.',flush=True)
+    result=capture(a.root,a.output_parent,tasks=a.task,evidence=a.evidence,
+                   max_mb=a.max_mb,mess_handoff=a.mess_handoff)
+    print(json.dumps(result,indent=2))
+    if a.mess_handoff and result['status']!='captured':
+        raise SystemExit(1)
 
 
 if __name__=='__main__':main()

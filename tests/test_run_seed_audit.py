@@ -73,3 +73,54 @@ def test_escape_symlinks_and_capacity_are_explicit_omissions(tmp_path):
     assert result['status']=='incomplete' and result['issues']>=2
     with pytest.raises(ValueError,match='outside'):audit.capture(root,root/'audit')
     with pytest.raises(ValueError,match='relative'):audit.capture(root,tmp_path/'audit',tasks=['../other'])
+
+
+def test_mess_handoff_roundtrip_replays_native_worker_artifacts(tmp_path):
+    from types import SimpleNamespace
+    from tests.test_mess_population_identity import (
+        stage_collision_network,assemble_collision_network,assert_separate_complexes)
+    from tests.test_mess_pes_artifacts import write_worker
+    root=tmp_path/'source';scope=root/'case'
+    cases=stage_collision_network(scope)
+    atomic_json(scope/'input.json',cases[0].par)
+    (scope/'chemids').write_text('\n'.join(c.worker.name for c in cases)+'\n')
+    for c in cases:write_worker(c)
+    expected=assemble_collision_network(cases)
+    for c in cases:
+        (c.worker/'native.chk').write_bytes(b'unrelated checkpoint')
+        huge=c.worker/'rotdPy/samples';huge.mkdir(parents=True)
+        (huge/'ignored.out').write_text('unrelated sampling')
+    before={p.relative_to(root):file_sha256(p) for p in root.rglob('*') if p.is_file()}
+    result=audit.capture(root,tmp_path/'exports',mess_handoff=True)
+    assert result['status']=='captured'
+    dest=tmp_path/'replay';dest.mkdir()
+    with tarfile.open(result['archive']) as archive:archive.extractall(dest,filter='data')
+    manifest=json.loads((dest/'manifest.json').read_text())
+    assert manifest['purpose']=='mess_handoff_replay' and not manifest['submits_jobs']
+    assert all(file_sha256(dest/item['path'])==item['sha256'] for item in manifest['files'])
+    assert not any(item['path'].endswith(('.chk','ignored.out')) for item in manifest['files'])
+    copied=[SimpleNamespace(**dict(vars(c),root=dest/'run/case',
+                  worker=dest/'run/case'/c.worker.name)) for c in cases]
+    for _ in range(2):
+        models=assemble_collision_network(copied)
+        assert models==expected
+        assert_separate_complexes(copied,models)
+    assert before=={p.relative_to(root):file_sha256(p) for p in root.rglob('*') if p.is_file()}
+
+
+def test_mess_handoff_records_late_artifact_and_symlink_as_incomplete(tmp_path,monkeypatch):
+    root=tmp_path/'source';p,w=case(root)
+    (w/'one.mess').write_text('artifact')
+    (w/'two.mess').symlink_to(tmp_path/'outside')
+    (tmp_path/'outside').write_text('off-root')
+    original=audit.read_file
+    def arriving(source,*a,**k):
+        result=original(source,*a,**k)
+        if source.name=='one.mess':(w/'late.mess').write_text('late worker output')
+        return result
+    monkeypatch.setattr(audit,'read_file',arriving)
+    result=audit.capture(root,tmp_path/'exports',mess_handoff=True)
+    manifest=json.loads((Path(result['directory'])/'manifest.json').read_text())
+    assert result['status']=='incomplete'
+    assert any('inventory changed' in issue['error'] for issue in manifest['issues'])
+    assert any('symlink' in issue['error'] for issue in manifest['issues'])

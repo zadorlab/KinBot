@@ -143,3 +143,42 @@ repeated generation. A simulated controller refresh preserves native files and
 live allocations, then the owning writer regenerates the missing model and
 completes assembly. These are local tests; successful remote assembly still
 requires the normal pull/refresh handoff and its completion record.
+
+## Disconnected-complex identity in MESS assembly
+
+After the artifact fix, the 2026-11-01 monitor reaches mirror completion but
+reports `A configured MESS population has two different names`. Two distinct
+disconnected complexes share legacy ChemID `791230350000000000002`:
+
+- `791671450790040000002_r12_insertion_R_2_1_5_IRC_R_prod_high`
+  (row 793; L1 row 621) represents CH2···HSS.
+- `791871560500020000002-sb6e34ded5baaf03b_12_shift_S_R_3_2_4_IRC_F_prod_high`
+  (row 754; L1 row 645) represents HCS···H2S.
+
+Their canonical molecular graph identities differ. Using only the legacy
+numerical routing name in MESS population annotations aliased the two wells.
+Merging them or bypassing the duplicate-name check would join different
+fragment partitions incorrectly. Disconnected population annotations now also
+include the existing full graph/charge/multiplicity/configuration identity.
+The same identity is used on barrier endpoints and reflected populations.
+Connected species names, QC names, optical factors, energies, geometries,
+frequencies and accepted search decisions are unchanged. The duplicate guard
+remains and now identifies the conflicting key and names.
+
+`tests/reference/mess_complex_identity_collision.json` preserves the source
+archive hash, native L1/L2 observations, L2 input text and native output hashes
+for both parents, saddles, complexes and fragment pairs (ten points total).
+The outputs terminate normally. These are observations from the previously
+exported archive, not new quantum calculations. With the old identity code,
+the real worker writer, summary, database lookup and PES assembly reproduce
+the reported exception. With the fix, both complexes and their respective PST
+exits survive as separate models. The regression checks both worker orders,
+specified/racemic populations, single/multiple conformer modes, omission of
+complexes, final network splitting and repeated generation. Structural tests
+also check atom-order and orientation independence and mirror/state identity.
+
+The refresh regression starts from artifacts with the ambiguous old metadata,
+preserves native files and live sampling allocations, then runs the owning
+writers and final assembly twice. The repaired input files and scientific data
+remain stable. This is native-backed local replay with a simulated scheduler;
+remote completion must still be confirmed after pull and controller refresh.

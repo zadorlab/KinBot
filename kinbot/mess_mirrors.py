@@ -19,6 +19,17 @@ _XYZ = re.compile(r'^(\s*[A-Z][a-z]?\s+)([-+\d.eE]+)(\s+[-+\d.eE]+\s+[-+\d.eE]+\
 logger = logging.getLogger('KinBot')
 
 
+def _population_key(point, identity):
+    key = routing_name(point)
+    # A disconnected graph's legacy ChemID can coincide with another fragment
+    # partition. These are different encounter wells, not duplicate names for
+    # one population. Use the full existing graph/charge/spin identity only in
+    # MESS metadata; calculation names and ordinary species routing stay intact.
+    if any('.' in graph for graph in identity.get('canonical_graphs', ())):
+        key += '-g' + identity['id']
+    return key
+
+
 def population_keys(species, population='specified'):
     own, mirror = [], []
     for point in species:
@@ -27,14 +38,14 @@ def population_keys(species, population='specified'):
             raise UnsupportedStereochemistry(
                 f'{point.name}: unsupported stereochemical reference: '
                 f'{identity.get("reason", "no assigned identity")}')
-        key = routing_name(point)
+        key = _population_key(point, identity)
         own.append(key)
         if population == 'racemic' or identity['id'] == identity['mirror_id']:
             mirror.append(key)
         else:
             view = copy.copy(point)
             view.optical_reference = dict(identity, id=identity['mirror_id'], mirror_id=identity['id'])
-            mirror.append(routing_name(view))
+            mirror.append(_population_key(view, view.optical_reference))
     return '_'.join(sorted(own)), '_'.join(sorted(mirror))
 
 
@@ -252,7 +263,8 @@ def complete_mirror_channels(contents):
             marker = _POP.search(block)
             if marker:
                 if marker[1] in populations and populations[marker[1]][0] != words[0]:
-                    raise ValueError('A configured MESS population has two different names')
+                    raise ValueError('A configured MESS population has two different names: '
+                                     f'{marker[1]}: {populations[marker[1]][0]}, {words[0]}')
                 populations[marker[1]] = (words[0], block)
     by_name = {name: _POP.search(block).groups() for name, block in populations.values()}
     for block in blocks:

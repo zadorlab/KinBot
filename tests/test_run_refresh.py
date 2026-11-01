@@ -19,6 +19,8 @@ from kinbot.anl import dispatch
 from kinbot.execution import atomic_json, file_sha256
 from tests.anl_fixture import dispatch_spec, molpro_task
 from tests.test_mess_pes_artifacts import stage_artifact_handoff, write_worker, assemble
+from tests.test_mess_population_identity import (
+    stage_collision_network, assemble_collision_network, assert_separate_complexes)
 
 PIN_CODE = run_salvage._pin_code
 PROC_INVENTORY = run_cleanup._processes
@@ -124,6 +126,39 @@ def test_refresh_then_completed_worker_rebuilds_pes_complex_artifacts_without_qc
         assert text.count('ImaginaryFrequency') == 1
         assert scientific_files(t.root) == before and t.jobs == jobs
         assert case.parent.reac_ts_done == [-1, -1]
+    assert run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30) == result
+    assert len(t.launches) == 2
+
+
+def test_refresh_rebuilds_colliding_native_complexes_without_qc(sampling_tree, monkeypatch):
+    from kinbot import mess_mirrors
+    from kinbot.species_routing import routing_name
+    t = sampling_tree
+    cases = stage_collision_network(t.root/'ch3ss')
+    # Existing artifacts contain the old, ambiguous disconnected ChemID keys.
+    with monkeypatch.context() as old:
+        old.setattr(mess_mirrors, '_population_key', lambda p, identity: routing_name(p))
+        for case in cases:
+            write_worker(case)
+    with pytest.raises(ValueError, match='configured MESS population.*two different names'):
+        assemble_collision_network(cases)
+    before = scientific_files(t.root)
+    jobs = deepcopy(t.jobs)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30)
+    assert result['phase'] == 'launched'
+    assert scientific_files(t.root) == before and t.jobs == jobs
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    previous = None
+    for _ in range(2):
+        for case in cases:
+            write_worker(case)  # Owning writers rebuild accepted model metadata.
+        models = assemble_collision_network(cases)
+        assert_separate_complexes(cases, models)
+        assert scientific_files(t.root) == before and t.jobs == jobs
+        assert all(case.parent.reac_ts_done == [-1] for case in cases)
+        if previous is not None:
+            assert models == previous
+        previous = models
     assert run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30) == result
     assert len(t.launches) == 2
 

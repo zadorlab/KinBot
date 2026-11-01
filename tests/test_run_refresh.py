@@ -18,6 +18,7 @@ from kinbot import run_cleanup, run_refresh, run_salvage, pes_phase
 from kinbot.anl import dispatch
 from kinbot.execution import atomic_json, file_sha256
 from tests.anl_fixture import dispatch_spec, molpro_task
+from tests.test_mess_pes_artifacts import stage_artifact_handoff, write_worker, assemble
 
 PIN_CODE = run_salvage._pin_code
 PROC_INVENTORY = run_cleanup._processes
@@ -97,6 +98,34 @@ def test_refresh_then_owner_adopts_completed_endpoint_checks_without_retry(sampl
         assert check['point']['name'] == check['energy_zpe_source']
         assert ReactionGenerator._endpoint_l1_check(owner, obj) == check
     assert scientific_files(t.root) == before and t.jobs == jobs
+
+
+def test_refresh_then_completed_worker_rebuilds_pes_complex_artifacts_without_qc(sampling_tree):
+    t = sampling_tree
+    case = stage_artifact_handoff(t.root/'ch3ss')
+    write_worker(case)
+    # Reproduce the old worker handoff: only the first equal-energy route's
+    # complex was exported, while final PES assembly selects the other one.
+    missing = case.worker/(case.reactions[-1].irc_prod.name+'_0000.mess')
+    missing.unlink()
+    with pytest.raises(FileNotFoundError, match='IRC_F_prod_0000.mess'):
+        assemble(case)
+    before = scientific_files(t.root)
+    jobs = deepcopy(t.jobs)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30)
+    assert result['phase'] == 'launched'
+    assert scientific_files(t.root) == before and t.jobs == jobs
+    assert not missing.exists()  # Refresh itself never invents a QC/model result.
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    for _ in range(2):
+        write_worker(case)  # The owning writer reconstructs from accepted states.
+        text = assemble(case)
+        assert missing.is_file() and text.count('Core PhaseSpaceTheory') == 1
+        assert text.count('ImaginaryFrequency') == 1
+        assert scientific_files(t.root) == before and t.jobs == jobs
+        assert case.parent.reac_ts_done == [-1, -1]
+    assert run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30) == result
+    assert len(t.launches) == 2
 
 
 def test_full_refresh_reads_proc_and_retains_four_owners_after_hostname_change(sampling_tree, monkeypatch):

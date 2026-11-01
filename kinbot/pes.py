@@ -1463,7 +1463,12 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             prod_energies_current[prod] = energy
             fr_names = {f'fr_name_{fr}': fr_short[fr] + ' ! ' + fr for fr in prod.split('_')}
             def format_exit(worker, reaction, **names):
-                text = (Path(worker) / mess_filename(prod, uq_iter)).read_text().format(
+                source = Path(worker) / mess_filename(prod, uq_iter, reaction=reaction)
+                if not source.is_file():
+                    # Older single-route artifacts remain usable; the ROTD
+                    # resolver still validates any embedded reaction binding.
+                    source = Path(worker) / mess_filename(prod, uq_iter)
+                text = source.read_text().format(
                     name=name, ground_energy=round(energy, 2), **fr_names, **names)
                 return resolve_models(text, worker, par, round(energy, 2),
                                       rotd_sources, reaction)

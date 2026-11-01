@@ -1161,8 +1161,13 @@ class MESS:
                                                                                    imagfreq_factor,
                                                                                    uq_iter)
 
-                # Only write products once, stops duplicate product writing
-                if reaction.instance_name in ts_unique:
+                # PES assembly selects routes independently (including its
+                # equal-energy complex tie rule). Publish every accepted
+                # route's product models, just as we publish every TS above;
+                # otherwise it can select a complex whose file was never
+                # written. Standalone kinetics retains its local selection.
+                if (reaction.instance_name in ts_all
+                        and (self.par['pes'] or reaction.instance_name in ts_unique)):
                     if reaction.instance_name in allTS:
                         ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                     if reaction.do_vdW:
@@ -1205,7 +1210,7 @@ class MESS:
                                                                     uq_iter)
                     elif len(reaction.products) == 2:
                         bimol_name = '_'.join(sorted([routing_name(st_pt) for st_pt in reaction.products]))
-                        if bimol_name in written_bimol_names:
+                        if not self.par['pes'] and bimol_name in written_bimol_names:
                             continue
                         energy_add = uq.calc_factor('energy', uq_iter)
                         freq_factor = uq.calc_factor('freq', uq_iter)
@@ -1339,7 +1344,8 @@ class MESS:
                 states.append(reaction.ts)
                 if self.species.reac_type[index] == 'barrierless_saddle':
                     representative_only.add(id(reaction.ts))
-            if reaction.instance_name in ts_unique:
+            if (reaction.instance_name in ts_all
+                    and (self.par['pes'] or reaction.instance_name in ts_unique)):
                 states.extend(opt.species for opt in reaction.prod_opt)
                 if self._include_complex(reaction):
                     states.append(self._product_complex(reaction))
@@ -1608,6 +1614,9 @@ class MESS:
             energy_reference=energy_reference if self.par['multi_conf_tst'] else None)
         with open(mess_filename(pr_name, uq_iter), 'w') as f:
             f.write(bimol)
+        if self.par['pes'] and reaction is not None:
+            with open(mess_filename(pr_name, uq_iter, reaction=reaction.instance_name), 'w') as f:
+                f.write(bimol)
 
         return bimol
 

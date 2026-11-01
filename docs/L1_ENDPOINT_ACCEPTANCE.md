@@ -112,3 +112,34 @@ the terminal search record and leaves database and screening records unchanged.
 Refresh tests cover both active and accepted endpoint adoption after relaunch.
 These are local replay/simulated-site checks, not a claim that the new remote
 controllers have already finished.
+
+## MESS artifact handoff after completed exploration
+
+The subsequent monitor showed all three CH3S and thirteen CH3SS workers complete.
+CH3SS failed only when assembling the PES-wide MESS input: the selected
+`12_shift_S_R_3_2_4_IRC_F_prod_0000.mess` was absent. In the same exported evidence
+described above, worker `791871560500020000002-sb6e34ded5baaf03b` has accepted
+forward/reverse TS observations 759 and 762 with identical B2PLYP total energies
+of -835.88114038804 Hartree and ZPE 0.028943 Hartree. Their complex observations
+745 and 754 also agree, at -835.9628768711201 and 0.028476 Hartree respectively.
+All four associated Gaussian outputs terminate normally; the B2PLYP totals
+(including the perturbative contribution) and ZPE agree with the database.
+
+The worker retained the first equal-energy route's product artifacts, while
+PES assembly retained the later complex route. Workers now export all accepted
+route artifacts in PES mode, including their optical validation. Final PES
+selection and standalone lowest-barrier selection are unchanged. Product exit
+artifacts additionally include the reaction in their bounded-length filename,
+so two routes to the same fragments cannot overwrite each other's deferred
+PST/ROTD context. Legacy shared product files remain readable with the existing
+context validation. No geometry, energy, frequency, search decision, or QC
+attempt is changed by artifact generation.
+
+The regressions call the actual worker writer, summary writer, database energy
+lookup, PES selection, MESS assembly/finalization, and network splitter. They
+cover equal/unequal TS energies, reversed order, distinct paths, single/multiple
+conformer modes, PST-only and automatic modes, retained/omitted complexes, and
+repeated generation. A simulated controller refresh preserves native files and
+live allocations, then the owning writer regenerates the missing model and
+completes assembly. These are local tests; successful remote assembly still
+requires the normal pull/refresh handoff and its completion record.

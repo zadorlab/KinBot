@@ -292,15 +292,24 @@ def test_full_cbh_assembly_preserves_pathway_choice_through_ladder_selection(tmp
         return result
     monkeypatch.setattr(automatic,'_run_reference_l2',references)
     def native(record, graph):
-        # An empty fixture graph lets real assembly read the accepted L2
-        # fallback; no licensed calculation or scheduler is used in this test.
-        atomic_json(graph/'workflow.json', {'name':'anl-automatic-post-l2','molecule':record['molecule'],'tasks':[]})
-        atomic_json(graph/'state.json', {'tasks':{}})
+        # A valid graph with unavailable L3 exercises the accepted L2 fallback
+        # through the real loaders; no native calculation is simulated as done.
+        from tests.anl_fixture import dispatch_spec
+        spec = dispatch_spec()
+        spec['name'] = 'anl-automatic-post-l2'
+        spec['molecule'] = record['molecule']
+        spec['intent'] = {'highest_tier': par['composite_method']}
+        task = next(t for t in spec['tasks'] if t['id'] == 'l3_geometry')
+        task['geometry_from'] = 'initial'
+        spec['tasks'] = [task]
+        atomic_json(graph/'workflow.json', spec)
+        atomic_json(graph/'state.json', {
+            'schema': 1, 'spec_sha256': file_sha256(graph/'workflow.json'),
+            'tasks': {'l3_geometry': {'status': 'unavailable'}}})
     monkeypatch.setattr(automatic,'_prepare_stable_graph',lambda p,e,r,g:native(r,g))
     monkeypatch.setattr(automatic,'_prepare_ts_graph',lambda p,r,g:native(r,g))
     monkeypatch.setattr(automatic,'preflight_until_scheduler_ready',lambda *a,**kw:{})
     monkeypatch.setattr(automatic,'_drive_graphs',lambda *a:None)
-    monkeypatch.setattr(automatic,'_load',lambda p:(p,json.loads((p/'workflow.json').read_text()),json.loads((p/'state.json').read_text())))
     result=automatic.run_automatic_cbh_anl(root,par,'unused',directory=tmp_path,plan=plan)
     expected={'low'} if managed else {'low','high'}
     handoff=json.loads(Path(result['handoff_manifest']).read_text())

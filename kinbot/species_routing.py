@@ -4,6 +4,7 @@ Ordinary names are unchanged. A stereo suffix contains the first 16 hexadecimal
 characters of the full identity. Saved references retain the complete identity.
 """
 import hashlib
+import json
 import copy
 import logging
 from pathlib import Path
@@ -42,9 +43,12 @@ def routing_name(species):
     return str(routing_key(species))
 
 
-def mess_filename(key, iteration):
+def mess_filename(key, iteration, *, reaction=None):
     """Keep complete network keys in content without overlong file components."""
-    stem = str(key)
+    # Exit artifacts also bind a specific reaction's PST/ROTD context. Two
+    # routes to the same fragments must not overwrite each other's model.
+    stem = (str(key) if reaction is None else 'exit-' +
+            hashlib.sha256(json.dumps([str(reaction), str(key)]).encode()).hexdigest())
     if len(stem.encode()) > 220:
         stem = 'network-' + hashlib.sha256(stem.encode()).hexdigest()
     return f'{stem}_{int(iteration):04d}.mess'

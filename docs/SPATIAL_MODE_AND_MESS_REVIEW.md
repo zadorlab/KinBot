@@ -208,13 +208,16 @@ forbidden. Original inputs, databases, searches, screening decisions and
 worker fragments remained byte-identical. This is local evidence, not a new
 remote controller handoff.
 
-Four full native MESS runs completed: both PESs with the symmetry corrections,
-and both with the already declared electronic levels and scalar-reference
-corrections restored together. The latter two are the current derived models.
-Their input SHA-256 values are:
+The initial four full native MESS runs completed: both PESs with the symmetry
+corrections, and both with the already declared electronic levels and
+scalar-reference corrections restored together.
+After the CH coverage follow-up, both full models and all six reduced
+candidates were rerun successfully. Candidate membership is unchanged. The
+follow-up passed 27 isolated tests and 17 subtests, including the new coverage
+and cached-fragment regressions. The current full input SHA-256 values are:
 
-* CH3S: `0621fd780f682a401036702a6a6b4b0a2530285063578a3ca7da32ff6e5c89ef`
-* CH3SS: `72f597bca0b847aef2f714895b42efdb7eb11f3a09c5efe346969de4c143e18e`
+* CH3S: `26e4703ea1bb0fd83baf08d33095e5ae4bf2a6b6718f066a2d4ec13cc3ffdcd9`
+* CH3SS: `a336c86955e485c4125aa6a7e20090881b8c2e9086d6f80e3c5515ecf593ec08`
 
 Both full models and all six reduced candidates also completed a native
 1000 K / 760 torr direct-method check with energy-step/temperature 0.2.

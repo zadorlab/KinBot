@@ -57,11 +57,11 @@ def test_no_kinbot_cli_forwards_lowestpath_and_species_names(tmp_path,monkeypatc
         (Path(name)/(name+'.json')).write_text(json.dumps(dict(title=name, pes=1)))
     monkeypatch.setattr(pes,'write_input',saved_input)
     monkeypatch.setattr(pes,'get_wells',lambda *a:None)
-    monkeypatch.setattr(pes,'check_status',lambda *a:False)
     monkeypatch.setattr(pes.time,'sleep',lambda *a:None)
     def no_job(*a,**k):
         raise AssertionError('no-kinbot must not submit a job')
     monkeypatch.setattr(pes,'submit_job',no_job)
+    monkeypatch.setattr(pes,'check_status',no_job)
     seen=[]
     monkeypatch.setattr(pes,'postprocess',lambda par,jobs,task,names,mass:seen.append((task,names)))
     pes.main()

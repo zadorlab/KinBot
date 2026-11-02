@@ -102,5 +102,23 @@ class TestFinalMCInput(unittest.TestCase):
         self.assertEqual(finalize_mc_mess(output, True), output)
 
 
+def test_submerged_correction_is_explicit_and_does_not_create_tunneling():
+    original = ('Well w1\nZeroEnergy[kcal/mol] 25.46\n'
+                'Well w2\nZeroEnergy[kcal/mol] 42.34\n'
+                'Barrier b w1 w2\nZeroEnergy[kcal/mol] 41.67\n'
+                'Tunneling Eckart\nImaginaryFrequency[1/cm] 500\n'
+                'CutoffEnergy[kcal/mol] -0.67\nWellDepth[kcal/mol] 16.21\n'
+                'WellDepth[kcal/mol] -0.67\nEnd\nEnd ! RRHO\n')
+    unchanged = finalize_mc_mess(original, False)
+    assert 'ZeroEnergy[kcal/mol] 41.67' in unchanged
+    assert 'correct_submerged=1' not in unchanged
+    corrected = finalize_mc_mess(original, True)
+    assert 'energies[kcal/mol] [41.67] raised to connected-well ground 42.34' in corrected
+    assert 'QC records unchanged.' in corrected
+    assert 'Tunneling Eckart' not in corrected
+    assert values(corrected, 'ZeroEnergy') == [25.46, 42.34, 42.34]
+    assert finalize_mc_mess(corrected, True) == corrected
+
+
 if __name__ == '__main__':
     unittest.main()

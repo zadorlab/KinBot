@@ -1,5 +1,8 @@
 ! Energies in this file are computed at the {LevelOfTheory} level of theory.
 ! **********************
+! Match the minimum-distance guard used for KinBot partition-function models.
+! Accepted geometries (including short H-H bonds) are written unchanged.
+AtomDistanceMin[angstrom]               0.32
 TemperatureList[K]                      {TemperatureList}
 PressureList[torr]                      {PressureList}
 EnergyStepOverTemperature               {EnergyStepOverTemperature}

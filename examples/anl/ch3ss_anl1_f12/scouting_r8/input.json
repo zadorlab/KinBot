@@ -57,5 +57,6 @@
   "method": "B3LYP",
   "basis": "cc-pVDZ",
   "high_level_method": "B2PLYP",
-  "high_level_basis": "cc-pVTZ"
+  "high_level_basis": "cc-pVTZ",
+  "correct_submerged": 1
 }

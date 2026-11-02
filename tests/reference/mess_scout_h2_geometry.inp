@@ -1,0 +1,693 @@
+! Energies in this file are computed at the B2PLYP/cc-pVTZ level of theory.
+! **********************
+TemperatureList[K]                      300 400 500 600 800 1000 1200 1500 1800 2000
+PressureList[torr]                      0.01 0.1 1.0 10.0 100.0 760.0
+EnergyStepOverTemperature               0.2
+ExcessEnergyOverTemperature             30
+ModelEnergyLimit[kcal/mol]              400
+CalculationMethod                       direct
+ChemicalEigenvalueMax                   0.2
+Reactant                                w_1
+MicroRateOutput mess_0000.micro
+MicroEnerMax[kcal/mol] 200.
+MicroEnerMin[kcal/mol] 0.
+MicroEnerStep[kcal/mol] 1.
+Model
+  EnergyRelaxation
+    Exponential
+      Factor[1/cm]                      200
+      Power                             0.85
+      ExponentCutoff                    15
+    End
+  CollisionFrequency
+    LennardJones
+      Epsilons[1/cm]                    7.95 208.51
+      Sigmas[angstrom]                  2.715 4.5
+      Masses[amu]                       4.002602 47.0
+    End
+######################
+# WELLS
+######################
+
+  Well       w_1 ! 470831050000000000002 ! [H][C]([H])([H])[S]
+! kinbot_population 470831050000000000002 470831050000000000002
+    Species
+      RRHO
+        Geometry[angstrom]            5
+        C 1.088699 0.018788 0.035826
+        S 0.463972 1.695393 -0.170502
+        H 0.712317 -0.644178 -0.738173
+        H 0.711683 -0.333339 0.998356
+        H 2.174389 -0.000018 0.070119
+        Core   RigidRotor
+          SymmetryFactor              3.0
+
+        End
+        Frequencies[1/cm]             9
+        602.4 722.7 873.7 
+        1344.7 1396.8 1487.4 
+        3041.8 3118.4 3141.3 
+       
+
+        ElectronicLevels[1/cm]        1
+          0 2
+        ZeroEnergy[kcal/mol]          0.0
+      End ! RRHO
+    End ! Species
+
+! ****************************************
+
+  Well       w_2 ! 471030810040000000002 ! [H][S]=[C]([H])[H]
+! kinbot_population 471030810040000000002 471030810040000000002
+    Species
+      RRHO
+        Geometry[angstrom]            5
+        C 1.344308 0.210227 0.316132
+        S 0.375510 1.237938 -0.668678
+        H 0.578779 0.617370 -1.838734
+        H 1.396546 0.450047 1.362616
+        H 1.917459 -0.594699 -0.104432
+        Core   RigidRotor
+          SymmetryFactor              1.0
+
+        End
+        Frequencies[1/cm]             9
+        56.8 340.6 788.1 
+        852.4 1079.3 1424.8 
+        2721.8 3204.6 3335.4 
+       
+
+        ElectronicLevels[1/cm]        1
+          0 2
+        ZeroEnergy[kcal/mol]          8.93
+      End ! RRHO
+    End ! Species
+
+! ****************************************
+
+  Well       w_3 ! 471230610040000000002 ! [H][C]=[S]([H])[H]
+! kinbot_population 471230610040000000002 471230610040000000002
+    Species
+      RRHO
+        Geometry[angstrom]            5
+        C 0.841266 0.017289 0.625556
+        S 1.057423 1.030619 -0.760325
+        H 0.343209 0.388056 -1.702235
+        H 1.660026 0.299932 1.302986
+        H 2.214050 0.927240 -1.522545
+        Core   RigidRotor
+          SymmetryFactor              0.5
+
+        End
+        Frequencies[1/cm]             9
+        448.9 592.1 675.9 
+        798.0 1105.3 1252.4 
+        2249.8 2648.3 3031.5 
+       
+
+        ElectronicLevels[1/cm]        1
+          0 2
+        ZeroEnergy[kcal/mol]          81.13
+      End ! RRHO
+    End ! Species
+
+! ****************************************
+
+######################
+# BIMOLECULAR PRODUCTS
+######################
+
+  Bimolecular  pr_1 ! 10000000000000000002_460700680000000000001 ! [H][C]([H])=[S] [H]
+! kinbot_population 10000000000000000002_460700680000000000001 10000000000000000002_460700680000000000001
+  Fragment       fr_2 ! 460700680000000000001 ! [H][C]([H])=[S]
+    RRHO
+      Geometry[angstrom]            4
+        C 1.324002 0.258988 0.294211
+        S 0.408922 1.192127 -0.651874
+        H 1.405540 0.428223 1.363697
+        H 1.895251 -0.575916 -0.100374
+      Core   RigidRotor
+        SymmetryFactor              2.0
+
+      End
+      Frequencies[1/cm]             6
+        1010.5 1029.7 1082.3 
+        1503.0 3088.9 3175.9 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 1
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+    Fragment       fr_1 ! 10000000000000000002
+      Atom
+        Name                        H
+        ElectronicLevels[1/cm]      1
+            0 2
+      End ! Atom
+
+    GroundEnergy[kcal/mol]        51.55
+    End ! Barrierless
+
+  Bimolecular  pr_2 ! 150390060000000000002_320000000000000000003 ! [H][C]([H])[H] [S]
+! kinbot_population 150390060000000000002_320000000000000000003 150390060000000000002_320000000000000000003
+  Fragment       fr_3 ! 150390060000000000002 ! [H][C]([H])[H]
+    RRHO
+      Geometry[angstrom]            4
+        C 1.171787 -0.239745 0.091530
+        H 0.669891 -0.570876 -0.800541
+        H 0.653977 -0.247617 1.034475
+        H 2.191431 0.099491 0.040665
+      Core   RigidRotor
+        SymmetryFactor              6.0
+
+      End
+      Frequencies[1/cm]             6
+        514.4 1427.7 1427.7 
+        3139.7 3320.9 3321.0 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 2
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+    Fragment       fr_4 ! 320000000000000000003
+      Atom
+        Name                        S
+        ElectronicLevels[1/cm]      1
+            0 3
+      End ! Atom
+
+    GroundEnergy[kcal/mol]        69.01
+    End ! Barrierless
+
+  Bimolecular     pr_3 ! 20020000000000000001_450770130000000000002 ! [H][S]#[C] [H][H]
+! kinbot_population 20020000000000000001_450770130000000000002 20020000000000000001_450770130000000000002
+  Fragment       fr_6 ! 450770130000000000002 ! [H][S]#[C]
+    RRHO
+      Geometry[angstrom]            3
+        C 0.641947 -0.532430 -0.558677
+        S 0.178997 1.037090 -0.783932
+        H -0.796393 0.938871 -1.740771
+      Core   RigidRotor
+        SymmetryFactor              1.0
+
+      End
+      Frequencies[1/cm]             3
+        785.2 929.2 2412.3 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 2
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+  Fragment       fr_5 ! 20020000000000000001 ! [H][H]
+    RRHO
+      Geometry[angstrom]            2
+        H 3.034237 0.202843 1.857762
+        H 2.574099 -0.108337 1.368928
+      Core   RigidRotor
+        SymmetryFactor              2.0
+
+      End
+      Frequencies[1/cm]             1
+        4466.3
+
+      ElectronicLevels[1/cm]        1
+            0 1
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+
+    GroundEnergy[kcal/mol]        79.3
+  End ! Bimolecular
+
+
+! ****************************************
+
+  Bimolecular  pr_4 ! 140260020000000000003_330330000000000000002 ! [H][C][H] [H][S]
+! kinbot_population 140260020000000000003_330330000000000000002 140260020000000000003_330330000000000000002
+  Fragment       fr_7 ! 140260020000000000003 ! [H][C][H]
+    RRHO
+      Geometry[angstrom]            3
+        C 1.386590 0.172000 0.358814
+        H 1.360529 0.498720 1.382789
+        H 1.910916 -0.605369 -0.167234
+      Core   RigidRotor
+        SymmetryFactor              2.0
+
+      End
+      Frequencies[1/cm]             3
+        1091.5 3157.1 3393.8 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 3
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+  Fragment       fr_8 ! 330330000000000000002 ! [H][S]
+    RRHO
+      Geometry[angstrom]            2
+        S 0.375359 1.239067 -0.666813
+        H 0.579207 0.616465 -1.840653
+      Core   RigidRotor
+        SymmetryFactor              1.0
+
+      End
+      Frequencies[1/cm]             1
+        2706.8
+
+      ElectronicLevels[1/cm]        1
+            0 2
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+
+    GroundEnergy[kcal/mol]        96.03
+    End ! Barrierless
+
+  Bimolecular  pr_5 ! 10000000000000000002_460900460020000000001 ! [H][C]#[S][H] [H]
+! kinbot_population 10000000000000000002_460900460020000000001 10000000000000000002_460900460020000000001
+  Fragment       fr_9 ! 460900460020000000001 ! [H][C]#[S][H]
+    RRHO
+      Geometry[angstrom]            4
+        C 1.352655 0.248131 0.392270
+        S 0.440429 1.139381 -0.637320
+        H 0.554292 0.643359 -1.914915
+        H 1.868734 -0.559986 -0.135759
+      Core   RigidRotor
+        SymmetryFactor              1.0
+
+      End
+      Frequencies[1/cm]             6
+        790.5 946.7 960.9 
+        1115.7 2409.5 3068.5 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 1
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+    Fragment       fr_1 ! 10000000000000000002
+      Atom
+        Name                        H
+        ElectronicLevels[1/cm]      1
+            0 2
+      End ! Atom
+
+    GroundEnergy[kcal/mol]        97.87
+    End ! Barrierless
+
+  Bimolecular  pr_6 ! 130130000000000000002_340660020000000000001 ! [H][C] [H][S][H]
+! kinbot_population 130130000000000000002_340660020000000000001 130130000000000000002_340660020000000000001
+  Fragment       fr_10 ! 130130000000000000002 ! [H][C]
+    RRHO
+      Geometry[angstrom]            2
+        C 0.834119 0.014881 0.619696
+        H 1.666989 0.302341 1.308850
+      Core   RigidRotor
+        SymmetryFactor              1.0
+
+      End
+      Frequencies[1/cm]             1
+        2874.5
+
+      ElectronicLevels[1/cm]        1
+            0 2
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+  Fragment       fr_11 ! 340660020000000000001 ! [H][S][H]
+    RRHO
+      Geometry[angstrom]            3
+        S 1.076366 1.027128 -0.776405
+        H 0.344400 0.389549 -1.699957
+        H 2.194101 0.929237 -1.508746
+      Core   RigidRotor
+        SymmetryFactor              2.0
+
+      End
+      Frequencies[1/cm]             3
+        1215.0 2726.3 2741.6 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 1
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+
+    GroundEnergy[kcal/mol]        108.56
+    End ! Barrierless
+
+  Barrier       nobar_4 w_2 pr_1 
+    RRHO
+      Stoichiometry C1H3S1
+        Core PhaseSpaceTheory
+          ! 460700680000000000001  [H][C]([H])=[S]
+      FragmentGeometry[angstrom]            4
+        C 1.324002 0.258988 0.294211
+        S 0.408922 1.192127 -0.651874
+        H 1.405540 0.428223 1.363697
+        H 1.895251 -0.575916 -0.100374
+
+          ! 10000000000000000002  [H]
+      FragmentGeometry[angstrom]            1
+        H 1.396491 0.449998 1.362627
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             6
+        1010.5 1029.7 1082.3 
+        1503.0 3088.9 3175.9 
+       
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol]      51.55
+    End ! RRHO
+
+
+!****************************************
+
+
+! ****************************************
+
+  Barrier       nobar_1 w_1 pr_2 
+    RRHO
+      Stoichiometry C1H3S1
+        Core PhaseSpaceTheory
+          ! 150390060000000000002  [H][C]([H])[H]
+      FragmentGeometry[angstrom]            4
+        C 1.171787 -0.239745 0.091530
+        H 0.669891 -0.570876 -0.800541
+        H 0.653977 -0.247617 1.034475
+        H 2.191431 0.099491 0.040665
+
+          ! 320000000000000000003  [S]
+      FragmentGeometry[angstrom]            1
+        S 0.463972 1.695393 -0.170502
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             6
+        514.4 1427.7 1427.7 
+        3139.7 3320.9 3321.0 
+       
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol]      69.01
+    End ! RRHO
+
+
+!****************************************
+
+
+! ****************************************
+
+  Barrier       nobar_2 w_2 pr_4 
+    RRHO
+      Stoichiometry C1H3S1
+        Core PhaseSpaceTheory
+          ! 140260020000000000003  [H][C][H]
+      FragmentGeometry[angstrom]            3
+        C 1.386590 0.172000 0.358814
+        H 1.360529 0.498720 1.382789
+        H 1.910916 -0.605369 -0.167234
+
+          ! 330330000000000000002  [H][S]
+      FragmentGeometry[angstrom]            2
+        S 0.375359 1.239067 -0.666813
+        H 0.579207 0.616465 -1.840653
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             4
+        1091.5 3157.1 3393.8 
+        2706.8
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol]      96.03
+    End ! RRHO
+
+
+!****************************************
+
+
+! ****************************************
+
+  Barrier       nobar_3 w_2 pr_5 
+    RRHO
+      Stoichiometry C1H3S1
+        Core PhaseSpaceTheory
+          ! 460900460020000000001  [H][C]#[S][H]
+      FragmentGeometry[angstrom]            4
+        C 1.352655 0.248131 0.392270
+        S 0.440429 1.139381 -0.637320
+        H 0.554292 0.643359 -1.914915
+        H 1.868734 -0.559986 -0.135759
+
+          ! 10000000000000000002  [H]
+      FragmentGeometry[angstrom]            1
+        H 1.396491 0.449998 1.362627
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             6
+        790.5 946.7 960.9 
+        1115.7 2409.5 3068.5 
+       
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol]      97.87
+    End ! RRHO
+
+
+!****************************************
+
+
+! ****************************************
+
+  Barrier       nobar_5 w_3 pr_6 
+    RRHO
+      Stoichiometry C1H3S1
+        Core PhaseSpaceTheory
+          ! 130130000000000000002  [H][C]
+      FragmentGeometry[angstrom]            2
+        C 0.834119 0.014881 0.619696
+        H 1.666989 0.302341 1.308850
+
+          ! 340660020000000000001  [H][S][H]
+      FragmentGeometry[angstrom]            3
+        S 1.076366 1.027128 -0.776405
+        H 0.344400 0.389549 -1.699957
+        H 2.194101 0.929237 -1.508746
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             4
+        2874.5 1215.0 2726.3 
+        2741.6
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol]      108.56
+    End ! RRHO
+
+
+!****************************************
+
+
+! ****************************************
+
+######################
+# BARRIERS
+######################
+
+! kinbot_stereopath ordinary
+  Barrier       rxn_1 w_1 pr_1 ! 470831050000000000002_r12_insertion_R_3_1_4   ! 
+! kinbot_mirror_endpoints 470831050000000000002 470831050000000000002 10000000000000000002_460700680000000000001 10000000000000000002_460700680000000000001
+  RRHO
+    Geometry[angstrom]            5
+        C 1.545513 0.584249 0.351282
+        S 0.824660 1.770766 -0.470530
+        H 0.027019 -1.981418 -1.231387
+        H 0.994627 -0.068764 1.021403
+        H 2.610693 0.390577 0.267562
+    Core   RigidRotor
+      SymmetryFactor            0.5
+
+    End ! Core
+
+    Frequencies[1/cm]             8
+        36.0 106.4 1010.4 
+        1029.9 1087.1 1503.5 
+        3089.0 3175.9
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol]          51.59 ! 
+    Tunneling   Eckart
+      ImaginaryFrequency[1/cm]  42.37  
+      CutoffEnergy[kcal/mol]    0.04
+      WellDepth[kcal/mol]       51.59
+      WellDepth[kcal/mol]       0.04
+    End 
+
+  End ! RRHO
+
+
+!****************************************
+! kinbot_stereopath ordinary
+  Barrier       rxn_2 w_2 w_3 ! 471030810040000000002_intra_H_migration_2_5   ! 
+! kinbot_mirror_endpoints 471030810040000000002 471030810040000000002 471230610040000000002 471230610040000000002
+  RRHO
+    Geometry[angstrom]            5
+        C 0.855181 -0.151807 0.750829
+        S 1.046675 1.115231 -0.808578
+        H 0.292090 0.403912 -1.662102
+        H 1.491622 0.487350 1.406267
+        H 1.927034 0.066198 -0.619513
+    Core   RigidRotor
+      SymmetryFactor            0.5
+
+    End ! Core
+
+    Frequencies[1/cm]             8
+        335.7 498.9 671.8 
+        1101.2 1151.9 2370.5 
+        2693.7 2878.2
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol]          95.96 ! 
+    Tunneling   Eckart
+      ImaginaryFrequency[1/cm]  965.21  
+      CutoffEnergy[kcal/mol]    14.83
+      WellDepth[kcal/mol]       87.03
+      WellDepth[kcal/mol]       14.83
+    End 
+
+  End ! RRHO
+
+
+!****************************************
+! kinbot_stereopath ordinary
+  Barrier       rxn_3 w_2 pr_3 ! 471030810040000000002_r12_insertion_R_5_1_4   ! 
+! kinbot_mirror_endpoints 471030810040000000002 471030810040000000002 20020000000000000001_450770130000000000002 20020000000000000001_450770130000000000002
+  RRHO
+    Geometry[angstrom]            5
+        C 0.293365 0.552607 0.326093
+        S 1.077424 1.152010 -1.009341
+        H 0.059374 1.155803 -1.900694
+        H 1.093697 0.532740 1.084348
+        H 3.088742 -1.472277 0.566498
+    Core   RigidRotor
+      SymmetryFactor            0.5
+
+    End ! Core
+
+    Frequencies[1/cm]             8
+        50.8 110.0 876.6 
+        953.9 988.1 1183.3 
+        2593.5 2998.4
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol]          97.1 ! 
+    Tunneling   Eckart
+      ImaginaryFrequency[1/cm]  57.85  
+      CutoffEnergy[kcal/mol]    17.8
+      WellDepth[kcal/mol]       88.17
+      WellDepth[kcal/mol]       17.8
+    End 
+
+  End ! RRHO
+
+
+!****************************************
+! kinbot_stereopath ordinary
+  Barrier       rxn_4 w_2 w_1 ! 471030810040000000002_h2_elim_3_5   ! 
+! kinbot_mirror_endpoints 471030810040000000002 471030810040000000002 470831050000000000002 470831050000000000002
+  RRHO
+    Geometry[angstrom]            5
+        C 1.348722 0.063689 -0.087621
+        S -0.206022 0.907915 -0.325709
+        H 0.880370 0.817935 -1.274305
+        H 2.162252 0.579530 0.396861
+        H 1.417870 -0.989794 -0.306796
+    Core   RigidRotor
+      SymmetryFactor            1.0
+
+    End ! Core
+
+    Frequencies[1/cm]             8
+        463.3 640.3 789.6 
+        937.4 1419.5 2184.2 
+        3152.6 3284.6
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol]          37.57 ! 
+    Tunneling   Eckart
+      ImaginaryFrequency[1/cm]  1600.33  
+      CutoffEnergy[kcal/mol]    28.64
+      WellDepth[kcal/mol]       28.64
+      WellDepth[kcal/mol]       37.57
+    End 
+
+  End ! RRHO
+
+
+!****************************************
+! kinbot_stereopath ordinary
+  Barrier       rxn_5 w_3 pr_5 ! 471230610040000000002_R_Addition_MultipleBond_1_2_3   ! 
+! kinbot_mirror_endpoints 471230610040000000002 471230610040000000002 10000000000000000002_460900460020000000001 10000000000000000002_460900460020000000001
+  RRHO
+    Geometry[angstrom]            5
+        C 1.181187 0.711109 0.948693
+        S 1.029616 1.167728 -0.624093
+        H -0.211588 -0.057137 -1.850356
+        H 2.036882 0.040008 1.076613
+        H 2.025852 0.612882 -1.393027
+    Core   RigidRotor
+      SymmetryFactor            0.5
+
+    End ! Core
+
+    Frequencies[1/cm]             8
+        232.3 404.1 782.0 
+        926.4 975.7 1169.2 
+        2419.4 3067.5
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol]          100.43 ! 
+    Tunneling   Eckart
+      ImaginaryFrequency[1/cm]  611.99  
+      CutoffEnergy[kcal/mol]    2.56
+      WellDepth[kcal/mol]       19.31
+      WellDepth[kcal/mol]       2.56
+    End 
+
+  End ! RRHO
+
+
+!****************************************
+! ****************************************
+
+End ! end kinetics

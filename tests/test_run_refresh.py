@@ -18,6 +18,7 @@ from kinbot import run_cleanup, run_refresh, run_salvage, pes_phase
 from kinbot.anl import dispatch
 from kinbot.execution import atomic_json, file_sha256
 from tests.anl_fixture import dispatch_spec, molpro_task
+from tests.test_mess_mirror_capture import stage_mirror_capture, assemble_mirror_capture
 from tests.test_mess_pes_artifacts import stage_artifact_handoff, write_worker, assemble
 from tests.test_mess_population_identity import (
     stage_collision_network, assemble_collision_network, assert_separate_complexes)
@@ -162,6 +163,28 @@ def test_refresh_rebuilds_colliding_native_complexes_without_qc(sampling_tree, m
     assert run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30) == result
     assert len(t.launches) == 2
 
+
+
+def test_refresh_then_native_mirror_handoff_preserves_work_and_repeats(sampling_tree):
+    t = sampling_tree
+    case = t.root/'ch3ss'
+    row, par = stage_mirror_capture(case)
+    prepared = json.loads((t.root/'prepared.json').read_text())
+    prepared['sha256']['ch3ss/input.json'] = file_sha256(case/'input.json')
+    atomic_json(t.root/'prepared.json', prepared)
+    before = scientific_files(t.root)
+    artifacts = {p: p.read_bytes() for p in case.rglob('*.mess')}
+    jobs = deepcopy(t.jobs)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30)
+    assert result['phase'] == 'launched'
+    assert scientific_files(t.root) == before and t.jobs == jobs
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    first = assemble_mirror_capture(case, row, par)
+    assert assemble_mirror_capture(case, row, par) == first
+    assert all(p.read_bytes() == value for p, value in artifacts.items())
+    assert scientific_files(t.root) == before and t.jobs == jobs
+    assert run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30) == result
+    assert len(t.launches) == 2
 
 def test_full_refresh_reads_proc_and_retains_four_owners_after_hostname_change(sampling_tree, monkeypatch):
     """Real /proc parsing + identity checks, not a mocked campaign filter."""

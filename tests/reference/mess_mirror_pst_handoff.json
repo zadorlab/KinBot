@@ -1,0 +1,116 @@
+{
+  "source_archive_sha256": "9a65dbb987f4bfaf81eb96ec25c0163b7fafd3338da52a7ed76673a6ccd3dc0a",
+  "description": "Native MESS artifacts and resolved L2/PST assembly arguments for the mirror homolysis/saddle collision. Subnetwork for serialization regression; not a separately validated kinetic model.",
+  "parameters": {
+    "smiles": "[CH3]S[S]",
+    "structure": [],
+    "charge": 0,
+    "mult": 2,
+    "method": "B3LYP",
+    "basis": "cc-pVDZ",
+    "high_level": 1,
+    "high_level_method": "B2PLYP",
+    "high_level_basis": "cc-pVTZ",
+    "barrier_threshold": 160.0,
+    "epsilon": 208.51037111605947,
+    "sigma": 4.5,
+    "collider": "He",
+    "optical_population": "specified",
+    "TemperatureList": [
+      300,
+      400,
+      500,
+      600,
+      800,
+      1000,
+      1200,
+      1500,
+      1800,
+      2000
+    ],
+    "PressureList": [
+      0.01,
+      0.1,
+      1.0,
+      10.0,
+      100.0,
+      760.0
+    ],
+    "me": 1,
+    "rotor_scan": 1,
+    "conformer_search": 1,
+    "multi_conf_tst": 0,
+    "rotdpy_mess_mode": "off",
+    "vrc_tst_scan": {},
+    "vrc_tst_noscan": {},
+    "rotdpy_run": 0,
+    "L3_calc": 0,
+    "me_skip_vdW": 0,
+    "run_me": 0,
+    "queuing": "local",
+    "pes": 1,
+    "uq": 0
+  },
+  "wells": [
+    "791671580700000000002-s36f1e2b924862f12",
+    "791671580700000000002-s8fc26f5f496eeb4e"
+  ],
+  "products": [
+    "10000000000000000002_781341120660000000001"
+  ],
+  "reactions": [
+    [
+      "791671580700000000002-s8fc26f5f496eeb4e",
+      "791671580700000000002-s8fc26f5f496eeb4e_R_Addition_MultipleBond_1_3_4",
+      [
+        "10000000000000000002",
+        "781341120660000000001"
+      ],
+      77.43756499108906
+    ]
+  ],
+  "barrierless": [
+    [
+      "791671580700000000002-s36f1e2b924862f12",
+      "791671580700000000002-s36f1e2b924862f12_hom_sci_2_4",
+      [
+        "10000000000000000002",
+        "781341120660000000001"
+      ],
+      11364.191266099
+    ]
+  ],
+  "complexes": [],
+  "well_energies": {
+    "791671580700000000002-s36f1e2b924862f12": 54.89048280055086,
+    "791671580700000000002-s8fc26f5f496eeb4e": 54.89048245541019
+  },
+  "product_energies": {
+    "10000000000000000002_781341120660000000001": 73.00301766763654
+  },
+  "parents": {
+    "791671580700000000002-s36f1e2b924862f12": "791471490990000000002",
+    "791671580700000000002-s8fc26f5f496eeb4e": "791671450790040000002",
+    "10000000000000000002_781341120660000000001": "791471490990000000002"
+  },
+  "mass": 79.0,
+  "l3done": false,
+  "files": {
+    "791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_R_Addition_MultipleBond_1_3_4_0000.mess": {
+      "text": "! kinbot_stereopath ordinary\n  Barrier       {name}   ! \n! kinbot_mirror_endpoints 791671580700000000002-s8fc26f5f496eeb4e 791671580700000000002-s36f1e2b924862f12 10000000000000000002_781341120660000000001 10000000000000000002_781341120660000000001\n  RRHO\n    Geometry[angstrom]            6\n        C 0.892411 -0.618547 0.307287\n        S 2.294448 0.851402 2.521831\n        S 0.887916 -0.348223 1.907959\n        H -1.142179 0.575885 2.093550\n        H 0.121945 -1.270277 -0.077465\n        H 1.624570 -0.167907 -0.345422\n    Core   RigidRotor\n      SymmetryFactor            1.0\n\n    End ! Core\n\n    Frequencies[1/cm]             11\n        187.4 211.3 303.2 \n        569.1 600.0 819.0 \n        939.8 945.5 1421.8 \n        3156.2 3286.7\n  \n    ElectronicLevels[1/cm]        1\n      0 2\n    ZeroEnergy[kcal/mol]          {zeroenergy} ! \n    Tunneling   Eckart\n      ImaginaryFrequency[1/cm]  560.35  \n      CutoffEnergy[kcal/mol]    {cutoff}\n      WellDepth[kcal/mol]       {welldepth1}\n      WellDepth[kcal/mol]       {welldepth2}\n    End \n\n  End ! RRHO\n\n",
+      "sha256": "e8027707bcf1e0d0b835c1c4b8e90e6d719669985df9da7f9c08bfb0a7f7faac"
+    },
+    "791671580700000000002-s36f1e2b924862f12/exit-afdc853c2459387b1f85a6d949ac51e01f198feacd8e84821b863e5cecae9ccf_0000.mess": {
+      "text": "  Bimolecular  {name} ! [H][C]([H])=[S]=[S] [H]\n! kinbot_population 10000000000000000002_781341120660000000001 10000000000000000002_781341120660000000001\n  Fragment       {fr_name_781341120660000000001} ! [H][C]([H])=[S]=[S]\n    RRHO\n      Geometry[angstrom]            5\n        C 1.386177 -0.545637 0.455297\n        S 1.317614 0.523380 1.686640\n        S -0.208881 0.286238 2.870812\n        H 0.641377 -1.315512 0.319253\n        H 2.221193 -0.443076 -0.222114\n      Core   RigidRotor\n        SymmetryFactor              1.0\n\n      End\n      Frequencies[1/cm]             9\n        305.9 569.4 623.7 \n        781.6 937.4 994.3 \n        1419.3 3152.4 3281.8 \n       \n\n      ElectronicLevels[1/cm]        1\n            0 1\n      ZeroEnergy[kcal/mol]        0.0\n    End ! RRHO\n    Fragment       {fr_name_10000000000000000002}\n      Atom\n        Name                        H\n        ElectronicLevels[1/cm]      1\n            0 2\n      End ! Atom\n\n    GroundEnergy[kcal/mol]        {ground_energy}\n    End ! Barrierless\n\n  Barrier       {blessname} {wellname} {prodname} \n    RRHO\n      Stoichiometry C1H3S2\n        Core PhaseSpaceTheory\n          ! 781341120660000000001  [H][C]([H])=[S]=[S]\n      FragmentGeometry[angstrom]            5\n        C 1.386177 -0.545637 0.455297\n        S 1.317614 0.523380 1.686640\n        S -0.208881 0.286238 2.870812\n        H 0.641377 -1.315512 0.319253\n        H 2.221193 -0.443076 -0.222114\n\n          ! 10000000000000000002  [H]\n      FragmentGeometry[angstrom]            1\n        H 0.523944 -1.110024 0.008089\n\n          SymmetryFactor         1\n          PotentialPrefactor[au] 0.6\n          PotentialPowerExponent 6.\n        End ! Core\n      Frequencies[1/cm]             9\n        305.9 569.4 623.7 \n        781.6 937.4 994.3 \n        1419.3 3152.4 3281.8 \n       \n\n\n        ElectronicLevels[1/cm]      1\n            0 2\n        ZeroEnergy[kcal/mol]      {ground_energy}\n    End ! RRHO\n\n\n!****************************************\n\n",
+      "sha256": "f59a3997d5c11381ceef2d8832a8e74ceb32900c34f3f388fe09d7c40d09d4a3"
+    },
+    "791471490990000000002/791671580700000000002-s36f1e2b924862f12_0000.mess": {
+      "text": "  Well       {name} ! [H][C]([H])=[S]([H])[S]\n! kinbot_population 791671580700000000002-s36f1e2b924862f12 791671580700000000002-s8fc26f5f496eeb4e\n    Species\n      RRHO\n        Geometry[angstrom]            6\n        C 1.316554 -0.442500 0.307123\n        S 0.904188 0.900887 1.335814\n        S 0.292445 -0.030479 3.021081\n        H -0.233408 1.243752 0.682341\n        H 0.524063 -1.110137 0.008173\n        H 2.320411 -0.812210 0.437757\n        Core   RigidRotor\n          SymmetryFactor              1.0\n\n        End\n        Frequencies[1/cm]             12\n        209.3 264.9 513.4 \n        604.4 751.0 803.0 \n        879.8 1067.7 1420.6 \n        2546.4 3169.4 3304.7 \n       \n\n        ElectronicLevels[1/cm]        1\n          0 2\n        ZeroEnergy[kcal/mol]          {zeroenergy}\n      End ! RRHO\n    End ! Species\n",
+      "sha256": "9ebe2cb184ce5179f25dfcec6f2389a12a7c0a361efd336169766b20ccc02b58"
+    },
+    "791671450790040000002/791671580700000000002-s8fc26f5f496eeb4e_0000.mess": {
+      "text": "  Well       {name} ! [H][C]([H])=[S]([H])=[S]\n! kinbot_population 791671580700000000002-s8fc26f5f496eeb4e 791671580700000000002-s36f1e2b924862f12\n    Species\n      RRHO\n        Geometry[angstrom]            6\n        C 0.629516 -0.672816 0.370623\n        S 2.183374 0.613196 2.495642\n        S 0.392625 -0.197652 2.029253\n        H -0.420456 0.855287 1.766715\n        H 1.075124 -1.646033 0.245076\n        H 0.803581 0.104602 -0.356340\n        Core   RigidRotor\n          SymmetryFactor              1.0\n\n        End\n        Frequencies[1/cm]             12\n        209.3 264.9 513.4 \n        604.4 751.0 803.0 \n        879.8 1067.7 1420.6 \n        2546.4 3169.4 3304.7 \n       \n\n        ElectronicLevels[1/cm]        1\n          0 2\n        ZeroEnergy[kcal/mol]          {zeroenergy}\n      End ! RRHO\n    End ! Species\n",
+      "sha256": "8b2e34d0edeaf31e010c32375ce1b0bce55d0853e7b3b42e5c175737401ee6b8"
+    }
+  }
+}

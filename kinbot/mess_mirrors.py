@@ -15,6 +15,7 @@ from kinbot.mess_networks import _HEADER, split_model
 _POP = re.compile(r'^! kinbot_population (\S+) (\S+)$', re.M)
 _EDGE = re.compile(r'^! kinbot_mirror_endpoints (\S+) (\S+) (\S+) (\S+)$', re.M)
 _PATH = re.compile(r'^! kinbot_stereopath (\S+)$', re.M)
+_CAPTURE = re.compile(r'^! kinbot_hom_sci_placeholder (\S+)$', re.M)
 _XYZ = re.compile(r'^(\s*[A-Z][a-z]?\s+)([-+\d.eE]+)(\s+[-+\d.eE]+\s+[-+\d.eE]+\s*)$')
 logger = logging.getLogger('KinBot')
 
@@ -75,6 +76,60 @@ def annotate_endpoints(block, reactants, products, population):
         block = _insert(block, '! kinbot_racemic_route ' +
                         ' '.join(configured_left + configured_right))
     return block
+
+
+def annotate_capture_placeholder(block, reaction):
+    """Identify a known hom_sci PST fallback, never an inferred saddle or ROTD model.
+
+    PES supplies the saved reaction name when reading older worker artifacts.
+    Keep the marker inside the Barrier so extracting an exit preserves it.
+    """
+    if not re.search(r'(?:^|_)hom_sci(?:_|$)', reaction):
+        return block
+    barriers = [m for m in _HEADER.finditer(block) if m[1] == 'Barrier']
+    if len(barriers) != 1:
+        raise ValueError(f'{reaction}: expected one homolysis exit Barrier')
+    barrier = barriers[0]
+    body = block[barrier.end():]
+    cores = re.findall(r'^\s*Core\s+(\S+)', body, re.M)
+    if not cores or any(core != 'PhaseSpaceTheory' for core in cores):
+        return block
+    marked = _CAPTURE.findall(body)
+    if marked:
+        if marked != [reaction]:
+            raise ValueError(f'{reaction}: conflicting homolysis placeholder provenance')
+        return block
+    return (block[:barrier.end()] + f'! kinbot_hom_sci_placeholder {reaction}\n'
+            + body)
+
+
+def _supersede_capture_placeholders(barriers):
+    """Apply ordinary route selection after mirror completion adds known saddles."""
+    from kinbot.reaction_path import compare_pathways
+    saddles = {}
+    for block in barriers:
+        header = _HEADER.search(block)[2].split('!')[0].split()
+        paths = _PATH.findall(block)
+        if len(paths) == 1 and not _CAPTURE.search(block):
+            saddles.setdefault(frozenset(header[1:3]), []).append((header[0], paths[0]))
+    kept, notes = [], []
+    for block in barriers:
+        header = _HEADER.search(block)[2].split('!')[0].split()
+        marker = _CAPTURE.search(block)
+        candidates = saddles.get(frozenset(header[1:3]), ())
+        if marker and candidates:
+            name, path = candidates[0]
+            # This is the same precedence used for worker and PES summaries:
+            # a calculated saddle supersedes the hom_sci fallback. The zero
+            # energies here are unused for this comparison, not model values.
+            if compare_pathways(marker[1], None, 0., name, path, 0.) == 'replace':
+                note = (f'hom_sci PST placeholder {header[0]} ({marker[1]}) '
+                        f'superseded by calculated saddle {name}; no duplicate flux')
+                logger.info(note)
+                notes.append('! ' + note + '\n')
+                continue
+        kept.append(block)
+    return kept, notes
 
 
 def _reflect(block):
@@ -241,7 +296,8 @@ def complete_mirror_channels(contents):
     def finish():
         populations = [b for b in blocks if _HEADER.search(b)[1] != 'Barrier']
         barriers = [b for b in blocks if _HEADER.search(b)[1] == 'Barrier']
-        return prefix + ''.join(populations + union_stereochemical_barriers(barriers)) + ending
+        barriers, notes = _supersede_capture_placeholders(barriers)
+        return prefix + ''.join(notes + populations + union_stereochemical_barriers(barriers)) + ending
     if not any(m[1] != m[2] or m[3] != m[4] for m in _EDGE.finditer(contents)):
         return finish()
     populations, edges, templates, names = {}, set(), [], set()

@@ -1,0 +1,7 @@
+{
+  "description": "Historical complete CH3S scout MESS input, before later network regeneration. Regression for native parser geometry guard, not an approved final rate model.",
+  "source": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3s/me/mess_0000.inp",
+  "sha256": "3e891ffed519020ee5b66f18c56c6f9a7a371f404239a32d9acc691937e54dc6",
+  "captured_archive_sha256": "4080c334d5c5de1b929d7345ed4311e83d7e0d8fd03238e1c6362fce3f95db0a",
+  "changed_science": false
+}

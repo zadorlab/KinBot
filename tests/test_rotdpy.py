@@ -26,6 +26,17 @@ from kinbot.rotdpy import (_controller_lock, ensure_available, main,
 from kinbot.molpro import _vrc_multireference_method
 
 
+
+def test_disabled_rotd_postprocessing_does_not_query_slurm_or_create_files(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    def forbidden(*args, **kwargs):
+        pytest.fail('PST-only postprocessing must not inspect the ROTD environment')
+    monkeypatch.setattr('kinbot.pes._write_rotdpy_slurm_template', forbidden)
+    par = dict(queuing='slurm', rotdpy_run=0, vrc_tst_scan={}, vrc_tst_noscan={})
+    for _ in range(2):
+        assert create_rotdpy_inputs(par, [['parent','parent_hom_sci_1_2',['a','b'],0]], []) == []
+        assert list(tmp_path.iterdir()) == []
+
 def test_full_pes_restores_automatic_homolytic_selection(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr('kinbot.pes._write_rotdpy_slurm_template', lambda *args: None)

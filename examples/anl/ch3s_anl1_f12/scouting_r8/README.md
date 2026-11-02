@@ -13,6 +13,7 @@ The paired CH3SS input is at `../../ch3ss_anl1_f12/scouting_r8/input.json`.
 | Search ceiling | L1 150 kcal/mol relative to initial well; L2 ceiling 150 |
 | vdW selection | Matched L1 E+ZPE check, depth 0.5 kcal/mol |
 | Barrierless kinetics | Existing PST, coefficient 0.6 au, exponent 6 |
+| Submerged saddle model | `correct_submerged=1`: raise below-well barriers to the connected well floor in MESS only; preserve QC |
 | MESS | `me=1`, `run_me=0`: assemble automatically, analyze afterward |
 | Scheduling | Eight processors, exclusive nodes, shared cap of 20 QC jobs |
 | Native checkpoint copies | Every 600 s; two generations, 16 GiB ceiling |
@@ -153,3 +154,17 @@ KB_REPORT=$(mktemp "$HOME/kinbot-evidence/r8-monitor.XXXXXXXX.txt")
   --all --details --lines 6 > "$KB_REPORT"
 printf 'MONITOR_REPORT %s\n' "$KB_REPORT"
 ```
+
+## Final MESS handoff validation
+
+The complete captured R8 networks are replayed before the postprocessing update.
+`correct_submerged=1` is an explicit scouting approximation, not a QC acceptance
+change: a ZPE-corrected saddle below a connected well is raised to that well
+ground in the statistical model, with no Eckart tunneling at the floor. The
+writer records such final-model corrections in comments. The captured CH3SS
+network has one such correction, 41.67 to 42.34 kcal/mol; CH3S has none.
+Keep the original QC energies for subsequent production refinement.
+
+See `docs/MESS_HANDOFF_AUDIT.md` for the full-network/native validation scope.
+Native solver completion alone does not validate pressure-dependent rate
+matrices or justify pruning.

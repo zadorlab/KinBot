@@ -26,7 +26,8 @@ from kinbot.electronic_states import (electronic_levels_for_species,
                                       mess_electronic_levels)
 from kinbot.uncertaintyAnalysis import UQ
 
-from kinbot.mess_mirrors import annotate_population, annotate_endpoints, complete_mirror_channels
+from kinbot.mess_mirrors import (annotate_population, annotate_endpoints,
+                                 annotate_capture_placeholder, complete_mirror_channels)
 
 logger = logging.getLogger('KinBot')
 
@@ -156,7 +157,17 @@ def finalize_mc_mess(contents, correct_submerged=False):
         well_floor = max((grounds[name] for name in endpoints if name in wells and name in grounds),
                          default=float('-inf'))
         if correct_submerged and np.isfinite(well_floor):
+            raised = [float(value) for value in re.findall(
+                r'ZeroEnergy\[kcal/mol\]\s+([-+\d.eE]+)', block)
+                if float(value) < well_floor]
             block = apply_conformer_shifts(block, ground_min=well_floor)
+            if raised:
+                note = (f'! correct_submerged=1: MESS barrier {match.group(2)} '
+                        f'energies[kcal/mol] {raised} raised to connected-well '
+                        f'ground {well_floor}; QC records unchanged.\n')
+                header_end = re.search(r'^[ \t]*Barrier[^\n]*\n', block, re.M).end()
+                block = block[:header_end] + note + block[header_end:]
+                logger.info(note.strip('! \n'))
         lines = block.splitlines(keepends=True)
         output, energy, j = [], None, 0
         while j < len(lines):
@@ -1609,6 +1620,8 @@ class MESS:
                                            model=model,
                                            fragments=fragments,
                                            ground_energy=energy)
+            if reaction is not None and complex_species is None and rotd_model is None:
+                bimol = annotate_capture_placeholder(bimol, reaction.instance_name)
 
         bimol = annotate_population(bimol, prod_list, self.par.get('optical_population', 'specified'),
             energy_reference=energy_reference if self.par['multi_conf_tst'] else None)

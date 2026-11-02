@@ -521,7 +521,7 @@ def _main():
 
         # check if a thread is done
         for job in running:
-            if not check_status(job, pids[job]):
+            if no_kinbot or not check_status(job, pids[job]):
                 if not no_kinbot:
                     require_worker_success(job, pids[job])
                 t = datetime.datetime.now()
@@ -631,13 +631,19 @@ def postprocess(par, jobs, task, names, mass):
     """
     for job in jobs:
         ensure_current_run(job)
-    l3done = 1  # flag for L3 calculations to be complete
+    l3_requested = bool(par['L3_calc'])
+    l3done = int(l3_requested)
+
+    def optional_l3energy(name, parameters, **options):
+        if not l3_requested:
+            return 0, 0.
+        return get_l3energy(name, parameters, **options)
 
     # base of the energy is the first well, these are L2 energies
     base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
                                        conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
     # L3 energies
-    status, base_l3energy = get_l3energy(jobs[0], par)
+    status, base_l3energy = optional_l3energy(jobs[0], par)
     if not status:
         l3done = 0
     # list of lists with four elements
@@ -759,10 +765,11 @@ def postprocess(par, jobs, task, names, mass):
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.
-        try:
-            copy_from_kinbot(ji, par['single_point_qc'])
-        except:
-            logger.warning(f'L3 calculations were not copied from {ji}')
+        if l3_requested:
+            try:
+                copy_from_kinbot(ji, par['single_point_qc'])
+            except OSError:
+                logger.warning(f'L3 calculations were not copied from {ji}')
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, bimol_products, reactions)
     # create a batch submission for all L3 jobs
@@ -776,7 +783,7 @@ def postprocess(par, jobs, task, names, mass):
         energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
                             conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
-        status, l3energy = get_l3energy(well, par)
+        status, l3energy = optional_l3energy(well, par)
         if not status:
             l3done = 0  # not all L3 calculations are done
             batch_submit += f'{cmd} {well}.{ext}\n'
@@ -793,7 +800,7 @@ def postprocess(par, jobs, task, names, mass):
             pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
                                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
             energy += pr_energy + pr_zpe
-            status, l3e = get_l3energy(pr, par)
+            status, l3e = optional_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
                 batch_submit += f'{cmd} {pr}.{ext}\n'
@@ -812,12 +819,12 @@ def postprocess(par, jobs, task, names, mass):
                 reac[4] = well_energies[vdW_well]
             if 'barrierless_saddle' in reac[1]:
                 zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
-                status, l3energy = get_l3energy(reac[1], par, bls=1)
+                status, l3energy = optional_l3energy(reac[1], par, bls=1)
 
-                status_prod1, l3energy_prod1 = get_l3energy(reac[2][0], par)
-                status_prod2, l3energy_prod2 = get_l3energy(reac[2][1], par)
+                status_prod1, l3energy_prod1 = optional_l3energy(reac[2][0], par)
+                status_prod2, l3energy_prod2 = optional_l3energy(reac[2][1], par)
 
-                status_prod, l3energy_prod = get_l3energy(reac[1] + '_prod', par, bls=1)
+                status_prod, l3energy_prod = optional_l3energy(reac[1] + '_prod', par, bls=1)
 
                 if not status * status_prod:
                     l3done = 0
@@ -830,7 +837,7 @@ def postprocess(par, jobs, task, names, mass):
                     ts_l3energies[reac[1]] = (delta2 - delta1) * constants.AUtoKCAL
             else:
                 zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
-                status, l3energy = get_l3energy(reac[1], par)
+                status, l3energy = optional_l3energy(reac[1], par)
                 if not status:
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
@@ -845,7 +852,7 @@ def postprocess(par, jobs, task, names, mass):
     batch_submit.reverse()
     batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
-    if par['queuing'] != 'local':
+    if l3_requested and par['queuing'] != 'local':
         with open(batch, 'w') as f:
             f.write(batch_submit)
         os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
@@ -927,7 +934,7 @@ def postprocess(par, jobs, task, names, mass):
                           mass,
                           l3done, warnings=network_warnings)
 
-    if par['single_point_qc'].lower() == 'molpro':
+    if l3_requested and par['single_point_qc'].lower() == 'molpro':
         if l3done:
             check_l3_l2(par['single_point_key'], parent, reactions)
         t1_analysis(par['single_point_key'])
@@ -1462,7 +1469,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             energy = prod_energies[prod] + uq.calc_factor('energy', uq_iter)
             prod_energies_current[prod] = energy
             fr_names = {f'fr_name_{fr}': fr_short[fr] + ' ! ' + fr for fr in prod.split('_')}
-            def format_exit(worker, reaction, **names):
+            def format_exit(worker, reaction, *, homolysis=False, **names):
                 source = Path(worker) / mess_filename(prod, uq_iter, reaction=reaction)
                 if not source.is_file():
                     # Older single-route artifacts remain usable; the ROTD
@@ -1470,15 +1477,19 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                     source = Path(worker) / mess_filename(prod, uq_iter)
                 text = source.read_text().format(
                     name=name, ground_energy=round(energy, 2), **fr_names, **names)
-                return resolve_models(text, worker, par, round(energy, 2),
+                text = resolve_models(text, worker, par, round(energy, 2),
                                       rotd_sources, reaction)
+                if homolysis:
+                    from kinbot.mess_mirrors import annotate_capture_placeholder
+                    text = annotate_capture_placeholder(text, reaction)
+                return text
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
                 if prod != bl_prod or bl[0] in linked_bless_wells:
                     continue
                 linked_bless_wells.append(bl[0])
-                block = format_exit(bl[0], bl[1],
+                block = format_exit(bl[0], bl[1], homolysis=True,
                     blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
                     wellname=well_short[bl[0]], prodname=pr_short[prod])
                 s.append(block if not bless else block[block.find('Barrier '):])
@@ -1531,6 +1542,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             name.append('!')
             name.append(rxn[1])
             energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
+            original_energy = energy
             welldepth1 = energy - well_energies_current[rxn[0]] 
             if welldepth1 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                 # tunneling block for submerged is cleaned later
@@ -1557,6 +1569,12 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                          welldepth1=round(welldepth1, 2),
                          welldepth2=round(welldepth2, 2),
                          )
+            if energy > original_energy:
+                note = (f'! correct_submerged=1: MESS barrier {name[0]} '
+                        f'energies[kcal/mol] [{round(original_energy, 2)}] raised to '
+                        f'connected-well ground {round(energy, 2)}; QC records unchanged.\n')
+                header_end = re.search(r'^[ \t]*Barrier[^\n]*\n', barrier, re.M).end()
+                barrier = barrier[:header_end] + note + barrier[header_end:]
             if rxn[1] in complex_references:
                 target = population_models[name[2]]
                 # Workers describe their IRC complex. Final assembly can use
@@ -1612,6 +1630,10 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
     vdW reactions:
     [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
     """
+
+    # PST-only postprocessing must not inspect a ROTD environment or scheduler.
+    if not (par.get('rotdpy_run') or par.get('vrc_tst_scan') or par.get('vrc_tst_noscan')):
+        return []
 
     folder = os.fspath(par.get('rotdpy_directory', 'rotdPy'))
     if not os.path.exists(folder):

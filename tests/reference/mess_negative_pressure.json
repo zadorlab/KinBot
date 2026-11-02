@@ -1,0 +1,18 @@
+{
+  "source": "Native MESS output, CH3S R8 scouting numerical validation, 2026-11-02; no rates altered.",
+  "output_sha256": "3a65272bfa84b370995e219ee8eb5003712eb9a083870ac453eb33f278215286",
+  "input_sha256": "01186307c0d3301621a96fc586800346e3d13897368c0de33575563d34345948",
+  "executable_sha256": "b16b3ac02fe7577a144018797e817a6dd5faba7f349827ecea351b4a7a72b735",
+  "settings": {
+    "method": "well-reduction",
+    "float": "dd",
+    "digits": null,
+    "grain_over_T": 0.5,
+    "chemical_threshold": 0.2,
+    "temperatures": [
+      300,
+      1000
+    ],
+    "pressure_torr": 760
+  }
+}

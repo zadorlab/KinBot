@@ -152,12 +152,16 @@ def audit_rate_tables(run_dir, *, job='mess_0000'):
         raise ValueError(f'{job}: expected one MESS network record.')
     network = matches[0]
     points = parse_high_pressure_rates(output_path)
+    from kinbot.mess_rate_audit import audit_output
     return {'schema': 1, 'status': 'passed', 'job': job,
+            'scope': 'high_pressure',
+            'rate_validation': audit_output(output_path),
             'execution_job_key': execution_job, 'output': str(output_path),
             'output_sha256': observed_hash, 'network': network,
             'rates': [asdict(point) for point in points],
             'accuracy_status': 'not_assessed',
-            'note': 'Native execution and rate-table audit; no empirical fit is applied.'}
+            'note': 'Native execution and high-pressure table audit only; '
+                    'finite-pressure validity is reported separately. No empirical fit is applied.'}
 
 
 def main(argv=None):

@@ -146,10 +146,14 @@ def _verify(index, previous_output, exit_code=None):
         raise _ResultPending(
             f'MESS calculation {index} exited successfully but produced no new, '
             f'nonempty rate output at {output}.')
-    logger.info('MESS calculation %s completed successfully: %s', index, output)
+    from kinbot.mess_rate_audit import audit_output
+    validation = audit_output(output)
+    logger.info('MESS calculation %s finished: %s; pressure rate audit: %s',
+                index, output, validation['pressure_dependent']['status'])
     return {
         'output': str(output), 'output_sha256': _sha256(output),
         'output_bytes': current_output[1],
+        'rate_validation': validation,
     }
 
 
@@ -157,7 +161,8 @@ def run_mess(writer):
     """Write submission scripts, then run and verify every ready network/UQ calculation.
 
     Queue absence means only that execution ended. The script's exit result
-    and newly written rate output establish whether MESS itself succeeded.
+    and newly written rate output establish execution completion. A separate
+    sign/format audit records rate validity; solver exit alone is not that audit.
     """
     queue = writer.par['queuing']
     if queue not in ('local', 'slurm', 'pbs'):
@@ -213,6 +218,11 @@ def run_mess(writer):
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
             reusable = False
         if reusable:
+            # Audit legacy records too, without rerunning a completed solver.
+            from kinbot.mess_rate_audit import audit_output
+            for details in jobs.values():
+                details['rate_validation'] = audit_output(details['output'])
+            _atomic_json(destination, existing)
             logger.info('Reusing verified completed MESS execution record.')
             return 0
 
@@ -423,6 +433,8 @@ def run_mess(writer):
                 'the completion record was published.')
         details['input'] = str(input_path)
         details['input_sha256'] = input_hashes[index]
+        from kinbot.mess_rate_audit import audit_output
+        details['rate_validation'] = audit_output(output_path)
     record = {
         'schema': 1, 'status': 'complete', 'queue': queue,
         'command': solver,

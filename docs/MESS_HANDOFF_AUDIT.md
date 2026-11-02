@@ -121,6 +121,56 @@ captured model; it intentionally does not relabel accepted singlet results or
 silently import different-state QC. Local restored-state inputs and their
 native evidence must accompany any pruning proposal.
 
+## Final local scouting results
+
+The restored-triplet CH3SS model also completed all 60 conditions (264.66 s).
+A direct-method, 0.2-grain check at 1000 K and 760 torr completed in 27.12 s:
+its microcanonical output is byte-identical to the restored full-grid 0.5-grain
+output, and its HPL table agrees at all ten printed digits. Thus the final
+declared-state model, not only the earlier singlet diagnostic, passes this
+numerical cross-check.
+
+For an isolated ergodic molecule with the entire 193 nm photon retained as
+internal energy, the full native state-count network predicts 99.59% H + CH2S
+from CH3S. The restored CH3SS network predicts 95.63% CH3 + S2, 2.06% CH2S + SH,
+and 1.06% H + CH2SS. These are conditional statistical scouting predictions,
+not measured photolysis yields. Every internal well-to-well return is included;
+separated product sets are absorbing. A second analysis uses the native HPL
+tables at each temperature and assumes continuous thermalization.
+
+Candidate scopes retain a connection if its probability of ever being used
+exceeds the stated threshold in any tested scenario. The microcanonical checks
+span 140–155 kcal/mol, including 148.142152 kcal/mol, and global or individual
+PST flux factors 0.5 and 2. These are limited sensitivity checks, not uncertainty
+bounds. The HPL temperature grid is also included in retention decisions.
+
+| PES / candidate | Wells | Product sets | Connections | Largest combined-pruning product shift |
+| --- | ---: | ---: | ---: | ---: |
+| CH3S full | 3 | 6 | 10 | — |
+| CH3S 1% or 5% | 2 | 1 | 3 | 0.62 percentage points |
+| CH3SS full | 17 | 18 | 91 | — |
+| CH3SS 1% | 5 | 3 | 8 | 3.59 percentage points |
+| CH3SS 0.2% | 13 | 7 | 25 | 0.81 percentage points |
+| CH3SS 5% | 5 | 1 | 5 | 10.08 percentage points |
+
+The reported shift is the largest total-variation distance between full and
+reduced product probabilities over the tested scenarios, expressed in
+percentage points. It measures all removals together; an individual 1% cutoff
+does not imply a 1% network error. At the unscaled 193 nm baseline the CH3SS 1%
+candidate shifts by 1.33 points, and the 0.2% candidate by 0.27 points.
+
+Each reduced candidate was executed in native MESS at 1000 K and 760 torr.
+All retained native barrier state counts match the full model exactly, and
+all retained HPL rate coefficients match at the printed precision. Pressure-
+dependent tables remain outside this pruning decision because of their
+negative off-diagonal entries. No original calculation or search record is
+deleted, and these candidate scopes do not approve a CAS model or launch R9.
+
+The local deliverable directory is
+`local_runs/mess_handoff_20261101/deliverables/`. It contains full and reduced
+MESS inputs, native outputs, exact reaction identities, the S2 restoration
+evidence, numerical checks, and per-candidate pruning differences.
+
 ## Reproduce locally
 
 The large source capture stays outside Git. Compact native excerpts with

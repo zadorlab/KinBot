@@ -17,11 +17,12 @@ def test_captured_native_negative_rates_are_not_execution_success():
     assert report['high_pressure']['tables'] == 2
     assert report['high_pressure']['status'] == 'passed_sign_check'
     pressure = report['pressure_dependent']
-    assert pressure['tables'] == 2 and pressure['negative_count'] == 4
+    assert pressure['tables'] == 2 and pressure['negative_count'] == 5
     assert not pressure['issues']
     assert {(v['temperature_k'], v['source'], v['target'], v['value'])
             for v in pressure['violations']} == {
                 (300., 'w_2', 'w_1', -1.29e-7),
+                (300., 'w_2', 'w_2', -9.18e-7),
                 (300., 'w_3', 'w_2', -.00024),
                 (1000., 'w_3', 'w_1', -69.5),
                 (1000., 'w_3', 'w_2', -33000.)}
@@ -44,7 +45,7 @@ P 5 6 ***
 Temperature = 1000 K    Pressure = {pressure}
 
 From\\To {names}
-A -10 {rate} 8.77e7{tail}
+A 10 {rate} 8.77e7{tail}
 B 2 *** ***{tail}
 P 1 2 ***{tail}
 
@@ -86,9 +87,16 @@ def test_tiny_negatives_remain_evidence_without_automatic_retry():
 
 
 def test_nonfinite_loss_diagonal_is_not_ignored():
-    r = audit_text(native('1').replace('A -10 1', 'A nan 1'))
+    r = audit_text(native('1').replace('A 10 1', 'A nan 1'))
     assert r['pressure_dependent']['status'] == 'invalid'
     assert r['pressure_dependent']['violations'][0]['diagonal']
+
+
+def test_negative_native_loss_diagonal_is_not_an_ordinary_generator():
+    r = audit_text(native('1').replace('A 10 1', 'A -10 1'))
+    assert r['pressure_dependent']['status'] == 'invalid'
+    assert r['pressure_dependent']['violations'][0]['diagonal']
+    assert r['pressure_dependent']['violations'][0]['value'] == -10
 
 
 def test_overflowing_relative_diagnostic_still_serializes():
@@ -98,7 +106,7 @@ def test_overflowing_relative_diagnostic_still_serializes():
 
 
 @pytest.mark.parametrize('change', [
-    lambda s: s.replace('From\\To A B P\nA -10', 'From\\To A B B\nA -10'),
+    lambda s: s.replace('From\\To A B P\nA 10', 'From\\To A B B\nA 10'),
     lambda s: s.replace('B 2 *** ***\nP 1 2 ***', 'B 2 *** ***'),
     lambda s: s.replace('B 2 *** ***', 'B 2 ***'),
     lambda s: s.replace('B 2 *** ***', 'X 2 *** ***'),

@@ -18,7 +18,24 @@ source, destination, line, and size relative to positive entries in the same
 row. Unimolecular and bimolecular rows must not be compared as though their
 units were identical. Native missing entries (`***`) are not zeros. Missing
 rows caused by native population reduction are not deleted chemistry.
-Diagonal loss summaries are not individual transition coefficients.
+Diagonal loss summaries are not individual transition coefficients, but a
+negative loss summary is also invalid.
+
+The separate `pressure_dependent.loss_balance` check compares each native
+diagonal loss with the sum of its outgoing entries. It uses the rounding
+intervals implied by the printed numbers, not a tunable relative tolerance.
+This detects positive but impossible rates that a sign check misses. An
+incomplete row is not treated as complete: known positive entries can disprove
+balance when they already exceed the loss, but missing entries never become
+zeros. This check establishes only consistency of the printed table, not
+accuracy of the underlying rates.
+
+The alternative native driver prints `From\\to` matrices in column chunks,
+without an HPL section. The audit reads every chunk and leaves the absent HPL
+section unassessed. Its zero diagonal placeholders cannot be used as total
+losses. Product columns that lack source rows remain explicitly reported as
+unverified source coverage. Neither its zeros nor its successful execution
+establish that every rate is defined or accurate.
 
 `passed_sign_check` means only that the parsed matrices passed these necessary
 sign/format checks. It does not establish convergence, detailed balance,
@@ -28,6 +45,15 @@ success from a different section. No negative rate is clipped, no tolerance
 silently legitimizes a negative transition, and no retry or QC calculation is
 requested by this audit. An invalid pressure table does not invalidate the
 underlying stationary-point QC or automatically invalidate the HPL table.
+
+Here `invalid` is the literal sign/format result, not a verdict that every
+entry is scientifically unusable or that a new calculation is warranted.
+Numerical significance requires a separate comparison with converged dominant
+rates, population balances and the observable being used. A tiny signed
+coefficient with a bounded effect on branching need not block scouting.
+Conversely, positivity alone cannot rescue an outgoing rate much larger than
+the total loss. Keep those two cases separate; do not use one absolute cutoff
+across unimolecular and bimolecular rows.
 
 Regression coverage includes a hash-bound, unedited native output containing
 valid HPL coefficients and negative pressure coefficients. Simulated local and
@@ -76,3 +102,22 @@ kinetic populations. A table becoming nonnegative after a change does not
 alone validate that change. Preserve inputs and logs and compare precision,
 energy grains, selected populations and significant rates. See the native
 [MESS manual](https://tcg.cse.anl.gov/papr/codes/mess/messmanual_3_23_16.pdf).
+
+## Well truncation and collision-kernel cutoff are different controls
+
+The cited manual's section 5.4 and the audited native source both give
+`WellCutoff` a negative default: no explicit user-requested well cutoff.
+Collisional-kernel consistency can still cause automatic truncation. A
+positive value `C` truncates the well below its lowest dissociation threshold
+minus `C * k_B T`, assumes a Boltzmann distribution in the removed part, and
+renormalizes the resulting rates to the untruncated population. It is not an
+energy in kcal/mol. A value of 10 is a useful sensitivity test, not a universal
+convergence guarantee or a default selected by KinBot.
+
+The manual's explicitly documented default **10** for `ExponentCutoff` is a
+different parameter, inside `EnergyRelaxation Exponential`. That limits the
+range of energy transfers in the collision kernel. Keep both controls and
+their numerical values in the saved input when comparing calculations.
+Changing the collision model or imposing an IVR limit with `MicroRateMax`
+changes the physical model; those changes must not be presented as numerical
+repairs to otherwise identical inputs.

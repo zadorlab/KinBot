@@ -27,6 +27,13 @@ work. `rotdpy_run=0`, empty VRC selectors, and `rotdpy_mess_mode="off"` select
 PST without a ROTD_py result or CAS-model gate. The older driver may create
 unused `molpro/` and `rotdPy/` bookkeeping directories; it submits no such jobs.
 
+The CH3SS scout retains the previously specified **triplet S2** fragment model
+from the production input. Reducing calculation cost must not revert that
+explicit electronic state to the generic even-electron singlet guess. The
+original R8 capture omitted this declaration; local analysis restores the
+triplet fragment from already completed native calculations, without new QC.
+See the final handoff audit before using the historical singlet-model rates.
+
 PST is a scouting assumption, not a fitted capture rate. After MESS runs,
 inspect its native high-pressure association coefficients (cm^3/s), including
 temperature dependence, before pruning by branching. The collision parameters

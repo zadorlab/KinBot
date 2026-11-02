@@ -69,10 +69,13 @@ the build provenance records a C++ include portability adjustment, not a
 kinetic-model change.
 
 CH3S completes the full requested 300–2000 K, 0.01–760 torr grid. The complete
-CH3SS model completes a 1000 K, 760 torr native calculation and writes the full
-0–200 kcal/mol microcanonical grid. Full CH3SS runs at the original energy
-grain exceeded the local 900-second diagnostic limit; that is not a model
-validation failure or a reason to rerun QC.
+CH3SS model also completes all 60 conditions using native `well-reduction`
+and `EnergyStepOverTemperature=0.5` (267 seconds locally). Runs at the original
+0.2 grain exceeded the local 900-second diagnostic limit. A separate complete
+1000 K, 760 torr run at 0.2 finishes: its microcanonical file is byte-identical
+to the 0.5 file and its HPL table agrees at all ten printed digits. This
+validates those outputs against this numerical change; it does not certify
+the pressure-dependent tables or change the example's default energy grain.
 
 Some double-precision pressure-dependent tables contain materially negative
 off-diagonal rates. A normal MESS exit does **not** certify those tables.
@@ -83,6 +86,40 @@ must be labeled with its assumptions, not presented as pressure-dependent
 photolysis yields. A 193 nm photon corresponds to 148.142152 kcal/mol, not to
 a unique temperature. The default PST coefficient is a scouting assumption,
 not a quantitatively fitted capture potential.
+
+## Retain the declared fragment electronic state
+
+The native audit found an input-staging omission independent of the handoff
+failures: the cheap CH3SS scout did not carry the already declared triplet S2
+model from its production input. KinBot's generic parity-based fragment guess
+therefore calculated singlet S2 (`640640000000000000001`). The original
+production input explicitly declares triplet S2, including its `S=S` alias.
+The scout now retains that exact existing declaration. No example identifier
+or special S2 rule was added to installed code.
+
+The electronic-state regression constructs the ordinary Lewis fragment,
+applies the general state-model mechanism used for discovered products,
+checks its different QC identity and MESS degeneracy, and verifies that ANL
+and ROTD remain disabled. The new scout/state tests plus the existing general
+electronic-state tests pass (18 tests).
+
+For local analysis, existing normal native triplet S2 B3LYP-D3(BJ)/cc-pVDZ and
+B2PLYP-D3(BJ)/cc-pVTZ calculations are available in the retained R5 evidence.
+Their energies reproduce the R7 database to better than 1e-8 hartree, with
+positive frequencies and the same ZPEs. The L2 native output has energy
+-796.15534165504 hartree, ZPE 0.001608 hartree and frequency 705.7844 cm-1.
+It replaces the S2 fragment only in a separate, derived local MESS model:
+geometry, frequency, multiplicity and matching fragment-energy shift together.
+The CH3 + S2 asymptote changes from 65.17 to 43.59 kcal/mol. The reacting
+doublet's PST statistical weight remains two; product triplet degeneracy is
+included by native MESS in reverse capture. Source calculations and search
+histories are unchanged, and no new QC is submitted.
+
+The originally captured singlet-model rates are diagnostic history, not the
+basis for ground-state CH3SS pruning. `postprocess_blodgett.sh` reproduces the
+captured model; it intentionally does not relabel accepted singlet results or
+silently import different-state QC. Local restored-state inputs and their
+native evidence must accompany any pruning proposal.
 
 ## Reproduce locally
 

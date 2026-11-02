@@ -58,5 +58,22 @@
   "basis": "cc-pVDZ",
   "high_level_method": "B2PLYP",
   "high_level_basis": "cc-pVTZ",
-  "correct_submerged": 1
+  "correct_submerged": 1,
+  "electronic_state_models": [
+    {
+      "smiles": "[S][S]",
+      "smiles_aliases": [
+        "S=S"
+      ],
+      "charge": 0,
+      "ground_multiplicity": 3,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 3
+        }
+      ],
+      "source": "S2 X 3Sigma-g-minus: no first-order orbital SO centroid term. Rotational spin fine structure is not an atomic-J electronic ladder. https://doi.org/10.1021/acsearthspacechem.3c00116 . Ground spin only; higher electronic terms and second-order fine structure omitted."
+    }
+  ]
 }

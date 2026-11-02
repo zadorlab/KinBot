@@ -182,7 +182,7 @@ than treating every proposed change as an established bug.
 | F: electronic levels | General writer, cached-population and energy-reference handling are native KinBot fixes. S, SH, CH3S and CH require explicit sourced models in the input; no molecule-specific level table is hidden in the code. |
 | G: shallow w9/submerged rxn37 | The selected submerged-barrier approximation is explicit. A saddle below an optimized minimum at a different level does not by itself prove that minimum does not exist. Keep the full scout representation; collapsing it into one production channel needs its own model decision. |
 | H: retained returning side branch | Exact branching includes returns. A visited branch need not produce an exit; retention is conservative and is not a recommendation to run every retained object at high level. Candidate scopes remain unapproved. |
-| I: negative pressure rates | Unresolved numerical validation, excluded from all scope selection. Higher-precision native checks are separate from the KinBot fixes. |
+| I: negative pressure rates | Native precision, energy-grain and population-reduction checks are complete as documented below. Full finite-pressure kinetics remain unvalidated and excluded from scope selection. Collisionless/HPL scouting was independently revalidated with the corrected native build. |
 | J: search-family names | Preserve these as provenance identifiers, not mechanistic assignments. Scope groups use endpoints and population identities, not the search-family label. |
 | K: apparently identical product labels | Cached labels now follow the selected geometries: pr6/pr18 are cyclic mirrors, while pr11 is open-chain. They are not merged by their formerly stale comments. |
 | L: CSH versus HCS product | The CH3S pr3 native fragment geometry has H bonded to S, as its H-S-C comment says. It is not replaced by the more stable connectivity merely because that would be expected. |
@@ -259,3 +259,63 @@ historical. Native execution success is deliberately separate from the
 pressure-dependent rate audit: some low-temperature off-diagonal coefficients
 are grossly nonphysical, not merely tiny negative roundoff. Those tables are
 excluded from every retention decision above.
+
+## Native numerical follow-up and final scouting boundary
+
+The next validation found a local build error: MESS's ordinary LAPACK integer
+declarations were 64-bit, but the linked Apple Accelerate interface used
+32-bit integers. This was an error in the local build, not evidence of a
+chemical problem. A native factorization probe exposed the mismatch
+(`info=4294967296` for a valid positive-definite matrix). A separate LP64 build
+passed that probe, a pivoted linear solve, and DD/QD/MPFR eigensystem probes.
+The correction applies to that library ABI; it must not be imposed on ILP64
+installations. `docs/mess_rate_validation.md` describes the reusable probe.
+
+The optimized corrected executable SHA-256 is
+`402f67ee0228ac2ef41223156895112fb683a70fabcd4d63f6d21c5c1a22e081`.
+Both unchanged full inputs completed across the original 10-temperature,
+6-pressure grid. The microcanonical output files are **byte-identical** to the
+previous delivery, and every HPL rate matches at printed precision. Both full
+models and all six reduced candidates also passed the finer-grid native check
+again. The grouped screening was recomputed and all candidate membership and
+combined removal sensitivities above are unchanged. The corrected outputs
+supersede previous native outputs; the chemical input hashes remain unchanged.
+
+Eleven additional bounded native runs compared DD, QD and 80-digit MPFR,
+well-reduction and low-eigenvalue/CRM, energy-step/temperature 0.5, 0.2 and 0.1,
+and chemical projection thresholds 0.2 and 0.01. The model block was preserved
+exactly in each experiment. Higher precision is not a complete solution:
+
+* At 300 K / 760 torr, CH3SS's well-reduction DD result included a
+  -1.798e9 s^-1 coefficient; QD reduced the largest negative unimolecular
+  entry to -1.590e-6 s^-1, about 1.31e-9 of its row's largest positive rate.
+* At 1000 K / 760 torr, CH3S's -33000 s^-1 transition disappeared when the
+  chemical projection threshold selected two rather than three populations.
+  This changes the reduced kinetic representation, not the PES model.
+* With that stricter threshold, CH3SS's 80-digit run still has
+  w15 -> w1 = -8.852e-5 s^-1, about 6.04e-11 of its largest positive row entry.
+  Refining the grain to 0.1 with DD leaves -7.849e-5 s^-1. It is not made
+  positive merely by using more digits. Native reciprocity diagnostics also
+  prevent treating the full reduced table as validated.
+* For the 1000 K stricter-reduction runs, changing grain/T from 0.2 to 0.1
+  changes the examined significant positive coefficients by at most 0.85%
+  (CH3S) and 0.89% (CH3SS). This comparison examines positive entries above
+  1e-6 of their row's largest positive entry; it is a diagnostic filter, never
+  a rule for clipping or accepting negative rates.
+
+These results establish that the large errors involve numerical conditioning
+and that population reduction matters. They do **not** establish usable full
+finite-pressure kinetics. No negative entry is silently set to zero. The
+collisionless/HPL scouting decision does not depend on those tables and is
+ready for choosing an R9 work scope; finite-pressure production kinetics would
+require further solver/reduction validation. The retained R9 channels' VRC/CAS
+production validation is a separate, previously deferred stage.
+
+KinBot now records native rate sign/format checks separately from execution,
+including reuse of existing completed jobs without resubmission. The new
+release passed **73 isolated tests**, including an unedited native negative-rate
+fixture and complete local/queued execution paths. This supplements the earlier
+chemistry/replay tests; it does not turn a sign check into accuracy validation.
+Hash-bound full and precision results, build corrections, probes and receipts
+are in `local_runs/mess_review_20261102/native_validation_lp64.json` and the
+updated delivery. Original QC and all prior attempts remain preserved.

@@ -60,6 +60,15 @@ def test_complete_captured_scout_handoff_without_qc(tmp_path, monkeypatch):
         source = tmp_path/item['path']
         assert hashlib.sha256(source.read_bytes()).hexdigest() == item['sha256']
     root = tmp_path/'run'
+    # The earlier native QC audit supplies rxn20's matching frequency output;
+    # the handoff archive itself intentionally captured no large native logs.
+    evidence = json.loads((Path(__file__).parent/'reference/mess_symmetry_review.json').read_text())
+    reaction = evidence['states']['rxn_20']['input_header'].split('!')[1].strip()
+    workers = [d for d in (root/'ch3ss').iterdir() if d.is_dir() and reaction.startswith(d.name+'_')]
+    assert len(workers) == 1
+    native = workers[0]/(reaction+'_high.log')
+    native_bytes = (Path(__file__).parent/'reference/mirror_even_transition.log').read_bytes()
+    native.write_bytes(native_bytes)
     protected = {p: p.read_bytes() for p in root.rglob('*') if p.is_file() and (
         p.name in ('input.json', 'kinbot.db', '.kinbot_search_state.json', 'l1_screening.json')
         or p.name == p.parent.name+'.json' or p.suffix == '.mess')}
@@ -95,6 +104,20 @@ def test_complete_captured_scout_handoff_without_qc(tmp_path, monkeypatch):
                 blocks = split_model(model)[1]
                 assert len({_HEADER.search(b)[2].split()[0] for b in blocks}) == len(blocks)
                 assert '{' not in model and 'Core Rotd' not in model
+            if source.parent.name == 'ch3ss':
+                text = ''.join(models.values())
+                assert text.count('kinbot_shared_mirror_surface_weight 0.5') == 2
+                import re
+                named = {_HEADER.search(b)[2].split()[0]: b for b in split_model(text)[1]}
+                for label in ('w_10', 'rxn_29'):
+                    assert float(re.search(r'SymmetryFactor\s+(\S+)', named[label])[1]) == .5
+                # Captured product labels retained an open-chain input SMILES
+                # after optimization made a cyclic molecule. Rebuild display
+                # labels from the actual selected geometry, never the reverse.
+                for label in ('pr_6', 'pr_18'):
+                    assert '1' in _HEADER.search(named[label])[2].split('!')[-1]
+                assert '1' not in _HEADER.search(named['pr_11'])[2].split('!')[-1]
+                assert native.read_bytes() == native_bytes
             assert all(p.read_bytes() == value for p, value in protected.items())
             if previous is not None:
                 assert models == previous

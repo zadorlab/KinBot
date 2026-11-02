@@ -85,13 +85,17 @@ def test_l2_shift_mapping_uses_vectors_despite_reversed_mode_table():
     assert min(p.anl_thermochemistry_frequency_source['squared_overlaps']) > .98
 
 
-def test_verified_vpt2_handoff_uses_overlap_and_keeps_evidence_on_reprojection(tmp_path):
+@pytest.mark.parametrize('has_l3_model', [True, False])
+def test_verified_vpt2_handoff_uses_overlap_and_keeps_evidence_on_reprojection(tmp_path, has_l3_model):
     from kinbot.anl.workflow import attach_task_vpt2_frequencies
     p = point(); atoms = read(FIX/'minimum.l2.xyz')
     p.geom = atoms.positions
     p.anl_thermal_model['l2_geometry_sha256'] = array_fingerprint(p.geom)
     text = (FIX/'minimum.gaussian_modes.txt').read_text()
     f, _ = thermal.gaussian_modes(text, list(p.atom), atoms.positions)
+    if not has_l3_model:
+        del p.anl_thermal_model
+        p.freq = p.reduced_freqs = f.tolist()
     # Native vector excerpt plus deliberately synthetic, reversed VPT2 bands.
     bands = '\n'.join(f'{i}(1) active {v:.4f} {v-20:.4f} 1.0 1.0'
                       for i, v in enumerate(f[::-1], 1))
@@ -282,3 +286,20 @@ def test_linear_molecule_keeps_one_stretch():
         frequencies=[4400.],mass_weighted_modes=q.tolist()))
     thermal.update_model(p)
     assert p.anl_thermochemistry_frequencies==pytest.approx([4400.])
+
+
+@pytest.mark.parametrize('shifts,accepted', [([-20., -40., -60.], False),
+                                            ([-20., -20., -60.], True)])
+def test_same_output_degenerate_bands_cannot_silently_swap_unequal_shifts(monkeypatch, shifts, accepted):
+    p = point(); a = read(FIX/'minimum.l2.xyz'); p.geom = a.positions
+    f = np.array([1000., 1000.01, 2000.])
+    monkeypatch.setattr(thermal, 'gaussian_modes', lambda *args: (f, np.eye(3, 9)))
+    parsed = dict(harmonic_fundamentals_cm_inverse=f,
+        anharmonic_fundamentals_cm_inverse=f+shifts,
+        method='B2PLYP', basis='cc-pVTZ', dispersion='GD3BJ')
+    if accepted:
+        result = thermal._vpt2_vectors(p, parsed, FIX/'minimum.gaussian_modes.txt', a)
+        assert result['shifts'] == shifts
+    else:
+        with pytest.raises(ValueError, match='ambiguous degenerate'):
+            thermal._vpt2_vectors(p, parsed, FIX/'minimum.gaussian_modes.txt', a)

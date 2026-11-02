@@ -24,10 +24,8 @@ def _number(value):
 
 
 def _rotation(source, target):
-    x, y = source-source.mean(0), target-target.mean(0)
-    u, _, vt = np.linalg.svd(x.T @ y)
-    sign = np.eye(3); sign[-1, -1] = np.linalg.det(u @ vt)
-    return u @ sign @ vt
+    from kinbot.spatial import proper_alignment
+    return proper_alignment(source, target).rotation
 
 
 def _mass_modes(vectors, symbols, *, tolerance):
@@ -221,6 +219,18 @@ def _vpt2_vectors(point, parsed, native, staged_geometry, *, mode_map=None,
     rows, cols = linear_sum_assignment(abs(harmonic[:,None]-f[None,:]))
     if len(rows) != len(f) or len(harmonic) != len(f) or max(abs(harmonic[rows]-f[cols])) > .1:
         raise ValueError('Gaussian VPT2 table cannot be matched to its harmonic vectors.')
+    # This joins two tables in the SAME verified native calculation; it is
+    # not the cross-calculation mode-overlap decision below. At native print
+    # precision a degenerate table can have multiple valid assignments. Do
+    # not attach unequal anharmonic shifts to arbitrary degenerate vectors.
+    shifts = np.asarray(parsed['anharmonic_fundamentals_cm_inverse'])-harmonic
+    for i, j in enumerate(cols):
+        rivals = [k for k in range(len(cols)) if k != i
+                  and abs(harmonic[k]-f[j]) <= .1
+                  and abs(harmonic[i]-f[cols[k]]) <= .1]
+        if any(abs(shifts[k]-shifts[i]) > .1 for k in rivals):
+            raise ValueError('Native VPT2 bands have ambiguous degenerate vector assignments '
+                             'with unequal shifts; frequency ordering cannot resolve them.')
     q = q[cols]
     coords = staged_geometry.positions[permutation]
     if [symbols[i] for i in permutation] != list(point.atom):
@@ -230,7 +240,7 @@ def _vpt2_vectors(point, parsed, native, staged_geometry, *, mode_map=None,
                             -(point.geom-point.geom.mean(0)), axis=1)) > 2.e-4:
         raise ValueError('VPT2 geometry differs from the accepted L2 thermal model.')
     q = (q.reshape(len(q),len(symbols),3)[:,permutation] @ rot).reshape(len(q),-1)
-    return dict(shifts=(np.asarray(parsed['anharmonic_fundamentals_cm_inverse'])-harmonic).tolist(),
+    return dict(shifts=shifts.tolist(),
         harmonic=harmonic.tolist(), mass_weighted_modes=q.tolist(), mode_map=mode_map,
         match_tolerance_cm_inverse=float(match_tolerance_cm_inverse),
         method=parsed['method'], basis=parsed['basis'], dispersion=parsed['dispersion'])

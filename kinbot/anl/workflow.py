@@ -385,7 +385,11 @@ def attach_task_vpt2_frequencies(species, run_dir, task_id, *,
     from ase.io import read
     _, _, state = _load(run_dir)
     paired = task_id == 'gaussian_vpt2' and anharmonic.available(spec, state)
-    if paired and not (getattr(species, 'anl_thermal_model', None) or {}).get('harmonic'):
+    if (not (getattr(species, 'anl_thermal_model', None) or {}).get('harmonic')
+            and (paired or match_options.get('mode_map') is None)):
+        if not all(hasattr(species, key) for key in ('geom', 'atom', 'freq')):
+            raise ValueError('Automatic VPT2 matching requires the selected geometry, '
+                             'atoms and native mode vectors; a frequency list alone is insufficient.')
         from kinbot.anl.thermal import attach_l2_harmonic_reference
         attach_l2_harmonic_reference(species, parsed, native,
                                     read(native.parent/'geometry.xyz'), run=run_dir)

@@ -147,9 +147,9 @@ def test_pyramidal_branch_evidence_must_be_complete_and_consistent(alteration):
     if alteration in ('planar','opposite_branch'):
         from kinbot.optical import evaluate_optical
         assert evaluate_optical(p,rotors=evidence['rotors'])['status']=='unresolved'
-        # The new >4 rule is an approximation, not restored handedness proof.
-        assert result['status']=='assumed' and result['remaining_multiplier']==2.
-        assert result['heuristic']=='harmonic_midpoint'
+        # Curvature at the reference cannot restore the missing handedness proof.
+        assert result['status']=='unresolved' and result['remaining_multiplier']==1.
+        assert not result.get('heuristic')
         assert result['states_covered_by_hir'] is None
     elif alteration in ('failed', 'missing_geometry'):
         assert result['status'] == 'unresolved' and result['remaining_multiplier'] == 1.
@@ -273,13 +273,13 @@ def test_ring_handedness_cannot_be_claimed_after_a_planar_scan_observation():
     evidence=hir_evidence(p)
     geom=np.array(evidence['rotors'][0]['points'][5]['geometry_angstrom'])
     # Flattening the ring destroys every signed-volume obstruction. The
-    # hypothetical point is not an observed full mirror. Only the explicitly
-    # approximate energy rule may now choose a count; no handedness is proved.
+    # hypothetical point is not an observed full mirror. No local quadratic
+    # energy rule may choose a count; no handedness is proved.
     geom[:,2]=0.
     evidence['rotors'][0]['points'][5]['geometry_angstrom']=geom.tolist()
     result=optical_counting(p,evidence)
     from kinbot.optical import evaluate_optical
     assert evaluate_optical(p,rotors=evidence['rotors'])['status']=='unresolved'
-    assert result['status']=='assumed' and result['remaining_multiplier']==2
-    assert result['heuristic']=='harmonic_midpoint'
+    assert result['status']=='unresolved' and result['remaining_multiplier']==1
+    assert not result.get('heuristic')
     assert result['states_covered_by_hir'] is None

@@ -705,27 +705,35 @@ class Optimize:
             else:
                 l1_file = 'conf/{}_low'.format(self.log_name(0))
             l2_file = job
-            if hasattr(self.qc, 'read_imag_mode'):
-                # Profiled runs may mix an ASE/FairChem L1 mode with a native
-                # Gaussian L2 Hessian. Resolve each artifact independently.
-                imagmode = self.qc.read_imag_mode(
-                    l1_file, self.species.natom)
-                imagmode_high = self.qc.read_imag_mode(
-                    l2_file, self.species.natom)
-            elif self.qc.qc == 'fc' or self.qc.use_sella:
-                imagmode = reader_sella.read_imag_mode(l1_file, self.species.natom)
-                imagmode_high = reader_sella.read_imag_mode(l2_file, self.species.natom)
-            elif self.qc.qc == 'gauss':
-                imagmode = reader_gauss.read_imag_mode(l1_file, self.species.natom)
-                imagmode_high = reader_gauss.read_imag_mode(l2_file, self.species.natom)
-            elif self.qc.qc == 'qchem':
-                imagmode = reader_qchem.read_imag_mode(l1_file, self.species.natom)
-                imagmode_high = reader_qchem.read_imag_mode(l2_file, self.species.natom)
-            else:
-                logger.warning('L2 not supported with current qc')
+            # Native modes can be in a different printed orientation from the
+            # selected database geometry. Bind each vector to its own geometry,
+            # then use ONE geometry-derived proper rotation for their overlap.
+            # Never fit/translate the displacement arrays independently.
+            from kinbot.spatial import aligned_mode_overlap
+            corr = None
+            mode_reason = None
+            try:
+                if any(getattr(self.species, 'isotopes', [])):
+                    raise ValueError('Isotope-specific mode masses are not recorded.')
+                err_l1, mode_geometry = self.qc.get_qc_geom(l1_file, self.species.natom)
+                if err_l1:
+                    raise ValueError('The selected L1 mode geometry is unavailable.')
+                imagmode = self.qc.read_imag_mode(l1_file, self.species.natom,
+                    geometry=mode_geometry, symbols=self.species.atom)
+                imagmode_high = self.qc.read_imag_mode(l2_file, self.species.natom,
+                    geometry=new_geom, symbols=self.species.atom)
+                corr = aligned_mode_overlap(mode_geometry, new_geom, imagmode,
+                    imagmode_high, masses=[constants.exact_mass[str(a)] for a in self.species.atom])
+            except (OSError, ValueError, AttributeError) as error:
+                mode_reason = str(error)
+                logger.info('%s: native mode comparison unavailable: %s. '
+                            'Using the existing tighter geometry criterion.', self.name, error)
+            self.mode_comparison = dict(method='geometry-aligned-mass-weighted-dot',
+                l1_job=l1_file, l2_job=l2_file, overlap=corr, reason=mode_reason,
+                status='calculated' if corr is not None else 'unavailable')
             # either geom is roughly same with closely matching imaginary modes, or geometry is very close
             # maybe we need to do IRC at the high level as well...
-            same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
+            same_geom = ((corr is not None and corr > 0.9) and \
                     (geometry.equal_geom(self.species, dummy, 0.3))) \
                     or (geometry.equal_geom(self.species, dummy, 0.2))
             if self.par['multi_conf_tst'] != 1:  # for now skipping this
@@ -749,7 +757,7 @@ class Optimize:
                 result_rmsd = 'not done'
             logger.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
                         f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
-                        f'corr: {geometry.matrix_corr(imagmode, imagmode_high):.2f}, '\
+                        f'mode overlap: {corr}, '\
                         f'same: {same_geom}')
         else:
             same_geom = geometry.equal_geom(self.species, dummy, 0.1)

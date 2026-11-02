@@ -400,6 +400,9 @@ def equal_geom(orig_spec, new_spec, cutoff):
 
 def matrix_corr(p, q):
     """
+    Geometric similarity only; NOT a vibrational-mode overlap. For modes use
+    spatial.aligned_mode_overlap with the vectors' corresponding geometries.
+
     Calculates the correlation of two sets of points, p and q,
     where each point in these sets are 3D. The correlation is calculated
     after p is rotated (r) and translated (t) such that it has maximum overlap

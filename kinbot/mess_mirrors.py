@@ -8,6 +8,8 @@ import copy
 import hashlib
 import logging
 import re
+import json
+import base64
 from kinbot.stereo_identity import require_supported_identity, UnsupportedStereochemistry
 from kinbot.species_routing import routing_name
 from kinbot.mess_networks import _HEADER, split_model
@@ -258,8 +260,70 @@ def _reuse_mirror_populations(blocks):
             block = replacements[words[0]]
         elif header[1] == 'Barrier' and any(name in shifts for name in words[1:3]):
             block = _shift_eckart_depths(block, [shifts.get(name, 0.) for name in words[1:3]])
+            # A hom_sci PST fallback is defined at the separated asymptote.
+            # Replacing that product population must move its threshold too;
+            # changing only Eckart depths leaves a spurious binding energy.
+            if _CAPTURE.search(block):
+                product_shifts = [shifts[name] for name in words[1:3]
+                                  if name in shifts and _HEADER.search(replacements[name])[1] == 'Bimolecular']
+                if len(product_shifts) == 1:
+                    block = re.sub(r'(ZeroEnergy\[kcal/mol\]\s+)([-+\d.eE]+)',
+                        lambda m: m[1] + str(round(float(m[2]) - product_shifts[0], 10)), block)
         output.append(block)
     return output
+
+
+def _reuse_mirror_routes(blocks):
+    """Apply the same lowest-model choice to both sides of a mirror orbit.
+
+    Completion by endpoint/path alone cannot reconcile independent searches
+    that found different saddles in the *same* path class. Keep the established
+    lowest-barrier policy, reflect its entire statistical model, and retain
+    the replaced route's name/provenance. Do not sum those alternatives as if
+    they were distinct classified pathways. Unclassified routes are untouched.
+    """
+    groups = {}
+    population_names = {_POP.search(b)[1]: _HEADER.search(b)[2].split()[0]
+                        for b in blocks if _HEADER.search(b)[1] != 'Barrier' and _POP.search(b)}
+    for index, block in enumerate(blocks):
+        edge, path = _EDGE.search(block), _PATH.search(block)
+        capture = bool(_CAPTURE.search(block))
+        if not edge or not (path or capture) or _HEADER.search(block)[1] != 'Barrier':
+            continue
+        left, ml, right, mr = edge.groups()
+        own, mirror = frozenset((left, right)), frozenset((ml, mr))
+        if own == mirror:
+            continue  # Includes one physical enantiomerization channel.
+        energies = [value for key, value in _population_energies(block) if key.startswith('ZeroEnergy')]
+        if energies:
+            groups.setdefault((frozenset((own, mirror)), path[1] if path else None), []).append((min(energies), index))
+    result = list(blocks)
+    for entries in groups.values():
+        if len(entries) < 2:
+            continue
+        capture = all(_CAPTURE.search(blocks[i]) for _, i in entries)
+        _, selected = min(entries, key=lambda entry: (
+            entry[0], 'mirrored lowest model from' in blocks[entry[1]],
+            'derived by global reflection from' in blocks[entry[1]],
+            _HEADER.search(blocks[entry[1]])[2].split()[0]))
+        source = blocks[selected]; source_name = _HEADER.search(source)[2].split()[0]
+        left, ml, right, mr = _EDGE.search(source).groups()
+        for _, index in entries:
+            if index == selected:
+                continue
+            target = blocks[index]; edge = _EDGE.search(target)
+            if frozenset((edge[1], edge[3])) != frozenset((ml, mr)):
+                continue
+            if (f'! mirrored lowest model from {source_name};' in target
+                    or f'! derived by global reflection from {source_name};' in target):
+                continue
+            target_name = _HEADER.search(target)[2].split()[0]
+            old_header = _HEADER.search(target)[2].strip()
+            reflected = _HEADER.sub(lambda m: f'  Barrier {target_name} {population_names[ml]} {population_names[mr]}\n',
+                                    _reflect(source), count=1)
+            result[index] = _insert(reflected,
+                f'! mirrored lowest model from {source_name}; previous route: {old_header}')
+    return result
 
 
 def _separate_routes(block):
@@ -272,6 +336,50 @@ def _separate_routes(block):
         content = parts[i+1].split('    End ! stereochemical pathways')[0].rstrip('\n') + '\n'
         routes.append('  ' + parts[i] + '\n' + content)
     return routes
+
+
+def _share_self_mirror_surfaces(barriers):
+    """Split an even self-mirror dividing surface over two mirror connections.
+
+    The harmonic stable modes span both sides of the symmetry plane. Copying
+    their entire partition function to each connection doubles that one
+    surface's flux. This is a representation factor, not a site degeneracy or
+    a fitted dynamical branching ratio. An odd unstable mode is not split.
+    """
+    from kinbot.mess_racemates import _RRHO
+    from kinbot.transition_symmetry import SURFACE_MARKER
+    represented = {frozenset((edge[1], edge[3])) for b in barriers
+                   if (edge := _EDGE.search(b))}
+    result = []
+    for block in barriers:
+        edge = _EDGE.search(block)
+        if not SURFACE_MARKER.search(block) or not edge:
+            result.append(block); continue
+        left, ml, right, mr = edge.groups()
+        distinct_connections = frozenset((left, right)) != frozenset((ml, mr))
+        if not distinct_connections or frozenset((ml, mr)) not in represented:
+            result.append(block); continue
+        def share(match):
+            rrho = match[0]
+            metadata = SURFACE_MARKER.search(rrho)
+            if metadata is None:
+                return rrho
+            evidence = json.loads(base64.urlsafe_b64decode(metadata[1]))
+            if evidence.get('status') != 'self' or evidence.get('parity') != 'even':
+                return rrho
+            marker = '! kinbot_shared_mirror_surface_weight 0.5'
+            if marker in rrho:
+                return rrho
+            if re.search(r'Core\s+(?:PhaseSpaceTheory|Rotd)\b', rrho):
+                raise ValueError('Reactive-mode flux sharing requires a harmonic TS model.')
+            rrho, count = re.subn(r'(SymmetryFactor\s+)([-+\d.eE]+)',
+                lambda m: m[1]+f'{2*float(m[2]):.12g}', rrho)
+            if count != 1:
+                raise ValueError('Shared mirror surface needs one explicit RRHO model.')
+            return rrho[:rrho.index('\n')+1] + marker + '\n' + rrho[rrho.index('\n')+1:]
+        block = _RRHO.sub(share, block)
+        result.append(block)
+    return result
 
 
 def complete_mirror_channels(contents):
@@ -297,8 +405,12 @@ def complete_mirror_channels(contents):
         populations = [b for b in blocks if _HEADER.search(b)[1] != 'Barrier']
         barriers = [b for b in blocks if _HEADER.search(b)[1] == 'Barrier']
         barriers, notes = _supersede_capture_placeholders(barriers)
+        reconciled = _reuse_mirror_routes(populations + barriers)
+        barriers = [b for b in reconciled if _HEADER.search(b)[1] == 'Barrier']
+        barriers = _share_self_mirror_surfaces(barriers)
         return prefix + ''.join(notes + populations + union_stereochemical_barriers(barriers)) + ending
-    if not any(m[1] != m[2] or m[3] != m[4] for m in _EDGE.finditer(contents)):
+    if (not any(m[1] != m[2] or m[3] != m[4] for m in _EDGE.finditer(contents))
+            and not any(m[1] != m[2] for m in _POP.finditer(contents))):
         return finish()
     populations, edges, templates, names = {}, set(), [], set()
     def route_id(block):
@@ -323,13 +435,15 @@ def complete_mirror_channels(contents):
                                      f'{marker[1]}: {populations[marker[1]][0]}, {words[0]}')
                 populations[marker[1]] = (words[0], block)
     by_name = {name: _POP.search(block).groups() for name, block in populations.values()}
-    for block in blocks:
+    for index, block in enumerate(blocks):
         header = _HEADER.search(block)
         words = header[2].split('!')[0].split()
         if header[1] == 'Barrier' and not _EDGE.search(block) and len(words) == 3:
             if words[1] in by_name and words[2] in by_name:
-                templates.append(_insert(block, '! kinbot_mirror_endpoints ' +
-                                         ' '.join(by_name[words[1]] + by_name[words[2]])))
+                block = _insert(block, '! kinbot_mirror_endpoints ' +
+                                ' '.join(by_name[words[1]] + by_name[words[2]]))
+                blocks[index] = block
+                templates.append(block)
     def name_for(key, kind):
         name = kind + '_mirror_' + hashlib.sha256(key.encode()).hexdigest()[:16]
         if name in names:

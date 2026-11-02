@@ -374,8 +374,16 @@ class StationaryPoint:
                     if is_unique:
                         self.rads.append(perm_rad[i])
                         self.bonds.append(perm_bond[i])
-        if self.smiles == '':
-            mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
+        if self.smiles == '' or not self.wellorts:
+            mw, perceived_smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
+            from kinbot.reference_identity import same_atomic_connectivity
+            if not self.smiles or not same_atomic_connectivity(self.smiles, perceived_smiles):
+                if self.smiles:
+                    history = list(getattr(self, 'connectivity_smiles_history', []))
+                    history.append(dict(previous=self.smiles, current=perceived_smiles,
+                                        reason='characterized atomic connectivity changed'))
+                    self.connectivity_smiles_history = history
+                self.smiles = perceived_smiles
         self.bond01 = np.zeros((self.natom, self.natom), dtype=int)
         for ri, row in enumerate(self.bond):
             for bii, bi in enumerate(row):

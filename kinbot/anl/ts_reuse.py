@@ -62,10 +62,8 @@ def aligned_permutation(symbols_x, px, symbols_y, py, tolerance):
     for mapping in islice(matcher.isomorphisms_iter(), 10000):
         permutation = [mapping[i] for i in range(len(px))]
         target = py[permutation]
-        u, _, vt = np.linalg.svd(px.T@target)
-        correction = np.eye(3)
-        correction[-1,-1] = np.linalg.det(u@vt)
-        rmsd = float(np.sqrt(np.mean(np.sum((px@u@correction@vt-target)**2,axis=1))))
+        from kinbot.spatial import proper_alignment
+        rmsd = proper_alignment(px, target).rmsd
         if rmsd <= tolerance:
             return rmsd, permutation
     return None

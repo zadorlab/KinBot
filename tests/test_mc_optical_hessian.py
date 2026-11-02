@@ -34,8 +34,8 @@ def ambiguous_pair():
     return p, [own_hessian(p, record(p, 0)), own_hessian(p, record(p, 1, other.positions))]
 
 
-@pytest.mark.parametrize('energy,weight', [(2., 1.), (8., 2.)])
-def test_each_unresolved_self_mirror_uses_its_own_hessian_before_pruning(energy, weight):
+@pytest.mark.parametrize('energy', [2., 8.])
+def test_own_hessian_diagnostic_cannot_promote_an_unresolved_count(energy):
     p = ethanol_near_planar()
     r = own_hessian(p, record(p, 0))
     base = conformer_midpoint_diagnostic(p, r)['stable_midpoint_energy_kcal_mol']
@@ -43,33 +43,32 @@ def test_each_unresolved_self_mirror_uses_its_own_hessian_before_pruning(energy,
     p.hess = np.eye(3 * p.natom) * 1.e9  # unrelated representative must not be used
     records, groups = evaluate_members(p, [r])
     assert groups == [[0]]
-    assert records[0].remaining_optical_weight == weight
+    assert records[0].remaining_optical_weight == 1.
     evidence = records[0].optical_evidence
-    assert evidence['heuristic'] == 'harmonic_midpoint'
+    assert evidence['status'] == 'unresolved' and 'heuristic' not in evidence
+    assert not evidence['harmonic_midpoint']['used_for_optical_counting']
     assert evidence['harmonic_midpoint']['stable_midpoint_energy_kcal_mol'] == pytest.approx(energy)
     p.energy, p.zpe, p.reduced_freqs = -100., 0., list(r.frequencies_cm1)
     writer = MESS(dict(multi_conf_tst=1, pes=0, freq_uq_ref=1000., freq_uq_max_exp=1.), p)
     text = writer._member_rrho(p, records[0], 1., 0.)
-    assert 'Harmonic midpoint approximation' in text
-    assert f'optical factor {weight:g}' in text
+    assert 'Diagnostic only' in text
+    assert 'optical factor 1' in text
     assert next(float(line.split()[1]) for line in text.splitlines()
-                if line.strip().startswith('SymmetryFactor')) == records[0].sigma_ext / weight
-    assert 'Harmonic midpoint approximation' in finalize_mc_mess(text)
+                if line.strip().startswith('SymmetryFactor')) == records[0].sigma_ext
+    assert 'Diagnostic only' in finalize_mc_mess(text)
 
 
-@pytest.mark.parametrize('energy,paired', [(2., True), (8., False)])
-def test_ambiguous_explicit_pair_uses_both_hessians(energy, paired):
+@pytest.mark.parametrize('energy', [2., 8.])
+def test_ambiguous_pair_is_not_declared_equivalent_from_local_curvatures(energy):
     p, pair = ambiguous_pair()
     d = conformer_pair_midpoint(p, *pair)
     pair = [own_hessian(p, r, energy/d[k]['stable_midpoint_energy_kcal_mol'])
             for r, k in zip(pair, ('forward', 'reverse'))]
     records, groups = evaluate_members(p, pair)
-    assert groups == ([[0, 1]] if paired else [[0], [1]])
-    assert [r.remaining_optical_weight for r in records] == ([1., 1.] if paired else [2., 2.])
-    assert all(not r.optical_evidence.get('fallback') for r in records)
-    if paired:
-        comment = MESS._counting_comment(records[0].optical_evidence, records[0].member_id)
-        assert 'explicit mirror' in comment and 'cutoff 4' in comment
+    assert groups == [[0], [1]]
+    assert [r.remaining_optical_weight for r in records] == [1., 1.]
+    assert all(r.optical_evidence.get('fallback') for r in records)
+    assert conformer_pair_midpoint(p, *pair)['status'] == 'undetermined'
 
 
 def test_pair_disagreement_is_reported_and_cannot_double_both_conformers():
@@ -80,11 +79,11 @@ def test_pair_disagreement_is_reported_and_cannot_double_both_conformers():
     records, groups = evaluate_members(p, pair)
     assert groups == [[0], [1]]
     assert all(r.remaining_optical_weight == 1. for r in records)
-    assert 'disagree' in records[0].optical_evidence['explicit_mirror_comparisons'][pair[1].member_id]['reason']
+    assert 'do not establish' in records[0].optical_evidence['explicit_mirror_comparisons'][pair[1].member_id]['reason']
 
 
-def test_explicit_mirrors_override_a_single_conformer_heuristic_of_two():
-    p = ethanol_near_planar()
+def test_geometrically_proven_explicit_mirrors_need_no_hessian_cutoff():
+    p = ethanol_near_planar(60.)
     first = own_hessian(p, record(p, 0))
     energy = conformer_midpoint_diagnostic(p, first)['stable_midpoint_energy_kcal_mol']
     first = own_hessian(p, first, 8./energy)
@@ -93,12 +92,12 @@ def test_explicit_mirrors_override_a_single_conformer_heuristic_of_two():
     assert groups == [[0, 1]]
     assert [r.remaining_optical_weight for r in records] == [1., 1.]
     assert all(r.optical_evidence.get('heuristic') is None for r in records)
-    assert all(not r.optical_evidence['harmonic_midpoint']['used_for_optical_counting']
-               for r in records)
+    assert all(r.optical_evidence['status'] == 'resolved' for r in records)
 
 
-def test_harmonic_pairing_warns_about_different_energies_without_multiplying_again(caplog):
-    p, pair = ambiguous_pair()
+def test_geometric_pairing_warns_about_different_energies_without_multiplying_again(caplog):
+    p = ethanol_near_planar(60.)
+    pair = [record(p, 0), record(p, 1, p.geom * [-1, 1, 1])]
     pair = [own_hessian(p, r, .01) for r in pair]
     pair[1] = replace(pair[1], zero_energy_hartree=pair[0].zero_energy_hartree+2/constants.AUtoKCAL)
     records, groups = evaluate_members(p, pair)

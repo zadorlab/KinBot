@@ -30,6 +30,7 @@ def test_export_preserves_requested_reference_with_perceived_provenance(tmp_path
     writer.par = {'smiles': '[S]S', 'thermochemistry_model_output': str(tmp_path / 'model.json')}
     monkeypatch.setattr(writer, '_stable_frequencies', lambda s: [300., 700., 2500.])
     monkeypatch.setattr(writer, 'make_rotors', lambda *a: '')
+    monkeypatch.setattr(writer, '_parent_symmetry', lambda *a: 1.)
     monkeypatch.setattr('kinbot.mess.routing_name', lambda s: 'reference')
     model_path = writer.write_thermochemistry_model(species, tmp_path / 'model.json')
     model = json.loads(model_path.read_text())['species']['[S]S']

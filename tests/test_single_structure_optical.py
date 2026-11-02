@@ -46,3 +46,20 @@ def test_completed_methanol_ts_hir_does_not_receive_a_second_optical_two():
     p = saved_point(entry)
     writer = MESS({'multi_conf_tst': 0}, p)
     assert writer._parent_symmetry(p) == p.sigma_ext
+
+
+def test_partition_function_and_kinetics_share_counting_instead_of_legacy_nopt(tmp_path):
+    import re
+    from kinbot.parameters import Parameters
+    p = peroxide()
+    symmetry.calculate_symmetry(p)
+    p.energy, p.zpe = -100., .01
+    p.freq = p.reduced_freqs = [500.] * (3*p.natom-6)
+    p.nopt = 77  # Deliberately stale legacy value must not enter either writer.
+    source = tmp_path/'input.json'
+    source.write_text('{"barrier_threshold": 150, "rotor_scan": 0}')
+    writer = MESS(Parameters(str(source)).par, p)
+    expected = writer._parent_symmetry(p)
+    rendered = writer.write_partition_function_input(p, tmp_path/'pf.inp').read_text()
+    assert float(re.search(r'SymmetryFactor\s+(\S+)', rendered)[1]) == expected
+    assert writer.thermochemistry_model(p)['symmetry_factor'] == expected

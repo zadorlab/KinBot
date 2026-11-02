@@ -37,12 +37,8 @@ def unresolved_optical_default(result):
 
 
 def _fit_errors(left, right):
-    left = left - left.mean(axis=0)
-    right = right - right.mean(axis=0)
-    u, _, vt = np.linalg.svd(left.T @ right)
-    correction = np.eye(3)
-    correction[-1, -1] = np.linalg.det(u @ vt)
-    return np.linalg.norm(left @ u @ correction @ vt - right, axis=1)
+    from kinbot.spatial import proper_alignment
+    return proper_alignment(left, right).errors
 
 
 def _fit(left, right):

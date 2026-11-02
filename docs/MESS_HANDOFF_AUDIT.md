@@ -1,5 +1,11 @@
 # Complete L1/L2/PST MESS handoff replay
 
+The results under **Final local scouting results** below describe the earlier
+2026-11-01 analysis. They are retained as history and superseded by the
+2026-11-02 native-mode/symmetry/electronic-level review in
+[SPATIAL_MODE_AND_MESS_REVIEW.md](SPATIAL_MODE_AND_MESS_REVIEW.md). Use that
+review's updated grouped shortlist, not the older connection counts below.
+
 The 2026-11-01 capture contains the completed CH3S and CH3SS scout workers,
 their databases, accepted/rejected search histories, worker MESS fragments,
 inputs and PES handoff records. Archive SHA-256:

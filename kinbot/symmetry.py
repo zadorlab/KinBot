@@ -99,6 +99,20 @@ def calculate_symmetry(species):
         species.sigma_ext = min(species.sigma_ext, view.sigma_ext)
         # Keep the original internal-rotor convention and legacy nopt separate.
         # Optical contributions are evaluated by the representation contract.
+    # A TS or an encounter complex is one rigid dividing surface/assembly.
+    # Graph-equivalent arms need not be interchangeable by a rotation of that
+    # whole structure. In particular a free fragment's symmetry must not be
+    # multiplied into a bound complex with fixed relative orientation.
+    # Preserve the established stable-molecule/internal-rotor conventions.
+    from kinbot.molecular_symmetry import chemical_graph, rigid_rotation_maps
+    import networkx as nx
+    if getattr(species, 'wellorts', 0) or not nx.is_connected(chemical_graph(species)):
+        rotations = rigid_rotation_maps(species)
+        species.rigid_rotation_evidence = dict(
+            method='whole-structure-proper-rotations', atom_mappings=rotations,
+            maximum_atom_error_tolerance_angstrom=.05,
+            previous_graph_sigma=species.sigma_ext, sigma=len(rotations))
+        species.sigma_ext = min(species.sigma_ext, len(rotations))
 
 
 def _calculate_symmetry(species, external_atomid=None, internal_atomid=None):

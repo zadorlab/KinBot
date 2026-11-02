@@ -134,14 +134,8 @@ def _preserves_resonance(species, order):
 
 
 def proper_rmsd(left, right):
-    left = np.asarray(left, dtype=float)
-    right = np.asarray(right, dtype=float)
-    left = left - left.mean(axis=0)
-    right = right - right.mean(axis=0)
-    u, _, vt = np.linalg.svd(left.T @ right)
-    correction = np.eye(3)
-    correction[2, 2] = np.linalg.det(u @ vt)
-    return float(np.sqrt(np.mean(np.sum((left @ u @ correction @ vt-right)**2, axis=1))))
+    from kinbot.spatial import proper_alignment
+    return proper_alignment(left, right).rmsd
 
 
 def spatial_mappings(species, left, right, tolerance=.05):
@@ -180,6 +174,26 @@ def equivalent_geometry(species, left, right, tolerance=.05, reflected=False):
         right = right * [-1., 1., 1.]
     return any(proper_rmsd(left, right[mapping]) <= tolerance
                for mapping in spatial_mappings(species, left, right, tolerance))
+
+
+def rigid_rotation_maps(species, tolerance=.05):
+    """Proper rotations of the entire selected structure, including atom maps.
+
+    This tests a rigid geometry, not independent fragment rotations or
+    thermally accessible torsions. Every atom must fit; a large molecule must
+    not dilute a local mismatch. Reflection and reaction-site degeneracy are
+    not rotational symmetry. The returned maps must form a closed group.
+    """
+    from kinbot.optical import _fit_errors
+    geom = np.asarray(species.geom, dtype=float)
+    maps = {tuple(order) for order in spatial_mappings(species, geom, geom, tolerance)
+            if max(_fit_errors(geom, geom[order]), default=0.) <= tolerance}
+    identity = tuple(range(len(geom)))
+    if identity not in maps:
+        raise ValueError('The selected geometry lacks a valid identity rotation.')
+    if any(tuple(a[b[i]] for i in identity) not in maps for a in maps for b in maps):
+        raise ValueError('Approximate rotation mappings do not form a closed symmetry group.')
+    return sorted(maps)
 
 
 def geometric_mirror_states(species, geom=None, tolerance=OPTICAL_RMSD_TOLERANCE):

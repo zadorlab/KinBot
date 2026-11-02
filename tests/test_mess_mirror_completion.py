@@ -205,6 +205,56 @@ def test_independent_mirror_energy_does_not_prevent_complete_model_reuse():
     assert complete_mirror_channels(result).split() == result.split()
 
 
+def test_independently_found_lower_mirror_saddle_replaces_complete_model():
+    text = mirror_path_fixture().replace(
+        'S R\n RRHO\n ZeroEnergy[kcal/mol] 30',
+        'S R\n RRHO\n Geometry[angstrom] 1\n C 2.0 3.0 4.0\n'
+        ' Frequencies[1/cm] 1\n 123\n ZeroEnergy[kcal/mol] 25')
+    result = complete_mirror_channels(text)
+    assert result.count('ZeroEnergy[kcal/mol] 25') == 2
+    assert 'ZeroEnergy[kcal/mol] 30' not in result
+    assert result.count('123') == 2
+    assert 'C -2.000000000000 3.0 4.0' in result
+    assert result.count('ZeroEnergy[kcal/mol] 32') == 2  # Different class stays.
+    assert complete_mirror_channels(result).split() == result.split()
+
+
+def test_mirror_product_replacement_moves_only_homolysis_pst_asymptote():
+    text = '''Model
+ Well a
+! kinbot_population A A
+ ZeroEnergy[kcal/mol] 0
+ End
+ Bimolecular r
+! kinbot_population R S
+ GroundEnergy[kcal/mol] 10
+ End
+ Bimolecular s
+! kinbot_population S R
+ GroundEnergy[kcal/mol] 11
+ End
+ Barrier ar a r
+! kinbot_hom_sci_placeholder species_hom_sci_1_2
+ RRHO
+ Core PhaseSpaceTheory
+ End
+ ZeroEnergy[kcal/mol] 10
+ End
+ Barrier as a s
+! kinbot_hom_sci_placeholder species_hom_sci_1_3
+ RRHO
+ Core PhaseSpaceTheory
+ End
+ ZeroEnergy[kcal/mol] 11
+ End
+End ! end kinetics
+'''
+    result = complete_mirror_channels(text)
+    assert result.count('GroundEnergy[kcal/mol] 10') == 2
+    assert result.count('ZeroEnergy[kcal/mol] 10') == 2
+    assert complete_mirror_channels(result) == result
+
+
 def test_whole_mc_mirror_model_is_reused_and_independent_paths_survive():
     from kinbot.mess_mirrors import _HEADER, split_model
     text = mirror_path_fixture()
@@ -279,3 +329,43 @@ def test_global_reflection_may_reverse_the_same_enantiomerization_channel():
     records = writer_members(ts)
     assert len(records) == 2
     assert all(record.remaining_optical_weight == 1. for record in records.values())
+
+
+def test_pst_mirrors_reuse_the_whole_fragment_model_not_only_the_threshold():
+    text = '''Model
+ Well a
+! kinbot_population A A
+ ZeroEnergy[kcal/mol] 0
+ End
+ Bimolecular r
+! kinbot_population R S
+ GroundEnergy[kcal/mol] 10
+ End
+ Bimolecular s
+! kinbot_population S R
+ GroundEnergy[kcal/mol] 10
+ End
+ Barrier ar a r
+! kinbot_hom_sci_placeholder a_hom_sci_1_2
+ RRHO
+ Core PhaseSpaceTheory
+ End
+ Frequencies[1/cm] 1
+ 100
+ ZeroEnergy[kcal/mol] 10
+ End
+ Barrier as a s
+! kinbot_hom_sci_placeholder a_hom_sci_1_3
+ RRHO
+ Core PhaseSpaceTheory
+ End
+ Frequencies[1/cm] 1
+ 200
+ ZeroEnergy[kcal/mol] 10
+ End
+End ! end kinetics
+'''
+    result = complete_mirror_channels(text)
+    assert result.count('\n 100\n') == 2
+    assert '\n 200\n' not in result
+    assert complete_mirror_channels(result) == result

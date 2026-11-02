@@ -2116,7 +2116,7 @@ class QuantumChemistry:
 
         return 1
 
-    def read_imag_mode(self, job, natom):
+    def read_imag_mode(self, job, natom, *, geometry=None, symbols=None):
         """Read a TS mode from the artifact produced by this backend.
 
         Sella force-difference Hessians publish ``*_vib.xyz``. A Sella
@@ -2126,6 +2126,38 @@ class QuantumChemistry:
         therefore asks for an artifact that native-Hessian workers neither
         need nor create.
         """
+        if geometry is not None:
+            if symbols is None or len(symbols) != natom:
+                raise ValueError('A mode frame needs the selected ordered atomic symbols.')
+            from kinbot.spatial import proper_alignment
+            if (self.qc == 'gauss' and (not self.use_sella
+                    or self.frequency_mode == 'native_hessian')):
+                from kinbot.gaussian_modes import read_normal_modes
+                native = read_normal_modes(str(job)+'.log', symbols, geometry)
+                index = int(np.argmin(native['frequencies_cm1']))
+                if native['frequencies_cm1'][index] >= 0:
+                    raise ValueError('The native spectrum contains no imaginary mode.')
+                return np.asarray(native['modes'][index])
+            if (self.qc == 'fc' or (self.use_sella
+                    and self.frequency_mode != 'native_hessian')):
+                rows = Path(str(job)+'_vib.xyz').read_text().splitlines()[2:2+natom]
+                fields = [row.split() for row in rows]
+                if (len(fields) != natom or any(len(row) < 7 for row in fields)
+                        or [row[0] for row in fields] != list(map(str, symbols))):
+                    raise ValueError('Native ASE mode coordinates/atom order are incomplete.')
+                source = np.array([row[1:4] for row in fields], float)
+                mode = np.array([row[-3:] for row in fields], float)
+            elif self.qc == 'qchem':
+                from ase import Atoms
+                from kinbot import reader_qchem
+                source = reader_qchem.read_geom(str(job)+'_freq.out', Atoms(symbols))
+                mode = reader_qchem.read_imag_mode(job, natom)
+            else:
+                raise ValueError(f'Native mode frame unavailable for {self.qc}.')
+            fit = proper_alignment(source, geometry)
+            if max(fit.errors) > 1.e-5:
+                raise ValueError('Native mode geometry differs from the selected calculation.')
+            return mode @ fit.rotation
         if (self.qc == 'fc'
                 or (self.use_sella
                     and self.frequency_mode != 'native_hessian')):

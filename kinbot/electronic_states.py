@@ -185,6 +185,32 @@ def model_for_species(species, parameters):
     return models.get((canonical, int(getattr(species, 'charge', 0))))
 
 
+def spin_orbit_energy_shift(species, parameters=None):
+    """Declared scalar-reference-to-ground-level shift, without changing QC.
+
+    A reactive surface is not assigned its endpoint's electronic term.
+    Composite energies already include their component and bypass this helper.
+    """
+    if getattr(species, 'wellorts', 0):
+        return 0.
+    correction = getattr(species, 'spin_orbit_correction', None)
+    if parameters is not None:
+        model = model_for_species(species, parameters)
+        if model is None:
+            return 0.
+        if int(species.mult) != model['ground_multiplicity']:
+            raise ValueError('Cannot apply an electronic model to QC of a different multiplicity.')
+        correction = model.get('spin_orbit_correction')
+    if correction is None:
+        return 0.
+    if (not isinstance(correction, dict) or not correction.get('source')
+            or isinstance(correction.get('value_hartree'), bool)
+            or not isinstance(correction.get('value_hartree'), Real)
+            or not np.isfinite(correction['value_hartree'])):
+        raise ValueError('Spin-orbit energy correction needs a finite value and source.')
+    return float(correction['value_hartree'])
+
+
 def audit_electronic_states(states, parameters):
     """Inventory supplied states without inferring SO data from composition.
 

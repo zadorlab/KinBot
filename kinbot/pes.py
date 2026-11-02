@@ -634,13 +634,21 @@ def postprocess(par, jobs, task, names, mass):
     l3_requested = bool(par['L3_calc'])
     l3done = int(l3_requested)
 
+    electronic_shifts, selected_states = {}, {}
+
+    def read_energy(*args, **options):
+        return get_energy(*args, electronic_state_parameters=par,
+                          correction_cache=electronic_shifts,
+                          state_cache=selected_states, **options)
+
     def optional_l3energy(name, parameters, **options):
         if not l3_requested:
             return 0, 0.
-        return get_l3energy(name, parameters, **options)
+        status, value = get_l3energy(name, parameters, **options)
+        return status, value + electronic_shifts.get(name, 0.) if status else value
 
     # base of the energy is the first well, these are L2 energies
-    base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
+    base_energy, base_zpe = read_energy(jobs, jobs[0], 0, par['high_level'],
                                        conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
     # L3 energies
     status, base_l3energy = optional_l3energy(jobs[0], par)
@@ -707,14 +715,14 @@ def postprocess(par, jobs, task, names, mass):
                 if any([mm in reaction_name for mm in constants.mp2_list]) \
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
-                    mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
+                    mp2_energies = read_energy(jobs, jobs[0], 0, par['high_level'],
                                               mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
                 if 'barrierless_saddle' in reaction_name and not par['high_level']:
-                    bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
+                    bls_energies = read_energy(jobs, jobs[0], 0, par['high_level'],
                                               bls=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
                     base_energy_bls, base_zpe_bls = bls_energies
                     barrier = 0. - base_energy_bls - base_zpe_bls
@@ -724,7 +732,7 @@ def postprocess(par, jobs, task, names, mass):
                     barrier = float(ts_energy)
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
-                    ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
+                    ts_energy, ts_zpe = read_energy(jobs, reaction_name, 1, par['high_level'],
                                                conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
                     barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
@@ -780,7 +788,7 @@ def postprocess(par, jobs, task, names, mass):
     well_energies = {}
     well_l3energies = {}
     for index, well in enumerate(wells):
-        energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
+        energy, zpe = read_energy(wells, well, do_vdW[index], par['high_level'],
                             conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = optional_l3energy(well, par)
@@ -797,7 +805,7 @@ def postprocess(par, jobs, task, names, mass):
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
-            pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
+            pr_energy, pr_zpe = read_energy(jobs, pr, 0, par['high_level'],
                                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
             energy += pr_energy + pr_zpe
             status, l3e = optional_l3energy(pr, par)
@@ -932,7 +940,7 @@ def postprocess(par, jobs, task, names, mass):
                           prod_energies,
                           parent,
                           mass,
-                          l3done, warnings=network_warnings)
+                          l3done, warnings=network_warnings, selected_states=selected_states)
 
     if l3_requested and par['single_point_qc'].lower() == 'molpro':
         if l3done:
@@ -1349,7 +1357,8 @@ def create_short_names(wells, products, reactions, barrierless, vdW):
 
 
 def create_mess_input(par, wells, products, reactions, barrierless, vdW,
-                      well_energies, prod_energies, parent, mass, l3done, warnings=()):
+                      well_energies, prod_energies, parent, mass, l3done, warnings=(),
+                      selected_states=None):
     """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
@@ -1452,7 +1461,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             name = well_short[well] + ' ! ' + well
             # if 'IRC' not in well:
             with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
-                s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
+                from kinbot.mess_symmetry import upgrade_cached_rigid_rotor
+                block = upgrade_cached_rigid_rotor(f.read(), par['charge'], par['mult'])
+                s.append(block.format(name=name, zeroenergy=round(energy, 2)))
             s.append(divider)
             # else:
                 # with open(parent[well] + '/' + parent[well] + '_' + mess_iter + '.mess', 'r') as f:
@@ -1569,6 +1580,8 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                          welldepth1=round(welldepth1, 2),
                          welldepth2=round(welldepth2, 2),
                          )
+            from kinbot.transition_symmetry import annotate_cached_surface
+            barrier = annotate_cached_surface(barrier, rxn[0], rxn[1], par)
             if energy > original_energy:
                 note = (f'! correct_submerged=1: MESS barrier {name[0]} '
                         f'energies[kcal/mol] [{round(original_energy, 2)}] raised to '
@@ -1602,7 +1615,11 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
         if not os.path.exists('me'):
             os.mkdir('me')
 
-        contents = complete_mirror_channels(''.join(line + '\n' for line in warnings) + header + '\n'.join(s))
+        from kinbot.mess_cached_species import refresh_cached_population_models
+        contents = refresh_cached_population_models(
+            ''.join(line + '\n' for line in warnings) + header + '\n'.join(s), par,
+            selected_states=selected_states)
+        contents = complete_mirror_channels(contents)
         # Resolve MC offsets and check the final bound-well energies after
         # mirror-model replacement. Separated fragments are not a well floor.
         contents = finalize_mc_mess(contents, par['correct_submerged'])
@@ -2028,7 +2045,8 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
 
 
 def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
-               rotor_scan=None, optical_population=None):
+               rotor_scan=None, optical_population=None,
+               electronic_state_parameters=None, correction_cache=None, state_cache=None):
     
     if ts:
         j = job
@@ -2046,6 +2064,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
     energy = np.inf
     zpe = np.inf
     reference_identity = None
+    selected_shift = 0.
     for well in wells:
         if "IRC" in well:
             well = well.split("_")[0]
@@ -2057,12 +2076,15 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
         db = connect(well + '/kinbot.db')
         rows = list(db.select(name=j))
         for row in reversed(list(rows)):  # only take the last one and ignore others
+            if row.data.get('status') != 'normal':
+                break
             try:
                 new_energy = row.data.get('energy') * constants.EVtoHARTREE
                 new_zpe = row.data.get('zpe')
             except (UnboundLocalError, TypeError):
                 break
-            if new_zpe is None:
+            if (new_zpe is None or not np.isfinite(new_energy)
+                    or not np.isfinite(new_zpe)):
                 break
             if not ts:
                 # Check every candidate before comparing energies. Separate
@@ -2078,13 +2100,28 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
                     raise ValueError(f'{job}: different complete stereoisomer identities '
                                      'share one calculation name across PES workers.')
                 reference_identity = identity
-            if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
-                energy = new_energy
+            shift = 0.
+            if not ts:
+                st_pt.mult = int(connectivity_name(job)[-1])
+            if not ts and electronic_state_parameters:
+                # The routing name records the computed spin. Do not replace
+                # it with the requested model or an electron-parity guess.
+                from kinbot.electronic_states import spin_orbit_energy_shift
+                shift = spin_orbit_energy_shift(st_pt, electronic_state_parameters)
+            if hasattr(row, 'data') and new_energy + shift + new_zpe < energy + zpe:
+                energy = new_energy + shift
                 zpe = new_zpe
+                selected_shift = shift
+                if not ts and state_cache is not None:
+                    state_cache[job] = dict(charge=int(st_pt.charge),
+                        multiplicity=st_pt.mult, smiles=st_pt.smiles,
+                        source_row_id=row.id, source_job=j, source_worker=well)
             break
     if np.isinf(energy) or np.isinf(zpe):
         raise ValueError(f'Unable to find an energy for {j}.')
 
+    if correction_cache is not None:
+        correction_cache[job] = selected_shift
     return energy, zpe
 
 

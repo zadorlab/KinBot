@@ -233,10 +233,11 @@ def test_unresolved_well_is_written_with_weight_one_warning_and_export(tmp_path,
     assert result['measured_mirror_rmsd_tolerance_angstrom']==.1
 
 
-def test_saved_loose_ts_uses_explicit_midpoint_approximation():
+def test_saved_loose_ts_keeps_midpoint_as_diagnostic_only():
     result=thermochemistry_evidence(loose_ts())['optical_counting']
-    assert result['status']=='assumed' and result['remaining_multiplier']==1
+    assert result['status']=='unresolved' and result['remaining_multiplier']==1
     assert .1<result['coordinate_coverage']['largest_local_rmsd_angstrom']<.25
     assert result['harmonic_midpoint']['status']=='complete'
-    assert result['harmonic_midpoint']['cutoff_kcal_mol']==4.
-    assert result['heuristic']=='harmonic_midpoint'
+    assert result['harmonic_midpoint']['cutoff_kcal_mol'] is None
+    assert not result['harmonic_midpoint']['used_for_optical_counting']
+    assert not result.get('heuristic')

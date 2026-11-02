@@ -71,7 +71,7 @@ class ZeroKBarrier:
 
 
 def species_zero_k_hartree(species) -> float:
-    """Use accepted ANL E0 once, otherwise preserve electronic + L2 ZPE."""
+    """Use accepted ANL E0 once, otherwise E + ZPE + declared SO shift."""
     final = getattr(species, 'final_zero_k_energy', None)
     if final is not None:
         if (not isinstance(final, ZeroKEnergy) or not math.isfinite(final.hartree)
@@ -85,7 +85,8 @@ def species_zero_k_hartree(species) -> float:
     zpe = float(species.zpe)
     if not math.isfinite(electronic) or not math.isfinite(zpe):
         raise ValueError(f'{species.name}: nonfinite legacy energy or ZPE.')
-    return math.fsum((electronic, zpe))
+    from kinbot.electronic_states import spin_orbit_energy_shift
+    return math.fsum((electronic, zpe, spin_orbit_energy_shift(species)))
 
 
 def attach_composite_energy(species, result) -> ZeroKEnergy:
@@ -105,8 +106,9 @@ def attach_anharmonic_frequencies(species, parsed_vpt2, *, mode_map=None,
 
     ``species.reduced_freqs`` is the Hessian after internal rotations have
     been projected out, so it may contain fewer modes than Gaussian's VPT2
-    table.  Match the retained harmonics globally and add ``E(anh)-E(harm)``.
-    An explicit one-based ``mode_map`` can replace automatic matching.
+    table. This vector-free interface requires a reviewed one-based mode map.
+    Frequency proximity is not evidence of mode identity. The native workflow
+    uses geometry-aligned displacement overlaps in ``kinbot.anl.thermal``.
     """
     if (not isinstance(parsed_vpt2, dict)
             or parsed_vpt2.get('kind') != 'gaussian_vpt2'):
@@ -128,13 +130,10 @@ def attach_anharmonic_frequencies(species, parsed_vpt2, *, mode_map=None,
         raise ValueError(f'VPT2 has {len(harmonic)} fundamentals; KinBot needs '
                          f'{len(target)}.')
     if mode_map is None:
-        from scipy.optimize import linear_sum_assignment
-        costs = [[abs(target_value - source_value) for source_value in harmonic]
-                 for target_value in target]
-        rows, columns = linear_sum_assignment(costs)
-        mapping = [None] * len(target)
-        for row, column in zip(rows, columns):
-            mapping[row] = int(column)
+        raise ValueError('Automatic VPT2 mode matching requires native displacement '
+                         'vectors and their geometry. Use the native thermal handoff '
+                         'or supply a reviewed explicit mode_map; frequencies alone '
+                         'do not establish mode identity.')
     else:
         if (not isinstance(mode_map, (list, tuple))
                 or len(mode_map) != len(target)
@@ -162,6 +161,7 @@ def attach_anharmonic_frequencies(species, parsed_vpt2, *, mode_map=None,
         'basis': parsed_vpt2['basis'],
         'dispersion': parsed_vpt2['dispersion'],
         'mode_map': [value + 1 for value in mapping],
+        'mode_mapping_evidence': 'explicit user mapping; no vector overlap calculated by this interface',
         'maximum_harmonic_mismatch_cm_inverse': max(differences),
     }
     return species.anl_thermochemistry_frequencies

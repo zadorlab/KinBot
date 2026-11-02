@@ -14,7 +14,7 @@ def test_scout_preserves_declared_diatomic_state_through_job_and_mess_identity()
     production=json.loads((root/'ch3ss_anl1_f12/ch3ss.json').read_text())
     par=Parameters(str(root/'ch3ss_anl1_f12/scouting_r8/input.json'),show_warnings=False).par
     declared=next(x for x in production['electronic_state_models'] if x['smiles']=='[S][S]')
-    assert par['electronic_state_models']==[declared]
+    assert par['electronic_state_models']==production['electronic_state_models']
     # The ordinary closed-shell Lewis representation initially suggests spin 1.
     # Apply the explicit contract at the same point used for discovered products.
     fragment=StationaryPoint('product',0,1,smiles='S=S')
@@ -35,3 +35,8 @@ def test_both_scouts_remain_input_only_pst_with_existing_cutoffs():
         assert par['me']==1 and par['run_me']==0 and par['rotdpy_mess_mode']=='off'
         assert par['l1_pes_energy_ceiling']==150 and par['vdW_detection']==.5
         assert par['l1_vdw_depth_check'] and par['correct_submerged']==1
+        production=json.loads((root/(case+'_anl1_f12')/(case+'.json')).read_text())
+        assert par['electronic_state_models']==production['electronic_state_models']
+        sulfur=StationaryPoint('S',0,3,smiles='[S]')
+        sulfur.characterize()
+        assert mess_electronic_levels(sulfur,par)==(3,'0 5\n396.055 3\n573.64 1')

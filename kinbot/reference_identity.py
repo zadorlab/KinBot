@@ -8,6 +8,26 @@ from rdkit import Chem
 import networkx as nx
 
 
+def same_atomic_connectivity(left, right):
+    """Compare atom/isotope connectivity, ignoring localized bond orders.
+
+    This only prevents stale display/model lookup SMILES after a bond forms
+    or breaks. It does not identify stereoisomers, charge or spin states.
+    Those remain the responsibility of the configured species identity.
+    """
+    mols = [Chem.MolFromSmiles(value) for value in (left, right)]
+    if any(mol is None for mol in mols):
+        return False
+    graphs = []
+    for mol in map(Chem.AddHs, mols):
+        graph = nx.Graph()
+        graph.add_nodes_from((a.GetIdx(), dict(element=a.GetAtomicNum(), isotope=a.GetIsotope()))
+                             for a in mol.GetAtoms())
+        graph.add_edges_from((b.GetBeginAtomIdx(), b.GetEndAtomIdx()) for b in mol.GetBonds())
+        graphs.append(graph)
+    return nx.is_isomorphic(*graphs, node_match=lambda a, b: a == b)
+
+
 def reference_smiles_match(requested, perceived):
     """Match explicit-H connectivity, isotope, charge and radical count.
 

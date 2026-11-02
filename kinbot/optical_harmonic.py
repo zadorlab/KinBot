@@ -1,10 +1,9 @@
-"""Local harmonic midpoint estimates and an explicit optical approximation.
+"""Local harmonic midpoint diagnostics, never optical counting evidence.
 
 The midpoint is a Cartesian construction, not a saddle or an inversion path.
 Only the original Hessian is used. No QC, relaxation, or overlap integral is
-computed. The counting rule is a heuristic, not proof of coverage.
+computed. A local quadratic energy cannot establish mirror coverage.
 """
-from numbers import Real
 import copy
 import networkx as nx
 import numpy as np
@@ -16,42 +15,18 @@ from kinbot.molecular_symmetry import _physical_role_graphs, _preserves_resonanc
 
 
 METHOD = 'torsion-aligned-harmonic-midpoint-v1'
-OPTICAL_MIDPOINT_CUTOFF_KCAL_MOL = 4.
 
 
 def apply_midpoint_heuristic(counting, diagnostic):
-    """Resolve only geometric uncertainty under the agreed 4 kcal/mol rule.
+    """Legacy API: attach the diagnostic without changing a counting decision.
 
-    Fixed populations, measured coverage, conflicting calculations and explicit
-    assumptions are authoritative. Missing or incomplete estimates keep the
-    existing warned weight-one fallback. No physical mirror count is inferred.
+    The former automatic 4 kcal/mol cutoff had no overlap or integration-domain
+    evidence behind it. Keep the calculation available for inspection; only
+    the geometric/domain checks or an explicit user assumption set the weight.
     """
-    result = dict(counting, harmonic_midpoint=diagnostic)
-    if (counting.get('status') != 'unresolved'
-            or counting.get('fallback') != 'unresolved_symmetry'
-            or counting.get('reason') not in (
-                'Rigid mirror comparison is numerically undetermined.',
-                'The represented motions do not establish mirror coverage or retained handedness.')
-            or counting.get('population_scope', {}).get('mirror_allowed') is not True
-            or diagnostic.get('status') != 'complete'
-            or diagnostic.get('mapping_search_complete') is not True):
-        return result
-    energy = diagnostic.get('stable_midpoint_energy_kcal_mol')
-    if (not isinstance(energy, Real) or isinstance(energy, (bool, np.bool_))
-            or not np.isfinite(energy) or energy < 0):
-        return result
-    cutoff = OPTICAL_MIDPOINT_CUTOFF_KCAL_MOL
-    weight = 1. if energy <= cutoff else 2.
-    result.pop('fallback')
-    result.update(status='assumed', remaining_multiplier=weight,
-        heuristic='harmonic_midpoint',
-        reason=(f'Harmonic midpoint approximation: {float(energy)} kcal/mol '
-                f'{"<=" if weight == 1 else ">"} {cutoff:g} kcal/mol; optical factor {weight:g}. '
-                'This is a counting heuristic, not an inversion barrier or measured mirror coverage.'),
-        harmonic_midpoint=dict(diagnostic, cutoff_kcal_mol=cutoff,
-            optical_weight_changed=weight != counting.get('remaining_multiplier'),
-            used_for_optical_counting=True))
-    return result
+    return dict(counting, harmonic_midpoint=dict(diagnostic,
+        diagnostic_only=True, used_for_optical_counting=False,
+        optical_weight_changed=False))
 
 
 def harmonic_midpoint_energy(species, aligned_mirror, hessian, *, hessian_unit):
@@ -171,13 +146,10 @@ def mirror_midpoint_diagnostic(species, hessian, *, hessian_unit, rotors=(), max
             if any(abs((mirror.get_dihedral(*dihed)-angle+180.) % 360.-180.) > 1.e-6
                    for dihed, _, angle in instructions):
                 raise ValueError('The constructed mirror does not retain all target dihedral angles.')
-            left = mirror.positions - mirror.positions.mean(axis=0)
-            right = original - original.mean(axis=0)
-            u, _, vt = np.linalg.svd(left.T @ right)
-            sign = np.eye(3)
-            sign[-1, -1] = np.linalg.det(u @ vt)
-            aligned = left @ u @ sign @ vt + original.mean(axis=0)
-            rmsd = float(np.sqrt(np.mean(np.sum((aligned-original)**2, axis=1))))
+            from kinbot.spatial import proper_alignment
+            fit = proper_alignment(mirror.positions, original)
+            aligned = mirror.positions @ fit.rotation + fit.translation
+            rmsd = fit.rmsd
             if best is None or rmsd < best[0]:
                 best = rmsd, aligned, order
         if not complete:
@@ -256,22 +228,16 @@ def conformer_midpoint_diagnostic(species, record, *, target_geometry=None):
 
 
 def conformer_pair_midpoint(species, left, right):
-    """Resolve uncertain explicit mirror matching with both local quadratic models."""
+    """Report both quadratic estimates without deciding mirror equivalence."""
     forward = conformer_midpoint_diagnostic(species, left, target_geometry=right.geometry)
     reverse = conformer_midpoint_diagnostic(species, right, target_geometry=left.geometry)
-    result = dict(status='undetermined', heuristic='harmonic_midpoint_pair',
-                  cutoff_kcal_mol=OPTICAL_MIDPOINT_CUTOFF_KCAL_MOL,
+    result = dict(status='undetermined', diagnostic_only=True,
                   conformer_ids=[left.member_id, right.member_id],
                   forward=forward, reverse=reverse)
     if not all(d.get('status') == 'complete' and d.get('mapping_search_complete') is True
                for d in (forward, reverse)):
         result['reason'] = 'A complete own-Hessian estimate is unavailable for one or both conformers.'
         return result
-    energies = [d['stable_midpoint_energy_kcal_mol'] for d in (forward, reverse)]
-    if all(e <= OPTICAL_MIDPOINT_CUTOFF_KCAL_MOL for e in energies):
-        result.update(status='match', reason='Both reflected-pair midpoint estimates are below the cutoff.')
-    elif all(e > OPTICAL_MIDPOINT_CUTOFF_KCAL_MOL for e in energies):
-        result.update(status='distinct', reason='Both reflected-pair midpoint estimates exceed the cutoff.')
-    else:
-        result['reason'] = 'The two conformer Hessians disagree across the midpoint cutoff.'
+    result['reason'] = ('Local quadratic midpoint energies do not establish '
+                        'mirror equivalence or separate integration domains.')
     return result

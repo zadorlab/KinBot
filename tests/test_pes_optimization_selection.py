@@ -182,6 +182,15 @@ class TestPESOptimizationSelection(unittest.TestCase):
                 publish_optimization_result(opt)
         self.assertEqual(self.db.count(name=opt.log_name(0)), 0)
 
+    def test_failed_attempt_with_finite_properties_is_not_a_pes_energy(self):
+        job = self.well + '_well'
+        self.record(job, -100.)
+        self.record(job, -101., status='error')
+        with self.assertRaises(ValueError, msg='A finite failed SCF energy must not reach MESS'):
+            get_energy([self.well], self.well, 0, 0)
+        self.record(job, -100.5, status='normal')
+        self.assertEnergy(get_energy([self.well], self.well, 0, 0), (-100.5, .1))
+
 
 if __name__ == '__main__':
     unittest.main()

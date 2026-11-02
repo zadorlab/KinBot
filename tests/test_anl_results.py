@@ -1020,7 +1020,9 @@ def test_gaussian_vpt2_fundamentals_are_an_explicit_mess_handoff():
         'anl_thermochemistry_frequencies': None,
         'anl_thermochemistry_frequency_source': None,
     })()
-    fundamentals = attach_anharmonic_frequencies(species, result)
+    with pytest.raises(ValueError, match='native displacement'):
+        attach_anharmonic_frequencies(species, result)
+    fundamentals = attach_anharmonic_frequencies(species, result, mode_map=list(range(9, 0, -1)))
     assert fundamentals[0] == pytest.approx(1311.24)
     assert fundamentals[-1] == pytest.approx(3010.18)
     source = species.anl_thermochemistry_frequency_source
@@ -1030,13 +1032,13 @@ def test_gaussian_vpt2_fundamentals_are_an_explicit_mess_handoff():
     # A rotor-projected target can contain fewer modes; the unmatched VPT2
     # mode is omitted rather than serialized alongside the hindered rotor.
     species.reduced_freqs = species.reduced_freqs[1:]
-    assert len(attach_anharmonic_frequencies(species, result)) == 8
+    assert len(attach_anharmonic_frequencies(species, result, mode_map=list(range(8, 0, -1)))) == 8
     species.reduced_freqs = [5000.] * 10
     with pytest.raises(ValueError, match='KinBot needs 10'):
-        attach_anharmonic_frequencies(species, result)
+        attach_anharmonic_frequencies(species, result, mode_map=list(range(9, 0, -1)))
     species.reduced_freqs = [5000.] * 9
     with pytest.raises(ValueError, match='mode match exceeds'):
-        attach_anharmonic_frequencies(species, result)
+        attach_anharmonic_frequencies(species, result, mode_map=list(range(9, 0, -1)))
     blocked = parse_gaussian_vpt2(
         _GAUSSIAN_VPT2.replace('1311.24', '-1.00'),
         method='B3LYP', basis='cc-pVTZ')

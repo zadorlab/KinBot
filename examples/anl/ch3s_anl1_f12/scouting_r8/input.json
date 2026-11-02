@@ -58,5 +58,118 @@
   "basis": "cc-pVDZ",
   "high_level_method": "B2PLYP",
   "high_level_basis": "cc-pVTZ",
-  "correct_submerged": 1
+  "correct_submerged": 1,
+  "electronic_state_models": [
+    {
+      "smiles": "[S]",
+      "charge": 0,
+      "ground_multiplicity": 3,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 3,
+          "degeneracy": 5,
+          "label": "3P2"
+        },
+        {
+          "energy_cm_inverse": 396.055,
+          "multiplicity": 3,
+          "degeneracy": 3,
+          "label": "3P1"
+        },
+        {
+          "energy_cm_inverse": 573.64,
+          "multiplicity": 3,
+          "degeneracy": 1,
+          "label": "3P0"
+        }
+      ],
+      "source": "NIST S I levels: https://physics.nist.gov/PhysRefData/Handbook/Tables/sulfurtable5_a.htm",
+      "term_orbital_degeneracy": 3,
+      "spin_free_reference": "term_centroid"
+    },
+    {
+      "smiles": "[CH3][S]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 2,
+      "source": "Gas-phase IR/VUV photoionization: 255 +/- 4 cm-1, https://www.sciencedirect.com/science/article/pii/S0009261411008153 . Two Kramers components, g=2 each; RRHO electronic-level approximation, not a full Jahn-Teller vibronic partition function. Effective experimental centroid approximation: add -255/2 cm^-1 once to the scalar ANL energy; retain scalar anharmonic ZPE. This approximates coupled JT/SO dynamics; no separate JT correction is added.",
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2E3/2"
+        },
+        {
+          "energy_cm_inverse": 255.0,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2E1/2"
+        }
+      ],
+      "spin_free_reference": "term_centroid"
+    },
+    {
+      "smiles": "[SH]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 2,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2Pi3/2"
+        },
+        {
+          "energy_cm_inverse": 376.835,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2Pi1/2"
+        }
+      ],
+      "source": "Experimental ground-state A0=-376.835 cm-1: Milan et al., Chem. Phys. Lett. 239 (1995) 326-331, https://doi.org/10.1016/0009-2614(95)00488-2 . Electronic components only; rotational multiplicity is counted by the rotor. Experimental ground-term centroid approximation: add -376.835/2 cm^-1 once to the scalar ANL energy; retain scalar anharmonic ZPE.",
+      "spin_free_reference": "term_centroid"
+    },
+    {
+      "smiles": "[CH3]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 1,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2
+        }
+      ],
+      "source": "Methyl X 2A2-double-prime, orbital nondegenerate; ground spin only. Neutral fragment term: Cole-Filipiak et al., JCP 138, 054301 (2013), https://bromine.cchem.berkeley.edu/grppub/xbeam15.pdf . No added first-order orbital SO correction."
+    },
+    {
+      "smiles": "[H]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 1,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2
+        }
+      ],
+      "source": "Hydrogen 1s 2S1/2, L=0: no first-order orbital SO splitting. https://physics.nist.gov/PhysRefData/Handbook/Tables/hydrogentable1.htm . Hyperfine structure is omitted."
+    },
+    {
+      "smiles": "C=[SH]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 1,
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2
+        }
+      ],
+      "source": "CH2SH connectivity, nondegenerate ground doublet; do not transfer the CH3S 2E correction between isomers. Karaev et al., PCCP 26 (2024) 28939-28946, https://doi.org/10.1039/D4CP03906H . Ground spin only; no added first-order SO centroid correction."
+    }
+  ]
 }

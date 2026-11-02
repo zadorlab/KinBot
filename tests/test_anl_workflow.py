@@ -339,8 +339,12 @@ def test_verified_vpt2_task_attaches_partition_function_frequencies():
             'anl_thermochemistry_frequencies': None,
             'anl_thermochemistry_frequency_source': None,
         })()
+        # This synthetic fixture has frequencies only. Automatic matching
+        # must require native vectors; its deliberately reversed map is known.
+        with pytest.raises(ValueError, match='native'):
+            attach_task_vpt2_frequencies(species, run_dir, 'vpt2_qz')
         corrected = attach_task_vpt2_frequencies(
-            species, run_dir, 'vpt2_qz')
+            species, run_dir, 'vpt2_qz', mode_map=list(range(9, 0, -1)))
         assert corrected == pytest.approx(
             [1230., 1330., 1380., 1530., 1580., 2980., 3080., 3130., 3180.])
         source = species.anl_thermochemistry_frequency_source
@@ -373,7 +377,8 @@ def test_native_gaussian_warning_does_not_block_anl_frequency_handoff():
             'anl_thermochemistry_frequencies': None,
             'anl_thermochemistry_frequency_source': None,
         })()
-        attach_task_vpt2_frequencies(species, run_dir, 'vpt2_qz')
+        attach_task_vpt2_frequencies(
+            species, run_dir, 'vpt2_qz', mode_map=list(range(9, 0, -1)))
         assert species.anl_thermochemistry_frequencies[-1] == \
             pytest.approx(3180.)
 

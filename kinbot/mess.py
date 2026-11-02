@@ -511,7 +511,7 @@ class MESS:
                 temperatures=' '.join(f'{value:g}' for value in temperatures),
                 name=species.name, natom=species.natom,
                 geom=self.rotor_geom(species),
-                symm=float(self._thermal_sigma(species)) / float(species.nopt),
+                symm=self._parent_symmetry(species),
                 rotconst=self.rotor_core_line(species),
                 nfreq=len(stable_freqs),
                 freq=self.make_freq(stable_freqs, 1., 0),
@@ -571,9 +571,7 @@ class MESS:
             'multiplicity': int(species.mult),
             'symbols': symbols,
             'positions': positions.tolist(),
-            'symmetry_factor': (1. if species.natom == 1 else
-                                float(self._thermal_sigma(species))
-                                / float(species.nopt)),
+            'symmetry_factor': (1. if species.natom == 1 else self._parent_symmetry(species)),
             'frequencies_cm_inverse': frequencies,
             'electronic_levels': electronic_levels_for_species(
                 species, self.par),
@@ -1425,13 +1423,26 @@ class MESS:
             raw_modes, saddle, self.par.get('imagfreq_threshold', 50.))
         electronic = self._electronic_fields(
             species, '      ', ground_only=saddle)
-        return self._counting_comment(record.optical_evidence, record.member_id) + self.rrhotpl.format(
+        block = self._counting_comment(record.optical_evidence, record.member_id) + self.rrhotpl.format(
             natom=species.natom, geom=self.rotor_geom(species, geom, raw_modes),
             core=self.corerrtpl.format(symm=sigma / record.remaining_optical_weight,
                 rotconst=self.rotor_core_line(species, geom, raw_modes)),
             nfreq=len(modes) - int(saddle), freq=self.make_freq(modes, freq_factor, int(saddle)),
             rotors='', tunneling=tunneling, **electronic,
             zeroenergy=zeroenergy, shift=shift)
+        if saddle:
+            from copy import copy
+            from kinbot.transition_symmetry import annotate_surface_symmetry
+            view = copy(species)
+            view.geom = np.asarray(geom)
+            view.hess = record.hessian or ()
+            view.source_job = record.source_job
+            view.source_row_id = (record.hessian_reference or {}).get('source_row_id')
+            view.optical_hessian_reference = record.hessian_reference
+            view.hessian_source_job = (record.hessian_reference or {}).get('hessian_source_job')
+            block = annotate_surface_symmetry(block, view)
+        from kinbot.mess_symmetry import mark_current
+        return mark_current(block)
 
     def _population_comment(self, species):
         comment = self._optical_comment(species)
@@ -1533,7 +1544,7 @@ class MESS:
                                                            smi=species.smiles,
                                                            natom=species.natom,
                                                            geom=self.rotor_geom(species),
-                                                           symm=float(species.sigma_ext) / float(species.nopt),
+                                                           symm=self._parent_symmetry(species),
                                                            rotconst=self.rotor_core_line(species),
                                                            freq=self.make_freq(stable_freqs, freq_factor, 0))
                 elif members:
@@ -1829,6 +1840,8 @@ class MESS:
         mess_well = annotate_population(mess_well, [species], self.par.get('optical_population', 'specified'),
             energy_reference=zeroenergy if self.par['multi_conf_tst'] else None)
         mess_well = self._population_comment(species) + mess_well
+        from kinbot.mess_symmetry import mark_current
+        mess_well = mark_current(mess_well)
         if 'prod' not in species.name:
             with open('{}_{:04d}.mess'.format(routing_key(species), uq_iter), 'w') as f:
                 f.write(mess_well)
@@ -2042,11 +2055,16 @@ class MESS:
                             '! Inner-TS tunneling depths retain the selected product-complex reference.\n'
                             + mess_barrier)
         mess_barrier = variational_warning + self._optical_comment(reaction.ts) + mess_barrier
+        from kinbot.mess_symmetry import mark_current
+        mess_barrier = mark_current(mess_barrier)
         connected_products = ([self._product_complex(reaction)]
                               if self._include_complex(reaction)
                               else products)
         mess_barrier = annotate_endpoints(mess_barrier, [self.species], connected_products,
                                           self.par.get('optical_population', 'specified'))
+        if (not use_ensemble or not valid_conformers) and not variational:
+            from kinbot.transition_symmetry import annotate_surface_symmetry
+            mess_barrier = annotate_surface_symmetry(mess_barrier, reaction.ts)
         path_id = reaction_path_id(reaction)
         if path_id is not None:
             mess_barrier = f'! kinbot_stereopath {path_id}\n' + mess_barrier

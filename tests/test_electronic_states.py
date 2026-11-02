@@ -153,7 +153,7 @@ def test_reviewed_molecular_corrections_preserve_cas_terms(case):
         assert [(x['energy_cm_inverse'], x['degeneracy']) for x in model['levels']] == [(0., 2), (gap, 2)]
         assert model['spin_orbit_correction']['value_hartree'] == pytest.approx(-gap / 2 * invcm / Hartree)
     assert {smiles for (smiles, charge), model in models.items()
-            if 'spin_orbit_correction' in model} == {'[S]', '[SH]', 'C[S]'}
+            if 'spin_orbit_correction' in model} == {'[S]', '[SH]', 'C[S]', '[CH]'}
     methyl = SimpleNamespace(smiles='[CH3]', charge=0, mult=2)
     sulfur = SimpleNamespace(smiles='[S]', charge=0, mult=3)
     methylthiyl = SimpleNamespace(smiles='C[S]', charge=0, mult=2)
@@ -229,7 +229,7 @@ def test_entire_supplied_network_and_reference_inventory_has_a_decision(case):
     report = audit_electronic_states(states + [
         dict(smiles='[CH]', charge=0, multiplicity=2),
         dict(smiles='[C]', charge=0, multiplicity=3)], par)
-    assert {r['smiles'] for r in report['requires_review']} == {'[CH]', '[C]'}
+    assert {r['smiles'] for r in report['requires_review']} == {'[C]'}
 
 
 def test_electronic_audit_keeps_roles_and_reports_wrong_spin():

@@ -250,6 +250,28 @@
         }
       ],
       "source": "CH2SHS connectivity (also reverse-order [S]S=C), C1 equilibrium radical in the CH3S2 isomer study, https://doi.org/10.1016/0166-1280(95)04154-X ; structures reproduced in Fig. 1 of https://bromine.cchem.berkeley.edu/grppub/xbeam15.pdf . Nondegenerate doublet: no first-order orbital SO centroid term. Higher-order SO omitted."
+    },
+    {
+      "smiles": "[CH]",
+      "charge": 0,
+      "ground_multiplicity": 2,
+      "term_orbital_degeneracy": 2,
+      "spin_free_reference": "term_centroid",
+      "levels": [
+        {
+          "energy_cm_inverse": 0.0,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2Pi1/2"
+        },
+        {
+          "energy_cm_inverse": 28.14675,
+          "multiplicity": 2,
+          "degeneracy": 2,
+          "label": "X 2Pi3/2"
+        }
+      ],
+      "source": "Colin and Bernath, J. Mol. Spectrosc. 263 (2010) 120-122, Table 2, A0=28.14675 cm^-1, https://doi.org/10.1016/j.jms.2010.06.013 . Effective electronic-component RRHO approximation with g=2 for each component; rotational degeneracy belongs to the rotor. Ground-term centroid shift -A0/2 is applied once; raw scalar QC and ZPE are retained. Spin-rotation mixing, Lambda doubling and hyperfine structure are not resolved by this scouting model."
     }
   ]
 }

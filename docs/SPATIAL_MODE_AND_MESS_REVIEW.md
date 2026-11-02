@@ -167,6 +167,38 @@ termination or MESS exit alone cannot establish physical accuracy. Negative
 pressure-dependent MESS coefficients are not clipped or used for pruning.
 The collisionless/HPL scope and sensitivity of any shortlist must be stated.
 
+## Reconciliation with the two independent review artifacts
+
+The original artifacts were rechecked against the delivered inputs, rather
+than treating every proposed change as an established bug.
+
+| Flag | Resolution and scope |
+| --- | --- |
+| A: asymmetric mirror routes; unequal mirror PST thresholds | Shared mirror assembly applies one complete selected model consistently to both sides, including its threshold and endpoint references. Distinct classified pathways remain distinct. |
+| B: split retention scores | Shared grouping and exact first-passage union probabilities retain or drop mirror/conformer work groups together. The kinetic wells remain separate. |
+| C: merge rotamers and remove torsional saddles | Group them for work selection. Similar connectivity alone does not prove rapid equilibration or justify replacing separate kinetic populations by one hindered rotor. No such physical lumping was applied. |
+| D: rotational/optical factors; rxn20 double counting | Whole-geometry rotations, documented rotor domains, and native reactive-mode parity resolve the audited cases. The proposed C1 assignment for w14/w15 was contradicted by their C2 geometries. |
+| E: loose harmonic saddles | They are included in the 0.5/2 sensitivity scenarios. This is a scouting sensitivity check, not validation of a production VRC potential or proof that the RRHO error is bounded by two. |
+| F: electronic levels | General writer, cached-population and energy-reference handling are native KinBot fixes. S, SH, CH3S and CH require explicit sourced models in the input; no molecule-specific level table is hidden in the code. |
+| G: shallow w9/submerged rxn37 | The selected submerged-barrier approximation is explicit. A saddle below an optimized minimum at a different level does not by itself prove that minimum does not exist. Keep the full scout representation; collapsing it into one production channel needs its own model decision. |
+| H: retained returning side branch | Exact branching includes returns. A visited branch need not produce an exit; retention is conservative and is not a recommendation to run every retained object at high level. Candidate scopes remain unapproved. |
+| I: negative pressure rates | Unresolved numerical validation, excluded from all scope selection. Higher-precision native checks are separate from the KinBot fixes. |
+| J: search-family names | Preserve these as provenance identifiers, not mechanistic assignments. Scope groups use endpoints and population identities, not the search-family label. |
+| K: apparently identical product labels | Cached labels now follow the selected geometries: pr6/pr18 are cyclic mirrors, while pr11 is open-chain. They are not merged by their formerly stale comments. |
+| L: CSH versus HCS product | The CH3S pr3 native fragment geometry has H bonded to S, as its H-S-C comment says. It is not replaced by the more stable connectivity merely because that would be expected. |
+
+The follow-up input audit found that the first symmetry-review push retained
+the previous CH omission. Both production and scout examples now explicitly
+include CH X2Pi components at 0 and 28.14675 cm-1, with weight two each and a
+single -A0/2 scalar-centroid correction. The value is from Colin and Bernath,
+J. Mol. Spectrosc. 263 (2010), 120-122, Table 2,
+https://doi.org/10.1016/j.jms.2010.06.013. This is the same effective electronic
+component/RRHO approximation used for the scout's other diatomic terms; it
+does not resolve spin-rotation mixing, Lambda doubling or hyperfine structure.
+An explicit regression now checks coverage of all four flagged degenerate
+species, cached CH rendering, unchanged raw geometry/frequency/energy fields,
+and preservation of the reactive-surface spin weight.
+
 ## Completed release validation and updated scouting scope
 
 The isolated published checkout plus only this review's files passed **538

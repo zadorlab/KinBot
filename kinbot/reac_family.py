@@ -91,6 +91,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         return -1
 
     step, fix, change, release = rxn.get_constraints(step, geom)
+    constraint_targets = ([list(c) for c in change]
+                          if rxn.family_name == 'dissociation_saddle' else [])
     logger.debug(f'status of constraints step {step} fix {fix} chage {change} release {release}')
 
     if step > rxn.max_step:
@@ -228,6 +230,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 code=code,  # Sella
                                 Code=Code,  # Sella
                                 fix=get_unique_list_of_lists(fix),  # Sella
+                                constraint_targets=constraint_targets,
                                 sella_kwargs=skw,
                                 fmax=runtime_par['sella_fmax'],
                                 steps=runtime_par['sella_steps'],

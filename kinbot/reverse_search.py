@@ -316,18 +316,25 @@ def export_result(species, par, qc):
         if species.reac_ts_done[i]==-1:
             if not hasattr(obj,'irc_reactant'):
                 raise ValueError('Accepted reverse abstraction has no retained entrance IRC endpoint.')
+            # Product objects can be renamed to species IDs and optimized in
+            # place. Read the native endpoints by their preserved job IDs,
+            # never by the later product name or its L2 coordinates.
+            jobs = obj.irc_endpoint_jobs
+            points = {side:l1_screening.read_points(Path.cwd(), [job],
+                l1_screening.theory(par), geometry=True, require_zpe=False)[0]
+                for side, job in jobs.items()}
+            entrance = StationaryPoint(jobs['reactant'], species.charge, species.mult,
+                atom=points['reactant']['symbols'], geom=np.asarray(points['reactant']['positions'], dtype=float))
+            entrance.characterize()
             item.update(ts_l2=_point(obj.ts_opt.species),products_l2=[_point(o.species) for o in obj.prod_opt],
                 stereopath=reaction_path_id(obj),
-                entrance_l1_job=obj.irc_reactant.name,
-                entrance_l1=l1_screening.read_points(Path.cwd(),[obj.irc_reactant.name],
-                    l1_screening.theory(par),geometry=True,require_zpe=False)[0],
-                product_l1_job=obj.irc_prod.name)
-            item['entrance'] = characterize_entrance(obj.irc_reactant,
+                entrance_l1_job=jobs['reactant'], entrance_l1=points['reactant'],
+                product_l1_job=jobs['product'])
+            item['entrance'] = characterize_entrance(entrance,
                 (species.fragA,species.fragB),par,qc)
             item['product_complex_l2'] = (_point(obj.irc_prod_opt.species)
                 if obj.do_vdW and obj.irc_prod_opt.shigh==1 else None)
-            item['product_endpoint_l1'] = l1_screening.read_points(Path.cwd(),
-                [obj.irc_prod.name],l1_screening.theory(par),geometry=True,require_zpe=False)[0]
+            item['product_endpoint_l1'] = points['product']
         records.append(item)
     atomic_json('reverse_search_result.json',dict(schema=1,status='discovery_complete_needs_integration',
         source_reference=par.get('bimol_pes_reference'),reactions=records,

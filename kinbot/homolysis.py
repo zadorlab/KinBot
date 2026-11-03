@@ -17,6 +17,86 @@ from kinbot.species_routing import routing_key
 FAMILY = 'dissociation_saddle'
 
 
+def repair_constraint_target(qc, obj, entry):
+    """One owner-driven repair of an old scan frozen at the approximate guess.
+
+    Preserve all completed points. Only a normal, strictly converged legacy
+    point whose actual frozen coordinate explains the rejection is eligible.
+    No SCF/optimizer failure or exhausted saddle search enters this procedure.
+    """
+    import ast
+    import shutil
+    from kinbot.execution import file_sha256
+    path = Path(obj.instance_name+'.dissociation_scan.json')
+    if not path.is_file():
+        return None
+    data = json.loads(path.read_text())
+    if data.get('outcome') == 'constraint_target_repair_submitting':
+        return data['constraint_target_repair']['step']  # journal-before-checkpoint interruption
+    if data.get('outcome') != 'scan_constraint_not_met' or data.get('constraint_target_repair'):
+        return None
+    step = int(entry['step'])-1
+    if (not 0 <= step < obj.max_step or data.get('step') != step+1
+            or any(p['step'] >= step for p in data.get('points', []))
+            or qc.check_qc(obj.instance_name) != 'normal'):
+        return None
+    source = Path(obj.instance_name+'.py')
+    if not source.is_file():
+        return None
+    values = {}
+    try:
+        for node in ast.parse(source.read_text()).body:
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                if target.id in ('strict_scan', 'constraint_targets'):
+                    values[target.id] = ast.literal_eval(node.value)
+                elif target.id == 'input_geom':
+                    values[target.id] = ast.literal_eval(node.value.args[0])
+                elif target.id == 'base_0_fix':
+                    values[target.id] = ast.literal_eval(node.value.generators[0].iter)
+        guess = np.asarray(values['input_geom'], dtype=float)
+        if (values.get('strict_scan') is not True or 'constraint_targets' in values
+                or values['base_0_fix'] != [[int(i)+1 for i in obj.instance]]
+                or guess.shape != (obj.species.natom, 3) or not np.isfinite(guess).all()):
+            return None
+    except (SyntaxError, ValueError, TypeError, KeyError, AttributeError):
+        return None
+    frozen = float(np.linalg.norm(guess[obj.instance[0]]-guess[obj.instance[1]]))
+    target = obj.start_distance + step*obj.par['homolytic_saddle_scan_step']
+    error, geom = qc.get_qc_geom(obj.instance_name, obj.species.natom)
+    geom = np.asarray(geom, dtype=float)
+    if error or geom.shape != guess.shape or not np.isfinite(geom).all():
+        return None
+    actual = float(np.linalg.norm(geom[obj.instance[0]]-geom[obj.instance[1]]))
+    if (abs(target-data['target_angstrom']) > 1.e-8
+            or abs(actual-data['distance_angstrom']) > 1.e-5
+            or abs(actual-frozen) > 1.e-4 or abs(frozen-target) <= .001):
+        return None
+    archive = Path('.kinbot_scan_repairs')/obj.instance_name/'explicit_target_v1'
+    archive.mkdir(parents=True, exist_ok=True)
+    evidence = {}
+    for suffix in ('.py', '.com', '.log', '.traj', '_sella.log',
+                   '.optimization_budget.json', '.dissociation_scan.json'):
+        old = Path(obj.instance_name+suffix)
+        if not old.is_file():
+            continue
+        saved = archive/old.name
+        checksum = file_sha256(old)
+        if saved.exists() and file_sha256(saved) != checksum:
+            raise RuntimeError(f'Constraint-repair evidence changed: {saved}')
+        if not saved.exists():
+            shutil.copy2(old, saved)
+        evidence[str(old)] = dict(archive=str(saved), sha256=checksum)
+    repair = dict(step=step, reason='legacy worker froze approximate input instead of requested coordinate',
+                  frozen_angstrom=frozen, requested_angstrom=target, evidence=evidence,
+                  previous_outcome=data['outcome'])
+    record(obj, outcome='constraint_target_repair_submitting', constraint_target_repair=repair)
+    return step
+
+
 def export_notes(directory='.'):
     path=Path(directory)/'homolysis_checks.json'
     if not path.exists():return []
@@ -25,14 +105,20 @@ def export_notes(directory='.'):
             if c['outcome']=='sampled_path_supports_provisional_pst']
 
 
-def ensure_export_ready(directory='.'):
+def unresolved_checks(directory='.'):
+    """Return scientific export holds without treating them as worker crashes."""
     path = Path(directory)/'homolysis_checks.json'
     if not path.exists():
-        return  # Legacy exports have no newly requested coverage revision.
+        return []  # Legacy exports have no newly requested coverage revision.
     data = json.loads(path.read_text())
-    pending = [c['parent'] for c in data['checks'] if c['outcome'] not in
+    return [c for c in data['checks'] if c['outcome'] not in
                ('superseded_by_validated_saddle', 'parent_not_retained',
                 'sampled_path_supports_provisional_pst')]
+
+
+def ensure_export_ready(directory='.'):
+    path = Path(directory)/'homolysis_checks.json'
+    pending = [c['parent'] for c in unresolved_checks(directory)]
     if pending:
         raise RuntimeError(f'{path}: unresolved homolysis checks: {pending}; '
                            'old summaries cannot authorize a new MESS/PST export.')
@@ -91,7 +177,9 @@ def matching_saddles(species, parent):
         # Only a validated IRC breaking this bond (without other connectivity
         # edits) covers this particular direct-cleavage proposal. Atom order
         # here is the common parent/IRC order, not a guessed SMILES mapping.
-        endpoint = getattr(obj, 'irc_prod', None)
+        endpoint = getattr(obj, 'irc_product_reference', None)
+        if endpoint is None:
+            endpoint = getattr(obj, 'irc_prod', None)
         if endpoint is None:
             continue
         before = np.asarray(species.bond) > 0
@@ -189,7 +277,12 @@ def advance(generator, index):
         species.reac_ts_done[index] = -999
         return True
     data = record(obj)
-    if step > 0 and data['outcome'] != 'saddle_submitting':
+    repair = data.get('constraint_target_repair', {})
+    repairing = data['outcome'] == 'constraint_target_repair_submitting'
+    if repairing and step > repair['step']:
+        data = record(obj, outcome='scanning')
+        repairing = False
+    if step > 0 and data['outcome'] != 'saddle_submitting' and not repairing:
         if status != 'normal':
             return True  # A staged/admitted result may not yet be visible.
         err, energy = qc.get_qc_energy(obj.instance_name)
@@ -245,7 +338,11 @@ def advance(generator, index):
 
 
 def finish(species):
-    """Write outcomes and prevent unresolved assumptions reaching rate export."""
+    """Publish review holds; let the PES owner finish unrelated exploration.
+
+    The exploration barrier and all rate exporters enforce these holds. Raising
+    here would strand other wells before they can contribute their evidence.
+    """
     checks = []
     for obj in species.reac_obj:
         if not hasattr(obj, 'homolysis_parent'):
@@ -268,8 +365,4 @@ def finish(species):
     if not checks:
         return
     atomic_json('homolysis_checks.json', dict(schema=1, checks=checks))
-    unresolved = [c['parent'] for c in checks if c['outcome'] == 'unresolved']
-    if unresolved:
-        raise RuntimeError('Homolysis inner-barrier checks remain unresolved: ' +
-            ', '.join(unresolved) + '. See homolysis_checks.json and native scan/TS/IRC evidence. '
-            'No new MESS/PST export was authorized; a failed or finite scan is not proof of barrierlessness.')
+    return checks

@@ -164,6 +164,8 @@ def tick(root, jobs, *, max_searches, known_jobs=None):
         pending = _pending(root)
         targets = {(Path(r['target']).name if r['kind']=='network' else Path(r['target']).parent.name) for _, r in pending}
         workers = m['workers']
+        m['export_holds'] = {n: w['export_holds'] for n, w in workers.items()
+                             if w.get('export_holds')}
         m['max_searches'] = max_searches
         m['waiting_workers'] = [n for n in jobs if n not in workers]
         # A worker can publish another well between the owner's directory
@@ -184,7 +186,7 @@ def tick(root, jobs, *, max_searches, known_jobs=None):
                                 and workers[n]['status'] in ('ready','assembled'))[:max(0,max_searches-len(busy))]
                 m['grants'] = grants
                 busy += grants
-            if (current_inventory and not targets and not m.get('quiescing')
+            if (current_inventory and not targets and not m.get('quiescing') and not m['export_holds']
                     and set(jobs) <= set(workers)
                     and all(workers[n]['status'] in ('ready','vrc','assembled') for n in jobs)):
                 from kinbot.pes_selection import publish
@@ -227,7 +229,8 @@ def _publish_ready(generator):
         from kinbot.input_refresh import inherit_models
         inherit_models(_ROOT, generator)
         publish(generator)
-        record.update(status='ready', epoch=m['epoch'])
+        from kinbot.homolysis import unresolved_checks
+        record.update(status='ready', epoch=m['epoch'], export_holds=unresolved_checks())
         atomic_json(_ROOT/NAME, m)
         return m['epoch']
 
@@ -243,6 +246,8 @@ def wait_for_exploration(generator=None, *, allow_vrc=False):
     from kinbot.pes_snapshot import publish
     if _ROOT is None:
         publish(generator)
+        from kinbot.homolysis import ensure_export_ready
+        ensure_export_ready()
         return
     _EPOCH = None
     while True:
@@ -260,7 +265,8 @@ def wait_for_exploration(generator=None, *, allow_vrc=False):
                 snapshot_epoch = m['epoch']
             available = (not m.get('quiescing') and not _pending(_ROOT)
                          and (m['phase'] == 'postprocessing'
-                              or (allow_vrc and m['phase'] == 'exploring')))
+                              or (allow_vrc and m['phase'] == 'exploring'
+                                  and not m['workers'][_WORKER].get('export_holds'))))
             if available:
                 record = m['workers'][_WORKER]
                 if record['pid'] != os.getpid():

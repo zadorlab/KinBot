@@ -30,6 +30,14 @@ for fix in base_0_fix:
     else:
         raise ValueError(f'Unexpected length of fix: {{fix}}')
 
+# Coordinate modification supplies an approximate starting geometry, not the
+# definition of a quantitative scan. Constrain to the requested coordinate.
+constraint_targets = {constraint_targets}
+for target in constraint_targets:
+    indices = [int(i)-1 for i in target[:-1]]
+    setter = {{2: const.fix_bond, 3: const.fix_angle, 4: const.fix_dihedral}}[len(indices)]
+    setter(indices, target=float(target[-1]))
+
 kwargs = {kwargs}
 if '{Code}' == 'ORCA':
     from kinbot.ase_modules.calculators.orca import OrcaProfile

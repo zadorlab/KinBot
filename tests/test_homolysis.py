@@ -118,6 +118,73 @@ def test_failed_or_wrong_coordinate_point_remains_inconclusive(scan):
     assert scan.species.reac_ts_done==[-999]
 
 
+def legacy_wrong_target(g):
+    homolysis.advance(g, 0)
+    g.complete(-10.)
+    homolysis.advance(g, 0)
+    g.complete(-9.)
+    guess = [[0.,0.,0.],[1.19887,0.,0.]]  # requested point is 1.20000 A
+    g.qc.get_qc_geom.return_value = (0,np.array(guess))
+    obj = g.species.reac_obj[0]
+    Path(obj.instance_name+'.py').write_text(
+        f'input_geom = np.asarray({guess!r}, dtype=float)\n'
+        'base_0_fix = [[idx - 1 for idx in fix] for fix in [[1,2]]]\n'
+        'strict_scan = True\n')
+    homolysis.advance(g, 0)
+    g.search_checkpoint.entries[obj.homolysis_parent] = dict(status=-1)
+    g.search_checkpoint.save(0)
+    return obj
+
+
+@pytest.mark.parametrize('interrupt_before_checkpoint', [False, True])
+def test_legacy_target_repair_resumes_only_bad_point_once(scan, interrupt_before_checkpoint):
+    g=scan; obj=legacy_wrong_target(g)
+    previous=homolysis.record(obj)['points']
+    assert g.species.reac_ts_done == [-999]
+    if interrupt_before_checkpoint:
+        assert homolysis.repair_constraint_target(g.qc,obj,g.search_checkpoint.entries[obj.instance_name]) == 1
+    g.search_checkpoint=SearchState(g)
+    assert g.species.reac_ts_done == [0] and g.species.reac_step == [1]
+    assert homolysis.record(obj)['points'] == previous
+    repair=homolysis.record(obj)['constraint_target_repair']
+    assert all(Path(f['archive']).is_file() for f in repair['evidence'].values())
+    homolysis.advance(g,0)
+    assert g.admissions == [0,1,1] and g.species.reac_step == [2]
+    for _ in range(2):
+        g.search_checkpoint=SearchState(g)
+        homolysis.advance(g,0)
+    assert g.admissions == [0,1,1]  # adopt live repaired point
+    g.complete(-9.)
+    homolysis.advance(g,0)
+    assert g.admissions == [0,1,1,2]
+    assert homolysis.record(obj)['points'][:1] == previous
+    assert len(homolysis.record(obj)['points']) == 2
+    # A later failure is not another entitlement to repeat exhausted settings.
+    g.complete(-8.)
+    g.qc.get_qc_geom.return_value = (0,np.array([[0.,0.,0.],[8.,0.,0.]]))
+    homolysis.advance(g,0); g.search_checkpoint.save(0)
+    g.search_checkpoint=SearchState(g)
+    assert g.species.reac_ts_done == [-999]
+
+
+@pytest.mark.parametrize('problem', ['live', 'qc_error', 'explicit_target', 'different_frozen', 'unknown', 'parent_rejected'])
+def test_target_repair_requires_specific_native_proof(scan, problem):
+    g=scan; obj=legacy_wrong_target(g)
+    if problem in ('live','qc_error','unknown'):
+        g.qc.check_qc.return_value = {'live':'running','qc_error':'error','unknown':0}[problem]
+    elif problem == 'explicit_target':
+        with Path(obj.instance_name+'.py').open('a') as stream:
+            stream.write('constraint_targets = [[1,2,1.2]]\n')
+    elif problem == 'parent_rejected':
+        g.search_checkpoint.entries[obj.homolysis_parent]['status'] = -999
+        g.search_checkpoint.write()
+    else:
+        g.qc.get_qc_geom.return_value = (0,np.array([[0.,0.,0.],[1.17,0.,0.]]))
+    g.search_checkpoint=SearchState(g)
+    assert g.species.reac_ts_done == [-999]
+    assert not Path('.kinbot_scan_repairs').exists()
+
+
 def test_discovery_creates_companions_only_after_user_selection(tmp_path):
     from tests.test_reaction_paths import peroxy
     p=peroxy()
@@ -150,7 +217,8 @@ def test_ordinary_discovery_precedes_check_and_matching_ts_is_reused(scan,monkey
     homolysis.finish(s)
     assert json.loads(Path('homolysis_checks.json').read_text())['checks'][0]['outcome']=='superseded_by_validated_saddle'
     s.reac_ts_done[2]=-999
-    with pytest.raises(RuntimeError,match='remain unresolved'):homolysis.finish(s)
+    homolysis.finish(s)  # Review is an export hold, not a failed search controller.
+    with pytest.raises(RuntimeError,match='unresolved homolysis'):homolysis.ensure_export_ready()
 
 
 def test_real_generator_scan_exhaustion_retains_outcome_without_false_acceptance(scan,monkeypatch):
@@ -208,6 +276,10 @@ def test_rearrangement_to_same_fragments_does_not_cover_direct_cleavage(monkeypa
     monkeypatch.setattr(homolysis,'routing_key',lambda p:p.key)
     monkeypatch.setattr('kinbot.reaction_path.reaction_path_id',lambda o:'ordinary')
     assert homolysis.matching_saddles(species,parent)==[]
+    # Product optimization may reorder the mutable product object; the saved
+    # IRC graph retains the parent atom order used to define this bond edit.
+    other.irc_product_reference=NS(bond=np.array([[0,0,0],[0,0,1],[0,1,0]]))
+    assert homolysis.matching_saddles(species,parent)==['rearrangement']
 
 
 @pytest.mark.parametrize('tail,expected', [([-2.,-2.,-2.],'supports_provisional_pst'),
@@ -244,12 +316,14 @@ def test_generated_strict_scan_worker_requires_optimizer_convergence(tmp_path,mo
     calls=[]
     def optimize(opt,**kw):
         calls.append(kw)
+        # The requested target must survive an approximate initial geometry.
+        assert opt.pes.cons._targets['bonds'] == [pytest.approx(.7412)]
         return converged
     monkeypatch.setattr('kinbot.optimization_budget.run_optimizer',optimize)
     template=Path(kb_path,'tpl/ase_sella_ts_search.tpl.py').read_text()
     script=template.format(working_dir=str(tmp_path),label='point',code='gaussian',Code='Gaussian',
         atom=['H','H'],geom=[[0.,0.,0.],[.74,0.,0.]],fix=[[1,2]],kwargs={},sella_kwargs={'internal':False},
-        strict_scan=True,fmax=.0005,steps=80)
+        strict_scan=True,fmax=.0005,steps=80,constraint_targets=[[1,2,.7412]])
     if converged:
         exec(compile(script,'generated_scan','exec'),{})
         row=connect('kinbot.db').get(name='point')
@@ -260,3 +334,21 @@ def test_generated_strict_scan_worker_requires_optimizer_convergence(tmp_path,mo
             exec(compile(script,'generated_scan','exec'),{})
         assert not list(connect('kinbot.db').select(name='point'))
     assert calls==[dict(fmax=.0005,steps=80)]
+
+
+def test_real_sella_scan_converges_to_requested_not_modified_distance(tmp_path, monkeypatch):
+    from ase.calculators.emt import EMT
+    from ase.db import connect
+    from kinbot import kb_path
+    import kinbot.ase_modules.calculators.gaussian as gaussian
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(gaussian, 'Gaussian', lambda **kw: EMT())
+    script=Path(kb_path,'tpl/ase_sella_ts_search.tpl.py').read_text().format(
+        working_dir=str(tmp_path),label='point',code='gaussian',Code='Gaussian',
+        atom=['H','H'],geom=[[0.,0.,0.],[.739,0.,0.]],fix=[[1,2]],kwargs={},
+        sella_kwargs={'internal':False},strict_scan=True,fmax=.0005,steps=80,
+        constraint_targets=[[1,2,.7412]])
+    exec(compile(script,'generated_scan','exec'),{})  # actual Sella, local analytic QC substitute
+    row=connect('kinbot.db').get(name='point')
+    assert row.data['status']=='normal'
+    assert row.toatoms().get_distance(0,1) == pytest.approx(.7412, abs=1.e-5)

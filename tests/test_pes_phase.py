@@ -86,6 +86,58 @@ def test_serial_exploration_does_not_serialize_downstream(root):
     assert phase.tick(root,['first','second'],max_searches=1)[1] == 'closing'
 
 
+def test_review_hold_releases_slot_but_blocks_exports_and_can_be_revised(root, monkeypatch):
+    control.configure(root)
+    record = phase.initialize(root)
+    for name in ('first', 'second'):
+        (root/name).mkdir()
+    monkeypatch.chdir(root/'first')
+    monkeypatch.setattr(phase, '_ROOT', root)
+    monkeypatch.setattr(phase, '_WORKER', 'first')
+    monkeypatch.setenv('KINBOT_PES_PHASE_TOKEN', record['token'])
+    # Child can reach the boundary before Popen's PID has been registered.
+    assert phase._publish_ready(None) is None
+    phase.register(root, 'first', os.getpid())
+    atomic_json('homolysis_checks.json', dict(checks=[dict(parent='cleavage', outcome='unresolved')]))
+    phase._publish_ready(None)
+    assert phase.tick(root, ['first','second'], max_searches=1) == ([], 'exploring')
+    assert state(root)['export_holds']['first'][0]['parent'] == 'cleavage'
+    phase.register(root, 'second', os.getpid())
+    worker_status(root, 'second', 'ready')
+    for _ in range(2):
+        assert phase.tick(root, ['first','second'], max_searches=1) == ([], 'exploring')
+    target = root/'first'/'scan'
+    control.search_scope(target, 'reaction', -999, close=True)
+    request = control.request(root, target, kind='reaction', reason='evidence-supported revision')
+    assert phase.tick(root, ['first','second'], max_searches=1)[0] == ['first']
+    control.acknowledge(root/'.kinbot_controls/requests'/(request['id']+'.json'), request, 'applied')
+    # Only new scientific evidence, not a refresh or elapsed time, clears it.
+    atomic_json('homolysis_checks.json', dict(checks=[dict(parent='cleavage', outcome='superseded_by_validated_saddle')]))
+    phase._publish_ready(None)
+    assert phase.tick(root, ['first','second'], max_searches=1) == ([], 'postprocessing')
+    assert state(root)['export_holds'] == {}
+
+
+def test_review_hold_cannot_use_early_vrc_or_standalone_export(root, monkeypatch):
+    from kinbot.homolysis import ensure_export_ready
+    atomic_json(root/'homolysis_checks.json', dict(checks=[dict(parent='cleavage', outcome='unresolved')]))
+    monkeypatch.chdir(root)
+    with pytest.raises(RuntimeError, match='unresolved homolysis'):
+        phase.wait_for_exploration()
+    record = phase.initialize(root)
+    phase.register(root, 'well', os.getpid())
+    monkeypatch.setattr(phase, '_ROOT', root)
+    monkeypatch.setattr(phase, '_WORKER', 'well')
+    monkeypatch.setenv('KINBOT_PES_PHASE_TOKEN', record['token'])
+    class Parked(Exception): pass
+    monkeypatch.setattr(phase.time, 'sleep', lambda _: (_ for _ in ()).throw(Parked()))
+    with pytest.raises(Parked):
+        phase.wait_for_exploration(allow_vrc=True)
+    assert state(root)['workers']['well']['status'] == 'ready'
+    with pytest.raises(RuntimeError, match='unresolved homolysis'):
+        ensure_export_ready()
+
+
 def test_discovered_well_extends_barrier(root):
     phase.initialize(root)
     phase.register(root,'a',os.getpid())

@@ -13,6 +13,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from tests.profiled_mode_fixture import stage_profiled_modes, compare_profiled_modes
 
 from kinbot import run_cleanup, run_refresh, run_salvage, pes_phase
 from kinbot.anl import dispatch
@@ -1714,7 +1715,6 @@ def test_unknown_homolysis_selector_fails_before_stopping_controllers(live_tree)
 def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling(
         sampling_tree, monkeypatch, revisit_homolysis):
     from kinbot.network_revisit import settings
-    from tests.profiled_mode_fixture import stage_profiled_modes, compare_profiled_modes
     from kinbot.run_format import SCHEMA
     from kinbot.rdkit_config import rdkit_runtime
     t=sampling_tree
@@ -1739,6 +1739,9 @@ def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling
                            command='/python -m kinbot.kb '+str(ref/'input.json')))
     t.jobs.append(dict(job_id='909',directory=str(ref),state='RUNNING'))
     jobs=deepcopy(t.jobs)
+    if not revisit_homolysis:
+        atomic_json(worker/'homolysis_checks.json', dict(schema=1,checks=[dict(
+            parent='test_hom_sci_1_2',outcome='unresolved',scan_outcome='qc_failed')]))
     before=scientific_files(t.root)
     options=settings(homolysis=True) if revisit_homolysis else None
     result=run_refresh.refresh_when_idle(t.root,apply=True,network_options=options,wait_idle=30)
@@ -1757,3 +1760,21 @@ def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling
     assert scientific_files(t.root)==before and t.jobs==jobs
     assert run_refresh.refresh_when_idle(t.root,apply=True,network_options=options,wait_idle=30)==result
     assert len(t.launches)==3
+    if not revisit_homolysis:
+        # Exercise the replacement owner's exploration boundary as well as
+        # the refresh helper. A natural nonfinding survives refresh, frees its
+        # slot and cannot be promoted to an export or automatically retried.
+        from kinbot import pes_phase
+        case=worker.parent
+        phase=pes_phase.initialize(case)
+        pes_phase.register(case,worker.name,os.getpid())
+        with monkeypatch.context() as local:
+            local.chdir(worker)
+            local.setattr(pes_phase,'_ROOT',case)
+            local.setattr(pes_phase,'_WORKER',worker.name)
+            local.setenv('KINBOT_PES_PHASE_TOKEN',phase['token'])
+            pes_phase._publish_ready(None)
+        assert pes_phase.tick(case,[worker.name,'next_well'],max_searches=1)==([], 'exploring')
+        held=json.loads((case/pes_phase.NAME).read_text())
+        assert held['export_holds'][worker.name][0]['scan_outcome']=='qc_failed'
+        assert scientific_files(t.root)==before and t.jobs==jobs

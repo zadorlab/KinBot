@@ -231,6 +231,18 @@ class SearchState:
                                    'an explicit search revision is required.')
             entry['signature'] = signature
             status = entry['status']
+            if (status == -999 and obj.family_name == 'dissociation_saddle'
+                    and self.entries.get(obj.homolysis_parent, {}).get('status') == -1):
+                from kinbot.homolysis import repair_constraint_target
+                repair_step = repair_constraint_target(qc, obj, entry)
+                if repair_step is not None:
+                    previous = {k:v for k,v in entry.items() if k != 'history'}
+                    entry.setdefault('history', []).append(dict(
+                        reason='explicit_scan_constraint_target', previous=previous,
+                        reset_at=datetime.now(timezone.utc).isoformat()))
+                    entry.update(status=0, step=repair_step)
+                    species.reac_ts_done[i] = 0
+                    status = 0
             if status == -999:
                 species.reac_ts_done[i] = -999
                 species.reac_step[i] = entry['step']

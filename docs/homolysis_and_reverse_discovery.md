@@ -112,6 +112,52 @@ unless that separate change is intended.
 No finite test suite proves that all bugs or all chemical pathways are absent.
 Native convergence and connectivity remain calculation outcomes to inspect.
 
+## Discovery holds and scan-target repair (2026-11-03)
+
+A saddle proposal that does not produce a validated saddle is an expected
+discovery outcome. It is not automatically a software fault or a useful retry.
+An unresolved homolysis now publishes an **export hold** and releases its
+exploration slot. The other wells continue. The coordinator keeps the network
+open for targeted, evidence-supported revisions and withholds new rate export.
+Standalone and combined MESS guards remain in place. A failed search does not
+prove either that a tight saddle exists or that the dissociation is barrierless.
+
+The latest remote evidence identified a distinct implementation error: an
+approximate coordinate modification was used as the frozen Sella coordinate,
+even though the scan validator checked the requested distance. Quantitative
+dissociation scans now pass the explicit coordinate target into Sella. Force,
+frequency, IRC, electronic-state and scan-distance acceptance criteria remain
+unchanged.
+
+On owner reconstruction, a `scan_constraint_not_met` rejection is eligible for
+one targeted repair only when the saved legacy worker requested a strict scan,
+froze only the cleavage bond at its approximate input distance, and the normal
+native result agrees with that frozen distance but not the requested target.
+The current target and recorded search step must agree as well. The owner
+archives the old worker/native artifacts with hashes under
+`.kinbot_scan_repairs`, records the revision, and repeats only that point. All
+previous completed scan points and database observations remain. Live or
+unknown QC, failed QC, already-explicit targets, different constraints and
+exhausted repairs are ineligible. Journal-before-checkpoint interruptions,
+pool admission, and repeated refreshes preserve the same single repair intent.
+
+Reverse discovery also preserves the two native IRC job identities before
+single-fragment extraction can rename a product or L2 optimization can mutate
+its coordinates. Export reads those L1 observations and characterizes a fresh
+entrance object, so repeated exports cannot substitute product L2 geometry for
+the original IRC endpoint. This repairs the observed species-name/L1-route
+error; it does not waive provenance or approve a new reaction.
+
+Validation includes generated-worker execution with the actual local Sella
+optimizer and an analytic test potential, both IRC direction assignments,
+single-fragment object mutation, repeated export, interrupted targeted repair,
+live-job adoption, exploration-slot release, export blocking, and the complete
+simulated-site refresh with sampling and decision preservation. These checks
+do not claim a successful native Gaussian retry on Blodgett. The disappearance
+of controllers whose saved status still says `running` is not explained by the
+provided records; refresh can reconstruct their owned progress, but an external
+termination cause has not been established.
+
 ## Routed mode-reading correction (2026-11-02)
 
 The first remote restart exposed an interface error during accepted-TS

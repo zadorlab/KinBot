@@ -178,3 +178,59 @@ def test_native_irc_assignment_and_stereopath_for_reverse_abstraction():
     # Return to the reactants at both ends is not an abstraction.
     obj.qc.get_qc_geom=lambda *args,**kw:(0,incoming.copy())
     assert IRC(obj,par).irc2stationary_pt()==0
+
+
+@pytest.mark.parametrize('swapped', [False, True])
+def test_export_keeps_native_jobs_through_single_fragment_renaming_and_l2(tmp_path, monkeypatch, swapped):
+    from kinbot.irc import IRC
+    monkeypatch.chdir(tmp_path)
+    # Synthetic endpoint connectivity exercises the object-alias lifecycle;
+    # it is not evidence of a physical reaction or a converged QC calculation.
+    a=StationaryPoint('a',0,2,atom=['O','H'],geom=np.array([[0.,0.,0.],[0.,.97,0.]]))
+    b=StationaryPoint('b',0,1,atom=['H','H'],geom=np.array([[0.,0.,0.],[.74,0.,0.]]))
+    for p in (a,b): p.characterize(); p.energy=-1.; p.zpe=0.; p.freq=[500.]
+    incoming=np.array([[0.,0.,0.],[0.,.97,0.],[4.,0.,0.],[4.74,0.,0.]])
+    bound=np.array([[0.,0.,0.],[0.,.97,0.],[.97,0.,0.],[0.,0.,.97]])
+    pair=StationaryPoint('pair',0,2,atom=['O','H','H','H'],geom=incoming,fragA=a,fragB=b)
+    pair.characterize()
+    direction='F' if swapped else 'R'
+    def geometry(job,*args,**kwargs):
+        return 0,(incoming if f'_IRC_{direction}_' in job else bound).copy()
+    obj=NS(instance_name='pair_abstraction',species=pair,qc=NS(get_qc_geom=geometry))
+    par=dict(bimol=1,electronic_state_models=[],optical_population='specified')
+    obj.irc_prod=IRC(obj,par).irc2stationary_pt()
+    jobs=dict(obj.irc_endpoint_jobs)
+    assert jobs['reactant'].endswith(f'_IRC_{direction}_prod')
+    assert jobs['product'] == obj.irc_prod.name
+    fragments,_=obj.irc_prod.start_multi_molecular()
+    assert fragments == [obj.irc_prod] and obj.irc_prod.name != jobs['product']
+    # Actual product characterization reorders/optimizes this very object.
+    obj.irc_prod.geom += 20.
+    obj.irc_prod.energy=-8.; obj.irc_prod.zpe=.01; obj.irc_prod.freq=[300.]
+    obj.ts_opt=NS(species=obj.irc_prod)
+    obj.prod_opt=[NS(species=obj.irc_prod)]
+    obj.do_vdW=False
+    pair.reac_obj=[obj]; pair.reac_ts_done=[-1]
+    queried=[]
+    def read(directory,names,*args,**kwargs):
+        queried.extend(names)
+        return [dict(name=n,symbols=list(pair.atom),positions=geometry(n)[1].tolist(),
+                     energy_hartree=-9.,zpe_hartree=None,frequencies=[]) for n in names]
+    monkeypatch.setattr(reverse_search.l1_screening,'read_points',read)
+    monkeypatch.setattr(reverse_search.l1_screening,'theory',lambda p:{})
+    monkeypatch.setattr('kinbot.reaction_path.reaction_path_id',lambda o:'tested-separately')
+    def characterize(endpoint,*args):
+        assert endpoint.name == jobs['reactant'] and np.allclose(endpoint.geom,incoming)
+        endpoint.geom += 30.  # Optimize's in-place mutation must not poison next export.
+        return dict(status='characterized',l2=NS().__dict__)
+    monkeypatch.setattr(reverse_search,'characterize_entrance',characterize)
+    Path('kinbot.db').write_bytes(b'fixture')
+    for _ in range(2):
+        reverse_search.export_result(pair,par,None)
+        r=json.loads(Path('reverse_search_result.json').read_text())
+        row=r['reactions'][0]
+        assert row['product_l1_job'] == jobs['product']
+        assert row['product_endpoint_l1']['positions'] == bound.tolist()
+        assert row['entrance_l1']['positions'] == incoming.tolist()
+        assert not r['mess_ready']
+    assert queried == [jobs['reactant'],jobs['product']]*2

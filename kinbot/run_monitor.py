@@ -981,6 +981,10 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             out.append(f'PES exploration: {exploration.get("phase", "unknown")}; '
                        f'epoch={exploration.get("epoch")}; wells={counts}; '
                        f'owner={"present" if owner_alive else "not observed"}')
+            for well, holds in exploration.get('export_holds', {}).items():
+                out.append(f'Export hold ({well}): '+', '.join(h['parent'] for h in holds))
+            if exploration.get('export_holds'):
+                out.append('Unresolved homolysis evidence holds rate export; other wells may continue exploration.')
             if exploration.get('quiescing'):
                 owners = sorted(n for n, w in exploration.get('workers', {}).items()
                                 if w.get('status') in ('vrc', 'postprocessing'))

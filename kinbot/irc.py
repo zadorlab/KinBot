@@ -66,7 +66,13 @@ class IRC:
 
             st_pts[i] = temp
             if self.par['bimol']:
-                fragments, maps = temp.start_multi_molecular()
+                # A one-fragment split renames and returns its input object.
+                # Preserve the native IRC job/geometry independently of that
+                # mutable product, which will also undergo L1/L2 optimization.
+                split = StationaryPoint(irc_name, temp.charge, temp.mult,
+                    atom=np.array(temp.atom, copy=True), geom=np.array(temp.geom, copy=True))
+                split.characterize()
+                fragments, maps = split.start_multi_molecular()
                 if len(fragments) == 1 or len(fragments) > 2:
                     prod_hit = i
                 elif len(fragments) == 2:
@@ -105,6 +111,8 @@ class IRC:
             # ircs OK: well and product found
             if self.par['bimol']:
                 self.rxn.irc_reactant = st_pts[1-prod_hit]
+                self.rxn.irc_endpoint_jobs = dict(
+                    reactant=st_pts[1-prod_hit].name, product=st_pts[prod_hit].name)
             logger.info('\tIRCs successful for {}'.format(instance_name))
             return st_pts[prod_hit]
 

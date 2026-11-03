@@ -171,6 +171,15 @@ unreduced generator, for the full models and both pruned candidates. This
 supports that particular scouting observable; it does not validate every
 thermal rate produced by the same executable.
 
+The final conservative-QD direct CH3S hot-energy control completed in 1573 seconds
+for a 1436-state matrix. At 193 nm its largest product-fraction difference from
+independent unreduced propagation is `4.71e-7`; all reported populations at that
+energy are nonnegative and their sum is `0.9999995459` at native print precision.
+No output clipping or final renormalization was applied. This confirms a native
+direct result for that observable, in contrast to the failed ordinary-double
+control. It does not validate every association row or the larger CH3SS direct
+problem. The exact receipt is `finite_pressure/direct_hot_confirmation.json`.
+
 `audit_export.py` is a standalone read-only check of the experimental export.
 It refuses negative/nonfinite rates, invalid equilibrium weights, missing
 records and invalid state references; it reports collision-diagonal and

@@ -1710,9 +1710,20 @@ def test_unknown_homolysis_selector_fails_before_stopping_controllers(live_tree)
     assert not t.signals and not t.launches
 
 
-def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling(sampling_tree):
+@pytest.mark.parametrize('revisit_homolysis', [False, True])
+def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling(
+        sampling_tree, monkeypatch, revisit_homolysis):
     from kinbot.network_revisit import settings
+    from tests.profiled_mode_fixture import stage_profiled_modes, compare_profiled_modes
+    from kinbot.run_format import SCHEMA
+    from kinbot.rdkit_config import rdkit_runtime
     t=sampling_tree
+    worker=t.root/'ch3ss/123'
+    (worker/'kinbot.db').unlink()  # Replace placeholder test bytes, not run data.
+    atomic_json(worker/'.kinbot_run.json', dict(schema=SCHEMA, **rdkit_runtime()))
+    with monkeypatch.context() as local:
+        local.chdir(worker)
+        fixture=stage_profiled_modes(worker)
     ref=t.root/'ch3ss/reverse_abstractions/pair';ref.mkdir(parents=True)
     atomic_json(ref/'input.json',{})
     atomic_json(ref.parent/'manifest.json',dict(status='staged_for_discovery_not_integrated',
@@ -1728,12 +1739,21 @@ def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling
                            command='/python -m kinbot.kb '+str(ref/'input.json')))
     t.jobs.append(dict(job_id='909',directory=str(ref),state='RUNNING'))
     jobs=deepcopy(t.jobs)
-    result=run_refresh.refresh_when_idle(t.root,apply=True,network_options=settings(homolysis=True),wait_idle=30)
+    before=scientific_files(t.root)
+    options=settings(homolysis=True) if revisit_homolysis else None
+    result=run_refresh.refresh_when_idle(t.root,apply=True,network_options=options,wait_idle=30)
     assert result['phase']=='launched' and t.jobs==jobs
     assert (109,signal.SIGKILL) in t.signals
     assert {p['pid'] for p in t.processes}=={700,701,702}
     assert (ref/'kinbot.db').read_bytes()==b'accepted fragment and search data'
     assert (ref/'reverse_ts.py').read_text()=='native worker'
     assert len(t.launches)==3 and t.launches[-1][0][-2:]==['kinbot.kb',str(ref/'input.json')]
-    assert run_refresh.refresh_when_idle(t.root,apply=True,network_options=settings(homolysis=True),wait_idle=30)==result
+    with monkeypatch.context() as local:
+        local.chdir(worker)
+        for _ in range(2):
+            opt=compare_profiled_modes(fixture)
+            assert opt.shigh==1 and opt.mode_comparison['status']=='calculated'
+            assert opt.mode_comparison['overlap']==pytest.approx(1.)
+    assert scientific_files(t.root)==before and t.jobs==jobs
+    assert run_refresh.refresh_when_idle(t.root,apply=True,network_options=options,wait_idle=30)==result
     assert len(t.launches)==3

@@ -111,3 +111,32 @@ unless that separate change is intended.
 
 No finite test suite proves that all bugs or all chemical pathways are absent.
 Native convergence and connectivity remain calculation outcomes to inspect.
+
+## Routed mode-reading correction (2026-11-02)
+
+The first remote restart exposed an interface error during accepted-TS
+reconstruction: `ProfiledQuantumChemistry.read_imag_mode()` did not accept the
+`geometry` and `symbols` arguments required by `Optimize.compare_structures()`.
+The backend reader supported them, but the router had not been updated. This
+was a controller exception, not a native QC failure or a rejected pathway.
+
+The router now forwards the complete reader arguments to the recorded L1/L2
+backend, including the selected Cartesian frame. No mode-fit tolerance,
+frequency criterion, electronic-state definition, or scientific result changes.
+The tests now join the actual router, native mode reader, L1/L2 acceptance,
+database adoption and repeated restart; they also exercise a mixed ASE/Gaussian
+profile, incomplete/mismatched evidence, and compatibility of all shared public
+router method signatures. The simulated site handoff includes live reverse
+allocations and sampling work. A captured spectrum reused under two fixture job
+labels tests coordinate rotation; it is not two independently computed energies.
+
+For a run already prepared with homolysis and reverse discovery, load this
+correction with an ordinary controller refresh:
+
+```bash
+python -B -m kinbot.run_refresh RUN --apply --wait-idle 120
+```
+
+Preparation and homolysis re-selection are not needed for this correction.
+Existing Slurm calculations and scientific search decisions are retained.
+Local tests do not certify successful execution of the subsequent remote search.

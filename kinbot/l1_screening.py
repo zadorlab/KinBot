@@ -175,10 +175,13 @@ def screen(parameters, names, *, reaction, kind, comparable=True, directory=None
     # Recursive PES workers share a single immutable initial-well reference.
     case = directory.parent
     try:
-        ref = reference(case)
+        ref = parameters.get('bimol_pes_reference') or reference(case)
         points = read_points(directory, names, theory(parameters))
+        charge = parameters['charge']
+        if parameters.get('bimol'):
+            charge = sum(charge)
         result = evaluate(ref, theory(parameters), points, limit,
-                          comparable=comparable, charge=parameters['charge'])
+                          comparable=comparable, charge=charge)
     except (OSError, ValueError, sqlite3.Error) as error:
         result = dict(decision='unknown', reason=str(error), limit_kcal_mol=limit)
     path = directory/'l1_screening.json'

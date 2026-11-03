@@ -1666,3 +1666,74 @@ def test_direct_migration_refuses_changed_proposal_evidence_before_stop(vrc_migr
     with pytest.raises(ValueError,match='evidence changed'):
         run_refresh.refresh(t.root,apply=True,vrc_updates=updates)
     assert not t.signals and len(t.jobs)==4
+
+
+@pytest.mark.parametrize('all_channels', [False, True])
+def test_homolysis_refresh_retains_native_work_and_only_adds_companion_intent(sampling_tree, all_channels):
+    from kinbot.network_revisit import settings
+    from kinbot.search_state import contract, NAME
+    t=sampling_tree
+    for case in ('ch3s','ch3ss'):
+        w=t.root/case/'123'
+        inp=w/'123.json'
+        atomic_json(inp,dict(profiled_l1_reuse_only=1))
+        names=[case+'_hom_sci_1_2',case+'_other']
+        (w/'kinbot_monitor.out').write_text(f'-1 0 {names[0]}\n-999 -1 {names[1]}\n')
+        atomic_json(w/NAME,dict(schema=1,contract=contract(inp),reactions={
+            names[0]:dict(status=-1,step=0),names[1]:dict(status=-999,step=-1)}))
+    options=settings(homolysis=True if all_channels else ['ch3ss_hom_sci_1_2'])
+    before=scientific_files(t.root)
+    jobs=deepcopy(t.jobs)
+    result=run_refresh.refresh_when_idle(t.root,apply=True,network_options=options,wait_idle=30)
+    assert result['phase']=='launched' and t.jobs==jobs
+    assert scientific_files(t.root)==before
+    assert {p['pid'] for p in t.processes}=={700,701,702}
+    for case in ('ch3s','ch3ss'):
+        w=t.root/case/'123'
+        raw=json.loads((w/'123.json').read_text())
+        assert raw['homolytic_saddle_search']==options['homolytic_saddle_search']
+        assert raw['profiled_l1_reuse_only']==0
+        state=json.loads((w/NAME).read_text())
+        assert state['contract']==contract(w/'123.json')
+        assert all('reassess' not in e for e in state['reactions'].values())
+        assert json.loads((w/'.kinbot_revisit.json').read_text())['rejected']==[]
+        assert (w/'homolysis_checks.json').exists()==(all_channels or case=='ch3ss')
+    assert run_refresh.refresh_when_idle(t.root,apply=True,network_options=options,wait_idle=30)==result
+    assert len(t.launches)==2
+
+
+def test_unknown_homolysis_selector_fails_before_stopping_controllers(live_tree):
+    from kinbot.network_revisit import settings
+    t=live_tree
+    with pytest.raises(ValueError,match='Every selected homolysis'):
+        run_refresh.refresh(t.root,apply=True,network_options=settings(homolysis=['missing_hom_sci_1_2']))
+    assert not t.signals and not t.launches
+
+
+def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling(sampling_tree):
+    from kinbot.network_revisit import settings
+    t=sampling_tree
+    ref=t.root/'ch3ss/reverse_abstractions/pair';ref.mkdir(parents=True)
+    atomic_json(ref/'input.json',{})
+    atomic_json(ref.parent/'manifest.json',dict(status='staged_for_discovery_not_integrated',
+        entries=[dict(input='pair/input.json',input_sha256=file_sha256(ref/'input.json'))]))
+    atomic_json(ref/'.kinbot_theory_jobs.json',dict(schema=1,jobs={
+        'reverse_ts':dict(level='l1',job_id='909',generation_tagged=True)}))
+    (ref/'reverse_ts.py').write_text('native worker')
+    (ref/'reverse_ts.sbatch').write_text('#!/bin/bash\n')
+    (ref/'kinbot.db').write_bytes(b'accepted fragment and search data')
+    atomic_json(ref/'kinbot_status.json',dict(pid=109,host=socket.gethostname(),status='running'))
+    atomic_json(ref/'launch.json',dict(pid=109))
+    t.processes.append(dict(pid=109,ppid=1,starttime='1090',cwd=str(ref),state='S',
+                           command='/python -m kinbot.kb '+str(ref/'input.json')))
+    t.jobs.append(dict(job_id='909',directory=str(ref),state='RUNNING'))
+    jobs=deepcopy(t.jobs)
+    result=run_refresh.refresh_when_idle(t.root,apply=True,network_options=settings(homolysis=True),wait_idle=30)
+    assert result['phase']=='launched' and t.jobs==jobs
+    assert (109,signal.SIGKILL) in t.signals
+    assert {p['pid'] for p in t.processes}=={700,701,702}
+    assert (ref/'kinbot.db').read_bytes()==b'accepted fragment and search data'
+    assert (ref/'reverse_ts.py').read_text()=='native worker'
+    assert len(t.launches)==3 and t.launches[-1][0][-2:]==['kinbot.kb',str(ref/'input.json')]
+    assert run_refresh.refresh_when_idle(t.root,apply=True,network_options=settings(homolysis=True),wait_idle=30)==result
+    assert len(t.launches)==3

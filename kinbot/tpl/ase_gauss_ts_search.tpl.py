@@ -22,12 +22,18 @@ mol.calc = calc
 try:
     e = mol.get_potential_energy()  # use the Gaussian optimizer
 except RuntimeError:
-    e = 0.
+    if {strict_scan}:
+        raise
+    # An unsuccessful path guess is not a normally completed energy point.
+    db.write(mol, name=label, data={{'status': 'error'}})
+    raise
  
 iowait(logfile, 'gauss')
 mol.positions = reader_gauss.read_geom(logfile, mol)
 if all([ci == 0 for mp in mol.positions for ci in mp]):
-    mol.positions = {geom}  # reset to the original geometry
+    raise RuntimeError('Gaussian path calculation returned no geometry.')
+if not np.isfinite(e) or not np.isfinite(mol.positions).all():
+    raise RuntimeError('Gaussian path calculation returned nonfinite data.')
 db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
 
 #for tr in range(ntrial):  # DELETED CURLY BRACKET

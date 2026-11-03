@@ -62,14 +62,28 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 geom, _, _ = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
     elif step == rxn.max_step and rxn.scan:
-        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, 
-                                       allow_error=1, previous=1)
+        if hasattr(rxn, 'scan_saddle_geometry'):
+            # A durable scan may contain staging/error rows between physical
+            # points; the second-last database row need not be its maximum.
+            geom = np.array(rxn.scan_saddle_geometry, dtype=float, copy=True)
+        else:
+            err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom,
+                                           allow_error=1, previous=1)
     else:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
         if bimol:
             if rxn.family_name == 'abstraction':
                 # gives the reactant and product geometry guesses
                 _, geom_prod, geom_ts = abstraction_align(geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
+                if rxn.qc.use_sella and step >= 1:
+                    # Sella has no QST3: use its saddle optimizer on the
+                    # transfer guess, not a minimum optimization of reactants.
+                    geom = geom_ts
+                    step = rxn.max_step
+                    kwargs = rxn.qc.get_qc_arguments(
+                        rxn.instance_name, rxn.species.mult, rxn.species.charge,
+                        rxn.species.nel, ts=True, step=step,
+                        max_step=rxn.max_step, scan=rxn.scan)
 
     if not _finite_geometry(geom, rxn.species.natom):
         logger.error('%s: refusing to continue a reaction path from a '
@@ -187,7 +201,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     # Preliminary searches must retain an explicit profile's method options
     # too (notably dispersion). Legacy early AM1 steps keep their old policy.
     if (runtime_par.get('calc_kwargs')
-            and (runtime_par.get('_profiled_backend') or step >= rxn.max_step)):
+            and (runtime_par.get('_profiled_backend') or step >= rxn.max_step
+                 or rxn.family_name == 'dissociation_saddle')):
         kwargs = rxn.qc.merge_kwargs(kwargs)
 
     if step < rxn.max_step:
@@ -209,6 +224,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 qc_command=command,
                                 working_dir=os.getcwd(),
                                 scan=rxn.scan,
+                                strict_scan=(rxn.family_name == 'dissociation_saddle'),
                                 code=code,  # Sella
                                 Code=Code,  # Sella
                                 fix=get_unique_list_of_lists(fix),  # Sella

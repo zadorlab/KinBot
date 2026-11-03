@@ -290,6 +290,10 @@ def _preflight_worker_routes(root):
                     continue
                 os.chdir(worker)
                 QuantumChemistry(parameters)
+            from kinbot.reverse_search import inputs as reverse_inputs
+            for inp in reverse_inputs(path.parent):
+                os.chdir(inp.parent)
+                QuantumChemistry(Parameters(str(inp)).par)
     finally:
         os.chdir(previous)
 
@@ -503,6 +507,9 @@ def launch(root):
                 stderr=subprocess.STDOUT, start_new_session=True)
         atomic_json(launch_file, {'pid': process.pid, 'host': socket.gethostname(),
                     'input': str(path), 'code': record['code']})
+    from kinbot.reverse_search import launch as launch_reverse
+    for filename in record['inputs']:
+        launch_reverse(Path(filename).parent, record['code'])
     record['status'] = 'launched'
     if record.get('controller_restart'):
         record['controller_restart']['status'] = 'launched'

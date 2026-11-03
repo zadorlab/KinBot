@@ -85,10 +85,15 @@ def create_summary_file(species, qc, par):
     5. the depth of vdW well
     6. the IRC direction to go to the vdW well
     """
+    from kinbot.homolysis import ensure_export_ready
+    ensure_export_ready()
     # list of strings which will be put together for the output
     s = []
     # add the license message to the file
     s.append(license_message.message)
+
+    from kinbot.homolysis import export_notes
+    s.extend('# WARNING: '+note for note in export_notes())
 
     l3status = hasattr(species, 'l3energy')
     max_len = 0

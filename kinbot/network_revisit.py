@@ -9,7 +9,7 @@ from kinbot.execution import atomic_json, file_sha256
 from kinbot.anl import ts_reuse
 
 
-def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None):
+def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None, homolysis=None):
     if vdw is not None and (isinstance(vdw, bool) or not math.isfinite(vdw) or vdw < 0):
         raise ValueError('vdW_detection must be finite and nonnegative.')
     if barrier_l2 is not None and (isinstance(barrier_l2,bool) or not math.isfinite(barrier_l2) or barrier_l2<=0):
@@ -20,13 +20,30 @@ def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None):
         rejected = sorted(set(rejected))
     elif not isinstance(rejected, bool):
         raise ValueError('Rejected selection must be a boolean or a list of exact reaction names.')
-    return dict(vdW_detection=vdw, rejected=rejected, deduplicate_ts=bool(deduplicate), barrier_threshold_L2=barrier_l2)
+    if homolysis is not None:
+        from kinbot.homolysis import validate
+        homolysis = validate(homolysis)
+        if homolysis is False:
+            raise ValueError('This handoff enables checks; it cannot certify barrierlessness.')
+    result = dict(vdW_detection=vdw, rejected=rejected, deduplicate_ts=bool(deduplicate), barrier_threshold_L2=barrier_l2)
+    if homolysis is not None:
+        result['homolytic_saddle_search'] = homolysis
+    return result
 
 
 def revisits_search(options):
     """Graph deduplication alone does not authorize changing search policy."""
     return (options['vdW_detection'] is not None or options['rejected']
-            or options.get('barrier_threshold_L2') is not None)
+            or options.get('barrier_threshold_L2') is not None
+            or options.get('homolytic_saddle_search') is not None)
+
+
+def reassesses_accepted(options):
+    # Adding independent companion searches does not authorize replacements
+    # of accepted ordinary QC during reconstruction.
+    return not (options.get('homolytic_saddle_search') is not None
+        and options['vdW_detection'] is None and not options['rejected']
+        and options.get('barrier_threshold_L2') is None and not options['deduplicate_ts'])
 
 
 def retirement(root, live, graph, canonical_graph, source):
@@ -84,6 +101,8 @@ def plan(root, jobs, options):
             if reference is not None:
                 revised.update(pes_barrier_reference=reference, barrier_threshold=None,
                                barrier_threshold_L2=reference['ceiling_kcal_mol'])
+            if options.get('homolytic_saddle_search') is not None:
+                revised['homolytic_saddle_search'] = options['homolytic_saddle_search']
             if revisits_search(options):
                 revised['pes_phase_policy'] = 'exploration_first'
             if options['deduplicate_ts']:
@@ -111,7 +130,10 @@ def plan(root, jobs, options):
             rejected = [r[2] for r in rows if len(r)>=3 and r[0]=='-999'] if options['rejected'] else []
             if isinstance(options['rejected'], list):
                 rejected = [name for name in rejected if name in options['rejected']]
-            workers.append(dict(path=str(worker.relative_to(root)), rejected=rejected,
+            homolysis = [r[2] for r in rows if len(r)>=3 and r[0]=='-1' and '_hom_sci_' in r[2]]
+            if isinstance(options.get('homolytic_saddle_search'), list):
+                homolysis = [n for n in homolysis if n in options['homolytic_saddle_search']]
+            workers.append(dict(path=str(worker.relative_to(root)), rejected=rejected, homolysis=homolysis,
                                 automatic_directory=previous.get('anl_automatic_directory','anl_automatic')))
             base = worker/previous.get('anl_automatic_directory','anl_automatic')
             request = base/'network_request.json'
@@ -156,6 +178,11 @@ def plan(root, jobs, options):
         if sorted(found) != options['rejected']:
             raise ValueError('Every selected reaction must occur exactly once as a rejected '
                              'search in the current worker inventories; no broad retry is substituted.')
+    if isinstance(options.get('homolytic_saddle_search'), list):
+        found = [n for w in workers for n in w['homolysis']]
+        if sorted(found) != options['homolytic_saddle_search']:
+            raise ValueError('Every selected homolysis must occur exactly once as an accepted '
+                             'placeholder in the current inventories; no broader search is substituted.')
     return dict(settings=options, inputs=edits, workers=workers, aliases=aliases,
                 external_ts=external, selected_jobs=selected, prepared_before=prepared,
                 prepared_sha256=file_sha256(root/'prepared.json'), revision=uuid.uuid4().hex)
@@ -203,6 +230,15 @@ def apply(root, record, archive, journal, marker):
     for entry in record['workers']:
         worker = root/entry['path']
         authorize_revision(worker,record['revision'])
+        if record['settings'].get('homolytic_saddle_search') is not None and entry['homolysis']:
+            checks = worker/'homolysis_checks.json'
+            old = json.loads(checks.read_text()) if checks.exists() else {}
+            if old.get('revision') != record['revision']:
+                saved = archive/'homolysis'/entry['path']/'previous_checks.json'
+                if old and not saved.exists():
+                    atomic_json(saved, old)
+                atomic_json(checks, dict(schema=1, revision=record['revision'], checks=[
+                    dict(parent=name, outcome='pending') for name in entry['homolysis']]))
         if not revisits_search(record['settings']):
             continue  # Preserve any existing bounded search-retry receipt.
         pending = worker/'.kinbot_revisit.json'

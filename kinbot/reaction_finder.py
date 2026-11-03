@@ -247,6 +247,8 @@ class ReactionFinder:
             self.reaction_matrix(self.reactions[name], name) 
 
         self._name_distinct_motifs()
+        from kinbot.homolysis import add_companions
+        add_companions(self)
         for index in range(len(self.species.reac_name)-1):
             if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
                 logger.error(f'Found reaction name {self.species.reac_name[index]} more than once')

@@ -984,6 +984,8 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
+        from kinbot.homolysis import ensure_export_ready
+        ensure_export_ready()
         require_supported_identity(self.species)
         uq = UQ(self.par)
         self.rotdpy_sources = {}

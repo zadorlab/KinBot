@@ -533,6 +533,13 @@ class QuantumChemistry:
             if (scan or 'R_Addition_MultipleBond' in job) and not vts:
                 kwargs['method'] = self.scan_method 
                 kwargs['basis'] = self.scan_basis
+            if '_dissociation_saddle_' in job:
+                # Inner-barrier checks and their IRC must use the actual L1
+                # surface, not the legacy cheap constrained-search method.
+                kwargs['method'] = self.method
+                kwargs['basis'] = self.basis
+                if ts and step < max_step:
+                    kwargs['opt'] = 'ModRedun,CalcFC'
             if 'barrierless_saddle' in job or 'bls' in job:
                 kwargs['method'] = self.bls_method
                 kwargs['basis'] = self.bls_basis

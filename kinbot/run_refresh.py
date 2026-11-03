@@ -190,6 +190,8 @@ def _ordinary_inputs(root):
         raise RuntimeError('Prepared inputs are outside the requested run.')
     result = set()
     for source in inputs:
+        from kinbot.reverse_search import inputs as reverse_inputs
+        result.update(reverse_inputs(source.parent))
         for inp in source.parent.glob('[0-9]*/*.json'):
             if inp.name != inp.parent.name+'.json':
                 continue
@@ -885,8 +887,10 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 atomic_json(journal_path,journal)
             if journal.get('vrc_migration') or journal.get('network_revision'):
                 from kinbot.search_state import rebase
+                from kinbot.network_revisit import reassesses_accepted
+                revision = journal.get('network_revision')
                 for inp in _ordinary_inputs(root):
-                    rebase(inp, str(archive), reassess=bool(journal.get('network_revision')))
+                    rebase(inp, str(archive), reassess=bool(revision) and reassesses_accepted(revision['settings']))
             _archive_controllers(root, archive)
             journal['discovery_restored'] = _restore_discovery(root, archive)
             history.update(status='prepared', code=str(pin))
@@ -945,6 +949,11 @@ def main(argv=None):
                          help='Reopen only this rejected reaction, once per handoff; repeat for more names.')
     parser.add_argument('--deduplicate-ts', '--deduplicate-anl', action='store_true', help='Verify and share equivalent ANL stable/TS graphs within each PES.')
     parser.add_argument('--barrier-threshold-l2', type=float, help='L2 ceiling relative to the initial PES well, kcal/mol.')
+    homolysis = parser.add_mutually_exclusive_group()
+    homolysis.add_argument('--check-homolysis', action='append', metavar='EXACT_NAME',
+                          help='Check this retained hom_sci proposal after ordinary searches; repeat for more.')
+    homolysis.add_argument('--check-all-homolysis', action='store_true',
+                          help='Check uncovered retained hom_sci proposals; preserve accepted QC and failed searches.')
     parser.add_argument('--vrc-scan-basis', help='Change only the VRC relaxed/asymptotic geometry basis.')
     parser.add_argument('--vrc-fragment-geometry', choices=['legacy', 'asymptotic_scan'])
     parser.add_argument('--vrc-pivot-level', choices=['L2', 'custom'])
@@ -966,8 +975,9 @@ def main(argv=None):
         from kinbot.vrc_restart import settings
         from kinbot.network_revisit import settings as network_settings
         rejected = args.revisit_reaction or args.revisit_rejected
-        network_options = (network_settings(args.vdw_detection,rejected,args.deduplicate_ts,args.barrier_threshold_l2)
-                           if args.vdw_detection is not None or rejected or args.deduplicate_ts or args.barrier_threshold_l2 is not None else None)
+        homolysis = args.check_homolysis or (True if args.check_all_homolysis else None)
+        network_options = (network_settings(args.vdw_detection,rejected,args.deduplicate_ts,args.barrier_threshold_l2,homolysis)
+                           if args.vdw_detection is not None or rejected or args.deduplicate_ts or args.barrier_threshold_l2 is not None or homolysis is not None else None)
         result = refresh_when_idle(root, wait_idle=args.wait_idle,
             apply=args.apply, replace_pending=args.replace_pending,
             vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,
@@ -982,6 +992,8 @@ def main(argv=None):
         revision = result['network_revision']
         print('Network revisit: ' + json.dumps(revision['settings'],sort_keys=True))
         print('Rejected channels selected: '+str(sum(len(w['rejected']) for w in revision['workers'])))
+        if revision['settings'].get('homolytic_saddle_search') is not None:
+            print('Homolysis placeholders selected: '+str(sum(len(w['homolysis']) for w in revision['workers'])))
         print('Verified duplicate ANL allocation IDs selected: '+
               ', '.join(j['job_id'] for j in revision['selected_jobs']))
         print('QC graphs retained except archived, verified ANL aliases; existing VRC paths retained.')

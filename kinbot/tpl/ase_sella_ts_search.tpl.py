@@ -57,13 +57,19 @@ opt = Sella(mol,
 # optimizer becomes singular, retain the finite coordinate-modified input;
 # the final saddle must still pass its independent TS checks.
 recovery_reason = None
+strict_scan = {strict_scan}
 try:
-    converged = run_optimizer(opt, fmax=0.1, steps=100)
+    converged = run_optimizer(opt, fmax={fmax} if strict_scan else 0.1,
+                              steps={steps} if strict_scan else 100)
 except Exception as error:
+    if strict_scan:
+        raise
     converged = False
     recovery_reason = f'{{type(error).__name__}}: {{error}}'
 if (not np.isfinite(mol.positions).all() or too_far(mol.positions)):
     recovery_reason = recovery_reason or 'optimizer returned invalid coordinates'
+if strict_scan and (not converged or recovery_reason is not None):
+    raise RuntimeError('Constrained dissociation point did not converge; no scan energy accepted.')
 if recovery_reason is not None:
     mol.positions = input_geom.copy()
     mol.calc.results.clear()

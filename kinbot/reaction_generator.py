@@ -55,6 +55,8 @@ class ReactionGenerator:
         if obj.instance_name in self.search_checkpoint.replaying:
             return False
         from kinbot.l1_screening import screen
+        if self.par.get('bimol_pes_reference'):
+            comparable = True  # Explicitly same-profile, source-PES reference.
         rejected = screen(self.par, names, reaction=obj.instance_name,
                           kind=kind, comparable=comparable)
         if rejected:
@@ -306,6 +308,9 @@ class ReactionGenerator:
                 obj = self.species.reac_obj[index]
                 self.search_checkpoint.enter(index)
                 try:
+                    from kinbot import homolysis
+                    if homolysis.deferred(self, index):
+                        continue
                     if matches_name(obj.instance_name, self.par['skip_reactions']) \
                             and self.species.reac_ts_done[index] != -999:
                         logger.info(f'\tRemoving reaction {obj.instance_name}.')
@@ -330,6 +335,8 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = 2
 
                     if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
+                        if self.species.reac_type[index] == homolysis.FAMILY and homolysis.advance(self, index):
+                            continue
                         if obj.scan == 0:  # don't do a scan of a bond
                             if self.species.reac_step[index] == obj.max_step + 1:
                                 status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
@@ -356,7 +363,7 @@ class ReactionGenerator:
                         elif obj.scan == 1:  # do a bond scan
                             command = self.par['qc_command']
 
-                            if (self.species.reac_step[index] == self.par['scan_step'] + 1):
+                            if (self.species.reac_step[index] == obj.max_step + 1):
                                 status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
                                 if status == 0 and (np.count_nonzero(np.array(freq) < 0) >= 3  # More than two imag frequencies
                                                     or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
@@ -898,7 +905,8 @@ class ReactionGenerator:
                                 os.remove('{}_xval.txt'.format(self.species.chemid))
                             if os.path.exists('{}_im_extent.txt'.format(self.species.chemid)):
                                 os.remove('{}_im_extent.txt'.format(self.species.chemid))
-                            postprocess.createPESViewerInput(self.species, self.qc, self.par)
+                            if not self.par.get('bimol_result_only'):
+                                postprocess.createPESViewerInput(self.species, self.qc, self.par)
 
                     elif self.species.reac_ts_done[index] == -999:
                         if (self.par['delete_intermediate_files'] == 1
@@ -949,6 +957,9 @@ class ReactionGenerator:
                 atomic_text(Path('kinbot_monitor.out'), f_out.getvalue())
             self._write_optimization_monitor(optimization_monitor)
             time.sleep(1)
+
+        from kinbot.homolysis import finish as finish_homolysis
+        finish_homolysis(self.species)
 
         # Create molpro file for the BLS products
         for index, instance in enumerate(self.species.reac_inst):

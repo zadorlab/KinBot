@@ -102,6 +102,17 @@ class Parameters:
             'barrierless_saddle_step': 0.2,
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
+            # Proposals are not evidence of barrierlessness. Ordinary searches
+            # finish first; uncovered retained proposals get inner-TS checks.
+            'homolytic_saddle_search': True,
+            'homolytic_saddle_scan_points': 40,
+            'homolytic_saddle_scan_step': 0.1,
+            'homolytic_saddle_asymptote_tolerance': 0.5,  # kcal/mol, scouting resolution
+            'homolytic_saddle_flatness': 0.1,  # kcal/mol across final three points
+            # Standalone reverse discovery retains both IRC endpoints for
+            # subsequent, explicitly validated integration into its source PES.
+            'bimol_result_only': False,
+            'bimol_pes_reference': None,
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
             # atom index for break/form bonds starts at 0
@@ -719,6 +730,19 @@ class Parameters:
         from kinbot.vrc_multistate import normalize_inline_model_paths
         from kinbot.vrc_orbitals import validate_fragment_controls
         validate_fragment_controls(self.par)
+        from kinbot.homolysis import validate as validate_homolysis
+        self.par['homolytic_saddle_search'] = validate_homolysis(self.par['homolytic_saddle_search'])
+        count, spacing = self.par['homolytic_saddle_scan_points'], self.par['homolytic_saddle_scan_step']
+        if isinstance(count, bool) or not isinstance(count, int) or count < 3:
+            raise ValueError('homolytic_saddle_scan_points must be an integer >= 3.')
+        if isinstance(spacing, bool) or not isinstance(spacing, (int, float)) or not np.isfinite(spacing) or spacing <= 0:
+            raise ValueError('homolytic_saddle_scan_step must be positive and finite.')
+        for key in ('homolytic_saddle_asymptote_tolerance','homolytic_saddle_flatness'):
+            value=self.par[key]
+            if isinstance(value,bool) or not isinstance(value,(int,float)) or not np.isfinite(value) or value<=0:
+                raise ValueError(key+' must be positive finite kcal/mol.')
+        if self.par['bimol_result_only'] and not self.par['bimol']:
+            raise ValueError('bimol_result_only requires a bimolecular input.')
         base_input = self.par.get('input_file') or self.input_file
         normalize_inline_model_paths(self.par, Path(base_input).resolve().parent if base_input else Path.cwd())
         if self.par['theory_preset'] == 'b3lyp-b2plyp-anl' and 'sella_fmax' not in self.user_keys:

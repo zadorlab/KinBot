@@ -72,8 +72,12 @@ class IRC:
                 elif len(fragments) == 2:
                     fragments[0].characterize()
                     fragments[1].characterize()
-                    if (fragments[0].chemid == self.rxn.species.fragA.chemid and fragments[1].chemid == self.rxn.species.fragB.chemid) or \
-                       (fragments[1].chemid == self.rxn.species.fragA.chemid and fragments[0].chemid == self.rxn.species.fragB.chemid):
+                    from kinbot.species_routing import same_species
+                    from kinbot.electronic_states import apply_electronic_state_model
+                    for fragment in fragments:
+                        apply_electronic_state_model(fragment, self.par)
+                    if (same_species(fragments[0], self.rxn.species.fragA) and same_species(fragments[1], self.rxn.species.fragB)) or \
+                       (same_species(fragments[1], self.rxn.species.fragA) and same_species(fragments[0], self.rxn.species.fragB)):
                         ini_well_hits += 1
                     else:
                         prod_hit = i
@@ -99,6 +103,8 @@ class IRC:
             return 0
         else:
             # ircs OK: well and product found
+            if self.par['bimol']:
+                self.rxn.irc_reactant = st_pts[1-prod_hit]
             logger.info('\tIRCs successful for {}'.format(instance_name))
             return st_pts[prod_hit]
 

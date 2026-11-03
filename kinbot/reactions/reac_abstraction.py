@@ -46,13 +46,20 @@ def abstraction_align(startgeom, instance, atom, fragnatom):
         #g1[i] = geometry.rotate_atom(g1[i], [0, 1, 0], 20. / 180. * np.pi)
     # C-H distance
     val0 = np.linalg.norm(startgeom[instance[1]] - startgeom[instance[2]])
-    val = distance(atom, 0, 2) - val0
+    val = distance(atom, instance[0], instance[2]) - val0
     g1[:, 2] += val  # shift the whole thing in z direction
-    geom_reac = np.concatenate((g0[:fragnatom], g1[fragnatom:]))  # does not work for reverse
+    # Keep the original atom order regardless of which fragment abstracts.
+    first = np.arange(len(atom)) < fragnatom
+    abstractor = first if instance[0] < fragnatom else ~first
+    if abstractor[instance[1]] or abstractor[instance[2]]:
+        raise ValueError('Abstraction requires abstractor and donor in different fragments.')
+    geom_reac = np.where(abstractor[:, None], g0, g1)
     geom_prod = copy.deepcopy(geom_reac)
-    geom_prod[instance[1]] = [0, 0, 1.]
+    from ase.data import covalent_radii, atomic_numbers
+    ah = covalent_radii[atomic_numbers[atom[instance[0]]]] + covalent_radii[1]
+    geom_prod[instance[1]] = [0, 0, ah]
     geom_ts = copy.deepcopy(geom_reac)
-    geom_ts[instance[1]] = [0, 0, 1.5]
+    geom_ts[instance[1]] = (geom_reac[instance[1]] + geom_prod[instance[1]]) / 2
     return geom_reac, geom_prod, geom_ts
 
 def distance(atom, aa, cc):

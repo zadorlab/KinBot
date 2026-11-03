@@ -658,7 +658,7 @@ def _main():
                                 par['charge'],
                                 par['mult'][2],
                                 smiles=par['smiles'],
-                                structure=par['structure'],
+                                structure=copy.deepcopy(par['structure']),
                                 fragA=fragments['frag_a'],
                                 fragB=fragments['frag_b'],
                                 )
@@ -705,6 +705,14 @@ def _main():
             well0.energy += frag.energy
             well0.zpe += frag.zpe
 
+            # Preserve the L1 reference independently of Optimize, which
+            # updates each fragment to its accepted L2 energy and geometry.
+            if frag is fragments['frag_a']:
+                well0.start_energy, well0.start_zpe = frag.energy, frag.zpe
+            else:
+                well0.start_energy += frag.energy
+                well0.start_zpe += frag.zpe
+
             frag_opt = Optimize(frag, par, qc, wait=1)
             frag_opt.do_optimization()
             if frag_opt.shigh == -999:
@@ -725,6 +733,11 @@ def _main():
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
+
+        if par.get('bimol_result_only'):
+            from kinbot.reverse_search import export_result
+            export_result(well0, par, qc)
+            return 0
 
     while True:
         try:

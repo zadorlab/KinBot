@@ -181,7 +181,10 @@ class StationaryPoint:
                     self.geom = geom
                 else:
                     #geom[:, 0] += 1.1 * (self.fragA.maxdist + self.fragB.maxdist)  # push away 
-                    geom += 0.55 * (self.fragA.maxdist + self.fragB.maxdist)  # push away 
+                    # Keep fragment connectivity disjoint, including atom +
+                    # atom inputs whose extents are both zero. Translation
+                    # is only an initial placement; abstraction aligns later.
+                    geom[:, 0] += self.fragA.maxdist + self.fragB.maxdist + 4.
                     self.geom = np.concatenate((self.geom, geom))
         else:
             self.natom = len(self.structure) // 4

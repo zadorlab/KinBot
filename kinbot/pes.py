@@ -629,7 +629,11 @@ def postprocess(par, jobs, task, names, mass):
     jobs: all of the kinbot jobs that were run
     temp: this is a temporary output file writing
     """
+    from kinbot.reverse_search import ensure_integrated
+    ensure_integrated(Path.cwd())
+    from kinbot.homolysis import ensure_export_ready
     for job in jobs:
+        ensure_export_ready(job)
         ensure_current_run(job)
     l3_requested = bool(par['L3_calc'])
     l3done = int(l3_requested)

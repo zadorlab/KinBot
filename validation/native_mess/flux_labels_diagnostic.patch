@@ -1,0 +1,28 @@
+--- a/energy_grained_export.hh
++++ b/energy_grained_export.hh
+@@ -30,21 +30,21 @@
+     const int w1=Model::inner_connect(b).first,w2=Model::inner_connect(b).second;
+     for(int e=0;e<inner_barrier(b).size();++e) {
+       const double flux=inner_barrier(b).state_number(e)/(2.*M_PI*Phys_const::herz);
+-      out << "EDGE " << shift[w1]+e << " " << shift[w2]+e << " " << flux/well(w1).state_density(e) << " reaction\n";
+-      out << "EDGE " << shift[w2]+e << " " << shift[w1]+e << " " << flux/well(w2).state_density(e) << " reaction\n";
++      out << "EDGE " << shift[w1]+e << " " << shift[w2]+e << " " << flux/well(w1).state_density(e) << " reaction " << Model::inner_barrier(b).short_name() << "\n";
++      out << "EDGE " << shift[w2]+e << " " << shift[w1]+e << " " << flux/well(w2).state_density(e) << " reaction " << Model::inner_barrier(b).short_name() << "\n";
+     }
+   }
+   for(int b=0;b<Model::outer_barrier_size();++b) {
+     const int w=Model::outer_connect(b).first,p=Model::outer_connect(b).second;
+     for(int e=0;e<outer_barrier(b).size();++e)
+       out << "SINK " << shift[w]+e << " " << Model::bimolecular(p).short_name() << " "
+-          << outer_barrier(b).state_number(e)/(2.*M_PI*well(w).state_density(e)*Phys_const::herz) << "\n";
++          << outer_barrier(b).state_number(e)/(2.*M_PI*well(w).state_density(e)*Phys_const::herz) << " " << Model::outer_barrier(b).short_name() << "\n";
+   }
+   for(int s=0;s<Model::escape_size();++s) {
+     const int w=Model::escape_channel(s).first,channel=Model::escape_channel(s).second;
+     for(int e=0;e<well(w).size();++e)
+       out << "SINK " << shift[w]+e << " " << Model::escape_name(s) << " "
+-          << Model::well(w).escape_rate((energy_reference()-e*energy_step()),channel)/Phys_const::herz << "\n";
++          << Model::well(w).escape_rate((energy_reference()-e*energy_step()),channel)/Phys_const::herz << " escape\n";
+   }
+   out << "END\n";
+   if(!out) throw Error::Open();

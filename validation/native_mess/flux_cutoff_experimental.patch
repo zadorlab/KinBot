@@ -1,0 +1,122 @@
+--- a/libmess/mess.cc
++++ b/libmess/mess.cc
+@@ -75,6 +75,7 @@
+   /********************************* USER DEFINED PARAMETERS ********************************/
+ 
+   int conservative_direct = 0;
++  double well_cutoff_flux_tolerance = -1.;
+   int                                                       use_mp = 0;
+ 
+   double                                                    reference_temperature = -1.;
+@@ -6286,6 +6287,8 @@
+ //
+ // partition function, etc.
+ 
++#include "well_cutoff_flux.hh"
++
+ void  MasterEquation::Well::_set_state_density (const Model::Well& model)
+ {
+   const char funame [] = "MasterEquation::Well::_set_state_density: ";
+@@ -6341,6 +6344,14 @@
+     if(dtemp > base_ener)
+       //
+       base_ener = dtemp;
++  }
++
++  if(well_cutoff_flux_tolerance > 0.) {
++    if(well_cutoff <= 0. || ext_ener >= 0.) {
++      std::cerr << "WellCutoffFluxTolerance requires positive WellCutoff and no well extension\n";
++      throw Error::Init();
++    }
++    base_ener = flux_preserving_well_floor(model, base_ener);
+   }
+ 
+   if(is_global_cutoff) {
+--- a/libmess/mess.hh
++++ b/libmess/mess.hh
+@@ -47,6 +47,7 @@
+ 
+ namespace MasterEquation {
+   extern int conservative_direct;
++  extern double well_cutoff_flux_tolerance;
+ 
+   //
+   class Group;
+--- a/mess_driver.cc
++++ b/mess_driver.cc
+@@ -90,6 +90,7 @@
+   Key  adm_bor_key("AtomDistanceMin[bohr]"      );
+   Key  adm_ang_key("AtomDistanceMin[angstrom]"  );
+   Key     xtun_key("TunnelActionMax"            );
++  Key well_cut_flux_key("WellCutoffFluxTolerance");
+   Key well_cut_key("WellCutoff"                 );
+   Key well_ext_key("WellExtension"              );
+   Key ext_corr_key("ExtensionCorrection"        );
+@@ -971,6 +972,15 @@
+     }
+     // well cutoff
+     //
++    else if(well_cut_flux_key == token) {
++      if(!(from >> MasterEquation::well_cutoff_flux_tolerance) ||
++         !(MasterEquation::well_cutoff_flux_tolerance > 0.) ||
++         !(MasterEquation::well_cutoff_flux_tolerance < 1.)) {
++        std::cerr << "WellCutoffFluxTolerance must be strictly between zero and one\n";
++        throw Error::Input();
++      }
++      IO::LineInput comment(from);
++    }
+     else if(well_cut_key == token) {
+       //
+       if(!(from >> MasterEquation::well_cutoff)) {
+--- /dev/null
++++ b/libmess/well_cutoff_flux.hh
+@@ -0,0 +1,49 @@
++// Experimental, opt-in bound on reaction flux removed by explicit WellCutoff.
++// This controls truncation error in thermal barrier flux, not eigenvalue error
++// or the accuracy of the phenomenological species reduction.
++static double flux_preserving_well_floor(const Model::Well& model, double proposed) {
++  using namespace MasterEquation;
++  if(is_global_cutoff || model.escape_size()) {
++    std::cerr << "WellCutoffFluxTolerance: GlobalCutoff/extra Escape flux is not supported\n";
++    throw Error::Init();
++  }
++  int w=-1;
++  for(int i=0;i<Model::well_size();++i) if(&Model::well(i)==&model) w=i;
++  if(w<0) throw Error::Logic();
++  double result=proposed;
++  auto inspect=[&](const Model::Species& barrier, double physical_floor) {
++    const int n=std::max(0, int(std::ceil((energy_reference()-std::max(barrier.ground(),physical_floor))/energy_step())));
++    if(!n) return;
++    std::vector<long double> logs;
++    long double largest=-std::numeric_limits<long double>::infinity();
++    for(int e=0;e<n;++e) {
++      const double number=barrier.states(energy_bin(e));
++      // Follow native Barrier's accessible support; never invent states.
++      if(number<=0.) break;
++      const long double v=std::log((long double)number)+(long double)e*energy_step()/temperature();
++      logs.push_back(v);largest=std::max(largest,v);
++    }
++    if(logs.empty()) return;
++    std::vector<long double> tail(logs.size()+1,0.L);
++    for(int e=int(logs.size())-1;e>=0;--e) tail[e]=tail[e+1]+std::exp(logs[e]-largest);
++    const int requested=std::min(int(logs.size()), std::max(0,int(std::ceil((energy_reference()-proposed)/energy_step()))));
++    int retained=requested;
++    while(retained<int(logs.size()) && tail[retained]>well_cutoff_flux_tolerance*tail[0]) ++retained;
++    if(retained>requested) {
++      // A half-bin interior point makes ceil() select exactly retained bins.
++      result=std::min(result,energy_reference()-(retained-0.5)*energy_step());
++    }
++    IO::log << IO::log_offset << "WellCutoffFluxAudit well=" << model.short_name()
++      << " barrier=" << barrier.short_name()
++      << " requested_removed_fraction=" << double(tail[requested]/tail[0])
++      << " protected_removed_fraction=" << double(tail[retained]/tail[0])
++      << " required_bins=" << retained << "\n";
++  };
++  for(int b=0;b<Model::inner_barrier_size();++b) {
++    const int a=Model::inner_connect(b).first,c=Model::inner_connect(b).second;
++    if(a==w || c==w) inspect(Model::inner_barrier(b),std::max(Model::well(a).ground(),Model::well(c).ground()));
++  }
++  for(int b=0;b<Model::outer_barrier_size();++b)
++    if(Model::outer_connect(b).first==w) inspect(Model::outer_barrier(b),model.ground());
++  return std::max(model.ground(),result);
++}

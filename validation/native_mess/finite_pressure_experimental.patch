@@ -1,0 +1,286 @@
+--- a/libmess/mess.cc
++++ b/libmess/mess.cc
+@@ -3063,6 +3063,9 @@
+     }
+   }
+   
++  // Normalize the same initial population used by both retained and eliminated modes.
++  state /= nfac;
++
+   // bimolecular escape population initialization
+   //
+   LAPACK::Vector escape(bimolecular_size(), 0.);
+@@ -3126,6 +3129,22 @@
+     escape[p] += dd_val / 2. / M_PI;
+   }
+ 
++  if(bimolecular_size())
++    escape /= nfac;
++
++  // escape_flux is linear in state. Cache its columns once, preserving the
++  // same native high-energy correction instead of recomputing it each step.
++  LAPACK::Matrix escape_operator;
++  if(bimolecular_size()) {
++    escape_operator.resize(bimolecular_size(), global_size);
++    for(int j=0; j<global_size; ++j) {
++      LAPACK::Vector unit(global_size, 0.);
++      unit[j] = 1.;
++      LAPACK::Vector column = escape_flux(unit);
++      for(int i=0; i<bimolecular_size(); ++i) escape_operator(i,j)=column[i];
++    }
++  }
++
+   LAPACK::Vector vtemp;
+ 
+   int      tout = time_propagation_interval                  / time_propagation_step;
+@@ -3172,26 +3191,18 @@
+       IO::log << std::setw(Model::log_precision + 7) << std::ceil(CONVERT_DD(dtemp) * 100. - 0.5) / 100. << "\n";
+     }
+     
+-    // escape population contribution
+-    //
+-    vtemp = escape_flux(state);
+-
++    // The population and integrated product flux must use the same RK2 midpoint.
++    // A closed multiwell reactive complex has no escape vector to scale.
++    LAPACK::Vector midpoint = kin_mat * state;
++    midpoint *= -tstep / 2.;
++    midpoint += state;
++    if(bimolecular_size()) {
++      vtemp = escape_operator * midpoint;
++      vtemp *= tstep;
++      escape += vtemp;
++    }
++    vtemp = kin_mat * midpoint;
+     vtemp *= tstep;
+-
+-    escape += vtemp;
+-
+-    // second order time-propagation
+-    //
+-    vtemp = kin_mat * state;
+-
+-    vtemp *= - tstep / 2.;
+-
+-    vtemp += state;
+-
+-    vtemp = kin_mat * vtemp;
+-
+-    vtemp *= tstep;
+-
+     state -= vtemp;
+   }
+   
+@@ -3233,6 +3244,19 @@
+     //
+     IO::log << "\n";
+   
++  float_t total_probability=0.;
++  double minimum_probability=1.;
++  for(const auto& entry : res) {
++    total_probability += entry.second;
++    minimum_probability = std::min(minimum_probability, entry.second);
++  }
++  IO::log << IO::log_offset << std::setprecision(12)
++          << "PropagationAudit initial_norm=" << CONVERT_DD(nfac)
++          << " final_total=" << CONVERT_DD(total_probability)
++          << " min_probability=" << minimum_probability
++          << " steps=" << tmax << " step_over_collision=" << time_propagation_step << "\n"
++          << std::setprecision(Model::log_precision);
++
+   return res;
+ }
+ 
+@@ -5550,6 +5574,10 @@
+     }
+   }
+ 
++  for(const auto& hot : hot_energy)
++    for(double energy : hot.second)
++      _energy_reference = std::max(_energy_reference, energy + energy_step());
++
+   if(energy_reference() > Model::energy_limit()) {
+     //
+     std::cerr << funame << "model energy limit (" << Model::energy_limit() / Phys_const::kcal
+@@ -6233,11 +6261,14 @@
+       
+       for(std::set<double>::const_iterator it = hit->second.begin(); it != hit->second.end(); ++it) {
+ 	//
+-	itemp = (energy_reference() - *it) / energy_step();
+-	  
+-	if(itemp >= 0 && itemp < well(w).size())
+-	  //
+-	  hot_index.insert(std::make_pair(w, itemp));
++	const double bin = (energy_reference() - *it) / energy_step();
++        if(bin < 0. || bin >= well(w).size()) {
++          std::cerr << funame << "hot energy outside populated grid: " << hit->first
++                    << " at " << *it / Phys_const::kcal << " kcal/mol\n";
++          throw Error::Range();
++        }
++        itemp = static_cast<int>(bin);
++        hot_index.insert(std::make_pair(w, itemp));
+       }//
+       //
+     }//
+--- a/mess_driver.cc
++++ b/mess_driver.cc
+@@ -26,6 +26,8 @@
+ #include "libmess/offload.hh"
+ #include "libmess/mpack.hh"
+ #include "libmess/limits.hh"
++
++#include "energy_grained_export.hh"
+ 
+ int main (int argc, char* argv [])
+ {
+@@ -124,6 +126,10 @@
+   Key tim_evol_key("TimeEvolution"              );
+   Key       sl_key("StateLandscape"             );
+   Key save_mat_key("SaveKineticMatrix"          );
++  Key grain_export_key("EnergyGrainedGeneratorOutput");
++  Key grain_only_key("EnergyGrainedGeneratorOnly");
++  std::string grain_export_file;
++  bool grain_only = false;
+   Key gpu_size_key("GpuSize"                    );
+   Key   gpu_id_key("GpuId"                      );
+   Key  exp_max_key("ExpArgMax"                  );
+@@ -1097,6 +1103,14 @@
+     }
+     // save kinetic matrix
+     //
++    else if(grain_export_key == token) {
++      if(!(from >> grain_export_file)) throw Error::Input();
++      std::getline(from, comment);
++    }
++    else if(grain_only_key == token) {
++      grain_only = true;
++      std::getline(from, comment);
++    }
+     else if(save_mat_key == token) {
+       //
+       IO::LineInput lin(from);
+@@ -1852,6 +1866,9 @@
+ 	//
+ 	dtemp = std::floor((*t * xtot + Model::maximum_barrier_height()) / Phys_const::incm + 0.5) * Phys_const::incm;
+ 
++        for(const auto& hot : MasterEquation::hot_energy)
++          for(double energy : hot.second)
++            dtemp = std::max(dtemp, energy + *t * xtot);
+ 	MasterEquation::set_energy_reference(dtemp);
+       }
+       else
+@@ -1905,6 +1922,11 @@
+ 	//
+ 	MasterEquation::set_pressure(*p);
+ 	
++        if(grain_export_file.size()) export_energy_grained_generator(grain_export_file);
++        if(grain_only) {
++          if(!grain_export_file.size()) throw Error::Input();
++          continue;
++        }
+ 	// rate calculation
+ 	//
+ 	if(method) {
+@@ -1984,6 +2006,8 @@
+   // IO::log << std::flush;
+   //throw;
+   // }
++
++  if(grain_only) return 0;
+ 
+   // Output
+   //
+--- a/cool.cc
++++ b/cool.cc
+@@ -257,6 +257,7 @@
+ 
+   KeyGroup Main;
+ 
++  Key out_prec_key("OutPrecision");
+   Key    model_key("Model"                      );
+   Key bar_pres_key("PressureList[bar]"          );
+   Key tor_pres_key("PressureList[torr]"         );
+@@ -361,6 +362,11 @@
+     }
+     // gpu id
+     //
++    else if(out_prec_key == token) {
++      if(!(from >> itemp) || itemp<3 || itemp>14) throw Error::Range();
++      Model::out_precision=itemp;
++      std::getline(from, comment);
++    }
+     else if(gpu_id_key == token) {
+       //
+       if(!(from >> gpu_id)) {
+@@ -1577,7 +1583,7 @@
+ 
+   typedef std::map<reac_t, double>                                    rate_t;
+ 
+-  IO::out << std::setprecision(3) << "\n";
++  IO::out << std::setprecision(Model::out_precision) << "\n";
+ 
+   RateData storage;
+   
+@@ -1813,7 +1819,7 @@
+ 
+   // field width
+   //
+-  const int width = 10;
++  const int width = Model::out_precision + 7;
+ 
+   // initial width
+   //
+--- /dev/null
++++ b/energy_grained_export.hh
+@@ -0,0 +1,51 @@
++// Diagnostic export of native, unreduced energy-grained transitions.
++// Entries are outgoing rates in s^-1; no eigensystem or species reduction.
++// Diagonals are exported independently for conservation checks, not reconstructed here.
++#include <iomanip>
++#include <limits>
++static void export_energy_grained_generator(const std::string& path) {
++  using namespace MasterEquation;
++  std::ofstream out(path.c_str(), std::ios::app);
++  if(!out) throw Error::Open();
++  out << std::setprecision(17);
++  out << "BEGIN 1 " << temperature()/Phys_const::kelv << " " << pressure()/Phys_const::atm
++      << " " << energy_step()/Phys_const::kcal << "\n";
++  std::vector<int> shift(Model::well_size()+1, 0);
++  for(int w=0; w<Model::well_size(); ++w) shift[w+1]=shift[w]+well(w).size();
++  for(int w=0; w<Model::well_size(); ++w) {
++    for(int e=0; e<well(w).size(); ++e) {
++      const double b=well(w).boltzman_sqrt(e);
++      out << "STATE " << shift[w]+e << " " << Model::well(w).short_name() << " " << e
++          << " " << (energy_reference()-e*energy_step())/Phys_const::kcal << " " << b << " " << well(w).state_density(e) << "\n";
++      out << "COLLISION_DIAGONAL " << shift[w]+e << " " << well(w).kernel(e,e)*well(w).collision_frequency()/Phys_const::herz << "\n";
++      const int lo=std::max(0,e-well(w).kernel_bandwidth+1);
++      const int hi=std::min(well(w).size(),e+well(w).kernel_bandwidth);
++      for(int f=lo;f<hi;++f) if(f!=e && well(w).kernel(e,f)!=0.)
++        out << "EDGE " << shift[w]+e << " " << shift[w]+f << " "
++            << -well(w).kernel(e,f)*well(w).collision_frequency()/Phys_const::herz << " collision\n";
++      if(well(w).radiation()) throw Error::Init(); // Do not silently omit a radiative model.
++    }
++  }
++  for(int b=0;b<Model::inner_barrier_size();++b) {
++    const int w1=Model::inner_connect(b).first,w2=Model::inner_connect(b).second;
++    for(int e=0;e<inner_barrier(b).size();++e) {
++      const double flux=inner_barrier(b).state_number(e)/(2.*M_PI*Phys_const::herz);
++      out << "EDGE " << shift[w1]+e << " " << shift[w2]+e << " " << flux/well(w1).state_density(e) << " reaction\n";
++      out << "EDGE " << shift[w2]+e << " " << shift[w1]+e << " " << flux/well(w2).state_density(e) << " reaction\n";
++    }
++  }
++  for(int b=0;b<Model::outer_barrier_size();++b) {
++    const int w=Model::outer_connect(b).first,p=Model::outer_connect(b).second;
++    for(int e=0;e<outer_barrier(b).size();++e)
++      out << "SINK " << shift[w]+e << " " << Model::bimolecular(p).short_name() << " "
++          << outer_barrier(b).state_number(e)/(2.*M_PI*well(w).state_density(e)*Phys_const::herz) << "\n";
++  }
++  for(int s=0;s<Model::escape_size();++s) {
++    const int w=Model::escape_channel(s).first,channel=Model::escape_channel(s).second;
++    for(int e=0;e<well(w).size();++e)
++      out << "SINK " << shift[w]+e << " " << Model::escape_name(s) << " "
++          << Model::well(w).escape_rate((energy_reference()-e*energy_step()),channel)/Phys_const::herz << "\n";
++  }
++  out << "END\n";
++  if(!out) throw Error::Open();
++}

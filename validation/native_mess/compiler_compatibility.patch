@@ -1,0 +1,79 @@
+--- original/libmess/mpack.hh
++++ multiprecision/libmess/mpack.hh
+@@ -94,6 +94,13 @@
+ 
+   extern int mp_type;
+ 
++  template<class T> inline double scalar_double(const T& x) { return static_cast<double>(x); }
++#if defined(WITH_MPACK) || defined(WITH_MPLAPACK)
++  inline double scalar_double(const dd_real& x) { return to_double(x); }
++  inline double scalar_double(const qd_real& x) { return to_double(x); }
++  inline double scalar_double(const mpf_class& x) { return x.get_d(); }
++#endif
++
+   template<typename A>
+   //
+   void Rsyev (const char *jobz, const char *uplo, MPACK_INT n, A * a, MPACK_INT lda,
+@@ -156,7 +163,7 @@
+     //
+     //lwork = (int)cast2double(work[0]);
+ 
+-    lwork = (long)work[0];
++    lwork = (long)scalar_double(work[0]);
+ 
+     work.resize(std::max((MPACK_INT)1, lwork));
+ 
+@@ -179,7 +186,7 @@
+   
+     for(int i = 0; i < mat.size(); ++i)
+       //
+-      res[i] = (double)eval[i];
++      res[i] = scalar_double(eval[i]);
+ 
+     if(evec) {
+       //
+@@ -187,7 +194,7 @@
+ 	//
+ 	for(int j = 0; j < mat.size(); ++j) {
+ 	  //
+-	  (*evec)(i, j) = (double)a[i + j * mat.size()];
++	  (*evec)(i, j) = scalar_double(a[i + j * mat.size()]);
+ 	}
+       }
+     }
+@@ -244,7 +251,7 @@
+ 
+     Rsyev<T>(jobz, "U", m.size(), (T*)(*evec), m.size(), (T*)eval, (T*)work, lwork, &info);
+ 
+-    lwork = (long)work[0];
++    lwork = (long)scalar_double(work[0]);
+ 
+     work.resize(std::max((MPACK_INT)1, lwork));
+ 
+--- original/libmess/mess.cc
++++ multiprecision/libmess/mess.cc
+@@ -30,6 +30,15 @@
+ #include "offload.hh"
+ #include "mpack.hh"
+ #include "limits.hh"
++
++#if defined(WITH_MPACK) || defined(WITH_MPLAPACK)
++// Match the existing diagnostic conversion below, including ADL-selected
++// IO::LogOut templates. Homebrew QD uses libc++, unlike this GCC build.
++namespace IO {
++  template<> inline LogOut& operator<< (LogOut& to, const dd_real& dd)
++  { return IO::operator<<<double>(to, dd._hi()); }
++}
++#endif
+ 
+ namespace MasterEquation {
+ 
+@@ -4358,7 +4367,7 @@
+     //
+     dtemp = lower_global_cutoff;
+   
+-  itemp = std::ceil((energy_reference - (double)dtemp) / energy_step);
++  itemp = std::ceil((energy_reference - CONVERT_DD(dtemp)) / energy_step);
+ 
+   itemp = itemp < size_max ? itemp : size_max;
+ 

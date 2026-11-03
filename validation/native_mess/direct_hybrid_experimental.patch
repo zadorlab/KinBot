@@ -1,0 +1,83 @@
+--- a/libmess/mess.cc
++++ b/libmess/mess.cc
+@@ -11358,7 +11358,6 @@
+     //
+   }// outer barriers
+ 
+-  /*
+   // low eigenvalue method
+   //
+   if(eigenval[0] / min_relax_eval < chemical_tolerance) {
+@@ -11382,7 +11381,7 @@
+   //
+   itemp = 1;
+     
+-  while(eigenval[itemp] / min_relax_eval < chemical_tolerance) { ++itemp; }
++  while(itemp < Model::well_size() && eigenval[itemp] / min_relax_eval < chemical_tolerance) { ++itemp; }
+     
+   const int chem_size = itemp < Model::well_size() ? itemp : Model::well_size();
+ 
+@@ -11516,8 +11515,12 @@
+ 	
+   if(reduction_method == PROJECTION) {
+   chem_eval[l] = low_eval[l];
+-  for(int w = 0; w < Model::well_size(); ++w)
+-  chem_evec(w, l) = low_evec.column(l) * basis.row(w);
++  for(int w = 0; w < Model::well_size(); ++w) {
++    double projection = 0.;
++    for(int g = 0; g < chem_size; ++g)
++      projection += low_evec(g, l) * basis(w, g);
++    chem_evec(w, l) = projection;
++  }
+   }
+ 	
+   }
+@@ -11601,8 +11604,31 @@
+   //
+   }//
+   //
++  // Report eigenpair and mutual-orthogonality errors after substitution.
++  // Diagnostic only: do not clip rates or silently certify the reduction.
++  for(int l=0; l<chem_size; ++l) {
++    Lapack::Vector vector(global_size);
++    for(int i=0; i<global_size; ++i) vector[i]=eigen_global(l,i);
++    Lapack::Vector residual=kin_mat*vector;
++    double norm2=0., residual2=0., overlap=0.;
++    for(int i=0; i<global_size; ++i) {
++      residual[i]-=eigenval[l]*vector[i];
++      norm2+=vector[i]*vector[i];
++      residual2+=residual[i]*residual[i];
++    }
++    for(int m=0; m<std::min(global_size,Model::well_size()+3); ++m) if(m!=l) {
++      double dot=0.;
++      for(int i=0; i<global_size; ++i) dot+=vector[i]*eigen_global(m,i);
++      overlap=std::max(overlap,std::abs(dot));
++    }
++    IO::log << IO::log_offset << std::setprecision(12)
++            << "HybridAudit mode=" << l << " eigenvalue_over_relax=" << eigenval[l]/min_relax_eval
++            << " norm_error=" << std::abs(norm2-1.) << " overlap=" << overlap
++            << " residual_over_relax=" << std::sqrt(residual2/norm2)/min_relax_eval << "\n"
++            << std::setprecision(Model::log_precision);
++  }
+   }// low eigenvalue method
+-  */
++
+     
+   Lapack::Matrix eigen_well(global_size, Model::well_size());
+   
+--- a/mess_driver.cc
++++ b/mess_driver.cc
+@@ -226,6 +226,13 @@
+ 	IO::out << std::setprecision(Model::out_precision);
+       }
+ 
++      // Both the explicit low-eigenvalue method and hybrid direct substitution
++      // require the collision-relaxation basis. This is a numerical basis,
++      // not a change to the physical collision model.
++      if(method == MasterEquation::low_eigenvalue_method ||
++         method == MasterEquation::direct_diagonalization_method)
++        MasterEquation::with_crm_basis = 1;
++
+       Model::init(from);
+       
+       break;

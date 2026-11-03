@@ -3,6 +3,12 @@
 This review changes shared KinBot routines. The CH3S/CH3SS export provides
 regression evidence, not molecule-specific rules in installed code.
 
+The later finite-pressure investigation and exact native-source patches are
+documented in [the native MESS report](../validation/native_mess/README.md).
+It adds converged 193 nm / 300 K / 760 torr scouting evidence without certifying
+the entire phenomenological thermal-rate grid. Earlier collisionless-only
+scope statements below describe the preceding release.
+
 ## What is actually calculated
 
 For a chemically permitted atom mapping, center the two coordinate matrices

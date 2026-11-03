@@ -1,0 +1,147 @@
+--- a/libmess/mess.cc
++++ b/libmess/mess.cc
+@@ -74,6 +74,7 @@
+ 
+   /********************************* USER DEFINED PARAMETERS ********************************/
+ 
++  int conservative_direct = 0;
+   int                                                       use_mp = 0;
+ 
+   double                                                    reference_temperature = -1.;
+@@ -10904,6 +10905,8 @@
+  ************ THE DIRECT DIAGONALIZATION OF THE GLOBAL KINETIC RELAXATION MATRIX ************
+  ********************************************************************************************/
+ 
++#include "direct_conservative_eigen.hh"
++
+ void MasterEquation::direct_diagonalization_method (std::map<std::pair<int, int>, double>& rate_data,
+ 						    //
+ 						    Partition& well_partition, int flags)
+@@ -11261,7 +11264,19 @@
+       IO::log << "done\n";
+     }
+     
+-    if(Mpack::mp_type == Mpack::DOUBLE) {
++    if(conservative_direct) {
++#if defined(WITH_MPACK) || defined(WITH_MPLAPACK)
++      if(!use_mp) throw Error::Init();
++      if(Mpack::mp_type == Mpack::QD)
++        eigenval = conservative_direct_eigen<qd_real>(kin_mat, well_shift, eigen_global);
++      else if(Mpack::mp_type == Mpack::DD)
++        eigenval = conservative_direct_eigen<dd_real>(kin_mat, well_shift, eigen_global);
++      else { std::cerr << "ConservativeDirect requires FloatType dd or qd\n"; throw Error::Init(); }
++#else
++      throw Error::Init();
++#endif
++    }
++    else if(Mpack::mp_type == Mpack::DOUBLE) {
+       //
+       eigenval = Offload::eigenvalues(kin_mat, &eigen_global);
+     }
+--- a/libmess/mess.hh
++++ b/libmess/mess.hh
+@@ -46,6 +46,8 @@
+ 
+ 
+ namespace MasterEquation {
++  extern int conservative_direct;
++
+   //
+   class Group;
+   class Partition;
+--- a/mess_driver.cc
++++ b/mess_driver.cc
+@@ -99,6 +99,7 @@
+   Key chem_tol_key("ChemicalTolerance"          );
+   Key well_red_key("WellReductionThreshold"     );
+   Key    float_key("FloatType"                  );
++  Key conservative_direct_key("ConservativeDirect");
+   Key   use_mp_key("UseMultiPrecision"          );
+   Key     calc_key("CalculationMethod"          );
+   Key  rat_red_key("ReductionMethod"            );
+@@ -1046,6 +1047,10 @@
+     }
+     // use multi-precision for global kinetic matrix diagonalization
+     //
++    else if(conservative_direct_key == token) {
++      MasterEquation::conservative_direct = 1;
++      IO::LineInput comment(from);
++    }
+     else if(use_mp_key == token) {
+       //
+       MasterEquation::use_mp = 1;
+--- /dev/null
++++ b/libmess/direct_conservative_eigen.hh
+@@ -0,0 +1,72 @@
++// Experimental direct eigensolve. Preserve conservation before diagonalization,
++// rather than converting an already rounded double matrix to higher precision.
++// The physical edge rates are the native MESS rates; only roundoff-level balance
++// is reconstructed. No eigenvalues, populations, or output rates are clipped.
++template<class Real>
++static Lapack::Vector conservative_direct_eigen(
++    const Lapack::SymmetricMatrix& original, const std::vector<int>& shift,
++    Lapack::Matrix& vectors) {
++  using namespace MasterEquation;
++  const int n=original.size();
++  std::vector<Real> matrix(size_t(n)*n, Real(0.)), b(n);
++  for(int w=0;w<Model::well_size();++w) {
++    if(well(w).radiation()) {
++      std::cerr << "ConservativeDirect: radiative transitions are not implemented\n";
++      throw Error::Init();
++    }
++    for(int e=0;e<well(w).size();++e) b[shift[w]+e]=well(w).boltzman_sqrt(e);
++  }
++  auto edge=[&](int i,int j,Real loss) {
++    if(loss<0.) { std::cerr << "ConservativeDirect: negative native transition\n"; throw Error::Range(); }
++    if(loss==0.) return;
++    matrix[size_t(i)+size_t(n)*i]+=loss*b[j]/b[i];
++    matrix[size_t(j)+size_t(n)*j]+=loss*b[i]/b[j];
++    if(j<i) std::swap(i,j);
++    matrix[size_t(i)+size_t(n)*j]-=loss;
++  };
++  for(int w=0;w<Model::well_size();++w)
++    for(int e=0;e<well(w).size();++e)
++      for(int f=e+1;f<std::min(well(w).size(),e+well(w).kernel_bandwidth);++f)
++        edge(shift[w]+e,shift[w]+f,
++             -Real(well(w).collision_frequency())*Real(well(w).kernel(e,f))*b[shift[w]+e]/b[shift[w]+f]);
++  for(int a=0;a<Model::inner_barrier_size();++a) {
++    const int w=Model::inner_connect(a).first, v=Model::inner_connect(a).second;
++    for(int e=0;e<inner_barrier(a).size();++e)
++      edge(shift[w]+e,shift[v]+e,Real(inner_barrier(a).state_number(e))/(Real(2.)*Real(M_PI))
++           /sqrt(Real(well(w).state_density(e))*Real(well(v).state_density(e))));
++  }
++  for(int a=0;a<Model::outer_barrier_size();++a) {
++    const int w=Model::outer_connect(a).first;
++    for(int e=0;e<outer_barrier(a).size();++e) {
++      const int i=shift[w]+e;
++      matrix[size_t(i)+size_t(n)*i]+=Real(outer_barrier(a).state_number(e))
++          /(Real(2.)*Real(M_PI)*Real(well(w).state_density(e)));
++    }
++  }
++  for(int w=0;w<Model::well_size();++w)
++    for(int e=0;e<well(w).size();++e) {
++      const int i=shift[w]+e;
++      if(Model::well(w).escape_size())
++        matrix[size_t(i)+size_t(n)*i]+=Real(Model::well(w).escape_rate(energy_bin(e)));
++    }
++  double relative=0.;
++  for(int j=0;j<n;++j) for(int i=0;i<=j;++i) {
++    const double a=Mpack::scalar_double(matrix[size_t(i)+size_t(n)*j]);
++    relative=std::max(relative,std::abs(a-original(i,j))/std::max(std::abs(original(i,j)),1.e-300));
++  }
++  IO::log << IO::log_offset << "ConservativeDirect assembly max entrywise relative correction = " << relative << "\n";
++  std::vector<Real> values(n),work(1);
++  MPACK_INT info=0,lwork=-1;
++  Mpack::Rsyev<Real>("V","U",n,matrix.data(),n,values.data(),work.data(),lwork,&info);
++  if(info) throw Error::Lapack();
++  lwork=std::max(MPACK_INT(1),MPACK_INT(Mpack::scalar_double(work[0])));
++  work.resize(lwork);
++  Mpack::Rsyev<Real>("V","U",n,matrix.data(),n,values.data(),work.data(),lwork,&info);
++  if(info) throw Error::Lapack();
++  Lapack::Vector result(n);
++  for(int j=0;j<n;++j) {
++    result[j]=Mpack::scalar_double(values[j]);
++    for(int i=0;i<n;++i) vectors(i,j)=Mpack::scalar_double(matrix[size_t(i)+size_t(n)*j]);
++  }
++  return result;
++}

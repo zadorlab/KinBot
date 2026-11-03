@@ -1,0 +1,11 @@
+--- original/libmess/lapack.hh
++++ lp64/libmess/lapack.hh
+@@ -25,7 +25,7 @@
+ 
+ namespace Lapack {
+ 
+-  typedef int64_t int_t;
++  typedef int32_t int_t; // LP64 LAPACK integer ABI for this build.
+ 
+   typedef std::complex<double> complex;
+ 

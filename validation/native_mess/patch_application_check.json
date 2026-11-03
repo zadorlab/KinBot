@@ -1,0 +1,48 @@
+{
+  "scope": "Temporary source reconstruction, patch identity, and exact source hashes; not build or rate validation.",
+  "source_archive_sha256": "911085be5322c7de2686ac789d0f3a2516f70b971c19ee88f55d542f6a45c908",
+  "results": [
+    {
+      "patch": "compiler_compatibility",
+      "applied": true,
+      "verified_source_files": 2,
+      "after_hashes_matched": true
+    },
+    {
+      "patch": "local_accelerate_lp64",
+      "applied": true,
+      "verified_source_files": 233,
+      "after_hashes_matched": true
+    },
+    {
+      "patch": "finite_pressure_experimental",
+      "applied": true,
+      "verified_source_files": 234,
+      "after_hashes_matched": true
+    },
+    {
+      "patch": "direct_hybrid_experimental",
+      "applied": true,
+      "verified_source_files": 234,
+      "after_hashes_matched": true
+    },
+    {
+      "patch": "direct_conservative_experimental",
+      "applied": true,
+      "verified_source_files": 235,
+      "after_hashes_matched": true
+    },
+    {
+      "patch": "flux_cutoff_experimental",
+      "applied": true,
+      "verified_source_files": 236,
+      "after_hashes_matched": true
+    },
+    {
+      "patch": "flux_labels_diagnostic",
+      "applied": true,
+      "verified_source_files": 234,
+      "after_hashes_matched": true
+    }
+  ]
+}

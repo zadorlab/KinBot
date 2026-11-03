@@ -631,6 +631,54 @@ def test_network_revisit_handoff_preserves_live_and_pending_graphs(live_tree):
     assert len(t.launches)==2
 
 
+def test_same_cutoff_thermochemistry_reassessment_preserves_failures_and_live_work(sampling_tree, monkeypatch):
+    from kinbot.network_revisit import settings
+    from kinbot.search_state import contract, NAME, SearchState
+    t = sampling_tree
+    signature = dict(family='test', instance=[0, 1, 2], max_step=12, scan=False)
+    for case in ('ch3s', 'ch3ss'):
+        w = t.root/case/'123'
+        inp = w/'123.json'
+        atomic_json(inp, dict(vdW_detection=.5, rotor_scan=1))
+        (w/'kinbot_monitor.out').write_text('-1 13 accepted\n-999 -1 rejected\n0 7 ongoing\n')
+        atomic_json(w/NAME, dict(schema=1, contract=contract(inp), reactions={
+            'accepted': dict(status=-1, step=13, signature=signature),
+            'rejected': dict(status=-999, step=-1, signature=signature),
+            'ongoing': dict(status=0, step=7, signature=signature)}))
+    before = scientific_files(t.root)
+    jobs = deepcopy(t.jobs)
+    options = settings(vdw=.5)  # existing policy, not a threshold change
+    result = run_refresh.refresh_when_idle(t.root, apply=True, network_options=options, wait_idle=30)
+    assert result['phase'] == 'launched' and t.jobs == jobs
+    assert scientific_files(t.root) == before
+    assert {p['pid'] for p in t.processes} == {700, 701, 702}
+    assert run_refresh.refresh_when_idle(t.root, apply=True, network_options=options, wait_idle=30) == result
+    assert len(t.launches) == 2
+    for case in ('ch3s', 'ch3ss'):
+        w = t.root/case/'123'
+        assert json.loads((w/'123.json').read_text())['vdW_detection'] == .5
+        state = json.loads((w/NAME).read_text())['reactions']
+        assert state['accepted']['reassess'] is True
+        assert 'reassess' not in state['rejected'] and 'reassess' not in state['ongoing']
+        assert json.loads((w/'.kinbot_revisit.json').read_text())['rejected'] == []
+        # The new owner reconstructs accepted TS/IRC records at stage 1,
+        # permits missing downstream characterization, and does not restart
+        # the original saddle discovery or a naturally rejected search.
+        with monkeypatch.context() as m:
+            m.chdir(w)
+            obj = [SimpleNamespace(instance_name=name, family_name='test',
+                    instance=[0, 1, 2], max_step=12, scan=False, skip=False, products=[])
+                   for name in ('accepted', 'rejected', 'ongoing')]
+            s = SimpleNamespace(reac_obj=obj, reac_ts_done=[0, 0, 0], reac_step=[0, 0, 0],
+                reac_scan_energy=[[], [], []], reac_type=['test']*3, reac_inst=[[0, 1, 2]]*3)
+            qc = SimpleNamespace(job_ids={})
+            owner = SearchState(SimpleNamespace(species=s, qc=qc, inp=str(w/'123.json')))
+            assert s.reac_ts_done == [1, -999, 0] and s.reac_step == [13, -1, 7]
+            owner.enter(0)
+            assert qc._search_replay is None
+            owner.leave()
+
+
 @pytest.mark.parametrize('ordinary', [False, True])
 def test_exact_revisit_refresh_and_owner_application_are_bounded(sampling_tree, monkeypatch, ordinary):
     from ase import Atoms

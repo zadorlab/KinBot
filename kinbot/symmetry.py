@@ -3,6 +3,7 @@ import copy
 import numpy as np
 
 from kinbot import geometry
+from kinbot.rotor_selection import single_bond_candidate
 
 
 # Relative to the mean central bond length; tolerate small departures from a
@@ -199,7 +200,8 @@ def _calculate_symmetry(species, external_atomid=None, internal_atomid=None):
                 s2 = 1
                 if all([ati == nei2[0] for ati in nei2]):
                     s2 = len(nei2)
-                if any([all([bi[li[ai]][li[ai+1]] == 1 for bi in species.bonds]) for ai in range(len(li)-1)]): # single bond in all resonance isomers
+                if any(single_bond_candidate(species.atom, species.bonds, a, b)
+                       for a, b in zip(li, li[1:])):
                     if sigma_ext_contrib[i] > 1:
                         sigma_int[i][j] = s2
                     elif sigma_ext_contrib[j] > 1:

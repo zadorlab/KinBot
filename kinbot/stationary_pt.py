@@ -12,6 +12,7 @@ from kinbot import cheminfo
 from kinbot import constants
 from kinbot import find_motif
 from kinbot import geometry
+from kinbot.rotor_selection import single_bond_candidate
 
 logger = logging.getLogger('KinBot')
 
@@ -710,8 +711,12 @@ class StationaryPoint:
 
     def find_dihedral(self, findall=0): 
         """ 
-        Identify unique rotatable bonds in the structure 
-        No rotation around ring bonds and double and triple bonds.
+        Identify unique candidate rotatable bonds in the structure.
+        An axis must split the graph into two tops and normally be single in
+        every resonance structure. Sulfur's expanded-valence assignments may
+        mix single/multiple orders: retain those candidates if a single form
+        exists, and let the scan determine the potential. Exclusively multiple
+        bonds and mixed-order non-sulfur axes remain excluded.
         If findall is set to 1, then redundant dihedrals are also found.
         """
         self.calc_chemid()
@@ -724,18 +729,30 @@ class StationaryPoint:
 
         if self.natom < 4: return 0
 
+        # Only graph bridges separate independent tops. Checking whether both
+        # atoms belong to rings wrongly excludes the bond joining two rings;
+        # it also misses cycles beyond the stored cycle enumeration. For a TS
+        # this graph includes the forming/breaking bonds of the reaction loop.
+        bridges = {tuple(sorted(edge)) for edge in
+                   nx.bridges(nx.from_numpy_array(np.asarray(self.bond) > 0))}
+
         # a-b-c-d rotates around b-c; the outer bonds only define the angle.
-        # Keep existing single-bond references and rotor indices first (HIR
-        # restart names use those indices). Then add missing axes, such as
-        # C-N in nitro groups, allowing multiple bonds as outer references.
+        # Preserve the entire old ordering first (including multiple outer
+        # references), then append newly eligible resonance/ring-bridge axes.
+        # HIR restart names contain these indices.
         rotors = self.dihed_allrot if findall else self.dihed
         found_axes = set()
-        for allow_multiple in (False, True):
+        for legacy_only, allow_multiple in ((True, False), (True, True),
+                                            (False, False), (False, True)):
             for b in range(self.natom):
                 for c in range(b + 1, self.natom):
-                    if ((b, c) in found_axes
-                            or not all(bi[b][c] == 1 for bi in self.bonds)
-                            or self.cycle[b] * self.cycle[c] != 0):
+                    orders = [bi[b][c] for bi in self.bonds]
+                    if ((b, c) in found_axes or (b, c) not in bridges
+                            or not single_bond_candidate(self.atom, self.bonds, b, c)):
+                        continue
+                    all_single = all(order == 1 for order in orders)
+                    if legacy_only and (not all_single
+                                        or self.cycle[b] * self.cycle[c] != 0):
                         continue
                     found = False
                     for a in range(self.natom):

@@ -1,4 +1,4 @@
-"""Rotating bonds stay single; torsion reference bonds need not be single."""
+"""Independent rotor tops, with a narrow sulfur mixed-valence exception."""
 from types import SimpleNamespace
 import unittest
 
@@ -87,7 +87,7 @@ class TestRotorDetection(unittest.TestCase):
         self.assertEqual([r[1:3] for r in species.dihed], [[8, 9], [7, 8]])
         self.assertEqual(species.dihed[0], [0, 8, 9, 2])
 
-    def test_multiple_ring_and_linear_axes_stay_excluded(self):
+    def test_exclusively_multiple_ring_and_linear_axes_stay_excluded(self):
         for name in ['C2H4', 'C2H2', 'C6H6', 'C3H6_D3h', 'CH3CN']:
             with self.subTest(name=name):
                 self.assertEqual(point(molecule(name)).dihed, [])
@@ -97,6 +97,69 @@ class TestRotorDetection(unittest.TestCase):
         species.bonds.append(other_resonance)
         species.find_dihedral()
         self.assertEqual(species.dihed, [])
+
+    def test_resonance_candidates_are_appended_without_renumbering_old_axes(self):
+        # Use ethanol's coordinates only as a graph/ordering fixture for C-C-S.
+        atoms = molecule('CH3CH2OH')
+        species = point(atoms, order=np.arange(len(atoms))[::-1])
+        old = list(species.dihed)
+        sulfur = list(species.atom).index('O')
+        species.atom[sulfur] = 'S'
+        new = next(r for r in old if sulfur in r[1:3])
+        retained = [r for r in old if r is not new]
+        alternative = species.bond.copy()
+        b, c = new[1:3]
+        alternative[b, c] = alternative[c, b] = 2
+        species.bonds.append(alternative)
+        species.find_dihedral()
+        # The unaffected C-C axis stays first; append the mixed-order C-S axis.
+        self.assertEqual(species.dihed, retained + [new])
+        species.bonds.reverse()
+        species.find_dihedral()
+        self.assertEqual(species.dihed, retained + [new])
+        species.bonds = [alternative]
+        species.find_dihedral()
+        self.assertEqual(species.dihed, retained)
+
+    def test_non_sulfur_mixed_orders_do_not_expand_scan_work(self):
+        for name in ['CH3CH2OH', 'CH3NO2']:
+            species = point(molecule(name))
+            alternative = species.bond.copy()
+            for a, b, c, d in species.dihed:
+                alternative[b, c] = alternative[c, b] = 2
+            species.bonds.append(alternative)
+            species.find_dihedral()
+            self.assertEqual(species.dihed, [])
+
+    def test_new_sulfur_candidate_keeps_internal_periodicity(self):
+        species = point(molecule('CH3SH'))
+        rotor = species.dihed[0]
+        b, c = rotor[1:3]
+        alternative = species.bond.copy()
+        alternative[b, c] = alternative[c, b] = 2
+        species.bonds.append(alternative)
+        species.find_dihedral()
+        symmetry.calculate_symmetry(species)
+        self.assertEqual(species.dihed, [rotor])
+        self.assertEqual(species.sigma_int[b][c], 3)
+
+    def test_bond_between_rings_is_a_rotor_but_ring_edges_are_not(self):
+        # Two non-planar triangle tops linked by one bridge. This is a graph
+        # and kinematics fixture, not an optimized molecular calculation.
+        xyz = [[0, 0, 0], [-1, 1, 0], [-1, 0, 1],
+               [1.5, 0, 0], [2.5, 1, 0], [2.5, 0, -1]]
+        species = StationaryPoint('linked_rings', 0, 1, atom=['C']*6,
+                                  geom=np.array(xyz, dtype=float))
+        bond = np.zeros((6, 6), dtype=int)
+        for a, b in [(0, 1), (1, 2), (2, 0), (3, 4), (4, 5), (5, 3), (0, 3)]:
+            bond[a, b] = bond[b, a] = 1
+        species.bond, species.bonds = bond, [bond.copy()]
+        species.find_cycle()
+        self.assertTrue(all(species.cycle))
+        species.find_dihedral()
+        self.assertEqual([r[1:3] for r in species.dihed], [[0, 3]])
+        self.assertEqual(frequencies.partition(species, species.dihed[0], 6),
+                         ([0, 1, 2], [3, 4, 5]))
 
     def test_nitro_hir_geometries_preserve_both_fragments(self):
         species = point(molecule('CH3NO2'))

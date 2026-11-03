@@ -154,8 +154,8 @@ def test_linear_molecule_removes_five_external_motions():
     assert result['stable_midpoint_energy_kcal_mol']==0.
 
 
-@pytest.mark.parametrize('scale', [1., 3.])
-def test_mess_midpoint_cannot_choose_a_divisor(caplog, scale):
+@pytest.mark.parametrize('scale,weight',[(1.,1.),(3.,2.)])
+def test_mess_midpoint_approximation_divisor_and_comment_agree(caplog,scale,weight):
     from kinbot.mess import MESS
     from kinbot.calculation import array_fingerprint
     p=loose_ts()
@@ -165,16 +165,17 @@ def test_mess_midpoint_cannot_choose_a_divisor(caplog, scale):
     p.reduced_freqs=(np.asarray(p.reduced_freqs)*np.sqrt(scale)).tolist()
     p.rotor_projection['reference']['hessian_sha256']=array_fingerprint(p.hess)
     writer=MESS(dict(multi_conf_tst=0,optical_population='specified'),p)
-    assert writer._parent_symmetry(p)==p.sigma_ext
+    assert writer._parent_symmetry(p)==p.sigma_ext/weight
     text=writer._optical_comment(p)
-    for message in ('unresolved symmetry number', 'optical factor 1',
-                    'Diagnostic only', 'not an inversion barrier', 'no energy cutoff applied'):
+    for message in ('Harmonic midpoint approximation',f'optical factor {weight:g}',
+                    '4 kcal/mol',
+                    'counting heuristic','not an inversion barrier'):
         assert message in text and message in caplog.text
-    assert p.mess_optical_counting['status'] == 'unresolved'
+    assert 'unresolved symmetry number' not in text
 
 
-@pytest.mark.parametrize('energy', [0., 3.999, 4., 4.001, 50.])
-def test_no_midpoint_energy_can_claim_measured_coverage(energy):
+@pytest.mark.parametrize('energy,weight',[(0.,1.),(3.999,1.),(4.,1.),(4.001,2.),(50.,2.)])
+def test_heuristic_threshold_and_no_claim_of_measured_coverage(energy,weight):
     from kinbot.optical_harmonic import apply_midpoint_heuristic
     count=dict(status='unresolved',fallback='unresolved_symmetry',remaining_multiplier=1.,
         reason='Rigid mirror comparison is numerically undetermined.',
@@ -182,9 +183,8 @@ def test_no_midpoint_energy_can_claim_measured_coverage(energy):
     diagnostic=dict(status='complete',mapping_search_complete=True,
                     stable_midpoint_energy_kcal_mol=energy)
     result=apply_midpoint_heuristic(count,diagnostic)
-    assert result['status']=='unresolved' and result['remaining_multiplier']==1.
-    assert result['states_covered_by_hir'] is None and 'fallback' in result
-    assert not result['harmonic_midpoint']['used_for_optical_counting']
+    assert result['status']=='assumed' and result['remaining_multiplier']==weight
+    assert result['states_covered_by_hir'] is None and 'fallback' not in result
     assert count['status']=='unresolved' and 'cutoff_kcal_mol' not in diagnostic
 
 

@@ -1,8 +1,9 @@
 # Symmetry and stereochemistry: additions in this review
 
-Scope: additions/corrections published in `776fecae1`, building on KinBot's
-existing symmetry and stereochemistry machinery. This is not a claim that the
-underlying concepts or original implementations were new to this review.
+Scope: additions/corrections published in `776fecae1`, with the subsequent
+restoration of the established harmonic midpoint approximation noted below.
+These build on KinBot's existing symmetry and stereochemistry machinery; the
+underlying concepts and original implementations are not claimed as new here.
 
 - **Actual vibrational-mode comparison.** Read native Gaussian Cartesian
   displacement vectors, bind them to their own calculation's geometry, and
@@ -22,15 +23,20 @@ underlying concepts or original implementations were new to this review.
 - **Consistent optical counting.** Share counting across MESS, MESSPF and
   thermochemistry; distinguish explicit mirror populations from mirror
   configurations already covered by conformer or hindered-rotor domains.
-  Remove the midpoint harmonic-energy/4 kcal/mol heuristic as a counting
-  decision, while retaining its diagnostic. This corrects/extends the
-  rotational/optical-weight work recorded under LukaDockx, `f0a1811b1` (2026).
+  Retain the established 4 kcal/mol harmonic-midpoint fallback for ambiguous
+  puckering/mirror geometry, explicitly labeled as an approximation. Its
+  removal in `776fecae1` was not a demonstrated bug fix and has been reversed.
+  The shared counting extends the rotational/optical-weight work recorded
+  under LukaDockx, `f0a1811b1` (2026); the midpoint approximation itself predates
+  this review.
 - **Evidence-based mirror-saddle flux accounting.** Calculate signed parity
   of the unstable native mode under each admissible mirror mapping. Share a
   single even self-mirror harmonic surface between its two represented mirror
   connections, conserving its total statistical weight. Missing evidence,
   mixed parity and PST/ROTD surfaces do not receive this rule. It does not
   calculate trajectories or dynamical branching.
+  The rxn20 evidence supports this duplicate-surface correction, not a failure
+  of the harmonic midpoint cutoff.
 - **Consistent cached and network representations.** Refresh reconstructible
   legacy symmetry factors and stale geometry labels without changing raw QC;
   apply each correction once. Mirror connections use one consistent complete

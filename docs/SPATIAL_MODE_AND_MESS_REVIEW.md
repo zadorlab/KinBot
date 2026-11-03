@@ -77,13 +77,27 @@ domain or conformer sum. These are domain/counting questions, not overlaps of
 electronic wavefunctions. MESS, MESSPF and exported thermochemistry now use
 the same parent counting routine instead of a stale `nopt` on one path.
 
-The previous midpoint rule estimated `0.5 d.T H d` between a structure and an
-aligned mirror, then used a 4 kcal/mol cutoff to change optical weight.
-A local curvature at one structure cannot establish the intervening inversion
-path or whether a torsional domain already covers it. That cutoff no longer
-changes counting. The estimate remains a labeled diagnostic. Cases lacking
-domain evidence remain explicitly unresolved; no new quantum overlap or
-inversion barrier is claimed.
+When rigid/represented-motion mirror comparisons are geometrically ambiguous,
+the harmonic midpoint fallback uses the selected structure's own Hessian to
+estimate `0.5 d.T H d`, where `d` is the displacement to the aligned mirror
+**midpoint**, not the full mirror displacement. Only stable vibrational modes
+contribute. An estimate at or below 4 kcal/mol gives optical weight 1; an
+estimate above 4 gives weight 2. This is the established approximation for
+soft puckering and similar ambiguous distortions, labeled `status=assumed`
+and `heuristic=harmonic_midpoint`. It does not claim an inversion barrier,
+wavefunction overlap, or measured rotor coverage. Fixed populations, explicit
+mirror coverage, valid rotor evidence and contradictory observations take
+precedence; missing/stale Hessians or incomplete mapping do not license it.
+Ambiguous explicit conformer pairs require their two own-Hessian estimates
+to agree on the side of the cutoff, and each retained member keeps its own
+calculation properties.
+
+Commit `776fecae1` disabled this established fallback on methodological grounds,
+without demonstrating a defect in its intended approximate use. It is restored
+at the user's request. **The rxn20 duplicate-surface issue was not evidence that
+the 4 kcal/mol cutoff misclassified rxn20.** The separate correction below
+remains in place; neither midpoint energy nor optical weight licenses sharing
+the flux of two reaction entries.
 
 For a native self-mirror saddle, the unstable-mode parity adds information
 that geometry alone lacks. The parity classifier uses a 0.01 angstrom
@@ -105,7 +119,12 @@ The shared weight is attached to each individual RRHO member, once.
   error for the mirror mapping is 0.002543411 angstrom; mass-weighted signed
   parity is +0.9999996855. This supports one even harmonic surface shared
   between the two represented mirror connections. It does not calculate
-  post-transition-state trajectories or recrossing.
+  post-transition-state trajectories or recrossing. The captured scout input
+  enabled rotor scans (`rotor_scan=1`, `nrotation=12`), but this saddle's worker
+  MESS fragment contains RRHO only, with no hindered-rotor contribution. Its
+  second connection was generated later by PES-wide mirror completion, not
+  retained as a second rotor-scan point. Before the correction, both entries
+  had `SymmetryFactor 1`; the corrected pair has `SymmetryFactor 2` each.
 * `w_10` and `rxn_29`: whole-geometry external sigma is 1, not the former
   graph-only 2. With their retained optical division the factor is 0.5.
 * `w_14`/`w_15`: actual proper C2 rotations support external sigma 2.

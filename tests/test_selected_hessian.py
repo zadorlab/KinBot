@@ -151,13 +151,13 @@ class TestSelectedHessian(unittest.TestCase):
         self.assertEqual(self.species.freq, self.freq)
         self.assertEqual(self.species.hess, [])
 
-    def test_harmonic_optimizer_preserves_hessian_for_diagnostics_without_counting(self):
+    def test_harmonic_optimizer_uses_its_stored_hessian_for_midpoint_counting(self):
         from test_optical_evaluator import ethanol_near_planar
         from kinbot.optical_harmonic import mirror_midpoint_diagnostic, selected_midpoint_diagnostic
         from kinbot.counting_contract import optical_counting
         from kinbot.thermochemistry import hir_evidence
         self.par.update(rotor_scan=0, multi_conf_tst=0, conformer_search=0, high_level=0)
-        for energy, sella in ((2., True), (8., True), (3.9, False)):
+        for energy, weight, sella in ((2., 1., True), (8., 2., True), (3.9, 1., False)):
             with self.subTest(midpoint_energy=energy, sella=sella):
                 self.qc.qc, self.qc.use_sella = 'qchem', sella
                 point = ethanol_near_planar()
@@ -180,11 +180,10 @@ class TestSelectedHessian(unittest.TestCase):
                 self.assertEqual(point.optical_hessian_reference['source_row_id'], row_id)
                 self.assertIs(point.optical_hessian_reference['hessian_massweighted'], False)
                 count = optical_counting(point, hir_evidence(point))
-                self.assertEqual(count['remaining_multiplier'], 1.)
-                self.assertEqual(count['status'], 'unresolved')
+                self.assertEqual(count['remaining_multiplier'], weight)
                 self.assertAlmostEqual(count['harmonic_midpoint']['stable_midpoint_energy_kcal_mol'], energy)
-                self.assertIn('Diagnostic only', text)
-                self.assertIn('optical factor 1', text)
+                self.assertIn('Harmonic midpoint approximation', text)
+                self.assertIn(f'optical factor {weight:g}', text)
                 # Stale HIR metadata must not hide the independently associated Hessian.
                 point.rotor_projection = {'reference': {'source_job': 'old'}}
                 self.assertEqual(selected_midpoint_diagnostic(point, ())['status'], 'complete')

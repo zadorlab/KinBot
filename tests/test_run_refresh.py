@@ -631,14 +631,16 @@ def test_network_revisit_handoff_preserves_live_and_pending_graphs(live_tree):
     assert len(t.launches)==2
 
 
-def test_same_cutoff_thermochemistry_reassessment_preserves_failures_and_live_work(sampling_tree, monkeypatch):
+@pytest.mark.parametrize('mode', ['same_cutoff', 'explicit', 'explicit_with_homolysis'])
+def test_same_cutoff_thermochemistry_reassessment_preserves_failures_and_live_work(sampling_tree, monkeypatch, mode):
     from kinbot.network_revisit import settings
     from kinbot.search_state import contract, NAME, SearchState
     t = sampling_tree
     signature = dict(family='test', instance=[0, 1, 2], max_step=12, scan=False)
-    for case in ('ch3s', 'ch3ss'):
-        w = t.root/case/'123'
-        inp = w/'123.json'
+    workers = [t.root/case/worker for case in ('ch3s', 'ch3ss') for worker in ('123', '456')]
+    for w in workers:
+        w.mkdir(exist_ok=True)
+        inp = w/(w.name+'.json')
         atomic_json(inp, dict(vdW_detection=.5, rotor_scan=1))
         (w/'kinbot_monitor.out').write_text('-1 13 accepted\n-999 -1 rejected\n0 7 ongoing\n')
         atomic_json(w/NAME, dict(schema=1, contract=contract(inp), reactions={
@@ -647,16 +649,20 @@ def test_same_cutoff_thermochemistry_reassessment_preserves_failures_and_live_wo
             'ongoing': dict(status=0, step=7, signature=signature)}))
     before = scientific_files(t.root)
     jobs = deepcopy(t.jobs)
-    options = settings(vdw=.5)  # existing policy, not a threshold change
+    options = (settings(vdw=.5) if mode == 'same_cutoff' else
+               settings(reassess_thermochemistry=True,
+                        homolysis=True if mode == 'explicit_with_homolysis' else None))
     result = run_refresh.refresh_when_idle(t.root, apply=True, network_options=options, wait_idle=30)
     assert result['phase'] == 'launched' and t.jobs == jobs
     assert scientific_files(t.root) == before
     assert {p['pid'] for p in t.processes} == {700, 701, 702}
     assert run_refresh.refresh_when_idle(t.root, apply=True, network_options=options, wait_idle=30) == result
     assert len(t.launches) == 2
-    for case in ('ch3s', 'ch3ss'):
-        w = t.root/case/'123'
-        assert json.loads((w/'123.json').read_text())['vdW_detection'] == .5
+    assert {e['input']: e['accepted_reactions'] for e in result['thermochemistry_reassessment']} == {
+        str((w/(w.name+'.json')).relative_to(t.root)): ['accepted'] for w in workers}
+    for w in workers:
+        inp = w/(w.name+'.json')
+        assert json.loads(inp.read_text())['vdW_detection'] == .5
         state = json.loads((w/NAME).read_text())['reactions']
         assert state['accepted']['reassess'] is True
         assert 'reassess' not in state['rejected'] and 'reassess' not in state['ongoing']
@@ -672,11 +678,29 @@ def test_same_cutoff_thermochemistry_reassessment_preserves_failures_and_live_wo
             s = SimpleNamespace(reac_obj=obj, reac_ts_done=[0, 0, 0], reac_step=[0, 0, 0],
                 reac_scan_energy=[[], [], []], reac_type=['test']*3, reac_inst=[[0, 1, 2]]*3)
             qc = SimpleNamespace(job_ids={})
-            owner = SearchState(SimpleNamespace(species=s, qc=qc, inp=str(w/'123.json')))
+            owner = SearchState(SimpleNamespace(species=s, qc=qc, inp=str(inp)))
             assert s.reac_ts_done == [1, -999, 0] and s.reac_step == [13, -1, 7]
             owner.enter(0)
             assert qc._search_replay is None
             owner.leave()
+
+
+def test_reassessment_cli_preserves_cutoffs_and_selects_no_failed_searches(tmp_path, monkeypatch):
+    from kinbot.network_revisit import settings, reassesses_accepted
+    captured = []
+    def refresh(root, **options):
+        captured.append(options)
+        return dict(phase='reviewed', jobs=[])
+    monkeypatch.setattr(run_refresh, 'refresh_when_idle', refresh)
+    run_refresh.main([str(tmp_path), '--reassess-thermochemistry', '--apply'])
+    option = captured[0]['network_options']
+    assert captured[0]['apply'] is True
+    assert option == settings(reassess_thermochemistry=True)
+    assert option['vdW_detection'] is None and option['barrier_threshold_L2'] is None
+    assert not option['rejected'] and not option['deduplicate_ts']
+    assert reassesses_accepted(option)
+    with pytest.raises(ValueError, match='boolean'):
+        settings(reassess_thermochemistry='yes')
 
 
 @pytest.mark.parametrize('ordinary', [False, True])
@@ -1346,7 +1370,10 @@ def test_idle_wait_does_not_retry_other_validation_failures(live_tree, monkeypat
 
 @pytest.mark.parametrize('boundary', ['submitting', 'staging', 'graph_preparation'])
 @pytest.mark.parametrize('during_freeze', [False, True])
-def test_idle_wait_allows_owner_to_finish_bookkeeping(live_tree, monkeypatch, capsys, boundary, during_freeze):
+@pytest.mark.parametrize('reassess', [False, True])
+def test_idle_wait_allows_owner_to_finish_bookkeeping(live_tree, monkeypatch, capsys, boundary, during_freeze, reassess):
+    from kinbot.network_revisit import settings
+    options = settings(reassess_thermochemistry=True) if reassess else None
     t = live_tree
     graph = t.graphs[0]
     ledger = graph/'state.json'
@@ -1390,7 +1417,7 @@ def test_idle_wait_allows_owner_to_finish_bookkeeping(live_tree, monkeypatch, ca
             dispatch.prepare(spec, partial)
     monkeypatch.setattr(run_refresh.time, 'monotonic', lambda: clock[0])
     monkeypatch.setattr(run_refresh.time, 'sleep', sleep)
-    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30., poll_interval=5.)
+    result = run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30., poll_interval=5., network_options=options)
     assert sleeps == [5.]
     assert 'WAIT:' in capsys.readouterr().out
     assert result['phase'] == 'launched' and len(t.launches) == 2
@@ -1400,7 +1427,7 @@ def test_idle_wait_allows_owner_to_finish_bookkeeping(live_tree, monkeypatch, ca
     assert {j['job_id'] for j in result['jobs']} == {j['job_id'] for j in t.jobs}
     assert json.loads(ledger.read_text()) == original
     # Re-entry cannot replace controllers or submit allocations a second time.
-    run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30.)
+    run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30., network_options=options)
     assert len(t.launches) == 2
 
 
@@ -1759,7 +1786,7 @@ def test_unknown_homolysis_selector_fails_before_stopping_controllers(live_tree)
     assert not t.signals and not t.launches
 
 
-@pytest.mark.parametrize('revisit_homolysis', [False, True])
+@pytest.mark.parametrize('revisit_homolysis', [False, True, 'thermochemistry'])
 def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling(
         sampling_tree, monkeypatch, revisit_homolysis):
     from kinbot.network_revisit import settings
@@ -1774,6 +1801,10 @@ def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling
         fixture=stage_profiled_modes(worker)
     ref=t.root/'ch3ss/reverse_abstractions/pair';ref.mkdir(parents=True)
     atomic_json(ref/'input.json',{})
+    from kinbot.search_state import NAME, contract
+    atomic_json(ref/NAME, dict(schema=1, contract=contract(ref/'input.json'), reactions={
+        'settled_reverse_abstraction': dict(status=-1, step=13),
+        'rejected_reverse_abstraction': dict(status=-999, step=-1)}))
     atomic_json(ref.parent/'manifest.json',dict(status='staged_for_discovery_not_integrated',
         entries=[dict(input='pair/input.json',input_sha256=file_sha256(ref/'input.json'))]))
     atomic_json(ref/'.kinbot_theory_jobs.json',dict(schema=1,jobs={
@@ -1791,7 +1822,8 @@ def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling
         atomic_json(worker/'homolysis_checks.json', dict(schema=1,checks=[dict(
             parent='test_hom_sci_1_2',outcome='unresolved',scan_outcome='qc_failed')]))
     before=scientific_files(t.root)
-    options=settings(homolysis=True) if revisit_homolysis else None
+    options = (settings(reassess_thermochemistry=True) if revisit_homolysis == 'thermochemistry'
+               else settings(homolysis=True) if revisit_homolysis else None)
     result=run_refresh.refresh_when_idle(t.root,apply=True,network_options=options,wait_idle=30)
     assert result['phase']=='launched' and t.jobs==jobs
     assert (109,signal.SIGKILL) in t.signals
@@ -1808,6 +1840,12 @@ def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling
     assert scientific_files(t.root)==before and t.jobs==jobs
     assert run_refresh.refresh_when_idle(t.root,apply=True,network_options=options,wait_idle=30)==result
     assert len(t.launches)==3
+    state = json.loads((ref/NAME).read_text())['reactions']
+    assert state['settled_reverse_abstraction'].get('reassess', False) == (revisit_homolysis == 'thermochemistry')
+    assert 'reassess' not in state['rejected_reverse_abstraction']
+    if revisit_homolysis == 'thermochemistry':
+        assert next(e for e in result['thermochemistry_reassessment'] if e['input'] ==
+                    'ch3ss/reverse_abstractions/pair/input.json')['accepted_reactions'] == ['settled_reverse_abstraction']
     if not revisit_homolysis:
         # Exercise the replacement owner's exploration boundary as well as
         # the refresh helper. A natural nonfinding survives refresh, frees its

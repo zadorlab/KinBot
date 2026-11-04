@@ -41,12 +41,30 @@ class TestHIREvidenceLifecycle(unittest.TestCase):
         measured = species.geom * 2.
         hir.qc = Mock(qc='test_backend')
         hir.qc.get_qc_geom.return_value = (0, measured)
+        hir.qc.get_qc_energy.return_value = (0, -99.)
         hir.test_hir()
-        hir.qc.get_qc_energy.assert_not_called()
+        hir.qc.get_qc_energy.assert_called_once()
         point = thermochemistry_evidence(species)['hir']['rotors'][0]['points'][1]
         self.assertIn('bond-length', point['observation']['rejection_reason'])
         np.testing.assert_array_equal(point['geometry_angstrom'], measured)
-        self.assertIsNone(point['observation']['electronic_energy_hartree'])
+        self.assertEqual(point['observation']['electronic_energy_hartree'], -99.)
+        self.assertIsNone(point['electronic_energy_hartree'])
+
+    def test_cross_population_point_keeps_energy_without_entering_partition_function(self):
+        species, _ = scanned_point()
+        hir = species.hir
+        hir.hir_status[0][1] = -1
+        hir.qc = Mock(qc='test_backend')
+        hir.qc.get_qc_geom.return_value = (0, species.geom.copy())
+        hir.qc.get_qc_energy.return_value = (0, -101.)
+        with patch.object(hir, '_configuration_error', return_value='scan enters an excluded stereoisomer'):
+            hir.test_hir()
+        point = thermochemistry_evidence(species)['hir']['rotors'][0]['points'][1]
+        self.assertEqual(point['observation']['qc_energy_status'], 'returned')
+        self.assertEqual(point['observation']['electronic_energy_hartree'], -101.)
+        self.assertFalse(point['observation']['accepted'])
+        self.assertIsNone(point['electronic_energy_hartree'])
+        self.assertEqual(hir.hir_status[0][1], 1)
 
     def test_rejected_high_point_keeps_measured_energy_and_geometry(self):
         species, _ = scanned_point()

@@ -49,12 +49,21 @@ and duplicate-surface checks remain separate.
 ## Updating a retained run
 
 An ordinary controller refresh retains the accepted-search replay guard; it
-does not authorize new missing characterization. Use the existing network
-reassessment with `--vdw-detection` set to the run's **unchanged** current value.
+does not authorize new missing characterization. Use
+`run_refresh RUN --reassess-thermochemistry --apply` for an explicit network
+reassessment without changing a cutoff.
 It reconstructs accepted reactions from their saved TS/IRC calculations and
 allows their missing conformer/HIR characterization. It does not restart
 terminal rejected searches unless a separate rejected-search option is supplied.
 Live calculations remain owned and are adopted by the refreshed controllers.
+The reassessment covers all discovered worker inputs and accepted searches,
+including already settled connections between those wells and staged reverse
+abstraction searches. The parent/fragment wells and accepted TS/product objects
+are reconstructed through their owning optimizers. `controller_refresh.json`
+records `thermochemistry_reassessment` with the input paths and exact accepted
+reaction names. Naturally rejected searches stay closed unless explicitly
+selected by a separate rejected-search option. Compatible completed and live
+conformer/HIR points are reused; this option does not mean repeat every QC job.
 
 Previously computed scans are checked against their exact defining atoms and
 geometry. A changed scan gets a separate recovery name rather than overwriting
@@ -68,3 +77,22 @@ permutations, the real Gaussian/Sella HIR input writer and repeat adoption,
 non-sulfur exclusions, sulfur periodicity, graph bridges, unchanged old indices,
 and complete controller reassessment with live QC/sampling preservation and
 closed failed searches. These are local tests, not a verified Blodgett retry.
+
+## Axes, paths, and populations are different evidence
+
+A selected axis only defines a possible torsional coordinate. Even a completed
+one-dimensional relaxed scan need not find the lowest connecting path: bending,
+wagging, puckering, a second torsion, or another relaxed branch may lower it.
+An imaginary-mode projection is local evidence about a particular saddle,
+not a search over all paths. The diagnostic in `kinbot.motion_character`
+therefore reports torsional and remaining motion separately and never authorizes
+a population merge or certifies an anharmonic partition function.
+
+The configured-identity and pathway checks still apply to the measured HIR
+points. A point entering another stereoisomer is retained as native evidence
+but is not automatically folded into the original well's rotor partition
+function. Axis selection cannot delete a well, erase its connecting saddle,
+or remove its outgoing reactions. Comparing a larger HIR barrier to a smaller
+known TS barrier must first establish the same endpoints, electronic state,
+theory, energy convention, and coordinate/path. Different paths can legitimately
+have different barriers. See `SOFT_MOTION_REASSESSMENT.md` for the saved case.

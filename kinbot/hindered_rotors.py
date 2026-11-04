@@ -531,6 +531,12 @@ class HIR:
                         else:
                             success = -1
                             reason = 'geometry failed the existing bond-length check'
+                        # A normally returned geometry may land in another
+                        # population or leave the rotor domain. Keep its energy
+                        # as an observation too, without admitting it to the
+                        # potential fit or interpreting it as failed QC.
+                        if energy_status is None:
+                            energy_status, energy = self.qc.get_qc_energy(job)
                     # Acceptance arrays use failure sentinels. Keep the actual
                     # available observation before those arrays are overwritten.
                     while len(self.point_observations) <= rotor:
@@ -553,7 +559,7 @@ class HIR:
                     self.hir_energies[rotor][ai] = energy
                     self.hir_geoms[rotor][ai] = geom
                 elif success == -1:
-                    logger.warning('Hindered rotor optimization not successful '
+                    logger.warning('Hindered rotor point excluded from this rotor model '
                                    'for %s: %s', job, reason)
                     self.hir_status[rotor][ai] = 1
                     self.hir_energies[rotor][ai] = -1

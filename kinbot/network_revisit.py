@@ -9,7 +9,8 @@ from kinbot.execution import atomic_json, file_sha256
 from kinbot.anl import ts_reuse
 
 
-def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None, homolysis=None):
+def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None, homolysis=None,
+             *, reassess_thermochemistry=False):
     if vdw is not None and (isinstance(vdw, bool) or not math.isfinite(vdw) or vdw < 0):
         raise ValueError('vdW_detection must be finite and nonnegative.')
     if barrier_l2 is not None and (isinstance(barrier_l2,bool) or not math.isfinite(barrier_l2) or barrier_l2<=0):
@@ -26,6 +27,10 @@ def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None, homol
         if homolysis is False:
             raise ValueError('This handoff enables checks; it cannot certify barrierlessness.')
     result = dict(vdW_detection=vdw, rejected=rejected, deduplicate_ts=bool(deduplicate), barrier_threshold_L2=barrier_l2)
+    if not isinstance(reassess_thermochemistry, bool):
+        raise ValueError('Thermochemistry reassessment must be a boolean.')
+    if reassess_thermochemistry:
+        result['reassess_thermochemistry'] = True
     if homolysis is not None:
         result['homolytic_saddle_search'] = homolysis
     return result
@@ -35,7 +40,8 @@ def revisits_search(options):
     """Graph deduplication alone does not authorize changing search policy."""
     return (options['vdW_detection'] is not None or options['rejected']
             or options.get('barrier_threshold_L2') is not None
-            or options.get('homolytic_saddle_search') is not None)
+            or options.get('homolytic_saddle_search') is not None
+            or options.get('reassess_thermochemistry', False))
 
 
 def reassesses_accepted(options):
@@ -43,7 +49,8 @@ def reassesses_accepted(options):
     # of accepted ordinary QC during reconstruction.
     return not (options.get('homolytic_saddle_search') is not None
         and options['vdW_detection'] is None and not options['rejected']
-        and options.get('barrier_threshold_L2') is None and not options['deduplicate_ts'])
+        and options.get('barrier_threshold_L2') is None and not options['deduplicate_ts']
+        and not options.get('reassess_thermochemistry', False))
 
 
 def retirement(root, live, graph, canonical_graph, source):

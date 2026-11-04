@@ -886,11 +886,23 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
                 journal['jobs'] = _owned_jobs(root)
                 atomic_json(journal_path,journal)
             if journal.get('vrc_migration') or journal.get('network_revision'):
-                from kinbot.search_state import rebase
+                from kinbot.search_state import rebase, NAME as search_state_name
                 from kinbot.network_revisit import reassesses_accepted
                 revision = journal.get('network_revision')
+                reassess = bool(revision) and reassesses_accepted(revision['settings'])
+                characterization = []
                 for inp in _ordinary_inputs(root):
-                    rebase(inp, str(archive), reassess=bool(revision) and reassesses_accepted(revision['settings']))
+                    rebase(inp, str(archive), reassess=reassess)
+                    if reassess:
+                        checkpoint = inp.parent/search_state_name
+                        state = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
+                        characterization.append(dict(input=str(inp.relative_to(root)),
+                            accepted_reactions=sorted(name for name, entry in state.get('reactions', {}).items()
+                                                      if entry.get('reassess')),
+                            scope='parent/fragment wells, accepted TSs and products; reuse native QC'))
+                if reassess:
+                    journal['thermochemistry_reassessment'] = characterization
+                    atomic_json(journal_path, journal)
             _archive_controllers(root, archive)
             journal['discovery_restored'] = _restore_discovery(root, archive)
             history.update(status='prepared', code=str(pin))
@@ -943,6 +955,9 @@ def main(argv=None):
     parser.add_argument('--deduplicate-vrc', action='store_true',
                         help='Verify original VRC results, cancel and archive resource-only duplicate chains.')
     parser.add_argument('--vdw-detection', type=float)
+    parser.add_argument('--reassess-thermochemistry', action='store_true',
+                        help='Rebuild all retained well/TS/product characterization from QC; '
+                             'allow missing conformer/HIR work without changing cutoffs or retrying rejected searches.')
     revisit = parser.add_mutually_exclusive_group()
     revisit.add_argument('--revisit-rejected', action='store_true')
     revisit.add_argument('--revisit-reaction', action='append', metavar='EXACT_NAME',
@@ -976,8 +991,10 @@ def main(argv=None):
         from kinbot.network_revisit import settings as network_settings
         rejected = args.revisit_reaction or args.revisit_rejected
         homolysis = args.check_homolysis or (True if args.check_all_homolysis else None)
-        network_options = (network_settings(args.vdw_detection,rejected,args.deduplicate_ts,args.barrier_threshold_l2,homolysis)
-                           if args.vdw_detection is not None or rejected or args.deduplicate_ts or args.barrier_threshold_l2 is not None or homolysis is not None else None)
+        network_options = (network_settings(args.vdw_detection,rejected,args.deduplicate_ts,args.barrier_threshold_l2,homolysis,
+                                             reassess_thermochemistry=args.reassess_thermochemistry)
+                           if args.vdw_detection is not None or rejected or args.deduplicate_ts or args.barrier_threshold_l2 is not None
+                           or homolysis is not None or args.reassess_thermochemistry else None)
         result = refresh_when_idle(root, wait_idle=args.wait_idle,
             apply=args.apply, replace_pending=args.replace_pending,
             vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,
@@ -988,6 +1005,11 @@ def main(argv=None):
             deduplicate_vrc=args.deduplicate_vrc, network_options=network_options)
     print(json.dumps({k: result[k] for k in ('phase', 'code', 'archive') if k in result}, indent=2))
     print('Retained Slurm IDs: ' + ', '.join(j['job_id'] for j in result.get('jobs', [])))
+    if result.get('thermochemistry_reassessment'):
+        entries = result['thermochemistry_reassessment']
+        print(f'Thermochemistry reassessment: {len(entries)} worker inputs; '
+              f'{sum(len(e["accepted_reactions"]) for e in entries)} accepted reactions. '
+              'Exact names are in controller_refresh.json; rejected searches stay closed unless explicitly selected.')
     if result.get('network_revision'):
         revision = result['network_revision']
         print('Network revisit: ' + json.dumps(revision['settings'],sort_keys=True))

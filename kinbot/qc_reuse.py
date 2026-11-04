@@ -1,10 +1,11 @@
-"""Share identical new Gaussian/Sella HIR and conformer attempts within a pool.
+"""Share equivalent new Gaussian/Sella conformer, minimum L2 and HIR attempts.
 
 This is calculation reuse, not species/TS equivalence or population merging.
 An immutable native bundle is copied to each consumer before its DB row appears.
 Existing local attempts are never replaced and Slurm ownership is never aliased.
 """
 import ast
+from itertools import islice
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import fcntl
@@ -57,10 +58,12 @@ def runtime():
                 python=list(sys.version_info[:3]))
 
 
-def definition(qc, job, *, path=None):
+def definition(qc, job, *, path=None, minimum_source=False, legacy=False):
     """Parse literals without executing a worker; unsupported forms opt out."""
     if (getattr(qc, 'qc', None) != 'gauss' or not getattr(qc, 'use_sella', False)
-            or not Path(job).parts or Path(job).parts[0] not in ('hir', 'conf')):
+            or not Path(job).parts or (not minimum_source
+                and Path(job).parts[0] not in ('hir', 'conf')
+                and not job.endswith('_well_high'))):
         return None
     try:
         raw = Path(path or job+'.py').read_text()
@@ -70,6 +73,8 @@ def definition(qc, job, *, path=None):
         if len(atoms) != 1:
             return None
         values = {k.arg: ast.literal_eval(k.value) for k in atoms[0].keywords}
+        if set(values) != {'symbols', 'positions'}:
+            return None  # External masses/charges need an explicit contract.
         symbols, positions = values['symbols'], np.asarray(values['positions'], float)
         if (positions.shape != (len(symbols), 3) or not len(symbols)
                 or not np.isfinite(positions).all()):
@@ -97,13 +102,54 @@ def definition(qc, job, *, path=None):
         if not any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
                    and n.func.id == 'run_optimizer' for n in ast.walk(tree)):
             return None
+        constraints = []
+        kind = 'minimum'
+        order = [ast.literal_eval(n.value) for n in ast.walk(tree)
+                 if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name)
+                 and t.id == 'order' for t in n.targets)]
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'Sella':
+                for k in n.keywords:
+                    if k.arg == 'order' and isinstance(k.value, ast.Constant):
+                        order.append(ast.literal_eval(k.value))
+            if (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name)
+                    and t.id == 'base_0_fix' for t in n.targets)):
+                if not isinstance(n.value, ast.ListComp) or len(n.value.generators) != 1:
+                    return None
+                indices = ast.literal_eval(n.value.generators[0].iter)
+                if len(indices) != 4 or len(set(indices)) != 4 or any(
+                        type(i) is not int or i < 1 or i > len(symbols) for i in indices):
+                    return None
+                constraints = [i-1 for i in indices]
+                if not legacy:
+                    n.value.generators[0].iter = ast.Constant('DIHEDRAL_ATOMS')
+                kind = 'hir'
+        if not order or any(o != 0 for o in order):
+            kind = 'transition_state'
+        if minimum_source and kind != 'minimum':
+            return None
+        if job.endswith('_well_high') and kind != 'minimum':
+            return None
         reduced = {k: v for k, v in sorted(kwargs.items())
                    if k not in ('label', 'chk', 'mem', 'nprocshared')}
         assigns[0].value = ast.parse(repr(reduced), mode='eval').body
         for k in atoms[0].keywords:
             if k.arg == 'positions':
                 k.value = ast.Constant('GEOMETRY')
+            elif k.arg == 'symbols' and not legacy:
+                k.value = ast.Constant('ORDERED_ATOMS')
         class Labels(ast.NodeTransformer):
+            def visit_List(self, node):
+                # Native frequency readers also receive the ordered symbols.
+                # Normalize every literal copy of that same atom list.
+                if not legacy:
+                    try:
+                        if ast.literal_eval(node) == symbols:
+                            return ast.Constant('ORDERED_ATOMS')
+                    except (ValueError, TypeError):
+                        pass
+                return self.generic_visit(node)
+
             def visit_Constant(self, node):
                 if isinstance(node.value, str):
                     for label, replacement in ((job, 'JOB'), (Path(job).name, 'BASE')):
@@ -119,30 +165,90 @@ def definition(qc, job, *, path=None):
                           'PATH', 'LD_LIBRARY_PATH', 'KINBOT_BACKEND')},
             queue_template=getattr(qc, 'par', {}).get('queue_template', ''))
         template = contract['queue_template']
+        if not legacy:
+            contract['atoms'] = sorted(symbols)
         if template:
             contract['queue_template'] = file_sha256(template)
-        return dict(contract_sha256=digest(contract), symbols=symbols,
+        result = dict(contract_sha256=digest(contract), symbols=symbols,
                     positions=positions.tolist(), worker_sha256=hashlib.sha256(raw.encode()).hexdigest(),
-                    program_sha256=digest(contract['program']))
+                    program_sha256=digest(contract['program']), kind=kind,
+                    constraint_atoms=constraints, charge=kwargs.get('charge'),
+                    multiplicity=kwargs.get('mult'))
+        if legacy:
+            result.pop('kind')
+            result.pop('constraint_atoms')
+        proof = Path(job+'.minimum_reuse.json')
+        if path is None and proof.is_file():
+            saved = _read(proof)
+            if saved.get('worker_sha256') == result['worker_sha256']:
+                result['minimum'] = saved['minimum']
+        return result
     except (OSError, SyntaxError, ValueError, TypeError, KeyError):
         return None
 
 
+def matching(a, b):
+    """Return b indices in a order; proper rotations only, constraints mapped.
+
+    Exact requests can share without a minimum proof. Relaxing coordinate
+    serialization tolerance requires two independently verified minima AND
+    the same constrained geometry under the very same atom permutation.
+    """
+    if a['contract_sha256'] != b['contract_sha256'] or sorted(a['symbols']) != sorted(b['symbols']):
+        return None
+    from kinbot.minimum_reuse import comparison, LIMITS
+    tolerance = (LIMITS['max_distance_angstrom'] if a.get('minimum') and b.get('minimum')
+                 else GEOMETRY_TOLERANCE)
+    x, y = np.asarray(a['positions']), np.asarray(b['positions'])
+    def check(p):
+        if a['symbols'] != [b['symbols'][i] for i in p]:
+            return None
+        ca, cb = a.get('constraint_atoms', []), b.get('constraint_atoms', [])
+        if [p[i] for i in ca] not in (cb, cb[::-1]):
+            return None
+        error = float(max(proper_alignment(x, y[p]).errors))
+        proof = comparison(a.get('minimum'), b.get('minimum'), p)
+        if error > GEOMETRY_TOLERANCE and (error > tolerance or proof is None):
+            return None
+        return dict(permutation=p, max_distance_angstrom=error, minimum_comparison=proof)
+    identity = check(list(range(len(x))))
+    if identity:
+        return identity
+    # TS modes/path definitions need their own permutation contract. Existing
+    # same-order sharing remains available; this extension is for minima.
+    if a.get('kind') == 'transition_state' or b.get('kind') == 'transition_state':
+        return None
+    import networkx as nx
+    def graph(symbols, positions):
+        g = nx.Graph()
+        g.add_nodes_from((i, dict(element=s)) for i, s in enumerate(symbols))
+        g.add_edges_from((i,j,dict(distance=float(np.linalg.norm(positions[i]-positions[j]))))
+                         for i in range(len(positions)) for j in range(i))
+        return g
+    matcher = nx.algorithms.isomorphism.GraphMatcher(graph(a['symbols'], x), graph(b['symbols'], y),
+        node_match=lambda u,v: u['element']==v['element'],
+        edge_match=lambda u,v: abs(u['distance']-v['distance']) <= 2*tolerance+1.e-12)
+    for m in islice(matcher.isomorphisms_iter(), 10000):
+        result = check([m[i] for i in range(len(x))])
+        if result:
+            return result
+    return None  # A bounded mapping search cannot authorize a false match.
+
+
 def equivalent(a, b):
-    if a['contract_sha256'] != b['contract_sha256'] or a['symbols'] != b['symbols']:
-        return False
-    fit = proper_alignment(a['positions'], b['positions'])
-    return max(fit.errors) <= GEOMETRY_TOLERANCE
+    return matching(a, b) is not None
 
 
 def _same_program(saved, job, path=None):
-    current = definition(SimpleNamespace(qc="gauss", use_sella=True), job, path=path)
+    current = definition(SimpleNamespace(qc="gauss", use_sella=True), job, path=path,
+                         legacy='kind' not in saved)
     return _program_matches(saved, current)
 
 
 def _program_matches(saved, current):
     return (current is not None and current["program_sha256"] == saved["program_sha256"]
             and current["symbols"] == saved["symbols"]
+            and current.get('constraint_atoms', []) == saved.get('constraint_atoms', [])
             and np.max(proper_alignment(current["positions"], saved["positions"]).errors)
             <= GEOMETRY_TOLERANCE)
 
@@ -186,7 +292,8 @@ def submit(qc, job, singlejob, launch):
     """Atomically choose one new producer; followers never own its Slurm ID."""
     if (singlejob != 1 or getattr(qc, 'queuing', None) != 'slurm'
             or getattr(qc, 'qc', None) != 'gauss' or not getattr(qc, 'use_sella', False)
-            or not Path(job).parts or Path(job).parts[0] not in ('hir', 'conf')):
+            or not Path(job).parts or (Path(job).parts[0] not in ('hir', 'conf')
+                                      and not job.endswith('_well_high'))):
         return launch()
     root = _scope()
     if root is None or getattr(qc, '_search_replay', None):
@@ -220,9 +327,10 @@ def submit(qc, job, singlejob, launch):
                 break
             if entry['state'] not in ('reserved', 'submitted', 'complete'):
                 continue
-            if equivalent(entry['definition'], wanted):
+            match = matching(wanted, entry['definition'])
+            if match is not None:
                 atomic_json(consumer, dict(schema=1, root=str(root), token=ident,
-                    definition=wanted, state='waiting'))
+                    definition=wanted, mapping=match, state='waiting'))
                 logger.info('%s: waiting for equivalent QC %s; no duplicate submission.', job, entry['source'])
                 return 0
         if token is None:
@@ -315,7 +423,8 @@ def _finish(root, token, *, failed=False):
         # A staged worker can be rewritten while its controller resumes.
         # Do not release a pending alias merely because that file is transient.
         current = definition(SimpleNamespace(qc='gauss', use_sella=True),
-                             entry['job'], path=Path(str(source)+'.py'))
+                             entry['job'], path=Path(str(source)+'.py'),
+                             legacy='kind' not in entry['definition'])
         if current is None:
             return entry
         if not _program_matches(entry['definition'], current):
@@ -333,7 +442,7 @@ def _finish(root, token, *, failed=False):
             return entry
         if 'Normal termination of Gaussian' not in native[-6000:]:
             return entry
-        if entry['job'].startswith('conf/') and len(atoms)>1:
+        if (entry['definition'].get('kind') == 'minimum' or entry['job'].startswith('conf/')) and len(atoms)>1:
             if (data.get('zpe') is None or not np.isfinite(data['zpe'])
                     or data.get('frequencies') is None or not len(data['frequencies'])
                     or not np.isfinite(data['frequencies']).all()):
@@ -408,6 +517,10 @@ def _adopt(qc, job, receipt, entry, root):
     if file_sha256(bundle/'record.json') != hashes['record']:
         raise RuntimeError('Shared QC result record changed.')
     payload = _read(bundle/'record.json')
+    verified = matching(receipt['definition'], entry['definition'])
+    if (verified is None or receipt.get('mapping', {}).get('permutation', verified['permutation'])
+            != verified['permutation']):
+        raise RuntimeError('Shared QC atom mapping no longer matches its captured request evidence.')
     rows = list(qc.db.select(name=job))
     if rows and rows[-1].data.get('shared_qc_token') != entry['token']:
         raise RuntimeError(f'{job}: existing result remains authoritative; refusing shared overwrite.')
@@ -436,6 +549,17 @@ def _adopt(qc, job, receipt, entry, root):
     if not rows:
         atoms = Atoms.fromdict(decode(json.dumps(payload['atoms'])))
         data = decode(json.dumps(payload['data']))
+        permutation = verified['permutation']
+        if permutation != list(range(len(atoms))):
+            # Use the producer's Cartesian frame, with the consumer's atom
+            # order. Geometry, masses and every Hessian block move together.
+            # Native files remain byte-for-byte original; readers below use
+            # the native frame descriptor instead of pretending otherwise.
+            atoms = atoms[permutation]
+            if data.get('hess') is not None:
+                data['hess'] = permute_hessian(data['hess'], permutation)
+            data['shared_qc_native'] = dict(root=str(root), bundle=entry['bundle'],
+                hashes=entry['hashes'], permutation=permutation, job=entry['job'])
         data.update(shared_qc_token=entry['token'], shared_qc_source=str(_inside(root, entry['source'])),
                     shared_qc_job_id=entry['job_id'], shared_qc_source_row_id=payload['source_row_id'])
         qc.db.write(atoms, name=job, data=data)
@@ -444,6 +568,88 @@ def _adopt(qc, job, receipt, entry, root):
     atomic_json(marker, receipt)
     logger.info('%s: adopted complete native QC from %s (Slurm %s).', job, entry['source'], entry['job_id'])
     return 'normal'
+
+
+def permute_hessian(hessian, permutation):
+    """H_target = P H_native P^T, with each atomic Cartesian block intact."""
+    n = len(permutation)
+    h = np.asarray(hessian, float)
+    if h.shape != (3*n, 3*n) or not np.isfinite(h).all():
+        raise ValueError('Shared minimum has an invalid Cartesian Hessian.')
+    indices = (3*np.asarray(permutation)[:, None]+np.arange(3)).ravel()
+    return h[np.ix_(indices, indices)]
+
+
+def native_record(row):
+    """Original atoms/frame for a permuted reused row, including published aliases."""
+    saved = row.data.get('shared_qc_native')
+    if not saved:
+        return None
+    from ase import Atoms
+    from ase.io.jsonio import decode
+    root = Path(saved['root']).resolve()
+    bundle = _inside(root, saved['bundle'])
+    if file_sha256(bundle/'record.json') != saved['hashes']['record']:
+        raise ValueError('Shared native frame record changed.')
+    record = _read(bundle/'record.json')
+    atoms = Atoms.fromdict(decode(json.dumps(record['atoms'])))
+    p = list(saved['permutation'])
+    if (sorted(p) != list(range(len(atoms))) or list(atoms[p].symbols) != list(row.symbols)
+            or not np.array_equal(atoms[p].positions, row.positions)):
+        raise ValueError('Shared native frame does not match the selected result.')
+    return bundle, dict(symbols=list(atoms.symbols), positions=atoms.positions,
+                        job=saved['job']), p
+
+
+def mapped_hessian(qc, job, row):
+    """Read native force constants in their actual order, then permute once."""
+    shared = native_record(row)
+    if shared is None:
+        return None
+    bundle, native, p = shared
+    from kinbot.gaussian_hessian import read_formatted_hessian
+    import subprocess
+    fchk = bundle/'native.fchk'
+    if not fchk.exists():
+        # Conversion writes only a consumer-local derivative of the immutable
+        # original checkpoint. It never edits the bundle or launches QC.
+        chk = bundle/'native.chk'
+        if not chk.exists():
+            return []
+        if file_sha256(chk) != row.data['shared_qc_native']['hashes']['.chk']:
+            raise ValueError('Shared native checkpoint changed.')
+        fchk = Path(job+'.shared_native.fchk')
+        if not fchk.exists():
+            temp = fchk.with_name(fchk.name+'.'+uuid.uuid4().hex)
+            subprocess.run(['formchk', str(chk), str(temp)], check=True, stdout=subprocess.DEVNULL)
+            os.replace(temp, fchk)
+    else:
+        if file_sha256(fchk) != row.data['shared_qc_native']['hashes']['.fchk']:
+            raise ValueError('Shared formatted checkpoint changed.')
+    return permute_hessian(read_formatted_hessian(fchk, native['symbols'], native['positions']), p)
+
+
+def mapped_modes(row, *, geometry=None, symbols=None):
+    """Map native displacements with their geometry; no independent mode fit."""
+    shared = native_record(row)
+    if shared is None:
+        return None
+    bundle, native, p = shared
+    path = bundle/'native.log'
+    if file_sha256(path) != row.data['shared_qc_native']['hashes']['.log']:
+        raise ValueError('Shared native frequency output changed.')
+    from kinbot.gaussian_modes import read_normal_modes
+    result = read_normal_modes(path, native['symbols'], native['positions'])
+    modes = np.asarray(result['modes'])[:, p, :]
+    if geometry is not None:
+        if list(map(str, symbols)) != list(row.symbols):
+            raise ValueError('Selected mode atom order differs from the reused result.')
+        fit = proper_alignment(row.positions, geometry)
+        if max(fit.errors) > 1.e-5:
+            raise ValueError('Selected mode geometry differs from the reused result.')
+        modes = modes @ fit.rotation
+    result['modes'] = modes.tolist()
+    return result
 
 
 def poll(qc, job):

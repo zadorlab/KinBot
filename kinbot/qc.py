@@ -843,6 +843,8 @@ class QuantumChemistry:
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
+        from kinbot.minimum_reuse import attach
+        attach(self, species, job)
         self.submit_qc(job, min(species.nel, self.ppn))
 
         return job
@@ -1219,6 +1221,12 @@ class QuantumChemistry:
             from kinbot.stereo_routing import guard_well_job
             guard_well_job(self, species, geom, job)
 
+        # A restarted owner must not rewrite the script of a live allocation
+        # or a pending shared request before submit_qc notices it is active.
+        if (job in self.job_ids or Path(job+'.qc_reuse_consumer.json').exists()):
+            if self.check_qc(job) in ('running', 'normal', 'error'):
+                return 0
+
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
         mult = exceptions.get_multiplicity(species.chemid, species.mult)
@@ -1297,6 +1305,9 @@ class QuantumChemistry:
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
+        if high_level and not do_vdW and not species.wellorts:
+            from kinbot.minimum_reuse import attach
+            attach(self, species, job)
         self.submit_qc(job, min(species.nel, self.ppn))
         return 0
 
@@ -1529,7 +1540,8 @@ class QuantumChemistry:
     @staticmethod
     def _archive_outputs(job, marker):
         for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out',
-                       '.qc_reuse_consumer.json', '.qc_reuse_producer.json'):
+                       '.qc_reuse_consumer.json', '.qc_reuse_producer.json',
+                       '.minimum_reuse.json', '.shared_native.fchk'):
             path = job + suffix
             if os.path.isfile(path):
                 os.replace(path, f'{path}.restart_{marker}')
@@ -2063,6 +2075,10 @@ class QuantumChemistry:
                 and rows and rows[-1].data.get('hess') is not None):
             return np.asarray(rows[-1].data['hess'])
 
+        if rows and rows[-1].data.get('shared_qc_native'):
+            from kinbot.qc_reuse import mapped_hessian
+            return mapped_hessian(self, job, rows[-1])
+
         if (self.use_sella and self.frequency_mode != 'native_hessian') \
                 or self.qc == 'fc':
             #db = connect('kinbot.db')
@@ -2140,6 +2156,14 @@ class QuantumChemistry:
         therefore asks for an artifact that native-Hessian workers neither
         need nor create.
         """
+        rows = list(self.db.select(name=job))
+        if rows and rows[-1].data.get('shared_qc_native'):
+            from kinbot.qc_reuse import mapped_modes
+            native = mapped_modes(rows[-1], geometry=geometry, symbols=symbols)
+            index = int(np.argmin(native['frequencies_cm1']))
+            if native['frequencies_cm1'][index] >= 0:
+                raise ValueError('The native spectrum contains no imaginary mode.')
+            return np.asarray(native['modes'][index])
         if geometry is not None:
             if symbols is None or len(symbols) != natom:
                 raise ValueError('A mode frame needs the selected ordered atomic symbols.')

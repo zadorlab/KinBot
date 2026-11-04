@@ -235,6 +235,9 @@ class HIR:
         """
         Generate the initial geometries of the points along the scans
         """
+        if rotors is None:
+            from kinbot.minimum_reuse import canonical_rotors
+            canonical_rotors(self.species, self.qc)
         # A changed rotor does not discard compatible scans of other rotors.
         selected = set(range(len(self.species.dihed)) if rotors is None else rotors)
         fields = {

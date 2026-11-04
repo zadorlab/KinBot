@@ -1528,7 +1528,8 @@ class QuantumChemistry:
 
     @staticmethod
     def _archive_outputs(job, marker):
-        for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
+        for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out',
+                       '.qc_reuse_consumer.json', '.qc_reuse_producer.json'):
             path = job + suffix
             if os.path.isfile(path):
                 os.replace(path, f'{path}.restart_{marker}')
@@ -1565,6 +1566,12 @@ class QuantumChemistry:
         return result
 
     def submit_qc(self, job, nproc, singlejob=1, jobtype=None):
+        """Share identical new QC, retaining ordinary scheduler ownership."""
+        from kinbot.qc_reuse import submit
+        return submit(self, job, singlejob, lambda: QuantumChemistry._submit_qc_locked(
+            self, job, nproc, singlejob, jobtype))
+
+    def _submit_qc_locked(self, job, nproc, singlejob=1, jobtype=None):
         """Submit under an optional cross-process queue admission lock.
 
         Automatic CBH references are ordinary KinBot controllers in separate
@@ -2203,7 +2210,10 @@ class QuantumChemistry:
         """Reconcile the current generation and optionally recover a timeout."""
         from kinbot.pes_phase import checkpoint
         checkpoint()
-        from kinbot import qc_timeout, timeout_retry
+        from kinbot import qc_timeout, timeout_retry, qc_reuse
+        shared = qc_reuse.poll(self, job)
+        if shared is not None:
+            return shared
         if self.queuing == 'slurm':
             waiting = qc_timeout.resume(self, job)
             if waiting is not None:
@@ -2219,6 +2229,7 @@ class QuantumChemistry:
         if self.queuing == 'slurm':
             from kinbot.qc_live import process
             status = process(self, job, status)
+        qc_reuse.observe(self, job, status)
         return status
 
     def _check_qc_with_grace(self, job):

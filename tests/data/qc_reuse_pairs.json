@@ -1,0 +1,404 @@
+[
+  {
+    ".exitcode": "52954924 0\n",
+    "expected_slurm_id_from_monitor": "52954924",
+    "fixed_atoms_one_based": [
+      5,
+      1,
+      2,
+      3
+    ],
+    "kwargs": {
+      "EmpiricalDispersion": "GD3BJ",
+      "Symm": "None",
+      "basis": "cc-pVTZ",
+      "charge": 0,
+      "chk": "791671580700000000002-s36f1e2b924862f12_hir_0_00",
+      "integral": "UltraFine",
+      "label": "hir/791671580700000000002-s36f1e2b924862f12_hir_0_00",
+      "mem": "700MW",
+      "method": "B2PLYP",
+      "mult": 2,
+      "nprocshared": 8,
+      "pop": "None",
+      "scf": "xqc,conver=8"
+    },
+    "optimizer_calls": [
+      "Sella(mol, order=0, constraints=const, trajectory='hir/791671580700000000002-s36f1e2b924862f12_hir_0_00.traj', logfile='hir/791671580700000000002-s36f1e2b924862f12_hir_0_00_sella.log', **sella_kwargs)",
+      "run_optimizer(opt, fmax=0.0005, steps=250, report='hir/791671580700000000002-s36f1e2b924862f12_hir_0_00.optimization_budget.json')"
+    ],
+    "positions": [
+      [
+        1.078494975096588,
+        0.0,
+        0.0
+      ],
+      [
+        1.8922448869072301,
+        1.5397243101986802,
+        0.0
+      ],
+      [
+        1.3333138444792483,
+        2.3122832991917273,
+        1.7811640115933507
+      ],
+      [
+        1.0874374819776018,
+        2.1322954829240626,
+        -0.916434992172107
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.6234847048615748,
+        -0.7921696597838878,
+        0.4867584311029347
+      ]
+    ],
+    "profile": {
+      "basis": "cc-pVTZ",
+      "calculator": "gaussian",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "integral": "UltraFine",
+        "scf": "xqc,conver=8"
+      },
+      "command": "g16",
+      "device": "cpu",
+      "frequency_mode": "native_hessian",
+      "method": "B2PLYP",
+      "model_path": "",
+      "optimizer": "sella",
+      "task_name": "omol"
+    },
+    "program_except_geometry_sha256": "d282030e9296e6b634308d834b2be3d1b77ed4e0edb2567c47f1813fe4bb11fe",
+    "route": {
+      "generation_tagged": true,
+      "job_id": "52954924",
+      "level": "l2"
+    },
+    "same_attempt_as_monitor": true,
+    "sella_kwargs": {
+      "gamma": 0.0,
+      "internal": true
+    },
+    "sha256": "4e1466c8123099fd9f2eee6f1cefd5ce4f612a6e5bd30768ad94530bf24e88c2",
+    "source": "/home/hram/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8/ch3ss/791471490990000000002/hir/791671580700000000002-s36f1e2b924862f12_hir_0_00.py",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ]
+  },
+  {
+    ".exitcode": "52954919 0\n",
+    "expected_slurm_id_from_monitor": "52954919",
+    "fixed_atoms_one_based": [
+      5,
+      1,
+      2,
+      3
+    ],
+    "kwargs": {
+      "EmpiricalDispersion": "GD3BJ",
+      "Symm": "None",
+      "basis": "cc-pVTZ",
+      "charge": 0,
+      "chk": "791671580700000000002-s36f1e2b924862f12_hir_0_00",
+      "integral": "UltraFine",
+      "label": "hir/791671580700000000002-s36f1e2b924862f12_hir_0_00",
+      "mem": "700MW",
+      "method": "B2PLYP",
+      "mult": 2,
+      "nprocshared": 8,
+      "pop": "None",
+      "scf": "xqc,conver=8"
+    },
+    "optimizer_calls": [
+      "Sella(mol, order=0, constraints=const, trajectory='hir/791671580700000000002-s36f1e2b924862f12_hir_0_00.traj', logfile='hir/791671580700000000002-s36f1e2b924862f12_hir_0_00_sella.log', **sella_kwargs)",
+      "run_optimizer(opt, fmax=0.0005, steps=250, report='hir/791671580700000000002-s36f1e2b924862f12_hir_0_00.optimization_budget.json')"
+    ],
+    "positions": [
+      [
+        1.0784949762063039,
+        0.0,
+        0.0
+      ],
+      [
+        1.8922448638813862,
+        1.539724329174819,
+        0.0
+      ],
+      [
+        1.3333142636906854,
+        2.312283080856728,
+        1.7811642510178292
+      ],
+      [
+        1.087437113663232,
+        2.132295521841443,
+        -0.9164346638543157
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.6234847214343326,
+        -0.7921696910717398,
+        0.4867583639233185
+      ]
+    ],
+    "profile": {
+      "basis": "cc-pVTZ",
+      "calculator": "gaussian",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "integral": "UltraFine",
+        "scf": "xqc,conver=8"
+      },
+      "command": "g16",
+      "device": "cpu",
+      "frequency_mode": "native_hessian",
+      "method": "B2PLYP",
+      "model_path": "",
+      "optimizer": "sella",
+      "task_name": "omol"
+    },
+    "program_except_geometry_sha256": "d282030e9296e6b634308d834b2be3d1b77ed4e0edb2567c47f1813fe4bb11fe",
+    "route": {
+      "generation_tagged": true,
+      "job_id": "52954919",
+      "level": "l2"
+    },
+    "same_attempt_as_monitor": true,
+    "sella_kwargs": {
+      "gamma": 0.0,
+      "internal": true
+    },
+    "sha256": "f3f1f8a6f5f35c3832f4901b1c837771dcf9f8e24f428771f6cb13483e30b364",
+    "source": "/home/hram/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8/ch3ss/791671580700000000002-s36f1e2b924862f12/hir/791671580700000000002-s36f1e2b924862f12_hir_0_00.py",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ]
+  },
+  {
+    ".exitcode": "52954921 0\n",
+    ".result.json": "{\n  \"error\": null,\n  \"minimum_recovery_attempts\": 0,\n  \"status\": \"normal\"\n}\n",
+    "expected_slurm_id_from_monitor": "52954921",
+    "frequency_mode": "native_hessian",
+    "kwargs": {
+      "EmpiricalDispersion": "GD3BJ",
+      "Symm": "None",
+      "basis": "cc-pVDZ",
+      "charge": 0,
+      "chk": "791671450790040000002_0001",
+      "integral": "UltraFine",
+      "label": "conf/791671450790040000002_0001",
+      "mem": "700MW",
+      "method": "B3LYP",
+      "mult": 2,
+      "nprocshared": 8,
+      "pop": "None",
+      "scf": "xqc,conver=8"
+    },
+    "optimizer_calls": [
+      "Sella(mol, order=order, trajectory='conf/791671450790040000002_0001.traj', logfile='conf/791671450790040000002_0001_sella.log', **sella_kwargs)",
+      "BFGS(mol, trajectory='conf/791671450790040000002_0001.traj', logfile='conf/791671450790040000002_0001_sella.log')",
+      "run_optimizer(opt, fmax=0.0005, steps=250, report='conf/791671450790040000002_0001.optimization_budget.json')"
+    ],
+    "order": 0,
+    "positions": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.719869931813051,
+        0.0,
+        0.0
+      ],
+      [
+        2.2253777857112595,
+        2.073425242424793,
+        0.0
+      ],
+      [
+        3.5164222136785748,
+        1.9278953396803808,
+        0.41113092376525995
+      ],
+      [
+        -0.5614920923822542,
+        0.7684740402850535,
+        0.5341624785463737
+      ],
+      [
+        -0.4978989351083264,
+        -0.838537153305573,
+        -0.49182872273447925
+      ]
+    ],
+    "profile": {
+      "basis": "cc-pVDZ",
+      "calculator": "gaussian",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "integral": "UltraFine",
+        "scf": "xqc,conver=8"
+      },
+      "command": "g16",
+      "device": "cpu",
+      "frequency_mode": "native_hessian",
+      "method": "B3LYP",
+      "model_path": "",
+      "optimizer": "sella",
+      "task_name": "omol"
+    },
+    "program_except_geometry_sha256": "a114ca1fa8b75c36160530f8b04844fe5c863eccf5e3848505d2268cfdf23146",
+    "route": {
+      "generation_tagged": true,
+      "job_id": "52954921",
+      "level": "l1"
+    },
+    "same_attempt_as_monitor": true,
+    "sella_kwargs": {
+      "_kinbot_worker_controls": {
+        "imagfreq_threshold": 50.0,
+        "minimum_recovery_attempts": 2,
+        "minimum_recovery_displacement": 0.02
+      },
+      "gamma": 0.0,
+      "internal": true
+    },
+    "sha256": "5b1f5722e850b237d993e7881b999ed241757aa0cd4bae7e3353e95caf03f845",
+    "source": "/home/hram/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8/ch3ss/791671450790040000002/conf/791671450790040000002_0001.py",
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ]
+  },
+  {
+    ".exitcode": "52954918 0\n",
+    ".result.json": "{\n  \"error\": null,\n  \"minimum_recovery_attempts\": 0,\n  \"status\": \"normal\"\n}\n",
+    "expected_slurm_id_from_monitor": "52954918",
+    "frequency_mode": "native_hessian",
+    "kwargs": {
+      "EmpiricalDispersion": "GD3BJ",
+      "Symm": "None",
+      "basis": "cc-pVDZ",
+      "charge": 0,
+      "chk": "791671450790040000002_0001",
+      "integral": "UltraFine",
+      "label": "conf/791671450790040000002_0001",
+      "mem": "700MW",
+      "method": "B3LYP",
+      "mult": 2,
+      "nprocshared": 8,
+      "pop": "None",
+      "scf": "xqc,conver=8"
+    },
+    "optimizer_calls": [
+      "Sella(mol, order=order, trajectory='conf/791671450790040000002_0001.traj', logfile='conf/791671450790040000002_0001_sella.log', **sella_kwargs)",
+      "BFGS(mol, trajectory='conf/791671450790040000002_0001.traj', logfile='conf/791671450790040000002_0001_sella.log')",
+      "run_optimizer(opt, fmax=0.0005, steps=250, report='conf/791671450790040000002_0001.optimization_budget.json')"
+    ],
+    "order": 0,
+    "positions": [
+      [
+        -0.5614963668222048,
+        0.7684455162478947,
+        -0.5342040031738362
+      ],
+      [
+        1.2924565093631788,
+        2.4700068582465415,
+        -0.9107968753575832
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.7198660866309188,
+        0.0,
+        0.0
+      ],
+      [
+        2.2252761199190996,
+        2.073465750203383,
+        0.0
+      ],
+      [
+        -0.49789308929814075,
+        -0.8385543830809055,
+        0.4918078362317444
+      ]
+    ],
+    "profile": {
+      "basis": "cc-pVDZ",
+      "calculator": "gaussian",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "integral": "UltraFine",
+        "scf": "xqc,conver=8"
+      },
+      "command": "g16",
+      "device": "cpu",
+      "frequency_mode": "native_hessian",
+      "method": "B3LYP",
+      "model_path": "",
+      "optimizer": "sella",
+      "task_name": "omol"
+    },
+    "program_except_geometry_sha256": "31347b836d94345fe2e6b29f94c8d17f3390ecb16b2a6a0e1b1da6e8852aae75",
+    "route": {
+      "generation_tagged": true,
+      "job_id": "52954918",
+      "level": "l1"
+    },
+    "same_attempt_as_monitor": true,
+    "sella_kwargs": {
+      "_kinbot_worker_controls": {
+        "imagfreq_threshold": 50.0,
+        "minimum_recovery_attempts": 2,
+        "minimum_recovery_displacement": 0.02
+      },
+      "gamma": 0.0,
+      "internal": true
+    },
+    "sha256": "5ae96c9eb9a34d99eaee7b355d4baed6fcbacc02c1c639e762e81e4c26d5b9a6",
+    "source": "/home/hram/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8/ch3ss/reverse_abstractions/26b8db7c87ded6112c4a/conf/791671450790040000002_0001.py",
+    "symbols": [
+      "H",
+      "H",
+      "C",
+      "S",
+      "S",
+      "H"
+    ]
+  }
+]

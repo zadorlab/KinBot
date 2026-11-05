@@ -40,7 +40,7 @@ def _scopes(root):
     return sorted(scopes)
 
 
-def sources(root, tasks=(), evidence=None, *, mess_handoff=False):
+def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_native=False):
     paths = set()
     for name in ('prepared.json', '.kinbot_resource_policy.json', '.kinbot_live_control.json'):
         if (root/name).is_file():paths.add(root/name)
@@ -81,6 +81,13 @@ def sources(root, tasks=(), evidence=None, *, mess_handoff=False):
             for name in files:
                 p=Path(parent)/name
                 if name in TASK_NAMES or p.suffix in TEXT_SUFFIXES or p.suffix=='.json':paths.add(p)
+    if homolysis_native:
+        from kinbot.homolysis_evidence import sources as native_sources
+        paths.update(native_sources(_scopes(root)))
+        for scope in {root, *[p.parent for p in root.glob('*/input.json')]}:
+            paths.update(scope.glob('*.json'))
+            for name in ('pes.log', 'driver.log', 'pes_summary.txt', 'chemids'):
+                if (scope/name).is_file():paths.add(scope/name)
     result = [(p, root, Path('run')/p.relative_to(root)) for p in sorted(paths)]
     if evidence is not None:
         extra = {p for pattern in ('retirement.json', 'outage-*/report.json',
@@ -99,7 +106,8 @@ def sources(root, tasks=(), evidence=None, *, mess_handoff=False):
     return result
 
 
-def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_handoff=False):
+def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_handoff=False,
+            homolysis_native=False):
     root=Path(root).resolve(strict=True);output_parent=Path(output_parent).resolve()
     evidence=Path(evidence).resolve(strict=True) if evidence else None
     if output_parent==root or output_parent.is_relative_to(root):
@@ -107,7 +115,9 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     if evidence and (output_parent==evidence or output_parent.is_relative_to(evidence)):
         raise ValueError('Write this audit outside the supplied evidence tree.')
     if type(max_mb) is not int or max_mb<1:raise ValueError('max_mb must be positive.')
-    selected=sources(root,tasks,evidence,mess_handoff=mess_handoff)
+    selected=sources(root,tasks,evidence,mess_handoff=mess_handoff,homolysis_native=homolysis_native)
+    if homolysis_native:
+        print(f'Capturing {len(selected)} native/metadata files; complete files, not tails.',flush=True)
     def handoff_directories():
         scopes=_scopes(root)
         return {p for scope in scopes for p in (scope,*scope.iterdir())
@@ -117,7 +127,7 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     output=output_parent/('seed-audit-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8])
     output.mkdir(parents=True)
     entries=[];issues=[];used=0
-    for source,base,relative in selected:
+    for index,(source,base,relative) in enumerate(selected,1):
         try:
             data,info=read_file(source,base,min(256*MIB,max_mb*MIB-used))
             if info['changed']:raise RuntimeError('Source changed during capture.')
@@ -126,6 +136,8 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
             used+=len(data)
         except (OSError,ValueError,RuntimeError) as error:
             issues.append(dict(source=str(source),error=str(error)))
+        if homolysis_native and index % 250 == 0:
+            print(f'Copied {index}/{len(selected)} files; {used/MIB:.1f} MiB; {len(issues)} issue(s).',flush=True)
     # Includes DB/WAL sidecars: a change anywhere invalidates the captured
     # group. An actively changing run must be quiesced before seed import.
     for entry in entries:
@@ -134,30 +146,59 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
             if source.stat().st_mtime_ns!=entry['mtime_ns'] or file_sha256(source)!=entry['sha256']:
                 issues.append(dict(source=str(source),error='Source changed before capture completed.'))
         except OSError as error:issues.append(dict(source=str(source),error=str(error)))
-    if mess_handoff:
+    if mess_handoff or homolysis_native:
         # A new/replaced worker or late-created artifact must not disappear
         # from an otherwise successful capture of the old file inventory.
-        current=sources(root,tasks,evidence,mess_handoff=True)
+        current=sources(root,tasks,evidence,mess_handoff=mess_handoff,homolysis_native=homolysis_native)
         if {str(p) for p,_,_ in current}!={str(p) for p,_,_ in selected}:
-            issues.append(dict(source=str(root),error='MESS handoff inventory changed during capture.'))
-        if handoff_directories()!=directories:
+            issues.append(dict(source=str(root),error='Evidence inventory changed during capture.'))
+        if mess_handoff and handoff_directories()!=directories:
             issues.append(dict(source=str(root),error='MESS handoff directory inventory changed during capture.'))
     manifest=dict(schema=1,root=str(root),files=entries,issues=issues,
                   directories=[str(Path('run')/p.relative_to(root)) for p in sorted(directories)],
                   status='captured' if not issues else 'incomplete',captured_bytes=used,
-                  purpose='mess_handoff_replay' if mess_handoff else 'seed_and_restart_audit_only',
+                  purpose=('homolysis_native_audit' if homolysis_native else
+                           'mess_handoff_replay' if mess_handoff else 'seed_and_restart_audit_only'),
                   native_checkpoint_backup=False,
                   consistent_live_snapshot=False,submits_jobs=False,modifies_source=False)
     atomic_json(output/'manifest.json',manifest)
+    extras=[]
+    if homolysis_native:
+        from kinbot.homolysis_evidence import summarize, scheduler, SKIP_DIRS
+        records,summary=summarize(output,_scopes(output/'run'))
+        atomic_json(output/'homolysis_inventory.json',dict(holds=records,
+            excluded_directories=sorted(SKIP_DIRS),excluded_file_components=['rwf','wfu']))
+        (output/'summary.txt').write_text(summary)
+        atomic_json(output/'scheduler.json',scheduler(output,records))
+        extras=['homolysis_inventory.json','summary.txt','scheduler.json']
     archive=output/'seed-evidence.tar.gz'
     with tarfile.open(archive,'w:gz') as tar:
         tar.add(output/'manifest.json',arcname='manifest.json',recursive=False)
+        for name in extras:tar.add(output/name,arcname=name,recursive=False)
         for name in manifest['directories']:
             path=output/name;path.mkdir(parents=True,exist_ok=True)
             tar.add(path,arcname=name,recursive=False)
         for item in entries:tar.add(output/item['path'],arcname=item['path'],recursive=False)
-    return dict(directory=str(output),archive=str(archive),sha256=file_sha256(archive),
+    if homolysis_native:
+        import hashlib
+        print('Verifying copied native evidence inside the archive...',flush=True)
+        expected={item['path']:item['sha256'] for item in entries}
+        for name in ['manifest.json',*extras]:expected[name]=file_sha256(output/name)
+        with tarfile.open(archive,'r:gz') as tar:
+            for member in tar:
+                if not member.isfile():continue
+                with tar.extractfile(member) as stream:
+                    digest=hashlib.sha256()
+                    for block in iter(lambda:stream.read(1024**2),b''):digest.update(block)
+                    checksum=digest.hexdigest()
+                if checksum!=expected.pop(member.name,None):
+                    raise RuntimeError('Archive verification mismatch: '+member.name)
+        if expected:raise RuntimeError('Archive is missing captured evidence.')
+    result=dict(directory=str(output),archive=str(archive),sha256=file_sha256(archive),
                 files=len(entries),bytes=used,issues=len(issues),status=manifest['status'])
+    if homolysis_native:
+        result.update(summary=str(output/'summary.txt'),holds=len(records))
+    return result
 
 
 def main(argv=None):
@@ -169,13 +210,17 @@ def main(argv=None):
     parser.add_argument('--max-mb',type=int,default=2048)
     parser.add_argument('--mess-handoff',action='store_true',
                         help='Include complete MESS artifacts, summaries and PES assembly metadata.')
+    parser.add_argument('--homolysis-native',action='store_true',
+                        help='Include full ordinary QC and archived attempts for workers with unresolved homolysis checks.')
     a=parser.parse_args(argv)
     if a.mess_handoff:
         print('Capturing MESS handoff: reading source files; no jobs or source changes.',flush=True)
+    if a.homolysis_native:
+        print('Capturing native homolysis evidence: read-only; no retries or controller changes.',flush=True)
     result=capture(a.root,a.output_parent,tasks=a.task,evidence=a.evidence,
-                   max_mb=a.max_mb,mess_handoff=a.mess_handoff)
+                   max_mb=a.max_mb,mess_handoff=a.mess_handoff,homolysis_native=a.homolysis_native)
     print(json.dumps(result,indent=2))
-    if a.mess_handoff and result['status']!='captured':
+    if (a.mess_handoff or a.homolysis_native) and result['status']!='captured':
         raise SystemExit(1)
 
 

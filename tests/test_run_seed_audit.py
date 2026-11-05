@@ -126,3 +126,80 @@ def test_mess_handoff_records_late_artifact_and_symlink_as_incomplete(tmp_path,m
     assert result['status']=='incomplete'
     assert any('inventory changed' in issue['error'] for issue in manifest['issues'])
     assert any('symlink' in issue['error'] for issue in manifest['issues'])
+
+
+def test_homolysis_native_captures_full_attempts_without_driving_or_mutating(tmp_path,monkeypatch):
+    root=tmp_path/'source';p,w=case(root)
+    search='worker_dissociation_saddle_1_2';parent='worker_hom_sci_1_2'
+    atomic_json(w/'homolysis_checks.json',dict(checks=[dict(parent=parent,search=search,
+                outcome='unresolved',scan_outcome='saddle_submitting',saddles=[])]))
+    atomic_json(w/'.kinbot_search_state.json',dict(reactions={search:dict(status=-999,step=40,job_id='123')}))
+    atomic_json(w/(search+'.dissociation_scan.json'),dict(outcome='saddle_submitting',
+                points=[dict(step=0,job_id='122',energy_hartree=-1.)]))
+    atomic_json(w/'.kinbot_theory_jobs.json',dict(jobs={search+'_IRC_F':dict(job_id='124'),
+                                                       'unrelated':dict(job_id='999')}))
+    natives={search+'.log':b'full native output\n'*5000,search+'.traj':b'trajectory',
+             search+'.chk':b'checkpoint',search+'_high_freq.out':b'native frequencies',
+             search+'_IRC_F.log':b'IRC', 'fragment_well.log':b'fragment state evidence',
+             'other_tight_TS.log':b'alternative tight saddle',
+             '.kinbot_timeout_retries/token/attempt/files/native.log':b'old attempt',
+             'restart_gaussian_scf/archive/native.com':b'old SCF input',
+             'perm/'+search+'.err':b'worker stderr'}
+    for name,data in natives.items():
+        path=w/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
+    excluded=w/'vrctst/sampling/big.wfu';excluded.parent.mkdir(parents=True);excluded.write_bytes(b'not needed')
+    other=p/'resolved';other.mkdir();atomic_json(other/'resolved.json',{})
+    atomic_json(other/'homolysis_checks.json',dict(checks=[dict(outcome='parent_not_retained')]))
+    (other/'native.log').write_text('resolved worker native output')
+    before={f:file_sha256(f) for f in root.rglob('*') if f.is_file()}
+    calls=[]
+    def query(args):
+        calls.append(args)
+        assert args[0]=='sacct'
+        return dict(argv=args,status='observed',returncode=0,stdout='retained accounting',stderr='')
+    monkeypatch.setattr('kinbot.run_outage_audit.command',query)
+    result=audit.capture(root,tmp_path/'exports',homolysis_native=True)
+    assert result['status']=='captured' and result['holds']==1
+    output=Path(result['directory'])
+    for name,data in natives.items():assert (output/'run/example/worker'/name).read_bytes()==data
+    assert not (output/'run/example/resolved/native.log').exists()
+    assert not (output/'run/example/worker/vrctst/sampling/big.wfu').exists()
+    assert before=={f:file_sha256(f) for f in before}
+    assert len(calls)==1 and calls[0][calls[0].index('-j')+1]=='122,123,124'
+    inventory=json.loads((output/'homolysis_inventory.json').read_text())
+    assert inventory['holds'][0]['search_state']['status']==-999
+    with tarfile.open(result['archive']) as archive:
+        assert archive.extractfile('run/example/worker/'+search+'.log').read()==natives[search+'.log']
+        assert {'summary.txt','scheduler.json','homolysis_inventory.json'}<=set(archive.getnames())
+
+
+def test_homolysis_live_changes_are_reported_not_reset(tmp_path,monkeypatch):
+    root=tmp_path/'source';p,w=case(root)
+    name='worker_dissociation_saddle_1_2'
+    atomic_json(w/'homolysis_checks.json',dict(checks=[dict(search=name,outcome='unresolved')]))
+    (w/(name+'.log')).write_text('running')
+    original=audit.read_file
+    def changing(source,*a,**k):
+        data=original(source,*a,**k)
+        if source.name==name+'.log':source.write_text('running: more progress')
+        return data
+    monkeypatch.setattr(audit,'read_file',changing)
+    monkeypatch.setattr('kinbot.run_outage_audit.command',lambda args:pytest.fail('No job IDs to query'))
+    result=audit.capture(root,tmp_path/'exports',homolysis_native=True)
+    assert result['status']=='incomplete' and result['issues']==1
+    assert json.loads((w/'homolysis_checks.json').read_text())['checks'][0]['outcome']=='unresolved'
+
+
+def test_homolysis_scheduler_batches_all_recorded_ids_and_retains_unavailability(tmp_path,monkeypatch):
+    from kinbot.homolysis_evidence import scheduler
+    worker=tmp_path/'run/case/worker';worker.mkdir(parents=True)
+    name='worker_dissociation_saddle_1_2'
+    atomic_json(worker/(name+'.dissociation_scan.json'),dict(points=[dict(job_id=str(i)) for i in range(201)]))
+    calls=[]
+    def unavailable(args):
+        calls.append(args)
+        return dict(argv=args,status='unknown',error='scheduler unavailable')
+    monkeypatch.setattr('kinbot.run_outage_audit.command',unavailable)
+    result=scheduler(tmp_path,[dict(worker='case/worker',check=dict(search=name),search_state={})])
+    assert len(result['job_ids'])==201 and len(calls)==3
+    assert all(q['status']=='unknown' for q in result['accounting'])

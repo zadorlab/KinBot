@@ -409,6 +409,8 @@ class ProfiledQuantumChemistry:
         status = backend.check_qc(job)
         if backend.job_ids.get(job):
             self._record(job, level, backend.job_ids[job])
+        elif status == 0 and job in self.job_ids:
+            self._clear_job_id(job)  # completed an interrupted owner-authorized invalidation
         return status
 
     def is_in_database(self, job):

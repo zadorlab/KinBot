@@ -260,7 +260,7 @@ def load_surface_model(parameters):
     return model, {'source': str(path), 'sha256': file_sha256(path)}
 
 
-def channel_for_reaction(parameters, reaction):
+def channel_for_reaction(parameters, reaction, *, allow_automatic=True):
     # Atom/bond indices are local to a reviewed parent, not transferable to
     # every isomer reached by PES exploration.
     from kinbot.species_routing import routing_name
@@ -284,6 +284,8 @@ def channel_for_reaction(parameters, reaction):
     space = active_space_settings(parameters)
     if (space or {}).get('selection') == 'verified_radical_pair' and not (
             parameters.get('vrc_tst_surface_model') or parameters.get('vrc_tst_surface_model_file')):
+        if not allow_automatic:
+            return None  # Startup acknowledgment never runs scientific verification.
         from kinbot.auto_radical_pair import ensure
         return ensure(parameters, reaction)
     loaded = load_surface_model(parameters)

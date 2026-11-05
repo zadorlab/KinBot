@@ -69,7 +69,7 @@ def acknowledge_installed(parameters, species, directory):
                                                  mult=product['multiplicity']))
             selection = channel_for_reaction(parameters, SimpleNamespace(
                 species=species, instance_name=record['reaction'],
-                scan_coo=[i-1 for i in bond], products=fragments))
+                scan_coo=[i-1 for i in bond], products=fragments), allow_automatic=False)
             if selection is None:
                 raise ValueError('No reviewed surface channel installed.')
             channel, source = selection

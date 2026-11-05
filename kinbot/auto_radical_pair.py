@@ -556,6 +556,16 @@ def _cached(root,c):
     if not result.is_file():return None
     saved=json.loads(result.read_text())
     _require(saved.get('contract_sha256')==digest(c),'Verification contract changed.')
+    # Older versions mislabeled JSON bookkeeping exceptions as scientific
+    # decisions. Only the exact unassessed JSON-parser case is recoverable;
+    # failed scientific checks and other historical holds remain untouched.
+    if (saved.get('status') == 'needs_review' and not saved.get('checks')
+            and not saved.get('selected_surface') and not saved.get('files')
+            and re.fullmatch(r'(?:Expecting value|Expecting property name enclosed in double quotes|'
+                             r'Unterminated string starting at|Expecting .* delimiter): '
+                             r'line \d+ column \d+ \(char \d+\)', saved.get('reason', ''))):
+        result.rename(root/('verification.bookkeeping_error.' + file_sha256(result) + '.json'))
+        return None
     if saved['status']!='accepted':
         raise ReviewRequired('Native automatic verification requires review: '+str(result))
     _require(saved.get('files') and saved.get('selected_surface'),'Accepted surface evidence is incomplete.')
@@ -656,14 +666,21 @@ def ensure(parameters,reaction):
             atomic_json(root/'status.json',dict(phase='accepted',contract_sha256=digest(c)))
             return model['channels'][0],dict(source=str(root/'surface.json'),sha256=file_sha256(root/'surface.json'),
                                              verification=str(root/'verification.json'))
-    except (ValueError,recon.ProbeFailure,KeyError) as error:
+    except ReviewRequired as error:
         if not (root/'verification.json').exists():
             atomic_json(root/'verification.json',dict(status='needs_review',contract_sha256=digest(c),
                         policy=c['policy'],reason=str(error)))
         atomic_json(root/'status.json',dict(phase='needs_review',reason=str(error),contract_sha256=digest(c)))
         raise SurfaceModelRequired(str(error)+'; evidence: '+str(root)) from error
-    except RuntimeError as error:
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        from kinbot.pes_phase import ExplorationReopened
+        if isinstance(error, ExplorationReopened):
+            raise
         if str(error).startswith('Another reconnaissance controller'):
-            raise SurfaceModelRequired('Automatic verification is owned by a live controller: '+str(root)) from error
-        atomic_json(root/'status.json',dict(phase='reconciliation_required',reason=str(error),contract_sha256=digest(c)))
-        raise SurfaceModelRequired('Automatic verification needs scheduler/attempt reconciliation: '+str(root)+'; '+str(error)) from error
+            raise RuntimeError('Automatic verification is owned by a live controller: ' + str(root)) from error
+        atomic_json(root/'status.json', dict(phase='execution_error', reason=str(error),
+                    error_type=type(error).__name__, contract_sha256=digest(c)))
+        # A storage, scheduler, parse or programming error is not a chemical
+        # judgment. Let the owning controller retain/resume its attempts.
+        raise RuntimeError('Automatic verification execution interrupted; retained evidence: '
+                           + str(root) + '; ' + str(error)) from error

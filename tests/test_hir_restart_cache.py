@@ -45,6 +45,8 @@ class TestHIRRestartCache(unittest.TestCase):
                             Path(job + suffix).write_text('old normal output\ndone\n')
                         Path(job + '.fchk').write_text('old Hessian')
                         Path(job + '.chk').write_text('old checkpoint')
+                        Path(job + '.exitcode').write_text('42 0\n')
+                        Path(job + '.result.json').write_text('{"status":"normal"}')
                         self.assertEqual(self.qc.check_qc(job), 'normal')
                         self.qc.invalidate_qc(job)
                         self.assertEqual(self.qc.check_qc(job), 0)
@@ -54,7 +56,9 @@ class TestHIRRestartCache(unittest.TestCase):
                         archives = list(Path(job).parent.glob(Path(job).name + '.fchk.restart_*'))
                         self.assertEqual(len(archives), 1)
                         self.assertEqual(archives[0].read_text(), 'old Hessian')
+                        self.qc._search_replay = 'accepted_reaction'
                         self.assertEqual(self.qc.submit_qc(job, 2), 1)
+                        self.qc._search_replay = None
                         process.communicate.assert_called()
                         # A new completed calculation supersedes the invalidation marker.
                         self.qc.db.write(self.atoms, name=job, data={
@@ -103,6 +107,42 @@ class TestHIRRestartCache(unittest.TestCase):
             'hess': np.eye(6), 'status': 'normal'})
         with patch('kinbot.qc.subprocess.call', return_value=1):
             self.assertEqual(self.qc.check_qc(job), 'normal')
+
+    def test_legacy_interrupted_invalidation_retires_old_exit_and_pickle(self):
+        import pickle
+        from ase.db.core import now
+        job='well_high'
+        row=self.qc.db.write(self.atoms,name=job,data={'status':'normal','energy':-1.})
+        Path(job+'.exitcode').write_text('42 0\n')
+        with open(job+'.pkl','wb') as stream:
+            pickle.dump({'name':job,'data':{'status':'normal','energy':-1.}},stream)
+        marker=self.qc.db.write(self.atoms,name=job,data={
+            'status':0,'reason':'HIR restart','supersedes_row_id':row})
+        Path(job+'.log.restart_'+str(marker)).write_text('archived native output')
+        self.qc.job_ids[job]='42'
+        with patch('kinbot.qc._pbs_job_active',return_value=False):
+            self.assertEqual(self.qc.check_qc(job),0)
+            self.assertEqual(self.qc.check_qc(job),0)
+        self.assertNotIn(job,self.qc.job_ids)
+        self.assertFalse(Path(job+'.pkl').exists())
+        self.assertEqual(self.qc.db.count(name=job),2)
+        self.assertTrue(Path(job+'.exitcode.restart_'+str(marker)).exists())
+
+    def test_replacement_and_live_original_generations_are_not_retired(self):
+        from kinbot.qc_invalidation import reconcile
+        job='well_high'
+        Path(job+'.exitcode').write_text('42 0\n')
+        self.qc.db.write(self.atoms,name=job,data={
+            'status':0,'reason':'HIR restart','supersedes_row_id':1,'retired_job_id':'42'})
+        self.qc.job_ids[job]='43'
+        self.assertFalse(reconcile(self.qc,job))
+        self.qc.job_ids[job]='42'
+        with patch('kinbot.qc._pbs_job_active',return_value=True):
+            self.assertFalse(reconcile(self.qc,job))
+        Path(job+'.exitcode').write_text('43 0\n')
+        with patch('kinbot.qc._pbs_job_active',return_value=False):
+            self.assertFalse(reconcile(self.qc,job))
+        self.assertEqual(Path(job+'.exitcode').read_text(),'43 0\n')
 
 
 if __name__ == '__main__':

@@ -42,7 +42,12 @@ def owner_directory(source, *, directory=None, require_live=True):
         marker = root/pes_phase.NAME
         if not marker.exists():
             continue
-        m = json.loads(marker.read_text())
+        try:
+            m = pes_phase.read(root)
+        except pes_phase.ManifestUnavailable:
+            # PES startup subsequently acquires its exclusive driver lock.
+            # An unreadable legacy manifest cannot block that recovery path.
+            continue
         if m.get('input_file') == str(source) and (not require_live or pes_phase.owner_alive(m)):
             found.append(root)
     if len(found) > 1:
@@ -56,7 +61,10 @@ def accepted_source(source, *, directory=None):
     root = Path(directory).resolve() if directory else source.parent
     marker = root/pes_phase.NAME
     if marker.exists():
-        m = json.loads(marker.read_text())
+        try:
+            m = pes_phase.read(root)
+        except pes_phase.ManifestUnavailable:
+            return source
         if m.get('input_file') == str(source) and pes_phase.owner_alive(m):
             return root/(SNAPSHOT if source.parent == root else PARAMETERS_SNAPSHOT)
     return source
@@ -125,7 +133,7 @@ def submit(source, *, apply=False, directory=None, proposal=None, expected=None,
     if control_path is None:
         raise ValueError('Enable live controls before resubmitting an input.')
     with control.locked(control_path.parent), phase.locked(root):
-        m = json.loads((root/phase.NAME).read_text())
+        m = phase.read(root)
         if m.get('input_file') != str(source) or not phase.owner_alive(m):
             raise ValueError('No live PES owner for this input; no driver was launched.')
         current = json.loads(source.read_text())
@@ -317,7 +325,7 @@ def inherit_models(root, generator):
     if generator is None or not (root/SNAPSHOT).exists():
         return
     from kinbot import pes_phase, live_control as control
-    phase = json.loads((root/pes_phase.NAME).read_text())
+    phase = pes_phase.read(root)
     if (root/JOURNAL).exists():
         r = json.loads((root/JOURNAL).read_text())
         if r['token'] == phase['token'] and r['status'] in ('queued', 'publishing'):

@@ -4,7 +4,6 @@ import random
 import time
 import copy
 import logging
-from shutil import copyfile
 
 import numpy as np
 from ase.db import connect
@@ -470,25 +469,7 @@ class Conformers:
                     if not parent_allowed:
                         from kinbot.stereo_routing import StereoRoutingError
                         raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
-                    if self.qc.qc == 'gauss':
-                        ext = '.log'
-                    elif self.qc.qc == 'qchem':
-                        ext = '.out'
-                    elif self.qc.qc == 'nn_pes':
-                        ext = '.log'
-                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
-                        ext = '_sella.log'
-                    else:
-                        raise NotImplementedError(f'Code {self.qc.qc} not available.')
-                    copyfile(f'{lowest_job}{ext}', f'conf/{name}_low{ext}')
-                    mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
-                    data = {'energy': last_row.data.get('energy'),
-                            'frequencies': last_row.data.get('frequencies'),
-                            'zpe': last_row.data.get('zpe'),
-                            'status': last_row.data.get('status')}
-                    self.db.write(mol, name='conf/{}_low'.format(name), 
-                                  data=data)
-                    #logger.warning(f'All conformer optimizations failed for {name}.')
+                    self.qc.publish_result(last_row, f'conf/{name}_low')
 
                     self.selected_job = lowest_job
                     self.selected_conf = lowest_conf
@@ -506,10 +487,13 @@ class Conformers:
                             data = rows[-1].data if rows else {}
                             for field in ('energy', 'zpe'):
                                 conformer_records.finite_energy(data.get(field), f'{job} {field}')
-                        err, energy = self.qc.get_qc_energy(job)
-                        err, zpe = self.qc.get_qc_zpe(job)
-                        err, geom = self.qc.get_qc_geom(job, self.species.natom)
+                        energy_status, energy = self.qc.get_qc_energy(job)
+                        zpe_status, zpe = self.qc.get_qc_zpe(job)
+                        geom_status, geom = self.qc.get_qc_geom(job, self.species.natom)
                         err, freq = self.qc.get_qc_freq(job, self.species.natom)
+                        if energy_status or zpe_status or geom_status:
+                            raise RuntimeError(f'{job}: conformer result became unavailable during selection; '
+                                               'retained the original attempts for reconciliation.')
                         self.calculation_records[ci] = {
                             'source_job': job, 'electronic_energy_hartree': float(energy),
                             'zpe_hartree': float(zpe)}
@@ -622,39 +606,8 @@ class Conformers:
                     # only totenergies and the comparison above include ZPE.
                     lowest_energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
                 
-                low_row = None
-                low_rows = self.db.select(name='conf/{}_low'.format(name))
-                for lrow in low_rows:
-                    low_row = lrow
-                try:
-                    if self.qc.qc == 'gauss':
-                        copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
-                    elif self.qc.qc == 'qchem':
-                        copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
-                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
-                        pass
-                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
-                        copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
-                    else:
-                        raise NotImplementedError(f'Code {self.qc.qc} not available.')
-                    rows = self.db.select(name='{}'.format(lowest_job))
-                    logger.debug(f'Looking at {name} in conformers')
-                    for row in rows:
-                        row_last = row
-                    mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
-                    data = {'energy': row_last.data.get('energy'),
-                            'frequencies': row_last.data.get('frequencies'),
-                            'zpe': row_last.data.get('zpe'),
-                            'status': row_last.data.get('status')}
-                    if low_row and hasattr(low_row, 'data') \
-                            and all((np.all(data.get(k) == v) 
-                                     for k, v in low_row.data.items())):
-                        pass
-                    else:
-                        self.db.write(mol, name='conf/{}_low'.format(name), 
-                                      data=data)
-                except UnboundLocalError:
-                    pass
+                rows = list(self.db.select(name=lowest_job))
+                self.qc.publish_result(rows[-1], f'conf/{name}_low')
 
                 self.selected_job = lowest_job
                 self.selected_conf = lowest_conf
@@ -692,18 +645,17 @@ class Conformers:
 
         job = 'conf/{}_low'.format(name)
         try:
-            err, energy = self.qc.get_qc_energy(job)
-            err, zpe = self.qc.get_qc_zpe(job)
-            err, geom = self.qc.get_qc_geom(job, self.species.natom)
+            energy_status, energy = self.qc.get_qc_energy(job)
+            zpe_status, zpe = self.qc.get_qc_zpe(job)
+            geom_status, geom = self.qc.get_qc_geom(job, self.species.natom)
+            complete = (energy_status == zpe_status == geom_status == 0
+                        and np.isfinite(energy) and np.isfinite(zpe))
         except ValueError:
-            _ = self.check_conformers()
-            err, energy = self.qc.get_qc_energy(job)
-            err, zpe = self.qc.get_qc_zpe(job)
-            err, geom = self.qc.get_qc_geom(job, self.species.natom)
-                
-        if not configured_geometry_allowed(self.species, geom, self.optical_population):
-            logger.warning('Cached conformer %s has a different configured stereoisomer; '
-                           'rechecking the individual conformer calculations.', job)
+            complete = False
+        # A failed read returns placeholder coordinates, not a stereoisomer.
+        if not complete or not configured_geometry_allowed(
+                self.species, geom, self.optical_population):
+            logger.info('Rebuilding cached conformer %s from completed source calculations.', job)
             if not self.conf:
                 # A cached restart can skip sampling entirely. Reuse a valid
                 # parent directly rather than entering the all-failed search

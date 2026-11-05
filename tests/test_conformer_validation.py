@@ -102,6 +102,31 @@ class TestConformerValidation(unittest.TestCase):
                 if not all_failed:
                     self.assertAlmostEqual(result[5][0], -98.9)  # E + ZPE stays separate.
 
+    def test_legacy_gaussian_sella_alias_rebuilt_without_zero_geometry(self):
+        self.qc.qc = 'gauss'
+        self.qc.use_sella = True
+        del self.qc.check_qc  # actual filesystem/database completion checks
+        parent = self.species.name + '_well'
+        search = Conformers(self.species, self.par, self.qc)
+        search.conf, search.conf_status = 1, [0]
+        job = search.get_job_name(0)
+        alias = 'conf/' + self.species.name + '_low'
+        for name in (parent, job, alias):
+            self.record(name, -100., [100.] * self.nfreq)
+            Path(name + '.log').write_text('Normal termination of Gaussian\n')
+        for name in (parent, job):
+            Path(name + '_sella.log').write_text('done\n')
+        geom, energy, zpe = search.lowest_conf_info()
+        import numpy as np
+        np.testing.assert_allclose(geom, self.atoms.positions)
+        self.assertAlmostEqual(energy, -100.)
+        self.assertEqual(self.qc.check_qc(alias), 'normal')
+        self.assertEqual(list(self.qc.db.select(name=alias))[-1].data.copied_from_job, job)
+        self.assertEqual(Path(alias + '_sella.log').read_text(), 'done\n')
+        count = self.qc.db.count()
+        search.lowest_conf_info()
+        self.assertEqual(self.qc.db.count(), count)
+
 
 if __name__ == '__main__':
     unittest.main()

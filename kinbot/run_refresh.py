@@ -161,18 +161,33 @@ def _submission_guard(root, *, independent=False):
             _POOL_GUARDED.reset(token)
 
 
+def _case_inputs(root):
+    # A journalled migration may be between its input and receipt writes.
+    # The migration validates hashes; inventory only resolves its fixed scope.
+    record = (json.loads((root/'prepared.json').read_text())
+              if (root/'prepared.json').exists() else run_salvage._ordinary_case(root))
+    paths = [Path(p).resolve() for p in record['inputs']]
+    if not paths or any(not p.is_relative_to(root) for p in paths):
+        raise RuntimeError('PES inputs are outside the requested run.')
+    return paths
+
+
 def _graphs(root):
-    directories = set(root.glob('*/[0-9]*/anl_automatic/states/*/composite'))
-    for inp in root.glob('*/[0-9]*/*.json'):
-        if inp.name != inp.parent.name+'.json':
-            continue
-        parameters=json.loads(inp.read_text())
-        base=inp.parent/parameters.get('anl_automatic_directory','anl_automatic')
-        directories.update(base.glob('states/*/composite'))
-    for pattern in ('*/[0-9]*/vrctst/molpro_scan/*',
-                    '*/[0-9]*/vrctst/molpro_pivots/*',
-                    '*/[0-9]*/vrctst/molpro/dispatch*'):
-        directories.update(root.glob(pattern))
+    directories = set()
+    inputs = _case_inputs(root)
+    for source in inputs:
+        case = source.parent
+        directories.update(case.glob('[0-9]*/anl_automatic/states/*/composite'))
+        for inp in case.glob('[0-9]*/*.json'):
+            if inp.name != inp.parent.name+'.json':
+                continue
+            parameters=json.loads(inp.read_text())
+            base=inp.parent/parameters.get('anl_automatic_directory','anl_automatic')
+            directories.update(base.glob('states/*/composite'))
+        for pattern in ('[0-9]*/vrctst/molpro_scan/*',
+                        '[0-9]*/vrctst/molpro_pivots/*',
+                        '[0-9]*/vrctst/molpro/dispatch*'):
+            directories.update(case.glob(pattern))
     for graph in sorted(directories):
         if not graph.is_dir():
             continue
@@ -184,10 +199,7 @@ def _graphs(root):
 
 
 def _ordinary_inputs(root):
-    prepared = json.loads((root/'prepared.json').read_text())
-    inputs = [Path(p).resolve() for p in prepared['inputs']]
-    if not inputs or any(not p.is_relative_to(root) for p in inputs):
-        raise RuntimeError('Prepared inputs are outside the requested run.')
+    inputs = _case_inputs(root)
     result = set()
     for source in inputs:
         from kinbot.reverse_search import inputs as reverse_inputs
@@ -236,6 +248,35 @@ def _ordinary_job_owners(root):
     return owners
 
 
+def _recon_job_owners(root):
+    """Retain native automatic-verification probes when replacing PES owners."""
+    from kinbot.execution import file_sha256
+    owners = {}
+    inputs = _case_inputs(root)
+    for source in inputs:
+        for folder in source.parent.glob('[0-9]*/vrctst/auto_radical_pair'):
+            for manifest in folder.rglob('reconnaissance.json'):
+                saved = json.loads(manifest.read_text())
+                for entry in saved['jobs']:
+                    if entry.get('submission_status') == 'submitting':
+                        raise RefreshTransientError(f'{manifest}: probe submission bookkeeping in flight.')
+                    ident = entry.get('job_id')
+                    if not ident:
+                        continue
+                    directory = Path(entry['directory']).resolve()
+                    if not directory.is_relative_to(manifest.parent.resolve()):
+                        raise RuntimeError(f'{manifest}: native probe escapes its campaign.')
+                    inp = directory/(entry['name']+'.inp')
+                    if (file_sha256(inp) != entry['input_sha256']
+                            or not (directory/(entry['name']+'.sbatch')).is_file()):
+                        raise RuntimeError(f'{manifest}: native probe input/script changed.')
+                    ident = str(ident)
+                    if ident in owners:
+                        raise RuntimeError(f'{ident}: duplicate native probe ownership.')
+                    owners[ident] = directory
+    return owners
+
+
 def _owned_jobs(root):
     with _submission_guard(root):
         return _owned_jobs_guarded(root)
@@ -269,6 +310,10 @@ def _owned_jobs_guarded(root):
             if job in owned:
                 raise RuntimeError(f'Slurm job {job} has duplicate graph ownership.')
             owned[job] = (graph / 'tasks' / ident).resolve()
+    probes = _recon_job_owners(root)
+    if owned.keys() & probes.keys():
+        raise RuntimeError('An allocation has both graph and probe ownership.')
+    owned.update(probes)
     ordinary = _ordinary_job_owners(root)
     if owned.keys() & ordinary.keys():
         raise RuntimeError('An allocation has both dispatcher and ordinary QC ownership.')
@@ -410,6 +455,7 @@ def _archive_controllers(root, archive):
         # Preserve its exact bytes here, under the stopped-controller locks;
         # chemistry, discovery and task ledgers remain in their live locations.
         run_salvage._save(directory / 'pes_exploration.json', root, archive, move=True)
+        run_salvage._save(directory / '.pes_exploration.json.backup', root, archive, move=True)
 
 
 def _restore_discovery(root, archive):
@@ -672,6 +718,10 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
             cancel_superseded_vrc_scans=False, deduplicate_vrc=False, network_options=None):
     """Journal a controller-only handoff; repeated same-code calls are no-ops."""
     root = Path(root).resolve(strict=True)
+    if os.environ.get('SLURM_JOB_ID'):
+        raise RuntimeError('Controller refresh launches persistent local controllers and must run '
+                           'outside a Slurm allocation. To restart a batch-owned PES, resubmit its '
+                           'original python -m kinbot.pes INPUT job; retained QC is reused.')
     marker = root / 'salvage.json'
     history = run_salvage._controller_history(root)
     journal_path = root / 'controller_refresh.json'
@@ -795,6 +845,9 @@ def refresh(root, *, apply=False, replace_pending=False, vrc_updates=None,
         if migration is not None:
             journal['vrc_migration'] = migration
             journal['cancel_superseded_vrc_scans'] = cancel_superseded_vrc_scans
+        if not (root/'prepared.json').exists():
+            record, _ = run_salvage._cases(root)
+            atomic_json(root/'.kinbot_ordinary_run.json', record)
         atomic_json(journal_path, journal)
     elif not apply:
         return journal

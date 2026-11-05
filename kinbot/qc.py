@@ -1532,7 +1532,8 @@ class QuantumChemistry:
             return
         previous = rows[-1]
         marker = self.db.write(previous.toatoms(), name=job, data={
-            'status': 0, 'reason': 'HIR restart', 'supersedes_row_id': previous.id})
+            'status': 0, 'reason': 'HIR restart', 'supersedes_row_id': previous.id,
+            'retired_job_id': self.job_ids.get(job)})
         self._archive_outputs(job, marker)
         self.job_ids.pop(job, None)
         getattr(self, 'job_generation_tagged', {}).pop(job, None)
@@ -1541,7 +1542,8 @@ class QuantumChemistry:
     def _archive_outputs(job, marker):
         for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out',
                        '.qc_reuse_consumer.json', '.qc_reuse_producer.json',
-                       '.minimum_reuse.json', '.shared_native.fchk'):
+                       '.minimum_reuse.json', '.shared_native.fchk', '.exitcode', '.pkl',
+                       '.result.json', '.optimization_budget.json'):
             path = job + suffix
             if os.path.isfile(path):
                 os.replace(path, f'{path}.restart_{marker}')
@@ -1553,6 +1555,8 @@ class QuantumChemistry:
         incomplete result, rather than pairing new properties with old files.
         Original calculations and earlier conventional outputs are preserved.
         """
+        if source.data.get('status') != 'normal':
+            raise ValueError(f'Cannot publish an unaccepted calculation: {source.name}')
         if source.name == target:
             return source.id
         rows = list(self.db.select(name=target))
@@ -1629,7 +1633,8 @@ class QuantumChemistry:
             if check == 'running':
                 return 0
 
-        if getattr(self, '_search_replay', None):
+        from kinbot.qc_invalidation import requested
+        if getattr(self, '_search_replay', None) and not requested(self, job):
             raise RuntimeError(
                 f'{job}: restoring accepted reaction {self._search_replay} '
                 'requires a missing/replacement QC calculation. Retained the '
@@ -2235,6 +2240,9 @@ class QuantumChemistry:
         from kinbot.pes_phase import checkpoint
         checkpoint()
         from kinbot import qc_timeout, timeout_retry, qc_reuse
+        from kinbot.qc_invalidation import reconcile
+        if reconcile(self, job):
+            return 0
         shared = qc_reuse.poll(self, job)
         if shared is not None:
             return shared

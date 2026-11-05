@@ -64,10 +64,33 @@ def atomic_json(path, payload):
     """Publish canonical JSON through an atomic same-directory rename."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + '.tmp')
-    temporary.write_text(json.dumps(
-        payload, indent=2, sort_keys=True) + '\n')
-    os.replace(temporary, path)
+    data = (json.dumps(payload, indent=2, sort_keys=True) + '\n').encode()
+    # A shared .tmp name lets concurrent publishers rename one another's
+    # unfinished writes. Each writer owns a unique same-filesystem inode.
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w+b', dir=path.parent,
+                                         prefix=path.name + '.', suffix='.tmp', delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+            stream.seek(0)
+            if stream.read() != data:
+                raise OSError(f'JSON write verification failed: {path}')
+        os.replace(temporary, path)
+        descriptor = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        except OSError as error:
+            import errno
+            if error.errno not in (errno.EINVAL, errno.ENOTSUP):
+                raise
+        finally:
+            os.close(descriptor)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return path
 
 

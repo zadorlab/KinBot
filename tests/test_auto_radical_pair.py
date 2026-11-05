@@ -262,7 +262,7 @@ def test_live_owner_preserved_without_starting_second_panel(simulated_workflow):
     p,r,c,calls,_=simulated_workflow
     root=(Path('vrctst/auto_radical_pair')/auto.digest(c)).resolve()
     with recon._manifest_lock(root):
-        with pytest.raises(SurfaceModelRequired,match='live controller'):auto.ensure(p,r)
+        with pytest.raises(RuntimeError,match='live controller'):auto.ensure(p,r)
     assert not calls
 
 
@@ -489,3 +489,47 @@ def test_relaxation_uses_production_constraints_and_reuses_complete_native_tasks
         assert spec['molecule']['multiplicity']==1
     second=auto.relax(root,c,p,r,pilots)
     assert len(created)==count and second==first
+
+
+def test_bookkeeping_exception_is_not_a_scientific_review(simulated_workflow, monkeypatch):
+    p,r,c,calls,_ = simulated_workflow
+    root = (Path('vrctst/auto_radical_pair')/auto.digest(c)).resolve()
+    original = auto.relax
+    def interrupted(*args, **kwargs):
+        raise json.JSONDecodeError('Expecting value', '', 0)
+    monkeypatch.setattr(auto, 'relax', interrupted)
+    with pytest.raises(RuntimeError, match='execution interrupted'):
+        auto.ensure(p,r)
+    assert not (root/'verification.json').exists()
+    assert json.loads((root/'status.json').read_text())['phase']=='execution_error'
+    monkeypatch.setattr(auto, 'relax', original)
+    auto.ensure(p,r)
+    assert json.loads((root/'verification.json').read_text())['status']=='accepted'
+
+
+def test_old_unassessed_json_hold_is_archived_before_resuming(simulated_workflow):
+    p,r,c,calls,_ = simulated_workflow
+    root = (Path('vrctst/auto_radical_pair')/auto.digest(c)).resolve()
+    saved = dict(status='needs_review', contract_sha256=auto.digest(c), policy=c['policy'],
+                 reason='Expecting value: line 1 column 1 (char 0)')
+    atomic_json(root/'verification.json',saved)
+    auto.ensure(p,r)
+    archives=list(root.glob('verification.bookkeeping_error.*.json'))
+    assert len(archives)==1 and json.loads(archives[0].read_text())==saved
+    assert json.loads((root/'verification.json').read_text())['status']=='accepted'
+
+
+def test_acknowledgment_never_runs_automatic_policy_with_fragment_stubs(case, tmp_path, monkeypatch):
+    from kinbot.vrc_review_status import acknowledge_installed
+    from kinbot.species_routing import routing_name
+    p,r,_=case; route=routing_name(r.species)
+    r.instance_name=route+'_hom_sci_1_2'
+    record=dict(status='needs_review',parent=route,reaction=r.instance_name,
+                symbols=list(r.species.atom),charge=0,multiplicity=1,bond=[1,2],
+                products=[dict(smiles=x.smiles,charge=x.charge,multiplicity=x.mult) for x in r.products])
+    path=tmp_path/'vrctst/orbital_review'/r.instance_name/'request.json'
+    atomic_json(path,record)
+    monkeypatch.setattr(auto,'ensure',lambda *a:pytest.fail('verification during acknowledgment'))
+    reports=acknowledge_installed(p,r.species,tmp_path)
+    assert reports[0]['status']=='needs_review'
+    assert json.loads(path.read_text())==record

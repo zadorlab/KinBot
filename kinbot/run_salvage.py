@@ -72,8 +72,36 @@ def rehome(old, new):
     return new
 
 
+def _ordinary_case(root):
+    """Recover the documented python -m kinbot.pes launch without guessing inputs."""
+    receipt = root/'.kinbot_ordinary_run.json'
+    if receipt.exists():
+        return json.loads(receipt.read_text())
+    from kinbot.input_refresh import SNAPSHOT
+    snapshot = root/SNAPSHOT
+    if not snapshot.is_file() or not (root/'pes_status.json').is_file():
+        raise ValueError('No retained ordinary PES launch/input snapshot in ' + str(root))
+    values = json.loads(snapshot.read_text())
+    candidates = []
+    for path in root.glob('*.json'):
+        if path.name.startswith('.'):
+            continue
+        try:
+            if json.loads(path.read_text()) == values:
+                candidates.append(path.resolve())
+        except (OSError, ValueError):
+            continue
+    if len(candidates) != 1:
+        raise ValueError('Ordinary PES restart needs one local input matching the accepted snapshot; '
+                         'retain the original input in the run directory.')
+    path = candidates[0]
+    return dict(schema=1, inputs=[str(path)], sha256={path.name: file_sha256(path)},
+                origin='ordinary_pes', code=None)
+
+
 def _cases(root, updates=None):
-    record = json.loads((root / 'prepared.json').read_text())
+    record = (json.loads((root / 'prepared.json').read_text())
+              if (root/'prepared.json').exists() else _ordinary_case(root))
     # Resolve only after rehome: old paths remain valid aliases.
     paths = [Path(p).resolve() for p in record['inputs']]
     if not paths or any(not p.is_relative_to(root) for p in paths):
@@ -190,6 +218,9 @@ def _controller_history(root):
     marker = root / 'salvage.json'
     if marker.exists():
         return json.loads(marker.read_text())
+    if not (root/'fresh_run.json').exists():
+        record, paths = _cases(root)
+        return dict(record, status='launched', code=None, inputs=[str(p) for p in paths])
     fresh = json.loads((root / 'fresh_run.json').read_text())
     if fresh.get('schema') != 1 or fresh.get('phase') != 'launched':
         raise RuntimeError('Controller refresh requires a completed fresh-run launch.')

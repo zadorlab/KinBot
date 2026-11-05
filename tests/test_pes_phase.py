@@ -44,7 +44,7 @@ def test_process_identity_does_not_infer_ownership_from_a_hostname(saved, curren
 
 def test_pes_and_worker_liveness_survive_hostname_qualification(root, monkeypatch):
     identities = {pid:dict(host='node', pid=pid, start=str(pid), boot='boot') for pid in (42, 43)}
-    atomic_json(root/phase.NAME, dict(phase='postprocessing', owner_pid=42,
+    atomic_json(root/phase.NAME, dict(token='generation', phase='postprocessing', owner_pid=42,
         owner_identity=identities[42], workers={'well':dict(pid=43, identity=identities[43])}))
     monkeypatch.setattr(phase, 'process_identity', lambda pid: dict(identities[pid], host='node.example.org'))
     assert phase.active_worker(root/'well')

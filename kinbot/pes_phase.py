@@ -33,6 +33,51 @@ def locked(root):
         yield
 
 
+class ManifestUnavailable(RuntimeError):
+    """Neither retained coordination copy can be read; never a chemistry hold."""
+
+
+def read(root):
+    root = Path(root)
+    error = None
+    for attempt in range(3):
+        try:
+            value = json.loads((root/NAME).read_text())
+            if not isinstance(value, dict) or not value.get('token') or not isinstance(value.get('workers'), dict):
+                raise ValueError('Invalid PES coordination record')
+            return value
+        except (OSError, ValueError) as exc:
+            error = exc
+            if attempt < 2:
+                time.sleep(.1)
+    try:
+        value = json.loads((root/('.' + NAME + '.backup')).read_text())
+        if not isinstance(value, dict) or not value.get('token') or not isinstance(value.get('workers'), dict):
+            raise ValueError('Invalid PES coordination backup')
+        return value
+    except (OSError, ValueError):
+        raise ManifestUnavailable(f'{root/NAME}: coordination record unavailable; '
+                                  'restart the owning PES driver to reconstruct it from retained work.') from error
+
+
+def _publish(root, record):
+    root = Path(root)
+    primary = root/NAME
+    if primary.exists():
+        try:
+            json.loads(primary.read_text())
+        except ValueError:
+            from kinbot.execution import file_sha256
+            from shutil import copyfile
+            archive = root/('.' + NAME + '.corrupt.' + file_sha256(primary))
+            if not archive.exists():
+                copyfile(primary, archive)
+    # Both copies represent the same epoch. Readers never synthesize an empty
+    # workers map or silently approve postprocessing on a parse failure.
+    atomic_json(root/('.' + NAME + '.backup'), record)
+    atomic_json(primary, record)
+
+
 def process_identity(pid):
     try:
         stat = Path(f'/proc/{pid}/stat')
@@ -90,15 +135,16 @@ def initialize(root, input_file=None, initial_worker=None):
         record.update(capture(root,input_file))
         if json.loads(Path(input_file).read_text()).get('composite_method'):
             record['anl_selection_policy'] = 'lowest_l2'
-    atomic_json(root/NAME, record)
+    with locked(root):
+        _publish(root, record)
     return record
 
 
 def register(root, worker, pid):
     with locked(root):
-        m = json.loads((Path(root)/NAME).read_text())
+        m = read(root)
         m['workers'][worker] = dict(pid=pid, identity=process_identity(pid), status='exploring')
-        atomic_json(Path(root)/NAME, m)
+        _publish(root, m)
 
 
 def attach():
@@ -107,7 +153,7 @@ def attach():
     token = os.environ.get('KINBOT_PES_PHASE_TOKEN')
     if not root or not token or Path.cwd().parent != Path(root):
         return False
-    m = json.loads((Path(root)/NAME).read_text())
+    m = read(root)
     if m['token'] != token:
         raise RuntimeError('PES exploration owner changed; refusing a stale controller.')
     _ROOT, _WORKER, _EPOCH = Path(root), Path.cwd().name, None
@@ -117,7 +163,7 @@ def attach():
 def _read():
     if _ROOT is None:
         return None
-    m = json.loads((_ROOT/NAME).read_text())
+    m = read(_ROOT)
     if m['token'] != os.environ.get('KINBOT_PES_PHASE_TOKEN'):
         raise RuntimeError('PES exploration generation changed underneath a worker.')
     return m
@@ -129,7 +175,7 @@ def active_worker(directory):
     path = directory.parent/NAME
     if not path.exists():
         return False
-    m = json.loads(path.read_text())
+    m = read(directory.parent)
     if m['phase'] not in ('exploring', 'postprocessing') or directory.name not in m['workers']:
         return False
     worker=m['workers'][directory.name]
@@ -158,7 +204,7 @@ def tick(root, jobs, *, max_searches, known_jobs=None):
     """PES owner only. Return workers occupying exploration slots and phase."""
     root = Path(root).resolve()
     with locked(root):
-        m = json.loads((root/NAME).read_text())
+        m = read(root)
         from kinbot.input_refresh import consume
         consume(root,m)
         pending = _pending(root)
@@ -199,7 +245,7 @@ def tick(root, jobs, *, max_searches, known_jobs=None):
                 and all(workers[n]['status']=='assembled' for n in jobs)):
             m['phase'] = 'closing'
         m['exploring_workers'] = busy
-        atomic_json(root/NAME, m)
+        _publish(root, m)
     return busy, m['phase']
 
 
@@ -212,7 +258,7 @@ def _status(status):
         if record['pid'] != os.getpid():
             raise RuntimeError('PES worker ownership changed.')
         record.update(status=status, epoch=m['epoch'])
-        atomic_json(_ROOT/NAME, m)
+        _publish(_ROOT, m)
         return True
 
 
@@ -231,7 +277,7 @@ def _publish_ready(generator):
         publish(generator)
         from kinbot.homolysis import unresolved_checks
         record.update(status='ready', epoch=m['epoch'], export_holds=unresolved_checks())
-        atomic_json(_ROOT/NAME, m)
+        _publish(_ROOT, m)
         return m['epoch']
 
 
@@ -274,7 +320,7 @@ def wait_for_exploration(generator=None, *, allow_vrc=False):
                 _EPOCH = m['epoch']
                 record.update(status=('postprocessing' if m['phase']=='postprocessing' else 'vrc'),
                               epoch=_EPOCH)
-                atomic_json(_ROOT/NAME, m)
+                _publish(_ROOT, m)
         if available:
             checkpoint()
             return

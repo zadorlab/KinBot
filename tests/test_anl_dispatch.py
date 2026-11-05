@@ -72,7 +72,7 @@ def test_live_review_yields_polling_driver_without_changing_owned_jobs(tmp_path,
     atomic_json(run_dir / 'state.json', ledger)
     before = (run_dir / 'state.json').read_bytes()
     phase_file = tmp_path / pes_phase.NAME
-    atomic_json(phase_file, dict(token='test-owner', epoch=0))
+    atomic_json(phase_file, dict(token='test-owner', epoch=0, workers={}))
     monkeypatch.setattr(pes_phase, '_ROOT', tmp_path)
     monkeypatch.setattr(pes_phase, '_EPOCH', 0)
     monkeypatch.setenv('KINBOT_PES_PHASE_TOKEN', 'test-owner')
@@ -81,7 +81,7 @@ def test_live_review_yields_polling_driver_without_changing_owned_jobs(tmp_path,
     def advance_with_new_review(*args, **kwargs):
         calls.append('poll')
         assert len(calls) == 1, 'The refreshed epoch must be checked before another poll/control mutation'
-        atomic_json(phase_file, dict(token='test-owner', epoch=1))
+        atomic_json(phase_file, dict(token='test-owner', epoch=1, workers={}))
         if waiting == 'scheduler_unavailable':
             raise SchedulerUnavailableError('test outage')
         return ledger

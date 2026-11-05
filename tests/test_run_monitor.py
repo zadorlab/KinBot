@@ -84,6 +84,19 @@ def test_endpoint_holds_visible_without_mislabeling_closed_searches(production):
     assert 'L1 endpoint blocked:' not in monitor.render(monitor.snapshot(root))
 
 
+def test_completed_homolysis_notes_are_not_rendered_as_holds_or_retries(production):
+    root, case = production
+    put(case/'pes_exploration.json', dict(phase='postprocessing', workers={}, export_holds={},
+        homolysis_notes={'123': ['No validated replacement saddle; qc_failed.']}))
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    report = monitor.snapshot(root)
+    text = monitor.render(report)
+    assert 'Homolysis evidence notes: 1' in text and 'Export hold (' not in text
+    assert 'not failed channels or retry requests' in text
+    assert 'No validated replacement saddle; qc_failed.' in monitor.render(report, details=True)
+    assert before == {p: p.read_bytes() for p in before}
+
+
 def test_grouped_runs_without_manifest_are_separate_read_only_cases(tmp_path, monkeypatch):
     root = tmp_path/'runs'
     first, second = root/'first', root/'second'

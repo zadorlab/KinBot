@@ -214,11 +214,14 @@ def test_ordinary_discovery_precedes_check_and_matching_ts_is_reused(scan,monkey
     assert homolysis.deferred(g,0)
     assert s.reac_ts_done[0]==-999 and not g.admissions
     assert homolysis.record(obj)['saddles']==['ordinary']
+    g.search_checkpoint.save(0)  # Normal generator checkpoint after dispatch.
     homolysis.finish(s)
     assert json.loads(Path('homolysis_checks.json').read_text())['checks'][0]['outcome']=='superseded_by_validated_saddle'
     s.reac_ts_done[2]=-999
-    homolysis.finish(s)  # Review is an export hold, not a failed search controller.
-    with pytest.raises(RuntimeError,match='unresolved homolysis'):homolysis.ensure_export_ready()
+    homolysis.finish(s)
+    assert homolysis.unresolved_checks()[0]['outcome'] == 'no_validated_saddle'
+    homolysis.ensure_export_ready()  # A terminal nonfinding is not an export hold.
+    assert 'not proof of barrierlessness' in homolysis.export_notes()[0]
 
 
 def test_real_generator_scan_exhaustion_retains_outcome_without_false_acceptance(scan,monkeypatch):
@@ -267,7 +270,7 @@ def test_l1_scan_and_l2_saddle_keep_requested_theories(tmp_path,monkeypatch):
     assert (args['method'],args['basis'])==('B2PLYP','cc-pVTZ')
 
 
-def test_rearrangement_to_same_fragments_does_not_cover_direct_cleavage(monkeypatch):
+def test_accepted_tight_path_supersedes_placeholder_using_exporter_endpoint_rule(monkeypatch):
     parent=NS(instance=[0,1],products=[NS(key='p'),NS(key='q')])
     bond=np.array([[0,1,0],[1,0,1],[0,1,0]])
     other=NS(instance_name='rearrangement',products=parent.products,
@@ -275,11 +278,32 @@ def test_rearrangement_to_same_fragments_does_not_cover_direct_cleavage(monkeypa
     species=NS(bond=bond,reac_obj=[other],reac_type=['migration'],reac_ts_done=[-1])
     monkeypatch.setattr(homolysis,'routing_key',lambda p:p.key)
     monkeypatch.setattr('kinbot.reaction_path.reaction_path_id',lambda o:'ordinary')
-    assert homolysis.matching_saddles(species,parent)==[]
-    # Product optimization may reorder the mutable product object; the saved
-    # IRC graph retains the parent atom order used to define this bond edit.
-    other.irc_product_reference=NS(bond=np.array([[0,0,0],[0,0,1],[0,1,0]]))
     assert homolysis.matching_saddles(species,parent)==['rearrangement']
+    # A different configured fragment or an unaccepted TS does not replace it.
+    other.products = [NS(key='p'), NS(key='q_other_state')]
+    assert homolysis.matching_saddles(species,parent)==[]
+    other.products = parent.products
+    species.reac_ts_done[0] = -999
+    assert homolysis.matching_saddles(species,parent)==[]
+
+
+@pytest.mark.parametrize('outcome', ['qc_failed', 'scan_constraint_not_met',
+    'no_maximum_on_sampled_path', 'saddle_submitting', 'geometry_or_submission_failed'])
+def test_terminal_attempts_export_with_notes_without_changing_native_history(tmp_path, outcome):
+    path = tmp_path/'homolysis_checks.json'
+    atomic_json(path, dict(checks=[dict(parent='x_hom_sci_1_2', search='scan',
+        outcome='unresolved', scan_outcome=outcome)]))
+    state = tmp_path/'.kinbot_search_state.json'
+    atomic_json(state, dict(reactions={'scan':dict(status=-999, step=41)}))
+    before = [p.read_bytes() for p in (path, state)]
+    for _ in range(2):
+        homolysis.ensure_export_ready(tmp_path)
+        assert outcome in homolysis.export_notes(tmp_path)[0]
+    assert [p.read_bytes() for p in (path, state)] == before
+    # A live/reopened search, unlike a terminal scan's last intent, must finish.
+    atomic_json(state, dict(reactions={'scan':dict(status=1, step=41)}))
+    with pytest.raises(RuntimeError, match='unfinished homolysis'):
+        homolysis.ensure_export_ready(tmp_path)
 
 
 @pytest.mark.parametrize('tail,expected', [([-2.,-2.,-2.],'supports_provisional_pst'),

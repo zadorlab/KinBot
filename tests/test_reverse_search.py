@@ -125,6 +125,49 @@ def test_sella_abstraction_renders_saddle_worker_and_preserves_live_script(tmp_p
     assert Path(obj.instance_name+'.py').read_bytes()==saved and len(submissions)==1
 
 
+@pytest.mark.parametrize('change', ['none', 'no_motif', 'accepted', 'running', 'reopened',
+                                   'reassess', 'missing_result', 'omitted_motif', 'input_changed'])
+def test_export_after_natural_reverse_nonfindings_requires_current_complete_searches(staged, change):
+    from kinbot.search_state import NAME, contract
+    t = staged
+    reverse_search.prepare(t.case)
+    inp = reverse_search.inputs(t.case)[0]
+    directory = inp.parent
+    atomic_json(directory/'kinbot_status.json', dict(status='complete', returncode=0))
+    atomic_json(directory/NAME, dict(schema=1, contract=contract(inp),
+                                     reactions={'rxn': dict(status=-999)}))
+    result = dict(status='discovery_complete_needs_integration',
+                  reactions=[dict(reaction='rxn', status=-999)])
+    atomic_json(directory/'reverse_search_result.json', result)
+    if change == 'accepted':
+        result['reactions'][0]['status'] = -1
+        atomic_json(directory/'reverse_search_result.json', result)
+    elif change == 'running':
+        atomic_json(directory/'kinbot_status.json', dict(status='running'))
+    elif change in ('reopened', 'reassess'):
+        state = json.loads((directory/NAME).read_text())
+        state['reactions']['rxn'].update(status=0 if change == 'reopened' else -999,
+                                          reassess=change == 'reassess')
+        atomic_json(directory/NAME, state)
+    elif change == 'missing_result':
+        (directory/'reverse_search_result.json').unlink()
+    elif change == 'omitted_motif':
+        atomic_json(directory/'reverse_search_result.json', dict(result, reactions=[]))
+    elif change == 'input_changed':
+        atomic_json(inp, dict(changed=True))
+    elif change == 'no_motif':
+        atomic_json(directory.parent/'manifest.json', dict(status='staged_for_discovery_not_integrated',
+            entries=[dict(status='no_abstraction_motif', reactions=[])]))
+    before = {p: p.read_bytes() for p in t.case.rglob('*') if p.is_file()}
+    for _ in range(2):
+        if change in ('none', 'no_motif'):
+            reverse_search.ensure_integrated(t.case)
+        else:
+            with pytest.raises(RuntimeError):
+                reverse_search.ensure_integrated(t.case)
+    assert before == {p: p.read_bytes() for p in before}
+
+
 def test_entrance_characterization_polls_same_jobs_and_requires_native_success(tmp_path,monkeypatch):
     monkeypatch.chdir(tmp_path)
     point=dict(energy_hartree=-10.,zpe_hartree=.01,frequencies=[20.])

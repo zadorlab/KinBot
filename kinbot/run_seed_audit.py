@@ -40,7 +40,8 @@ def _scopes(root):
     return sorted(scopes)
 
 
-def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_native=False):
+def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_native=False,
+            ordinary_native=False):
     paths = set()
     for name in ('prepared.json', '.kinbot_resource_policy.json', '.kinbot_live_control.json'):
         if (root/name).is_file():paths.add(root/name)
@@ -81,9 +82,9 @@ def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_nati
             for name in files:
                 p=Path(parent)/name
                 if name in TASK_NAMES or p.suffix in TEXT_SUFFIXES or p.suffix=='.json':paths.add(p)
-    if homolysis_native:
+    if homolysis_native or ordinary_native:
         from kinbot.homolysis_evidence import sources as native_sources
-        paths.update(native_sources(_scopes(root)))
+        paths.update(native_sources(_scopes(root), all_workers=ordinary_native))
         for scope in {root, *[p.parent for p in root.glob('*/input.json')]}:
             paths.update(scope.glob('*.json'))
             for name in ('pes.log', 'driver.log', 'pes_summary.txt', 'chemids'):
@@ -107,7 +108,7 @@ def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_nati
 
 
 def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_handoff=False,
-            homolysis_native=False):
+            homolysis_native=False, ordinary_native=False):
     root=Path(root).resolve(strict=True);output_parent=Path(output_parent).resolve()
     evidence=Path(evidence).resolve(strict=True) if evidence else None
     if output_parent==root or output_parent.is_relative_to(root):
@@ -115,7 +116,9 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     if evidence and (output_parent==evidence or output_parent.is_relative_to(evidence)):
         raise ValueError('Write this audit outside the supplied evidence tree.')
     if type(max_mb) is not int or max_mb<1:raise ValueError('max_mb must be positive.')
-    selected=sources(root,tasks,evidence,mess_handoff=mess_handoff,homolysis_native=homolysis_native)
+    homolysis_native = homolysis_native or ordinary_native
+    selected=sources(root,tasks,evidence,mess_handoff=mess_handoff,homolysis_native=homolysis_native,
+                     ordinary_native=ordinary_native)
     if homolysis_native:
         print(f'Capturing {len(selected)} native/metadata files; complete files, not tails.',flush=True)
     def handoff_directories():
@@ -149,7 +152,8 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     if mess_handoff or homolysis_native:
         # A new/replaced worker or late-created artifact must not disappear
         # from an otherwise successful capture of the old file inventory.
-        current=sources(root,tasks,evidence,mess_handoff=mess_handoff,homolysis_native=homolysis_native)
+        current=sources(root,tasks,evidence,mess_handoff=mess_handoff,homolysis_native=homolysis_native,
+                        ordinary_native=ordinary_native)
         if {str(p) for p,_,_ in current}!={str(p) for p,_,_ in selected}:
             issues.append(dict(source=str(root),error='Evidence inventory changed during capture.'))
         if mess_handoff and handoff_directories()!=directories:
@@ -157,7 +161,8 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     manifest=dict(schema=1,root=str(root),files=entries,issues=issues,
                   directories=[str(Path('run')/p.relative_to(root)) for p in sorted(directories)],
                   status='captured' if not issues else 'incomplete',captured_bytes=used,
-                  purpose=('homolysis_native_audit' if homolysis_native else
+                  purpose=('ordinary_native_audit' if ordinary_native else
+                           'homolysis_native_audit' if homolysis_native else
                            'mess_handoff_replay' if mess_handoff else 'seed_and_restart_audit_only'),
                   native_checkpoint_backup=False,
                   consistent_live_snapshot=False,submits_jobs=False,modifies_source=False)
@@ -167,6 +172,7 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
         from kinbot.homolysis_evidence import summarize, scheduler, SKIP_DIRS
         records,summary=summarize(output,_scopes(output/'run'))
         atomic_json(output/'homolysis_inventory.json',dict(holds=records,
+            note='The legacy holds key contains inconclusive evidence records, not export-blocking decisions.',
             excluded_directories=sorted(SKIP_DIRS),excluded_file_components=['rwf','wfu']))
         (output/'summary.txt').write_text(summary)
         atomic_json(output/'scheduler.json',scheduler(output,records))
@@ -197,7 +203,7 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     result=dict(directory=str(output),archive=str(archive),sha256=file_sha256(archive),
                 files=len(entries),bytes=used,issues=len(issues),status=manifest['status'])
     if homolysis_native:
-        result.update(summary=str(output/'summary.txt'),holds=len(records))
+        result.update(summary=str(output/'summary.txt'),inconclusive_checks=len(records))
     return result
 
 
@@ -212,15 +218,18 @@ def main(argv=None):
                         help='Include complete MESS artifacts, summaries and PES assembly metadata.')
     parser.add_argument('--homolysis-native',action='store_true',
                         help='Include full ordinary QC and archived attempts for workers with unresolved homolysis checks.')
+    parser.add_argument('--ordinary-native',action='store_true',
+                        help='Include ordinary native QC for all PES/reverse workers, including HIR, conformers and MESS artifacts.')
     a=parser.parse_args(argv)
     if a.mess_handoff:
         print('Capturing MESS handoff: reading source files; no jobs or source changes.',flush=True)
-    if a.homolysis_native:
-        print('Capturing native homolysis evidence: read-only; no retries or controller changes.',flush=True)
+    if a.homolysis_native or a.ordinary_native:
+        print('Capturing native evidence: read-only; no retries or controller changes.',flush=True)
     result=capture(a.root,a.output_parent,tasks=a.task,evidence=a.evidence,
-                   max_mb=a.max_mb,mess_handoff=a.mess_handoff,homolysis_native=a.homolysis_native)
+                   max_mb=a.max_mb,mess_handoff=a.mess_handoff,homolysis_native=a.homolysis_native,
+                   ordinary_native=a.ordinary_native)
     print(json.dumps(result,indent=2))
-    if (a.mess_handoff or a.homolysis_native) and result['status']!='captured':
+    if (a.mess_handoff or a.homolysis_native or a.ordinary_native) and result['status']!='captured':
         raise SystemExit(1)
 
 

@@ -984,7 +984,7 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
-        from kinbot.homolysis import ensure_export_ready
+        from kinbot.homolysis import ensure_export_ready, export_notes
         ensure_export_ready()
         require_supported_identity(self.species)
         uq = UQ(self.par)
@@ -1274,6 +1274,7 @@ class MESS:
             mess_iter = "{0:04d}".format(uq_iter)
 
             contents = header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n'
+            contents = ''.join('! WARNING: '+note+'\n' for note in export_notes()) + contents
             if not self.par['pes']:
                 contents = complete_mirror_channels(contents)
                 validate_mess_populations(contents)

@@ -239,10 +239,50 @@ def inputs(case):
 
 def ensure_integrated(case):
     marker=Path(case)/'reverse_abstractions'/'manifest.json'
-    if marker.exists() and json.loads(marker.read_text()).get('status')!='integrated':
-        raise RuntimeError('Reverse abstraction discovery was requested. Its native TS/IRC '
-            'results must be matched to entrance wells and integrated before replacing the '
-            'combined MESS model. See reverse_abstractions/manifest.json; old MESS is stale.')
+    if not marker.exists():
+        return
+    manifest = json.loads(marker.read_text())
+    if manifest.get('status') == 'integrated':
+        return
+    # An exhausted reverse search is not a missing chemical reaction. When
+    # every requested motif has a current terminal nonfinding, there is no new
+    # saddle to integrate. Do not require somebody to invent one or edit the
+    # manifest to let the original PES proceed.
+    from kinbot.search_state import NAME, validate_input
+    if manifest.get('status') == 'staged_for_discovery_not_integrated':
+        clear = True
+        for entry in manifest['entries']:
+            if not entry.get('input'):
+                clear &= entry.get('status') == 'no_abstraction_motif' and not entry['reactions']
+                continue
+            inp = (marker.parent/entry['input']).resolve(strict=True)
+            if not inp.is_relative_to(marker.parent.resolve()):
+                raise ValueError('Reverse input escapes its case.')
+            directory = inp.parent
+            paths = [directory/name for name in
+                     ('kinbot_status.json', 'reverse_search_result.json', NAME)]
+            if not all(p.is_file() for p in paths):
+                clear = False
+                continue
+            controller, result, state = [json.loads(p.read_text()) for p in paths]
+            decisions = {r['reaction']: r['status'] for r in result['reactions']}
+            if (controller.get('status') != 'complete' or controller.get('returncode') != 0
+                    or result.get('status') != 'discovery_complete_needs_integration'
+                    or not set(entry['reactions']).issubset(decisions)
+                    or any(value != -999 for value in decisions.values())
+                    or set(state.get('reactions', {})) != set(decisions)
+                    or any(r.get('status') != -999 or r.get('reassess')
+                           for r in state.get('reactions', {}).values())):
+                clear = False
+                continue
+            validate_input(inp)  # A stale result cannot settle a new revision.
+        if clear:
+            return
+    raise RuntimeError('Reverse abstraction discovery is unfinished or has accepted results '
+        'requiring entrance-well matching and integration before replacing the combined MESS '
+        'model. See reverse_abstractions/manifest.json and reverse_search_result.json; old MESS '
+        'is stale. Completed searches with no retained reaction do not require integration '
+        'or an automatic retry.')
 
 
 def launch(case, code):

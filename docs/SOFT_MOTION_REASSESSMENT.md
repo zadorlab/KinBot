@@ -81,7 +81,8 @@ After native completion, compare measured geometries and paths, not labels:
 
 The restart is a native test of the implemented repairs. It does not guarantee
 that independent one-dimensional HIR scans will resolve coupled anharmonicity,
-nor does it implement such a merger. The existing reverse-search integration
-and unresolved homolysis export gates remain in force: controller completion
-alone does not certify a final MESS model. Further model work, if needed, is
+nor does it implement such a merger. Accepted reverse results still require
+integration. Completed inconclusive homolysis searches no longer block export
+(November 5 correction); they retain capture-model limitation notes. Controller
+completion alone does not certify a final MESS model. Further model work is
 determined from those native results rather than presumed here.

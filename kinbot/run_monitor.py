@@ -984,7 +984,15 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
             for well, holds in exploration.get('export_holds', {}).items():
                 out.append(f'Export hold ({well}): '+', '.join(h['parent'] for h in holds))
             if exploration.get('export_holds'):
-                out.append('Unresolved homolysis evidence holds rate export; other wells may continue exploration.')
+                out.append('Recorded export holds; current controllers wait only for unfinished homolysis searches. '
+                           'Older controllers may retain the previous inconclusive-evidence hold policy.')
+            notes = exploration.get('homolysis_notes', {})
+            if notes:
+                out.append(f'Homolysis evidence notes: {sum(len(v) for v in notes.values())}; '
+                           'nonblocking capture-model limitations, not failed channels or retry requests.')
+                if details:
+                    for well, entries in notes.items():
+                        out.extend(f'  {well}: {entry}' for entry in entries)
             if exploration.get('quiescing'):
                 owners = sorted(n for n, w in exploration.get('workers', {}).items()
                                 if w.get('status') in ('vrc', 'postprocessing'))

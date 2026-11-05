@@ -29,9 +29,9 @@ def workers(scopes):
     return result
 
 
-def sources(scopes):
+def sources(scopes, *, all_workers=False):
     result = set()
-    for worker in workers(scopes):
+    for worker in scopes if all_workers else workers(scopes):
         def failed(error):
             raise error  # An unreadable subtree cannot silently be omitted.
         for directory, dirs, files in os.walk(worker, followlinks=False, onerror=failed):
@@ -54,8 +54,8 @@ def sources(scopes):
 
 def summarize(output, scopes):
     """Read only the exported copies; no QC readers, DB ingestion or retries."""
-    lines = ['Unresolved homolysis evidence capture',
-             'Search outcomes below are recorded states, not retry recommendations.']
+    lines = ['Inconclusive homolysis evidence capture',
+             'Search outcomes below are recorded states, not export holds or retry recommendations.']
     records = []
     for scope in scopes:
         path=scope/'homolysis_checks.json'
@@ -80,7 +80,7 @@ def summarize(output, scopes):
                     item['point_count'] = len(raw.get('points', []))
                 records.append(item)
                 lines.extend(['', 'WORKER '+item['worker'],
-                              'HOLD '+json.dumps(check, sort_keys=True),
+                              'CHECK '+json.dumps(check, sort_keys=True),
                               'SEARCH '+json.dumps(entry, sort_keys=True),
                               'SCAN '+json.dumps(item.get('scan'), sort_keys=True),
                               'POINTS '+str(item.get('point_count', 0))])

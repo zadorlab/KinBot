@@ -86,7 +86,7 @@ def test_serial_exploration_does_not_serialize_downstream(root):
     assert phase.tick(root,['first','second'],max_searches=1)[1] == 'closing'
 
 
-def test_review_hold_releases_slot_but_blocks_exports_and_can_be_revised(root, monkeypatch):
+def test_pending_search_releases_slot_but_blocks_exports_and_can_be_revised(root, monkeypatch):
     control.configure(root)
     record = phase.initialize(root)
     for name in ('first', 'second'):
@@ -98,7 +98,7 @@ def test_review_hold_releases_slot_but_blocks_exports_and_can_be_revised(root, m
     # Child can reach the boundary before Popen's PID has been registered.
     assert phase._publish_ready(None) is None
     phase.register(root, 'first', os.getpid())
-    atomic_json('homolysis_checks.json', dict(checks=[dict(parent='cleavage', outcome='unresolved')]))
+    atomic_json('homolysis_checks.json', dict(checks=[dict(parent='cleavage', outcome='pending')]))
     phase._publish_ready(None)
     assert phase.tick(root, ['first','second'], max_searches=1) == ([], 'exploring')
     assert state(root)['export_holds']['first'][0]['parent'] == 'cleavage'
@@ -118,11 +118,11 @@ def test_review_hold_releases_slot_but_blocks_exports_and_can_be_revised(root, m
     assert state(root)['export_holds'] == {}
 
 
-def test_review_hold_cannot_use_early_vrc_or_standalone_export(root, monkeypatch):
+def test_pending_search_cannot_use_early_vrc_or_standalone_export(root, monkeypatch):
     from kinbot.homolysis import ensure_export_ready
-    atomic_json(root/'homolysis_checks.json', dict(checks=[dict(parent='cleavage', outcome='unresolved')]))
+    atomic_json(root/'homolysis_checks.json', dict(checks=[dict(parent='cleavage', outcome='pending')]))
     monkeypatch.chdir(root)
-    with pytest.raises(RuntimeError, match='unresolved homolysis'):
+    with pytest.raises(RuntimeError, match='unfinished homolysis'):
         phase.wait_for_exploration()
     record = phase.initialize(root)
     phase.register(root, 'well', os.getpid())
@@ -134,8 +134,30 @@ def test_review_hold_cannot_use_early_vrc_or_standalone_export(root, monkeypatch
     with pytest.raises(Parked):
         phase.wait_for_exploration(allow_vrc=True)
     assert state(root)['workers']['well']['status'] == 'ready'
-    with pytest.raises(RuntimeError, match='unresolved homolysis'):
+    with pytest.raises(RuntimeError, match='unfinished homolysis'):
         ensure_export_ready()
+
+
+def test_completed_nonfinding_reaches_postprocessing_and_closing(root, monkeypatch):
+    (root/'well').mkdir()
+    monkeypatch.chdir(root/'well')
+    record = phase.initialize(root)
+    phase.register(root, 'well', os.getpid())
+    monkeypatch.setattr(phase, '_ROOT', root)
+    monkeypatch.setattr(phase, '_WORKER', 'well')
+    monkeypatch.setenv('KINBOT_PES_PHASE_TOKEN', record['token'])
+    path = Path('homolysis_checks.json')
+    atomic_json(path, dict(checks=[dict(parent='cleavage', outcome='unresolved',
+                                     scan_outcome='qc_failed')]))
+    before = path.read_bytes()
+    phase._publish_ready(None)
+    assert phase.tick(root, ['well'], max_searches=1) == ([], 'postprocessing')
+    phase.wait_for_exploration(None)
+    worker_status(root, 'well', 'assembled')
+    assert phase.tick(root, ['well'], max_searches=1) == ([], 'closing')
+    assert state(root)['export_holds'] == {}
+    assert 'not proof of barrierlessness' in state(root)['homolysis_notes']['well'][0]
+    assert path.read_bytes() == before
 
 
 def test_discovered_well_extends_barrier(root):

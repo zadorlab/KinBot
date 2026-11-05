@@ -4,6 +4,14 @@
 --max-mb 16384` captures complete files from ordinary L1/L2 workers with unresolved
 `homolysis_checks.json` entries. EXPORTS must be outside RUN.
 
+Use `--ordinary-native` instead to include every ordinary PES worker, staged
+reverse worker and combined MESS directory, even when no homolysis note exists
+there. This includes complete HIR/conformer outputs, selected minimum evidence,
+thermochemistry models and shared-work receipts needed to check population
+counting and cross-worker reuse. The same read-only and completeness checks
+apply. A terminal inconclusive homolysis entry is an evidence note, not an
+export hold; the capture does not change that decision.
+
 It includes native inputs and outputs, Gaussian/Sella logs, frequencies/Hessians,
 checkpoints, trajectories, IRCs, fragment calculations, conformers, alternative
 tight-saddle evidence, complete databases with sidecars, search and submission

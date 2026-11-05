@@ -100,13 +100,21 @@ def repair_constraint_target(qc, obj, entry):
 def export_notes(directory='.'):
     path=Path(directory)/'homolysis_checks.json'
     if not path.exists():return []
-    return [f"{c['parent']}: provisional PST supported by a finite converged L1 scan; "
-            'no global absence-of-saddle proof.' for c in json.loads(path.read_text())['checks']
-            if c['outcome']=='sampled_path_supports_provisional_pst']
+    notes = []
+    for c in json.loads(path.read_text())['checks']:
+        if c['outcome'] == 'sampled_path_supports_provisional_pst':
+            notes.append(f"{c['parent']}: provisional PST supported by a finite converged L1 scan; "
+                         'no global absence-of-saddle proof.')
+        elif c['outcome'] in ('unresolved', 'no_validated_saddle'):
+            notes.append(f"{c['parent']}: no validated replacement saddle from the additional search "
+                         f"({c.get('scan_outcome', 'not recorded')}); retain the capture-model "
+                         'proposal unless superseded during pathway selection. This is not proof '
+                         'of barrierlessness or a request to retry the search.')
+    return notes
 
 
 def unresolved_checks(directory='.'):
-    """Return scientific export holds without treating them as worker crashes."""
+    """Return inconclusive evidence, not automatic export holds or retries."""
     path = Path(directory)/'homolysis_checks.json'
     if not path.exists():
         return []  # Legacy exports have no newly requested coverage revision.
@@ -116,11 +124,31 @@ def unresolved_checks(directory='.'):
                 'sampled_path_supports_provisional_pst')]
 
 
+def pending_checks(directory='.'):
+    """Only unfinished discovery blocks export; a terminal nonfinding does not.
+
+    Legacy ``unresolved`` ledgers were published after reaction generation
+    finished. Preserve their evidence without perpetuating the old blanket
+    hold. A newer active search checkpoint takes precedence over that ledger.
+    The scan's ``saddle_submitting`` is an intent, not its final search status.
+    """
+    checks = unresolved_checks(directory)
+    state_path = Path(directory)/'.kinbot_search_state.json'
+    state = json.loads(state_path.read_text()) if checks and state_path.exists() else {}
+    pending = []
+    for c in checks:
+        status = state.get('reactions', {}).get(c.get('search'), {}).get(
+            'status', c.get('search_status'))
+        if c['outcome'] == 'pending' or (status is not None and status >= 0):
+            pending.append(c)
+    return pending
+
+
 def ensure_export_ready(directory='.'):
     path = Path(directory)/'homolysis_checks.json'
-    pending = [c['parent'] for c in unresolved_checks(directory)]
+    pending = [c['parent'] for c in pending_checks(directory)]
     if pending:
-        raise RuntimeError(f'{path}: unresolved homolysis checks: {pending}; '
+        raise RuntimeError(f'{path}: unfinished homolysis searches: {pending}; '
                            'old summaries cannot authorize a new MESS/PST export.')
 
 
@@ -165,6 +193,12 @@ def _products(obj):
 
 
 def matching_saddles(species, parent):
+    """Use the exporter rule: an accepted tight path with the same endpoints.
+
+    This replaces a kinetic placeholder; it does not prove that every direct
+    cleavage coordinate has a saddle. Requiring one particular bond edit here
+    disagreed with final pathway selection and launched redundant companions.
+    """
     from kinbot.reaction_path import reaction_path_id
     target = _products(parent)
     if not target:
@@ -173,21 +207,7 @@ def matching_saddles(species, parent):
     for i, obj in enumerate(species.reac_obj):
         if species.reac_ts_done[i] != -1 or species.reac_type[i] == 'hom_sci':
             continue
-        # The same separated products can also be reached by a rearrangement.
-        # Only a validated IRC breaking this bond (without other connectivity
-        # edits) covers this particular direct-cleavage proposal. Atom order
-        # here is the common parent/IRC order, not a guessed SMILES mapping.
-        endpoint = getattr(obj, 'irc_product_reference', None)
-        if endpoint is None:
-            endpoint = getattr(obj, 'irc_prod', None)
-        if endpoint is None:
-            continue
-        before = np.asarray(species.bond) > 0
-        after = np.asarray(endpoint.bond) > 0
-        broken = np.argwhere(np.triu(before & ~after, 1)).tolist()
-        formed = np.argwhere(np.triu(after & ~before, 1)).tolist()
-        direct = broken == [sorted(map(int, parent.instance))] and not formed
-        if direct and _products(obj) == target and reaction_path_id(obj):
+        if _products(obj) == target and reaction_path_id(obj):
             matches.append(obj.instance_name)
     return matches
 
@@ -338,20 +358,18 @@ def advance(generator, index):
 
 
 def finish(species):
-    """Publish review holds; let the PES owner finish unrelated exploration.
-
-    The exploration barrier and all rate exporters enforce these holds. Raising
-    here would strand other wells before they can contribute their evidence.
-    """
+    """Publish discovery outcomes; terminal nonfindings do not block kinetics."""
     checks = []
-    for obj in species.reac_obj:
+    for index, obj in enumerate(species.reac_obj):
         if not hasattr(obj, 'homolysis_parent'):
             continue
         parent_i = species.reac_name.index(obj.homolysis_parent)
         parent = species.reac_obj[parent_i]
         matches = matching_saddles(species, parent) if species.reac_ts_done[parent_i] == -1 else []
         data = record(obj)
-        if species.reac_ts_done[parent_i] != -1:
+        if species.reac_ts_done[index] >= 0:
+            outcome = 'pending'
+        elif species.reac_ts_done[parent_i] != -1:
             outcome = 'parent_not_retained'
         elif matches:
             outcome = 'superseded_by_validated_saddle'
@@ -359,9 +377,10 @@ def finish(species):
               and data.get('asymptote',{}).get('status')=='supports_provisional_pst'):
             outcome = 'sampled_path_supports_provisional_pst'
         else:
-            outcome = 'unresolved'
+            outcome = 'no_validated_saddle'
         checks.append(dict(parent=obj.homolysis_parent, search=obj.instance_name,
-                           outcome=outcome, scan_outcome=data['outcome'], saddles=matches))
+                           outcome=outcome, scan_outcome=data['outcome'], saddles=matches,
+                           search_status=species.reac_ts_done[index]))
     if not checks:
         return
     atomic_json('homolysis_checks.json', dict(schema=1, checks=checks))

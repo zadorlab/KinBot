@@ -212,6 +212,8 @@ def tick(root, jobs, *, max_searches, known_jobs=None):
         workers = m['workers']
         m['export_holds'] = {n: w['export_holds'] for n, w in workers.items()
                              if w.get('export_holds')}
+        m['homolysis_notes'] = {n: w['homolysis_notes'] for n, w in workers.items()
+                               if w.get('homolysis_notes')}
         m['max_searches'] = max_searches
         m['waiting_workers'] = [n for n in jobs if n not in workers]
         # A worker can publish another well between the owner's directory
@@ -275,8 +277,9 @@ def _publish_ready(generator):
         from kinbot.input_refresh import inherit_models
         inherit_models(_ROOT, generator)
         publish(generator)
-        from kinbot.homolysis import unresolved_checks
-        record.update(status='ready', epoch=m['epoch'], export_holds=unresolved_checks())
+        from kinbot.homolysis import pending_checks, export_notes
+        record.update(status='ready', epoch=m['epoch'], export_holds=pending_checks(),
+                      homolysis_notes=export_notes())
         _publish(_ROOT, m)
         return m['epoch']
 

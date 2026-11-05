@@ -13,10 +13,12 @@ ordinary discovery and accepted-result reconstruction to finish. Existing
 scientific rejections, including above-ceiling fragment asymptotes, are retained.
 They are recorded as `parent_not_retained`, not retried as QC failures.
 
-A normally validated saddle can cover a proposal only if its IRC breaks the
-particular proposed bond without other connectivity edits and reaches the same
-configured fragment states. A rearrangement reaching the same fragments does
-not suffice. Otherwise the companion searches the actual L1 surface:
+A normally validated saddle with the same configured reactant and product
+states supersedes the homolysis placeholder, using the same endpoint rule as
+final pathway selection. The placeholder is not independent flux to retain
+alongside that saddle. This does not prove that every direct cleavage coordinate
+has a maximum. If no accepted matching saddle exists, the companion searches
+the actual L1 surface:
 
 - Relax all coordinates except the cleavage distance, starting at the optimized
   parent bond length; default 40 points separated by 0.1 angstrom.
@@ -29,8 +31,11 @@ not suffice. Otherwise the companion searches the actual L1 surface:
   0.5 kcal/mol, and the last three points to span at most 0.1 kcal/mol before
   labeling PST **provisional finite-path scouting evidence**. This is not a
   proof that no saddle or alternative electronic-state path exists.
-- Failed, nonconverged, mismatched, or nonasymptotic checks remain unresolved;
-  they cannot silently authorize a new combined MESS export.
+- A completed failed, mismatched, or nonasymptotic search is recorded as
+  `no_validated_saddle`, with its native evidence preserved. It does not trigger
+  an automatic retry or prevent MESS export. The retained homolysis remains a
+  capture-model proposal; both worker and combined MESS inputs carry an explicit
+  limitation note. Unfinished discovery still waits for its ordinary outcome.
 
 The parameters are `homolytic_saddle_scan_points`, `homolytic_saddle_scan_step`,
 `homolytic_saddle_asymptote_tolerance`, and `homolytic_saddle_flatness`.
@@ -74,9 +79,13 @@ the combined PES. Newly found saddles must be matched to actual entrance and
 product wells using their returned native evidence. It is wrong to connect two
 bimolecular product labels by an ordinary unimolecular MESS barrier or assume
 that a paper's vdW complex is the calculated entrance. Until integration is
-completed, the combined-MESS exporter stops explicitly; the previous MESS file
-is stale for this discovery revision. This is not a claim that a native QC
-calculation failed. `--status` lists controller progress and result locations.
+completed for any accepted reverse results, the combined-MESS exporter stops
+explicitly; the previous MESS file is stale for this discovery revision. A
+current, completed reverse campaign with no retained reactions has nothing to
+integrate and does not block export. This exemption checks every requested
+motif, the saved terminal search states, input revision and controller completion;
+it does not exempt incomplete, reopened, or accepted searches. This is not a
+claim that a native QC calculation failed. `--status` lists progress and results.
 
 ## Controller restart
 
@@ -112,15 +121,17 @@ unless that separate change is intended.
 No finite test suite proves that all bugs or all chemical pathways are absent.
 Native convergence and connectivity remain calculation outcomes to inspect.
 
-## Discovery holds and scan-target repair (2026-11-03)
+## Scan-target repair (2026-11-03) and hold correction (2026-11-05)
 
 A saddle proposal that does not produce a validated saddle is an expected
 discovery outcome. It is not automatically a software fault or a useful retry.
-An unresolved homolysis now publishes an **export hold** and releases its
-exploration slot. The other wells continue. The coordinator keeps the network
-open for targeted, evidence-supported revisions and withholds new rate export.
-Standalone and combined MESS guards remain in place. A failed search does not
-prove either that a tight saddle exists or that the dissociation is barrierless.
+The earlier change introduced an export hold even for terminal nonfindings.
+That was stricter than ordinary KinBot discovery and was removed on November 5.
+Only unfinished companion searches block export. Terminal nonfindings release
+the exploration slot and preserve diagnostic notes in the final model. Legacy
+`unresolved` ledgers are handled the same way, while a newer active checkpoint
+takes precedence. A failed search proves neither that a tight saddle exists nor
+that the dissociation is barrierless. Malformed evidence is not silently cleared.
 
 The latest remote evidence identified a distinct implementation error: an
 approximate coordinate modification was used as the frozen Sella coordinate,
@@ -151,7 +162,7 @@ error; it does not waive provenance or approve a new reaction.
 Validation includes generated-worker execution with the actual local Sella
 optimizer and an analytic test potential, both IRC direction assignments,
 single-fragment object mutation, repeated export, interrupted targeted repair,
-live-job adoption, exploration-slot release, export blocking, and the complete
+live-job adoption, exploration-slot release, unfinished-search blocking, and the complete
 simulated-site refresh with sampling and decision preservation. These checks
 do not claim a successful native Gaussian retry on Blodgett. The disappearance
 of controllers whose saved status still says `running` is not explained by the
@@ -186,3 +197,18 @@ python -B -m kinbot.run_refresh RUN --apply --wait-idle 120
 Preparation and homolysis re-selection are not needed for this correction.
 Existing Slurm calculations and scientific search decisions are retained.
 Local tests do not certify successful execution of the subsequent remote search.
+
+## Upstream comparison and current regression scope (2026-11-05)
+
+`origin/master` was fetched and remains at `684e513c4`. Its pathway comparison
+prefers a validated calculated saddle over a homolysis placeholder for the same
+configured endpoints. It does not implement these additional cleavage scans or
+the removed inconclusive-evidence hold. The companion's early matching now
+agrees with that existing final selection rule, including rearrangement paths.
+Already started companions are adopted rather than cancelled.
+
+Tests exercise the actual worker summary and combined MESS writer, legacy
+terminal ledgers, active checkpoints, same-endpoint saddle selection, complete
+reverse nonfindings, and repeated controller refresh preserving native work,
+sampling and live reverse allocations. This does not certify globally barrierless
+chemistry or settle the separate soft-motion population model.

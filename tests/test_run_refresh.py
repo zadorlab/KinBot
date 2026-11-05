@@ -1849,7 +1849,7 @@ def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling
     if not revisit_homolysis:
         # Exercise the replacement owner's exploration boundary as well as
         # the refresh helper. A natural nonfinding survives refresh, frees its
-        # slot and cannot be promoted to an export or automatically retried.
+        # slot and leaves a model note, without automatically retrying it.
         from kinbot import pes_phase
         case=worker.parent
         phase=pes_phase.initialize(case)
@@ -1862,5 +1862,7 @@ def test_homolysis_refresh_owns_reverse_search_and_preserves_native_and_sampling
             pes_phase._publish_ready(None)
         assert pes_phase.tick(case,[worker.name,'next_well'],max_searches=1)==([], 'exploring')
         held=json.loads((case/pes_phase.NAME).read_text())
-        assert held['export_holds'][worker.name][0]['scan_outcome']=='qc_failed'
+        assert held['export_holds']=={}
+        assert 'qc_failed' in held['homolysis_notes'][worker.name][0]
+        assert pes_phase.tick(case,[worker.name],max_searches=1)==([], 'postprocessing')
         assert scientific_files(t.root)==before and t.jobs==jobs

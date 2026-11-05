@@ -137,6 +137,43 @@ def test_worker_summary_to_pes_assembly_exports_every_accepted_complex(
         previous = text, omitted, artifacts
 
 
+def test_completed_homolysis_nonfinding_reaches_worker_and_combined_mess(tmp_path):
+    from kinbot.execution import atomic_json
+    from kinbot.search_state import NAME, contract
+    t = stage_artifact_handoff(tmp_path)
+    reverse = t.worker.parent/'reverse_abstractions/pair'
+    reverse.mkdir(parents=True)
+    inp = reverse/'input.json'
+    atomic_json(inp, {})
+    atomic_json(reverse.parent/'manifest.json', dict(status='staged_for_discovery_not_integrated',
+        entries=[dict(input='pair/input.json', reactions=['abstraction'])]))
+    atomic_json(reverse/'kinbot_status.json', dict(status='complete', returncode=0))
+    atomic_json(reverse/NAME, dict(schema=1, contract=contract(inp),
+        reactions={'abstraction': dict(status=-999)}))
+    result = reverse/'reverse_search_result.json'
+    atomic_json(result, dict(status='discovery_complete_needs_integration',
+        reactions=[dict(reaction='abstraction', status=-999)]))
+    ledger = t.worker/'homolysis_checks.json'
+    atomic_json(ledger, dict(checks=[dict(parent='test_hom_sci_1_2',
+        outcome='unresolved', scan_outcome='qc_failed')]))
+    before = ledger.read_bytes()
+    for _ in range(2):
+        write_worker(t)
+        text = assemble(t)
+        assert 'not proof of barrierlessness' in text
+        assert 'not proof of barrierlessness' in (t.worker/'me/mess_0000.inp').read_text()
+        assert ledger.read_bytes() == before
+        assert file_sha256(t.worker/'kinbot.db') == t.db_hash
+    # The nonfinding exemption must not silently discard an accepted reverse TS.
+    combined = t.worker.parent/'me/mess_0000.inp'
+    previous = combined.read_bytes()
+    atomic_json(result, dict(status='discovery_complete_needs_integration',
+        reactions=[dict(reaction='abstraction', status=-1)]))
+    with pytest.raises(RuntimeError, match='accepted results'):
+        assemble(t)
+    assert combined.read_bytes() == previous
+
+
 def test_legacy_single_exit_fallback_and_wrong_reaction_context(tmp_path):
     from kinbot.species_routing import mess_filename
     t = stage_artifact_handoff(tmp_path, tied=False, reverse=True)

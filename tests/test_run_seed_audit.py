@@ -159,7 +159,7 @@ def test_homolysis_native_captures_full_attempts_without_driving_or_mutating(tmp
         return dict(argv=args,status='observed',returncode=0,stdout='retained accounting',stderr='')
     monkeypatch.setattr('kinbot.run_outage_audit.command',query)
     result=audit.capture(root,tmp_path/'exports',homolysis_native=True)
-    assert result['status']=='captured' and result['holds']==1
+    assert result['status']=='captured' and result['inconclusive_checks']==1
     output=Path(result['directory'])
     for name,data in natives.items():assert (output/'run/example/worker'/name).read_bytes()==data
     assert not (output/'run/example/resolved/native.log').exists()
@@ -171,6 +171,30 @@ def test_homolysis_native_captures_full_attempts_without_driving_or_mutating(tmp
     with tarfile.open(result['archive']) as archive:
         assert archive.extractfile('run/example/worker/'+search+'.log').read()==natives[search+'.log']
         assert {'summary.txt','scheduler.json','homolysis_inventory.json'}<=set(archive.getnames())
+
+
+def test_all_ordinary_native_includes_unheld_workers_and_reverse_models(tmp_path, monkeypatch):
+    root=tmp_path/'source';p,w=case(root)
+    files = {
+        w/'hir/point.log': b'full HIR native output',
+        w/'conf/selected.log': b'normal selected conformer',
+        w/'thermochemistry_model.json': b'{"source":"complete model"}',
+        p/'reverse_abstractions/pair/tight_TS.log': b'reverse saddle',
+        p/'me/mess_0000.inp': b'combined MESS',
+    }
+    for path, data in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True);path.write_bytes(data)
+    excluded=w/'scratch/raw.rwf';excluded.parent.mkdir();excluded.write_bytes(b'raw scratch')
+    before={f:file_sha256(f) for f in root.rglob('*') if f.is_file()}
+    monkeypatch.setattr('kinbot.run_outage_audit.command',lambda args: pytest.fail('No homolysis job IDs to query'))
+    result=audit.capture(root,tmp_path/'exports',ordinary_native=True)
+    assert result['status']=='captured' and result['inconclusive_checks']==0
+    with tarfile.open(result['archive']) as archive:
+        for path, data in files.items():
+            assert archive.extractfile('run/'+str(path.relative_to(root))).read()==data
+        assert 'run/'+str(excluded.relative_to(root)) not in archive.getnames()
+    assert before=={f:file_sha256(f) for f in before}
+    assert json.loads((Path(result['directory'])/'manifest.json').read_text())['purpose']=='ordinary_native_audit'
 
 
 def test_homolysis_live_changes_are_reported_not_reset(tmp_path,monkeypatch):

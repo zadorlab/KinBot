@@ -29,9 +29,18 @@ def workers(scopes):
     return result
 
 
-def sources(scopes, *, all_workers=False):
+def sources(scopes, *, all_workers=False, progress=None):
     result = set()
-    for worker in scopes if all_workers else workers(scopes):
+    # A case already contains its workers. Walking both doubles NFS directory
+    # traffic (and another inventory is deliberately taken after copying).
+    roots = []
+    for scope in sorted(set(scopes if all_workers else workers(scopes)),
+                        key=lambda p: (len(p.parts), str(p))):
+        if not any(scope.is_relative_to(parent) and not any(
+                part in SKIP_DIRS or part.startswith(('.salvage_code.', '.fresh_code.'))
+                for part in scope.relative_to(parent).parts) for parent in roots):
+            roots.append(scope)
+    for worker in roots:
         def failed(error):
             raise error  # An unreadable subtree cannot silently be omitted.
         for directory, dirs, files in os.walk(worker, followlinks=False, onerror=failed):
@@ -49,6 +58,8 @@ def sources(scopes, *, all_workers=False):
             # Raw scratch wavefunctions are not needed to inspect convergence.
             result.update(parent/name for name in files
                           if not any(part in {'rwf', 'wfu'} for part in name.split('.')))
+            if progress:
+                progress(files_found=len(result), directory=str(parent))
     return result
 
 

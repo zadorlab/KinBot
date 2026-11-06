@@ -190,13 +190,11 @@ class ReactionGenerator:
     @staticmethod
     def _write_optimization_monitor(reactions):
         """Atomically publish detailed optimization lifecycle state."""
-        target = Path('kinbot_optimization_monitor.json')
-        temporary = target.with_suffix(target.suffix + '.tmp')
-        temporary.write_text(json.dumps({
+        from kinbot.execution import atomic_json
+        atomic_json('kinbot_optimization_monitor.json', {
             'schema': 1,
             'reactions': reactions,
-        }, indent=2, sort_keys=True) + '\n')
-        temporary.replace(target)
+        })
 
     def _existing_product_optimizer(self, reaction_index, product,
                                     current_optimizers):

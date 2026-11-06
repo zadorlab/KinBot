@@ -227,3 +227,129 @@ def test_homolysis_scheduler_batches_all_recorded_ids_and_retains_unavailability
     result=scheduler(tmp_path,[dict(worker='case/worker',check=dict(search=name),search_state={})])
     assert len(result['job_ids'])==201 and len(calls)==3
     assert all(q['status']=='unknown' for q in result['accounting'])
+
+
+def test_native_inventory_walks_nested_scopes_once_and_keeps_attempts(tmp_path, monkeypatch):
+    from kinbot import homolysis_evidence as native
+    root=tmp_path/'source';p,w=case(root)
+    (w/'native.log').write_text('evidence')
+    attempt=w/'restart_gaussian_scf/attempt';attempt.mkdir(parents=True)
+    (attempt/'native.com').write_text('old settings')
+    walked=[];real=native.os.walk
+    def walk(path, **kwargs):
+        walked.append(path)
+        yield from real(path, **kwargs)
+    monkeypatch.setattr(native.os,'walk',walk)
+    found=native.sources([w,p,w],all_workers=True)
+    assert walked==[p]
+    assert {w/'native.log',attempt/'native.com'}<=found
+
+
+def test_capture_reports_all_phases_and_fast_archive_is_verified_before_publish(tmp_path, monkeypatch):
+    root=tmp_path/'source';p,w=case(root)
+    records=[];levels=[];real_open=audit.tarfile.open;real_verify=audit._verify_archive
+    def opened(*args,**kwargs):
+        if len(args)>1 and args[1]=='w:gz':levels.append(kwargs.get('compresslevel'))
+        return real_open(*args,**kwargs)
+    def verified(partial,*args):
+        assert partial.name.endswith('.partial')
+        assert not partial.with_suffix('').exists()
+        return real_verify(partial,*args)
+    monkeypatch.setattr(audit.tarfile,'open',opened)
+    monkeypatch.setattr(audit,'_verify_archive',verified)
+    result=audit.capture(root,tmp_path/'exports',ordinary_native=True,progress_callback=records.append)
+    assert levels==[1]
+    assert {r['phase'] for r in records}=={
+        'inventory','copying','rechecking_source_hashes','rechecking_inventory',
+        'summarizing_copies','scheduler_accounting','compressing_archive',
+        'verifying_archive','hashing_archive','finished'}
+    assert Path(result['archive']).is_file()
+    assert not Path(result['archive']+'.partial').exists()
+    assert json.loads((Path(result['directory'])/'result.json').read_text())==result
+
+
+def test_failed_archive_verification_keeps_partial_and_never_publishes_final(tmp_path, monkeypatch):
+    root=tmp_path/'source';case(root)
+    def bad(archive, expected, progress):
+        expected=dict(expected);expected[next(iter(expected))]='not the checksum'
+        real(archive,expected,progress)
+    real=audit._verify_archive
+    monkeypatch.setattr(audit,'_verify_archive',bad)
+    with pytest.raises(RuntimeError,match='Archive verification mismatch'):
+        audit.capture(root,tmp_path/'exports',ordinary_native=True)
+    assert len(list((tmp_path/'exports').glob('*/seed-evidence.tar.gz.partial')))==1
+    assert not list((tmp_path/'exports').glob('*/seed-evidence.tar.gz'))
+    assert not list((tmp_path/'exports').glob('*/result.json'))
+
+
+def test_detached_cli_finishes_after_launcher_exits_and_ignores_hangup(tmp_path):
+    import os
+    import signal
+    import subprocess
+    import sys
+    import time
+    root=tmp_path/'source';p,w=case(root)
+    # Enough real files to signal during collection, not an already dead PID.
+    for i in range(1200):(w/f'point_{i}.log').write_text('native output\n'*40)
+    before={f:file_sha256(f) for f in root.rglob('*') if f.is_file()}
+    command=[sys.executable,'-B','-m','kinbot.run_seed_audit',str(root),
+             '--ordinary-native','--mess-handoff','--output-parent',str(tmp_path/'exports'),'--detach']
+    launched=subprocess.run(command,capture_output=True,text=True,timeout=15,check=True)
+    receipt=json.loads(launched.stdout);job=Path(receipt['job_directory'])
+    deadline=time.monotonic()+30;sent=False
+    while time.monotonic()<deadline:
+        state=json.loads((job/'status.json').read_text())
+        if state['state']=='running' and not sent:
+            assert state['session_id']==receipt['pid']==state['pid']
+            os.kill(receipt['pid'],signal.SIGHUP);sent=True
+        if state['state'] in {'complete','incomplete','failed'}:break
+        time.sleep(.01)
+    assert sent
+    assert state['state']=='complete',state
+    result=json.loads((job/'result.json').read_text())
+    assert Path(result['archive']).is_file() and result['issues']==0
+    assert file_sha256(result['archive'])==result['sha256']
+    assert before=={f:file_sha256(f) for f in before}
+    # The read-only status command works from a new login without old variables.
+    status=subprocess.run([sys.executable,'-B','-m','kinbot.run_seed_audit',
+        '--status',str(tmp_path/'exports')],capture_output=True,text=True,check=True,timeout=15)
+    assert str(job) in status.stdout and '"state": "complete"' in status.stdout
+
+
+def test_detached_child_failure_is_saved_and_does_not_claim_completion(tmp_path):
+    import subprocess
+    import sys
+    import time
+    root=tmp_path/'unrecognized';root.mkdir()
+    launched=subprocess.run([sys.executable,'-B','-m','kinbot.run_seed_audit',str(root),
+        '--output-parent',str(tmp_path/'exports'),'--detach'],
+        capture_output=True,text=True,check=True,timeout=15)
+    job=Path(json.loads(launched.stdout)['job_directory'])
+    deadline=time.monotonic()+15
+    while time.monotonic()<deadline:
+        state=json.loads((job/'status.json').read_text())
+        if state['state']=='failed':break
+        time.sleep(.01)
+    assert state['state']=='failed' and 'No recognized seed evidence' in state['error']
+    assert not (job/'result.json').exists()
+    assert not list(job.glob('*/seed-evidence.tar.gz'))
+
+
+def test_rapid_repeat_launch_keeps_child_result_and_latest_status(tmp_path, monkeypatch, capsys):
+    from types import SimpleNamespace
+    root=tmp_path/'source';case(root)
+    args=SimpleNamespace(root=root,output_parent=tmp_path/'exports',evidence=None,max_mb=1,
+                         task=[],mess_handoff=False,homolysis_native=False,ordinary_native=False)
+    def quick(command, **kwargs):
+        assert kwargs['start_new_session'] and kwargs['close_fds']
+        assert kwargs['stdin']==audit.subprocess.DEVNULL
+        job=Path(command[command.index('--job-directory')+1])
+        atomic_json(job/'status.json',dict(state='complete',test='child finished first'))
+        return SimpleNamespace(pid=1234)
+    monkeypatch.setattr(audit.subprocess,'Popen',quick)
+    first=audit.detach(args);second=audit.detach(args)
+    assert first['job_directory']!=second['job_directory']
+    for result in (first,second):
+        assert json.loads(Path(result['status_file']).read_text())['state']=='complete'
+    audit.show_status(args.output_parent)
+    assert second['job_directory'] in capsys.readouterr().out

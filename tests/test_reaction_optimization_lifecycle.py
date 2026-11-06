@@ -1,6 +1,7 @@
 import json
 from types import SimpleNamespace
 from unittest.mock import Mock
+import pytest
 
 from kinbot.reaction_generator import ReactionGenerator
 
@@ -104,3 +105,20 @@ def test_stage_four_monitor_records_pending_hir_counts(tmp_path, monkeypatch):
         'failed': 1,
         'skipped': 1,
     }
+
+
+def test_monitor_failed_write_preserves_previous_record_and_recovers(tmp_path, monkeypatch):
+    from kinbot import execution
+    monkeypatch.chdir(tmp_path)
+    writer=ReactionGenerator._write_optimization_monitor
+    writer([{'reaction':'previous','pending':['hir']}])
+    path=tmp_path/'kinbot_optimization_monitor.json'
+    saved=path.read_bytes()
+    with monkeypatch.context() as patch:
+        def fail(descriptor):raise OSError('simulated file sync failure')
+        patch.setattr(execution.os,'fsync',fail)
+        with pytest.raises(OSError,match='sync failure'):writer([{'reaction':'new'}])
+    assert path.read_bytes()==saved
+    assert not list(tmp_path.glob('*.tmp'))
+    writer([{'reaction':'new'}])
+    assert json.loads(path.read_text())['reactions']==[{'reaction':'new'}]

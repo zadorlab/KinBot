@@ -38,3 +38,50 @@ it does not turn a naturally unsuccessful saddle search into a retry request.
 Local regression checks cover full native-file inclusion and unchanged source
 contents, archived failures and alternative saddle evidence, changes during a
 live capture, and batched read-only accounting including unavailable responses.
+
+## Large exports and terminal disconnects
+
+Use the detached mode from the login host instead of keeping a foreground
+collector attached to SSH:
+
+```bash
+python -u -B -m kinbot.run_seed_audit RUN \
+  --ordinary-native --mess-handoff --max-mb 16384 \
+  --output-parent EXPORTS --detach
+```
+
+This returns immediately with a `seed-capture-*` job directory, collector PID,
+log path and status path. It starts **only** a read-only local collector. The
+collector has its own process session, redirects all terminal descriptors, and
+ignores SIGHUP. It survives terminal logout/hangup; this does not promise
+survival of a host reboot, SIGKILL, or a site's policy that kills background
+processes. No QC jobs or controllers are started, cancelled or changed.
+
+On a new login, inspect the latest capture without needing old shell variables:
+
+```bash
+python -B -m kinbot.run_seed_audit --status EXPORTS
+```
+
+The same command accepts the exact `seed-capture-*` directory to inspect an older
+capture. It prints saved status and the last log lines. `complete` means capture
+and archive verification finished; `incomplete` means source/copy issues are
+listed in the manifest; `failed` identifies a collector error. A saved `running`
+state with an old timestamp is not proof that the collector remains alive.
+`result.json` contains the archive location and SHA256. These are capture
+verdicts, not scientific acceptance of any calculation.
+
+Inventory, copying, source rechecks, compression and archive verification now
+report phase changes and throttled progress (about every five seconds while
+files advance). A blocked filesystem call can still delay the next update.
+Overlapping case/worker scopes are walked once per inventory. A second inventory
+and all source-hash rechecks remain necessary to detect live changes. Compression
+uses gzip level 1, matching the existing orbital exporter. Complete native files
+and all checksums are retained. The archive stays `.partial` until verification
+passes; no partial archive is advertised as the final export.
+
+Do not repeatedly launch captures while one is running: each invocation creates
+a separate directory. Earlier exports and interrupted partials are retained.
+Detached mode does not resume an older interrupted foreground capture. To keep
+an inactive run's diagnostic snapshot stable, let capture finish before refreshing
+its controllers.

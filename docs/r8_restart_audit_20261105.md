@@ -62,3 +62,40 @@ restart's new HIR or reverse-discovery outcomes.
 It is not verification of a remote restart or new Gaussian convergence. The
 remaining population/integration questions above are explicit limitations;
 neither test success nor removing the blanket hold resolves them by assumption.
+
+## Subsequent monitor and collector correction
+
+The later supplied monitor (timestamp `2026-11-05T18:01:33-08:00`) observes zero
+controllers and zero allocations in both PESs. CH3S's three workers are complete
+and its log says `PES search done!`; CH3SS still has saved running/waiting records
+and unfinished characterization. This does not establish why its controllers
+exited. The 6 CH3S and 19 CH3SS homolysis entries are now nonblocking notes, so
+the former blanket hold is no longer the reported stop condition. Existing
+nonzero QC exits and unretained searches are not grounds for automatic retry.
+
+Three CH3SS `kinbot_optimization_monitor.json` files are empty/unparseable. Their
+writer still used a fixed temporary name without the shared durable-write
+procedure. It now uses `execution.atomic_json` (unique temporary, verified write,
+file and directory fsync, atomic replacement). A fault-injection test confirms a
+failed pre-publication write preserves the prior monitor and a subsequent write
+recovers. This fixes the writer weakness; the monitor alone does not prove which
+filesystem event caused those three empty files or the controller exits.
+
+Full native evidence capture now supports detached collection, detailed phase
+progress, one traversal of overlapping scopes and faster compression. It still
+checks changing sources and verifies every archived file before publishing the
+final filename. Capture the current inactive state before an ordinary refresh;
+do not reopen natural rejected searches or reset the earlier thermochemistry
+reassessment just to collect evidence. See `homolysis_native_capture.md`.
+
+Collector/monitor correction validation: a fresh HEAD archive with only the
+seven changed files overlaid passed 336 tests (2 initially skipped), including
+the full simulated-site refresh/reuse orchestration. The optional captured-PES
+replay then passed separately against the existing November 1 archive; only
+the Linux pidfd ABI test remains unavailable on this Mac. The detached CLI test
+uses real child processes: its launcher exits, SIGHUP is sent while files are
+being collected, and the child completes a hash-verified archive with source
+contents unchanged. Archive-corruption injection retains only the partial
+filename. Rapid invocation and child-completion-before-launch-receipt cases
+preserve separate records. These are local validations, not evidence that the
+new remote capture or any remaining native QC has completed.

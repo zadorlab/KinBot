@@ -9,7 +9,12 @@ RESOLVED = {'superseded_by_validated_saddle', 'parent_not_retained',
 # These trees are not part of ordinary L1/L2 discovery. Retained ordinary
 # restart/SCF/timeout archives, conf, hir and perm are deliberately traversed.
 SKIP_DIRS = {'scratch', '__pycache__', '.git', '.venv', 'node_modules',
-             'anl_automatic', 'vrctst', 'rotdPy', 'rotdpy', 'molpro'}
+             'anl_automatic', 'vrctst', 'rotdPy', 'rotdpy', 'molpro',
+             '.kinbot_checkpoints'}
+# Periodic restart generations are not native scientific attempt history.
+# Their current checkpoint receipts and working native files remain included.
+MAX_NATIVE_FILES = 250000
+MAX_NATIVE_DIRECTORIES = 100000
 
 
 def workers(scopes):
@@ -29,7 +34,7 @@ def workers(scopes):
     return result
 
 
-def sources(scopes, *, all_workers=False, progress=None):
+def sources(scopes, *, all_workers=False, progress=None, excluded=None):
     result = set()
     # A case already contains its workers. Walking both doubles NFS directory
     # traffic (and another inventory is deliberately taken after copying).
@@ -40,17 +45,24 @@ def sources(scopes, *, all_workers=False, progress=None):
                 part in SKIP_DIRS or part.startswith(('.salvage_code.', '.fresh_code.'))
                 for part in scope.relative_to(parent).parts) for parent in roots):
             roots.append(scope)
+    visited = 0
     for worker in roots:
         def failed(error):
             raise error  # An unreadable subtree cannot silently be omitted.
         for directory, dirs, files in os.walk(worker, followlinks=False, onerror=failed):
+            visited += 1
+            if visited > MAX_NATIVE_DIRECTORIES:
+                raise ValueError('Native evidence inventory exceeds directory limit; '
+                                 'no files copied. Inspect the requested capture scope.')
             parent = Path(directory)
             kept = []
             for name in dirs:
                 path = parent/name
-                if path.is_symlink():
+                if name in SKIP_DIRS or name.startswith(('.salvage_code.', '.fresh_code.')):
+                    if excluded is not None:excluded.add(path)
+                elif path.is_symlink():
                     result.add(path)  # Existing capture records refused symlinks.
-                elif name not in SKIP_DIRS and not name.startswith(('.salvage_code.', '.fresh_code.')):
+                else:
                     kept.append(name)
             dirs[:] = kept
             # Include complete ordinary files, including checkpoints, native
@@ -58,6 +70,9 @@ def sources(scopes, *, all_workers=False, progress=None):
             # Raw scratch wavefunctions are not needed to inspect convergence.
             result.update(parent/name for name in files
                           if not any(part in {'rwf', 'wfu'} for part in name.split('.')))
+            if len(result) > MAX_NATIVE_FILES:
+                raise ValueError('Native evidence inventory exceeds file limit; '
+                                 'no files copied. Inspect the requested capture scope.')
             if progress:
                 progress(files_found=len(result), directory=str(parent))
     return result

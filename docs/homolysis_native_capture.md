@@ -13,7 +13,7 @@ apply. A terminal inconclusive homolysis entry is an evidence note, not an
 export hold; the capture does not change that decision.
 
 It includes native inputs and outputs, Gaussian/Sella logs, frequencies/Hessians,
-checkpoints, trajectories, IRCs, fragment calculations, conformers, alternative
+current working checkpoints, trajectories, IRCs, fragment calculations, conformers, alternative
 tight-saddle evidence, complete databases with sidecars, search and submission
 histories, and existing ordinary retry archives. It includes all ordinary native
 files in the affected worker because a different search can already contain the
@@ -22,7 +22,8 @@ retry, accept or reject calculations, and does not execute copied Python/pickle
 files. Slurm accounting is queried in bounded batches for recorded
 scan/TS/IRC job IDs; missing accounting is not a failed-calculation verdict.
 
-ANL, VRC/RotdPy, raw scratch trees and raw RWF/WFU files are outside this L1/L2
+ANL, VRC/RotdPy, raw scratch trees, periodic `.kinbot_checkpoints` generation
+stores and raw RWF/WFU files are outside this L1/L2
 capture. This is evidence for diagnosis, not a complete restart backup. The
 manifest states this explicitly. Files larger than 256 MiB or exceeding the total
 budget, unreadable files, symlinks and source changes are reported as capture
@@ -85,3 +86,27 @@ a separate directory. Earlier exports and interrupted partials are retained.
 Detached mode does not resume an older interrupted foreground capture. To keep
 an inactive run's diagnostic snapshot stable, let capture finish before refreshing
 its controllers.
+
+## Periodic recovery generations and budget checks
+
+The November 5 export exposed a collector defect: recursive selection included
+`.kinbot_checkpoints/native/JOB/ATTEMPT/generation-*`. These periodic recovery
+copies sorted before current native evidence, exhausted the 16 GiB budget and
+generated millions of omission records. They are now excluded **before directory
+traversal**, including checkpoint stores nested in HIR and reverse workers.
+Their contents are not deleted or modified. Current working checkpoints,
+checkpoint receipts, native outputs, databases, HIR/conformer files and archived
+SCF/timeout/failed attempts remain selected. This audit is not a recovery backup.
+`selection.json` and the final manifest list the excluded trees explicitly.
+
+Native capture checks the selected total size before copying. If it exceeds
+`--max-mb`, the collector stops with `selection.json` (counts, bytes and the
+largest files), without copying a partial run or creating an archive. Directory
+and file inventory limits also stop explicitly before copying, rather than
+creating millions of omission records. Source mutation and hash checks still
+apply after preflight. For an incomplete export, `inconclusive_checks` is null;
+`captured_inconclusive_records` only counts records actually present in the
+partial capture. Zero captured records never certifies no outstanding checks.
+
+This correction changes only evidence collection. Updating the checkout is
+sufficient to use it; no controller refresh or QC retry is required.

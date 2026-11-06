@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import tarfile
@@ -67,7 +68,7 @@ def _scopes(root):
 
 
 def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_native=False,
-            ordinary_native=False, progress=None):
+            ordinary_native=False, progress=None, excluded=None):
     paths = set()
     for name in ('prepared.json', '.kinbot_resource_policy.json', '.kinbot_live_control.json'):
         if (root/name).is_file():paths.add(root/name)
@@ -111,7 +112,8 @@ def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_nati
                 if name in TASK_NAMES or p.suffix in TEXT_SUFFIXES or p.suffix=='.json':paths.add(p)
     if homolysis_native or ordinary_native:
         from kinbot.homolysis_evidence import sources as native_sources
-        paths.update(native_sources(_scopes(root), all_workers=ordinary_native, progress=progress))
+        paths.update(native_sources(_scopes(root), all_workers=ordinary_native,
+                                    progress=progress, excluded=excluded))
         for scope in {root, *[p.parent for p in root.glob('*/input.json')]}:
             paths.update(scope.glob('*.json'))
             for name in ('pes.log', 'driver.log', 'pes_summary.txt', 'chemids'):
@@ -161,6 +163,32 @@ def _verify_archive(archive, expected, progress):
     if expected:raise RuntimeError('Archive is missing captured evidence.')
 
 
+def _native_preflight(selected, output, max_mb, excluded, progress):
+    """Reject an undersized budget before copying/compressing a partial run."""
+    total=0;largest=[];unavailable=[]
+    progress('checking_size', checked=0, total=len(selected))
+    for index,(source,base,relative) in enumerate(selected,1):
+        try:
+            info=source.lstat()
+            if stat.S_ISREG(info.st_mode):
+                total+=info.st_size
+                largest.append(dict(path=str(relative),bytes=info.st_size))
+                largest=sorted(largest,key=lambda x:x['bytes'],reverse=True)[:20]
+        except OSError as error:
+            unavailable.append(dict(source=str(source),error=str(error)))
+        progress('checking_size', checked=index, total=len(selected), bytes=total)
+    plan=dict(files=len(selected),selected_bytes=total,budget_bytes=max_mb*MIB,
+              largest_files=largest,unavailable=unavailable,
+              excluded_trees=sorted(map(str,excluded)),
+              note='Periodic checkpoint generations are excluded; current native files and retry archives are retained.')
+    atomic_json(output/'selection.json',plan)
+    print('CAPTURE_SELECTION '+json.dumps({k:plan[k] for k in
+          ('files','selected_bytes','budget_bytes')}),flush=True)
+    if total > max_mb*MIB:
+        raise ValueError(f'Native evidence needs {total} bytes, budget is {max_mb*MIB}; '
+                         f'no native files copied. See {output / "selection.json"}.')
+
+
 def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_handoff=False,
             homolysis_native=False, ordinary_native=False, progress_callback=None):
     root,output_parent,evidence = _capture_paths(root,output_parent,evidence,max_mb)
@@ -170,14 +198,17 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     print('DESTINATION '+str(output), flush=True)
     progress('inventory', output_directory=str(output))
     homolysis_native = homolysis_native or ordinary_native
+    excluded=set()
     selected=sources(root,tasks,evidence,mess_handoff=mess_handoff,homolysis_native=homolysis_native,
-                     ordinary_native=ordinary_native,progress=lambda **d:progress('inventory',**d))
+                     ordinary_native=ordinary_native,progress=lambda **d:progress('inventory',**d),
+                     excluded=excluded)
     if homolysis_native:
         print(f'Capturing {len(selected)} native/metadata files; complete files, not tails.',flush=True)
+        _native_preflight(selected,output,max_mb,excluded,progress)
     def handoff_directories():
         scopes=_scopes(root)
         return {p for scope in scopes for p in (scope,*scope.iterdir())
-                if p.is_dir() and not p.is_symlink()}
+                if p.is_dir() and not p.is_symlink() and p.name!='.kinbot_checkpoints'}
     directories=handoff_directories() if mess_handoff else set()
     if not selected:raise ValueError('No recognized seed evidence in source run.')
     entries=[];issues=[];used=0
@@ -215,6 +246,7 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
         if mess_handoff and handoff_directories()!=directories:
             issues.append(dict(source=str(root),error='MESS handoff directory inventory changed during capture.'))
     manifest=dict(schema=1,root=str(root),files=entries,issues=issues,
+                  excluded_trees=sorted(map(str,excluded)),
                   directories=[str(Path('run')/p.relative_to(root)) for p in sorted(directories)],
                   status='captured' if not issues else 'incomplete',captured_bytes=used,
                   purpose=('ordinary_native_audit' if ordinary_native else
@@ -234,7 +266,7 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
         (output/'summary.txt').write_text(summary)
         progress('scheduler_accounting', inconclusive_checks=len(records))
         atomic_json(output/'scheduler.json',scheduler(output,records))
-        extras=['homolysis_inventory.json','summary.txt','scheduler.json']
+        extras=['selection.json','homolysis_inventory.json','summary.txt','scheduler.json']
     archive=output/'seed-evidence.tar.gz'
     partial=archive.with_name(archive.name+'.partial')
     progress('compressing_archive', added=0, total=len(entries), compression_level=1)
@@ -260,7 +292,9 @@ def capture(root, output_parent, *, tasks=(), evidence=None, max_mb=2048, mess_h
     result=dict(directory=str(output),archive=str(archive),sha256=checksum,
                 files=len(entries),bytes=used,issues=len(issues),status=manifest['status'])
     if homolysis_native:
-        result.update(summary=str(output/'summary.txt'),inconclusive_checks=len(records))
+        result.update(summary=str(output/'summary.txt'),
+                      inconclusive_checks=len(records) if not issues else None,
+                      captured_inconclusive_records=len(records))
     atomic_json(output/'result.json',result)
     progress('finished', **result)
     return result
@@ -362,7 +396,7 @@ def main(argv=None):
                    session_id=os.getsid(0),started_utc=datetime.now(timezone.utc).isoformat())
         atomic_json(job/'status.json',state)
         def callback(record):
-            state.update(record)
+            state.update(phase=record['phase'],updated_utc=record['updated_utc'],progress=record)
             atomic_json(job/'status.json',state)
     if a.mess_handoff:
         print('Capturing MESS handoff: reading source files; no jobs or source changes.',flush=True)

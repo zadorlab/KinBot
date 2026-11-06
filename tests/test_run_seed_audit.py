@@ -211,6 +211,7 @@ def test_homolysis_live_changes_are_reported_not_reset(tmp_path,monkeypatch):
     monkeypatch.setattr('kinbot.run_outage_audit.command',lambda args:pytest.fail('No job IDs to query'))
     result=audit.capture(root,tmp_path/'exports',homolysis_native=True)
     assert result['status']=='incomplete' and result['issues']==1
+    assert result['inconclusive_checks'] is None
     assert json.loads((w/'homolysis_checks.json').read_text())['checks'][0]['outcome']=='unresolved'
 
 
@@ -260,7 +261,7 @@ def test_capture_reports_all_phases_and_fast_archive_is_verified_before_publish(
     result=audit.capture(root,tmp_path/'exports',ordinary_native=True,progress_callback=records.append)
     assert levels==[1]
     assert {r['phase'] for r in records}=={
-        'inventory','copying','rechecking_source_hashes','rechecking_inventory',
+        'inventory','checking_size','copying','rechecking_source_hashes','rechecking_inventory',
         'summarizing_copies','scheduler_accounting','compressing_archive',
         'verifying_archive','hashing_archive','finished'}
     assert Path(result['archive']).is_file()
@@ -353,3 +354,62 @@ def test_rapid_repeat_launch_keeps_child_result_and_latest_status(tmp_path, monk
         assert json.loads(Path(result['status_file']).read_text())['state']=='complete'
     audit.show_status(args.output_parent)
     assert second['job_directory'] in capsys.readouterr().out
+
+
+def test_periodic_checkpoint_store_is_never_walked_but_current_and_failed_attempts_are_captured(tmp_path, monkeypatch):
+    import os
+    root=tmp_path/'source';p,w=case(root)
+    # Reproduce the exported paths, including checkpoint stores nested in HIR.
+    stores=[w/'.kinbot_checkpoints',w/'hir/.kinbot_checkpoints',
+            p/'reverse_abstractions/pair/.kinbot_checkpoints']
+    for store in stores:
+        old=store/'native/job/attempt/generation-old/files/work';old.mkdir(parents=True)
+        (old/'job.chk').write_bytes(b'restart generation')
+    files={w/'job.chk':b'current checkpoint',w/'job.log':b'full native output',
+           w/'job.checkpoint.json':b'{"generation":"retained"}',
+           w/'hir/point.log':b'rotor',w/'conf/point.log':b'conformer',
+           w/'restart_gaussian_scf/attempt/job.log':b'failed SCF output',
+           p/'reverse_abstractions/pair/job.log':b'reverse native output'}
+    for path,data in files.items():
+        path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
+    name='worker_dissociation_saddle_1_2'
+    atomic_json(w/'homolysis_checks.json',dict(checks=[dict(search=name,outcome='no_validated_saddle')]))
+    before={f:file_sha256(f) for f in root.rglob('*') if f.is_file()}
+    original=os.scandir
+    def bounded(path):
+        assert not any(Path(path).is_relative_to(store) for store in stores),path
+        return original(path)
+    monkeypatch.setattr(os,'scandir',bounded)
+    result=audit.capture(root,tmp_path/'exports',ordinary_native=True,mess_handoff=True)
+    assert result['status']=='captured' and result['inconclusive_checks']==1
+    output=Path(result['directory'])
+    manifest=json.loads((output/'manifest.json').read_text())
+    assert set(map(str,stores))<=set(manifest['excluded_trees'])
+    with tarfile.open(result['archive']) as archive:
+        assert not any('.kinbot_checkpoints' in n for n in archive.getnames())
+        for path,data in files.items():
+            assert archive.extractfile('run/'+str(path.relative_to(root))).read()==data
+    assert before=={f:file_sha256(f) for f in before}
+
+
+def test_native_size_budget_fails_before_any_file_copy(tmp_path, monkeypatch):
+    root=tmp_path/'source';p,w=case(root)
+    (w/'native.log').write_bytes(b'0'*(2*1024**2))
+    monkeypatch.setattr(audit,'read_file',lambda *a,**k:pytest.fail('Budget must be checked before copying'))
+    with pytest.raises(ValueError,match='no native files copied'):
+        audit.capture(root,tmp_path/'exports',ordinary_native=True,max_mb=1)
+    plan=json.loads(next((tmp_path/'exports').glob('*/selection.json')).read_text())
+    assert plan['selected_bytes']>plan['budget_bytes']
+    assert plan['largest_files'][0]['path'].endswith('native.log')
+    assert not list((tmp_path/'exports').glob('*/run'))
+    assert not list((tmp_path/'exports').glob('*/seed-evidence.tar.gz*'))
+
+
+def test_native_inventory_limit_is_explicit_and_does_not_copy(tmp_path, monkeypatch):
+    from kinbot import homolysis_evidence as native
+    root=tmp_path/'source';case(root)
+    monkeypatch.setattr(native,'MAX_NATIVE_FILES',1)
+    monkeypatch.setattr(audit,'read_file',lambda *a,**k:pytest.fail('Inventory must finish before copying'))
+    with pytest.raises(ValueError,match='inventory exceeds file limit'):
+        audit.capture(root,tmp_path/'exports',ordinary_native=True)
+    assert not list((tmp_path/'exports').glob('*/run'))

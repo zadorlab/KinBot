@@ -152,7 +152,13 @@ def clean_files(diagnostic=False, qc=None):
                 # after deciding to launch a replacement for that same job.
                 logger.info(f'Pending worker handoff: {ff}.')
         else:
-            if len(ff) > 4 and ff[-4:] == '.log':
+            # Controller and optimizer logs may quote native QC errors. They
+            # are not calculation outputs: parsing kinbot.log as Gaussian can
+            # recursively report its own previous cleanup warning, and an
+            # empty controller log must not be deleted as an empty QC result.
+            if (ff.endswith('.log') and not ff.endswith('_sella.log')
+                    and os.path.basename(ff) not in
+                    ('kinbot.log', 'pes.log', 'driver.log', 'reactionList.log')):
                 log.append(ff)
 
     for ll in log:
@@ -186,8 +192,9 @@ def clean_files(diagnostic=False, qc=None):
                     else:
                         logger.info(f'All coordinates of file {ll} are 0.')
     if diagnostic:
-        logger.info(f'If empty or stuck files were detected, check the /perm directory for failed jobs on the HPC.')
-        logger.info(f'You will need to resubmit KinBot to ensure the correctness of the results.')
+        logger.info('Startup file diagnostics do not determine channel acceptance '
+                    'or whether another QC attempt is useful; the owning driver '
+                    'reconciles retained results and pending work.')
     return
 
 def create_matplotlib_graph(x=[0., 1.],

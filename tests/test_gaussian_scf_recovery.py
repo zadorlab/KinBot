@@ -197,6 +197,31 @@ def test_startup_cleanup_retains_rejected_scf_for_recovery(
         read(path)
 
 
+@pytest.mark.parametrize('diagnostic', [False, True])
+def test_cleanup_does_not_parse_controller_or_optimizer_logs(
+        tmp_path, monkeypatch, caplog, diagnostic):
+    from kinbot.utils import clean_files
+    monkeypatch.chdir(tmp_path)
+    originals = {
+        'kinbot.log': 'Startup cleanup retained unreadable QC output: SCF did not converge\n',
+        'pes.log': '', 'driver.log': '', 'reactionList.log': '',
+        'job_sella.log': 'Worker failure: SCF did not converge\n',
+        'job.log': 'Native output belongs to the QC reader\n',
+    }
+    for name, text in originals.items():
+        Path(name).write_text(text)
+    calls = []
+    def read(path):
+        calls.append(path)
+        raise StopIteration
+    monkeypatch.setattr('kinbot.ase_modules.io.formats.read', read)
+    with caplog.at_level('INFO', logger='KinBot'):
+        clean_files(qc='gauss', diagnostic=diagnostic)
+    assert calls == ['job.log']
+    assert {name: Path(name).read_text() for name in originals} == originals
+    assert 'need to resubmit' not in caplog.text
+
+
 @pytest.mark.parametrize('scf', [CONVERGED, UNCONVERGED + QC_CONVERGED])
 def test_reader_accepts_converged_diis_and_successful_xqc(scf):
     from io import StringIO

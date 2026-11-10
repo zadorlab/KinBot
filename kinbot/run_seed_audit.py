@@ -72,7 +72,17 @@ def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_nati
     paths = set()
     for name in ('prepared.json', '.kinbot_resource_policy.json', '.kinbot_live_control.json'):
         if (root/name).is_file():paths.add(root/name)
-    for scope in _scopes(root):
+    scopes = set(_scopes(root))
+    if mess_handoff:
+        # Reverse discovery is a peer source of accepted TS/endpoint data, not
+        # a recursively nested PES. Include its shallow handoff as well.
+        for scope in list(scopes):
+            base = scope/'reverse_abstractions'
+            if base.is_dir() and not base.is_symlink():
+                scopes.add(base)
+                scopes.update(p.parent for p in base.glob('*/input.json')
+                              if not p.is_symlink() and not p.parent.is_symlink())
+    for scope in sorted(scopes):
         if progress:progress(directory=str(scope), files_found=len(paths))
         for name in METADATA | {scope.name+'.json', 'kinbot.db', 'kinbot.db-wal', 'kinbot.db-shm'}:
             if (scope/name).is_file():paths.add(scope/name)

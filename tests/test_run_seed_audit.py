@@ -128,6 +128,24 @@ def test_mess_handoff_records_late_artifact_and_symlink_as_incomplete(tmp_path,m
     assert any('symlink' in issue['error'] for issue in manifest['issues'])
 
 
+def test_mess_handoff_includes_reverse_workers_without_recursive_native_capture(tmp_path):
+    root=tmp_path/'source';p,w=case(root)
+    reverse=p/'reverse_abstractions/pair';reverse.mkdir(parents=True)
+    atomic_json(reverse/'input.json', {})
+    atomic_json(reverse.parent/'manifest.json', {'entries': []})
+    atomic_json(reverse/'reverse_search_result.json', {'reactions': []})
+    (reverse/'kinbot.db').write_bytes(b'saved reverse database')
+    (reverse/'saddle_0000.mess').write_text('saved state density')
+    native=reverse/'.kinbot_checkpoints/native/generation'
+    native.mkdir(parents=True);(native/'big.chk').write_bytes(b'not needed')
+    (reverse/'saddle.log').write_text('not part of shallow MESS handoff')
+    selected={str(rel) for _,_,rel in audit.sources(root,mess_handoff=True)}
+    for name in ('manifest.json','pair/input.json','pair/reverse_search_result.json',
+                 'pair/kinbot.db','pair/saddle_0000.mess'):
+        assert 'run/example/reverse_abstractions/'+name in selected
+    assert not any(n.endswith(('big.chk','saddle.log')) for n in selected)
+
+
 def test_homolysis_native_captures_full_attempts_without_driving_or_mutating(tmp_path,monkeypatch):
     root=tmp_path/'source';p,w=case(root)
     search='worker_dissociation_saddle_1_2';parent='worker_hom_sci_1_2'

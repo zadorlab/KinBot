@@ -97,6 +97,26 @@ def test_completed_homolysis_notes_are_not_rendered_as_holds_or_retries(producti
     assert before == {p: p.read_bytes() for p in before}
 
 
+def test_terminal_optimization_journal_is_history_not_live_work(production):
+    root, case = production
+    worker = case/'123'
+    put(worker/'kinbot_status.json', {'status': 'running'})
+    put(worker/'kinbot_monitor.out', '2 13 active\n-999 13 rejected\n-1 13 accepted\n')
+    put(worker/'kinbot_optimization_monitor.json', {'reactions': [
+        dict(reaction=name, pending=['product_0'], failures=['transition_state'])
+        for name in ('active', 'rejected', 'accepted')]})
+    report = monitor.snapshot(root)
+    ordinary = monitor.render(report)
+    assert 'Optimizing active:' in ordinary
+    assert 'Optimizing rejected:' not in ordinary
+    assert 'Optimizing accepted:' not in ordinary
+    assert 'Saved optimization diagnostics rejected:' in monitor.render(report, details=True)
+    put(worker/'kinbot_status.json', {'status': 'complete'})
+    report = monitor.snapshot(root)
+    assert 'Optimizing ' not in monitor.render(report, details=True)
+    assert len(report['cases'][0]['workers'][0]['optimizations']) == 3
+
+
 def test_grouped_runs_without_manifest_are_separate_read_only_cases(tmp_path, monkeypatch):
     root = tmp_path/'runs'
     first, second = root/'first', root/'second'

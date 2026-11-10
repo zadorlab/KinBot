@@ -1113,7 +1113,14 @@ def render(report, *, include_all=False, lines=4, details=False, raw_logs=False,
                 for row in rows if include_all or details else [r for r in rows if r['code'] >= 0][:12]:
                     out.append(f'    {row["name"]}: {row["stage"]}; step={row["step"]}')
             for row in worker['optimizations']:
-                out.append(f'  Optimizing {row["reaction"]}: pending={row.get("pending")} failures={row.get("failures")}')
+                searches = worker['reactions'].get('rows', [])
+                search = next((r for r in searches if r['name'] == row['reaction']), None)
+                settled = (status == 'complete' or
+                           (search is not None and search['code'] < 0))
+                if settled and not (include_all or details):
+                    continue
+                label = 'Saved optimization diagnostics' if settled else 'Optimizing'
+                out.append(f'  {label} {row["reaction"]}: pending={row.get("pending")} failures={row.get("failures")}')
                 if include_all:
                     out.append('    '+json.dumps(row.get('optimizers', [])))
             for name, check in worker.get('endpoint_checks', {}).items():

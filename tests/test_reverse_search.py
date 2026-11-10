@@ -262,7 +262,8 @@ def test_export_keeps_native_jobs_through_single_fragment_renaming_and_l2(tmp_pa
     monkeypatch.setattr(reverse_search.l1_screening,'read_points',read)
     monkeypatch.setattr(reverse_search.l1_screening,'theory',lambda p:{})
     monkeypatch.setattr('kinbot.reaction_path.reaction_path_id',lambda o:'tested-separately')
-    def characterize(endpoint,*args):
+    def characterize(endpoint,*args,transition_state=None):
+        assert transition_state is obj.ts_opt
         assert endpoint.name == jobs['reactant'] and np.allclose(endpoint.geom,incoming)
         endpoint.geom += 30.  # Optimize's in-place mutation must not poison next export.
         return dict(status='characterized',l2=NS().__dict__)

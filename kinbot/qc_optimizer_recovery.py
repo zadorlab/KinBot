@@ -16,9 +16,50 @@ from kinbot.execution import file_sha256
 from kinbot.optimization_budget import step_retries
 
 
-def evidence(qc, job, job_id):
+def _atom_count_condition(node, count):
+    """Evaluate only atom-count predicates in generated workers, never code."""
+    if isinstance(node, ast.BoolOp):
+        values = [_atom_count_condition(value, count) for value in node.values]
+        if isinstance(node.op, ast.And):
+            return False if False in values else True if all(v is True for v in values) else None
+        if isinstance(node.op, ast.Or):
+            return True if True in values else False if all(v is False for v in values) else None
+    if (isinstance(node, ast.Compare) and len(node.ops) == 1
+            and isinstance(node.left, ast.Call) and not node.left.keywords
+            and isinstance(node.left.func, ast.Name) and node.left.func.id == 'len'
+            and len(node.left.args) == 1
+            and ast.dump(node.left.args[0]) == ast.dump(ast.parse('mol.symbols', mode='eval').body)
+            and isinstance(node.comparators[0], ast.Constant)
+            and type(node.comparators[0].value) is int):
+        limit = node.comparators[0].value
+        comparisons = {ast.Lt: count < limit, ast.LtE: count <= limit,
+                       ast.Gt: count > limit, ast.GtE: count >= limit,
+                       ast.Eq: count == limit, ast.NotEq: count != limit}
+        return comparisons.get(type(node.ops[0]))
+    return None
+
+
+def _possible_nodes(node, count):
+    yield node
+    if isinstance(node, ast.If):
+        condition = _atom_count_condition(node.test, count)
+        children = ([node.test] + (node.body if condition is not False else [])
+                    + (node.orelse if condition is not True else []))
+    else:
+        children = ast.iter_child_nodes(node)
+    for child in children:
+        yield from _possible_nodes(child, count)
+
+
+def evidence(qc, job, job_id, *, cartesian_complex=False):
     from kinbot.timeout_retry import _matching
+    context = getattr(qc, '_reverse_complex_recovery', {}).get(job)
+    if cartesian_complex and not context:
+        return None
     log,worker=Path(job+'_sella.log'),Path(job+'.py')
+    if cartesian_complex:
+        from kinbot.qc_live import retry_sources
+        worker, _, _ = retry_sources(Path.cwd()/job, job_id, directory=Path.cwd())
     if not log.is_file() or not worker.is_file():
         return None
     with log.open('rb') as f:
@@ -32,6 +73,26 @@ def evidence(qc, job, job_id):
     if not exhausted and not ode:
         return None
     tree=ast.parse(worker.read_text())
+    if cartesian_complex:
+        # A reverse driver must have accepted its tight L2 TS first. A
+        # numerical failure of the minimum is not a failed saddle search.
+        if not context or not exhausted:
+            return None
+        literals = {}
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)
+                    and node.targets[0].id in ('sella_kwargs', 'order')):
+                try:
+                    if node.targets[0].id in literals:
+                        return None
+                    literals[node.targets[0].id] = ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    return None
+        if (literals.get('order') != 0 or not isinstance(literals.get('sella_kwargs'), dict)
+                or literals['sella_kwargs'].get('internal') is not True
+                or 'constraints' in literals['sella_kwargs']):
+            return None
     initial=None; solvers=set()
     for node in ast.walk(tree):
         if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Name):
@@ -50,6 +111,20 @@ def evidence(qc, job, job_id):
             solvers.add(node.value.func.id)
     if initial is None or not solvers or (ode and 'Sella' not in solvers):
         return None
+    if cartesian_complex and ('Sella' not in solvers or len(initial) < 5):
+        return None
+    if cartesian_complex:
+        # ODE continuations and manual fallbacks may already have switched
+        # coordinates. Ignore only branches disproved by the literal atom
+        # count (the standard worker switches small molecules to Cartesian).
+        for node in _possible_nodes(tree, len(initial)):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == 'set_constraint'):
+                return None
+            if (isinstance(node, ast.Assign) and any(isinstance(t, ast.Subscript)
+                    and isinstance(t.value, ast.Name) and t.value.id == 'sella_kwargs'
+                    for t in node.targets)):
+                return None
     trajectory=Path(job+'.traj')
     if not trajectory.is_file():
         return None
@@ -76,7 +151,7 @@ def evidence(qc, job, job_id):
     if type(used) is not int or used<0:
         return None
     remaining=1+step_retries()-used
-    if exhausted and remaining<=0:
+    if exhausted and remaining<=0 and not cartesian_complex:
         return None
     allocation=Path('.kinbot_timeout_allocations')/(job_id+'.json')
     if not allocation.is_file():
@@ -84,15 +159,18 @@ def evidence(qc, job, job_id):
     native=json.loads(allocation.read_text())
     if not _matching(native,Path.cwd(),job_id) or not native.get('TimeLimit') or not native.get('Partition'):
         return None
-    return dict(job_id=job_id,source='optimizer_ode' if ode else 'optimizer_steps',
+    return dict(job_id=job_id,source=('optimizer_cartesian' if cartesian_complex else
+                                    'optimizer_ode' if ode else 'optimizer_steps'),
         previous_walltime=native['TimeLimit'],partition=native['Partition'],
         worker_sha256=file_sha256(worker),trajectory_sha256=file_sha256(trajectory),
-        positions=last.positions.tolist(),chunks_used=used,chunks=max(1,remaining),
-        native_sha256=file_sha256(log))
+        positions=last.positions.tolist(),chunks_used=0 if cartesian_complex else used,
+        chunks=1+step_retries() if cartesian_complex else max(1,remaining),
+        native_sha256=file_sha256(log),
+        **({'reverse_complex_context':context,'previous_chunks_used':used} if cartesian_complex else {}))
 
 
 def render(source, proof, job):
-    """Change only the verified seed, step budget, and (ODE only) coordinates."""
+    """Change only the verified seed, bounded budget and eligible coordinates."""
     class Continuation(ast.NodeTransformer):
         def visit_Assign(self,node):
             node=self.generic_visit(node)
@@ -102,7 +180,7 @@ def render(source, proof, job):
                 for k in node.value.keywords:
                     if k.arg=='positions':
                         k.value=ast.parse(repr(proof['positions']),mode='eval').body
-            if (proof['source']=='optimizer_ode' and len(node.targets)==1
+            if (proof['source'] in ('optimizer_ode','optimizer_cartesian') and len(node.targets)==1
                     and isinstance(node.targets[0],ast.Name) and node.targets[0].id=='sella_kwargs'):
                 return [node,*ast.parse("sella_kwargs['internal'] = False").body]
             return node

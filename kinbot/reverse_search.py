@@ -300,11 +300,11 @@ def launch(case, code):
         atomic_json(marker,dict(pid=child.pid,host=socket.gethostname(),input=str(path),code=str(code)))
 
 
-def characterize_entrance(endpoint, reactants, par, qc):
+def characterize_entrance(endpoint, reactants, par, qc, *, transition_state=None):
     """Obtain matched L1 depth and L2 data for a bound entrance complex.
 
-    Native failures are recorded, not converted to barrierless verdicts or
-    automatically retried. Reentry adopts the same named QC observations.
+    Native failures are never converted to barrierless verdicts. A retained
+    reverse TS permits bounded, cause-specific complex optimization recovery.
     """
     from kinbot.l1_endpoint import ensure
     from kinbot.optimize import Optimize
@@ -329,7 +329,8 @@ def characterize_entrance(endpoint, reactants, par, qc):
     endpoint.freq = point['frequencies']
     optimization = Optimize(endpoint, par, qc, just_high=True)
     while optimization.shigh not in (1, -999):
-        optimization.do_optimization()
+        from kinbot.reverse_complex_recovery import drive
+        drive(optimization, transition_state)
         if optimization.shigh not in (1, -999):
             time.sleep(1)
     if optimization.shigh == -999:
@@ -371,7 +372,7 @@ def export_result(species, par, qc):
                 entrance_l1_job=jobs['reactant'], entrance_l1=points['reactant'],
                 product_l1_job=jobs['product'])
             item['entrance'] = characterize_entrance(entrance,
-                (species.fragA,species.fragB),par,qc)
+                (species.fragA,species.fragB),par,qc,transition_state=obj.ts_opt)
             item['product_complex_l2'] = (_point(obj.irc_prod_opt.species)
                 if obj.do_vdW and obj.irc_prod_opt.shigh==1 else None)
             item['product_endpoint_l1'] = points['product']

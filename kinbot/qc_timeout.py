@@ -208,6 +208,13 @@ def recover(qc, job, *, manual=None):
     if job not in qc.job_ids:
         return None
     job_id = str(qc.job_ids[job])
+    if manual is None:
+        from kinbot.live_control import requests
+        target = (Path.cwd()/job).resolve()
+        if any(Path(r['target']) == target for _, r in requests(Path.cwd(), kinds={'qc'})):
+            # A reviewed one-shot choice takes precedence over an automatic
+            # fallback for the same generation. The live owner consumes it.
+            return None
     if manual is not None:
         from kinbot.qc_live import retry_ownership
         native, retained_completion = retry_ownership(Path.cwd()/job, job_id)
@@ -223,6 +230,8 @@ def recover(qc, job, *, manual=None):
         if proof is None:
             from kinbot.qc_optimizer_recovery import evidence
             proof = evidence(qc, job, job_id)
+            if proof is None:
+                proof = evidence(qc, job, job_id, cartesian_complex=True)
     if proof is None:
         return None
     if _slurm_job_active(job_id) is not False:
@@ -243,7 +252,7 @@ def recover(qc, job, *, manual=None):
             history = record['attempts']
         else:
             record, history = None, []
-        numerical_sources=('diatomic_symmetry','optimizer_steps','optimizer_ode')
+        numerical_sources=('diatomic_symmetry','optimizer_steps','optimizer_ode','optimizer_cartesian')
         symmetry_retry = proof['source'] in numerical_sources
         consumed = sum(a.get('source') == proof['source'] for a in history) if symmetry_retry else sum(
             a.get('source') not in ('operator', *numerical_sources) for a in history)
@@ -339,7 +348,7 @@ def recover(qc, job, *, manual=None):
             record.update(manual_request=manual['id'], resource_overrides=overrides,
                           manual_request_file=manual['request_file'],
                           backend=qc.qc, original_worker=str(worker), fallback=manual.get('fallback',{}))
-        if proof['source'] in ('optimizer_steps','optimizer_ode'):
+        if proof['source'] in ('optimizer_steps','optimizer_ode','optimizer_cartesian'):
             record['numerical_recovery']=proof
             record['effective_worker']=str(effective_worker)
             record['worker_command']=worker_command

@@ -162,7 +162,12 @@ class ReactionGenerator:
             seen.add(id(optimization))
             optimizers.append((f'product_{product_index}', optimization, True))
 
-        for _, optimization, _ in optimizers:
+        reverse = bool(self.par.get('bimol'))
+        for label, optimization, _ in optimizers:
+            if label == 'vdw_product' and reverse:
+                from kinbot.reverse_complex_recovery import drive
+                drive(optimization, reaction.ts_opt)
+                continue
             if (not self._optimizer_complete(optimization)
                     and optimization.shigh != -999):
                 optimization.do_optimization()
@@ -174,6 +179,11 @@ class ReactionGenerator:
             snapshot = self._optimizer_snapshot(label, optimization)
             snapshots.append(snapshot)
             if optimization.shigh == -999:
+                if label == 'vdw_product' and reverse and reaction.ts_opt.shigh not in (1, -999):
+                    # The tight TS may finish after this optional minimum.
+                    # Keep its identity until its recovery eligibility is known.
+                    pending.append(label)
+                    continue
                 if required:
                     failures.append(label)
                 else:
@@ -806,7 +816,7 @@ class ReactionGenerator:
                             # do the high level optimization if requested
                             obj.irc_prod_opt = Optimize(obj.irc_prod, self.par, self.qc, just_high=True)
                             obj.irc_prod_opt.do_optimization()
-                            if obj.irc_prod_opt.shigh == -999:
+                            if obj.irc_prod_opt.shigh == -999 and not self.par.get('bimol'):
                                 logger.info('\tVdW search failed for {}, prod_opt shigh fail for {}.'
                                                 .format(obj.irc_prod.name, obj.irc_prod.chemid))
                                 obj.do_vdW = False

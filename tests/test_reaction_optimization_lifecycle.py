@@ -107,6 +107,25 @@ def test_stage_four_monitor_records_pending_hir_counts(tmp_path, monkeypatch):
     }
 
 
+def test_reverse_optional_complex_waits_for_ts_then_uses_recovery(monkeypatch):
+    ts=optimizer(shigh=0, name='ts')
+    vdw=optimizer(shigh=-999, shir=1, just_high=True, name='vdw')
+    reaction=SimpleNamespace(ts_opt=ts,irc_prod_opt=vdw,irc_prod=SimpleNamespace(name='vdw'),
+                             prod_opt=[],do_vdW=True)
+    rg=generator();rg.par['bimol']=1
+    calls=[]
+    def drive(opt, accepted):
+        calls.append(accepted.shigh)
+        if accepted.shigh==1:opt.shigh=0
+    monkeypatch.setattr('kinbot.reverse_complex_recovery.drive',drive)
+    failures,pending,_=rg._poll_stage_four(0,reaction)
+    assert not failures and 'vdw_product' in pending and reaction.do_vdW
+    ts.shigh=ts.shir=1
+    failures,pending,_=rg._poll_stage_four(0,reaction)
+    assert not failures and pending==['vdw_product'] and vdw.shigh==0
+    assert calls==[0,1]
+
+
 def test_monitor_failed_write_preserves_previous_record_and_recovers(tmp_path, monkeypatch):
     from kinbot import execution
     monkeypatch.chdir(tmp_path)

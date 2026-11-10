@@ -209,11 +209,11 @@ def recover(qc, job, *, manual=None):
         return None
     job_id = str(qc.job_ids[job])
     if manual is not None:
-        from kinbot.anl.live_control import _ownership
-        native = _ownership(Path.cwd(), job_id)
+        from kinbot.qc_live import retry_ownership
+        native, retained_completion = retry_ownership(Path.cwd()/job, job_id)
         proof = {'job_id': job_id, 'partition': native['Partition'],
                  'previous_walltime': native['TimeLimit'], 'source': 'operator',
-                 'request': manual['id']}
+                 'request': manual['id'], 'retained_completion': retained_completion}
     else:
         proof = (timeout_retry.evidence(Path.cwd(), job_id, [Path('perm')/(job+'.err')])
                  if limit else None)

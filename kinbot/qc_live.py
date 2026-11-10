@@ -162,6 +162,44 @@ def retry_sources(target, job_id, *, directory=None):
     return worker,batch,command
 
 
+def retry_ownership(target, job_id, *, directory=None):
+    """Recover a finished ordinary attempt after Slurm purges its record.
+
+    A successful current scheduler query, generation-tagged nonzero exit,
+    failed guard, and retained ownership are all required. Never infer an
+    inactive allocation from missing output or a scheduler outage.
+    """
+    from kinbot.anl import live_control as owner
+    from kinbot.execution import slurm_job_record
+    from kinbot.qc import _slurm_job_active, _worker_exit_status
+    target = Path(target).resolve()
+    directory = Path(directory or Path.cwd()).resolve()
+    job = target.relative_to(directory).as_posix()
+    job_id = str(job_id)
+    current = owner.slurm_job_record(job_id)
+    if current:
+        return owner._ownership(directory, job_id, record=current), False
+    # The permissive query above cannot distinguish purge from outage.
+    current = slurm_job_record(job_id, strict=True)
+    if current:
+        return owner._ownership(directory, job_id, record=current), False
+    if _slurm_job_active(job_id) is not False:
+        raise RuntimeError('QC allocation is active or scheduler state is unknown.')
+    exit_status = _worker_exit_status(str(target)+'.exitcode', job_id)
+    if not exit_status or not exit_status[1] or exit_status[0] == 0:
+        raise ValueError('No generation-tagged failed QC completion receipt.')
+    token = hashlib.sha256(job.encode()).hexdigest()[:20]
+    guard = json.loads((directory/'.kinbot_slurm_io_retries'/token/job_id/'execution.json').read_text())
+    if (guard.get('identity') != job or str(guard.get('slurm_job_id')) != job_id
+            or guard.get('status') != 'failed'):
+        raise ValueError('Retained QC guard does not prove this failed attempt.')
+    saved = json.loads((directory/'.kinbot_timeout_allocations'/(job_id+'.json')).read_text())
+    saved = owner._ownership(directory, job_id, record=saved)
+    if not saved.get('Partition') or not saved.get('TimeLimit'):
+        raise ValueError('Retained QC allocation has no partition/walltime.')
+    return saved, True
+
+
 def process(qc, job, status, *, kinds=None, allow_completed=False):
     from kinbot.pool_drain import pulse
     pulse(Path.cwd())
@@ -212,8 +250,9 @@ def process(qc, job, status, *, kinds=None, allow_completed=False):
                     seed = guard.parent/'initial'/name
                     if not seed.resolve().is_relative_to(guard.parent.resolve()) or file_sha256(seed) != digest:
                         raise ValueError('Original allocation retry seed changed; refusing to cancel it.')
-            if not stop_attempt(Path.cwd(), qc.job_ids[job], path, r,
-                                allow_completed=allow_completed or status=='error'):
+            _, finished = retry_ownership(target, qc.job_ids[job])
+            if not finished and not stop_attempt(Path.cwd(), qc.job_ids[job], path, r,
+                                                 allow_completed=allow_completed or status=='error'):
                 return status
             control.acknowledge(path, r, 'applying')
             r['request_file'] = str(path)

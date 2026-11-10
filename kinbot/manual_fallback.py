@@ -156,7 +156,17 @@ def worker_options(text, value):
     source=text.encode('utf8'); offsets=[0]
     for line in source.splitlines(keepends=True): offsets.append(offsets[-1]+len(line))
     edits=[]; seen=set()
-    for node in ast.parse(text).body:
+    def assignments(body):
+        # Generated minimum workers put the optimizer parameters in the
+        # non-atomic branch. Do not descend into functions/classes: their
+        # local variables are not the generated worker's parameters.
+        for node in body:
+            yield node
+            if isinstance(node, ast.If):
+                yield from assignments(node.body)
+                yield from assignments(node.orelse)
+
+    for node in assignments(ast.parse(text).body):
         if not (isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name)):
             continue
         name=node.targets[0].id

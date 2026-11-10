@@ -27,6 +27,55 @@ def test_literal_worker_edits_preserve_identity_and_allow_removal():
         fallback.worker_options(original+'\nsteps=20\n',options)
 
 
+def test_optimizer_parameters_in_nonatomic_branch_keep_validation():
+    source = "kwargs={'method':'B2PLYP','basis':'cc-pVTZ'}\nif atomic:\n    pass\nelse:\n    sella_kwargs={'internal':True,'gamma':0.0}\n    run_optimizer(opt,fmax=0.0005,steps=250)\n    validate_frequencies()\n"
+    result = fallback.worker_options(source, dict(schema=1,
+        worker_parameters={'sella_kwargs': {'internal': False}}))
+    assert "sella_kwargs={'internal': False, 'gamma': 0.0}" in result
+    assert 'run_optimizer(opt,fmax=0.0005,steps=250)' in result
+    assert 'validate_frequencies()' in result
+    assert source.splitlines()[0] == result.splitlines()[0]
+    with pytest.raises(ValueError, match='no literal'):
+        fallback.worker_options('def unrelated():\n    sella_kwargs={}\n',dict(
+            schema=1,worker_parameters={'sella_kwargs':{'internal':False}}))
+
+
+@pytest.mark.parametrize('condition', ['finished','active','unknown','outage','wrong_exit','wrong_guard','wrong_owner'])
+def test_manual_retry_after_scheduler_purge(ordinary,monkeypatch,condition):
+    from kinbot import execution, qc as qc_module
+    from tests.test_timeout_recovery import allocation as saved_allocation
+    qc,calls=ordinary;root=Path.cwd();qc.qc='gauss'
+    control.configure(root)
+    control.observe_qc(root/'well','42','error')
+    Path('well.exitcode').write_text(('99' if condition=='wrong_exit' else '42')+' 1\n')
+    token=hashlib.sha256(b'well').hexdigest()[:20]
+    guard=root/'.kinbot_slurm_io_retries'/token/'42/execution.json'
+    value=json.loads(guard.read_text());value['status']='failed'
+    if condition=='wrong_guard':value['identity']='another'
+    atomic_json(guard,value)
+    native=saved_allocation(root if condition!='wrong_owner' else root/'elsewhere')
+    atomic_json(root/'.kinbot_timeout_allocations/42.json',native)
+    monkeypatch.setattr(owner,'slurm_job_record',lambda job:{})
+    def query(*a,**kw):
+        if condition=='outage':raise OSError('scheduler unavailable')
+        assert kw['strict'];return {}
+    monkeypatch.setattr(execution,'slurm_job_record',query)
+    monkeypatch.setattr(qc_module,'_slurm_job_active',lambda job:
+        True if condition=='active' else None if condition=='unknown' else False)
+    request=control.request(root,'well',kind='qc',reason='explicit failed optimization retry')
+    status=qc_live.process(qc,'well','error')
+    if condition=='finished':
+        assert status=='running' and len(calls)==1
+        marker=json.loads(qc_timeout._marker('well').read_text())
+        assert marker['attempts'][-1]['retained_completion']
+        assert Path(marker['attempts'][-1]['archive'],'files/well.log').is_file()
+        qc_timeout.resume(qc,'well');assert len(calls)==1
+        assert Path('other.chk').read_text()=='sibling'
+    else:
+        assert not calls
+        assert Path('well.log').is_file()
+
+
 @pytest.mark.parametrize('options',[
     {'environment':{'USER':'someone'}}, {'environment':{'SLURM_JOB_ID':'4'}},
     {'environment':{'KINBOT_QC_ACCOUNT':'someone'}}, {'environment':{'PYTHONPATH':'other_code'}},

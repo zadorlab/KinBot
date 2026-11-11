@@ -23,6 +23,42 @@ def _number(word):
     return float(word.replace('D', 'E').replace('d', 'e'))
 
 
+def _matrix_row(line, header):
+    """Read native right-aligned fields that can touch at full precision.
+
+    MESS uses setw without delimiters. A negative ten-digit mantissa with
+    a three-digit exponent fills its whole field and touches the previous
+    value or stars. Column ends in the header give the native boundaries.
+    """
+    words = line.split()
+    columns = list(re.finditer(r'\S+', header))
+    if len(words) == len(columns):
+        try:
+            for token in words[1:]:
+                if token != '***':
+                    _number(token)
+            return words
+        except ValueError:
+            pass
+    source = re.match(r'\s*(\S+)', line)
+    if source is None or len(columns) < 2:
+        return words
+    fields = [source[1]]
+    start = source.end()
+    for column in columns[1:]:
+        fields.append(line[start:column.end()].strip())
+        start = column.end()
+    if line[start:].strip():
+        return words
+    try:
+        for token in fields[1:]:
+            if token != '***':
+                _number(token)
+    except ValueError:
+        return words
+    return fields
+
+
 def _scope():
     return dict(status='not_present', tables=0, offdiagonal_entries=0,
                 negative_count=0, nonfinite_count=0, violations=[], issues=[])
@@ -130,7 +166,7 @@ def audit_text(text):
             for offset, source in enumerate(species, header+1):
                 if offset >= end:
                     raise ValueError('Truncated rate matrix.')
-                words = lines[offset].split()
+                words = _matrix_row(lines[offset], lines[header])
                 if len(words) != len(targets)+1 or words[0] != source:
                     raise ValueError(f'Missing, reordered, or malformed row for {source}.')
                 if pressure is not None:
@@ -221,10 +257,11 @@ def _audit_v2_text(text):
                 if not targets or len(set(targets)) != len(targets) or set(targets) & set(columns):
                     raise ValueError('Missing or repeated column chunk.')
                 columns.extend(targets)
+                header = lines[i]
                 i += 1
                 sources = []
                 while i < end and lines[i].split():
-                    words = lines[i].split()
+                    words = _matrix_row(lines[i], header)
                     if len(words) != len(targets)+1 or words[0] in sources:
                         raise ValueError('Malformed or duplicate row in column chunk.')
                     source = words[0]; sources.append(source)

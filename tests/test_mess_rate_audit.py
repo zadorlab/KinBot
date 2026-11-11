@@ -123,6 +123,24 @@ def test_no_tables_not_a_validated_calculation():
     assert r['pressure_dependent']['status'] == 'not_assessed'
 
 
+def test_native_fixed_width_fields_can_touch_without_changing_values():
+    header = 'From\\To'.ljust(8) + ''.join(f'{name:>17}' for name in ('A', 'B', 'P'))
+    def row(name, values):
+        return f'{name:<8}' + ''.join(f'{v:>17}' for v in values)
+    text = native('1')
+    old = 'From\\To A B P\nA 10 1 8.77e7\nB 2 *** ***\nP 1 2 ***'
+    new = '\n'.join([header, row('A', ['10', '0', '-5.666790091e-126']),
+                     row('B', ['***', '-2.088097671e-101', '***']),
+                     row('P', ['1', '2', '***'])])
+    assert '0-5.666790091e-126' in new
+    assert '***-2.088097671e-101' in new
+    result = audit_text(text.replace(old, new))['pressure_dependent']
+    assert not result['issues']
+    assert result['negative_count'] == 2
+    assert {entry['native_value'] for entry in result['violations']} == {
+        '-5.666790091e-126', '-2.088097671e-101'}
+
+
 def test_native_output_is_read_only_and_hash_bound(tmp_path):
     p = tmp_path/'native.out'; p.write_text(native())
     before = p.read_bytes()

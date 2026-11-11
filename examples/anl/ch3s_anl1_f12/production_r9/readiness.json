@@ -1,0 +1,84 @@
+{
+  "blockers": [
+    {
+      "cases": [
+        7,
+        8,
+        13,
+        25
+      ],
+      "kind": "existing_verification_export",
+      "reason": "Submitted verification native results are absent from the supplied local archive."
+    },
+    {
+      "kind": "new_h_loss_reviews",
+      "reactions": [
+        "471030810040000000002_hom_sci_2_3",
+        "791471490990000000002_hom_sci_1_4"
+      ],
+      "reason": "No exact reviewed active-space/state/checkpoint model exists for these two retained H-loss channels."
+    },
+    {
+      "connection": "ch3ss/nobar_39",
+      "kind": "outer_endpoint_binding",
+      "reason": "Bind prior CH2S+SH seeds to the retained R8 encounter geometry and atom/state mapping."
+    },
+    {
+      "kind": "independent_seed_import",
+      "reason": "General cross-run path rebinding and result/history adoption are not yet implemented. Frozen source copies are not active QC cache entries."
+    },
+    {
+      "kind": "selected_reverse_handoff",
+      "reason": "Carry the retained reverse saddle and HCS+H2S complex into the lean ANL/VRC network without adding the omitted covalent source well."
+    }
+  ],
+  "channels": [
+    {
+      "active_space": {
+        "electrons": 5,
+        "orbitals": 4
+      },
+      "case": "ch3s",
+      "connection": "nobar_1",
+      "reaction": "470831050000000000002_hom_sci_1_2",
+      "source_review": "examples/anl/ch3s_anl1_f12/ch3s.json",
+      "status": "ready",
+      "verification_cases": []
+    },
+    {
+      "active_space": null,
+      "case": "ch3s",
+      "connection": "nobar_4",
+      "reaction": "471030810040000000002_hom_sci_2_3",
+      "source_review": null,
+      "status": "new_h_loss_review",
+      "verification_cases": []
+    }
+  ],
+  "scheduling": {
+    "exclusive": true,
+    "max_jobs": 20,
+    "ppn": 8,
+    "source": "Retained R8 shared pool and exclusions"
+  },
+  "schema": 1,
+  "settings": {
+    "augmented": true,
+    "composite": "ANL1-F12",
+    "correction": "CASPT2-F12 aDZ/aTZ CBS, power 3.7",
+    "temperatures_K": [
+      300,
+      400,
+      500,
+      600,
+      800,
+      1000,
+      1200,
+      1500,
+      1800,
+      2000
+    ]
+  },
+  "stage": "review_draft",
+  "submission_ready": false
+}

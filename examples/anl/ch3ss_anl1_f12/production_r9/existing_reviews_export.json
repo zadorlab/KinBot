@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "scope": "Existing native verification cases 7, 8, 13 and 25 for the lean R9 selection. Preserve inputs, outputs, XML, WFU and attempt evidence. Scientific approval follows native review.",
+  "sources": [
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/panel.json",
+      "root": "runs"
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/plan.json",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxations.json",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points.json",
+      "root": "runs"
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v07_*",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v07_*",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v07_*",
+      "root": "runs"
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v08_*",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v08_*",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v08_*",
+      "root": "runs"
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_*",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v13_*",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v13_*",
+      "root": "runs"
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v25_*",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v25_*",
+      "root": "runs"
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v25_*",
+      "root": "runs"
+    },
+    {
+      "path": "examples/anl/ch3ss_anl1_f12/orbital_reviews/verification_20261027/plan.json",
+      "root": "repo"
+    }
+  ]
+}

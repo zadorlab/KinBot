@@ -1,0 +1,152 @@
+{
+  "closed_original_native_reviews": 2,
+  "discovery": [
+    {
+      "case": "ch3s",
+      "expected": [
+        "470831050000000000002_hom_sci_1_2",
+        "470831050000000000002_r12_insertion_R_3_1_4"
+      ],
+      "found": [
+        "470831050000000000002_dissociation_saddle_1_2",
+        "470831050000000000002_hom_sci_1_2",
+        "470831050000000000002_r12_insertion_R_3_1_4"
+      ],
+      "missing": [],
+      "worker": "470831050000000000002"
+    },
+    {
+      "case": "ch3s",
+      "expected": [
+        "471030810040000000002_h2_elim_3_5",
+        "471030810040000000002_hom_sci_2_3"
+      ],
+      "found": [
+        "471030810040000000002_dissociation_saddle_2_3",
+        "471030810040000000002_h2_elim_3_5",
+        "471030810040000000002_hom_sci_2_3"
+      ],
+      "missing": [],
+      "worker": "471030810040000000002"
+    }
+  ],
+  "independent_run_import_validated": false,
+  "models_with_verified_staged_wfu_files": 3,
+  "native_calculations_executed": 0,
+  "normal_source_database_rows": 4261,
+  "preserved_terminal_rejections": 115,
+  "production_submission_ready": false,
+  "regressions": {
+    "command": ".venv/bin/python -m pytest -q tests/test_r9_lean_stage.py tests/test_reaction_selection.py",
+    "passed": 6,
+    "subtests": 5
+  },
+  "rendered_components": [
+    {
+      "active_indices": [
+        11,
+        12,
+        13,
+        14
+      ],
+      "basis": "avdz-f12",
+      "case": "ch3s",
+      "method": "caspt2-f12(5,4)",
+      "owner": "initial",
+      "path": "render_validation/ch3s/initial/root1/vrc0.inp",
+      "reaction": "470831050000000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "e9abaca45bf0c43982f7ea3c2f736558d989589f1a7ecb9c4c0f07e2de250213"
+    },
+    {
+      "active_indices": [
+        11,
+        12,
+        13,
+        14
+      ],
+      "basis": "avdz-f12",
+      "case": "ch3s",
+      "method": "caspt2-f12(5,4)",
+      "owner": "initial",
+      "path": "render_validation/ch3s/initial/root1/vrc1.inp",
+      "reaction": "470831050000000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "93a3f752e2db586f6a504ce7bef5258b692253295a0ab46067c8dc72f4857efb"
+    },
+    {
+      "active_indices": [
+        11,
+        12,
+        13,
+        14
+      ],
+      "basis": "avtz-f12",
+      "case": "ch3s",
+      "method": "caspt2-f12(5,4)",
+      "owner": "initial",
+      "path": "render_validation/ch3s/initial/root1/vrc2.inp",
+      "reaction": "470831050000000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "0f62fd62aa75e09114796e0eed493a79edf41fe520fc6a41a90d295b23d0e6f1"
+    },
+    {
+      "active_indices": [
+        11,
+        12,
+        13,
+        14
+      ],
+      "basis": "avdz-f12",
+      "case": "ch3s",
+      "method": "caspt2-f12(5,4)",
+      "owner": "initial",
+      "path": "render_validation/ch3s/initial/root2/vrc0.inp",
+      "reaction": "470831050000000000002_hom_sci_1_2",
+      "root": 2,
+      "sha256": "df4eb3fe5c997369e34ff82833f3e93e409f64fb08555dcffed5144e1de58b3c"
+    },
+    {
+      "active_indices": [
+        11,
+        12,
+        13,
+        14
+      ],
+      "basis": "avdz-f12",
+      "case": "ch3s",
+      "method": "caspt2-f12(5,4)",
+      "owner": "initial",
+      "path": "render_validation/ch3s/initial/root2/vrc1.inp",
+      "reaction": "470831050000000000002_hom_sci_1_2",
+      "root": 2,
+      "sha256": "08fb2267884ca991a025bc18fddb1e8db96a503bb749633c40fb71fab41e44f9"
+    },
+    {
+      "active_indices": [
+        11,
+        12,
+        13,
+        14
+      ],
+      "basis": "avtz-f12",
+      "case": "ch3s",
+      "method": "caspt2-f12(5,4)",
+      "owner": "initial",
+      "path": "render_validation/ch3s/initial/root2/vrc2.inp",
+      "reaction": "470831050000000000002_hom_sci_1_2",
+      "root": 2,
+      "sha256": "36bbddda7383c4fe07f2e0ad0d32f521197844459953c536ece2841dae537dea"
+    }
+  ],
+  "repeated_construction": {
+    "repeat_input_hashes_identical": true,
+    "source_bytes_unchanged": true,
+    "source_files": 3269,
+    "staged_bytes_match": true
+  },
+  "schema": 1,
+  "scope": "Local review-package checks through reaction discovery and production input rendering",
+  "source_commit": "24111ea00",
+  "source_workers": 7
+}

@@ -1,0 +1,761 @@
+! WARNING: 791471490990000000002: 791471490990000000002_hom_sci_1_2: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791471490990000000002: 791471490990000000002_hom_sci_1_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791471490990000000002: 791471490990000000002_hom_sci_2_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s36f1e2b924862f12: 791671580700000000002-s36f1e2b924862f12_hom_sci_1_2: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s36f1e2b924862f12: 791671580700000000002-s36f1e2b924862f12_hom_sci_1_5: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s36f1e2b924862f12: 791671580700000000002-s36f1e2b924862f12_hom_sci_1_6: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s36f1e2b924862f12: 791671580700000000002-s36f1e2b924862f12_hom_sci_2_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s36f1e2b924862f12: 791671580700000000002-s36f1e2b924862f12_hom_sci_2_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671450790040000002: 791671450790040000002_hom_sci_1_2: no validated replacement saddle from the additional search (covered_by_validated_saddle); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671450790040000002: 791671450790040000002_hom_sci_3_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871710370000000002: 791871710370000000002_hom_sci_1_5: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871710370000000002: 791871710370000000002_hom_sci_2_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-sb6e34ded5baaf03b: 791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_2: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-sb6e34ded5baaf03b: 791871560500020000002-sb6e34ded5baaf03b_hom_sci_2_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-sb6e34ded5baaf03b: 791871560500020000002-sb6e34ded5baaf03b_hom_sci_3_5: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791472110370000000002: 791472110370000000002_hom_sci_1_2: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791472110370000000002: 791472110370000000002_hom_sci_1_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791472110370000000002: 791472110370000000002_hom_sci_1_5: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791472110370000000002: 791472110370000000002_hom_sci_2_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-s254020c87a151164: 791871560500020000002-s254020c87a151164_hom_sci_1_2: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-s254020c87a151164: 791871560500020000002-s254020c87a151164_hom_sci_2_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-s254020c87a151164: 791871560500020000002-s254020c87a151164_hom_sci_2_6: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-s254020c87a151164: 791871560500020000002-s254020c87a151164_hom_sci_3_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671560700020000002-sedd8f7729b69b19b: 791671560700020000002-sedd8f7729b69b19b_hom_sci_1_6: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671560700020000002-sedd8f7729b69b19b: 791671560700020000002-sedd8f7729b69b19b_hom_sci_2_5: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671560700020000002-sedd8f7729b69b19b: 791671560700020000002-sedd8f7729b69b19b_hom_sci_3_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s8fc26f5f496eeb4e: 791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s8fc26f5f496eeb4e: 791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_5: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s8fc26f5f496eeb4e: 791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_6: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671580700000000002-s8fc26f5f496eeb4e: 791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671560700020000002-s893815ff03c7331d: 791671560700020000002-s893815ff03c7331d_hom_sci_1_2: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671560700020000002-s893815ff03c7331d: 791671560700020000002-s893815ff03c7331d_hom_sci_1_6: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671560700020000002-s893815ff03c7331d: 791671560700020000002-s893815ff03c7331d_hom_sci_2_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671560700020000002-sdc19d1516ced03fc: 791671560700020000002-sdc19d1516ced03fc_hom_sci_1_2: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791671560700020000002-sdc19d1516ced03fc: 791671560700020000002-sdc19d1516ced03fc_hom_sci_2_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-sc9062a2d39c6d51a: 791871560500020000002-sc9062a2d39c6d51a_hom_sci_1_2: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-sc9062a2d39c6d51a: 791871560500020000002-sc9062a2d39c6d51a_hom_sci_2_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-sc9062a2d39c6d51a: 791871560500020000002-sc9062a2d39c6d51a_hom_sci_2_6: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-sc9062a2d39c6d51a: 791871560500020000002-sc9062a2d39c6d51a_hom_sci_3_4: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-s1a4d7914034ddafc: 791871560500020000002-s1a4d7914034ddafc_hom_sci_1_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-s1a4d7914034ddafc: 791871560500020000002-s1a4d7914034ddafc_hom_sci_2_3: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! WARNING: 791871560500020000002-s1a4d7914034ddafc: 791871560500020000002-s1a4d7914034ddafc_hom_sci_2_6: no validated replacement saddle from the additional search (saddle_submitting); retain the capture-model proposal unless superseded during pathway selection. This is not proof of barrierlessness or a request to retry the search.
+! Energies in this file are computed at the B2PLYP/cc-pVTZ level of theory.
+! **********************
+! Match the minimum-distance guard used for KinBot partition-function models.
+! Accepted geometries (including short H-H bonds) are written unchanged.
+AtomDistanceMin[angstrom]               0.32
+TemperatureList[K]                      300 400 500 600 800 1000 1200 1500 1800 2000
+PressureList[torr]                      0.01 0.1 1.0 10.0 100.0 760.0
+EnergyStepOverTemperature               0.2
+ExcessEnergyOverTemperature             30
+ModelEnergyLimit[kcal/mol]              400
+CalculationMethod                       direct
+ChemicalEigenvalueMax                   0.2
+Reactant                                w_1
+MicroRateOutput mess_0000.micro
+MicroEnerMax[kcal/mol] 200.
+MicroEnerMin[kcal/mol] 0.
+MicroEnerStep[kcal/mol] 1.
+Model
+  EnergyRelaxation
+    Exponential
+      Factor[1/cm]                      200
+      Power                             0.85
+      ExponentCutoff                    15
+    End
+  CollisionFrequency
+    LennardJones
+      Epsilons[1/cm]                    7.95 208.51
+      Sigmas[angstrom]                  2.715 4.5
+      Masses[amu]                       4.002602 79.0
+    End
+######################
+# WELLS
+######################
+
+! kinbot_whole_geometry_sigma_v1
+! hom_sci PST placeholder nobar_7 (791671580700000000002-s36f1e2b924862f12_hom_sci_2_4) superseded by calculated saddle ts_mirror_4f5f13287bfdf3d3; no duplicate flux
+! hom_sci PST placeholder ts_mirror_8379442e878e33b9 (791671580700000000002-s36f1e2b924862f12_hom_sci_2_4) superseded by calculated saddle rxn_26; no duplicate flux
+! Previously declared electronic levels and centroid shifts restored once.
+  Well       w_1 ! 791471490990000000002 ! [H][C]([H])([H])[S][S]
+! kinbot_population 791471490990000000002 791471490990000000002
+    Species
+      RRHO
+        Geometry[angstrom]            6
+        C 0.950185 -0.025188 0.107536
+        S 0.330501 0.807575 1.606031
+        S 1.036975 -0.235802 3.119108
+        H 0.574810 0.531083 -0.748844
+        H 0.580844 -1.045743 0.086613
+        H 2.035651 -0.017527 0.116824
+        Core   RigidRotor
+          SymmetryFactor              1.0
+
+        End
+        Frequencies[1/cm]             11
+        256.6 605.2 690.9 
+        940.5 972.0 1343.6 
+        1469.4 1480.1 3065.9 
+        3162.8 3174.6
+      Rotor     Hindered
+        ThermalPowerMax           50.
+        Group                     4 5 6
+        Axis                      1 2
+        Symmetry                  3
+        Potential[kcal/mol]       4
+        0.00 0.43 0.87 0.42
+      End ! Rotor
+
+        ElectronicLevels[1/cm] 1
+          0 2
+        ZeroEnergy[kcal/mol]          0.00000000
+      End ! RRHO
+    End ! Species
+
+! ****************************************
+
+! kinbot_whole_geometry_sigma_v1
+  Well       w_3 ! 791671450790040000002 ! [H][S]=[S]=[C]([H])[H]
+! kinbot_population 791671450790040000002 791671450790040000002
+    Species
+      RRHO
+        Geometry[angstrom]            6
+        C 1.431731 -0.473656 0.170454
+        S 1.765755 0.443487 1.578413
+        S 0.183685 -0.018478 2.846580
+        H -0.720655 0.824530 2.315615
+        H 0.853957 -1.380220 0.228921
+        H 1.973933 -0.200239 -0.720202
+        Core   RigidRotor
+          SymmetryFactor              1.0
+
+        End
+        Frequencies[1/cm]             10
+        267.8 379.9 494.9 
+        812.8 859.1 931.9 
+        1400.9 2665.7 3172.1 
+        3306.8
+      Rotor     Hindered
+        ThermalPowerMax           50.
+        Group                     5 6
+        Axis                      1 2
+        Symmetry                  2
+        Potential[kcal/mol]       6
+        0.00 0.23 0.10 1.73 4.35 1.42
+      End ! Rotor
+
+      Rotor     Hindered
+        ThermalPowerMax           50.
+        Group                     1 5 6
+        Axis                      2 3
+        Symmetry                  1
+        Potential[kcal/mol]       12
+        0.00 1.34 4.23 5.61 3.79 0.23 0.10 1.12 2.95 4.41 1.81 0.34
+      End ! Rotor
+
+        ElectronicLevels[1/cm] 1
+          0 2
+        ZeroEnergy[kcal/mol]          25.84000000
+      End ! RRHO
+    End ! Species
+
+! ****************************************
+
+! kinbot_whole_geometry_sigma_v1
+  Well       w_6 ! 791472110370000000002 ! [H][S][C]([H])([H])[S]
+! kinbot_population 791472110370000000002 791472110370000000002
+    Species
+      RRHO
+        Geometry[angstrom]            6
+        C 1.786442 0.007486 0.031844
+        S 2.133785 1.801411 -0.082351
+        S -0.003216 -0.067032 -0.071678
+        H 1.609471 2.118054 1.111052
+        H 2.276379 -0.441270 -0.827107
+        H 2.187215 -0.398759 0.953461
+        Core   RigidRotor
+          SymmetryFactor              1.0
+
+        End
+        Frequencies[1/cm]             11
+        196.1 673.8 741.1 
+        794.4 975.0 1135.8 
+        1205.8 1474.1 2712.2 
+        3098.9 3165.6
+      Rotor     Hindered
+        ThermalPowerMax           50.
+        Group                     3 5 6
+        Axis                      1 2
+        Symmetry                  1
+        Potential[kcal/mol]       12
+        0.00 1.10 2.88 2.74 2.45 3.45 1.87 0.23 0.49 2.84 3.58 1.38
+      End ! Rotor
+
+        ElectronicLevels[1/cm]        1
+          0 2
+        ZeroEnergy[kcal/mol]          21.02000000
+      End ! RRHO
+    End ! Species
+
+! ****************************************
+
+! kinbot_whole_geometry_sigma_v1
+  Well       w_9 ! 791671450790040000002_intra_H_migration_suprafacial_1_4_IRC_F_prod ! [H][C]([H])=[S].[H][S]
+! kinbot_population 791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c 791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c
+    Species
+      RRHO
+        Geometry[angstrom]            6
+        C 1.088775 -0.853819 -0.026237
+        S 0.663232 -1.759774 1.239203
+        S 0.277481 1.895361 2.581176
+        H 0.316199 0.555413 2.404871
+        H 1.390423 -1.294039 -0.971187
+        H 1.090699 0.232110 0.015957
+        Core   RigidRotor
+          SymmetryFactor              1.0
+
+        End
+        Frequencies[1/cm]             12
+        52.8 96.6 148.6 
+        278.0 297.9 1010.0 
+        1031.1 1080.9 1504.2 
+        2607.9 3086.5 3178.1 
+       
+
+        ElectronicLevels[1/cm]        1
+          0 2
+        ZeroEnergy[kcal/mol]          42.34000000
+      End ! RRHO
+    End ! Species
+
+! ****************************************
+
+! kinbot_whole_geometry_sigma_v1
+  Well       w_12 ! 791871560500020000002-sb6e34ded5baaf03b_12_shift_S_R_3_2_4_IRC_F_prod ! [H][C]=[S].[H][S][H]
+! kinbot_population 791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595 791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595
+    Species
+      RRHO
+        Geometry[angstrom]            6
+        C 1.690989 0.084906 -0.019392
+        S 2.082660 1.589362 0.156495
+        S -0.727960 -0.732884 2.734802
+        H 0.118531 -0.526254 1.709357
+        H -0.517600 0.494152 3.230038
+        H 2.001905 -0.665674 -0.740977
+        Core   RigidRotor
+          SymmetryFactor              1.0
+
+        End
+        Frequencies[1/cm]             12
+        17.8 25.5 85.9 
+        110.8 155.4 316.6 
+        841.4 1208.0 1219.1 
+        2650.6 2734.1 3134.3 
+       
+
+        ElectronicLevels[1/cm]        1
+          0 2
+        ZeroEnergy[kcal/mol]          43.98000000
+      End ! RRHO
+    End ! Species
+
+! ****************************************
+
+! kinbot_whole_geometry_sigma_v1
+  Bimolecular  pr_1 ! 150390060000000000002_640640000000000000003 ! [H][C]([H])[H] [S][S]
+! Restored declared triplet S2 from native B2PLYP-D3BJ/cc-pVTZ evidence; original singlet run retained.
+! kinbot_population 150390060000000000002_640640000000000000003 150390060000000000002_640640000000000000003
+  Fragment       fr_1 ! 150390060000000000002 ! [H][C]([H])[H]
+    RRHO
+      Geometry[angstrom]            4
+        C 1.035368 -0.139333 -0.109446
+        H 0.525070 0.600049 -0.701266
+        H 0.529802 -1.046698 0.170620
+        H 2.051250 0.028607 0.202220
+      Core   RigidRotor
+        SymmetryFactor              6.0
+
+      End
+      Frequencies[1/cm]             6
+        514.4 1427.7 1427.7 
+        3139.6 3320.9 3320.9 
+       
+
+      ElectronicLevels[1/cm] 1
+          0 2
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+  Fragment       fr_2 ! 640640000000000000003 ! [S][S]
+    RRHO
+      Geometry[angstrom]            2
+        S 0.507916 -1.470709 1.003590
+        S 1.147607 -3.045034 0.124334
+      Core   RigidRotor
+        SymmetryFactor              2.0
+
+      End
+      Frequencies[1/cm]             1
+        705.8
+
+      ElectronicLevels[1/cm] 1
+          0 3
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+
+    GroundEnergy[kcal/mol]        43.59000000
+    End ! Barrierless
+
+  Bimolecular  pr_2 ! 10000000000000000002_781341120660000000001 ! [H][C]([H])=[S]=[S] [H]
+! kinbot_population 10000000000000000002_781341120660000000001 10000000000000000002_781341120660000000001
+  Fragment       fr_4 ! 781341120660000000001 ! [H][C]([H])=[S]=[S]
+    RRHO
+      Geometry[angstrom]            5
+        C 1.002860 -0.269200 0.333983
+        S 0.165170 0.142024 1.672969
+        S 1.265610 0.416849 3.254800
+        H 0.423243 -0.429595 -0.563220
+        H 2.077273 -0.376761 0.337578
+      Core   RigidRotor
+        SymmetryFactor              1.0
+
+      End
+      Frequencies[1/cm]             9
+        305.9 569.4 623.7 
+        781.6 937.4 994.3 
+        1419.3 3152.4 3281.8 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 1
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+    Fragment       fr_3 ! 10000000000000000002 ! [H]
+      Atom
+        Name                        H
+        ElectronicLevels[1/cm] 1
+          0 2
+      End ! Atom
+
+    GroundEnergy[kcal/mol]        73.00000000
+    End ! Barrierless
+
+  Bimolecular  pr_8 ! 330330000000000000002_460700680000000000001 ! [H][C]([H])=[S] [H][S]
+! kinbot_population 330330000000000000002_460700680000000000001 330330000000000000002_460700680000000000001
+  Fragment       fr_14 ! 460700680000000000001 ! [H][C]([H])=[S]
+    RRHO
+      Geometry[angstrom]            4
+        C 1.690697 -0.240382 -0.014807
+        S 0.106118 0.062462 0.009233
+        H 2.251195 -0.299989 -0.942912
+        H 2.260591 -0.396804 0.896149
+      Core   RigidRotor
+        SymmetryFactor              2.0
+
+      End
+      Frequencies[1/cm]             6
+        1010.5 1029.7 1082.3 
+        1503.0 3088.9 3175.9 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 1
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+  Fragment       fr_13 ! 330330000000000000002 ! [H][S]
+    RRHO
+      Geometry[angstrom]            2
+        S 2.232655 1.784742 0.002315
+        H 1.792787 2.026941 1.249289
+      Core   RigidRotor
+        SymmetryFactor              1.0
+
+      End
+      Frequencies[1/cm]             1
+        2706.6
+
+      ElectronicLevels[1/cm] 2
+          0 2
+          376.835 2
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+
+    GroundEnergy[kcal/mol]        43.34128757
+    End ! Barrierless
+
+  Bimolecular  pr_11 ! 340660020000000000001_450570330000000000002 ! [H][C]=[S] [H][S][H]
+! kinbot_population 340660020000000000001_450570330000000000002 340660020000000000001_450570330000000000002
+  Fragment       fr_18 ! 450570330000000000002 ! [H][C]=[S]
+    RRHO
+      Geometry[angstrom]            3
+        C -0.476943 -0.827919 1.258157
+        S -1.805701 -0.017350 1.428092
+        H -0.294866 -1.854807 0.952317
+      Core   RigidRotor
+        SymmetryFactor              1.0
+
+      End
+      Frequencies[1/cm]             3
+        840.9 1206.9 3129.3 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 2
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+  Fragment       fr_17 ! 340660020000000000001 ! [H][S][H]
+    RRHO
+      Geometry[angstrom]            3
+        S 2.506357 1.027599 0.730564
+        H 1.443912 0.331177 1.156514
+        H 1.745637 2.051867 0.321380
+      Core   RigidRotor
+        SymmetryFactor              2.0
+
+      End
+      Frequencies[1/cm]             3
+        1215.0 2726.3 2741.6 
+       
+
+      ElectronicLevels[1/cm]        1
+            0 1
+      ZeroEnergy[kcal/mol]        0.0
+    End ! RRHO
+
+    GroundEnergy[kcal/mol]        45.25000000
+    End ! Barrierless
+
+  Barrier       nobar_1 w_1 pr_1 
+! Restored declared triplet S2 from native B2PLYP-D3BJ/cc-pVTZ evidence; original singlet run retained.
+! kinbot_hom_sci_placeholder 791471490990000000002_hom_sci_1_2
+    RRHO
+      Stoichiometry C1H3S2
+        Core PhaseSpaceTheory
+          ! 150390060000000000002  [H][C]([H])[H]
+      FragmentGeometry[angstrom]            4
+        C 1.035368 -0.139333 -0.109446
+        H 0.525070 0.600049 -0.701266
+        H 0.529802 -1.046698 0.170620
+        H 2.051250 0.028607 0.202220
+
+          ! 640640000000000000003  [S][S]
+      FragmentGeometry[angstrom]            2
+        S 0.507916 -1.470709 1.003590
+        S 1.147607 -3.045034 0.124334
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             7
+        514.4 1427.7 1427.7 
+        3139.6 3320.9 3320.9 
+        705.8
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol] 43.59
+    End ! RRHO
+
+
+!****************************************
+
+
+! ****************************************
+
+  Barrier       nobar_2 w_1 pr_2 
+! kinbot_mirror_endpoints 791471490990000000002 791471490990000000002 10000000000000000002_781341120660000000001 10000000000000000002_781341120660000000001
+! kinbot_hom_sci_placeholder 791471490990000000002_hom_sci_1_4
+    RRHO
+      Stoichiometry C1H3S2
+        Core PhaseSpaceTheory
+          ! 781341120660000000001  [H][C]([H])=[S]=[S]
+      FragmentGeometry[angstrom]            5
+        C 1.002860 -0.269200 0.333983
+        S 0.165170 0.142024 1.672969
+        S 1.265610 0.416849 3.254800
+        H 0.423243 -0.429595 -0.563220
+        H 2.077273 -0.376761 0.337578
+
+          ! 10000000000000000002  [H]
+      FragmentGeometry[angstrom]            1
+        H 0.574810 0.531083 -0.748844
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             9
+        305.9 569.4 623.7 
+        781.6 937.4 994.3 
+        1419.3 3152.4 3281.8 
+       
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol] 73.0
+    End ! RRHO
+
+
+!****************************************
+
+
+  Barrier       nobar_14 w_6 pr_8 
+! kinbot_mirror_endpoints 791472110370000000002 791472110370000000002 330330000000000000002_460700680000000000001 330330000000000000002_460700680000000000001
+! kinbot_hom_sci_placeholder 791472110370000000002_hom_sci_1_2
+    RRHO
+      Stoichiometry C1H3S2
+        Core PhaseSpaceTheory
+          ! 460700680000000000001  [H][C]([H])=[S]
+      FragmentGeometry[angstrom]            4
+        C 1.690697 -0.240382 -0.014807
+        S 0.106118 0.062462 0.009233
+        H 2.251195 -0.299989 -0.942912
+        H 2.260591 -0.396804 0.896149
+
+          ! 330330000000000000002  [H][S]
+      FragmentGeometry[angstrom]            2
+        S 2.232655 1.784742 0.002315
+        H 1.792787 2.026941 1.249289
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             7
+        1010.5 1029.7 1082.3 
+        1503.0 3088.9 3175.9 
+        2706.6
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol] 43.34
+    End ! RRHO
+
+
+!****************************************
+
+
+Barrier       nobar_39 w_9 pr_8 
+! kinbot_mirror_endpoints 791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c 791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c 330330000000000000002_460700680000000000001 330330000000000000002_460700680000000000001
+    RRHO
+      Stoichiometry C1H3S2
+        Core PhaseSpaceTheory
+          ! 460700680000000000001  [H][C]([H])=[S]
+      FragmentGeometry[angstrom]            4
+        C 1.488361 -0.465946 0.219132
+        S 1.737529 0.414225 1.548194
+        H 0.853828 -1.347110 0.223024
+        H 1.945134 -0.212669 -0.732860
+
+          ! 330330000000000000002  [H][S]
+      FragmentGeometry[angstrom]            2
+        S 0.183042 -0.018246 2.846279
+        H -0.719488 0.825169 2.316012
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             7
+        1010.5 1029.7 1082.3 
+        1503.0 3088.9 3175.9 
+        2706.7
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol] 43.34
+    End ! RRHO
+
+
+!****************************************
+
+
+! ****************************************
+
+  Barrier       nobar_41 w_12 pr_11 
+! kinbot_mirror_endpoints 791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595 791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595 340660020000000000001_450570330000000000002 340660020000000000001_450570330000000000002
+    RRHO
+      Stoichiometry C1H3S2
+        Core PhaseSpaceTheory
+          ! 450570330000000000002  [H][C]=[S]
+      FragmentGeometry[angstrom]            3
+        C -0.476943 -0.827919 1.258157
+        S -1.805701 -0.017350 1.428092
+        H -0.294866 -1.854807 0.952317
+
+          ! 340660020000000000001  [H][S][H]
+      FragmentGeometry[angstrom]            3
+        S 2.506357 1.027599 0.730564
+        H 1.443912 0.331177 1.156514
+        H 1.745637 2.051867 0.321380
+
+          SymmetryFactor         1
+          PotentialPrefactor[au] 0.6
+          PotentialPowerExponent 6.
+        End ! Core
+      Frequencies[1/cm]             6
+        840.9 1206.9 3129.3 
+        1215.0 2726.3 2741.6 
+       
+
+
+        ElectronicLevels[1/cm]      1
+            0 2
+        ZeroEnergy[kcal/mol] 45.25
+    End ! RRHO
+
+
+!****************************************
+
+
+! ****************************************
+
+! kinbot_stereopath ordinary
+! kinbot_whole_geometry_sigma_v1
+  Barrier       rxn_2 w_1 w_3 ! 791471490990000000002_r13_insertion_RSR_4_1_2_3   ! 
+! kinbot_mirror_endpoints 791471490990000000002 791471490990000000002 791671450790040000002 791671450790040000002
+  RRHO
+    Geometry[angstrom]            6
+        C 0.841485 -0.340844 0.170159
+        S 0.295133 -0.794633 1.796805
+        S 1.147531 1.112990 2.267195
+        H 1.526812 0.834275 0.817178
+        H 0.129176 0.184244 -0.452658
+        H 1.568831 -0.981633 -0.311413
+    Core   RigidRotor
+      SymmetryFactor            0.5
+
+    End ! Core
+
+    Frequencies[1/cm]             11
+        168.8 451.8 472.3 
+        779.0 819.3 919.5 
+        980.2 1416.1 1593.1 
+        3118.7 3239.4
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol] 51.51
+    Tunneling   Eckart
+      ImaginaryFrequency[1/cm]  1608.19  
+      CutoffEnergy[kcal/mol] 25.66
+      WellDepth[kcal/mol] 51.51
+      WellDepth[kcal/mol] 25.66
+    End 
+
+  End ! RRHO
+
+
+!****************************************
+! kinbot_stereopath ordinary
+! kinbot_whole_geometry_sigma_v1
+  Barrier       rxn_9 w_3 w_6 ! 791671450790040000002_12_shift_S_F_1_2_3   ! 
+! kinbot_mirror_endpoints 791671450790040000002 791671450790040000002 791472110370000000002 791472110370000000002
+  RRHO
+    Geometry[angstrom]            6
+        C 1.441091 -0.418810 0.231383
+        S 2.396053 0.447759 1.212380
+        S -0.023447 -0.219507 2.931383
+        H -0.540191 0.837320 2.284021
+        H 1.256776 -1.474362 0.395714
+        H 0.958124 0.023024 -0.635099
+    Core   RigidRotor
+      SymmetryFactor            0.5
+
+    End ! Core
+
+    Frequencies[1/cm]             11
+        65.9 173.1 191.7 
+        344.5 1008.3 1029.5 
+        1090.6 1506.2 2714.9 
+        3099.4 3192.2
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol] 42.41
+    Tunneling   Eckart
+      ImaginaryFrequency[1/cm]  178.71  
+      CutoffEnergy[kcal/mol] 16.57
+      WellDepth[kcal/mol] 16.57
+      WellDepth[kcal/mol] 21.39
+    End 
+
+  End ! RRHO
+
+
+!****************************************
+! kinbot_stereopath ordinary
+! kinbot_whole_geometry_sigma_v1
+  Barrier       rxn_37 w_3 w_9 ! 791671450790040000002_intra_H_migration_suprafacial_1_4   ! 
+! correct_submerged=1: MESS barrier rxn_37 energies[kcal/mol] [41.67] raised to connected-well ground 42.34; QC records unchanged.
+! kinbot_mirror_endpoints 791671450790040000002 791671450790040000002 791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c 791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c
+  RRHO
+    Geometry[angstrom]            6
+        C 1.267596 -0.857127 0.015848
+        S 0.764718 -1.704736 1.295295
+        S 0.311002 1.851660 2.358101
+        H -0.467766 0.769124 2.186628
+        H 1.782433 -1.330265 -0.814415
+        H 1.111392 0.215072 -0.054015
+    Core   RigidRotor
+      SymmetryFactor            0.5
+
+    End ! Core
+
+    Frequencies[1/cm]             11
+        94.2 112.0 161.5 
+        194.3 1013.9 1040.5 
+        1078.2 1496.4 2700.5 
+        3091.1 3185.3
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol] 42.34
+! barrier is submerged or has zero serialized tunneling depth
+
+  End ! RRHO
+
+
+!****************************************
+! kinbot_stereopath ordinary
+! kinbot_whole_geometry_sigma_v1
+  Barrier       rxn_reverse_93359f49 w_9 w_12 ! 330330000000000000002_460700680000000000001_abstraction_1_5_3   ! 
+! kinbot_mirror_endpoints 791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c 791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c 791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595 791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595
+  RRHO
+! kinbot_transition_symmetry eyJnZW9tZXRyeV9zaGEyNTYiOiAiOTk4ZWUzNTM2Y2MxZjI3YTYxOWNhODI0YjhiZDllYTM1MjZlZDNkMTg5MWMwNWExZWY5NjhlMjRkYTQ5YTYzNCIsICJtYXBwaW5ncyI6IFt7ImF0b21fbWFwcGluZyI6IFswLCAxLCAyLCAzLCA0LCA1XSwgIm1heGltdW1fYXRvbV9lcnJvcl9hbmdzdHJvbSI6IDAuMDAyMDU4MDcyODk3Nzg2NTY3LCAicmVhY3RpdmVfbW9kZV9vdmVybGFwIjogMC45OTk5OTk5MTE3MTA1Nzk2fV0sICJtZXRob2QiOiAibmF0aXZlLXJlYWN0aXZlLW1vZGUtbWlycm9yLXYxIiwgIm1vZGVfc2hhMjU2IjogIjVjYWM2YWE4NDU1YjAyYWIxNTMyZjE2OWJkZWU2ODNkZDVlOGY5ODU3YzQzZTllMjNjYmY5ZGIxOWEzMGVjYjUiLCAicGFyaXR5IjogImV2ZW4iLCAic291cmNlIjogeyJmcmVxdWVuY2llc19jbTEiOiBbLTExNTcuMzMzNywgODIuMzM1NywgMTE2LjE1LCAyMjguMzczMSwgMzg5LjYwMTYsIDU4Ni4wNzA0LCA4NzEuMDI3MywgOTkwLjI0NTMsIDEyMTEuNzE3OCwgMTI5OC4wMzU1LCAyNzEzLjM2MzcsIDMxMjcuNzM3OV0sICJzaGEyNTYiOiAiMGMwNWFhNmU5M2Q0MDEwMGVlMTRjMWFlZjc0MDRhYmQ3ZDg1OWI0MjIwNTkzNzAwMTJkM2RhZjdhYjM2MDhlNCIsICJzb3VyY2UiOiAiMzMwMzMwMDAwMDAwMDAwMDAwMDAyXzQ2MDcwMDY4MDAwMDAwMDAwMDAwMV9hYnN0cmFjdGlvbl8xXzVfM19oaWdoLmxvZyIsICJ2ZWN0b3JfcHJlY2lzaW9uIjogIm5hdGl2ZSBwcmludGVkIGRpc3BsYWNlbWVudCB2ZWN0b3JzIn0sICJzdGF0dXMiOiAic2VsZiIsICJzdXJmYWNlX2lkIjogIjU0OGZiYmM2YTZlNDhiMGM0OWVkNGI0Y2FlMTk2YzY2ZTRmYTQxMWQ2ZWVlMDg2N2ZjZDgzZjQ5ZTk1OTdjMzIifQ==
+    Geometry[angstrom]            6
+        S -0.035858 -0.039591 0.093507
+        H 1.290711 -0.231796 0.027769
+        C 0.164065 0.024764 3.033915
+        S -1.076879 0.230062 3.977475
+        H 0.010849 0.002108 1.622405
+        H 1.210912 -0.115493 3.291805
+    Core   RigidRotor
+      SymmetryFactor            1.0
+
+    End ! Core
+
+    Frequencies[1/cm]             11
+        82.3 116.2 228.4 
+        389.6 586.1 871.0 
+        990.2 1211.7 1298.0 
+        2713.4 3127.7
+  
+    ElectronicLevels[1/cm]        1
+      0 2
+    ZeroEnergy[kcal/mol] 48.13
+    Tunneling   Eckart
+      ImaginaryFrequency[1/cm]  1157.33  
+      CutoffEnergy[kcal/mol] 4.15
+      WellDepth[kcal/mol] 5.79
+      WellDepth[kcal/mol] 4.15
+    End 
+
+  End ! RRHO
+
+End ! end kinetics

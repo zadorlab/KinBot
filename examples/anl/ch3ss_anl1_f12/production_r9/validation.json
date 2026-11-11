@@ -1,0 +1,175 @@
+{
+  "closed_original_native_reviews": 2,
+  "discovery": [
+    {
+      "case": "ch3ss",
+      "expected": [
+        "791471490990000000002_hom_sci_1_2",
+        "791471490990000000002_hom_sci_1_4",
+        "791471490990000000002_r13_insertion_RSR_4_1_2_3"
+      ],
+      "found": [
+        "791471490990000000002_dissociation_saddle_1_2",
+        "791471490990000000002_dissociation_saddle_1_4",
+        "791471490990000000002_hom_sci_1_2",
+        "791471490990000000002_hom_sci_1_4",
+        "791471490990000000002_r13_insertion_RSR_4_1_2_3"
+      ],
+      "missing": [],
+      "worker": "791471490990000000002"
+    },
+    {
+      "case": "ch3ss",
+      "expected": [
+        "791671450790040000002_12_shift_S_F_1_2_3",
+        "791671450790040000002_intra_H_migration_suprafacial_1_4"
+      ],
+      "found": [
+        "791671450790040000002_12_shift_S_F_1_2_3",
+        "791671450790040000002_intra_H_migration_suprafacial_1_4"
+      ],
+      "missing": [],
+      "worker": "791671450790040000002"
+    },
+    {
+      "case": "ch3ss",
+      "expected": [
+        "791472110370000000002_hom_sci_1_2"
+      ],
+      "found": [
+        "791472110370000000002_dissociation_saddle_1_2",
+        "791472110370000000002_hom_sci_1_2"
+      ],
+      "missing": [],
+      "worker": "791472110370000000002"
+    }
+  ],
+  "independent_run_import_validated": false,
+  "models_with_verified_staged_wfu_files": 3,
+  "native_calculations_executed": 0,
+  "normal_source_database_rows": 4261,
+  "preserved_terminal_rejections": 115,
+  "production_submission_ready": false,
+  "regressions": {
+    "command": ".venv/bin/python -m pytest -q tests/test_r9_lean_stage.py tests/test_reaction_selection.py",
+    "passed": 6,
+    "subtests": 5
+  },
+  "rendered_components": [
+    {
+      "active_indices": [
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      "basis": "avdz-f12",
+      "case": "ch3ss",
+      "method": "caspt2-f12(7,5)",
+      "owner": "initial",
+      "path": "render_validation/ch3ss/initial/root1/vrc0.inp",
+      "reaction": "791471490990000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "b21fb8d870c18709909e4f3db8e27f7da1775594ef000dbeaf3726021a4d0224"
+    },
+    {
+      "active_indices": [
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      "basis": "avdz-f12",
+      "case": "ch3ss",
+      "method": "caspt2-f12(7,5)",
+      "owner": "initial",
+      "path": "render_validation/ch3ss/initial/root1/vrc1.inp",
+      "reaction": "791471490990000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "86bc3decfc9eb4e0947d3b4a763c28903ee8bc767a7b99b7c8bf12892c5c7778"
+    },
+    {
+      "active_indices": [
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      "basis": "avtz-f12",
+      "case": "ch3ss",
+      "method": "caspt2-f12(7,5)",
+      "owner": "initial",
+      "path": "render_validation/ch3ss/initial/root1/vrc2.inp",
+      "reaction": "791471490990000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "194bb01642bc777a7c217cfa4cb1f1ab5edac79e368219c126eccfc681a3f302"
+    },
+    {
+      "active_indices": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "basis": "avdz-f12",
+      "case": "ch3ss",
+      "method": "caspt2-f12(7,6)",
+      "owner": "791472110370000000002",
+      "path": "render_validation/ch3ss/791472110370000000002/root1/vrc0.inp",
+      "reaction": "791472110370000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "4d7b16b800ee5d8e3645bce5d2af78e35c02a03a3fcece4118b848a0eea221aa"
+    },
+    {
+      "active_indices": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "basis": "avdz-f12",
+      "case": "ch3ss",
+      "method": "caspt2-f12(7,6)",
+      "owner": "791472110370000000002",
+      "path": "render_validation/ch3ss/791472110370000000002/root1/vrc1.inp",
+      "reaction": "791472110370000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "7c3084f1fe571f6df16e58bfc816869f01206e74c35b261ac22b78a46c543b51"
+    },
+    {
+      "active_indices": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "basis": "avtz-f12",
+      "case": "ch3ss",
+      "method": "caspt2-f12(7,6)",
+      "owner": "791472110370000000002",
+      "path": "render_validation/ch3ss/791472110370000000002/root1/vrc2.inp",
+      "reaction": "791472110370000000002_hom_sci_1_2",
+      "root": 1,
+      "sha256": "b2034d077286b9c113dde11a401fe7cd80d2f488a8259849c911e82df7447883"
+    }
+  ],
+  "repeated_construction": {
+    "repeat_input_hashes_identical": true,
+    "source_bytes_unchanged": true,
+    "source_files": 3269,
+    "staged_bytes_match": true
+  },
+  "schema": 1,
+  "scope": "Local review-package checks through reaction discovery and production input rendering",
+  "source_commit": "24111ea00",
+  "source_workers": 7
+}

@@ -1,0 +1,75 @@
+{
+  "case": "ch3s",
+  "connections": [
+    {
+      "endpoints": [
+        "w_2",
+        "pr_1"
+      ],
+      "kind": "vrc",
+      "label": "nobar_4",
+      "owner": "471030810040000000002",
+      "reaction": "471030810040000000002_hom_sci_2_3"
+    },
+    {
+      "endpoints": [
+        "w_1",
+        "pr_2"
+      ],
+      "kind": "vrc",
+      "label": "nobar_1",
+      "owner": "470831050000000000002",
+      "reaction": "470831050000000000002_hom_sci_1_2"
+    },
+    {
+      "endpoints": [
+        "w_1",
+        "pr_1"
+      ],
+      "kind": "tight_ts",
+      "label": "rxn_1",
+      "owner": "470831050000000000002",
+      "reaction": "470831050000000000002_r12_insertion_R_3_1_4"
+    },
+    {
+      "endpoints": [
+        "w_2",
+        "w_1"
+      ],
+      "kind": "tight_ts",
+      "label": "rxn_4",
+      "owner": "471030810040000000002",
+      "reaction": "471030810040000000002_h2_elim_3_5"
+    }
+  ],
+  "discovery_workers": [
+    "470831050000000000002",
+    "471030810040000000002"
+  ],
+  "excluded_optional_h_loss_extension": true,
+  "populations": {
+    "pr_1": {
+      "kind": "Bimolecular",
+      "native_id": "10000000000000000002_460700680000000000001",
+      "smiles": "[H][C]([H])=[S] [H]"
+    },
+    "pr_2": {
+      "kind": "Bimolecular",
+      "native_id": "150390060000000000002_320000000000000000003",
+      "smiles": "[H][C]([H])[H] [S]"
+    },
+    "w_1": {
+      "kind": "Well",
+      "native_id": "470831050000000000002",
+      "smiles": "[H][C]([H])([H])[S]"
+    },
+    "w_2": {
+      "kind": "Well",
+      "native_id": "471030810040000000002",
+      "smiles": "[H][S]=[C]([H])[H]"
+    }
+  },
+  "retained_source_only_workers": [],
+  "schema": 1,
+  "source_mess_sha256": "e34f0a30a6d41a76304580d0fe7cbb7c8d0386b13450aa84ec318108df1369ae"
+}

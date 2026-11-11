@@ -1,0 +1,76 @@
+[
+  {
+    "adoption_status": "frozen_evidence_pending_independent_run_import",
+    "case": "ch3ss",
+    "database_sha256": "3941c4138ae2dbd4dcbea8631e26450195ae1e0f626133b8db293a1e99bf4c72",
+    "files": 358,
+    "normal_database_rows": 501,
+    "owner": "791471490990000000002",
+    "role": "retained_covalent_worker",
+    "search_statuses": {
+      "-1": 6,
+      "-999": 16
+    },
+    "source_relative_to_repository": "examples/anl/tmp/r8-final-mess-20261110/run/ch3ss/791471490990000000002",
+    "staged_relative_to_repository": "local_runs/r9_lean_stage_20261110/staged/reuse/r8/ch3ss/791471490990000000002"
+  },
+  {
+    "adoption_status": "frozen_evidence_pending_independent_run_import",
+    "case": "ch3ss",
+    "database_sha256": "7e76e88b88efca0777e97a84d72ce68e77a78c8793eadb3d3532c30accd18bce",
+    "files": 534,
+    "normal_database_rows": 815,
+    "owner": "791472110370000000002",
+    "role": "retained_covalent_worker",
+    "search_statuses": {
+      "-1": 14,
+      "-999": 16
+    },
+    "source_relative_to_repository": "examples/anl/tmp/r8-final-mess-20261110/run/ch3ss/791472110370000000002",
+    "staged_relative_to_repository": "local_runs/r9_lean_stage_20261110/staged/reuse/r8/ch3ss/791472110370000000002"
+  },
+  {
+    "adoption_status": "frozen_evidence_pending_independent_run_import",
+    "case": "ch3ss",
+    "database_sha256": "a92fe3d631f257fb22f6f280eb9dc4db4554db32de34e237182b08b4b15a134d",
+    "files": 868,
+    "normal_database_rows": 1204,
+    "owner": "791671450790040000002",
+    "role": "retained_covalent_worker",
+    "search_statuses": {
+      "-1": 23,
+      "-999": 27
+    },
+    "source_relative_to_repository": "examples/anl/tmp/r8-final-mess-20261110/run/ch3ss/791671450790040000002",
+    "staged_relative_to_repository": "local_runs/r9_lean_stage_20261110/staged/reuse/r8/ch3ss/791671450790040000002"
+  },
+  {
+    "adoption_status": "frozen_evidence_pending_independent_run_import",
+    "case": "ch3ss",
+    "database_sha256": "709ca34d40446120cc412b13fcb16e2b7b924996e3bfbefe3dbd40c8abce68ee",
+    "files": 752,
+    "normal_database_rows": 956,
+    "owner": "791871560500020000002-sb6e34ded5baaf03b",
+    "role": "retained_endpoint_or_reverse_saddle_source",
+    "search_statuses": {
+      "-1": 8,
+      "-999": 39
+    },
+    "source_relative_to_repository": "examples/anl/tmp/r8-final-mess-20261110/run/ch3ss/791871560500020000002-sb6e34ded5baaf03b",
+    "staged_relative_to_repository": "local_runs/r9_lean_stage_20261110/staged/reuse/r8/ch3ss/791871560500020000002-sb6e34ded5baaf03b"
+  },
+  {
+    "adoption_status": "frozen_evidence_pending_independent_run_import",
+    "case": "ch3ss",
+    "database_sha256": "f7fb606b4f8bdded3a6a6bb18b0e897c1fdcad3674d174678c135f3cf9c3e1c4",
+    "files": 72,
+    "normal_database_rows": 34,
+    "owner": "reverse_abstractions/93359f497a7313176574",
+    "role": "retained_endpoint_or_reverse_saddle_source",
+    "search_statuses": {
+      "-1": 1
+    },
+    "source_relative_to_repository": "examples/anl/tmp/r8-final-mess-20261110/run/ch3ss/reverse_abstractions/93359f497a7313176574",
+    "staged_relative_to_repository": "local_runs/r9_lean_stage_20261110/staged/reuse/r8/ch3ss/reverse_abstractions/93359f497a7313176574"
+  }
+]

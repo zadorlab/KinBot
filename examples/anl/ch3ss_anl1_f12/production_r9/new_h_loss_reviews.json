@@ -1,0 +1,156 @@
+[
+  {
+    "bond_one_based": [
+      1,
+      4
+    ],
+    "case": "ch3ss",
+    "charge": 0,
+    "connection": "nobar_2",
+    "geometries": [
+      {
+        "energy_ev": -22757.60267120372,
+        "frequencies_cm_inverse": [
+          123.0714,
+          252.7313,
+          580.9101,
+          667.2405,
+          918.8874,
+          949.9631,
+          1305.5583,
+          1426.0316,
+          1436.9534,
+          3043.5784,
+          3150.0497,
+          3162.192
+        ],
+        "job": "791471490990000000002_well",
+        "positions_angstrom": [
+          [
+            0.9505980891461817,
+            -0.025582364217075246,
+            0.10253401654271918
+          ],
+          [
+            0.32185192518510863,
+            0.8200011337119391,
+            1.6095932344914345
+          ],
+          [
+            1.0406906645433651,
+            -0.2421047298384456,
+            3.143926761062951
+          ],
+          [
+            0.5702973869042135,
+            0.5376889378414808,
+            -0.763319696240016
+          ],
+          [
+            0.5765640335022462,
+            -1.0581787894877832,
+            0.08209444955466262
+          ],
+          [
+            2.0489648905402924,
+            -0.017424878900163036,
+            0.11243786945582691
+          ]
+        ],
+        "row_id": 2,
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "zpe_hartree": 0.038768
+      },
+      {
+        "energy_ev": -22749.912590935364,
+        "frequencies_cm_inverse": [
+          124.832,
+          256.5844,
+          605.1931,
+          690.9356,
+          940.5934,
+          971.9596,
+          1343.5889,
+          1469.4256,
+          1480.1213,
+          3065.911,
+          3162.8383,
+          3174.6264
+        ],
+        "job": "791471490990000000002_well_high",
+        "positions_angstrom": [
+          [
+            0.9501853684882462,
+            -0.02518824487151772,
+            0.10753561717363937
+          ],
+          [
+            0.3305012890620585,
+            0.8075754996646132,
+            1.6060308628232418
+          ],
+          [
+            1.03697546283233,
+            -0.2358019529001571,
+            3.1191076412460803
+          ],
+          [
+            0.5748102446009035,
+            0.5310832748923903,
+            -0.7488443779889901
+          ],
+          [
+            0.5808440542420732,
+            -1.0457425175203547,
+            0.08661317311136901
+          ],
+          [
+            2.0356505705957963,
+            -0.017526750155019814,
+            0.11682371850223687
+          ]
+        ],
+        "row_id": 8,
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "zpe_hartree": 0.039382
+      }
+    ],
+    "multiplicity": 2,
+    "parent": "791471490990000000002",
+    "product_multiplicities": [
+      2,
+      1
+    ],
+    "product_native_ids": [
+      "10000000000000000002",
+      "781341120660000000001"
+    ],
+    "products": "CH2SS + H",
+    "reaction": "791471490990000000002_hom_sci_1_4",
+    "requirements": [
+      "Resolve the breaking-bond and rehybridizing fragment orbital characters at bound and separated geometries.",
+      "Verify the smallest candidate through its own asymptote, root/subspace continuity, and required competing occupied orbitals.",
+      "Reuse applicable existing native calculations with verified geometry, basis, electronic state and atom mapping."
+    ],
+    "schema": 1,
+    "selected_cas": null,
+    "source_database_sha256": "3941c4138ae2dbd4dcbea8631e26450195ae1e0f626133b8db293a1e99bf4c72",
+    "source_history_sha256": "587613d2e0fb2184aafc9eda8d1b42af6c883343eb80b09b0e14be5394322786",
+    "source_summary_sha256": "c121902be59e8cb6c60bb078a20c48cbe052e85eb34df76857b202bf76bfe4e2",
+    "status": "exact_active_space_review_pending"
+  }
+]

@@ -1,0 +1,438 @@
+{
+  "case": "ch3ss",
+  "disposition": "carry_forward_installed",
+  "installed_channels": [
+    {
+      "bond": [
+        1,
+        2
+      ],
+      "bottlenecks": [
+        {
+          "coordinate": "reactive",
+          "distances_angstrom": [
+            2.0,
+            2.2,
+            2.4,
+            2.6,
+            2.8,
+            3.0,
+            3.2,
+            3.4,
+            3.6,
+            3.8,
+            4.0,
+            4.2,
+            4.4,
+            4.6,
+            4.8,
+            5.0,
+            5.2,
+            5.4,
+            5.6,
+            5.8,
+            6.0,
+            6.2,
+            6.4,
+            6.6,
+            6.8,
+            7.0,
+            7.2,
+            7.4,
+            7.6,
+            7.8,
+            8.0,
+            8.5,
+            9.0,
+            9.5,
+            10.0,
+            10.5,
+            11.0,
+            11.5,
+            12.0,
+            13.0,
+            14.0,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+            19.0,
+            20.0
+          ],
+          "name": "single",
+          "parameters": {
+            "vrc_tst_active_space": {
+              "active_electrons": 7,
+              "active_orbitals": 6,
+              "mode": "selected",
+              "source": "Reviewed 2026-10-24 from completed native CASCI character in both bases and 24 compact CASSCF/CASPT2-F12 fixed-point comparisons. Select CAS(7,6), source 18-23 at 2 angstrom: retained C(1)-S(3) sigma/sigma-star (18/23), the reorganizing cleavage/CH2S pi pair (19/22), and the SH frontier pair (20/21). Relative to each space's own 30 angstrom D1 asymptote, CAS(7,6) minus CAS(5,4) at 2 angstrom is +1.0982 kcal/mol in aDZ-F12 and +1.1140 in aTZ-F12, despite the added pair occupations being near 1.97/0.03. This coordinate-dependent difference motivates retaining the pair; absolute energy lowering alone does not. The 30-to-42 angstrom shifts of these compact potentials are below 0.002 kcal/mol. Two equally weighted doublets support the orbitals; only D1 is a reactive path. Near/far orbital character reorganizes, so no overlap, angular convergence or relaxed-connectivity validation is claimed. Use direct CASPT2-F12 aDZ/aTZ CBS, power 3.7. Production relaxed scans and their existing review gates must verify fragment identity and root/subspace continuity. Standalone relaxation diagnostics are retired at the user's request."
+            },
+            "vrc_tst_correction_model": "direct",
+            "vrc_tst_high_basis": [
+              "avdz-f12",
+              "avtz-f12"
+            ],
+            "vrc_tst_high_extrapolation_power": 3.7,
+            "vrc_tst_high_method": "caspt2-f12(7,6)",
+            "vrc_tst_sample_method": "caspt2-f12(7,6)",
+            "vrc_tst_scan_method": "caspt2-f12(7,6)",
+            "vrc_tst_selected_roots": {
+              "2": 1
+            },
+            "vrc_tst_state_average_roots": {
+              "2": 2
+            },
+            "vrc_tst_state_model": {
+              "active_space": {
+                "active_electrons": 7,
+                "active_orbitals": 6,
+                "mode": "selected",
+                "source": "Reviewed 2026-10-24 from completed native CASCI character in both bases and 24 compact CASSCF/CASPT2-F12 fixed-point comparisons. Select CAS(7,6), source 18-23 at 2 angstrom: retained C(1)-S(3) sigma/sigma-star (18/23), the reorganizing cleavage/CH2S pi pair (19/22), and the SH frontier pair (20/21). Relative to each space's own 30 angstrom D1 asymptote, CAS(7,6) minus CAS(5,4) at 2 angstrom is +1.0982 kcal/mol in aDZ-F12 and +1.1140 in aTZ-F12, despite the added pair occupations being near 1.97/0.03. This coordinate-dependent difference motivates retaining the pair; absolute energy lowering alone does not. The 30-to-42 angstrom shifts of these compact potentials are below 0.002 kcal/mol. Two equally weighted doublets support the orbitals; only D1 is a reactive path. Near/far orbital character reorganizes, so no overlap, angular convergence or relaxed-connectivity validation is claimed. Use direct CASPT2-F12 aDZ/aTZ CBS, power 3.7. Production relaxed scans and their existing review gates must verify fragment identity and root/subspace continuity. Standalone relaxation diagnostics are retired at the user's request."
+              },
+              "basis_models": {
+                "avdz-f12": {
+                  "canonical_orbitals": true,
+                  "casscf_options": {
+                    "energy_convergence": 1e-08,
+                    "exact_diagonalization": true,
+                    "gradient_convergence": 1e-05,
+                    "max_iterations": 999,
+                    "quasi_newton": true,
+                    "solver": "so_sci"
+                  },
+                  "correlation_options": {
+                    "coefficient_convergence": 1e-05,
+                    "energy_convergence": 1e-08,
+                    "max_iterations": 2000,
+                    "max_reference_iterations": 2000,
+                    "max_reference_vectors": 60,
+                    "reference_policy": "state_average"
+                  },
+                  "orbital_selection": {
+                    "active_indices": [
+                      18,
+                      19,
+                      20,
+                      21,
+                      22,
+                      23
+                    ],
+                    "align_active_orbitals": false,
+                    "mode": "molpro_record",
+                    "orbital_type": "natural",
+                    "path": "/home/hram/kinbot-runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/adz__cs_r_2/adz__cs_r_2.wfu",
+                    "record": "2140.2",
+                    "sha256": "82e5c530a00c85baeae21197cb3b20c4db4d58e55010b347a577e9692c3da722"
+                  },
+                  "selected_roots": {
+                    "2": 1
+                  },
+                  "state_average": [
+                    {
+                      "multiplicity": 2,
+                      "roots": 2,
+                      "weights": [
+                        0.5,
+                        0.5
+                      ]
+                    }
+                  ]
+                },
+                "avtz-f12": {
+                  "canonical_orbitals": true,
+                  "casscf_options": {
+                    "energy_convergence": 1e-08,
+                    "exact_diagonalization": true,
+                    "gradient_convergence": 1e-05,
+                    "max_iterations": 999,
+                    "quasi_newton": true,
+                    "solver": "so_sci"
+                  },
+                  "correlation_options": {
+                    "coefficient_convergence": 1e-05,
+                    "energy_convergence": 1e-08,
+                    "max_iterations": 2000,
+                    "max_reference_iterations": 2000,
+                    "max_reference_vectors": 60,
+                    "reference_policy": "state_average"
+                  },
+                  "orbital_selection": {
+                    "active_indices": [
+                      18,
+                      19,
+                      20,
+                      21,
+                      22,
+                      23
+                    ],
+                    "align_active_orbitals": false,
+                    "mode": "molpro_record",
+                    "orbital_type": "natural",
+                    "path": "/home/hram/kinbot-runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/atz__cs_r_2/atz__cs_r_2.wfu",
+                    "record": "2140.2",
+                    "sha256": "66c09079a1e1b6307692464b5d8ad60982a6fe8a7b86b16e229159786817a973"
+                  },
+                  "selected_roots": {
+                    "2": 1
+                  },
+                  "state_average": [
+                    {
+                      "multiplicity": 2,
+                      "roots": 2,
+                      "weights": [
+                        0.5,
+                        0.5
+                      ]
+                    }
+                  ]
+                }
+              },
+              "molecule": {
+                "charge": 0,
+                "symbols": [
+                  "C",
+                  "S",
+                  "S",
+                  "H",
+                  "H",
+                  "H"
+                ]
+              },
+              "schema": 2,
+              "state_average_policy": "reviewed"
+            },
+            "vrc_tst_state_model_file": ""
+          },
+          "states": [
+            {
+              "energy_offset_cm_inverse": 0.0,
+              "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux.",
+              "multiplicity": 2,
+              "root": 1,
+              "weight": 1.0
+            }
+          ]
+        }
+      ],
+      "combination": "single"
+    }
+  ],
+  "models": [
+    {
+      "active_space": {
+        "active_electrons": 7,
+        "active_orbitals": 6,
+        "mode": "selected",
+        "source": "Reviewed 2026-10-24 from completed native CASCI character in both bases and 24 compact CASSCF/CASPT2-F12 fixed-point comparisons. Select CAS(7,6), source 18-23 at 2 angstrom: retained C(1)-S(3) sigma/sigma-star (18/23), the reorganizing cleavage/CH2S pi pair (19/22), and the SH frontier pair (20/21). Relative to each space's own 30 angstrom D1 asymptote, CAS(7,6) minus CAS(5,4) at 2 angstrom is +1.0982 kcal/mol in aDZ-F12 and +1.1140 in aTZ-F12, despite the added pair occupations being near 1.97/0.03. This coordinate-dependent difference motivates retaining the pair; absolute energy lowering alone does not. The 30-to-42 angstrom shifts of these compact potentials are below 0.002 kcal/mol. Two equally weighted doublets support the orbitals; only D1 is a reactive path. Near/far orbital character reorganizes, so no overlap, angular convergence or relaxed-connectivity validation is claimed. Use direct CASPT2-F12 aDZ/aTZ CBS, power 3.7. Production relaxed scans and their existing review gates must verify fragment identity and root/subspace continuity. Standalone relaxation diagnostics are retired at the user's request."
+      },
+      "coordinate": "reactive",
+      "name": "single",
+      "reactive_states": [
+        {
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux.",
+          "multiplicity": 2,
+          "root": 1,
+          "weight": 1.0
+        }
+      ],
+      "state_model": {
+        "active_space": {
+          "active_electrons": 7,
+          "active_orbitals": 6,
+          "mode": "selected",
+          "source": "Reviewed 2026-10-24 from completed native CASCI character in both bases and 24 compact CASSCF/CASPT2-F12 fixed-point comparisons. Select CAS(7,6), source 18-23 at 2 angstrom: retained C(1)-S(3) sigma/sigma-star (18/23), the reorganizing cleavage/CH2S pi pair (19/22), and the SH frontier pair (20/21). Relative to each space's own 30 angstrom D1 asymptote, CAS(7,6) minus CAS(5,4) at 2 angstrom is +1.0982 kcal/mol in aDZ-F12 and +1.1140 in aTZ-F12, despite the added pair occupations being near 1.97/0.03. This coordinate-dependent difference motivates retaining the pair; absolute energy lowering alone does not. The 30-to-42 angstrom shifts of these compact potentials are below 0.002 kcal/mol. Two equally weighted doublets support the orbitals; only D1 is a reactive path. Near/far orbital character reorganizes, so no overlap, angular convergence or relaxed-connectivity validation is claimed. Use direct CASPT2-F12 aDZ/aTZ CBS, power 3.7. Production relaxed scans and their existing review gates must verify fragment identity and root/subspace continuity. Standalone relaxation diagnostics are retired at the user's request."
+        },
+        "basis_models": {
+          "avdz-f12": {
+            "canonical_orbitals": true,
+            "casscf_options": {
+              "energy_convergence": 1e-08,
+              "exact_diagonalization": true,
+              "gradient_convergence": 1e-05,
+              "max_iterations": 999,
+              "quasi_newton": true,
+              "solver": "so_sci"
+            },
+            "correlation_options": {
+              "coefficient_convergence": 1e-05,
+              "energy_convergence": 1e-08,
+              "max_iterations": 2000,
+              "max_reference_iterations": 2000,
+              "max_reference_vectors": 60,
+              "reference_policy": "state_average"
+            },
+            "orbital_selection": {
+              "active_indices": [
+                18,
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "align_active_orbitals": false,
+              "mode": "molpro_record",
+              "orbital_type": "natural",
+              "path": "/home/hram/kinbot-runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/adz__cs_r_2/adz__cs_r_2.wfu",
+              "record": "2140.2",
+              "sha256": "82e5c530a00c85baeae21197cb3b20c4db4d58e55010b347a577e9692c3da722"
+            },
+            "selected_roots": {
+              "2": 1
+            },
+            "state_average": [
+              {
+                "multiplicity": 2,
+                "roots": 2,
+                "weights": [
+                  0.5,
+                  0.5
+                ]
+              }
+            ]
+          },
+          "avtz-f12": {
+            "canonical_orbitals": true,
+            "casscf_options": {
+              "energy_convergence": 1e-08,
+              "exact_diagonalization": true,
+              "gradient_convergence": 1e-05,
+              "max_iterations": 999,
+              "quasi_newton": true,
+              "solver": "so_sci"
+            },
+            "correlation_options": {
+              "coefficient_convergence": 1e-05,
+              "energy_convergence": 1e-08,
+              "max_iterations": 2000,
+              "max_reference_iterations": 2000,
+              "max_reference_vectors": 60,
+              "reference_policy": "state_average"
+            },
+            "orbital_selection": {
+              "active_indices": [
+                18,
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "align_active_orbitals": false,
+              "mode": "molpro_record",
+              "orbital_type": "natural",
+              "path": "/home/hram/kinbot-runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/atz__cs_r_2/atz__cs_r_2.wfu",
+              "record": "2140.2",
+              "sha256": "66c09079a1e1b6307692464b5d8ad60982a6fe8a7b86b16e229159786817a973"
+            },
+            "selected_roots": {
+              "2": 1
+            },
+            "state_average": [
+              {
+                "multiplicity": 2,
+                "roots": 2,
+                "weights": [
+                  0.5,
+                  0.5
+                ]
+              }
+            ]
+          }
+        },
+        "molecule": {
+          "charge": 0,
+          "symbols": [
+            "C",
+            "S",
+            "S",
+            "H",
+            "H",
+            "H"
+          ]
+        },
+        "schema": 2,
+        "state_average_policy": "reviewed"
+      }
+    }
+  ],
+  "r8_selection": {
+    "decision": "retain_or_pending_L1_checks",
+    "note": "Missing matched-ZPE vdW and L1 checks remain pruning gates; orbital approval is recorded separately in disposition."
+  },
+  "reaction": "791472110370000000002_hom_sci_1_2",
+  "request": {
+    "acknowledgement": "Installed reviewed channel validated before reaction replay; scan and rate validation remain separate.",
+    "bond": [
+      1,
+      2
+    ],
+    "charge": 0,
+    "error": "791472110370000000002: VRC needs a reviewed surface model for this newly explored well; set vrc_tst_surface_models[species] in the input. The initial well orbital indices cannot be silently reused.",
+    "installed_channel_sha256": "c0d2c2c30bdbd9e5eacfc4886f4eb93b7f89253da4c745a84ffba72e843d8eca",
+    "multiplicity": 2,
+    "parent": "791472110370000000002",
+    "positions": [
+      [
+        1.8122818350510603,
+        0.002977247833230985,
+        -0.00106450608153775
+      ],
+      [
+        2.2322433886835213,
+        1.7849627862837703,
+        -0.0036765215289910613
+      ],
+      [
+        0.01809130535354313,
+        0.008600066409595793,
+        -0.002613934582204996
+      ],
+      [
+        1.7933644276047316,
+        2.0266677332365868,
+        -1.2480033488212756
+      ],
+      [
+        2.247535284244536,
+        -0.49077189791788217,
+        -0.8623412662152973
+      ],
+      [
+        2.2307468143965448,
+        -0.39552523186946487,
+        0.9183373719478544
+      ]
+    ],
+    "products": [
+      {
+        "charge": 0,
+        "multiplicity": 1,
+        "smiles": "[H][C]([H])=[S]"
+      },
+      {
+        "charge": 0,
+        "multiplicity": 2,
+        "smiles": "[SH]"
+      }
+    ],
+    "reaction": "791472110370000000002_hom_sci_1_2",
+    "schema": 1,
+    "smiles": "[H][S][C]([H])([H])[S]",
+    "status": "model_accepted",
+    "surface_model": {
+      "sha256": "b90cbd02c6948638fb08875b1cd052f30fa06f12545ee6816a73eb85ec1fc1c7",
+      "source": "inline:vrc_tst_surface_model"
+    },
+    "symbols": [
+      "C",
+      "S",
+      "S",
+      "H",
+      "H",
+      "H"
+    ]
+  },
+  "request_sha256": "a13588822b1cdb7bd13c6787a96685620f32f2d61c3b72d4e9439e9588fef55d"
+}

@@ -1,0 +1,154 @@
+{
+  "case": "ch3ss",
+  "connections": [
+    {
+      "endpoints": [
+        "w_1",
+        "pr_1"
+      ],
+      "kind": "vrc",
+      "label": "nobar_1",
+      "owner": "791471490990000000002",
+      "reaction": "791471490990000000002_hom_sci_1_2"
+    },
+    {
+      "endpoints": [
+        "w_1",
+        "pr_2"
+      ],
+      "kind": "vrc",
+      "label": "nobar_2",
+      "owner": "791471490990000000002",
+      "reaction": "791471490990000000002_hom_sci_1_4"
+    },
+    {
+      "endpoints": [
+        "w_6",
+        "pr_8"
+      ],
+      "kind": "vrc",
+      "label": "nobar_14",
+      "owner": "791472110370000000002",
+      "reaction": "791472110370000000002_hom_sci_1_2"
+    },
+    {
+      "endpoints": [
+        "w_9",
+        "pr_8"
+      ],
+      "kind": "vrc",
+      "label": "nobar_39",
+      "owner": "791671450790040000002",
+      "reaction": "791671450790040000002_intra_H_migration_suprafacial_1_4"
+    },
+    {
+      "endpoints": [
+        "w_12",
+        "pr_11"
+      ],
+      "kind": "vrc",
+      "label": "nobar_41",
+      "owner": "791871560500020000002-sb6e34ded5baaf03b",
+      "reaction": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_R_3_2_4"
+    },
+    {
+      "endpoints": [
+        "w_1",
+        "w_3"
+      ],
+      "kind": "tight_ts",
+      "label": "rxn_2",
+      "owner": "791471490990000000002",
+      "reaction": "791471490990000000002_r13_insertion_RSR_4_1_2_3"
+    },
+    {
+      "endpoints": [
+        "w_3",
+        "w_6"
+      ],
+      "kind": "tight_ts",
+      "label": "rxn_9",
+      "owner": "791671450790040000002",
+      "reaction": "791671450790040000002_12_shift_S_F_1_2_3"
+    },
+    {
+      "endpoints": [
+        "w_3",
+        "w_9"
+      ],
+      "kind": "tight_ts",
+      "label": "rxn_37",
+      "owner": "791671450790040000002",
+      "reaction": "791671450790040000002_intra_H_migration_suprafacial_1_4"
+    },
+    {
+      "endpoints": [
+        "w_9",
+        "w_12"
+      ],
+      "kind": "tight_ts",
+      "label": "rxn_reverse_93359f49",
+      "owner": "reverse_abstractions/93359f497a7313176574",
+      "reaction": "330330000000000000002_460700680000000000001_abstraction_1_5_3"
+    }
+  ],
+  "discovery_workers": [
+    "791471490990000000002",
+    "791671450790040000002",
+    "791472110370000000002"
+  ],
+  "excluded_optional_h_loss_extension": true,
+  "populations": {
+    "pr_1": {
+      "kind": "Bimolecular",
+      "native_id": "150390060000000000002_640640000000000000003",
+      "smiles": "[H][C]([H])[H] [S][S]"
+    },
+    "pr_11": {
+      "kind": "Bimolecular",
+      "native_id": "340660020000000000001_450570330000000000002",
+      "smiles": "[H][C]=[S] [H][S][H]"
+    },
+    "pr_2": {
+      "kind": "Bimolecular",
+      "native_id": "10000000000000000002_781341120660000000001",
+      "smiles": "[H][C]([H])=[S]=[S] [H]"
+    },
+    "pr_8": {
+      "kind": "Bimolecular",
+      "native_id": "330330000000000000002_460700680000000000001",
+      "smiles": "[H][C]([H])=[S] [H][S]"
+    },
+    "w_1": {
+      "kind": "Well",
+      "native_id": "791471490990000000002",
+      "smiles": "[H][C]([H])([H])[S][S]"
+    },
+    "w_12": {
+      "kind": "Well",
+      "native_id": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_R_3_2_4_IRC_F_prod",
+      "smiles": "[H][C]=[S].[H][S][H]"
+    },
+    "w_3": {
+      "kind": "Well",
+      "native_id": "791671450790040000002",
+      "smiles": "[H][S]=[S]=[C]([H])[H]"
+    },
+    "w_6": {
+      "kind": "Well",
+      "native_id": "791472110370000000002",
+      "smiles": "[H][S][C]([H])([H])[S]"
+    },
+    "w_9": {
+      "kind": "Well",
+      "native_id": "791671450790040000002_intra_H_migration_suprafacial_1_4_IRC_F_prod",
+      "smiles": "[H][C]([H])=[S].[H][S]"
+    }
+  },
+  "retained_source_only_workers": [
+    "791871560500020000002-sb6e34ded5baaf03b",
+    "reverse_abstractions/93359f497a7313176574"
+  ],
+  "schema": 1,
+  "source_mess_sha256": "0c8ff55e4c60d052648bab175bf643522318360eda4bf23d933174d6dc11b64d"
+}

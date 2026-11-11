@@ -1,5 +1,6 @@
 """Finite step-budget extensions; never waive convergence or catch QC errors."""
 from pathlib import Path
+from contextlib import nullcontext
 
 from kinbot.execution import atomic_json
 
@@ -35,13 +36,18 @@ def run_optimizer(optimizer, *, fmax, steps, report=None, chunks=None, used=0,
     if type(used_steps) is not int or used_steps < 0:
         raise ValueError('Previously used optimizer steps must be a nonnegative integer.')
     record = dict(status='running', chunks_used=used, chunk_steps=steps, fmax=fmax)
+    from kinbot.optimizer_cycle import attach_cycle_monitor
+    attach_cycle_monitor(optimizer, fmax, report)
+    calculator = getattr(getattr(optimizer, 'atoms', None), 'calc', None)
+    derivatives = getattr(calculator, 'optimizer_derivatives', nullcontext)
     for _ in range(chunks):
         if report:
             atomic_json(Path(report), record)
         # Preserve the optimizer object (and its learned Hessian) on extension.
         allowed=steps if remaining_steps is None else min(steps,remaining_steps)
         before=getattr(optimizer,'nsteps',0)
-        converged = bool(optimizer.run(fmax=fmax, steps=allowed))
+        with derivatives():
+            converged = bool(optimizer.run(fmax=fmax, steps=allowed))
         if remaining_steps is not None:
             consumed=getattr(optimizer,'nsteps',0)-before
             if not 0 <= consumed <= allowed:

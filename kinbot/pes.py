@@ -639,11 +639,17 @@ def postprocess(par, jobs, task, names, mass):
     l3done = int(l3_requested)
 
     electronic_shifts, selected_states = {}, {}
+    from kinbot.pes_product_identity import ProductIdentities
+    product_identities = ProductIdentities(jobs)
+    if product_identities.aliases:
+        from kinbot.execution import atomic_json
+        atomic_json('pes_product_identities.json', product_identities.report())
 
     def read_energy(*args, **options):
         return get_energy(*args, electronic_state_parameters=par,
                           correction_cache=electronic_shifts,
-                          state_cache=selected_states, **options)
+                          state_cache=selected_states, product_aliases=product_identities.aliases,
+                          **options)
 
     def optional_l3energy(name, parameters, **options):
         if not l3_requested:
@@ -701,6 +707,8 @@ def postprocess(par, jobs, task, names, mass):
                 elif 'vdW' in line : #Unpack differently when a vdW well is in line
                     ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()[1:]
                     vdW_well = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
+                if len(products) > 1:
+                    products = [product_identities.product(ji, name) for name in products]
                 if matches_name(reaction_name, par['skip_reactions']):
                     continue
                 from kinbot.reaction_decisions import rejected
@@ -944,7 +952,8 @@ def postprocess(par, jobs, task, names, mass):
                           prod_energies,
                           parent,
                           mass,
-                          l3done, warnings=network_warnings, selected_states=selected_states)
+                          l3done, warnings=network_warnings, selected_states=selected_states,
+                          product_identities=product_identities)
 
     if l3_requested and par['single_point_qc'].lower() == 'molpro':
         if l3done:
@@ -1362,7 +1371,7 @@ def create_short_names(wells, products, reactions, barrierless, vdW):
 
 def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                       well_energies, prod_energies, parent, mass, l3done, warnings=(),
-                      selected_states=None):
+                      selected_states=None, product_identities=None):
     """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
@@ -1376,6 +1385,8 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
 
     from kinbot.rotdpy import validate_mess_handoff
     validate_mess_handoff(par)
+    from kinbot.pes_product_identity import ProductIdentities
+    product_identities = product_identities or ProductIdentities([])
     min_vdW = find_min_vdW(vdW, well_energies)
     selected_wells = [well for well in wells if min_vdW.get(well, well) == well]
     skip_complexes = bool(par.get('me_skip_vdW', 0))
@@ -1483,14 +1494,16 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod] + uq.calc_factor('energy', uq_iter)
             prod_energies_current[prod] = energy
-            fr_names = {f'fr_name_{fr}': fr_short[fr] + ' ! ' + fr for fr in prod.split('_')}
+            fr_names = {f'fr_name_{product_identities.original(fr)}': fr_short[fr] + ' ! ' + fr
+                        for fr in prod.split('_')}
             def format_exit(worker, reaction, *, homolysis=False, **names):
-                source = Path(worker) / mess_filename(prod, uq_iter, reaction=reaction)
+                original_prod = product_identities.original_key(prod)
+                source = Path(worker) / mess_filename(original_prod, uq_iter, reaction=reaction)
                 if not source.is_file():
                     # Older single-route artifacts remain usable; the ROTD
                     # resolver still validates any embedded reaction binding.
-                    source = Path(worker) / mess_filename(prod, uq_iter)
-                text = source.read_text().format(
+                    source = Path(worker) / mess_filename(original_prod, uq_iter)
+                text = product_identities.annotate(source.read_text(), worker).format(
                     name=name, ground_energy=round(energy, 2), **fr_names, **names)
                 text = resolve_models(text, worker, par, round(energy, 2),
                                       rotd_sources, reaction)
@@ -1523,8 +1536,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             #The product is directly obtained after a reaction with a barrier
             if not bless:
                 source = parent[parent[prod]] if 'IRC' in parent[prod] else parent[prod]
-                with open(source + '/' + mess_filename(prod, uq_iter)) as f:
-                    _, blocks, _ = split_model(f.read() + '\nEnd ! end kinetics\n')
+                with open(source + '/' + mess_filename(product_identities.original_key(prod), uq_iter)) as f:
+                    _, blocks, _ = split_model(product_identities.annotate(f.read(), source)
+                                               + '\nEnd ! end kinetics\n')
                 # A worker artifact can contain a phase-space exit as well as
                 # the fragments. Only explicitly retained exits are written.
                 product_blocks = [block for block in blocks
@@ -1586,6 +1600,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                          )
             from kinbot.transition_symmetry import annotate_cached_surface
             barrier = annotate_cached_surface(barrier, rxn[0], rxn[1], par)
+            barrier = product_identities.annotate(barrier, rxn[0])
             if energy > original_energy:
                 note = (f'! correct_submerged=1: MESS barrier {name[0]} '
                         f'energies[kcal/mol] [{round(original_energy, 2)}] raised to '
@@ -2050,15 +2065,18 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
 
 def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
                rotor_scan=None, optical_population=None,
-               electronic_state_parameters=None, correction_cache=None, state_cache=None):
+               electronic_state_parameters=None, correction_cache=None, state_cache=None,
+               product_aliases=None):
     
+    alias = (product_aliases or {}).get(job) if not ts else None
+    source_job = alias['source_name'] if alias else job
     if ts:
         j = job
         wells = [job.split('_')[0]]
     else:
-        j = job + '_well'
+        j = source_job + '_well'
     if conf and not high_level and not mp2 and 'IRC' not in job:
-        j = f'conf/{job}_low'
+        j = f'conf/{source_job}_low'
     if mp2:
         j += '_mp2'
     if bls:
@@ -2095,11 +2113,23 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
                 # workers cannot reuse one shortened name for different IDs.
                 atoms = row.toatoms()
                 st_pt = StationaryPoint.from_ase_atoms(atoms)
+                reference = next(db.select(name='stereochemistry/' + source_job + '_well',
+                                           sort='-id', limit=1), None)
+                st_pt.charge = int(reference.data['input_charge'] if reference else
+                                   row.data.get('charge', st_pt.charge))
+                st_pt.mult = int(connectivity_name(source_job)[-1])
                 st_pt.characterize()
                 chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
-                identity = configured_result_identity(db, job, row, optical_population)
+                identity = configured_result_identity(db, source_job, row, optical_population)
                 if chemid_wo_mult != connectivity_name(job)[:-1] or identity is None:
                     break
+                if source_job.isdigit():
+                    from kinbot.stereo_identity import require_supported_identity
+                    if alias and reference is None:
+                        break
+                    identity = require_supported_identity(st_pt)['id']
+                    if alias and identity != alias['identity']:
+                        break
                 if reference_identity is not None and identity != reference_identity:
                     raise ValueError(f'{job}: different complete stereoisomer identities '
                                      'share one calculation name across PES workers.')

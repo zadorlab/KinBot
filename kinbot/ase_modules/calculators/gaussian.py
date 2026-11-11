@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from shutil import which
 from typing import Dict, Optional
 
-from ase.calculators.calculator import FileIOCalculator
+from ase.calculators.calculator import FileIOCalculator, all_changes
 from kinbot.ase_modules.io.formats import read, write
 
 
@@ -221,7 +221,23 @@ class Gaussian(FileIOCalculator):
             raise ValueError('diatomic_scf_symmetry must be true or false.')
         self.diatomic_scf_symmetry = bool(diatomic_scf_symmetry)
         self._diatomic_symmetry_retry_active = False
+        self._coupled_derivatives = False
         FileIOCalculator.__init__(self, *args, label=label, **kwargs)
+
+    @contextmanager
+    def optimizer_derivatives(self):
+        """Supply each external optimizer energy/gradient from one native job."""
+        previous = self._coupled_derivatives
+        native_task = any(key.lower() in {'freq', 'opt', 'irc'}
+                          for key in self.parameters)
+        self._coupled_derivatives = not native_task
+        # An earlier energy-only evaluation must not seed a new coupled pair.
+        if self._coupled_derivatives and 'forces' not in self.results:
+            self.results.clear()
+        try:
+            yield
+        finally:
+            self._coupled_derivatives = previous
 
     def _initialize_profile(self, command):
         # KinBot resolves the Gaussian executable dynamically in calculate();
@@ -247,7 +263,9 @@ class Gaussian(FileIOCalculator):
                 f'Gaussian exited with error code {errorcode} '
                 f'(command: {command})')
 
-    def calculate(self, *args, **kwargs):
+    def calculate(self, atoms=None, properties=('energy',), system_changes=all_changes):
+        if self._coupled_derivatives:
+            properties = list(dict.fromkeys([*properties, 'energy', 'forces']))
         gaussians = ('g16', 'g09', 'g03')
         if 'GAUSSIAN' in self.command:
             for gau in gaussians:
@@ -259,11 +277,11 @@ class Gaussian(FileIOCalculator):
                                  .format(gaussians))
 
         try:
-            FileIOCalculator.calculate(self, *args, **kwargs)
+            FileIOCalculator.calculate(self, atoms, properties, system_changes)
         except RuntimeError:
             output = Path(self.label + '.log')
             original = copy.deepcopy(self.parameters)
-            atoms = kwargs.get('atoms', args[0] if args else self.atoms)
+            atoms = atoms if atoms is not None else self.atoms
             diatomic = (diatomic_recovery_parameters(original, atoms)
                         if self.diatomic_scf_symmetry else None)
             if not self.scf_recovery or not (qc_scf_failure(output)
@@ -305,7 +323,7 @@ class Gaussian(FileIOCalculator):
             self.parameters = type(original)(replacement)
             self._diatomic_symmetry_retry_active = diatomic is not None
             try:
-                FileIOCalculator.calculate(self, *args, **kwargs)
+                FileIOCalculator.calculate(self, atoms, properties, system_changes)
             except Exception as error:
                 record.update(status='failed', error=f'{type(error).__name__}: {error}')
                 raise

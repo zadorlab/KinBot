@@ -121,3 +121,23 @@ def test_normal_sella_entry_point_and_repeated_invocation(tmp_path):
     ts = Sella(atoms, order=1, internal=False, logfile=None)
     attach_cycle_monitor(ts, .0005, None)
     assert not hasattr(ts, '_kinbot_floor_cycle')
+
+
+def test_sella_gaussian_force_requests_from_initialization_through_convergence(tmp_path, monkeypatch):
+    requests = []
+    monkeypatch.setattr(Gaussian, 'command', 'true')
+    def execute(calc):
+        from pathlib import Path
+        requests.append(Path(calc.label + '.com').read_text())
+    def read_results(calc):
+        reference = HarmonicBond()
+        reference.calculate(calc.atoms)
+        calc.results = reference.results
+    monkeypatch.setattr(Gaussian, 'execute', execute)
+    monkeypatch.setattr(Gaussian, 'read_results', read_results)
+    atoms = Atoms('HH', positions=[[0, 0, 0], [0, 0, 1.2]])
+    atoms.calc = Gaussian(label=str(tmp_path/'bond'), method='B3LYP', basis='cc-pVDZ')
+    optimizer = Sella(atoms, order=0, internal=False, logfile=None)
+    assert run_optimizer(optimizer, fmax=.0005, steps=40, chunks=1)
+    assert requests and all('\nforce\n' in request.lower() for request in requests)
+    assert np.linalg.norm(atoms.get_forces(), axis=1).max() < .0005

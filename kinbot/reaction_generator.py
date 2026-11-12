@@ -22,7 +22,8 @@ from kinbot.reac_General import GeneralReac
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import (canonical_identity, require_supported_identity,
                                    UnsupportedStereochemistry)
-from kinbot.reaction_path import prepare_stereopath, endpoint_snapshot
+from kinbot.reaction_path import prepare_stereopath, endpoint_snapshot, is_barrierless
+from kinbot.product_states import participating_fragment_states, spin_allowed
 from kinbot.stereo_routing import require_same_configuration, StereoRoutingError
 from kinbot.profiled_qc import MissingL1Result
 from kinbot.molpro import Molpro
@@ -96,15 +97,8 @@ class ReactionGenerator:
                             logger.info('\tRxn search failed for {} - had error status on previous round.'
                                          .format(obj.instance_name))
                             self.species.reac_ts_done[index] = -999
-                    if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
-                        # somewhat messy manipulation to force the new bond matrix for hom_sci
-                        obj.irc_prod = StationaryPoint(f'{instance}_prod', self.species.charge, self.species.mult,
-                                                       atom=self.species.atom, geom=self.species.geom, wellorts=0)
-                        obj.irc_prod.characterize()
-                        obj.irc_prod.bonds[0][obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                        obj.irc_prod.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
-                        obj.irc_prod.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                        obj.irc_prod.bond[obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    if is_barrierless(self.species.reac_type[index]) and self.species.reac_ts_done[index] == 0:
+                        obj.irc_prod = obj.get_barrierless_product()
                         self.species.reac_ts_done[index] = 2
 
                     if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
@@ -293,13 +287,21 @@ class ReactionGenerator:
                             # graph used to annotate the original TS coordinates.
                             obj.irc_product_reference = endpoint_snapshot(obj.irc_prod)
                             # identify bimolecular products and wells from IRC - do it once
-                            obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
+                            if self.species.reac_type[index] == 'h2_elim_barrierless':
+                                # Declared H2 loss must carry the parent spin as
+                                # well as its charge; ordinary parity defaults
+                                # alone would let a triplet produce two singlets.
+                                obj.products = participating_fragment_states(obj.irc_prod)
+                            else:
+                                obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
                             self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
+                            origin = ('declared bond changes' if is_barrierless(
+                                self.species.reac_type[index]) else 'the end of IRC')
                             if self.species.charge == 0:
-                                logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
+                                logger.info(f'\tBased on {origin}, reaction {obj.instance_name} leads to products '
                                             f'{[fr.chemid for fr in obj.products]} {["".join(fr.atom) for fr in obj.products]}')
                             else:
-                                logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
+                                logger.info(f'\tBased on {origin}, reaction {obj.instance_name} leads to products '
                                             f'{[fr.chemid for fr in obj.products]} {["".join(fr.atom) for fr in obj.products]} '
                                             '(including all possible charge distributions)')
 
@@ -365,7 +367,10 @@ class ReactionGenerator:
                                 reorder=True)
                             if e < 0:
                                 logger.info(f'\tProduct optimization failed for {obj.instance_name}, product {frag.chemid}')
-                                self.species.reac_ts_done[index] = -999
+                                if self.species.reac_type[index] == 'h2_elim_barrierless':
+                                    obj.valid_prod[fragii] = False
+                                else:
+                                    self.species.reac_ts_done[index] = -999
                                 ndone += 1
                             elif e == 1:
                                 break
@@ -373,7 +378,7 @@ class ReactionGenerator:
                                 ndone += 1
                                 _, frag.energy = self.qc.get_qc_energy(source_job)
                                 _, frag.zpe = self.qc.get_qc_zpe(source_job)
-                                if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
+                                if is_barrierless(self.species.reac_type[index]): # TODO energy is the sum of all possible fragments
                                     hom_sci_energy += frag.energy + frag.zpe
                                 # Reinitialize rads and bonds
                                 frag.reset_order()
@@ -381,7 +386,26 @@ class ReactionGenerator:
                                 # Identify the actual product after its first optimization.
                                 if initial_product:
                                     frag.__dict__.pop('optical_reference', None)
-                                    newfrags, _ = frag.start_multi_molecular(vary_charge=True)
+                                    if self.species.reac_type[index] == 'h2_elim_barrierless':
+                                        # A connected optimized product retains
+                                        # its requested multiplicity, even if it
+                                        # rearranged. More than one component in
+                                        # its assigned graph cannot define the
+                                        # single molecular partner of H2 PST.
+                                        newfrags = participating_fragment_states(frag)
+                                        if len(newfrags) > 1:
+                                            formulas = sorted({Atoms(symbols=p.atom).get_chemical_formula()
+                                                               for p in newfrags})
+                                            warning = (f'KinBot bond assignment for {source_job} identifies '
+                                                f'{" + ".join(formulas)}. Two-fragment H2 PST '
+                                                'cannot assign a rate to this product state; '
+                                                'calculation retained and other states continue.')
+                                            logger.warning(warning)
+                                            obj.product_warnings = getattr(obj, 'product_warnings', []) + [warning]
+                                            obj.valid_prod[fragii] = False
+                                            continue
+                                    else:
+                                        newfrags, _ = frag.start_multi_molecular(vary_charge=True)
                                     self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                     for product in newfrags:
                                         require_supported_identity(product)
@@ -433,7 +457,8 @@ class ReactionGenerator:
                                 masses = np.array([i.mass for i in obj.products])
                                 charges = np.array([i.charge for i in obj.products])
                                 frag_symbols = [p.atom for p in obj.products]
-                                low_e_comb = combs[0]
+                                h2_loss = self.species.reac_type[index] == 'h2_elim_barrierless'
+                                low_e_comb = None if h2_loss else combs[0]
                                 for comb in combs:
                                     comb_symbols = []
                                     for i, frag_symb in enumerate(frag_symbols):
@@ -442,6 +467,10 @@ class ReactionGenerator:
                                     if sum(comb * charges) != self.species.charge \
                                             or sum(comb * masses) != self.species.mass \
                                             or sorted(comb_symbols) != sorted(self.species.atom):
+                                        continue
+                                    if h2_loss and not spin_allowed(
+                                            [p.mult for i, p in enumerate(obj.products) if comb[i]],
+                                            self.species.mult):
                                         continue
                                     rel_energy = constants.AUtoKCAL * (sum(comb * (ens + zpes)) - \
                                                  (self.species.start_energy + self.species.start_zpe))
@@ -453,12 +482,18 @@ class ReactionGenerator:
                                     if sum(comb * (ens + zpes)) < val:
                                         val = sum(comb * (ens + zpes))
                                         low_e_comb = comb
+                                if low_e_comb is None:
+                                    logger.warning('%s: no optimized product combination preserves '
+                                                   'the parent atoms, charge and multiplicity.',
+                                                   obj.instance_name)
+                                    self.species.reac_ts_done[index] = -999
+                                    continue
                                 obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
                             obj.irc_fragments = [copy.copy(this_frag) for this_frag in obj.products]
                             prods_energy = sum([p.energy + p.zpe for p in obj.products])
 
                             # Select reactions potentially leading to vdW wells
-                            if len(obj.products) == 2 and 'hom_sci' not in obj.instance_name:
+                            if len(obj.products) == 2 and not is_barrierless(obj.instance_name):
                                 logger.info('\tChecking vdW well for {}.'.format(obj.instance_name))
                                 obj.irc_prod.characterize()
                                 e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}')  # e is the error code: should be 0 (success) at this point.
@@ -478,12 +513,12 @@ class ReactionGenerator:
                                 else:
                                     logger.info(f'\t{obj.irc_prod.name} was not succesfully identified as a vdW well. Well depth is {np.round(obj.vdW_depth, 2)} kcal/mol.')
 
-                            if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
+                            if is_barrierless(self.species.reac_type[index]): # TODO energy is the sum of all possible fragments
                                 hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                                 if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                     self.species.reac_ts_done[index] = 3
                                 else:
-                                    logger.info(f'\thom_sci energy is too high at {np.round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
+                                    logger.info(f'\tDissociation energy is too high at {np.round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
                                     self.species.reac_ts_done[index] = -999
                             else:
                                 self.species.reac_ts_done[index] = 3
@@ -511,7 +546,7 @@ class ReactionGenerator:
                             for j in range(self.species.natom):
                                 bond_mx[i][j] = max(self.species.bond[i][j], endpoint.bonds[0][i][j])
 
-                        if self.species.reac_type[index] != 'hom_sci':
+                        if not is_barrierless(self.species.reac_type[index]):
                             err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
                             ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
                                                  atom=self.species.atom, geom=geom, wellorts=1)
@@ -600,7 +635,7 @@ class ReactionGenerator:
                         opts_done = 1
                         fails = 0
                         # check if ts and vdW are done
-                        if self.species.reac_type[index] != 'hom_sci':
+                        if not is_barrierless(self.species.reac_type[index]):
                             if not obj.ts_opt.shir == 1:  # last stage in optimize
                                 opts_done = 0
                                 obj.ts_opt.do_optimization()
@@ -632,7 +667,7 @@ class ReactionGenerator:
                         # Finilize the calculations
                         st_pt = obj.prod_opt[0].species
                         # kill reaction if higher than L2 threshold
-                        if self.par['barrier_threshold_L2'] and self.par['high_level'] and 'hom_sci' not in obj.instance_name:
+                        if self.par['barrier_threshold_L2'] and self.par['high_level'] and not is_barrierless(obj.instance_name):
                             # check the barrier height again at L2 if requested
                             ts_energy = self.qc.get_qc_energy(f'{obj.instance_name}_high')[1]
                             ts_zpe = self.qc.get_qc_zpe(f'{obj.instance_name}_high')[1]
@@ -686,9 +721,9 @@ class ReactionGenerator:
                                     self.species.reac_ts_done[index] = -999
                                     neg_freq = 1
                         ts_freq = np.asarray(obj.ts.reduced_freqs)
-                        # hom_sci uses the parent well as a bookkeeping placeholder,
+                        # Declared exits use the parent well as a placeholder,
                         # not an optimized saddle with an unstable normal mode.
-                        if self.species.reac_type[index] != 'hom_sci' and len(ts_freq):
+                        if not is_barrierless(self.species.reac_type[index]) and len(ts_freq):
                             nneg = np.count_nonzero(ts_freq < 0.)
                             if (nneg >= 3 or np.count_nonzero(
                                     ts_freq < -self.par['imagfreq_threshold']) >= 2

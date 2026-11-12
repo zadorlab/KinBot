@@ -13,7 +13,8 @@ import numpy as np
 from kinbot import kb_path
 from kinbot import license_message
 from kinbot import constants
-from kinbot.reaction_path import summary_path_line, reject_invalid_pathway, same_path_class
+from kinbot.reaction_path import (summary_path_line, reject_invalid_pathway,
+                                  same_path_class, is_barrierless)
 
 
 def creatMLInput(species, qc, par):
@@ -107,6 +108,8 @@ def create_summary_file(species, qc, par):
         s.append(f"# WARNING: incomplete {rejection['family']} discovery: {reason}. "
                  'Reaction network is incomplete.')
     for reaction in species.reac_obj:
+        for warning in getattr(reaction, 'product_warnings', ()):
+            s.append('# WARNING: ' + ' '.join(str(warning).split()))
         reason = getattr(reaction, 'stereochemical_rejection', None)
         if reason:
             reason = ' '.join(str(reason).split())
@@ -119,7 +122,7 @@ def create_summary_file(species, qc, par):
             if path_line:
                 s.append(path_line)
             ts = species.reac_obj[index].ts
-            if l3status and species.reac_type[index] != 'hom_sci':
+            if l3status and not is_barrierless(species.reac_type[index]):
                 energy = (ts.l3energy + ts.zpe
                           - species.l3energy - species.zpe)
                 energy *= constants.AUtoKCAL
@@ -131,7 +134,7 @@ def create_summary_file(species, qc, par):
                 mp2_zpe = qc.get_qc_zpe(routing_name(species) + '_well_mp2')[1]
                 energy = (ts.energy + ts.zpe
                           - mp2_energy - mp2_zpe) * constants.AUtoKCAL
-            elif species.reac_type[index] == 'hom_sci':
+            elif is_barrierless(species.reac_type[index]):
                 if l3status:
                     energy = (sum([pr.l3energy + pr.zpe
                                    for pr in species.reac_obj[index].products])
@@ -282,7 +285,7 @@ def createPESViewerInput(species, qc, par):
             we_energy = qc.get_qc_energy(routing_name(species) + '_well_mp2')[1]
             we_zpe = qc.get_qc_zpe(routing_name(species) + '_well_mp2')[1]
             energy = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL
-        elif species.reac_type[index] == 'hom_sci':
+        elif is_barrierless(species.reac_type[index]):
             continue
         else:
             energy = (ts.energy + ts.zpe - well_energy) * constants.AUtoKCAL
@@ -313,7 +316,7 @@ def createPESViewerInput(species, qc, par):
     
     # Barrierless reactions
     for index in range(len(species.reac_inst)):
-        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci':
+        if species.reac_ts_done[index] != -1 or not is_barrierless(species.reac_type[index]):
             continue
         name = []
         for st_pt in species.reac_obj[index].products:

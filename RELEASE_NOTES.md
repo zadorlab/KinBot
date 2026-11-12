@@ -2,6 +2,39 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## Declared barrierless 1,1-H2 loss from cations
+
+Add `h2_elim_barrierless` for two H atoms bonded to the same carbon in a
+positive ion. It is enabled by `families: ["all"]`, can be selected explicitly,
+and can be disabled through `skip_families`. Like `hom_sci`, it optimizes
+products and assigns phase-space theory (PST) rates without requiring a saddle.
+Compatible product charge/spin combinations are ranked by energy plus ZPE.
+Connected product rearrangements are allowed. If bond assignment splits an
+optimized product into several fragments, keep its calculation and report a
+warning while trying the other states; two-fragment PST cannot describe that
+alternative. An optimized saddle for the same configured species replaces the
+declared exit. The declaration does not prove that the surface is barrierless.
+
+For a positive ion and neutral singlet H2, capture uses ion-induced-dipole
+attraction. With separation R and ion charge q, the potential is -C4/R^4,
+where C4 = 5.437*q^2/2 in atomic units. Product rotational and optical divisors
+are included consistently in direct, PES and multi-conformer output. Other
+pairs retain -0.6/R^6; H2+ plus a neutral molecule remains allowed with a
+warning about the approximate potential. H2 quadrupole and rotational-state
+capture effects are omitted. MESS output containing H2 permits a 0.5-A atom
+separation unless an explicit limit is present, including saddle-point output.
+
+Only isolated doublet H2+ receives a 1.3-A bond-assignment cutoff. UMA molecular
+task minima use a 1.058-A bond and a 2321.7-cm^-1 stretch; energy plus ZPE is
+referenced to neutral H2 from the same UMA model plus its measured 15.42593-eV
+ionization energy. Gaussian/ORCA energies and larger UMA systems are unchanged.
+Old H2 results that could be uncorrected UMA H2+ require fresh calculations.
+The check uses saved model and charge/spin information, even if a local
+checkpoint was moved or deleted. Corrected results, verified neutral H2 and
+recorded non-UMA results remain reusable. Complete selected-conformer records
+now preserve charge, spin, Hessian and correction data for every calculator.
+FairChem atomic-energy failures produce the existing worker error record.
+
 ## Homolytic-scission energy references
 
 PES now calculates homolytic-scission thresholds from product energies

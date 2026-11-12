@@ -1526,6 +1526,9 @@ class QuantumChemistry:
     def check_qc(self, job):
         """Read job status, allowing 60 s for a submitted job's final files."""
         status = QuantumChemistry._check_qc(self, job)
+        if status == 'normal' and self.qc == 'fc':
+            from kinbot.fairchem_utils import check_h2_cation_cache
+            check_h2_cation_cache(self, job)
         if self.queuing not in ('slurm', 'pbs') or job not in self.job_ids:
             return status
 

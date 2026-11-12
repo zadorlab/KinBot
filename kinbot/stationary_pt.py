@@ -244,6 +244,11 @@ class StationaryPoint:
                 except KeyError:
                     bond_thresh = 1.2 * (covalent_radii[atomic_numbers[atom_pair[0]]] 
                                          + covalent_radii[atomic_numbers[atom_pair[1]]]) 
+                # Bound H2+ is longer than neutral H2: the B3LYP minimum at
+                # 1.114 A must not become H + H+. Other H pairs keep their cutoff.
+                if (self.natom == 2 and atom_pair == ['H', 'H']
+                        and self.charge == 1 and self.mult == 2):
+                    bond_thresh = 1.3
                 if self.dist[i][j] < bond_thresh:
                     self.bond[i][j] = 1
 

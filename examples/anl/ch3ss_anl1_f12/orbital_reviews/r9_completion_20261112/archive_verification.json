@@ -1,0 +1,161 @@
+{
+  "archive_sha256": "bdb511e0193693d4ac614520ffdce758e9c066bf4c8173298009669e41c14e11",
+  "files": 5901,
+  "bytes": 8601273471,
+  "issues": [],
+  "selections": [
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/panel.json",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/panel.json"
+      ]
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/plan.json",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/plan.json"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxations.json",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxations.json"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points.json",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points.json"
+      ]
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v07_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v07_candidate_avdz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v07_candidate_avtz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v07_frontier_only_avdz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v07_frontier_only_avtz_f12"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v07_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v07_mid_f15aa663e901c747",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v07_near_b86b13d1a121d94d"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v07_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v07_candidate_avdz_f12_near_relaxed",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v07_candidate_avtz_f12_near_relaxed",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v07_frontier_only_avdz_f12_near_relaxed",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v07_frontier_only_avtz_f12_near_relaxed"
+      ]
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v08_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v08_candidate_avdz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v08_candidate_avtz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v08_sigma_pair_avdz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v08_sigma_pair_avtz_f12"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v08_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v08_mid_5f692efc24c6ace3",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v08_near_f1b7ff541956fdf7"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v08_*",
+      "root": "runs",
+      "matches": []
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_candidate_avdz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_candidate_avtz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_occupied_union_avdz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_occupied_union_avtz_f12"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v13_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v13_mid_8f8abdb14e2ea8c1",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v13_near_885be8b6be1d3e41"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v13_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v13_candidate_avdz_f12_mid_relaxed",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v13_candidate_avtz_f12_mid_relaxed",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v13_occupied_union_avdz_f12_mid_relaxed",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v13_occupied_union_avtz_f12_mid_relaxed"
+      ]
+    },
+    {
+      "optional": false,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v25_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v25_candidate_avdz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v25_candidate_avtz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v25_h2s_donor_avdz_f12",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v25_h2s_donor_avtz_f12"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v25_*",
+      "root": "runs",
+      "matches": [
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v25_mid_e8897899707854a2",
+        "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed/v25_near_5cb2a810f22bec47"
+      ]
+    },
+    {
+      "optional": true,
+      "path": "ch3s_ch3ss_orbital_reviews_20261027/verification/relaxed_points/v25_*",
+      "root": "runs",
+      "matches": []
+    },
+    {
+      "path": "examples/anl/ch3ss_anl1_f12/orbital_reviews/verification_20261027/plan.json",
+      "root": "repo",
+      "matches": [
+        "/home/hram/KinBot/examples/anl/ch3ss_anl1_f12/orbital_reviews/verification_20261027/plan.json"
+      ]
+    }
+  ]
+}

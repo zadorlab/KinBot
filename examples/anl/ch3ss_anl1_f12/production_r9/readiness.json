@@ -1,14 +1,9 @@
 {
   "blockers": [
     {
-      "cases": [
-        7,
-        8,
-        13,
-        25
-      ],
-      "kind": "existing_verification_export",
-      "reason": "Submitted verification native results are absent from the supplied local archive."
+      "kind": "angular_state_tracking",
+      "reason": "Completed angular far points have a 26 kcal/mol root gap, inconsistent with the intended SH Pi components. Sixteen far-start/return checks are staged.",
+      "verification_case": 7
     },
     {
       "kind": "new_h_loss_reviews",
@@ -61,6 +56,7 @@
       },
       "case": "ch3ss",
       "connection": "nobar_14",
+      "native_review_20261112": "CAS(7,6) remains selected; angular state check pending.",
       "reaction": "791472110370000000002_hom_sci_1_2",
       "source_review": "791472110370000000002_hom_sci_1_2",
       "status": "installed_selection_verification_pending",
@@ -75,9 +71,10 @@
       },
       "case": "ch3ss",
       "connection": "nobar_39",
+      "native_review_20261112": "Retain CAS(5,4); eight mapped R9 endpoint/path checks staged.",
       "reaction": "791671450790040000002_intra_H_migration_suprafacial_1_4",
       "source_review": "791671450790040000002_r12_insertion_R_2_3_4",
-      "status": "endpoint_binding_and_verification_pending",
+      "status": "selection_supported_binding_pending",
       "verification_cases": [
         8,
         13
@@ -90,14 +87,16 @@
       },
       "case": "ch3ss",
       "connection": "nobar_41",
+      "native_review_20261112": "Retain CAS(3,3); zero further diagnostics required for this selection.",
       "reaction": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_R_3_2_4",
       "source_review": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_R_3_2_4",
-      "status": "verification_pending",
+      "status": "selection_supported_installation_pending",
       "verification_cases": [
         25
       ]
     }
   ],
+  "review_update": "../orbital_reviews/r9_completion_20261112/REVIEW.md",
   "scheduling": {
     "exclusive": true,
     "max_jobs": 20,

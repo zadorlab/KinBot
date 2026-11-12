@@ -24,6 +24,25 @@ from kinbot.execution import atomic_json, file_sha256
 NAME = '.kinbot_checkpoints'
 
 
+def physical_checkpoint(frame, expected_symbols):
+    """Remove only appended Sella coordinate dummies from an evaluated frame."""
+    from ase.calculators.singlepoint import SinglePointCalculator
+    count = len(expected_symbols)
+    symbols = frame.get_chemical_symbols()
+    if symbols[:count] != list(expected_symbols) or any(s != 'X' for s in symbols[count:]):
+        raise RuntimeError('Optimizer checkpoint changed physical atom identity/order.')
+    energy = frame.get_potential_energy()
+    forces = frame.get_forces(apply_constraint=False)
+    if (forces.shape != (len(frame), 3) or not np.isfinite(energy)
+            or not np.isfinite(frame.positions).all() or not np.isfinite(forces).all()
+            or np.any(forces[count:] != 0.)):
+        raise RuntimeError('Optimizer checkpoint has invalid evaluated physical/dummy data.')
+    point = Atoms(expected_symbols, positions=frame.positions[:count],
+                  cell=frame.cell, pbc=frame.pbc)
+    point.calc = SinglePointCalculator(point, energy=energy, forces=forces[:count])
+    return point
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
 
@@ -183,7 +202,9 @@ class Progress:
                       if s.startswith('Sella ')]
                 if not rows or len(rows[-1])!=9 or int(rows[-1][1])!=optimizer.nsteps:
                     raise RuntimeError('Cannot identify the accepted Sella checkpoint frame.')
-                row=rows[-1];point=read(self.directory/'optimization.traj',index=int(row[-1]))
+                row=rows[-1];point=physical_checkpoint(
+                    read(self.directory/'optimization.traj',index=int(row[-1])),
+                    self.contract['starting_symbols'])
                 if abs(point.get_potential_energy()-float(row[3]))>2.e-6:
                     raise RuntimeError('Sella accepted checkpoint energy differs from its log.')
             energy=float(point.get_potential_energy());forces=point.get_forces(apply_constraint=False)

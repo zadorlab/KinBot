@@ -1,0 +1,38 @@
+{
+  "base_commit": "5f190d0b2",
+  "clean_published_tree": {
+    "description": "Tracked HEAD sources plus exactly this patch, excluding unrelated working-tree changes.",
+    "passed": 37
+  },
+  "code_hashes": {
+    "examples/anl/ch3ss_anl1_f12/orbital_reviews/r9_completion_20261112/campaign.py": "35f9b48b38f26b65e3bfd17f7244199bc0f869986d772b987a4f127880bb62f3",
+    "examples/anl/ch3ss_anl1_f12/orbital_reviews/r9_completion_20261112/plan.json": "1054ae5cdfa76fd640fe31eec1295af3883215c5dbe1f2528768069f7a1155ea",
+    "examples/anl/ch3ss_anl1_f12/orbital_reviews/r9_completion_20261112/report.py": "85066f2aedf14242e1013c6b6099a7bb7a66228d7ceaab8339e8284e312914f6",
+    "kinbot/anl/optimization_progress.py": "c0f0ed95e26d8ac1714449b52f1f56c65d094cce4e489e0328e93ca1b116ccf2",
+    "kinbot/anl/optimization_recovery.py": "1bf2019bb9baf231f5e97e152e511e12b6e0775e8049e29f4ae78fa14471ea99"
+  },
+  "focused_tests": {
+    "command": ".venv/bin/python -m pytest -q tests/test_r9_completion_campaign.py tests/test_optimization_progress.py tests/test_allocation_recovery.py tests/test_verification_review_panel.py tests/test_molpro_reconnaissance.py tests/test_r9_lean_stage.py",
+    "passed": 171,
+    "subtests": 5
+  },
+  "maximum_distinct_followup_points": 602,
+  "native_source_archive_sha256": "bdb511e0193693d4ac614520ffdce758e9c066bf4c8173298009669e41c14e11",
+  "offline_staging": {
+    "native_inputs": 92,
+    "repeated_successfully": true,
+    "source_hashes_verified": true
+  },
+  "optimization_retries": 0,
+  "orchestration": [
+    "partial completion and controller interruption",
+    "repeated invocation and completed-work adoption",
+    "failed prerequisites retain explicit holds",
+    "equivalent-space deduplication",
+    "shared policy binding",
+    "source hash rejection",
+    "read-only text report"
+  ],
+  "schema": 1,
+  "validation": "local simulated site; native follow-up pending"
+}

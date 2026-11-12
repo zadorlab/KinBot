@@ -106,8 +106,8 @@ class TestLeanR9Stage(unittest.TestCase):
             'ready': 2,
             'new_h_loss_review': 2,
             'installed_selection_verification_pending': 1,
-            'endpoint_binding_and_verification_pending': 1,
-            'verification_pending': 1,
+            'selection_supported_binding_pending': 1,
+            'selection_supported_installation_pending': 1,
         })
 
 

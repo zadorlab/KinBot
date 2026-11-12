@@ -19,7 +19,9 @@ def _last_point(directory, task, original):
         raise RuntimeError('Optimizer continuation lacks a step record.')
     row = rows[-1]
     index = int(row[-1]) if row[0] == 'Sella' and len(row) == 9 else -1
-    first, last = read(trajectory, index=0), read(trajectory, index=index)
+    from kinbot.anl.optimization_progress import physical_checkpoint
+    first = physical_checkpoint(read(trajectory, index=0), original.get_chemical_symbols())
+    last = physical_checkpoint(read(trajectory, index=index), original.get_chemical_symbols())
     if (first.get_chemical_symbols() != original.get_chemical_symbols()
             or last.get_chemical_symbols() != original.get_chemical_symbols()
             or not np.isfinite(last.positions).all()):

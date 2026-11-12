@@ -1,6 +1,8 @@
 # Lean R9 review stage
 
 Prepared on 2026-11-10 from the selected lean R8 models, including CH3 + S.
+The native-review update of 2026-11-12 is recorded in
+`../../ch3ss_anl1_f12/orbital_reviews/r9_completion_20261112/REVIEW.md`.
 The current package is a review draft. Production submission remains pending the
 specific scientific and result-import items below.
 
@@ -37,9 +39,9 @@ specifies the flux contributions.
 | CH3S `nobar_4`, CH2SH to CH2S + H | Exact H-loss model remains to be selected | Pending | Pending | New exact review required |
 | CH3SS `nobar_1`, CH3SS to CH3 + S2 | (7,5), methyl radical and full S2 pi/pi-star manifold | 18–22 | One doublet and one quartet / D1 | Existing native-reviewed model ready |
 | CH3SS `nobar_2`, CH3SS to CH2SS + H | Exact H-loss model remains to be selected | Pending | Pending | New exact review required |
-| CH3SS `nobar_14`, HSCH2S to CH2S + SH | (7,6), cleavage/reorganization pairs and both SH frontier components | 18–23 | Two equally weighted doublets / D1 | Prior installed selection carried forward, supplemental verification export pending |
-| CH3SS `nobar_39`, CH2S/SH complex to CH2S + SH | (5,4), CH2S pi/pi-star and both SH frontier components | 19–22 | Two equally weighted doublets / D1 | Prior candidate reused, endpoint binding and supplemental verification pending |
-| CH3SS `nobar_41`, HCS/H2S complex to HCS + H2S | (3,3), HCS occupied pi, SOMO and pi-star | 20–22 | One doublet / D1 | Prior selected candidate reused, supplemental verification pending |
+| CH3SS `nobar_14`, HSCH2S to CH2S + SH | (7,6), cleavage/reorganization pairs and both SH frontier components | 18–23 | Two equally weighted doublets / D1 | Chemical space retained; angular electronic-state branch check required |
+| CH3SS `nobar_39`, CH2S/SH complex to CH2S + SH | (5,4), CH2S pi/pi-star and both SH frontier components | 19–22 | Two equally weighted doublets / D1 | Selection supported; exact R9 endpoint binding pending |
+| CH3SS `nobar_41`, HCS/H2S complex to HCS + H2S | (3,3), HCS occupied pi, SOMO and pi-star | 20–22 | One doublet / D1 | Selection supported; production installation pending |
 
 The first and third models retain their basis-specific records and settings from
 the existing CH3S and CH3SS example inputs. Their native evidence is described in
@@ -50,21 +52,26 @@ The installed HSCH2S (7,6) selection is preserved from the R7 review. Its compac
 native comparison found an own-asymptote potential difference of 1.0982 and
 1.1140 kcal/mol at 2 angstrom when the extra pair was removed, in aDZ-F12 and
 aTZ-F12 respectively. The 30-to-42 angstrom changes were below 0.002 kcal/mol.
-The already-submitted verification case 7 addresses the requested additional
-continuity, angular and relaxation checks. The saved selection is in the CH3SS
-package's `prior_reviews/7.json`.
+Case 7's new radial and completed near-relaxation evidence supports retaining
+the extra pair. Its angular far points have an incorrect approximately 26
+kcal/mol doublet gap, requiring the staged state-branch correction. The saved
+selection is in the CH3SS package's `prior_reviews/7.json`.
 
 For the CH2S/SH outer connection, existing case 13 has the closest endpoint.
 Its proper-map RMSD to the retained R8 L2 endpoint is 0.0005295 angstrom. Matching
 the atom order exchanges the last two hydrogens. The geometric mapping is saved
 in `endpoint_mapping.json`. Wavefunction/scan binding still needs validation.
-Case 8 supplies related prior geometry and orbital evidence. Existing case 13
-also compares the sulfur-donor enlargement to the compact candidate.
+Case 13 now supplies completed radial, angular, return and relaxed-midpoint
+evidence. Its tested occupied-union potential differences are at most 0.0051
+kcal/mol. The auxiliary case 8 angular results have electronic-branch anomalies
+and are recorded separately in the new review.
 
 For the HCS/H2S outer connection, case 25 supplies the selected (3,3) model.
 The old fixed-orbital H2S-donor control gave energy changes of approximately
 1.7e-7 and 1.5e-7 hartree. The submitted optimized donor comparison is needed to
-complete that evidence. Forward and reverse discovery names share this endpoint
+test that proposed enlargement. The new optimized union expels the H2S donor
+again, while the actual HCS subspace remains stable. The reviewed evidence
+supports retaining (3,3) for the outer HCS/H2S channel. Forward and reverse discovery names share this endpoint
 and review. The current L2 endpoint has the same atom order and a 0.03327
 angstrom proper-map RMSD to the original review geometry.
 
@@ -85,9 +92,8 @@ workers, including their unselected reactions. `reuse_inventory.json` and
 
 Remaining work before production submission comprises the following items.
 
-- Review the already-submitted verification outputs for cases 7, 8, 13 and 25.
-  The supplied local all-channel native archive predates this panel. The CH3SS
-  package provides `existing_reviews_export.json` for selective collection.
+- Complete the sixteen corrective angular-state checks for case 7. The supplied
+  November 10 archive has been verified and reviewed for cases 7, 8, 13 and 25.
 - Complete the two exact H-loss orbital reviews and bind the CH2S/SH candidate
   to the retained endpoint's atom order and electronic state.
 - Implement and validate independent-run result adoption. The frozen copies

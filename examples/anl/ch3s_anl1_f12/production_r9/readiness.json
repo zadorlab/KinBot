@@ -1,14 +1,9 @@
 {
   "blockers": [
     {
-      "cases": [
-        7,
-        8,
-        13,
-        25
-      ],
-      "kind": "existing_verification_export",
-      "reason": "Submitted verification native results are absent from the supplied local archive."
+      "kind": "angular_state_tracking",
+      "reason": "Completed angular far points have a 26 kcal/mol root gap, inconsistent with the intended SH Pi components. Sixteen far-start/return checks are staged.",
+      "verification_case": 7
     },
     {
       "kind": "new_h_loss_reviews",
@@ -55,6 +50,7 @@
       "verification_cases": []
     }
   ],
+  "review_update": "../../ch3ss_anl1_f12/orbital_reviews/r9_completion_20261112/REVIEW.md",
   "scheduling": {
     "exclusive": true,
     "max_jobs": 20,

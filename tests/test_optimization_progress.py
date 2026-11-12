@@ -11,7 +11,8 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 
-from kinbot.anl.optimization_progress import Progress, ownership, restore_attempt_start
+from kinbot.anl.optimization_progress import (Progress, ownership,
+                                             physical_checkpoint, restore_attempt_start)
 from kinbot.execution import file_sha256
 
 
@@ -43,6 +44,58 @@ def test_sella_saves_logged_accepted_frame_not_last_hessian_probe(tmp_path):
     expected=atoms();restore_attempt_start(tmp_path,record,expected)
     assert expected.positions==pytest.approx(accepted.positions)
     assert not (tmp_path/'optimization.traj').exists()
+
+
+def test_sella_appended_coordinate_dummy_preserves_physical_checkpoint(tmp_path):
+    original = atoms()
+    frame = Atoms('SHX', positions=[[0, 0, 0], [0, 0, 1.35], [1, 0, 0]])
+    frame.calc = SinglePointCalculator(frame, energy=-10., forces=np.zeros((3, 3)))
+    write(tmp_path/'optimization.traj', frame)
+    (tmp_path/'optimization.log').write_text('Sella 2 12:00:00 -10.000000 .001 0 .01 1 0\n')
+    progress = Progress(tmp_path, {}, original, used_chunks=0, chunk_steps=10, max_chunks=1)
+    opt = optimizer('Sella', 2)
+    progress.attach(opt, original)
+    opt.save()
+    restored = atoms()
+    resumed = Progress(tmp_path, {}, restored, used_chunks=0, chunk_steps=10, max_chunks=1)
+    assert resumed.steps == 2
+    assert restored.get_chemical_symbols() == ['S', 'H']
+    assert restored.positions == pytest.approx(frame.positions[:2])
+    changed = frame.copy()
+    changed.numbers[-1] = 1
+    changed.calc = SinglePointCalculator(changed, energy=-10., forces=np.zeros((3, 3)))
+    with pytest.raises(RuntimeError, match='identity/order'):
+        physical_checkpoint(changed, ['S', 'H'])
+    frame.calc = SinglePointCalculator(frame, energy=-10., forces=np.ones((3, 3)))
+    with pytest.raises(RuntimeError, match='physical/dummy'):
+        physical_checkpoint(frame, ['S', 'H'])
+
+
+def test_real_sella_linear_fragment_checkpoint_and_resume(tmp_path):
+    from sella import Sella
+    from kinbot.optimization_budget import run_optimizer
+
+    class Harmonic(Calculator):
+        implemented_properties = ['energy', 'forces']
+
+        def calculate(self, atoms=None, properties=('energy', 'forces'), system_changes=all_changes):
+            super().calculate(atoms, properties, system_changes)
+            displacement = atoms.positions - reference
+            self.results = dict(energy=float(np.sum(displacement**2) / 2), forces=-displacement)
+
+    original = Atoms('HCS', positions=[[0, 0, 0], [1.1, 0, 0], [2.7, 0, 0]])
+    reference = original.positions.copy()
+    original.calc = Harmonic()
+    progress = Progress(tmp_path, {}, original, used_chunks=0, chunk_steps=10, max_chunks=1)
+    opt = Sella(original, internal=True, order=0,
+                logfile=str(tmp_path/'optimization.log'), trajectory=str(tmp_path/'optimization.traj'))
+    progress.attach(opt, original)
+    assert run_optimizer(opt, fmax=.0005, steps=10, chunks=1)
+    frame = read(tmp_path/'optimization.traj', index=0)
+    assert len(frame) > len(original)
+    restored = original.copy()
+    assert Progress(tmp_path, {}, restored, used_chunks=0, chunk_steps=10, max_chunks=1).loaded
+    assert restored.positions == pytest.approx(reference)
 
 
 def test_task_change_cannot_reuse_and_corruption_cannot_overwrite_checkpoint(tmp_path):

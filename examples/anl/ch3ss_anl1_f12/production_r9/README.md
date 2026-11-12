@@ -1,5 +1,10 @@
 # Lean CH3SS R9 review stage
 
+The requested native archive was reviewed on 2026-11-12. The current decisions,
+single follow-up campaign and text-report command are in
+`../orbital_reviews/r9_completion_20261112/REVIEW.md` and its `README.md`.
+The collection instructions below describe the earlier archive request.
+
 This package stages five populations, four product sets and nine connections.
 `scope.json` contains the exact identities, including both encounter complexes
 and their connecting reverse abstraction saddle.

@@ -1,0 +1,58 @@
+{
+  "decisions": [
+    {
+      "additional_calculations": 0,
+      "cas": [
+        5,
+        4
+      ],
+      "channel": "CH3S -> CH3 + S",
+      "decision": "retain_existing_selection"
+    },
+    {
+      "additional_calculations": 0,
+      "cas": [
+        7,
+        5
+      ],
+      "channel": "CH3SS -> CH3 + S2",
+      "decision": "retain_existing_selection"
+    },
+    {
+      "additional_calculations": 16,
+      "cas": [
+        7,
+        6
+      ],
+      "channel": "HSCH2S -> CH2S + SH",
+      "decision": "retain_chemical_space_verify_angular_state_branch"
+    },
+    {
+      "additional_calculations": 8,
+      "cas": [
+        5,
+        4
+      ],
+      "channel": "CH2S...SH -> CH2S + SH",
+      "decision": "retain_selection_bind_r9_atom_order_and_coordinate"
+    },
+    {
+      "additional_calculations": 0,
+      "cas": [
+        3,
+        3
+      ],
+      "channel": "HCS...H2S -> HCS + H2S",
+      "decision": "retain_selection"
+    }
+  ],
+  "new_h_loss_cases": [
+    101,
+    102
+  ],
+  "optimization_retries": 0,
+  "production_submission_ready": false,
+  "reviewed_2026_11_12": true,
+  "schema": 1,
+  "source_archive_sha256": "bdb511e0193693d4ac614520ffdce758e9c066bf4c8173298009669e41c14e11"
+}

@@ -1,0 +1,24 @@
+[
+  {
+    "appended_symbols": [
+      "X"
+    ],
+    "energy_ev": -22727.14928471015,
+    "fixed_point_finite": true,
+    "graph": "v25_near_5cb2a810f22bec47",
+    "maximum_force_ev_angstrom": 1.1019362782946924,
+    "physical_atoms": 6,
+    "trajectory_atoms": 7
+  },
+  {
+    "appended_symbols": [
+      "X"
+    ],
+    "energy_ev": -22727.100297034365,
+    "fixed_point_finite": true,
+    "graph": "v25_mid_e8897899707854a2",
+    "maximum_force_ev_angstrom": 0.9770636476054689,
+    "physical_atoms": 6,
+    "trajectory_atoms": 7
+  }
+]

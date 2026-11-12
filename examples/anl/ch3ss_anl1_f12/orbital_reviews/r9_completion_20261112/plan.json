@@ -1,0 +1,949 @@
+{
+  "bases": [
+    "avdz-f12",
+    "avtz-f12"
+  ],
+  "existing_checks": [
+    {
+      "case": {
+        "case": "ch3ss",
+        "h_exit": false,
+        "id": 7,
+        "reactions": [
+          "791472110370000000002_hom_sci_1_2"
+        ],
+        "reactive_states": [
+          {
+            "energy_offset_cm_inverse": 0.0,
+            "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux.",
+            "multiplicity": 2,
+            "root": 1,
+            "weight": 1.0
+          }
+        ],
+        "sources": {
+          "avdz-f12": {
+            "configuration": "runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/input.json",
+            "coordinate": {
+              "bond": [
+                1,
+                2
+              ],
+              "moving_atoms": [
+                2,
+                4
+              ]
+            },
+            "electrons": 41,
+            "geometry": [
+              [
+                1.8122818350510603,
+                0.002977247833230985,
+                -0.00106450608153775
+              ],
+              [
+                2.2710543980526445,
+                1.9496460931966066,
+                -0.0039179125685435195
+              ],
+              [
+                0.01809130535354313,
+                0.008600066409595793,
+                -0.002613934582204996
+              ],
+              [
+                1.832175436973855,
+                2.191351040149423,
+                -1.248244739860828
+              ],
+              [
+                2.247535284244536,
+                -0.49077189791788217,
+                -0.8623412662152973
+              ],
+              [
+                2.2307468143965448,
+                -0.39552523186946487,
+                0.9183373719478544
+              ]
+            ],
+            "job": "adz__cs_r_2",
+            "manifest": "runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/reconnaissance.json",
+            "output": "runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/adz__cs_r_2/adz__cs_r_2.out",
+            "selected_indices": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "source_space": {
+              "active_electrons": 19,
+              "active_orbitals": 12,
+              "chemical_note": "Orbital-only heavy-atom valence CASCI(19,12) for CH2(SH)S -> CH2S + SH. Two equally weighted doublet roots cover the SH orbital pair. No compact active indices, correlated potential or relaxed geometry are presumed accepted; select the compact subspace from native character at 2 and 30 angstrom in both bases, then run the relaxed geometry panel before production.",
+              "orbital_selection": {
+                "centers": [
+                  {
+                    "atom": 1,
+                    "orbitals": [
+                      "2s",
+                      "2p"
+                    ]
+                  },
+                  {
+                    "atom": 2,
+                    "orbitals": [
+                      "3s",
+                      "3p"
+                    ]
+                  },
+                  {
+                    "atom": 3,
+                    "orbitals": [
+                      "3s",
+                      "3p"
+                    ]
+                  }
+                ],
+                "minao_basis": "minao",
+                "mode": "avas",
+                "threshold": 0.3
+              }
+            },
+            "symbols": [
+              "C",
+              "S",
+              "S",
+              "H",
+              "H",
+              "H"
+            ],
+            "wfu": "runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/adz__cs_r_2/adz__cs_r_2.wfu"
+          },
+          "avtz-f12": {
+            "configuration": "runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/input.json",
+            "coordinate": {
+              "bond": [
+                1,
+                2
+              ],
+              "moving_atoms": [
+                2,
+                4
+              ]
+            },
+            "electrons": 41,
+            "geometry": [
+              [
+                1.8122818350510603,
+                0.002977247833230985,
+                -0.00106450608153775
+              ],
+              [
+                2.2710543980526445,
+                1.9496460931966066,
+                -0.0039179125685435195
+              ],
+              [
+                0.01809130535354313,
+                0.008600066409595793,
+                -0.002613934582204996
+              ],
+              [
+                1.832175436973855,
+                2.191351040149423,
+                -1.248244739860828
+              ],
+              [
+                2.247535284244536,
+                -0.49077189791788217,
+                -0.8623412662152973
+              ],
+              [
+                2.2307468143965448,
+                -0.39552523186946487,
+                0.9183373719478544
+              ]
+            ],
+            "job": "atz__cs_r_2",
+            "manifest": "runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/reconnaissance.json",
+            "output": "runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/atz__cs_r_2/atz__cs_r_2.out",
+            "selected_indices": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "source_space": {
+              "active_electrons": 19,
+              "active_orbitals": 12,
+              "chemical_note": "Orbital-only heavy-atom valence CASCI(19,12) for CH2(SH)S -> CH2S + SH. Two equally weighted doublet roots cover the SH orbital pair. No compact active indices, correlated potential or relaxed geometry are presumed accepted; select the compact subspace from native character at 2 and 30 angstrom in both bases, then run the relaxed geometry panel before production.",
+              "orbital_selection": {
+                "centers": [
+                  {
+                    "atom": 1,
+                    "orbitals": [
+                      "2s",
+                      "2p"
+                    ]
+                  },
+                  {
+                    "atom": 2,
+                    "orbitals": [
+                      "3s",
+                      "3p"
+                    ]
+                  },
+                  {
+                    "atom": 3,
+                    "orbitals": [
+                      "3s",
+                      "3p"
+                    ]
+                  }
+                ],
+                "minao_basis": "minao",
+                "mode": "avas",
+                "threshold": 0.3
+              }
+            },
+            "symbols": [
+              "C",
+              "S",
+              "S",
+              "H",
+              "H",
+              "H"
+            ],
+            "wfu": "runs/r7_progress_review_20261024/screens/ch2_sh_s_cs/native/atz__cs_r_2/atz__cs_r_2.wfu"
+          }
+        },
+        "state_model": {
+          "canonical_orbitals": true,
+          "casscf_options": {
+            "energy_convergence": 1e-08,
+            "exact_diagonalization": true,
+            "gradient_convergence": 1e-05,
+            "max_iterations": 999,
+            "quasi_newton": true,
+            "solver": "so_sci"
+          },
+          "correlation_options": {
+            "coefficient_convergence": 1e-05,
+            "energy_convergence": 1e-08,
+            "max_iterations": 2000,
+            "max_reference_iterations": 2000,
+            "max_reference_vectors": 60,
+            "reference_policy": "state_average"
+          },
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ]
+            }
+          ]
+        }
+      },
+      "case_id": 7,
+      "seeds": {
+        "avdz-f12": {
+          "basis": "avdz-f12",
+          "output": "/home/hram/kinbot-runs/r7_progress_review_20261024/ch2_sh_s_followup/candidates/ch2_sh_s_cs_cas7_6/adz__cs_r_30/adz__cs_r_30.out",
+          "output_sha256": "28425459cf020ccf99cc59db3dc6dc212e08bd9b0ecd555e101e8efb6515a761",
+          "path": "/home/hram/kinbot-runs/r7_progress_review_20261024/ch2_sh_s_followup/candidates/ch2_sh_s_cs_cas7_6/adz__cs_r_30/adz__cs_r_30.wfu",
+          "sha256": "6d7b2be1f29448ea938fc5458bbf7a66ae6b91904c572f1acbfb514d733b3956"
+        },
+        "avtz-f12": {
+          "basis": "avtz-f12",
+          "output": "/home/hram/kinbot-runs/r7_progress_review_20261024/ch2_sh_s_followup/candidates/ch2_sh_s_cs_cas7_6/atz__cs_r_30/atz__cs_r_30.out",
+          "output_sha256": "41aced58da47d032df3819288d6d604ff848bdffc06f0592e1a93361f620e873",
+          "path": "/home/hram/kinbot-runs/r7_progress_review_20261024/ch2_sh_s_followup/candidates/ch2_sh_s_cs_cas7_6/atz__cs_r_30/atz__cs_r_30.wfu",
+          "sha256": "c647a274188fcff1b965b62a99337094fbe49352e15bff03aab7e2a43c5209fa"
+        }
+      }
+    },
+    {
+      "case": {
+        "case": "ch3ss",
+        "h_exit": false,
+        "id": 13,
+        "reactions": [
+          "791671450790040000002_r12_insertion_R_2_3_4"
+        ],
+        "reactive_states": [
+          {
+            "energy_offset_cm_inverse": 0.0,
+            "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux.",
+            "multiplicity": 2,
+            "root": 1,
+            "weight": 1.0
+          }
+        ],
+        "sources": {
+          "avdz-f12": {
+            "configuration": "production/orbital_recon/compact_resolution_20261025/well_r12_insertion_r_2_3_4/well_r12_insertion_r_2_3_4_pi_sh.json",
+            "coordinate": {
+              "bond": [
+                5,
+                4
+              ],
+              "moving_atoms": [
+                3,
+                4
+              ]
+            },
+            "electrons": 41,
+            "geometry": [
+              [
+                1.3320910903822951,
+                -0.21936579755073238,
+                -0.05066563110055587
+              ],
+              [
+                1.9917568599488882,
+                0.9549743600751414,
+                0.8375642289958267
+              ],
+              [
+                -1.167991747701293,
+                -0.06704066706226373,
+                2.907104567078562
+              ],
+              [
+                -0.0339367517255734,
+                0.4890663179090954,
+                2.424721021959002
+              ],
+              [
+                0.4209393011022633,
+                -0.7289173165086729,
+                0.2512909901803587
+              ],
+              [
+                1.7731536767357718,
+                -0.5472862146767804,
+                -0.9864264743294767
+              ]
+            ],
+            "job": "adz__exit_l2",
+            "manifest": "production/orbital_recon/compact_resolution_20261025/well_r12_insertion_r_2_3_4/well_r12_insertion_r_2_3_4_pi_sh/reconnaissance.json",
+            "output": "production/orbital_recon/compact_resolution_20261025/well_r12_insertion_r_2_3_4/well_r12_insertion_r_2_3_4_pi_sh/adz__exit_l2/adz__exit_l2.out",
+            "selected_indices": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "source_space": {
+              "active_electrons": 5,
+              "active_orbitals": 4,
+              "chemical_note": "CH2S pi/pi-star candidate 18/22 plus the SH p pair 19/21 from this request-specific 30 angstrom SCF seed. Two equally weighted doublets support the SH spatial pair. Inspect optimized character in both bases and geometries; virtual 22 is a trial acceptor, not accepted solely from its ordinal.",
+              "orbital_source": "scf"
+            },
+            "symbols": [
+              "C",
+              "S",
+              "S",
+              "H",
+              "H",
+              "H"
+            ],
+            "wfu": "production/orbital_recon/compact_resolution_20261025/well_r12_insertion_r_2_3_4/well_r12_insertion_r_2_3_4_pi_sh/adz__exit_l2/adz__exit_l2.wfu"
+          },
+          "avtz-f12": {
+            "configuration": "production/orbital_recon/compact_resolution_20261025/well_r12_insertion_r_2_3_4/well_r12_insertion_r_2_3_4_pi_sh.json",
+            "coordinate": {
+              "bond": [
+                5,
+                4
+              ],
+              "moving_atoms": [
+                3,
+                4
+              ]
+            },
+            "electrons": 41,
+            "geometry": [
+              [
+                1.3320910903822951,
+                -0.21936579755073238,
+                -0.05066563110055587
+              ],
+              [
+                1.9917568599488882,
+                0.9549743600751414,
+                0.8375642289958267
+              ],
+              [
+                -1.167991747701293,
+                -0.06704066706226373,
+                2.907104567078562
+              ],
+              [
+                -0.0339367517255734,
+                0.4890663179090954,
+                2.424721021959002
+              ],
+              [
+                0.4209393011022633,
+                -0.7289173165086729,
+                0.2512909901803587
+              ],
+              [
+                1.7731536767357718,
+                -0.5472862146767804,
+                -0.9864264743294767
+              ]
+            ],
+            "job": "atz__exit_l2",
+            "manifest": "production/orbital_recon/compact_resolution_20261025/well_r12_insertion_r_2_3_4/well_r12_insertion_r_2_3_4_pi_sh/reconnaissance.json",
+            "output": "production/orbital_recon/compact_resolution_20261025/well_r12_insertion_r_2_3_4/well_r12_insertion_r_2_3_4_pi_sh/atz__exit_l2/atz__exit_l2.out",
+            "selected_indices": [
+              19,
+              20,
+              21,
+              22
+            ],
+            "source_space": {
+              "active_electrons": 5,
+              "active_orbitals": 4,
+              "chemical_note": "CH2S pi/pi-star candidate 18/22 plus the SH p pair 19/21 from this request-specific 30 angstrom SCF seed. Two equally weighted doublets support the SH spatial pair. Inspect optimized character in both bases and geometries; virtual 22 is a trial acceptor, not accepted solely from its ordinal.",
+              "orbital_source": "scf"
+            },
+            "symbols": [
+              "C",
+              "S",
+              "S",
+              "H",
+              "H",
+              "H"
+            ],
+            "wfu": "production/orbital_recon/compact_resolution_20261025/well_r12_insertion_r_2_3_4/well_r12_insertion_r_2_3_4_pi_sh/atz__exit_l2/atz__exit_l2.wfu"
+          }
+        },
+        "state_model": {
+          "canonical_orbitals": true,
+          "casscf_options": {
+            "energy_convergence": 1e-08,
+            "exact_diagonalization": true,
+            "gradient_convergence": 1e-05,
+            "max_iterations": 999,
+            "quasi_newton": true,
+            "solver": "so_sci"
+          },
+          "correlation_options": {
+            "coefficient_convergence": 1e-05,
+            "energy_convergence": 1e-08,
+            "max_iterations": 2000,
+            "max_reference_iterations": 2000,
+            "max_reference_vectors": 60,
+            "reference_policy": "state_average"
+          },
+          "selected_roots": {
+            "2": 1
+          },
+          "state_average": [
+            {
+              "block_weight": 1.0,
+              "multiplicity": 2,
+              "roots": 2,
+              "weights": [
+                0.5,
+                0.5
+              ]
+            }
+          ]
+        }
+      },
+      "case_id": 13,
+      "seeds": {
+        "avdz-f12": {
+          "basis": "avdz-f12",
+          "output": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_candidate_avdz_f12/native/dz__near/dz__near.out",
+          "output_sha256": "f7f50950d9f007b6bc62395a696cd562ed7b067b5aee991ea1befebc9ccbb321",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_candidate_avdz_f12/native/dz__near/dz__near.wfu",
+          "sha256": "eb0c06477d1e68ede2fe056a97b87159d09525efc4fcb6166202750edd08a666"
+        },
+        "avtz-f12": {
+          "basis": "avtz-f12",
+          "output": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_candidate_avtz_f12/native/tz__near/tz__near.out",
+          "output_sha256": "fce7d25af1a5b434421de7543581429869d00af258ec3177c6cced8caad3b61b",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/verification/fixed/v13_candidate_avtz_f12/native/tz__near/tz__near.wfu",
+          "sha256": "8e2e209e44e5e30fc4cd3a8e0091a62a7af8d5c20c69eff86991aa0619383bc5"
+        }
+      },
+      "source": {
+        "database_sha256": "a92fe3d631f257fb22f6f280eb9dc4db4554db32de34e237182b08b4b15a134d",
+        "job": "791671450790040000002_intra_H_migration_suprafacial_1_4_IRC_F_prod_high",
+        "row_id": 847
+      },
+      "target_coordinate": {
+        "bond": [
+          1,
+          4
+        ],
+        "moving_atoms": [
+          3,
+          4
+        ]
+      },
+      "target_geometry": [
+        [
+          1.088775278132673,
+          -0.8538189661474332,
+          -0.02623670367744318
+        ],
+        [
+          0.6632316977585919,
+          -1.75977408796941,
+          1.2392030578650182
+        ],
+        [
+          0.27748065274953304,
+          1.895361495362739,
+          2.58117591721435
+        ],
+        [
+          0.3161989952298491,
+          0.5554130116402816,
+          2.404871351657668
+        ],
+        [
+          1.3904230837275928,
+          -1.2940391626004413,
+          -0.9711870544364901
+        ],
+        [
+          1.0906988366203831,
+          0.23210980571797338,
+          0.015957466901128436
+        ]
+      ],
+      "target_reaction": "791671450790040000002_intra_H_migration_suprafacial_1_4",
+      "target_symbols": [
+        "C",
+        "S",
+        "S",
+        "H",
+        "H",
+        "H"
+      ]
+    }
+  ],
+  "h_loss_cases": [
+    {
+      "coordinate": {
+        "bond": [
+          2,
+          3
+        ],
+        "moving_atoms": [
+          3
+        ]
+      },
+      "fragment_geometry": [
+        [
+          1.3240009251921137,
+          0.2589825136196923,
+          0.294206475305126
+        ],
+        [
+          0.4089459349026472,
+          1.1921914655069736,
+          -0.6518336018586823
+        ],
+        [
+          1.4055464385166068,
+          0.42817324541948626,
+          1.3636977218985256
+        ],
+        [
+          1.8952216384074165,
+          -0.575926208544798,
+          -0.10041144884522704
+        ]
+      ],
+      "fragment_map": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "fragment_multiplicity": 1,
+      "fragment_native_order": [
+        0,
+        1,
+        3,
+        2
+      ],
+      "fragment_space": {
+        "active_electrons": 12,
+        "active_orbitals": 8,
+        "additional_orbitals": [],
+        "orbital_selection": {
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            }
+          ],
+          "minao_basis": "minao",
+          "mode": "avas",
+          "threshold": 0.3
+        },
+        "selection": "whole_molecule_main_group_valence"
+      },
+      "geometry": [
+        [
+          1.3240009251921137,
+          0.2589825136196923,
+          0.294206475305126
+        ],
+        [
+          0.4089459349026472,
+          1.1921914655069736,
+          -0.6518336018586823
+        ],
+        [
+          0.5788859834114537,
+          0.6174626159563198,
+          -1.8387561574919877
+        ],
+        [
+          1.4055464385166068,
+          0.42817324541948626,
+          1.3636977218985256
+        ],
+        [
+          1.8952216384074165,
+          -0.575926208544798,
+          -0.10041144884522704
+        ]
+      ],
+      "id": 101,
+      "name": "ch3s_h_loss",
+      "parent_geometry": [
+        [
+          1.344252843574956,
+          0.2101859309048708,
+          0.3161416857197299
+        ],
+        [
+          0.3756803945088372,
+          1.2380698008863216,
+          -0.6687097756021383
+        ],
+        [
+          0.5788859834114537,
+          0.6174626159563198,
+          -1.8387561574919877
+        ],
+        [
+          1.39649100275467,
+          0.44999834153298174,
+          1.362627259502371
+        ],
+        [
+          1.9172906961803204,
+          -0.5948330573228198,
+          -0.10440002312022037
+        ]
+      ],
+      "reaction": "471030810040000000002_hom_sci_2_3",
+      "reference_space": {
+        "active_electrons": 13,
+        "active_orbitals": 9,
+        "additional_orbitals": [
+          {
+            "atom": 3,
+            "orbitals": [
+              "1s"
+            ]
+          }
+        ],
+        "orbital_selection": {
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 3,
+              "orbitals": [
+                "1s"
+              ]
+            }
+          ],
+          "minao_basis": "minao",
+          "mode": "avas",
+          "threshold": 0.3
+        },
+        "selection": "whole_molecule_main_group_valence"
+      },
+      "source_fragment": {
+        "database_sha256": "5a3f698ee859dcd5f021fe501ed62fc3f3ee4235993c21cb35e59684e04a5f0a",
+        "job": "460700680000000000001_well_high",
+        "row_id": 135
+      },
+      "source_request_sha256": "13da171cf004d8a771d3ea0e31aa082829a24487f9356c5b619c5f25c79e0375",
+      "symbols": [
+        "C",
+        "S",
+        "H",
+        "H",
+        "H"
+      ]
+    },
+    {
+      "coordinate": {
+        "bond": [
+          1,
+          4
+        ],
+        "moving_atoms": [
+          4
+        ]
+      },
+      "fragment_geometry": [
+        [
+          1.0046034537918775,
+          -0.24877559595356138,
+          0.3293206784065603
+        ],
+        [
+          0.1602131403639946,
+          0.07646994331215565,
+          1.6876040982482665
+        ],
+        [
+          1.261122414959351,
+          0.3673656289739571,
+          3.2662311534632176
+        ],
+        [
+          0.42490027298740907,
+          -0.41577841684174044,
+          -0.566619581820945
+        ],
+        [
+          2.083317463117872,
+          -0.29596552527324715,
+          0.3195746645594667
+        ]
+      ],
+      "fragment_map": [
+        0,
+        1,
+        2,
+        4,
+        5
+      ],
+      "fragment_multiplicity": 1,
+      "fragment_native_order": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "fragment_space": {
+        "active_electrons": 18,
+        "active_orbitals": 12,
+        "additional_orbitals": [],
+        "orbital_selection": {
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 3,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            }
+          ],
+          "minao_basis": "minao",
+          "mode": "avas",
+          "threshold": 0.3
+        },
+        "selection": "whole_molecule_main_group_valence"
+      },
+      "geometry": [
+        [
+          1.0046034537918775,
+          -0.24877559595356138,
+          0.3293206784065603
+        ],
+        [
+          0.1602131403639946,
+          0.07646994331215565,
+          1.6876040982482665
+        ],
+        [
+          1.261122414959351,
+          0.3673656289739571,
+          3.2662311534632176
+        ],
+        [
+          0.5748102446009035,
+          0.5310832748923903,
+          -0.7488443779889901
+        ],
+        [
+          0.42490027298740907,
+          -0.41577841684174044,
+          -0.566619581820945
+        ],
+        [
+          2.083317463117872,
+          -0.29596552527324715,
+          0.3195746645594667
+        ]
+      ],
+      "id": 102,
+      "name": "ch3ss_h_loss",
+      "parent_geometry": [
+        [
+          0.9501853684882462,
+          -0.02518824487151772,
+          0.10753561717363937
+        ],
+        [
+          0.3305012890620585,
+          0.8075754996646132,
+          1.6060308628232418
+        ],
+        [
+          1.03697546283233,
+          -0.2358019529001571,
+          3.1191076412460803
+        ],
+        [
+          0.5748102446009035,
+          0.5310832748923903,
+          -0.7488443779889901
+        ],
+        [
+          0.5808440542420732,
+          -1.0457425175203547,
+          0.08661317311136901
+        ],
+        [
+          2.0356505705957963,
+          -0.017526750155019814,
+          0.11682371850223687
+        ]
+      ],
+      "reaction": "791471490990000000002_hom_sci_1_4",
+      "reference_space": {
+        "active_electrons": 19,
+        "active_orbitals": 13,
+        "additional_orbitals": [
+          {
+            "atom": 4,
+            "orbitals": [
+              "1s"
+            ]
+          }
+        ],
+        "orbital_selection": {
+          "centers": [
+            {
+              "atom": 1,
+              "orbitals": [
+                "2s",
+                "2p"
+              ]
+            },
+            {
+              "atom": 2,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 3,
+              "orbitals": [
+                "3s",
+                "3p"
+              ]
+            },
+            {
+              "atom": 4,
+              "orbitals": [
+                "1s"
+              ]
+            }
+          ],
+          "minao_basis": "minao",
+          "mode": "avas",
+          "threshold": 0.3
+        },
+        "selection": "whole_molecule_main_group_valence"
+      },
+      "source_fragment": {
+        "database_sha256": "3941c4138ae2dbd4dcbea8631e26450195ae1e0f626133b8db293a1e99bf4c72",
+        "job": "781341120660000000001_well_high",
+        "row_id": 173
+      },
+      "source_request_sha256": "1131b49d891aa749f445f05250338b05f8ac640d0eac4ed794eb154ad5b3fa95",
+      "symbols": [
+        "C",
+        "S",
+        "S",
+        "H",
+        "H",
+        "H"
+      ]
+    }
+  ],
+  "max_jobs": 20,
+  "memory_mb": 104000,
+  "ppn": 8,
+  "production_model_accepted": false,
+  "schema": 1,
+  "source_archive_sha256": "bdb511e0193693d4ac614520ffdce758e9c066bf4c8173298009669e41c14e11"
+}

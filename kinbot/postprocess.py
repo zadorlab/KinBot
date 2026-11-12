@@ -135,7 +135,7 @@ def create_summary_file(species, qc, par):
                 if l3status:
                     energy = (sum([pr.l3energy + pr.zpe
                                    for pr in species.reac_obj[index].products])
-                              - species.energy - species.zpe)
+                              - species.l3energy - species.zpe)
                     energy *= constants.AUtoKCAL
                 else:
                     energy = (sum([pr.energy + pr.zpe

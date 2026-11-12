@@ -39,8 +39,8 @@ specifies the flux contributions.
 | CH3S `nobar_4`, CH2SH to CH2S + H | Exact H-loss model remains to be selected | Pending | Pending | New exact review required |
 | CH3SS `nobar_1`, CH3SS to CH3 + S2 | (7,5), methyl radical and full S2 pi/pi-star manifold | 18–22 | One doublet and one quartet / D1 | Existing native-reviewed model ready |
 | CH3SS `nobar_2`, CH3SS to CH2SS + H | Exact H-loss model remains to be selected | Pending | Pending | New exact review required |
-| CH3SS `nobar_14`, HSCH2S to CH2S + SH | (7,6), cleavage/reorganization pairs and both SH frontier components | 18–23 | Two equally weighted doublets / D1 | Chemical space retained; angular electronic-state branch check required |
-| CH3SS `nobar_39`, CH2S/SH complex to CH2S + SH | (5,4), CH2S pi/pi-star and both SH frontier components | 19–22 | Two equally weighted doublets / D1 | Selection supported; exact R9 endpoint binding pending |
+| CH3SS `nobar_14`, HSCH2S to CH2S + SH | (7,6), cleavage/reorganization pairs and both SH frontier components | 18–23 | Two equally weighted doublets / D1 | Angular checks verified, corrected seed installation pending |
+| CH3SS `nobar_39`, CH2S/SH complex to CH2S + SH | (5,4), CH2S pi/pi-star and both SH frontier components | 19–22 | Two equally weighted doublets / D1 | Exact endpoint checks verified, production installation pending |
 | CH3SS `nobar_41`, HCS/H2S complex to HCS + H2S | (3,3), HCS occupied pi, SOMO and pi-star | 20–22 | One doublet / D1 | Selection supported; production installation pending |
 
 The first and third models retain their basis-specific records and settings from
@@ -53,14 +53,17 @@ native comparison found an own-asymptote potential difference of 1.0982 and
 1.1140 kcal/mol at 2 angstrom when the extra pair was removed, in aDZ-F12 and
 aTZ-F12 respectively. The 30-to-42 angstrom changes were below 0.002 kcal/mol.
 Case 7's new radial and completed near-relaxation evidence supports retaining
-the extra pair. Its angular far points have an incorrect approximately 26
-kcal/mol doublet gap, requiring the staged state-branch correction. The saved
-selection is in the CH3SS package's `prior_reviews/7.json`.
+the extra pair. The sixteen corrected angular checks now recover SH doublet
+degeneracy to 0.000270 kcal/mol, with return differences below 0.000572 kcal/mol.
+The new separated-start seeds must accompany the production model. The saved
+earlier selection is in the CH3SS package's `prior_reviews/7.json`.
 
 For the CH2S/SH outer connection, existing case 13 has the closest endpoint.
 Its proper-map RMSD to the retained R8 L2 endpoint is 0.0005295 angstrom. Matching
 the atom order exchanges the last two hydrogens. The geometric mapping is saved
-in `endpoint_mapping.json`. Wavefunction/scan binding still needs validation.
+in `endpoint_mapping.json`. All eight exact endpoint checks have now passed,
+including return energy differences below 0.000032 kcal/mol and native active
+subspace return overlaps above 0.999999999965. Production seed installation is pending.
 Case 13 now supplies completed radial, angular, return and relaxed-midpoint
 evidence. Its tested occupied-union potential differences are at most 0.0051
 kcal/mol. The auxiliary case 8 angular results have electronic-branch anomalies
@@ -92,10 +95,11 @@ workers, including their unselected reactions. `reuse_inventory.json` and
 
 Remaining work before production submission comprises the following items.
 
-- Complete the sixteen corrective angular-state checks for case 7. The supplied
-  November 10 archive has been verified and reviewed for cases 7, 8, 13 and 25.
-- Complete the two exact H-loss orbital reviews and bind the CH2S/SH candidate
-  to the retained endpoint's atom order and electronic state.
+- Install the reviewed case-7 separated-start and case-13 exact-endpoint seeds,
+  together with the supported case-25 model. The sixteen angular and eight
+  endpoint checks are complete and reviewed in `initial_native_review.json`.
+- Complete the two exact H-loss orbital reviews. Their initial native reference
+  panel is complete. Compact-space screening resumes from those saved results.
 - Implement and validate independent-run result adoption. The frozen copies
   currently serve as evidence. Runtime adoption still needs path rebinding,
   geometry/theory/state validation, old scheduler-ID reconciliation, and

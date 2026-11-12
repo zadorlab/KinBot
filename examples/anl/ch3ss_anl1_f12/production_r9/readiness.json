@@ -1,11 +1,6 @@
 {
   "blockers": [
     {
-      "kind": "angular_state_tracking",
-      "reason": "Completed angular far points have a 26 kcal/mol root gap, inconsistent with the intended SH Pi components. Sixteen far-start/return checks are staged.",
-      "verification_case": 7
-    },
-    {
       "kind": "new_h_loss_reviews",
       "reactions": [
         "471030810040000000002_hom_sci_2_3",
@@ -14,9 +9,13 @@
       "reason": "No exact reviewed active-space/state/checkpoint model exists for these two retained H-loss channels."
     },
     {
-      "connection": "ch3ss/nobar_39",
-      "kind": "outer_endpoint_binding",
-      "reason": "Bind prior CH2S+SH seeds to the retained R8 encounter geometry and atom/state mapping."
+      "connections": [
+        "ch3ss/nobar_14",
+        "ch3ss/nobar_39",
+        "ch3ss/nobar_41"
+      ],
+      "kind": "reviewed_model_installation",
+      "reason": "Carry the reviewed exact seeds and corrected separated-start branch following into the production model package."
     },
     {
       "kind": "independent_seed_import",
@@ -56,10 +55,10 @@
       },
       "case": "ch3ss",
       "connection": "nobar_14",
-      "native_review_20261112": "CAS(7,6) remains selected; angular state check pending.",
+      "native_review_20261112": "CAS(7,6) angular checks passed with correct SH degeneracy and stable returns. Carry the corrected separated-start seeds into production.",
       "reaction": "791472110370000000002_hom_sci_1_2",
       "source_review": "791472110370000000002_hom_sci_1_2",
-      "status": "installed_selection_verification_pending",
+      "status": "installed_selection_supported_seed_binding_pending",
       "verification_cases": [
         7
       ]
@@ -71,10 +70,10 @@
       },
       "case": "ch3ss",
       "connection": "nobar_39",
-      "native_review_20261112": "Retain CAS(5,4); eight mapped R9 endpoint/path checks staged.",
+      "native_review_20261112": "CAS(5,4) exact R9 endpoint and atom-order checks passed. Install the new native WFU seeds.",
       "reaction": "791671450790040000002_intra_H_migration_suprafacial_1_4",
       "source_review": "791671450790040000002_r12_insertion_R_2_3_4",
-      "status": "selection_supported_binding_pending",
+      "status": "selection_supported_installation_pending",
       "verification_cases": [
         8,
         13

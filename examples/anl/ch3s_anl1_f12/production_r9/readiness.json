@@ -1,11 +1,6 @@
 {
   "blockers": [
     {
-      "kind": "angular_state_tracking",
-      "reason": "Completed angular far points have a 26 kcal/mol root gap, inconsistent with the intended SH Pi components. Sixteen far-start/return checks are staged.",
-      "verification_case": 7
-    },
-    {
       "kind": "new_h_loss_reviews",
       "reactions": [
         "471030810040000000002_hom_sci_2_3",
@@ -14,9 +9,13 @@
       "reason": "No exact reviewed active-space/state/checkpoint model exists for these two retained H-loss channels."
     },
     {
-      "connection": "ch3ss/nobar_39",
-      "kind": "outer_endpoint_binding",
-      "reason": "Bind prior CH2S+SH seeds to the retained R8 encounter geometry and atom/state mapping."
+      "connections": [
+        "ch3ss/nobar_14",
+        "ch3ss/nobar_39",
+        "ch3ss/nobar_41"
+      ],
+      "kind": "reviewed_model_installation",
+      "reason": "Carry the reviewed exact seeds and corrected separated-start branch following into the production model package."
     },
     {
       "kind": "independent_seed_import",

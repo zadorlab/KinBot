@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 
+from kinbot.execution import file_sha256
+
 NS = {'m': 'http://www.molpro.net/schema/molpro-output',
       'c': 'http://www.xml-cml.org/schema'}
 XLINK = '{http://www.w3.org/1999/xlink}href'
@@ -27,6 +29,14 @@ class Orbitals:
     positions: np.ndarray
     atom_basis: list
     atom_columns: list
+
+
+def read_job_orbitals(job, kind='natural'):
+    """Read the audited export path and verify its recorded native hash."""
+    item = job['orbital_xml'][kind]
+    if file_sha256(item['path']) != item['sha256']:
+        raise ValueError('Native orbital export changed: '+str(item['path']))
+    return read_orbitals(item['path'])
 
 
 def read_orbitals(path):

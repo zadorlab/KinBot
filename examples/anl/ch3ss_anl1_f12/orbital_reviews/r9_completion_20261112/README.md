@@ -11,13 +11,25 @@ uses the existing shared resource policy capped at twenty eight-core exclusive
 jobs. `completion.json` reports native completion and outstanding trial issues.
 Scientific selection remains an explicit review of the resulting evidence.
 
-Local validation passed 171 focused tests and five discovery subtests. A clean
+The initial 92 points have completed. Their native review supports the case-7
+angular-state correction and case-13 exact endpoint binding. The controller's
+atomic-H filename mismatch has been corrected by using the audited export
+paths and hashes. The launch command below resumes the existing campaign and
+adopts its completed calculations. H-loss candidate screening follows next.
+
+Original staging validation passed 171 focused tests and five discovery subtests. A clean
 published-source snapshot with this patch passed 37 additional tests, including
 complete simulated orchestration, interruption/reentry, completed-work adoption,
 failed prerequisites, equivalent-space deduplication and the read-only report.
 All 92 initial native inputs were rendered and restaged successfully. These
 tests cover execution logic and input construction. The new native outcomes
 will come from Blodgett.
+
+The continuation repair passed 177 tests and five discovery subtests in both
+the working tree and a clean published-source snapshot. This includes actual
+XML parsing through the full campaign, interruption after all 92 initial points,
+repeated continuation, and preservation of completed native bytes. Two
+additional focused checks verified the recorded native review and report status.
 
 ## Launch on Blodgett
 
@@ -59,7 +71,10 @@ printf 'Reader PID %s\nText report %s\nReader log %s\n' \
 BASH
 ```
 
-The final `SUMMARY` line marks the end of the report. Transfer that text file
+The final `SUMMARY` line marks the end of the reader. Its `campaign_status`
+also reports whether the campaign's controller has completed. A
+`controller_completion_pending` result requires the current controller status.
+Transfer the completed-campaign text file
 to local `examples/anl/tmp`. Its native orbital coefficients, CI tables,
 root energies, source hashes and overlap diagnostics support the review while
 the binary WFU records stay available on Blodgett for model installation.

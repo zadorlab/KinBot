@@ -207,9 +207,10 @@ def _run_sources(root, sources, parameters):
 
 
 def _xml(job, kind='natural'):
-    item = job['orbital_xml'][kind]
-    _require(file_sha256(item['path']) == item['sha256'], 'Native orbital export changed.')
-    return evidence.read_orbitals(item['path'])
+    try:
+        return evidence.read_job_orbitals(job, kind)
+    except ValueError as error:
+        raise ReviewRequired(str(error)) from error
 
 
 def _output(job):

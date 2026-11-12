@@ -11,6 +11,40 @@
     "kinbot/anl/optimization_progress.py": "c0f0ed95e26d8ac1714449b52f1f56c65d094cce4e489e0328e93ca1b116ccf2",
     "kinbot/anl/optimization_recovery.py": "1bf2019bb9baf231f5e97e152e511e12b6e0775e8049e29f4ae78fa14471ea99"
   },
+  "continuation_repair": {
+    "additional_focused_checks": {
+      "passed": 2,
+      "scope": "Native review numerical consistency and pending-campaign report status"
+    },
+    "base_commit": "1ede37a32",
+    "cause": "Atomic SCF export reader guessed .scf.orbitals.xml instead of using the audited export path.",
+    "clean_published_tree_tests": {
+      "passed": 177,
+      "subtests": 5,
+      "warning_class": "pre-existing invalid-escape DeprecationWarning in reaction_finder docstrings",
+      "warnings": 5
+    },
+    "code_hashes": {
+      "examples/anl/ch3ss_anl1_f12/orbital_reviews/r9_completion_20261112/campaign.py": "53e0d822112ba0520dfb464bd5a35820d8a99ab0854be25cf1abe0aeb1c6fdf7",
+      "examples/anl/ch3ss_anl1_f12/orbital_reviews/r9_completion_20261112/report.py": "cf72a5e05805447293af417c7d19fc31fe8a428a52f5ae91abbe5d9611b4233e",
+      "kinbot/auto_radical_pair.py": "3001fc86ec1fa0f50d254ab5c9fbf5ff05d2690a765ad4ff31ad2dd97b59d7e0",
+      "kinbot/radical_pair_evidence.py": "39a0670888642b828240cf7c09616d90ba2a06b23c3ff852355eb0c75e0177ed"
+    },
+    "evidence": "initial_native_review.json",
+    "initial_native_points_reviewed": 92,
+    "orchestration": [
+      "actual XML parsing and orbital projection through initial-to-screen continuation",
+      "interruption after 1 and after 92 completed points",
+      "completed native bytes preserved on resume and repeat",
+      "live controller ownership blocks restaging and a second driver",
+      "SCF-only native output classified according to the requested probe"
+    ],
+    "remote_continuation": "pending user launch",
+    "working_tree_tests": {
+      "passed": 177,
+      "subtests": 5
+    }
+  },
   "focused_tests": {
     "command": ".venv/bin/python -m pytest -q tests/test_r9_completion_campaign.py tests/test_optimization_progress.py tests/test_allocation_recovery.py tests/test_verification_review_panel.py tests/test_molpro_reconnaissance.py tests/test_r9_lean_stage.py",
     "passed": 171,
@@ -34,5 +68,5 @@
     "read-only text report"
   ],
   "schema": 1,
-  "validation": "local simulated site; native follow-up pending"
+  "validation": "Initial native phase reviewed; repaired continuation validated at a local simulated site; H-loss screens pending."
 }

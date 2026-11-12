@@ -2,6 +2,7 @@
 from copy import deepcopy
 import importlib.util
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import pytest
 import numpy as np
@@ -49,19 +50,45 @@ def test_offline_stage_and_repeat_preserve_sources_and_science(staged,monkeypatc
         campaign.stage(pool/'changed',pool=pool)
 
 
-def fake_partition(case, reference, atomic):
-    total=sum(campaign.atomic_numbers[s] for s in case['symbols'])
-    e,o=case['reference_space']['active_electrons'],case['reference_space']['active_orbitals']
-    closed=(total-e)//2;occupied=(e-1)//2
-    return dict(radical=closed+occupied+1,
-                frontier=[closed+occupied+1],
-                occupied=list(range(closed+1,closed+occupied+1)),
-                virtual=list(range(closed+occupied+2,closed+o+1)),
-                hydrogen_projection=1.,occupations=[2.]*occupied+[1.]+[0.]*(o-occupied-1),
-                source_sha256='synthetic')
+def native_xml_fixture(job):
+    """Synthetic complete MO tables using the execution writer's export names."""
+    from kinbot.radical_pair_evidence import NS, XLINK
+    symbols=job['symbols'];electrons=sum(campaign.atomic_numbers[s] for s in symbols)
+    size=1 if symbols==['H'] else electrons+4
+    counts=[size-len(symbols)+1]+[1]*(len(symbols)-1)
+    occupations=np.zeros(size);occupations[:electrons//2]=2.
+    if electrons%2:occupations[electrons//2]=1.
+    matrix=np.eye(size)
+    if electrons%2 and symbols!=['H']:
+        case=next(c for c in campaign.read(campaign.HERE/'plan.json')['h_loss_cases'] if c['symbols']==symbols)
+        atom=case['coordinate']['moving_atoms'][0]-1
+        hydrogen_column=sum(counts[:atom])
+        matrix[[electrons//2,hydrogen_column]]=matrix[[hydrogen_column,electrons//2]]
+    root=ET.Element('{'+NS['m']+'}molpro')
+    basis=ET.SubElement(root,'{'+NS['m']+'}basisSet',length=str(size),cartesianLength=str(size))
+    for index,(symbol,position,count) in enumerate(zip(symbols,job['geometry_angstrom'],counts)):
+        ET.SubElement(root,'{'+NS['c']+'}atom',id=f'a{index}',elementType=symbol,
+                      **dict(zip(('x3','y3','z3'),map(str,position))))
+        group=ET.SubElement(basis,'{'+NS['m']+'}basisGroup',id=f'g{index}',minL='0',maxL='0')
+        ET.SubElement(group,'{'+NS['m']+'}basisExponents').text=' '.join(str(v+1) for v in range(count))
+        for row in np.eye(count):
+            ET.SubElement(group,'{'+NS['m']+'}basisContraction').text=' '.join(map(str,row))
+        assoc=ET.SubElement(basis,'{'+NS['m']+'}association')
+        ET.SubElement(assoc,'{'+NS['m']+'}atoms',{XLINK:f"//*[@id='a{index}']"})
+        ET.SubElement(assoc,'{'+NS['m']+'}bases',{XLINK:f"//*[@id='g{index}']"})
+    orbitals=ET.SubElement(root,'{'+NS['m']+'}orbitals')
+    for row,occupation in zip(matrix,occupations):
+        ET.SubElement(orbitals,'{'+NS['m']+'}orbital',occupation=str(occupation)).text=' '.join(map(str,row))
+    job['orbital_xml']={}
+    for kind in ('scf','natural') if job.get('natural_orbital_probe') else ('scf',):
+        suffix='.orbitals.xml' if kind=='scf' else '.natural.orbitals.xml'
+        path=Path(job['directory'])/(job['name']+suffix)
+        ET.ElementTree(root).write(path)
+        job['orbital_xml'][kind]=dict(path=str(path),sha256=file_sha256(path))
 
 
-def test_full_owner_partial_completion_and_repeat_adopt_finished_work(staged,monkeypatch):
+@pytest.mark.parametrize('interrupt_after', [1, 92])
+def test_full_owner_partial_completion_and_repeat_adopt_finished_work(staged,monkeypatch,interrupt_after):
     plan,pool,out,record=staged
     finished=[];first=True
     def fake_many(paths,**options):
@@ -72,36 +99,59 @@ def test_full_owner_partial_completion_and_repeat_adopt_finished_work(staged,mon
             for job in data['jobs']:
                 if job.get('status')=='complete':continue
                 d=Path(job['directory']);output=d/(job['name']+'.out');wfu=d/(job['name']+'.wfu')
-                output.write_text('Simulated native result');wfu.write_text('Simulated checkpoint '+str(wfu))
+                output.write_text('Molpro calculation terminated\n');wfu.write_text('Simulated checkpoint '+str(wfu))
+                native_xml_fixture(job)
                 # Deterministic, finite energies exercise own-asymptote ranking.
                 level=-100.+(.001 if job['anchor']!='r30' else 0.)
                 if '_pair_' in title:level+=int(title.split('_pair_')[1].split('_')[0])*1.e-7
                 job.update(status='complete',output_sha256=file_sha256(output),wfu=str(wfu),wfu_sha256=file_sha256(wfu),
                            correlated_energies_hartree=[dict(method='caspt2-f12',multiplicity=2,root=1,energy_hartree=level)])
                 finished.append((path,job['name']));atomic_json(path,data)
-                if first:
+                if first and len(finished)==interrupt_after:
                     first=False
                     raise RuntimeError('Simulated controller interruption after native completion')
             atomic_json(path,data)
     monkeypatch.setattr(campaign.recon,'run_many',fake_many)
-    monkeypatch.setattr(campaign,'hydrogen_partition',fake_partition)
     monkeypatch.setattr(campaign,'distinct_pair_trials',lambda case,scores,jobs,bases:(
         sorted((r for r in scores if r['name']!='single'),key=lambda r:r['name'])[:3],{}))
     with pytest.raises(RuntimeError,match='interruption'):
         campaign.run(out)
+    saved_xml={p:file_sha256(p) for p in (out/'initial').rglob('*.xml')}
     campaign.run(out)
+    assert all(file_sha256(p)==sha for p,sha in saved_xml.items())
     result=campaign.read(out/'completion.json')
     assert result['status']=='native_complete_review_required' and not result['production_model_accepted']
     assert not result['holds']
     before=list(finished)
+    native_before={p:file_sha256(p) for p in out.rglob('*.xml')}
     campaign.run(out)
     assert finished==before
+    assert all(file_sha256(p)==sha for p,sha in native_before.items())
     assert len(set(finished))==len(finished)
     for cid in (101,102):
         chosen=campaign.read(out/f'h{cid}_followup_trials.json')
         assert not chosen['production_model_accepted']
         assert set(chosen['selected']) >= {'single','union_2','union_3'}
     assert all(campaign.read(p)['shared_policy_file']==str(pool/run_policy.NAME) for p in result['manifests'])
+    spec=importlib.util.spec_from_file_location('completed_text_report',HERE/'report.py')
+    report=importlib.util.module_from_spec(spec);spec.loader.exec_module(report)
+    records=[]
+    monkeypatch.setattr(report,'emit',lambda kind,value:records.append((kind,value)))
+    assert report.report(out)==0
+    hydrogen=[row for kind,row in records if kind=='NATIVE_POINT' and row['identity'][0].endswith('_hydrogen')]
+    assert len(hydrogen)==4 and all(row['probe_kind']=='scf_only' and not row['native_issues'] for row in hydrogen)
+
+
+def test_live_campaign_owner_prevents_restaging_or_second_driver(staged,monkeypatch):
+    plan,pool,out,record=staged
+    before={p:file_sha256(p) for p in out.rglob('*') if p.is_file()}
+    monkeypatch.setattr(campaign,'run_manifests',lambda *args:pytest.fail('Touched live campaign.'))
+    with campaign.recon._manifest_lock(out):
+        with pytest.raises(RuntimeError,match='Another reconnaissance controller'):
+            campaign.stage(out,pool=pool)
+        with pytest.raises(RuntimeError,match='Another reconnaissance controller'):
+            campaign.run(out)
+    assert all(file_sha256(p)==sha for p,sha in before.items())
 
 
 def test_failed_native_prerequisite_does_not_create_guessed_partitions(staged,monkeypatch):
@@ -124,15 +174,16 @@ def test_equivalent_native_spaces_are_not_repeated_on_full_paths(tmp_path,monkey
             for point in ('near','mid','r30'):
                 title=f'h101_{name}_{basis.replace("-","_")}'
                 jobs[(title,basis,point)]=dict(directory=str(tmp_path/name),name=point,
+                    orbital_xml={'natural':dict(path=str(tmp_path/name/(point+'.xml')),sha256='synthetic')},
                     probe_active_space=dict(active_electrons=3,active_orbitals=3),
                     correlated_energies_hartree=[dict(method='caspt2-f12',multiplicity=2,root=1,energy_hartree=-10.)])
-    def orbitals(path):
+    def orbitals(job):
         matrix=np.eye(15)
-        if 'pair_2_0' in str(path):
+        if 'pair_2_0' in job['directory']:
             angle=.1
             matrix[np.ix_([11,14],[11,14])]=[[np.cos(angle),np.sin(angle)],[-np.sin(angle),np.cos(angle)]]
         return Orbitals(matrix,np.ones(15),['H'],np.zeros((1,3)),['same basis'],[list(range(15))])
-    monkeypatch.setattr(campaign,'read_orbitals',orbitals)
+    monkeypatch.setattr(campaign,'read_job_orbitals',orbitals)
     scores=[dict(name=name,max_potential_difference=0.) for name in ('pair_0_0','pair_1_0','pair_2_0')]
     chosen,equivalent=campaign.distinct_pair_trials(case,scores,jobs,bases)
     assert [r['name'] for r in chosen]==['pair_0_0','pair_2_0']
@@ -149,21 +200,23 @@ def test_hydrogen_identity_uses_native_orbital_projection(tmp_path,monkeypatch):
     dimer=Orbitals(np.eye(15),occupations,case['symbols'],positions,['heavy','heavy','H basis','H basis','H basis'],columns)
     hydrogen=Orbitals(np.ones((1,1)),np.ones(1),['H'],positions[atom:atom+1],['H basis'],[[0]])
     directory=tmp_path/'reference';directory.mkdir();(directory/'far.natural.orbitals.xml').write_text('Synthetic native matrix fixture')
-    monkeypatch.setattr(campaign,'read_orbitals',lambda path:hydrogen if str(path).endswith('.scf.orbitals.xml') else dimer)
-    result=campaign.hydrogen_partition(case,dict(directory=str(directory),name='far'),dict(directory=str(tmp_path),name='H'))
+    monkeypatch.setattr(campaign,'read_job_orbitals',lambda job,kind='natural':hydrogen if kind=='scf' else dimer)
+    reference=dict(directory=str(directory),name='far',orbital_xml={'natural':{'sha256':'synthetic'}})
+    atomic=dict(directory=str(tmp_path),name='H',orbital_xml={'scf':{'sha256':'synthetic H'}})
+    result=campaign.hydrogen_partition(case,reference,atomic)
     assert result['radical']==13 and result['hydrogen_projection']==pytest.approx(1.)
     assert len(result['occupied'])==6 and len(result['virtual'])==2
     # A rotation in a degenerate singly occupied span must preserve the H test.
     dimer.occupations[10:13]=1.;dimer.occupations[13]=2.
     angle=np.pi/4
     dimer.coefficients[np.ix_([11,12],[11,12])]=[[np.cos(angle),np.sin(angle)],[-np.sin(angle),np.cos(angle)]]
-    rotated=campaign.hydrogen_partition(case,dict(directory=str(directory),name='far'),dict(directory=str(tmp_path),name='H'))
+    rotated=campaign.hydrogen_partition(case,reference,atomic)
     assert rotated['frontier']==[11,12,13]
     assert rotated['hydrogen_projection']==pytest.approx(1.)
     assert rotated['hydrogen_electrons']==pytest.approx(1.)
     hydrogen.occupations[:]=2.
     with pytest.raises(ValueError,match='one electron'):
-        campaign.hydrogen_partition(case,dict(directory=str(directory),name='far'),dict(directory=str(tmp_path),name='H'))
+        campaign.hydrogen_partition(case,reference,atomic)
 
 
 def test_text_report_reads_waiting_campaign_without_changes(staged,capsys):
@@ -174,4 +227,25 @@ def test_text_report_reads_waiting_campaign_without_changes(staged,capsys):
     assert report.report(out)==0
     text=capsys.readouterr().out
     assert '"waiting": 92' in text and '"production_model_accepted": false' in text
+    assert '"campaign_status": "controller_completion_pending"' in text
     assert {p:file_sha256(p) for p in out.rglob('*') if p.is_file()}==before
+
+
+def test_completed_native_existing_channel_review_matches_recorded_energies():
+    review=campaign.read(HERE/'initial_native_review.json')
+    assert review['plan_sha256']==file_sha256(HERE/'plan.json')
+    assert review['captured_summary']['counts']=={'complete':92}
+    assert not review['captured_summary']['integrity_issues']
+    assert len(review['existing_channel_points'])==24
+    for point in review['existing_channel_points']:
+        assert point['normal_termination'] and not point['native_errors'] and not point['native_issues']
+        energies=point['correlation']
+        gap=campaign.KCAL*(energies[1]['energy_hartree']-energies[0]['energy_hartree'])
+        assert point['doublet_gap_kcal_mol']==pytest.approx(gap)
+        if point['identity'][2] in ('far','back_far','r30'):
+            assert abs(gap)<.001
+    for key,count in (('case7',16),('case13',8)):
+        metrics=review['metrics'][key]
+        assert metrics['points']==count
+        assert metrics['maximum_return_difference_kcal_mol']<.001
+        assert metrics['minimum_return_subspace_squared_singular_value']>.9999999999

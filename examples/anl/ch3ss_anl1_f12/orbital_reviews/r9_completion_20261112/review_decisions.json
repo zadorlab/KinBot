@@ -19,22 +19,26 @@
       "decision": "retain_existing_selection"
     },
     {
-      "additional_calculations": 16,
+      "additional_calculations": 0,
       "cas": [
         7,
         6
       ],
       "channel": "HSCH2S -> CH2S + SH",
-      "decision": "retain_chemical_space_verify_angular_state_branch"
+      "completed_followup_calculations": 16,
+      "decision": "retain_selection_native_followup_verified",
+      "evidence": "initial_native_review.json"
     },
     {
-      "additional_calculations": 8,
+      "additional_calculations": 0,
       "cas": [
         5,
         4
       ],
       "channel": "CH2S...SH -> CH2S + SH",
-      "decision": "retain_selection_bind_r9_atom_order_and_coordinate"
+      "completed_followup_calculations": 8,
+      "decision": "retain_selection_native_followup_verified",
+      "evidence": "initial_native_review.json"
     },
     {
       "additional_calculations": 0,
@@ -46,6 +50,7 @@
       "decision": "retain_selection"
     }
   ],
+  "initial_native_review": "initial_native_review.json",
   "new_h_loss_cases": [
     101,
     102

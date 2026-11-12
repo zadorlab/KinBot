@@ -113,7 +113,14 @@ def test_read_native_xml_rejects_incomplete_and_associates_basis(tmp_path):
     p=tmp_path/'orbs.xml'
     p.write_text('''<molpro xmlns="http://www.molpro.net/schema/molpro-output" xmlns:c="http://www.xml-cml.org/schema" xmlns:x="http://www.w3.org/1999/xlink"><molecule id="m1"><c:atomArray><c:atom id="a1" elementType="H" x3="0" y3="0" z3="0"/></c:atomArray><basisSet length="1" cartesianLength="1"><basisGroup id="g1" minL="0" maxL="0"><basisExponents>1.0</basisExponents><basisContraction>1.0</basisContraction></basisGroup><association><bases x:href="#xpointer(//basisGroup[@id='g1'])"/><atoms x:href="#xpointer(//atom[@id='a1'])"/></association></basisSet><orbitals><orbital occupation="1">1</orbital></orbitals></molecule></molpro>''')
     o=ev.read_orbitals(p);assert o.occupations.tolist()==[1.] and o.atom_columns==[[0]]
+    job={'orbital_xml':{'scf':{'path':str(p),'sha256':file_sha256(p)}}}
+    assert ev.read_job_orbitals(job,'scf').occupations.tolist()==[1.]
+    assert auto._xml(job,'scf').occupations.tolist()==[1.]
     p.write_text(p.read_text().replace('length="1"','length="2"'))
+    with pytest.raises(ValueError,match='Native orbital export changed'):
+        ev.read_job_orbitals(job,'scf')
+    with pytest.raises(auto.ReviewRequired,match='Native orbital export changed'):
+        auto._xml(job,'scf')
     with pytest.raises(ValueError,match='Incomplete'):ev.read_orbitals(p)
 
 

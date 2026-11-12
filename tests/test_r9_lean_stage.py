@@ -97,7 +97,7 @@ class TestLeanR9Stage(unittest.TestCase):
                 status = channel['status']
                 status_counts[status] = status_counts.get(status, 0) + 1
                 self.assertEqual(channel['reaction'] in installed,
-                                 status in ('ready', 'installed_selection_verification_pending'))
+                                 status in ('ready', 'installed_selection_supported_seed_binding_pending'))
             requests = read(folder / 'new_h_loss_reviews.json')
             self.assertEqual(len(requests), 1)
             self.assertIsNone(requests[0]['selected_cas'])
@@ -105,9 +105,8 @@ class TestLeanR9Stage(unittest.TestCase):
         self.assertEqual(status_counts, {
             'ready': 2,
             'new_h_loss_review': 2,
-            'installed_selection_verification_pending': 1,
-            'selection_supported_binding_pending': 1,
-            'selection_supported_installation_pending': 1,
+            'installed_selection_supported_seed_binding_pending': 1,
+            'selection_supported_installation_pending': 2,
         })
 
 

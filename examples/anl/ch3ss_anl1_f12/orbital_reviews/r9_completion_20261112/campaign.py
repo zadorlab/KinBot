@@ -16,7 +16,7 @@ from ase.data import atomic_numbers
 from kinbot import molpro_reconnaissance as recon, run_policy
 from kinbot.execution import atomic_json, file_sha256
 from kinbot.molpro import automatic_vrc_state_model
-from kinbot.radical_pair_evidence import read_orbitals, projection
+from kinbot.radical_pair_evidence import read_job_orbitals, projection
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('prior_verification', HERE.parent/'verification_20261027/panel.py')
@@ -210,8 +210,8 @@ def energy(job):
 
 
 def hydrogen_partition(case, reference, atomic):
-    d=read_orbitals(Path(reference['directory'])/(reference['name']+'.natural.orbitals.xml'))
-    h=read_orbitals(Path(atomic['directory'])/(atomic['name']+'.scf.orbitals.xml'))
+    d=read_job_orbitals(reference)
+    h=read_job_orbitals(atomic, 'scf')
     atom=case['coordinate']['moving_atoms'][0]-1
     if h.symbols!=['H'] or h.atom_basis[0]!=d.atom_basis[atom] or not np.allclose(h.positions[0],d.positions[atom],rtol=0,atol=2.e-8):
         raise ValueError('Hydrogen and combined-system AO bases/coordinates differ.')
@@ -241,7 +241,8 @@ def hydrogen_partition(case, reference, atomic):
                 occupied=[i+1 for i in occupied],virtual=[i+1 for i in virtual],
                 hydrogen_projection=hydrogen_projection,hydrogen_electrons=hydrogen_electrons,
                 occupations=d.occupations[active].tolist(),
-                source_sha256=file_sha256(Path(reference['directory'])/(reference['name']+'.natural.orbitals.xml')))
+                source_sha256=reference['orbital_xml']['natural']['sha256'],
+                hydrogen_source_sha256=atomic['orbital_xml']['scf']['sha256'])
 
 
 def candidate_config(case, bases, sources, indices, title, anchors, roots=1):
@@ -282,8 +283,8 @@ def distinct_pair_trials(case, scores, jobs, bases):
     representatives=[];equivalent={};cache={}
     total=sum(atomic_numbers[s] for s in case['symbols'])
     def orbitals(job):
-        path=Path(job['directory'])/(job['name']+'.natural.orbitals.xml')
-        if path not in cache:cache[path]=read_orbitals(path)
+        path=Path(job['orbital_xml']['natural']['path'])
+        if path not in cache:cache[path]=read_job_orbitals(job)
         return cache[path]
     for row in ordered:
         for prior_row in representatives:

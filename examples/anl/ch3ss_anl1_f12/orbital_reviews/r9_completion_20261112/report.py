@@ -6,7 +6,7 @@ from pathlib import Path
 
 from kinbot.execution import file_sha256
 from kinbot.molpro_diagnostics import parse_native_output
-from kinbot.radical_pair_evidence import read_orbitals, projection
+from kinbot.radical_pair_evidence import read_job_orbitals, projection
 
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('completion_campaign',HERE/'campaign.py')
@@ -48,10 +48,15 @@ def report(root):
             if changed:
                 issues.append(dict(identity=ident,changed_native_files=changed));continue
             parsed=parse_native_output(out.read_text(errors='replace'),inp.read_text())
+            native_issues=parsed['issues']
+            if cfg.get('orbital_character_only'):
+                native_issues=[issue for issue in native_issues
+                               if issue!='No executed multireference program section found.']
             row=dict(identity=ident,geometry=job['geometry_angstrom'],roots=job['root_states'],
                      active_space=job.get('probe_active_space'),correlation=job.get('correlated_energies_hartree'),
                      input_sha256=job['input_sha256'],output_sha256=job['output_sha256'],wfu=job['wfu'],wfu_sha256=job['wfu_sha256'],
-                     normal_termination=parsed['normal_termination_seen'],native_issues=parsed['issues'],native_errors=parsed['native_error_lines'])
+                     probe_kind='scf_only' if cfg.get('orbital_character_only') else 'multireference',
+                     normal_termination=parsed['normal_termination_seen'],native_issues=native_issues,native_errors=parsed['native_error_lines'])
             emit('NATIVE_POINT',row)
             indexed[tuple(ident)]=job
             # Full-path, reference and binding jobs carry native active character and CI evidence.
@@ -79,15 +84,15 @@ def report(root):
         if original is None or (title,basis,original) not in indexed:continue
         left=indexed[(title,basis,original)]
         try:
-            a=read_orbitals(Path(left['directory'])/(left['name']+'.natural.orbitals.xml'))
-            b=read_orbitals(Path(right['directory'])/(right['name']+'.natural.orbitals.xml'))
+            a=read_job_orbitals(left)
+            b=read_job_orbitals(right)
             space=right['probe_active_space'];n=sum(campaign.atomic_numbers[s] for s in right['symbols'])
             closed=(n-space['active_electrons'])//2;indices=list(range(closed,closed+space['active_orbitals']))
             values=projection(a,b,indices,indices)
             emit('RETURN_CHECK',dict(identity=key,reference=original,active_subspace_squared_singular_values=values,
                   difference_kcal_mol=campaign.KCAL*(campaign.energy(right)-campaign.energy(left)),
-                  left_xml_sha256=file_sha256(Path(left['directory'])/(left['name']+'.natural.orbitals.xml')),
-                  right_xml_sha256=file_sha256(Path(right['directory'])/(right['name']+'.natural.orbitals.xml'))))
+                  left_xml_sha256=left['orbital_xml']['natural']['sha256'],
+                  right_xml_sha256=right['orbital_xml']['natural']['sha256']))
         except (ValueError,OSError,KeyError) as error:
             emit('RETURN_CHECK_UNAVAILABLE',dict(identity=key,reason=str(error)))
     for path in sorted(root.glob('h*_followup_trials.json')):
@@ -95,7 +100,10 @@ def report(root):
     for path in sorted(root.glob('h*_partitions.json')):
         data=campaign.read(path)
         emit('HYDROGEN_IDENTITY',dict(file=path.name,sources={b:s['partition'] for b,s in data['sources'].items()}))
-    emit('SUMMARY',dict(counts=counts,integrity_issues=issues,production_model_accepted=False))
+    emit('SUMMARY',dict(counts=counts,integrity_issues=issues,
+         campaign_status=complete.get('status','controller_completion_pending'),
+         staged_phases=sorted({Path(p).relative_to(root).parts[0] for p in manifests}),
+         production_model_accepted=False))
     return 2 if issues else 0
 
 

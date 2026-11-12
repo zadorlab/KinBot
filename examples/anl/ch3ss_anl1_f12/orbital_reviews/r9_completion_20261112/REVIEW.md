@@ -13,8 +13,8 @@ All 184 have completed native records and pass the input/output identity checks.
 |---|---|---|
 | CH3S to CH3 + S | Retain CAS(5,4) | None |
 | CH3SS to CH3 + S2 | Retain CAS(7,5) | None |
-| HSCH2S to CH2S + SH | Retain the chemically motivated CAS(7,6); correct angular state following | 16 fixed-point checks |
-| CH2S/SH complex to CH2S + SH | Retain CAS(5,4) | 8 checks binding the selected model to the R9 atom order and correction coordinate |
+| HSCH2S to CH2S + SH | Retain CAS(7,6) with verified angular state following | 16 fixed-point checks completed |
+| CH2S/SH complex to CH2S + SH | Retain CAS(5,4) with verified exact R9 endpoint checks | 8 binding checks completed |
 | HCS/H2S complex to HCS + H2S | Retain CAS(3,3) for the outer capture channel | None |
 | CH2SH to CH2S + H | Exact model selection pending | New odd-electron candidate campaign |
 | CH3SS to CH2SS + H | Exact model selection pending | New odd-electron candidate campaign |
@@ -22,6 +22,47 @@ All 184 have completed native records and pass the input/output identity checks.
 The remaining six unfinished relaxation diagnostics receive zero optimization
 retries. Their completion is unnecessary for the current active-space decisions.
 Production geometry optimization remains part of the later VRC workflow.
+
+### Completed initial campaign, November 12
+
+The supplied `r9-orbital-review.rQn81s2j.txt` reports all 92 initial points
+complete with zero input/output/checkpoint integrity issues. The campaign
+stopped before H-loss screening because its atomic-H reader requested
+`.scf.orbitals.xml`, while the native executor published `.orbitals.xml`.
+The shared reader now consumes each audited `orbital_xml` path and hash.
+Continuation adopts the completed native records and resumes candidate screening.
+
+`initial_native_review.json` records the supplied transcript hash, native
+input/output/WFU hashes, active orbital tables, CI evidence and numerical checks.
+Its orbital tables retain the native AO coefficients used to assess chemical
+character. Return subspace overlaps come from the complete native XML matrices.
+
+- Case 7 has the intended separated SH components in both orientations and
+  both bases. The far doublet gaps are 0.000220–0.000270 kcal/mol. The largest
+  return energy difference is 0.000571 kcal/mol. The smallest squared singular
+  value of the same-geometry return active-space overlap is 0.999999999996.
+  The two SH frontier natural occupations are 1.5 at separation. The four
+  CH2S directions retain occupations near 1.9645, 1.8297, 0.1700 and 0.0358.
+  Retain CAS(7,6), natural indices 18–23, equal weights for two doublets and
+  reactive D1. Production must carry the verified separated-start seeds and
+  branch-following definition established by these checks.
+- Case 13 passes the exact R9 endpoint and atom-order binding checks. The far
+  doublet gap is at most 0.0000126 kcal/mol, the largest return difference is
+  0.0000314 kcal/mol and the minimum return subspace value is 0.999999999965.
+  The near aTZ natural occupations are 1.89057, 1.50000, 1.49995 and 0.10948.
+  Retain CAS(5,4), natural indices 19–22, two equally weighted doublets and
+  reactive D1. The new exact-endpoint WFU records are ready for production
+  installation.
+- The H-loss reference calculations have neutral-H occupation 1.00000 in
+  natural orbital 13 for CH2S + H and orbital 21 for CH2SS + H in both bases.
+  The aTZ isolated-fragment triplet gaps are 44.6915 and 43.1294 kcal/mol.
+  Their separated quartet/doublet gaps agree within 0.0057 kcal/mol across
+  both bases. Reference return differences are below 0.000270 kcal/mol.
+  Compact-space comparisons remain pending and are required for the minimal
+  H-loss selections.
+
+The initial-phase review closes the existing-channel angular and endpoint
+questions. Production installation and the two H-loss selections remain pending.
 
 ### Previously accepted C-S models
 
@@ -72,7 +113,8 @@ both orientations and both bases. Each starts at the rotated asymptote, moves
 inward, returns to that asymptote and repeats the inward point. Their sixteen
 calculations test branch reproducibility and the separated-fragment degeneracy.
 The established radial calculations and the rejected smaller CAS remain source
-evidence. The CAS(7,6) choice remains conditional on this angular-state check.
+evidence. The completed results above resolve this angular-state check over
+the tested geometries and support the corrected initialization for production.
 
 ### Cases 8 and 13, CH2S/SH outer approach
 

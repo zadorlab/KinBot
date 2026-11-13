@@ -63,7 +63,7 @@ def test_complete_controller_restart_adopts_live_qc_and_all_irc_directions(tmp_p
         contents=Path(job+'.py').read_text()
         ast.parse(contents)
         assert 'B2PLYP' in contents and 'cc-pVTZ' in contents and 'B3LYP' not in contents
-        if '_IRC_' in job:
+        if '_IRC_' in job and '_freq_recovery_' not in job:
             assert 'steps=300' in contents and 'dx=0.05' in contents
         allocations[job]=str(len(allocations)+1)
         qc.job_ids[job]=allocations[job]
@@ -76,9 +76,10 @@ def test_complete_controller_restart_adopts_live_qc_and_all_irc_directions(tmp_p
         if polls[job]<3:return 'running'
         if not qc.db.count(name=job):
             atoms=Atoms('OHH',positions=[[0,0,0],[1,0,0],[0,1,0]])
+            frequencies=[100.,200.,300.] if '_freq_recovery_' in job else [-100.,100.,200.]
             qc.db.write(atoms,name=job,data=dict(status='normal',energy=-1.,zpe=.01,
-                                               frequencies=[-100.,100.,200.]))
-            if '_IRC_' in job:
+                                               frequencies=frequencies))
+            if '_IRC_' in job and '_freq_recovery_' not in job:
                 qc.db.write(atoms,name=job+'_prod',data=dict(status='normal',energy=-1.1))
                 atomic_json(job+'.irc_path.json',dict(converged=True,moved=True))
         return 'normal'
@@ -93,12 +94,14 @@ def test_complete_controller_restart_adopts_live_qc_and_all_irc_directions(tmp_p
     # Recreate all controller objects from saved routing and case records.
     monkeypatch.setattr(checks.time,'sleep',lambda _:None)
     checks.run(root)
-    assert submitted==['saddle','saddle_IRC_F','saddle_IRC_R']
+    assert submitted[:3]==['saddle','saddle_IRC_F','saddle_IRC_R']
+    assert len(submitted)==5 and all('_freq_recovery_' in name for name in submitted[3:])
     assert worker.read_bytes()==before
     results=json.loads((root/'results.json').read_text())
     assert results['seed']['outcome']=='irc_endpoints_available'
+    assert len(results['seed']['endpoint_frequencies'])==2
     checks.run(root)
-    assert submitted==['saddle','saddle_IRC_F','saddle_IRC_R']
+    assert len(submitted)==5
     assert json.loads((root/'results.json').read_text())==results
 
 

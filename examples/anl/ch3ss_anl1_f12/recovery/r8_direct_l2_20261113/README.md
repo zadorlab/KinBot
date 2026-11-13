@@ -2,7 +2,7 @@
 
 The 25 cases use B2PLYP-D3(BJ)/cc-pVTZ throughout, including constrained
 guess preparation, saddle optimization, native Gaussian frequencies, IRCs
-and IRC endpoint optimization. The ordinary KinBot QC owners handle jobs,
+and IRC endpoint optimization and frequencies. The ordinary KinBot QC owners handle jobs,
 SCF recovery, checkpointing and the existing shared resource pool.
 
 ## Scope
@@ -33,7 +33,9 @@ Each successful saddle receives both L2 IRCs. The result records the actual
 endpoint identities and geometries even when they differ from the intended
 connection. Native frequencies and displacement vectors are retained.
 `irc_endpoints_available` means that both IRCs converged and both endpoint
-optimizations published normal results. It still requires reviewing the
+optimizations and fixed-geometry frequency checks published normal results.
+These endpoint checks supply their own L2 zero-point energies and spectra.
+It still requires reviewing the
 recorded connection, mode and paper correspondence before PES integration.
 Partial IRC paths receive `irc_incomplete` and retain their endpoint evidence.
 Terminal unsuccessful saddle searches remain terminal on restart.

@@ -238,7 +238,21 @@ def tick(case, qc, parameters):
                                       for d in statuses if Path(job+'_IRC_'+d+'.irc_path.json').exists()}
                 valid = (all(p and p['data'].get('status')=='normal' for p in state['endpoints'].values())
                          and all(statuses[d]=='normal' and state['irc_paths'].get(d,{}).get('converged') for d in statuses))
-                state.update(complete=True, outcome='irc_endpoints_available' if valid else 'irc_incomplete')
+                if not valid:
+                    state.update(complete=True, outcome='irc_incomplete')
+                else:
+                    jobs = {}
+                    for direction, endpoint in state['endpoints'].items():
+                        minimum = point(dict(case['seed'],symbols=endpoint['symbols'],
+                                             positions=endpoint['positions']),endpoint['job'])
+                        jobs[direction] = qc.qc_freq(minimum,endpoint['job'],endpoint=True)
+                    frequency_statuses = {d:qc.check_qc(name) for d,name in jobs.items()}
+                    state.update(stage='endpoint_frequencies',frequency_jobs=jobs,
+                                 frequency_statuses=frequency_statuses)
+                    if all(s in ('normal','error') for s in frequency_statuses.values()):
+                        state['endpoint_frequencies'] = {d:observation(qc,name,case['seed']) for d,name in jobs.items()}
+                        state.update(complete=True,outcome='irc_endpoints_available' if all(
+                            s=='normal' for s in frequency_statuses.values()) else 'endpoint_not_validated')
     atomic_json(state_path, state)
     return state
 
@@ -302,7 +316,7 @@ def main(argv=None):
             path=args.root/case['name']/'recheck.json'
             record=json.loads(path.read_text()) if path.exists() else {'stage':'not_started'}
             display=record if args.details else {k:record[k] for k in
-                ('stage','step','outcome','complete','irc_statuses') if k in record}
+                ('stage','step','outcome','complete','irc_statuses','frequency_statuses') if k in record}
             print(case['name'],json.dumps(display,sort_keys=True))
 
 

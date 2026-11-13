@@ -211,6 +211,8 @@ class ReactionFinder:
         
         for i, bond in enumerate(self.species.bonds):  # for all resonance structures
             rad = self.species.rads[i]
+            if getattr(self.species, 'hydrogen_bridges', ()):
+                self._bridge_current_bond = bond
             
             if self.one_reaction_comb:
                 # search for just one reaction, given by the list of bonds to be 
@@ -2162,6 +2164,12 @@ class ReactionFinder:
                 rxns = configured_selection(self.par['homolytic_bonds'], self.species, [])
             except KeyError:
                 pass
+        if getattr(self.species, 'hydrogen_bridges', ()):
+            from kinbot.hydrogen_bridges import rotation_axis
+            # A bridge can leave an alternate connection after a nominal
+            # cleavage. Such a cut is not a two-fragment dissociation.
+            rxns = [instance for instance in rxns
+                    if rotation_axis(self.species, *instance)]
                 
 
         self.new_reaction(rxns, name, a=0, b=1, cross=True, aid=True)
@@ -2391,6 +2399,12 @@ class ReactionFinder:
                 self.species.reac_obj.append(Combinatorial(self.species, self.qc, self.par, reac_list[i], name))
             else:
                 self.species.reac_name.append(0)
+            if (getattr(self.species, 'hydrogen_bridges', ())
+                    and all(isinstance(atom, (int, np.integer)) for atom in reac_list[i])):
+                source = getattr(self, '_bridge_reaction_bonds', {}).get(
+                    (reac_id, tuple(map(int, reac_list[i]))))
+                if source is not None:
+                    self.species.reac_obj[-1].reactant_bond = source.copy()
         return 0
 
 
@@ -2517,6 +2531,13 @@ class ReactionFinder:
                 continue
             if new:
                 self.reactions[name].append(inst)
+                if getattr(self.species, 'hydrogen_bridges', ()):
+                    # A bridge's H belongs to one carbon in each valence view.
+                    # Constraints must use the view that generated this motif.
+                    if not hasattr(self, '_bridge_reaction_bonds'):
+                        self._bridge_reaction_bonds = {}
+                    self._bridge_reaction_bonds[(name, tuple(map(int, inst)))] = (
+                        getattr(self, '_bridge_current_bond', self.species.bonds[0]).copy())
         return 0
 
 def main():

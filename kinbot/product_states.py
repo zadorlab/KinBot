@@ -52,6 +52,8 @@ def spin_copy(fragment, mult):
     point = copy.copy(fragment)
     for field in ('atom', 'geom', 'bond', 'bond01', 'bonds', 'rads'):
         setattr(point, field, copy.deepcopy(getattr(fragment, field)))
+    if hasattr(fragment, 'hydrogen_bridges'):
+        point.hydrogen_bridges = copy.deepcopy(fragment.hydrogen_bridges)
     point.mult = int(mult)
     point.__dict__.pop('optical_reference', None)
     point.calc_chemid()

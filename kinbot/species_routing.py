@@ -302,3 +302,64 @@ def configured_result_identity(db, name, row, population=None):
     observed = _row_species(template, row, str(name), reference)
     identity = require_supported_identity(observed)
     return declared['id'] if identity['id'] in allowed else None
+
+
+def optimize_initial_well(qc, species, par, reuse_only=False):
+    """Optimize a parent and accept only its identity or a verified H bridge.
+
+    PES uses the same check before choosing a positive-ion worker directory.
+    That prevents a classical starting drawing from naming the directory of
+    a different, bridged minimum. The completed calculation is reused there.
+    """
+    from kinbot.hydrogen_bridges import bridge_formation_allowed
+    from kinbot.stationary_pt import StationaryPoint
+    from kinbot.stereo_routing import guard_well_job
+    logger = logging.getLogger('KinBot')
+    requested = copy.copy(species)
+    requested.geom = species.geom.copy()
+    job = routing_name(requested) + '_well'
+    if reuse_only:
+        guard_well_job(qc, requested, requested.geom, job, allow_bridge_formation=True)
+    else:
+        qc.qc_opt(species, species.geom, initial_well=True)
+    err, geom = qc.get_qc_geom(job, species.natom, wait=not reuse_only)
+    if err < 0:
+        logger.error('Error with initial structure optimization.')
+        return None
+    err, freq = qc.get_qc_freq(job, species.natom, wait=not reuse_only)
+    if err < 0:
+        logger.error('Error with initial structure frequencies.')
+        return None
+    calculated = list(freq)
+    freq = list(freq)
+    if freq[0] <= 0:
+        logger.warning('First frequency is %s for initial structure.', freq[0])
+        freq[0] *= -1.
+    if freq[1] <= 0:
+        logger.error('Second frequency is %s for initial structure.', freq[1])
+        return None
+    observed = StationaryPoint('well0', species.charge, species.mult,
+                              atom=copy.deepcopy(species.atom), geom=geom)
+    for field in ('isotopes', 'formal_charges'):
+        if hasattr(species, field):
+            setattr(observed, field, copy.deepcopy(getattr(species, field)))
+    observed.freq = freq
+    observed.short_name = 'w1'
+    observed.characterize()
+    if (observed.hydrogen_bridges
+            and min(calculated) < -par['imagfreq_threshold']):
+        logger.error('Initial C-H-C structure has an imaginary frequency beyond '
+                     'the minimum threshold; it cannot define a bridged well.')
+        return None
+    if bridge_formation_allowed(requested, observed, par['imagfreq_threshold']):
+        observed = register_optimized_product(qc, requested, observed, job)
+        logger.info('Initial well relaxed into a C-H-C structure: %s -> %s',
+                    routing_name(requested), routing_name(observed))
+    else:
+        apply_input_reference(observed, dict(par, stereo_reference=
+                              getattr(species, 'optical_reference', None)))
+        if routing_name(observed) != routing_name(requested) and not par['cluster']:
+            logger.error('The first well optimized to a structure different from the input.')
+            return None
+    observed.name = routing_name(observed)
+    return observed

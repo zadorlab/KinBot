@@ -231,6 +231,8 @@ class Conformers:
                                        self.species.mult,
                                        atom=self.species.atom,
                                        geom=geom)
+                from kinbot.hydrogen_bridges import copy_ts_bridges
+                copy_ts_bridges(self.species, dummy)
                 dummy.bond_mx()
                 dummy.calc_chemid()
                 if geometry.equal_geom(self.species, dummy, 0.10):
@@ -398,6 +400,8 @@ class Conformers:
                                     self.species.mult,
                                     atom=self.species.atom,
                                     geom=geom)
+            from kinbot.hydrogen_bridges import copy_ts_bridges
+            copy_ts_bridges(self.species, dummy)
             dummy.bond_mx()
             dummy.calc_chemid()
             if geometry.equal_geom(self.species, dummy, 0.10):

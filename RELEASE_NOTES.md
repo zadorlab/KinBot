@@ -35,6 +35,26 @@ recorded non-UMA results remain reusable. Complete selected-conformer records
 now preserve charge, spin, Hessian and correction data for every calculator.
 FairChem atomic-energy failures produce the existing worker error record.
 
+## C-H-C bridges in positive ions
+
+Keep both carbon contacts of a bridging H in positive-ion wells while
+assigning ordinary bond orders with H attached to one carbon at a time.
+Geometric and valence checks distinguish these bridges from ordinary C-H
+bonds and longer secondary contacts. Bridges across rings and between
+fragments are supported; their C-H-C triangles are excluded from ring
+puckering and free-rotor searches. External symmetry uses proper rotations
+of the full bridged geometry. Transition states retain only bridges confirmed
+at both endpoints.
+
+The initial L1 calculation may convert a classical starting structure to its
+corresponding bridged minimum while preserving atom labels and specified
+stereochemistry. PES optimizes positive C/H inputs with at least two carbons
+before naming their worker directory, then reuses the complete result.
+Separately optimized minima remain distinct species, and L2 identity checks
+remain strict. Declared H2 loss involving a bridging H retains its electron
+pair in the remaining C-C bond. Other molecules retain their existing
+connectivity, rotor and symmetry treatment.
+
 ## Homolytic-scission energy references
 
 PES now calculates homolytic-scission thresholds from product energies

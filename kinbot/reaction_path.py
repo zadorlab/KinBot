@@ -30,7 +30,7 @@ def endpoint_snapshot(species):
         atom=copy.deepcopy(species.atom), geom=copy.deepcopy(species.geom))
     # Copy the IRC atom order and graphs without live QC/reaction handles.
     names = ('bond', 'bond01', 'bonds', 'rads', 'atom_eqv', 'atomid',
-             'isotopes', 'formal_charges')
+             'isotopes', 'formal_charges', 'hydrogen_bridges')
     for name in names:
         if hasattr(species, name):
             setattr(snapshot, name, copy.deepcopy(getattr(species, name)))

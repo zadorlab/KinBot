@@ -550,6 +550,8 @@ class ReactionGenerator:
                             err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
                             ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
                                                  atom=self.species.atom, geom=geom, wellorts=1)
+                            from kinbot.hydrogen_bridges import spectator_bridges
+                            ts.hydrogen_bridges = spectator_bridges(self.species, endpoint)
                             ts.optical_reference = canonical_identity(self.species)
                             err, ts.energy = self.qc.get_qc_energy(obj.instance_name)
                             err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)

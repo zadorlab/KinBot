@@ -244,9 +244,54 @@ class StationaryPoint:
                 except KeyError:
                     bond_thresh = 1.2 * (covalent_radii[atomic_numbers[atom_pair[0]]] 
                                          + covalent_radii[atomic_numbers[atom_pair[1]]]) 
+                # Bound H2+ is longer than neutral H2: the B3LYP minimum at
+                # 1.114 A must not become H + H+. Other H pairs keep their cutoff.
+                if (self.natom == 2 and atom_pair == ['H', 'H']
+                        and self.charge == 1 and self.mult == 2):
+                    bond_thresh = 1.3
                 if self.dist[i][j] < bond_thresh:
                     self.bond[i][j] = 1
 
+        from kinbot.hydrogen_bridges import find_bridges, localized_bonds
+        self.hydrogen_bridges = find_bridges(self, self.bond)
+        if not self.hydrogen_bridges:
+            return self._assign_bond_orders()
+
+        # Reuse ordinary bond-order assignment for each localized attachment.
+        # The union describes the actual connection, including protonated
+        # ethane where an individual valence description is disconnected.
+        original = self.bond.copy()
+        self.bonds, self.rads = [], []
+        for matrix in localized_bonds(original, self.hydrogen_bridges):
+            if not self.wellorts and any(np.sum(matrix[i]) > constants.st_bond[element]
+                   for i, element in enumerate(self.atom)):
+                continue
+            view = copy.copy(self)
+            view.bond, view.bonds, view.rads = matrix, [], []
+            view._assign_bond_orders()
+            for bond, rad in zip(view.bonds, view.rads):
+                if not any(np.array_equal(bond, previous) for previous in self.bonds):
+                    self.bonds.append(bond.copy())
+                    self.rads.append(rad.copy())
+        if (not self.bonds or any(
+                not any(matrix[carbon, hydrogen] for matrix in self.bonds)
+                for first, hydrogen, second in self.hydrogen_bridges
+                for carbon in (first, second))):
+            # Short contacts alone are insufficient. Both localized
+            # attachments must satisfy the same ordinary valence rules.
+            self.hydrogen_bridges = []
+            self.bond = original
+            self.bonds, self.rads = [], []
+            return self._assign_bond_orders()
+        self.bond = np.maximum.reduce(self.bonds)
+        self.bond01 = (self.bond > 0).astype(int)
+        self.rad = self.rads[0].copy()
+        if self.smiles == '':
+            _, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
+        return 0
+
+    def _assign_bond_orders(self):
+        """Use the existing valence rules on one ordinary attachment graph."""
         max_bond = [constants.st_bond[self.atom[i]] for i in range(self.natom)]
         n_bond = np.sum(self.bond, axis=0)
 
@@ -607,6 +652,9 @@ class StationaryPoint:
         # Directed enumeration also works with NetworkX versions whose
         # simple_cycles does not yet accept an undirected graph.
         graph = nx.from_numpy_array(self.bond, create_using=nx.DiGraph)
+        # A shared H contact is not a carbon-ring bond for ring puckering.
+        graph.remove_nodes_from(hydrogen for _, hydrogen, _
+                                in getattr(self, 'hydrogen_bridges', ()))
         rings = {}
         for cycle in nx.simple_cycles(graph):
             if len(cycle) < 3:
@@ -704,12 +752,17 @@ class StationaryPoint:
         # C-N in nitro groups, allowing multiple bonds as outer references.
         rotors = self.dihed_allrot if findall else self.dihed
         found_axes = set()
+        from kinbot.hydrogen_bridges import bridge_edges, rotation_axis
+        shared_contacts = bridge_edges(self)
         for allow_multiple in (False, True):
             for b in range(self.natom):
                 for c in range(b + 1, self.natom):
                     if ((b, c) in found_axes
-                            or not all(bi[b][c] == 1 for bi in self.bonds)
+                            or (not all(bi[b][c] == 1 for bi in self.bonds)
+                                and frozenset((b, c)) not in shared_contacts)
                             or self.cycle[b] * self.cycle[c] != 0):
+                        continue
+                    if shared_contacts and not rotation_axis(self, b, c):
                         continue
                     found = False
                     for a in range(self.natom):
@@ -721,6 +774,8 @@ class StationaryPoint:
                         for d in range(self.natom):
                             if (d == b or self.bond[c][d] <= 0
                                     or (not allow_multiple and self.bond[c][d] != 1)):
+                                continue
+                            if shared_contacts and len({a, b, c, d}) != 4:
                                 continue
                             _, warning = geometry.calc_dihedral(
                                 self.geom[a], self.geom[b], self.geom[c], self.geom[d])

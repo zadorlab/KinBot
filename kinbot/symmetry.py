@@ -90,6 +90,23 @@ def calculate_symmetry(species):
     from kinbot.molecular_symmetry import reaction_atom_labels
     atom_labels = reaction_atom_labels(species)
     _calculate_symmetry(species, external_atomid=atom_labels, internal_atomid=atom_labels)
+    if getattr(species, 'hydrogen_bridges', ()):
+        # Tree/ring rules do not count a shared-proton connection correctly.
+        # Retain ordinary internal-rotor divisors; count whole-molecule proper
+        # rotations using the existing geometry and atom-mapping machinery.
+        from kinbot.hydrogen_bridges import rotational_symmetry, rotation_axis
+        from kinbot.molecular_symmetry import graph_equivalence_classes
+        view = copy.copy(species)
+        view.bonds = [np.asarray(species.bond)]
+        labels = graph_equivalence_classes(species)
+        _calculate_symmetry(view, external_atomid=labels, internal_atomid=labels)
+        for first in range(species.natom):
+            for second in range(first+1, species.natom):
+                if species.bond[first, second] and rotation_axis(species, first, second):
+                    species.sigma_int[first][second] = view.sigma_int[first][second]
+                    species.sigma_int[second][first] = view.sigma_int[second][first]
+        species.sigma_ext = rotational_symmetry(species)
+        return
     labels = configured_external_labels(species)
     if labels is not None:
         view = copy.copy(species)

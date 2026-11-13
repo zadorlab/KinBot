@@ -4,8 +4,8 @@
 {frag1}
 {frag2}
           SymmetryFactor         {pstsymm}
-          PotentialPrefactor[au] 0.6
-          PotentialPowerExponent 6.
+          PotentialPrefactor[au] {potential_prefactor}
+          PotentialPowerExponent {potential_power}
         End ! Core
       Frequencies[1/cm]             {nfreq}
 {freq}

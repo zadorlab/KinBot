@@ -469,10 +469,12 @@ class ProfiledQuantumChemistry:
         self._clear_job_id(job)
         return result
 
-    def publish_result(self, source, target, chemical_context=None):
+    def publish_result(self, source, target, chemical_context=None, source_directory=None):
         level = self._level_for(source.name)
         self._record(target, level)
-        result = self.backends[level].publish_result(
-            source, target, chemical_context=chemical_context)
+        options = {'chemical_context': chemical_context}
+        if source_directory is not None:
+            options['source_directory'] = source_directory
+        result = self.backends[level].publish_result(source, target, **options)
         self._clear_job_id(target)
         return result

@@ -43,7 +43,13 @@ class TestOpticalScopeLifecycle(unittest.TestCase):
         self.db = connect('kinbot.db')
         self.write(f'{p.name}_well', self.original, -20.)
         latest = lambda job: list(self.db.select(name=job))[-1]
-        self.qc = SimpleNamespace(qc='fc', db=self.db, publish_result=Mock(),
+        def publish(source, target):
+            # Conformer selection needs the accepted row, not only a recorded
+            # mock call, before it can store the completed search count.
+            return self.db.write(source.toatoms(), name=target, data=dict(source.data,
+                copied_from_job=source.name, copied_from_row_id=source.id))
+
+        self.qc = SimpleNamespace(qc='fc', db=self.db, publish_result=Mock(side_effect=publish),
             get_qc_geom=lambda job, n, **kw: (0, latest(job).positions),
             get_qc_energy=lambda job, **kw: (0, latest(job).data['energy'] * constants.EVtoHARTREE),
             get_qc_zpe=lambda job, **kw: (0, latest(job).data['zpe']),

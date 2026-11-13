@@ -16,7 +16,7 @@ from ase.build import molecule
 from kinbot import constants, pes, symmetry
 from kinbot.mess import MESS, apply_conformer_shifts
 from kinbot.conformer_counting import representative_record
-from test_mess_conformers import values
+from tests.test_mess_conformers import values
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.species_routing import routing_name

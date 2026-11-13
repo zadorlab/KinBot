@@ -10,7 +10,7 @@ from ase.optimize import BFGS
 from sella import Sella
 
 from fairchem.core import FAIRChemCalculator
-from kinbot.fairchem_utils import load_predictor
+from kinbot.fairchem_utils import load_predictor, h2_cation_reference, uma_model
 from kinbot.frequencies import calc_vibrations
 from kinbot.utils import sella_freq_check
 
@@ -30,18 +30,50 @@ freqs = []
 # this will change if success
 data = {{'status': 'error'}}
 
+# UMA's isolated H2+ minimum gives the wrong ionization energy and bond length.
+# The correction is confined to that fragment; larger systems keep UMA forces.
+if {order} == 0:
+    try:
+        reference = h2_cation_reference(mol, '{label}', '{fc_model_path}', {fmax}, {steps})
+    except RuntimeError as error:
+        with open('{label}_sella.log', 'a') as f:
+            f.write(str(error) + '\n')
+        reference = data
+    if reference is not None:
+        mol_pkl = {{'sym': mol.symbols, 'pos': mol.positions,
+                    'calc': 'fairchemcalculator', 'name': '{label}', 'data': reference}}
+        with open('{label}.pkl', 'wb') as f:
+            pickle.dump(mol_pkl, f)
+        mol.calc = None
+        write('{label}.xyz', mol, format='xyz')
+        write('{label}.traj', mol)
+        with open('{label}_sella.log', 'a') as f:
+            if reference['status'] == 'normal':
+                f.write('Isolated H2+ uses fixed spectroscopic properties and the '
+                        'neutral UMA H2 reference + 15.42593 eV including ZPE.\n')
+            f.write('done\n')
+        sys.exit(0)
+
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
-    if '{label}'.split('_')[0] == '10000000000000000001':
-        e = 0.0
-    else:
-        e = mol.get_potential_energy()
-        del mol.calc.results['forces']
-    data={{'energy': e, 
-           'frequencies': np.array([]), 
-           'zpe': 0.0,
-           'hess': np.zeros([3, 3]), 
-           'status': 'normal'}}
+    try:
+        if '{label}'.split('_')[0] == '10000000000000000001':
+            e = 0.0
+        else:
+            e = mol.get_potential_energy()
+            del mol.calc.results['forces']
+        data={{'energy': e,
+               'frequencies': np.array([]),
+               'zpe': 0.0,
+               'hess': np.zeros([3, 3]),
+               'status': 'normal'}}
+    except (ValueError, RuntimeError) as error:
+        # UMA has no atomic reference for some otherwise valid charge states.
+        # Report the failed calculation so product selection can proceed with
+        # other states instead of repeatedly submitting an unfinished worker.
+        data={{'status': 'error', 'reason': str(error)}}
+        with open('{label}_sella.log', 'a') as f:
+            f.write('Atomic energy evaluation failed: ' + str(error) + '\n')
     mol_pkl = {{'sym': mol.symbols,
                 'pos': mol.positions,
                 'calc': 'fairchemcalculator',
@@ -120,6 +152,12 @@ elif len(mol.symbols) > 2 and (not converged) and '{optimizer}' != 'bfgs':
             with open('{label}_sella.log', 'a') as f:
                 f.write('Converged but frequency check failed (order={order}); frequencies (cm-1):\n')
                 f.write(str(list(freqs)) + '\n')
+
+if mol.get_chemical_symbols() == ['H', 'H']:
+    # Explicit state/model metadata distinguish corrected H2+ and neutral H2
+    # from the old UMA result when conformer files are read on restart.
+    data.update(charge=kwargs['charge'], multiplicity=kwargs['mult'],
+                uma_model=uma_model('{fc_model_path}', mol.calc))
 
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,

@@ -33,6 +33,7 @@ def _chemical_context(species):
     """Keep supplied labels/graphs even when canonical assignment is unsupported."""
     return _json_value({key: getattr(species, key, None) for key in (
         'isotopes', 'formal_charges', 'bond', 'bond01', 'bonds', 'rads',
+        'hydrogen_bridges',
         'optical_reference', 'optical_population', 'optical_counting_scope')})
 
 
@@ -155,6 +156,8 @@ def _row_species(species, row, job, input_reference=None):
                 value = np.asarray(value)
             elif key in ('bonds', 'rads'):
                 value = [np.asarray(item) for item in value]
+            elif key == 'hydrogen_bridges':
+                value = [tuple(item) for item in value]
             setattr(point, key, copy.deepcopy(value))
     point.source_job, point.source_row_id = job, row.id
     energy = row.data.get('energy')
@@ -164,7 +167,7 @@ def _row_species(species, row, job, input_reference=None):
     return point
 
 
-def guard_well_job(qc, species, geom, job, initial_product=False):
+def guard_well_job(qc, species, geom, job, initial_product=False, allow_bridge_formation=False):
     """Check both input-reference and completed cache geometry before job reuse.
 
     A newly formed product is named before its first optimization. Its final
@@ -182,6 +185,7 @@ def guard_well_job(qc, species, geom, job, initial_product=False):
         'input': _raw_input(requested), 'chemid': requested.chemid,
         'wellorts': getattr(requested, 'wellorts', 0),
         'initial_product': bool(initial_product),
+        'allow_bridge_formation': bool(allow_bridge_formation),
         **{key: getattr(requested, key, None) for key in (
             'optical_reference', 'optical_population',
             'stereo_ignored_atoms', 'stereo_ignored_bonds')}
@@ -225,11 +229,14 @@ def guard_well_job(qc, species, geom, job, initial_product=False):
                 refuse_routing(f'{job}: product result changes the supplied atom order',
                                [requested, cached])
         else:
-            require_cache_atom_order(requested, cached, job)
-            if cached.chemid != requested.chemid:
-                refuse_routing(f'{job}: completed well has different connectivity',
-                               [requested, cached])
-            require_same_configuration(requested, cached, f'{job}: completed cache')
+            from kinbot.hydrogen_bridges import bridge_formation_allowed
+            if not (allow_bridge_formation and bridge_formation_allowed(requested, cached,
+                    getattr(qc, 'par', {}).get('imagfreq_threshold', 50.))):
+                require_cache_atom_order(requested, cached, job)
+                if cached.chemid != requested.chemid:
+                    refuse_routing(f'{job}: completed well has different connectivity',
+                                   [requested, cached])
+                require_same_configuration(requested, cached, f'{job}: completed cache')
     if reference is None:
         reference = qc.db.get(_write_reference(qc, requested, name, identity))
     # ASE writes and updates change the row revision. A newly completed result,

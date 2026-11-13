@@ -648,6 +648,8 @@ class Optimize:
                                 self.species.mult,
                                 atom=self.species.atom,
                                 geom=new_geom)
+        from kinbot.hydrogen_bridges import copy_ts_bridges
+        copy_ts_bridges(self.species, dummy)
         dummy.bond_mx()
         dummy.calc_chemid()
 

@@ -76,9 +76,10 @@ class GeneralReac:
         return filt_inst
 
     def fix_bonds(self, fix):
+        bond = getattr(self, 'reactant_bond', self.species.bonds[0])
         for i in range(self.species.natom - 1):
             for j in range(i + 1, self.species.natom):
-                if self.species.bonds[0][i][j] > 0:
+                if bond[i][j] > 0:
                     fix.append([i + 1, j + 1])
 
     def fix_bond_single(self, a, b, fix):

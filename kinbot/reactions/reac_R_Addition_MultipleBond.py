@@ -37,7 +37,10 @@ class RAdditionMultipleBond(GeneralReac):
 #                        self.set_angle_single(ni, self.instance[1], self.instance[2], 90., change)
 #                        break
 
-            self.set_angle_single(self.instance[0], self.instance[1], self.instance[2], 90., change)
+            from kinbot.reaction_guess import targets
+            alternative = targets(self)
+            angle = alternative[1] if alternative is not None else 90.
+            self.set_angle_single(self.instance[0], self.instance[1], self.instance[2], angle, change)
 
             atom_pattern = f'{self.species.atom[self.instance[0]]}{self.species.atom[self.instance[1]]}{self.species.atom[self.instance[2]]}'
 
@@ -101,6 +104,8 @@ class RAdditionMultipleBond(GeneralReac):
 #                final_dist = 2.5 
 # 
             
+            if alternative is not None:
+                final_dist = alternative[0]
             self.set_bond(1, 2, -999, change, step=step, stmax=self.max_step, findist=final_dist, geom=geom)
 
         self.clean_constraints(change, fix)

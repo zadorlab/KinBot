@@ -1015,6 +1015,8 @@ def main(argv=None):
     revisit.add_argument('--revisit-rejected', action='store_true')
     revisit.add_argument('--revisit-reaction', action='append', metavar='EXACT_NAME',
                          help='Reopen only this rejected reaction, once per handoff; repeat for more names.')
+    parser.add_argument('--reaction-guesses', type=Path,
+                        help='JSON alternative guesses for settled searches, each with a separate attempt name.')
     parser.add_argument('--deduplicate-ts', '--deduplicate-anl', action='store_true', help='Verify and share equivalent ANL stable/TS graphs within each PES.')
     parser.add_argument('--barrier-threshold-l2', type=float, help='L2 ceiling relative to the initial PES well, kcal/mol.')
     homolysis = parser.add_mutually_exclusive_group()
@@ -1045,9 +1047,10 @@ def main(argv=None):
         rejected = args.revisit_reaction or args.revisit_rejected
         homolysis = args.check_homolysis or (True if args.check_all_homolysis else None)
         network_options = (network_settings(args.vdw_detection,rejected,args.deduplicate_ts,args.barrier_threshold_l2,homolysis,
-                                             reassess_thermochemistry=args.reassess_thermochemistry)
+                                             reassess_thermochemistry=args.reassess_thermochemistry,
+                                             reaction_guesses=json.loads(args.reaction_guesses.read_text()) if args.reaction_guesses else None)
                            if args.vdw_detection is not None or rejected or args.deduplicate_ts or args.barrier_threshold_l2 is not None
-                           or homolysis is not None or args.reassess_thermochemistry else None)
+                           or homolysis is not None or args.reassess_thermochemistry or args.reaction_guesses else None)
         result = refresh_when_idle(root, wait_idle=args.wait_idle,
             apply=args.apply, replace_pending=args.replace_pending,
             vrc_updates=settings(args.vrc_scan_basis, args.vrc_fragment_geometry, args.vrc_pivot_level,

@@ -64,6 +64,12 @@ def test_generated_worker_reports_actual_rejection(tmp_path, monkeypatch, capsys
     class ConvergedOptimizer:
         def __init__(self, atoms, trajectory, logfile, **kwargs):
             self.atoms, self.trajectory, self.logfile = atoms, trajectory, logfile
+            self.ord = kwargs.get('order', 0)
+            self.nsteps = 0
+            self.pes = None
+
+        def attach(self, callback):
+            pass  # This fixture performs a single converged step.
 
         def run(self, **kwargs):
             if scenario == 'optimizer_exception':

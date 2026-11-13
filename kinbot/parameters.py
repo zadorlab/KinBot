@@ -105,6 +105,7 @@ class Parameters:
             # Proposals are not evidence of barrierlessness. Ordinary searches
             # finish first; uncovered retained proposals get inner-TS checks.
             'homolytic_saddle_search': True,
+            'reaction_search_guesses': {},
             'homolytic_saddle_scan_points': 40,
             'homolytic_saddle_scan_step': 0.1,
             'homolytic_saddle_asymptote_tolerance': 0.5,  # kcal/mol, scouting resolution
@@ -732,6 +733,8 @@ class Parameters:
         validate_fragment_controls(self.par)
         from kinbot.homolysis import validate as validate_homolysis
         self.par['homolytic_saddle_search'] = validate_homolysis(self.par['homolytic_saddle_search'])
+        from kinbot.reaction_guess import validate as validate_reaction_guesses
+        self.par['reaction_search_guesses'] = validate_reaction_guesses(self.par['reaction_search_guesses'])
         count, spacing = self.par['homolytic_saddle_scan_points'], self.par['homolytic_saddle_scan_step']
         if isinstance(count, bool) or not isinstance(count, int) or count < 3:
             raise ValueError('homolytic_saddle_scan_points must be an integer >= 3.')

@@ -10,7 +10,7 @@ from kinbot.anl import ts_reuse
 
 
 def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None, homolysis=None,
-             *, reassess_thermochemistry=False):
+             *, reassess_thermochemistry=False, reaction_guesses=None):
     if vdw is not None and (isinstance(vdw, bool) or not math.isfinite(vdw) or vdw < 0):
         raise ValueError('vdW_detection must be finite and nonnegative.')
     if barrier_l2 is not None and (isinstance(barrier_l2,bool) or not math.isfinite(barrier_l2) or barrier_l2<=0):
@@ -27,6 +27,12 @@ def settings(vdw=None, rejected=False, deduplicate=False, barrier_l2=None, homol
         if homolysis is False:
             raise ValueError('This handoff enables checks; it cannot certify barrierlessness.')
     result = dict(vdW_detection=vdw, rejected=rejected, deduplicate_ts=bool(deduplicate), barrier_threshold_L2=barrier_l2)
+    if reaction_guesses is not None:
+        from kinbot.reaction_guess import validate
+        guesses = validate(reaction_guesses)
+        if not guesses or rejected:
+            raise ValueError('Alternative guesses add independent attempts; provide their exact names without rejected-search resets.')
+        result['reaction_search_guesses'] = guesses
     if not isinstance(reassess_thermochemistry, bool):
         raise ValueError('Thermochemistry reassessment must be a boolean.')
     if reassess_thermochemistry:
@@ -41,13 +47,14 @@ def revisits_search(options):
     return (options['vdW_detection'] is not None or options['rejected']
             or options.get('barrier_threshold_L2') is not None
             or options.get('homolytic_saddle_search') is not None
+            or options.get('reaction_search_guesses')
             or options.get('reassess_thermochemistry', False))
 
 
 def reassesses_accepted(options):
     # Adding independent companion searches does not authorize replacements
     # of accepted ordinary QC during reconstruction.
-    return not (options.get('homolytic_saddle_search') is not None
+    return not ((options.get('homolytic_saddle_search') is not None or options.get('reaction_search_guesses'))
         and options['vdW_detection'] is None and not options['rejected']
         and options.get('barrier_threshold_L2') is None and not options['deduplicate_ts']
         and not options.get('reassess_thermochemistry', False))
@@ -99,6 +106,12 @@ def plan(root, jobs, options):
         for p in paths:
             previous = json.loads(p.read_text())
             revised = deepcopy(previous)
+            guesses = options.get('reaction_search_guesses')
+            if guesses:
+                prior = previous.get('reaction_search_guesses', {})
+                if any(n in prior and prior[n] != g for n, g in guesses.items()):
+                    raise ValueError('An installed alternative guess is immutable; preserve its native attempt history.')
+                revised['reaction_search_guesses'] = {**prior, **guesses}
             if p.name=='.kinbot_search_options.json':
                 if options['vdW_detection'] is not None:
                     revised['vdW_detection']=options['vdW_detection']
@@ -140,7 +153,10 @@ def plan(root, jobs, options):
             homolysis = [r[2] for r in rows if len(r)>=3 and r[0]=='-1' and '_hom_sci_' in r[2]]
             if isinstance(options.get('homolytic_saddle_search'), list):
                 homolysis = [n for n in homolysis if n in options['homolytic_saddle_search']]
+            guess_sources = [r[2] for r in rows if len(r)>=3 and r[0] in ('-1', '-999')
+                             and r[2] in options.get('reaction_search_guesses', {})]
             workers.append(dict(path=str(worker.relative_to(root)), rejected=rejected, homolysis=homolysis,
+                                guess_sources=guess_sources,
                                 automatic_directory=previous.get('anl_automatic_directory','anl_automatic')))
             base = worker/previous.get('anl_automatic_directory','anl_automatic')
             request = base/'network_request.json'
@@ -185,6 +201,10 @@ def plan(root, jobs, options):
         if sorted(found) != options['rejected']:
             raise ValueError('Every selected reaction must occur exactly once as a rejected '
                              'search in the current worker inventories; no broad retry is substituted.')
+    if options.get('reaction_search_guesses'):
+        found = [name for worker in workers for name in worker['guess_sources']]
+        if sorted(found) != sorted(options['reaction_search_guesses']):
+            raise ValueError('Every alternative guess must match exactly one settled source search; live searches are preserved.')
     if isinstance(options.get('homolytic_saddle_search'), list):
         found = [n for w in workers for n in w['homolysis']]
         if sorted(found) != options['homolytic_saddle_search']:

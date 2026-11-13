@@ -247,6 +247,8 @@ class ReactionFinder:
             self.reaction_matrix(self.reactions[name], name) 
 
         self._name_distinct_motifs()
+        from kinbot.reaction_guess import add_alternatives
+        add_alternatives(self)
         from kinbot.homolysis import add_companions
         add_companions(self)
         for index in range(len(self.species.reac_name)-1):

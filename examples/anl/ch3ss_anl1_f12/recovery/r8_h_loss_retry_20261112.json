@@ -1,0 +1,58 @@
+{
+  "471030810040000000002_R_Addition_MultipleBond_1_2_3": [
+    {
+      "bond_scale": 1.3,
+      "angle": "parent"
+    },
+    {
+      "bond_scale": 1.6,
+      "angle": "parent"
+    },
+    {
+      "bond_scale": 1.9,
+      "angle": "parent"
+    }
+  ],
+  "791471490990000000002_R_Addition_MultipleBond_2_1_4": [
+    {
+      "bond_scale": 1.3,
+      "angle": "parent"
+    },
+    {
+      "bond_scale": 1.6,
+      "angle": "parent"
+    },
+    {
+      "bond_scale": 1.9,
+      "angle": "parent"
+    }
+  ],
+  "791472110370000000002_R_Addition_MultipleBond_3_1_2": [
+    {
+      "bond_scale": 1.3,
+      "angle": "parent"
+    },
+    {
+      "bond_scale": 1.6,
+      "angle": "parent"
+    },
+    {
+      "bond_scale": 1.9,
+      "angle": "parent"
+    }
+  ],
+  "791472110370000000002_R_Addition_MultipleBond_3_1_5": [
+    {
+      "bond_scale": 1.3,
+      "angle": "parent"
+    },
+    {
+      "bond_scale": 1.6,
+      "angle": "parent"
+    },
+    {
+      "bond_scale": 1.9,
+      "angle": "parent"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 from kinbot.optimization_budget import run_optimizer
+from kinbot.execution import atomic_json
 import os
 import shutil
 import numpy as np
@@ -36,7 +37,7 @@ if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 irc = IRC(mol, 
           trajectory='{label}.traj', 
-          dx=0.1, 
+          dx={irc_dx},
           eta=1e-4, 
           gamma=0, 
           logfile='{label}_sella.log',
@@ -47,8 +48,10 @@ elif '{label}'.endswith('R'):
     direction = 'reverse'
 else:
     raise ValueError('Unexpected IRC name: {label}.')
+converged_irc = False
+irc_error = None
 try:
-    converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
+    converged_irc = irc.run(fmax=0.01, steps={irc_steps}, direction=direction)
     moved = (finite_geometry(mol)
              and np.linalg.norm(mol.positions - initial_positions) > 1e-4)
     if converged_irc and moved:
@@ -61,7 +64,8 @@ try:
         success = True
     else:
         raise RuntimeError
-except Exception:
+except Exception as error:
+    irc_error = f'{{type(error).__name__}}: {{error}}'
     moved = (finite_geometry(mol)
              and np.linalg.norm(mol.positions - initial_positions) > 1e-4)
     if moved:
@@ -72,6 +76,11 @@ except Exception:
         success = False
         mol.positions = initial_positions
         db.write(mol, name='{label}', data={{'status': 'error'}})
+
+atomic_json('{label}.irc_path.json', dict(schema=1, direction=direction,
+    converged=bool(converged_irc), moved=bool(moved), error=irc_error,
+    steps=int(irc.nsteps), maximum_steps={irc_steps}, dx={irc_dx},
+    positions=mol.positions.tolist()))
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

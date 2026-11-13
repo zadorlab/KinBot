@@ -335,6 +335,8 @@ class Parameters:
             'opt': '',
             # for Gaussian irc: IRC(MaxPoints=n)
             'irc_maxpoints': 30,
+            'sella_irc_steps': 100,
+            'sella_irc_dx': 0.1,
             # for Gaussian irc, IRC(StepSize=n)
             'irc_stepsize': 20,
             # for Gaussian irc, IRC(MaxCycle=n)
@@ -1079,6 +1081,12 @@ class Parameters:
 
         if self.par['imagfreq_threshold'] < 0:
             err = 'The threshold for imaginary freqency has to be a positive number, interpreted as an imaginary value.'
+
+        if type(self.par['sella_irc_steps']) is not int or self.par['sella_irc_steps'] < 1:
+            raise ValueError('sella_irc_steps must be a positive integer.')
+        dx = self.par['sella_irc_dx']
+        if isinstance(dx, bool) or not isinstance(dx, (int, float)) or not np.isfinite(dx) or dx <= 0:
+            raise ValueError('sella_irc_dx must be finite and positive.')
 
         if not self.par['multi_conf_tst']:
             self.par['multi_conf_tst_temp'] = None

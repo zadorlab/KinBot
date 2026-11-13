@@ -206,3 +206,26 @@ def same_blocks(left, right, *, mirror=False):
     if mirror and b is not None:
         b = _reflected_record(b)
     return compare(a, b)['status'] == 'equivalent'
+
+
+def same_population_surface(left, right):
+    """Compare surfaces already weighted for the same MESS populations.
+
+    A globally reflected saddle between mirror-invariant endpoint populations
+    is already represented by the writer's optical/rotor/conformer counting.
+    Adding an independently rediscovered mirror would count that orbit twice.
+    Configured chiral endpoints retain their separate directed populations.
+    Native geometry, mode and complete ensemble evidence remain mandatory.
+    """
+    if same_blocks(left, right):
+        return True
+    from kinbot.mess_mirrors import _EDGE
+    from kinbot.mess_symmetry import MARKER as symmetry_marker
+    for block in (left, right):
+        edge = _EDGE.search(block)
+        if edge is None or symmetry_marker not in block:
+            return False
+        a, ma, b, mb = edge.groups()
+        if frozenset((a, b)) != frozenset((ma, mb)):
+            return False
+    return same_blocks(left, right, mirror=True)

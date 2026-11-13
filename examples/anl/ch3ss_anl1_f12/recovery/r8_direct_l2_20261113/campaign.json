@@ -1,0 +1,2003 @@
+{
+  "schema": 1,
+  "parameters": {
+    "title": "Direct target-level saddle checks",
+    "l1_profile": {
+      "calculator": "gaussian",
+      "method": "B2PLYP",
+      "basis": "cc-pVTZ",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "scf": "xqc,conver=8",
+        "integral": "UltraFine"
+      },
+      "optimizer": "sella",
+      "frequency_mode": "native_hessian",
+      "command": "g16"
+    },
+    "l2_profile": {
+      "calculator": "gaussian",
+      "method": "B2PLYP",
+      "basis": "cc-pVTZ",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "scf": "xqc,conver=8",
+        "integral": "UltraFine"
+      },
+      "optimizer": "sella",
+      "frequency_mode": "native_hessian",
+      "command": "g16"
+    },
+    "method": "B2PLYP",
+    "basis": "cc-pVTZ",
+    "scan_method": "B2PLYP",
+    "scan_basis": "cc-pVTZ",
+    "barrier_threshold": 150,
+    "high_level": 0,
+    "conformer_search": 0,
+    "rotor_scan": 0,
+    "me": 0,
+    "run_me": 0,
+    "run_messpf": 0,
+    "composite_method": "",
+    "L3_calc": 0,
+    "rotdpy_run": 0,
+    "queuing": "slurm",
+    "queue_name": "month-long-cpu",
+    "ppn": 8,
+    "queue_exclusive": 1,
+    "queue_job_limit": 20,
+    "sella_steps": 250,
+    "sella_fmax": 0.0005,
+    "sella_kwargs": {
+      "gamma": 0.0,
+      "internal": true
+    },
+    "sella_irc_steps": 300,
+    "sella_irc_dx": 0.05,
+    "qc_checkpoint_interval": 600,
+    "qc_checkpoint_max_mb": 16384,
+    "qc_checkpoint_generations": 2
+  },
+  "cases": [
+    {
+      "name": "paper_ts1",
+      "mode": "optimize",
+      "seed": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            -0.0,
+            0.0,
+            1.106101
+          ],
+          [
+            1.342192,
+            0.0,
+            -0.445949
+          ],
+          [
+            -1.24221,
+            -0.021755,
+            -0.999453
+          ],
+          [
+            2.800088,
+            -0.065368,
+            -0.939229
+          ],
+          [
+            2.339173,
+            -0.24032,
+            -2.203005
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "comparison_group": "TS1",
+      "expected_paper_endpoints": [
+        "W1",
+        "P2"
+      ],
+      "provenance": {
+        "doi": "10.1039/d4cp04873c",
+        "SI_member": "Theoretical calculations/CH2S+SH/MESS_input.txt",
+        "sha256": "2c21c3f6905d07ad652a6b56be8f91284ae44154fb890b60d237326d7cbf0863"
+      }
+    },
+    {
+      "name": "paper_ts2",
+      "mode": "optimize",
+      "seed": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            0.0,
+            -0.0,
+            0.0
+          ],
+          [
+            0.0,
+            -0.0,
+            1.101815
+          ],
+          [
+            0.980541,
+            -0.0,
+            -0.502729
+          ],
+          [
+            -1.404585,
+            -0.057445,
+            -0.845244
+          ],
+          [
+            -0.957739,
+            -1.91213,
+            -2.712341
+          ],
+          [
+            -1.141513,
+            -0.989925,
+            -3.689827
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "comparison_group": "TS2",
+      "expected_paper_endpoints": [
+        "W2",
+        "W1"
+      ],
+      "provenance": {
+        "doi": "10.1039/d4cp04873c",
+        "SI_member": "Theoretical calculations/CH2S+SH/MESS_input.txt",
+        "sha256": "2c21c3f6905d07ad652a6b56be8f91284ae44154fb890b60d237326d7cbf0863"
+      }
+    },
+    {
+      "name": "paper_ts3",
+      "mode": "optimize",
+      "seed": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.102243
+          ],
+          [
+            0.997071,
+            0.0,
+            -0.471203
+          ],
+          [
+            -1.382412,
+            0.215851,
+            -0.881326
+          ],
+          [
+            -0.085253,
+            -2.619568,
+            -0.059803
+          ],
+          [
+            -1.169662,
+            -2.538064,
+            0.753075
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "comparison_group": "TS3",
+      "expected_paper_endpoints": [
+        "W3",
+        "W1"
+      ],
+      "provenance": {
+        "doi": "10.1039/d4cp04873c",
+        "SI_member": "Theoretical calculations/CH2S+SH/MESS_input.txt",
+        "sha256": "2c21c3f6905d07ad652a6b56be8f91284ae44154fb890b60d237326d7cbf0863"
+      }
+    },
+    {
+      "name": "paper_ts4",
+      "mode": "optimize",
+      "seed": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            -0.0,
+            0.0,
+            -0.0
+          ],
+          [
+            -0.0,
+            0.0,
+            1.101034
+          ],
+          [
+            0.974872,
+            -0.0,
+            -0.51107
+          ],
+          [
+            -1.354445,
+            0.834404,
+            -0.830363
+          ],
+          [
+            -1.725554,
+            -1.205412,
+            -1.514469
+          ],
+          [
+            -0.595315,
+            -1.301314,
+            -0.496739
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "comparison_group": "TS4",
+      "expected_paper_endpoints": [
+        "W4",
+        "W2"
+      ],
+      "provenance": {
+        "doi": "10.1039/d4cp04873c",
+        "SI_member": "Theoretical calculations/CH2S+SH/MESS_input.txt",
+        "sha256": "2c21c3f6905d07ad652a6b56be8f91284ae44154fb890b60d237326d7cbf0863"
+      }
+    },
+    {
+      "name": "paper_ts5",
+      "mode": "optimize",
+      "seed": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.104016
+          ],
+          [
+            1.91743,
+            0.0,
+            0.315463
+          ],
+          [
+            -0.036091,
+            1.415662,
+            -0.86678
+          ],
+          [
+            -0.291174,
+            -1.638512,
+            -0.610005
+          ],
+          [
+            -0.332743,
+            -1.272157,
+            -1.914427
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "comparison_group": "TS5",
+      "expected_paper_endpoints": [
+        "W3",
+        "P3"
+      ],
+      "provenance": {
+        "doi": "10.1039/d4cp04873c",
+        "SI_member": "Theoretical calculations/CH2S+SH/MESS_input.txt",
+        "sha256": "2c21c3f6905d07ad652a6b56be8f91284ae44154fb890b60d237326d7cbf0863"
+      }
+    },
+    {
+      "name": "paper_ts6",
+      "mode": "optimize",
+      "seed": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            0.4872956273,
+            1.2022723037,
+            0.055145974
+          ],
+          [
+            0.536290618,
+            1.6960840402,
+            1.014601941
+          ],
+          [
+            0.6431309526,
+            1.7967381295,
+            -0.8379437565
+          ],
+          [
+            0.9797689213,
+            -0.5249305246,
+            -0.0030927267
+          ],
+          [
+            -1.1072109447,
+            -0.0222773754,
+            -0.0220430609
+          ],
+          [
+            -1.4238111744,
+            -1.0727635734,
+            0.8181246289
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "comparison_group": "TS6",
+      "expected_paper_endpoints": [
+        "W2",
+        "W3"
+      ],
+      "provenance": {
+        "doi": "10.1039/d4cp04873c",
+        "SI_member": "Theoretical calculations/CH2S+SH/MESS_input.txt",
+        "sha256": "2c21c3f6905d07ad652a6b56be8f91284ae44154fb890b60d237326d7cbf0863"
+      }
+    },
+    {
+      "name": "native_ch3s_rxn_1_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.2643537240224916,
+            0.07254478213215651,
+            0.33978454086914145
+          ],
+          [
+            0.4682892197525502,
+            1.2885974235104303,
+            -0.6966162029373804
+          ],
+          [
+            0.36021859496722947,
+            -0.1476456188607517,
+            -0.8136981564535679
+          ],
+          [
+            0.790878087789701,
+            -0.2299059682534786,
+            1.2601048519792872
+          ],
+          [
+            2.2673200215062126,
+            -0.2469447263357489,
+            0.10605188351688456
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 140,
+        "source_job": "ch3s/470831050000000000002/470831050000000000002_intra_H_migration_2_3_high",
+        "data": {
+          "energy": -11914.724509273194,
+          "zpe": 0.029323,
+          "status": "normal",
+          "frequencies": [
+            -1600.3311,
+            463.3022,
+            640.3008,
+            789.589,
+            937.4384,
+            1419.4808,
+            2184.1792,
+            3152.6341,
+            3284.5701
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/470831050000000000002/470831050000000000002_intra_H_migration_2_3_high.com",
+            "sha256": "bb96aca68ee8c46d71859f97d1aca466798075c037f036acfc95050809c98dd2"
+          },
+          ".log": {
+            "path": "ch3s/470831050000000000002/470831050000000000002_intra_H_migration_2_3_high.log",
+            "sha256": "012bfcd8e83d9f878fb43413036e9c75aa5cbeb8cdf2272e24df5ddc5657713a"
+          }
+        }
+      },
+      "comparison_group": "CH3S_isomerization",
+      "accepted_connection": "rxn_1 w_1 w_2 ! 470831050000000000002_intra_H_migration_2_3   !"
+    },
+    {
+      "name": "native_ch3s_rxn_1_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.3986727682760467,
+            0.43227475595871456,
+            0.5212196520169727
+          ],
+          [
+            0.9362188654660193,
+            1.880052760570821,
+            -0.019965840133159732
+          ],
+          [
+            -0.3111245270000626,
+            -1.4072311306801113,
+            -1.7341625244312924
+          ],
+          [
+            0.6987673525051918,
+            -0.26308523326167693,
+            0.9746356575313142
+          ],
+          [
+            2.428525188790993,
+            0.09463473960485926,
+            0.4538999719905341
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 156,
+        "source_job": "ch3s/470831050000000000002/470831050000000000002_r12_insertion_R_3_1_2_high",
+        "data": {
+          "energy": -11914.002973208193,
+          "zpe": 0.025149,
+          "status": "normal",
+          "frequencies": [
+            -41.7271,
+            36.7574,
+            106.4124,
+            1010.4383,
+            1029.9238,
+            1087.1315,
+            1503.4309,
+            3088.9889,
+            3175.9119
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/470831050000000000002/470831050000000000002_r12_insertion_R_3_1_2_high.com",
+            "sha256": "5a9f7067b59b1c7fd049d1cdb2013b4a4ffc0ee8596c55163816685343f53343"
+          },
+          ".log": {
+            "path": "ch3s/470831050000000000002/470831050000000000002_r12_insertion_R_3_1_2_high.log",
+            "sha256": "46841df7f7301287e99690cbb8c69c7604aede830b9b786eb0a9f3b5b4d33385"
+          }
+        }
+      },
+      "comparison_group": "CH3S_isomerization",
+      "accepted_connection": "rxn_1 w_1 w_2 ! 470831050000000000002_intra_H_migration_2_3   !"
+    },
+    {
+      "name": "native_ch3s_rxn_3_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.5455125232071025,
+            0.5842487743236597,
+            0.35128158465620474
+          ],
+          [
+            0.8246596739064946,
+            1.770765972659798,
+            -0.47053038835107625
+          ],
+          [
+            0.02701872357303895,
+            -1.981418314503907,
+            -1.2313870340407425
+          ],
+          [
+            0.9946269319218757,
+            -0.06876428342724904,
+            1.0214027693430903
+          ],
+          [
+            2.610692698435857,
+            0.3905773262575235,
+            0.26756247959948093
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 161,
+        "source_job": "ch3s/470831050000000000002/470831050000000000002_r12_insertion_R_3_1_4_high",
+        "data": {
+          "energy": -11914.002973486293,
+          "zpe": 0.025147,
+          "status": "normal",
+          "frequencies": [
+            -42.3746,
+            36.0313,
+            106.4485,
+            1010.3885,
+            1029.9308,
+            1087.1075,
+            1503.4552,
+            3089.0432,
+            3175.9298
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/470831050000000000002/470831050000000000002_r12_insertion_R_3_1_4_high.com",
+            "sha256": "f70f61c2b6ad4b4f621ba3e983a438b4acba6ce22708042d54ec3622131c4b2f"
+          },
+          ".log": {
+            "path": "ch3s/470831050000000000002/470831050000000000002_r12_insertion_R_3_1_4_high.log",
+            "sha256": "cd5e58fe8f0b4e8227c522dde6f149d461a317e47a1c867fbd59954c5bd040fa"
+          }
+        }
+      },
+      "comparison_group": "CH3S_H_loss",
+      "accepted_connection": "rxn_3 w_1 pr_1 ! 470831050000000000002_r12_insertion_R_3_1_4   ! "
+    },
+    {
+      "name": "native_ch3ss_rxn_2_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.7287979083794911,
+            0.10654566231294829,
+            0.25892431735334576
+          ],
+          [
+            0.7460767147074341,
+            -0.7337510641545522,
+            1.8222488132509926
+          ],
+          [
+            1.4699424338162435,
+            1.1726791324915762,
+            2.476760481403461
+          ],
+          [
+            1.0496755495842887,
+            1.3640006364413002,
+            1.0238707794409752
+          ],
+          [
+            -0.22328868744276978,
+            0.2065200042596353,
+            -0.24613508643144186
+          ],
+          [
+            1.623357122766363,
+            0.027678797077511162,
+            -0.34485082668430717
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 368,
+        "source_job": "ch3ss/791471490990000000002/791471490990000000002_intra_H_migration_3_4_high",
+        "data": {
+          "energy": -22747.472770359327,
+          "zpe": 0.0318,
+          "status": "normal",
+          "frequencies": [
+            -1608.148,
+            169.0166,
+            451.8121,
+            472.276,
+            779.0411,
+            819.3309,
+            919.5305,
+            980.1945,
+            1416.108,
+            1593.0454,
+            3118.7132,
+            3239.4196
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791471490990000000002/791471490990000000002_intra_H_migration_3_4_high.com",
+            "sha256": "b55ac8428f88bb73aee4599795695c80bca54fdbe973aeb741b5fa64be0cfb30"
+          },
+          ".log": {
+            "path": "ch3ss/791471490990000000002/791471490990000000002_intra_H_migration_3_4_high.log",
+            "sha256": "e13c45085055dbf2ed8b2dd6ea4276e5b4672630aa2c58402395fa32812e6997"
+          }
+        }
+      },
+      "comparison_group": "TS4",
+      "accepted_connection": "rxn_2 w_1 w_3 ! 791471490990000000002_intra_H_migration_3_4   !"
+    },
+    {
+      "name": "native_ch3ss_rxn_2_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.1302797299558143,
+            -1.2256525557757592,
+            -0.5433793628168943
+          ],
+          [
+            2.1433734602383914,
+            0.7217423640160062,
+            2.1724393400299093
+          ],
+          [
+            0.47083280605512756,
+            0.05151230112023063,
+            3.0024588953075555
+          ],
+          [
+            -0.4515215357710146,
+            0.43415322984607824,
+            2.0909372286973986
+          ],
+          [
+            1.5441955046019034,
+            -1.9016719422902282,
+            0.18323329173858963
+          ],
+          [
+            1.2174506678607806,
+            -0.16719677032076502,
+            -0.7115489337024805
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 863,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_2_1_6_high",
+        "data": {
+          "energy": -22745.336550484702,
+          "zpe": 0.027877,
+          "status": "normal",
+          "frequencies": [
+            -95.8348,
+            52.4294,
+            79.2576,
+            97.2352,
+            117.6217,
+            140.6751,
+            594.6222,
+            914.153,
+            1085.678,
+            2605.35,
+            3156.0913,
+            3393.3273
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_2_1_6_high.com",
+            "sha256": "a5ca8cb26820549af30ec54cb7809305e21b6774a085483b92ce1be0bd2e6689"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_2_1_6_high.log",
+            "sha256": "d9c3e1696a70f5202df07bc049dc3144af6766827d330f90c47f3c5b71cc6920"
+          }
+        }
+      },
+      "comparison_group": "TS4",
+      "accepted_connection": "rxn_2 w_1 w_3 ! 791471490990000000002_intra_H_migration_3_4   !"
+    },
+    {
+      "name": "native_ch3ss_rxn_12_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.1737234012917002,
+            -0.4917998915116536,
+            0.5048442829400321
+          ],
+          [
+            2.3149332881099096,
+            0.5278410462695223,
+            1.472470903624204
+          ],
+          [
+            0.46573797770404596,
+            0.015351655554947052,
+            2.4778923481108954
+          ],
+          [
+            -0.5085932317677764,
+            0.6949074580320141,
+            1.8311484874509565
+          ],
+          [
+            1.3913630491907205,
+            -1.5452569350593859,
+            0.43947099483369595
+          ],
+          [
+            0.6512414434056751,
+            -0.00561960879628996,
+            -0.3060456750070174
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 449,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_intra_R_migration_3_1_high",
+        "data": {
+          "energy": -22747.09482032557,
+          "zpe": 0.034196,
+          "status": "normal",
+          "frequencies": [
+            -1734.0741,
+            408.6649,
+            416.9952,
+            511.0009,
+            722.5559,
+            764.7368,
+            851.11,
+            950.736,
+            1401.0646,
+            2573.9251,
+            3134.8861,
+            3274.7641
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_R_migration_3_1_high.com",
+            "sha256": "ce4eb6d61736850fbe644ef9b4d5a80c91a919b6668c8d46dd1ac1ec8eaa80f2"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_R_migration_3_1_high.log",
+            "sha256": "8a06551db494e201d24060dd1f003e1be973b45ea49c556ee2ce07285c0e1100"
+          }
+        }
+      },
+      "comparison_group": "TS6",
+      "accepted_connection": "rxn_12 w_3 w_6 ! 791671450790040000002_intra_R_migration_3_1   !"
+    },
+    {
+      "name": "native_ch3ss_rxn_12_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.3370436029498978,
+            -0.290587285945609,
+            0.14325089008984454
+          ],
+          [
+            2.33531082984334,
+            0.5970881162965482,
+            1.0601589565274425
+          ],
+          [
+            0.2751707444334531,
+            -0.4717347697017741,
+            3.026892062835422
+          ],
+          [
+            -0.43401545289895205,
+            0.5689057334835178,
+            2.5609020104150897
+          ],
+          [
+            1.2851866084969434,
+            -1.3698458880977695,
+            0.23081322568308038
+          ],
+          [
+            0.689709595109593,
+            0.16159781845424404,
+            -0.6022358035981176
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 446,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_intra_R_migration_1_3_high",
+        "data": {
+          "energy": -22747.89561126396,
+          "zpe": 0.032843,
+          "status": "normal",
+          "frequencies": [
+            -178.7957,
+            65.8994,
+            173.1793,
+            191.6055,
+            344.5225,
+            1008.305,
+            1029.4965,
+            1090.6008,
+            1506.2159,
+            2714.7706,
+            3099.4775,
+            3192.2652
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_R_migration_1_3_high.com",
+            "sha256": "7c363becd3a9bbafbbb7e558e43dcb1c0f74a7733312b7ec2fc9dbea0f7517e0"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_R_migration_1_3_high.log",
+            "sha256": "34110dd6bf765e2ccfb72cf730e6f413fe67b2eb8c649242d5d7da33aebbcf0e"
+          }
+        }
+      },
+      "comparison_group": "TS6",
+      "accepted_connection": "rxn_12 w_3 w_6 ! 791671450790040000002_intra_R_migration_3_1   !"
+    },
+    {
+      "name": "native_ch3ss_rxn_12_3",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.329128814265473,
+            -0.443367785528145,
+            0.39126542542935216
+          ],
+          [
+            2.0059609889873484,
+            0.3303607737783351,
+            1.8770199504937641
+          ],
+          [
+            -0.08432330566667227,
+            -0.2928137176517824,
+            1.8716723423596244
+          ],
+          [
+            -0.47039896626219213,
+            0.8532850445680694,
+            2.5357971986356587
+          ],
+          [
+            1.6360703786892759,
+            -1.457623865487756,
+            0.17419222195005157
+          ],
+          [
+            1.0719680179210451,
+            0.2055832748104385,
+            -0.4301657969156986
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 910,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_Intra_R_Add_ExoTetCyclic_F_3_1_5_high",
+        "data": {
+          "energy": -22747.066605555057,
+          "zpe": 0.03366,
+          "status": "normal",
+          "frequencies": [
+            -947.2658,
+            331.788,
+            413.1745,
+            601.217,
+            758.1029,
+            819.3215,
+            838.7886,
+            945.3014,
+            1409.7138,
+            2262.035,
+            3130.6877,
+            3264.7461
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_Intra_R_Add_ExoTetCyclic_F_3_1_5_high.com",
+            "sha256": "5522fa7df283778fb5e82b46264d26dfc2dc832976d7e722b00125cf3f9b9bc3"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_Intra_R_Add_ExoTetCyclic_F_3_1_5_high.log",
+            "sha256": "50b79ab342b74aeb5b8eb0fcc0b1a2f10c732bb41bcbea364cd776fffede0e60"
+          }
+        }
+      },
+      "comparison_group": "TS6",
+      "accepted_connection": "rxn_12 w_3 w_6 ! 791671450790040000002_intra_R_migration_3_1   !"
+    },
+    {
+      "name": "native_ch3ss_rxn_22_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            2.0580913991638656,
+            0.005401614638197221,
+            -0.006102572073814637
+          ],
+          [
+            2.4271390133220616,
+            1.715855688641449,
+            -0.005100503004624368
+          ],
+          [
+            2.2639544370155145,
+            -0.951239013508396,
+            1.305114456582327
+          ],
+          [
+            2.123543937149646,
+            1.9487993807063273,
+            -1.293693192517254
+          ],
+          [
+            0.10181809452052552,
+            0.003762810670851307,
+            0.012703157526467335
+          ],
+          [
+            1.8582446966957251,
+            -0.4035214160400809,
+            -0.9913157629476202
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 323,
+        "source_job": "ch3ss/791472110370000000002/791472110370000000002_intra_H_migration_2_5_high",
+        "data": {
+          "energy": -22746.725016711654,
+          "zpe": 0.02754,
+          "status": "normal",
+          "frequencies": [
+            -967.1967,
+            290.1241,
+            328.5354,
+            356.2917,
+            410.5152,
+            724.3785,
+            895.8354,
+            930.3914,
+            1066.5322,
+            1271.5285,
+            2687.129,
+            3127.3835
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_intra_H_migration_2_5_high.com",
+            "sha256": "510906b767733fa69a37d13e08bdd78f587f8e0ef13221a1c33a2f221bd9aca6"
+          },
+          ".log": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_intra_H_migration_2_5_high.log",
+            "sha256": "199bc384187d8cd04345278c0eae66b1d2c72f4e0dfe4124e00f45df81b3a58e"
+          }
+        }
+      },
+      "comparison_group": "TS5_alternative_isomerization",
+      "accepted_connection": "rxn_22 w_6 w_7 ! 791472110370000000002_intra_H_migration_2_5   !"
+    },
+    {
+      "name": "native_ch3ss_rxn_22_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.927731870060534,
+            0.08891307551611506,
+            0.3847916569981906
+          ],
+          [
+            2.511242442818067,
+            1.6413553301503359,
+            0.9308317384479107
+          ],
+          [
+            0.3143320310006931,
+            -0.18695850241749817,
+            -0.33147695739647265
+          ],
+          [
+            1.4966129656146823,
+            2.3620432046720787,
+            0.42989759783485604
+          ],
+          [
+            1.619040984662621,
+            -0.2105788891728552,
+            -1.001415677440558
+          ],
+          [
+            2.4650824834839384,
+            -0.7578053917023905,
+            0.7866397092776732
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 506,
+        "source_job": "ch3ss/791472110370000000002/791472110370000000002_12_shift_S_R_3_1_5_high",
+        "data": {
+          "energy": -22747.403921697103,
+          "zpe": 0.030408,
+          "status": "normal",
+          "frequencies": [
+            -1534.7379,
+            201.6016,
+            276.3465,
+            455.3987,
+            644.589,
+            709.1595,
+            869.6454,
+            955.5667,
+            1242.7452,
+            2089.2165,
+            2708.5647,
+            3194.6527
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_12_shift_S_R_3_1_5_high.com",
+            "sha256": "f2fbe70138e8bc8dcadd72cb4e59e11a14ded835d98ae52a20047ffb88437592"
+          },
+          ".log": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_12_shift_S_R_3_1_5_high.log",
+            "sha256": "8cb5ae186329b6762462a4e37b41afa38d48ed0eb5a988290e866cba6daa80aa"
+          }
+        }
+      },
+      "comparison_group": "TS5_alternative_isomerization",
+      "accepted_connection": "rxn_22 w_6 w_7 ! 791472110370000000002_intra_H_migration_2_5   !"
+    },
+    {
+      "name": "native_ch3ss_rxn_24_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            2.0512288482668537,
+            0.006158844492918319,
+            -0.00296833921211103
+          ],
+          [
+            2.404161929326548,
+            1.7163444602228275,
+            0.0007757810884994868
+          ],
+          [
+            2.242355927432457,
+            -1.0577211482116107,
+            1.2283755516506671
+          ],
+          [
+            2.695675102299596,
+            1.7894769149590575,
+            1.3103929136784827
+          ],
+          [
+            0.10007717066983754,
+            0.006666343790997783,
+            0.01935325608680362
+          ],
+          [
+            1.8492226067416393,
+            -0.32986650639396237,
+            -1.0164240405455254
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 469,
+        "source_job": "ch3ss/791472110370000000002/791472110370000000002_r12_insertion_R_5_1_3_high",
+        "data": {
+          "energy": -22746.781202729275,
+          "zpe": 0.027755,
+          "status": "normal",
+          "frequencies": [
+            -970.076,
+            310.3702,
+            347.0292,
+            383.1317,
+            435.0107,
+            688.59,
+            920.1662,
+            947.8904,
+            1034.4499,
+            1301.3354,
+            2692.2593,
+            3122.9339
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_r12_insertion_R_5_1_3_high.com",
+            "sha256": "cbe04c410bde25d315489766b8c19e04473b47aacee8b626dc630317cc940374"
+          },
+          ".log": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_r12_insertion_R_5_1_3_high.log",
+            "sha256": "2ac724b118046143753e4bd9ae6f0474ffae4bf97d4f9f9b4da5a033db25ca91"
+          }
+        }
+      },
+      "comparison_group": "TS5_alternative_isomerization",
+      "accepted_connection": "rxn_24 w_6 w_14 ! 791472110370000000002_r12_insertion_R_5_1_3   ! "
+    },
+    {
+      "name": "native_ch3ss_rxn_54_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.2675958510264569,
+            -0.8571268472849085,
+            0.015848131051096476
+          ],
+          [
+            0.7647183807477116,
+            -1.7047357918220745,
+            1.2952948750900775
+          ],
+          [
+            0.31100224417085004,
+            1.8516598708298855,
+            2.358100964487788
+          ],
+          [
+            -0.4677655736049228,
+            0.7691235732730218,
+            2.1866280924911
+          ],
+          [
+            1.782433335661843,
+            -1.330264887329856,
+            -0.8144148323170676
+          ],
+          [
+            1.111391659222693,
+            0.21507156708078773,
+            -0.05401517886934784
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 872,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_suprafacial_1_4_high",
+        "data": {
+          "energy": -22747.912183387714,
+          "zpe": 0.032277,
+          "status": "normal",
+          "frequencies": [
+            -160.2272,
+            94.2264,
+            112.0471,
+            161.4975,
+            194.2831,
+            1013.8885,
+            1040.4612,
+            1078.247,
+            1496.3726,
+            2700.5334,
+            3091.1167,
+            3185.2931
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_suprafacial_1_4_high.com",
+            "sha256": "bd36e47e2206a1b15fb828382d77b00dd09b6b3f67b7bc1814a4233243177ab8"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_suprafacial_1_4_high.log",
+            "sha256": "81b6707a3d8803659e67cb419cf2703a94624e57c57227a64451a43a59a04e28"
+          }
+        }
+      },
+      "comparison_group": "TS2",
+      "accepted_connection": "rxn_54 w_3 w_9 ! 791671450790040000002_intra_H_migration_suprafacial_1_4   ! "
+    },
+    {
+      "name": "native_reverse_ts1",
+      "mode": "optimize",
+      "seed": {
+        "symbols": [
+          "S",
+          "H",
+          "C",
+          "S",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            -0.03585795708826452,
+            -0.03959141913943243,
+            0.09350722194765577
+          ],
+          [
+            1.2907109447274654,
+            -0.23179588699314227,
+            0.027769180473374955
+          ],
+          [
+            0.16406508548650295,
+            0.024764123677952377,
+            3.033915418354495
+          ],
+          [
+            -1.0768793403608041,
+            0.23006158594335743,
+            3.9774753056371637
+          ],
+          [
+            0.01084924175314388,
+            0.002107666655304507,
+            1.6224048254606929
+          ],
+          [
+            1.2109123181808288,
+            -0.11549348663317316,
+            3.2918046047846463
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "comparison_group": "TS1",
+      "provenance": {
+        "source_job": "330330000000000000002_460700680000000000001_abstraction_1_5_3",
+        "source_result_sha256": "5876d7faaa835c386ee19919f4c5925716753b07dadc93493bbad8937567f4f3",
+        "reason": "L2 geometry retained; native frequency log absent from supplied handoff."
+      }
+    },
+    {
+      "name": "ch3s_h_loss_scale_1p3",
+      "mode": "family",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.344252843574956,
+            0.2101859309048708,
+            0.3161416857197299
+          ],
+          [
+            0.3756803945088372,
+            1.2380698008863216,
+            -0.6687097756021383
+          ],
+          [
+            0.5788859834114537,
+            0.6174626159563198,
+            -1.8387561574919877
+          ],
+          [
+            1.39649100275467,
+            0.44999834153298174,
+            1.362627259502371
+          ],
+          [
+            1.9172906961803204,
+            -0.5948330573228198,
+            -0.10440002312022037
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "source_reaction": "471030810040000000002_R_Addition_MultipleBond_1_2_3",
+      "motif": [
+        0,
+        1,
+        2
+      ],
+      "guess": {
+        "bond_scale": 1.3,
+        "angle": "parent"
+      },
+      "comparison_group": "ch3s_direct_H_loss",
+      "provenance": {
+        "source_job": "ch3s/471030810040000000002/471030810040000000002_well_high",
+        "source_row_id": 8
+      }
+    },
+    {
+      "name": "ch3s_h_loss_scale_1p6",
+      "mode": "family",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.344252843574956,
+            0.2101859309048708,
+            0.3161416857197299
+          ],
+          [
+            0.3756803945088372,
+            1.2380698008863216,
+            -0.6687097756021383
+          ],
+          [
+            0.5788859834114537,
+            0.6174626159563198,
+            -1.8387561574919877
+          ],
+          [
+            1.39649100275467,
+            0.44999834153298174,
+            1.362627259502371
+          ],
+          [
+            1.9172906961803204,
+            -0.5948330573228198,
+            -0.10440002312022037
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "source_reaction": "471030810040000000002_R_Addition_MultipleBond_1_2_3",
+      "motif": [
+        0,
+        1,
+        2
+      ],
+      "guess": {
+        "bond_scale": 1.6,
+        "angle": "parent"
+      },
+      "comparison_group": "ch3s_direct_H_loss",
+      "provenance": {
+        "source_job": "ch3s/471030810040000000002/471030810040000000002_well_high",
+        "source_row_id": 8
+      }
+    },
+    {
+      "name": "ch3s_h_loss_scale_1p9",
+      "mode": "family",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.344252843574956,
+            0.2101859309048708,
+            0.3161416857197299
+          ],
+          [
+            0.3756803945088372,
+            1.2380698008863216,
+            -0.6687097756021383
+          ],
+          [
+            0.5788859834114537,
+            0.6174626159563198,
+            -1.8387561574919877
+          ],
+          [
+            1.39649100275467,
+            0.44999834153298174,
+            1.362627259502371
+          ],
+          [
+            1.9172906961803204,
+            -0.5948330573228198,
+            -0.10440002312022037
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "source_reaction": "471030810040000000002_R_Addition_MultipleBond_1_2_3",
+      "motif": [
+        0,
+        1,
+        2
+      ],
+      "guess": {
+        "bond_scale": 1.9,
+        "angle": "parent"
+      },
+      "comparison_group": "ch3s_direct_H_loss",
+      "provenance": {
+        "source_job": "ch3s/471030810040000000002/471030810040000000002_well_high",
+        "source_row_id": 8
+      }
+    },
+    {
+      "name": "ch3ss_h_loss_scale_1p3",
+      "mode": "family",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9501853684882462,
+            -0.02518824487151772,
+            0.10753561717363937
+          ],
+          [
+            0.3305012890620585,
+            0.8075754996646132,
+            1.6060308628232418
+          ],
+          [
+            1.03697546283233,
+            -0.2358019529001571,
+            3.1191076412460803
+          ],
+          [
+            0.5748102446009035,
+            0.5310832748923903,
+            -0.7488443779889901
+          ],
+          [
+            0.5808440542420732,
+            -1.0457425175203547,
+            0.08661317311136901
+          ],
+          [
+            2.0356505705957963,
+            -0.017526750155019814,
+            0.11682371850223687
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "source_reaction": "791471490990000000002_R_Addition_MultipleBond_2_1_4",
+      "motif": [
+        1,
+        0,
+        3
+      ],
+      "guess": {
+        "bond_scale": 1.3,
+        "angle": "parent"
+      },
+      "comparison_group": "ch3ss_direct_H_loss",
+      "provenance": {
+        "source_job": "ch3ss/791471490990000000002/791471490990000000002_well_high",
+        "source_row_id": 8
+      }
+    },
+    {
+      "name": "ch3ss_h_loss_scale_1p6",
+      "mode": "family",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9501853684882462,
+            -0.02518824487151772,
+            0.10753561717363937
+          ],
+          [
+            0.3305012890620585,
+            0.8075754996646132,
+            1.6060308628232418
+          ],
+          [
+            1.03697546283233,
+            -0.2358019529001571,
+            3.1191076412460803
+          ],
+          [
+            0.5748102446009035,
+            0.5310832748923903,
+            -0.7488443779889901
+          ],
+          [
+            0.5808440542420732,
+            -1.0457425175203547,
+            0.08661317311136901
+          ],
+          [
+            2.0356505705957963,
+            -0.017526750155019814,
+            0.11682371850223687
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "source_reaction": "791471490990000000002_R_Addition_MultipleBond_2_1_4",
+      "motif": [
+        1,
+        0,
+        3
+      ],
+      "guess": {
+        "bond_scale": 1.6,
+        "angle": "parent"
+      },
+      "comparison_group": "ch3ss_direct_H_loss",
+      "provenance": {
+        "source_job": "ch3ss/791471490990000000002/791471490990000000002_well_high",
+        "source_row_id": 8
+      }
+    },
+    {
+      "name": "ch3ss_h_loss_scale_1p9",
+      "mode": "family",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9501853684882462,
+            -0.02518824487151772,
+            0.10753561717363937
+          ],
+          [
+            0.3305012890620585,
+            0.8075754996646132,
+            1.6060308628232418
+          ],
+          [
+            1.03697546283233,
+            -0.2358019529001571,
+            3.1191076412460803
+          ],
+          [
+            0.5748102446009035,
+            0.5310832748923903,
+            -0.7488443779889901
+          ],
+          [
+            0.5808440542420732,
+            -1.0457425175203547,
+            0.08661317311136901
+          ],
+          [
+            2.0356505705957963,
+            -0.017526750155019814,
+            0.11682371850223687
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "source_reaction": "791471490990000000002_R_Addition_MultipleBond_2_1_4",
+      "motif": [
+        1,
+        0,
+        3
+      ],
+      "guess": {
+        "bond_scale": 1.9,
+        "angle": "parent"
+      },
+      "comparison_group": "ch3ss_direct_H_loss",
+      "provenance": {
+        "source_job": "ch3ss/791471490990000000002/791471490990000000002_well_high",
+        "source_row_id": 8
+      }
+    }
+  ],
+  "source_archive_sha256": "c6878221df7864b92026f0a384d86c27e48dd2440ec71213a18f093d6d64c66e",
+  "purpose": "Test all six SI saddles and native disagreements with target-level optimization, native frequencies and target-level IRC. Targets do not dictate acceptance."
+}

@@ -52,7 +52,7 @@ def union_stereochemical_barriers(blocks):
         if len(entries) == 1:
             result.append(entries[0][0])
             continue
-        from kinbot.saddle_identity import block_evidence, same_blocks, compare
+        from kinbot.saddle_identity import block_evidence, same_population_surface, compare
         keys = []
         selected = []
         warnings = []
@@ -63,7 +63,7 @@ def union_stereochemical_barriers(blocks):
                                  'stereochemical routes; do not sum duplicate or unclassified routes.')
             if labels[0] in keys:
                 prior = [b for b, _ in selected if f'! kinbot_stereopath {labels[0]}\n' in b]
-                if any(same_blocks(b, block) for b in prior):
+                if any(same_population_surface(b, block) for b in prior):
                     continue
                 for other in prior:
                     proof = compare(block_evidence(other), block_evidence(block))

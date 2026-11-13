@@ -152,6 +152,8 @@ class IRC:
         directions = ['Forward', 'Reverse']
         for direction in directions:
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
+            if self.rxn.qc.check_qc(irc_name) in ('running', 'normal', 'error'):
+                continue
             # This boolean is false if the checkpoint file is available
             # and true if no checkpoint file is found.
             # In the latter case, the geometry needs to be supplied to
@@ -222,6 +224,8 @@ class IRC:
                                        sella_kwargs=runtime_par['sella_kwargs'],  # Sella
                                        fmax=runtime_par['sella_fmax'],
                                        steps=runtime_par['sella_steps'],
+                                       irc_steps=runtime_par.get('sella_irc_steps', 100),
+                                       irc_dx=runtime_par.get('sella_irc_dx', 0.1),
                                        fc_model_path=runtime_par['fc_model_path'],
                                        fc_task_name=runtime_par['fc_task_name'],
                                        fc_device=runtime_par['fc_device'],

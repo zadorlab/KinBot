@@ -129,3 +129,41 @@ def test_outer_selection_uses_native_evidence_without_modifying_snapshots():
     assert result['workers']['worker']['selected'] == ['compact','loose']
     assert result['workers']['worker']['omitted']['repeat']['retained'] == ['loose']
     assert result == choose({'worker':data}) and data == before
+
+
+def test_native_mirror_rediscovery_counts_once_in_achiral_population_union():
+    from kinbot.mess_symmetry import MARKER
+    r = json.loads((Path(__file__).parent/'reference/mirror_parallel_saddles.json').read_text())
+    assert identity.compare(r['original'], r['mirror'])['status'] == 'distinct'
+    proof = identity.compare(r['original'], identity._reflected_record(r['mirror']))
+    assert proof['status'] == 'equivalent'
+    assert proof['measurements']['mode_overlap'] > .99999
+    blocks = [barrier(n, e, keys='A A B B') + MARKER + '\n' for n, e in r.items()]
+    for order in itertools.permutations(blocks):
+        union = ''.join(union_stereochemical_barriers(order))
+        assert 'Union ! 2 stereochemical pathways' in union
+        assert 'Barrier distinct ' in union
+    text = ('Model\n Well a\n! kinbot_population A A\n End\n'
+            ' Well r\n! kinbot_population B B\n End\n')
+    text += ''.join(blocks) + 'End ! end kinetics\n'
+    result = complete_mirror_channels(text)
+    assert 'Union ! 2 stereochemical pathways' in result
+    assert complete_mirror_channels(result) == result
+
+
+def test_mirror_surface_requires_same_population_and_complete_evidence():
+    from kinbot.mess_symmetry import MARKER
+    r = json.loads((Path(__file__).parent/'reference/mirror_parallel_saddles.json').read_text())
+    a = barrier('a', r['original'], keys='A A B B') + MARKER + '\n'
+    b = barrier('b', r['mirror'], keys='A A B B') + MARKER + '\n'
+    assert identity.same_population_surface(a,b)
+    assert not identity.same_population_surface(a,b.replace(MARKER,''))
+    assert not identity.same_population_surface(a,b.replace('A A B B','A A B C'))
+    missing = deepcopy(r['mirror']); missing.pop('mode')
+    assert not identity.same_population_surface(a,barrier('b',missing,keys='A A B B')+MARKER)
+    # A distinct second member prevents merging an incompletely matching ensemble.
+    ensemble_a = deepcopy(r['original']); ensemble_a['members'] = [r['original'],r['distinct']]
+    ensemble_b = deepcopy(r['mirror']); ensemble_b['members'] = [r['mirror'],r['mirror']]
+    assert not identity.same_population_surface(
+        barrier('a',ensemble_a,keys='A A B B')+MARKER,
+        barrier('b',ensemble_b,keys='A A B B')+MARKER)

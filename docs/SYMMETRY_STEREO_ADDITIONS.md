@@ -54,3 +54,31 @@ Git author records identify commit attribution, not whether a human or an
 assistant authored individual lines. These additions do not replace the
 existing connectivity, stereochemical identity, or stationary-point checks,
 and do not establish coupled-rotor dynamics or electronic-wavefunction overlaps.
+
+## Parallel transition states
+
+Endpoint and stereochemical classes can contain several distinct saddles. PES
+assembly, direct MESS output, PESViewer and pre-ANL selection retain these
+parallel paths. MESS combines their complete statistical models in a `Union`,
+including each member's energy and tunneling parameters.
+
+Repeated discoveries are merged using an element/isotope-preserving atom map,
+a proper rotation fitted to the geometry, and the mass-weighted imaginary-mode
+overlap under that same transformation. The comparison uses 0.01 Å RMSD,
+0.03 Å maximum atomic displacement, overlap at least 0.99, electronic-energy
+agreement within 0.1 kcal/mol and frequency agreement within 5 cm⁻¹. Both
+spectra must establish a first-order saddle. These are duplicate-comparison
+tolerances. Accepted QC and stationary-point validation retain their own rules.
+
+The first verified representative is retained, avoiding chains of approximate
+equivalences. Mirror completion reflects both coordinates and displacements.
+Full conformer-ensemble equivalence requires a one-to-one member comparison.
+Missing mode or isotope-mass evidence keeps the observations with an explicit
+unresolved-comparison warning. `saddle_selection.json` records the selected
+names, native sources, mappings, measurements and decisions. Saved accepted
+results supply this evidence during reassembly.
+
+The native regression fixture `tests/reference/parallel_saddles.json` contains
+two repeated observations of a loose saddle and a distinct compact saddle.
+The latter survives selection in every discovery order, including reversed
+IRC endpoint ordering.

@@ -39,6 +39,7 @@ def union_stereochemical_barriers(blocks):
     tunneling model. A nested Union preserves a route's MC ensemble, if any.
     This does not enable MC-TST or manufacture degeneracy factors.
     """
+    from kinbot.mess_networks import _HEADER
     groups = {}
     for block in blocks:
         match = re.search(r'^[ \t]*Barrier[ \t]+[^\n]+\n', block, re.MULTILINE)
@@ -51,17 +52,37 @@ def union_stereochemical_barriers(blocks):
         if len(entries) == 1:
             result.append(entries[0][0])
             continue
+        from kinbot.saddle_identity import block_evidence, same_blocks, compare
         keys = []
-        for block, _ in entries:
+        selected = []
+        warnings = []
+        for block, match in entries:
             labels = re.findall(r'^! kinbot_stereopath (\S+)$', block, re.MULTILINE)
-            if len(labels) != 1 or labels[0] in keys:
+            if len(labels) != 1:
                 raise ValueError('Parallel MESS barriers require distinct classified '
                                  'stereochemical routes; do not sum duplicate or unclassified routes.')
+            if labels[0] in keys:
+                prior = [b for b, _ in selected if f'! kinbot_stereopath {labels[0]}\n' in b]
+                if any(same_blocks(b, block) for b in prior):
+                    continue
+                for other in prior:
+                    proof = compare(block_evidence(other), block_evidence(block))
+                    if proof['status'] == 'unresolved':
+                        names = [_HEADER.search(b)[2].split()[0] for b in (other, block)]
+                        message = ('Saddle equivalence unresolved for ' + ' / '.join(names)
+                                   + ': ' + proof['reason'] + '; both observations retained.')
+                        logger.warning(message)
+                        warnings.append('! WARNING: ' + message + '\n')
             keys.append(labels[0])
+            selected.append((block, match))
+        entries = selected
+        if len(entries) == 1:
+            result.append(entries[0][0])
+            continue
         body = ''.join('! pathway source: ' + match.group().strip() + '\n'
-                       + block[:match.start()] + block[match.end():] + '\n'
+                       + (block[:match.start()] + block[match.end():]).strip('\n') + '\n'
                        for block, match in entries)
-        result.append(entries[0][1].group()
+        result.append('  ' + entries[0][1].group().strip() + '\n' + ''.join(warnings)
                       + f'    Union ! {len(entries)} stereochemical pathways\n'
                       + body + '    End ! stereochemical pathways\n')
     return result
@@ -1019,6 +1040,9 @@ class MESS:
         # filter ts's with the same reactants and products:
         ts_unique = {}  # key: ts name, value: [prod_name, energy, stereochemical path]
         ts_all = {}
+        from kinbot.saddle_identity import evidence
+        saddles = {r.instance_name: evidence(r.ts) for i, r in enumerate(self.species.reac_obj)
+                   if self.species.reac_ts_done[i] == -1 and 'hom_sci' not in r.instance_name}
 
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
@@ -1039,7 +1063,8 @@ class MESS:
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
                         decision = compare_pathways(ts, ts_unique[ts][2], ts_unique[ts][1],
-                            reaction.instance_name, path_id, ts_energy)
+                            reaction.instance_name, path_id, ts_energy,
+                            existing_saddle=saddles.get(ts), candidate_saddle=saddles.get(reaction.instance_name))
                         if decision == 'replace':
                             remove.append(ts)
                         elif decision == 'keep':
@@ -2071,6 +2096,8 @@ class MESS:
         path_id = reaction_path_id(reaction)
         if path_id is not None:
             mess_barrier = f'! kinbot_stereopath {path_id}\n' + mess_barrier
+            from kinbot.saddle_identity import annotate, evidence
+            mess_barrier = annotate(mess_barrier, evidence(reaction.ts))
         with open('{}_{:04d}.mess'.format(reaction.instance_name, uq_iter), 'w') as f:
             f.write(mess_barrier)
 

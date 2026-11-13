@@ -53,7 +53,8 @@ def barrier(name, left, right, keys, path=None, energy=30, models=None):
 
 
 def network(*blocks, reactant='r'):
-    return 'Model\n Reactant ' + reactant + '\n' + ''.join(blocks) + 'End ! end kinetics\n'
+    from tests.saddle_fixtures import add_saddle_evidence
+    return add_saddle_evidence('Model\n Reactant ' + reactant + '\n' + ''.join(blocks) + 'End ! end kinetics\n')
 
 
 def headers(text, kind):
@@ -116,7 +117,7 @@ def test_relative_configuration_survives_without_a_site_path_label():
 
 def test_reverse_duplicate_retains_selected_eckart_order():
     result=complete_mirror_channels(network(well('r','R','S'),well('s','S','R'),well('a','A','A'),
-        barrier('forward','r','a',('R','S','A','A'),energy=32),
+        barrier('forward','r','a',('R','S','A','A'),energy=30.01),
         barrier('reverse','a','s',('A','A','S','R'),models=rrho(energy=30)+
                 ' WellDepth[kcal/mol] 10\n WellDepth[kcal/mol] 20\n')))
     assert headers(result,'Barrier') == ['reverse a r']

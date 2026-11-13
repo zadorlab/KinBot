@@ -130,7 +130,7 @@ def prepare_stereopath(ts, reactant, product):
     """Protect all TS spectators; classify demonstrated reacting-site splits.
 
     Site classification is element-neutral and allows additional bond edits,
-    as in HO2 elimination. Ordinary unsplit paths keep lowest-barrier policy.
+    as in HO2 elimination. Saddle identity is checked separately from this class.
     """
     prepare_ts_context(ts, reactant, product)
     for key in ('stereopath_atoms', 'stereopath_hydrogen', 'stereopath_endpoints',
@@ -150,14 +150,14 @@ def prepare_stereopath(ts, reactant, product):
     joint = len(split_atoms) > 1 or _has_joint_stereo_split((reactant, product), roles)
     if not split_atoms and not joint:
         # An examined ordinary path has an explicit classification.
-        # All ordinary routes retain one lowest-barrier class per endpoint pair.
+        # This class can contain multiple geometrically distinct saddles.
         ts.stereopath_id = 'ordinary'
         ts.stereopath_metadata = {
             'schema': 'kinbot.stereopath.v1', 'id': ts.stereopath_id,
             'site_relation': 'no demonstrated stereochemical split',
             'atom_index_base': 0, 'broken_bonds': broken.tolist(),
             'formed_bonds': formed.tolist(),
-            'counting': 'lowest barrier among ordinary routes to these endpoints',
+            'counting': 'distinct saddles retained; mapped geometry and mode identify duplicates',
         }
         return
     if joint:
@@ -228,7 +228,7 @@ def reaction_path_id(reaction):
 
 
 def same_path_class(left, right):
-    """Lowest-barrier filtering stays within a demonstrated pathway class."""
+    """Saddle comparison stays within a demonstrated pathway class."""
     if (left is None) != (right is None):
         return False
     return left == right
@@ -263,12 +263,14 @@ def reject_invalid_pathway(species, index, par=None):
 
 def compare_pathways(existing_name, existing_path, existing_energy,
                      candidate_name, candidate_path, candidate_energy, *,
-                     candidate_complex=False):
+                     candidate_complex=False, existing_saddle=None, candidate_saddle=None,
+                     audit=None):
     """Select barriers with matching endpoints: replace, keep, or distinct.
 
     A homolytic-scission placeholder is superseded by an optimized saddle,
-    before comparing stereochemical saddle classes. Within an actual class,
-    retain the lowest barrier; PES can retain its equal-energy complex tie rule.
+    before comparing stereochemical saddle classes. Within a class only a
+    geometry/mode-proven duplicate is omitted. The first accepted representative
+    remains the reference, avoiding transitive chains of approximate matches.
     """
     existing_hom = 'hom_sci' in existing_name
     candidate_hom = 'hom_sci' in candidate_name
@@ -278,10 +280,12 @@ def compare_pathways(existing_name, existing_path, existing_energy,
         raise ValueError('Missing reaction-path metadata for a calculated saddle.')
     if not same_path_class(existing_path, candidate_path):
         return 'distinct'
-    if candidate_energy < existing_energy:
-        return 'replace'
-    if candidate_energy == existing_energy and candidate_complex:
-        return 'replace'
+    from kinbot.saddle_identity import compare
+    proof = compare(existing_saddle, candidate_saddle)
+    if audit is not None:
+        audit.append(dict(existing=existing_name, candidate=candidate_name, **proof))
+    if proof['status'] != 'equivalent':
+        return 'distinct'
     return 'keep'
 
 

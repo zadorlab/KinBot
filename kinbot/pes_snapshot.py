@@ -43,6 +43,8 @@ def snapshot(species, parameters):
         if not row['barrierless']:
             try:
                 row['path_class'] = reaction_path_id(reaction)
+                from kinbot.saddle_identity import evidence
+                row['saddle_evidence'] = evidence(reaction.ts)
                 network['transition_states'][name] = point(
                     reaction.ts, identity_smiles=species.smiles, routing_identity=name)
             except (ValueError, TypeError, AttributeError) as error:

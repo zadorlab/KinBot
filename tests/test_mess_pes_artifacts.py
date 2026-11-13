@@ -116,7 +116,7 @@ def test_worker_summary_to_pes_assembly_exports_every_accepted_complex(
         # reproduce the observed FileNotFoundError for the equal-energy tie.
         text = assemble(t)
         assert text.count('Core PhaseSpaceTheory') == 1
-        assert text.count('ImaginaryFrequency') == (2 if distinct else 1)
+        assert text.count('ImaginaryFrequency') == 2
         assert sum(line.strip().startswith('Well ') for line in text.splitlines()) == 2
         assert '{name}' not in text and '{wellname}' not in text
         for reaction in t.reactions:
@@ -124,7 +124,7 @@ def test_worker_summary_to_pes_assembly_exports_every_accepted_complex(
         artifacts = {p.name: p.read_bytes() for p in t.worker.glob('*.mess')}
         omitted = assemble(t, skip=True)
         assert 'Core PhaseSpaceTheory' not in omitted
-        assert omitted.count('ImaginaryFrequency') == (2 if distinct else 1)
+        assert omitted.count('ImaginaryFrequency') == 2
         assert sum(line.strip().startswith('Well ') for line in omitted.splitlines()) == 1
         assert artifacts == {p.name: p.read_bytes() for p in t.worker.glob('*.mess')}
         assert t.parent.reac_ts_done == [-1, -1]

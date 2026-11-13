@@ -34,11 +34,10 @@ def test_global_selection_matches_final_pes_including_reverse_and_stereo():
     b = evidence('b', [('reverse_low',['a'],-99.5,'ordinary')])
     for order in itertools.permutations([('a',a),('b',b)]):
         result = selection.choose(dict(order))
-        assert result['workers']['a']['selected'] == ['distinct_stereo']
+        assert result['workers']['a']['selected'] == ['distinct_stereo', 'forward_high']
         assert result['workers']['b']['selected'] == ['reverse_low']
-        assert result['workers']['a']['omitted']['forward_high']['retained'] == ['reverse_low']
-        # No claim that geometrically different high/low saddles are equal.
-        assert result['workers']['a']['omitted']['forward_high']['reason'] == 'outer_pes_lowest_l2_pathway'
+        assert 'forward_high' not in result['workers']['a']['omitted']
+        assert result['comparisons'][0]['status'] == 'unresolved'
 
 
 def test_same_products_from_different_wells_are_not_same_pathway():
@@ -76,7 +75,7 @@ def test_outer_owner_does_not_select_until_all_wells_ready(tmp_path):
     ready('b')
     assert phase.tick(tmp_path,['a','b'],max_searches=1)[1]=='postprocessing'
     result=json.loads((tmp_path/selection.NAME).read_text())
-    assert result['workers']['a']['selected']==[]
+    assert result['workers']['a']['selected']==['a_ts']
     assert result['workers']['b']['selected']==['b_ts']
 
 
@@ -110,7 +109,7 @@ def test_selection_is_nonmutating_and_old_generations_are_rejected(tmp_path,monk
     species=SimpleNamespace(reac_obj=[SimpleNamespace(instance_name=n) for n in ('kept','omitted')],
                             reac_ts_done=[-1,-1])
     view=selection.selected_view(species,{'composite_method':'ANL1'})
-    assert view.reac_ts_done==[-1,-2] and species.reac_ts_done==[-1,-1]
+    assert view.reac_ts_done==[-1,-1] and species.reac_ts_done==[-1,-1]
     assert view.anl_accepted_source is species and view.reac_obj is species.reac_obj
     result['epoch']=2;atomic_json(tmp_path/selection.NAME,result)
     with pytest.raises(ValueError,match='another PES exploration generation'):
@@ -363,7 +362,7 @@ p.assembled()
                 break
             time.sleep(.03)
         assert all(p.poll()==0 for p in processes.values()) and len(processes)==2
-        assert json.loads((tmp_path/'a/selected').read_text())==[]
+        assert json.loads((tmp_path/'a/selected').read_text())==['a_ts']
         assert json.loads((tmp_path/'b/selected').read_text())==['b_ts']
         assert native.read_bytes()==original
         # A new controller generation cannot silently consume an old choice.

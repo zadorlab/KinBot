@@ -259,6 +259,7 @@ def fold_racemic_network(prefix, blocks):
     """
     if not any(_KEYS.search(b) for b in blocks):
         return prefix, blocks
+    from kinbot.saddle_identity import same_blocks
     references = _endpoint_references(blocks)
     blocks = _harmonize_family_models(blocks)
     # A substituted mirror block may be folded away; keep its warning visible.
@@ -352,6 +353,10 @@ def fold_racemic_network(prefix, blocks):
         # Folding is not permission to silently deduplicate those observations.
         key = (tuple(sorted((new_left, new_right))), orbit,
                None if original or old_orbit else len(retained))
+        if original or old_orbit:
+            matches = [k for k, prior in retained.items() if k[:2] == key[:2]
+                       and (same_blocks(prior, block) or same_blocks(prior, block, mirror=True))]
+            key = matches[0] if matches else (*key[:2], len(retained))
         if key in retained:
             # Keep the established lowest-barrier choice within a path class.
             # Keep a whole selected model, including its own Eckart depths.

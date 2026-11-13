@@ -431,3 +431,16 @@ def test_native_inventory_limit_is_explicit_and_does_not_copy(tmp_path, monkeypa
     with pytest.raises(ValueError,match='inventory exceeds file limit'):
         audit.capture(root,tmp_path/'exports',ordinary_native=True)
     assert not list((tmp_path/'exports').glob('*/run'))
+
+
+def test_mess_handoff_includes_accepted_saddle_modes_without_scanning_native_stores(tmp_path):
+    root=tmp_path/'source';p,w=case(root)
+    (w/'summary_worker.out').write_text('SUCCESS 20 worker_ts product\nFAILED 30 worker_other product\n')
+    expected=[w/'worker_ts.log',w/'worker_ts_high.log',w/'worker_ts_high.com',w/'conf/worker_ts_0001.log']
+    for path in expected+[w/'worker_other.log',w/'.kinbot_checkpoints/deep/huge.log']:
+        path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_text('native content')
+    files={source for source, _, _ in audit.sources(root,mess_handoff=True)}
+    assert set(expected)<=files
+    assert w/'worker_other.log' not in files
+    assert w/'.kinbot_checkpoints/deep/huge.log' not in files

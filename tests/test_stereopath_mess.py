@@ -24,6 +24,7 @@ from tests.counting_fixtures import methanol_data, saved_point
 from test_reaction_paths import peroxy, transfer
 from test_mess_conformers import values
 from tests.conformer_fixtures import record_conformers
+from tests.saddle_fixtures import bind_mode, bind_member_modes
 
 
 class TestStereopathMESS(unittest.TestCase):
@@ -44,7 +45,7 @@ class TestStereopathMESS(unittest.TestCase):
         p = peroxy()
         p.name = routing_name(p)
         routes = []
-        for hydrogen, barrier in ((9, 30.), (10, 32.), (9, 35.)):
+        for hydrogen, barrier in ((9, 30.), (10, 32.), (9, 30.01)):
             ts, q = transfer(p, hydrogen)
             # Give the endpoint a geometry with its stated O-H connectivity.
             # These remain structural fixtures, not calculated reaction energies.
@@ -53,8 +54,9 @@ class TestStereopathMESS(unittest.TestCase):
             q.name = routing_name(q)
             q.energy = p.energy - 5./constants.AUtoKCAL
             symmetry.calculate_symmetry(q)
-            ts.name = p.name + f'_intra_H_migration_6_{hydrogen+1}_{int(barrier)}'
+            ts.name = p.name + f'_intra_H_migration_6_{hydrogen+1}_{barrier:g}'
             ts.energy = p.energy + barrier/constants.AUtoKCAL
+            bind_mode(ts)
             routes.append(SimpleNamespace(instance_name=ts.name, ts=ts,
                 products=[q], prod_opt=[SimpleNamespace(species=q)], do_vdW=False, mp2=0))
         # Both paths reach the same configured endpoint.
@@ -71,7 +73,7 @@ class TestStereopathMESS(unittest.TestCase):
         p, routes = self.observations()
         self.assertNotEqual(routes[0].ts.stereopath_id, routes[1].ts.stereopath_id)
         self.assertEqual(routes[0].ts.stereopath_id, routes[2].ts.stereopath_id)
-        for route, barrier in zip(routes, (30., 30.2, 30.4)):
+        for route, barrier in zip(routes, (30., 30.2, 30.04)):
             route.ts.energy = p.energy + barrier / constants.AUtoKCAL
         postprocess.createPESViewerInput(p, SimpleNamespace(qc='fc'), self.par)
         text = Path('pesviewer.inp').read_text()
@@ -105,7 +107,8 @@ class TestStereopathMESS(unittest.TestCase):
                 guard_well_job(SimpleNamespace(db=db), point, point.geom, name)
             db.write(Atoms(point.atom, positions=point.geom), name=name,
                      data={'status': 'normal', 'energy': point.energy/constants.EVtoHARTREE,
-                           'zpe': point.zpe, 'frequencies': point.freq})
+                           'zpe': point.zpe, 'frequencies': point.freq,
+                           'hess':getattr(point,'hess',[]).tolist() if isinstance(getattr(point,'hess',None),np.ndarray) else []})
         p.stereochemical_discovery_rejections = [dict(
             family='test_family', reason='unsupported discovery fixture')]
         omitted = SimpleNamespace(instance_name='omitted_channel',
@@ -155,7 +158,7 @@ class TestStereopathMESS(unittest.TestCase):
         q = copy.deepcopy(routes[0].products[0])
         reverse = copy.copy(routes[0])
         reverse.ts = copy.deepcopy(routes[0].ts)
-        reverse.ts.energy = p.energy + 33./constants.AUtoKCAL
+        reverse.ts.energy = p.energy + 30.02/constants.AUtoKCAL
         reverse.instance_name = reverse.ts.name = q.name + '_intra_H_migration_reverse'
         reverse.products, reverse.prod_opt = [p], [SimpleNamespace(species=p)]
         q.reac_obj, q.reac_ts_done, q.reac_type = [reverse], [-1], ['intra_H_migration']
@@ -169,7 +172,8 @@ class TestStereopathMESS(unittest.TestCase):
                 guard_well_job(SimpleNamespace(db=db), point, point.geom, name)
             db.write(Atoms(point.atom, positions=point.geom), name=name,
                      data={'status': 'normal', 'energy': point.energy/constants.EVtoHARTREE,
-                           'zpe': point.zpe, 'frequencies': point.freq})
+                           'zpe': point.zpe, 'frequencies': point.freq,
+                           'hess':getattr(point,'hess',[]).tolist() if isinstance(getattr(point,'hess',None),np.ndarray) else []})
         try:
             os.chdir(q.name)
             MESS(dict(par, pes=1), q).write_input(None)
@@ -209,6 +213,7 @@ class TestStereopathMESS(unittest.TestCase):
             ts.conformer_zeroenergy = [ts.energy+ts.zpe]
             ts.conformer_freq = [ts.freq]
             record_conformers(ts)
+            bind_member_modes(ts)
         MESS(self.par, p).write_input(None)
         output = Path('me/mess_0000.inp').read_text()
         barrier = output[output.index('  Barrier'):]
@@ -240,6 +245,7 @@ class TestStereopathMESS(unittest.TestCase):
             ts.conformer_zeroenergy = [ts.energy+ts.zpe]*2
             ts.conformer_freq = [ts.freq, ts.freq]
             record_conformers(ts)
+            bind_member_modes(ts)
         MESS(self.par, p).write_input(None)
         output = Path('me/mess_0000.inp').read_text()
         barrier = output[output.index('  Barrier'):]
@@ -257,9 +263,10 @@ class TestStereopathMESS(unittest.TestCase):
         self.assertEqual(len(combined), 1)
         self.assertEqual(values(combined[0], 'ZeroEnergy'), [30., 32.])
         self.assertEqual(union_stereochemical_barriers([first]), [first])
-        for second in (block('b', 'path_a'), block('b', None)):
-            with self.assertRaisesRegex(ValueError, 'distinct classified'):
-                union_stereochemical_barriers([first, second])
+        unknown = union_stereochemical_barriers([first, block('b','path_a')])[0]
+        self.assertIn('Saddle equivalence unresolved', unknown)
+        with self.assertRaisesRegex(ValueError, 'distinct classified'):
+            union_stereochemical_barriers([first, block('b',None)])
 
     def test_existing_mirror_coverage_contract_is_used_for_classified_routes(self):
         writer = MESS(dict(self.par, rotor_scan=1), peroxy())

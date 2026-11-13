@@ -50,7 +50,7 @@ from kinbot.vrc_tst_surfaces import VRC_TST_Surface
 from kinbot.anl.site import render_site_setup
 
 
-def select_summary_reaction(reactions, candidate, stereopaths):
+def select_summary_reaction(reactions, candidate, stereopaths, saddles=None, audit=None):
     """Keep the preferred route in each endpoint/path class; return discarded rows."""
     replace = []
     keep_candidate = True
@@ -64,7 +64,9 @@ def select_summary_reaction(reactions, candidate, stereopaths):
             continue
         decision = compare_pathways(previous[1], stereopaths.get(previous[1]), previous[3],
                                     name, stereopaths.get(name), energy,
-                                    candidate_complex=len(candidate) == 6)
+                                    candidate_complex=len(candidate) == 6,
+                                    existing_saddle=(saddles or {}).get(previous[1]),
+                                    candidate_saddle=(saddles or {}).get(name), audit=audit)
         if decision == 'replace':
             replace.append(index)
         elif decision == 'keep':
@@ -671,6 +673,8 @@ def postprocess(par, jobs, task, names, mass):
     # 3. reaction barrier height
     reactions = []
     stereopaths = {}
+    saddle_evidence = {}
+    saddle_comparisons = []
     network_warnings = []
 
     # list of the parents for each calculation
@@ -745,7 +749,8 @@ def postprocess(par, jobs, task, names, mass):
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
                     ts_energy, ts_zpe = read_energy(jobs, reaction_name, 1, par['high_level'],
-                                               conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
+                                               conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'),
+                                               saddle_cache=saddle_evidence)
                     barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
                 if reactant not in wells:
@@ -776,7 +781,8 @@ def postprocess(par, jobs, task, names, mass):
                 candidate = [reactant, reaction_name, products, barrier]
                 if 'vdW' in line:
                     candidate.extend([vdW_energy, vdW_direction])
-                discarded = select_summary_reaction(reactions, candidate, stereopaths)
+                discarded = select_summary_reaction(reactions, candidate, stereopaths,
+                                                     saddle_evidence, saddle_comparisons)
                 remove_unused_complexes(discarded, reactions, wells, do_vdW, parent)
                 if candidate in reactions and len(candidate) == 6:
                     parent[prod_name] = vdW_well
@@ -790,6 +796,14 @@ def postprocess(par, jobs, task, names, mass):
                 copy_from_kinbot(ji, par['single_point_qc'])
             except OSError:
                 logger.warning(f'L3 calculations were not copied from {ji}')
+    from kinbot.execution import atomic_json
+    atomic_json('saddle_selection.json', dict(schema=1,
+        policy='mapped_geometry_and_reactive_mode', comparisons=saddle_comparisons,
+        selected=[r[1] for r in reactions], evidence=saddle_evidence))
+    for check in saddle_comparisons:
+        if check['status'] == 'unresolved':
+            network_warnings.append(f'! WARNING: saddle equivalence unresolved for '
+                f'{check["existing"]} / {check["candidate"]}: {check["reason"]}; both observations retained.')
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, bimol_products, reactions)
     # create a batch submission for all L3 jobs
@@ -953,7 +967,7 @@ def postprocess(par, jobs, task, names, mass):
                           parent,
                           mass,
                           l3done, warnings=network_warnings, selected_states=selected_states,
-                          product_identities=product_identities)
+                          product_identities=product_identities, selected_saddles=saddle_evidence)
 
     if l3_requested and par['single_point_qc'].lower() == 'molpro':
         if l3done:
@@ -1371,7 +1385,7 @@ def create_short_names(wells, products, reactions, barrierless, vdW):
 
 def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                       well_energies, prod_energies, parent, mass, l3done, warnings=(),
-                      selected_states=None, product_identities=None):
+                      selected_states=None, product_identities=None, selected_saddles=None):
     """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
@@ -1600,6 +1614,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                          )
             from kinbot.transition_symmetry import annotate_cached_surface
             barrier = annotate_cached_surface(barrier, rxn[0], rxn[1], par)
+            if (selected_saddles or {}).get(rxn[1]):
+                from kinbot.saddle_identity import annotate
+                barrier = annotate(barrier, selected_saddles[rxn[1]])
             barrier = product_identities.annotate(barrier, rxn[0])
             if energy > original_energy:
                 note = (f'! correct_submerged=1: MESS barrier {name[0]} '
@@ -2066,7 +2083,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
 def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
                rotor_scan=None, optical_population=None,
                electronic_state_parameters=None, correction_cache=None, state_cache=None,
-               product_aliases=None):
+               product_aliases=None, saddle_cache=None):
     
     alias = (product_aliases or {}).get(job) if not ts else None
     source_job = alias['source_name'] if alias else job
@@ -2146,6 +2163,11 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
                 energy = new_energy + shift
                 zpe = new_zpe
                 selected_shift = shift
+                if ts and saddle_cache is not None:
+                    from kinbot.saddle_identity import row_evidence
+                    parameters = electronic_state_parameters or {}
+                    saddle_cache[job] = row_evidence(row, well, parameters.get('charge', 0),
+                                                    parameters.get('mult', 1))
                 if not ts and state_cache is not None:
                     state_cache[job] = dict(charge=int(st_pt.charge),
                         multiplicity=st_pt.mult, smiles=st_pt.smiles,

@@ -282,6 +282,8 @@ def createPESViewerInput(species, qc, par):
     # key: ts name
     # value: [energy, prod_names, stereochemical pathway]
     ts_list = {}
+    from kinbot.saddle_identity import evidence, compare
+    saddle_evidence = {}
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] != -1:
             continue
@@ -310,11 +312,12 @@ def createPESViewerInput(species, qc, par):
                 name.append(routing_name(st_pt))
         prod_name = '_'.join(sorted(name))
         path_id = getattr(ts, 'stereopath_id', None)
+        saddle_evidence[species.reac_name[index]] = evidence(ts)
         add = 1
         for t in ts_list:
             if (ts_list[t][1] == prod_name
                     and same_path_class(ts_list[t][2], path_id)
-                    and np.abs(ts_list[t][0] - energy) < 1.0):
+                    and compare(saddle_evidence[t], saddle_evidence[species.reac_name[index]])['status'] == 'equivalent'):
                 add = 0
         if add:
             ts_list[species.reac_name[index]] = [energy, prod_name, path_id]

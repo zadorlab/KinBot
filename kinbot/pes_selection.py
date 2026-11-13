@@ -18,7 +18,8 @@ NAME = 'pes_l2_selection.json'
 def choose(snapshots, decisions=None):
     """Use the same endpoint/pathway rule as final PES assembly, at L2 E+ZPE."""
     from kinbot.pes import select_summary_reaction
-    paths, candidates, owners = {}, [], {}
+    paths, candidates, owners, saddles = {}, [], {}, {}
+    comparisons = []
     theories = set()
     for worker, evidence in sorted(snapshots.items()):
         if evidence.get('errors'):
@@ -37,6 +38,7 @@ def choose(snapshots, decisions=None):
             else:
                 records = [network['transition_states'][row['transition_state']]]
                 paths[name] = row.get('path_class')
+                saddles[name] = row.get('saddle_evidence')
             energy = 0.
             for record in records:
                 theories.add(digest(record['l2_theory']))
@@ -53,7 +55,7 @@ def choose(snapshots, decisions=None):
         raise ValueError('PES pathway selection requires a common L2 theory.')
     retained = []
     for candidate in candidates:
-        select_summary_reaction(retained, candidate, paths)
+        select_summary_reaction(retained, candidate, paths, saddles, comparisons)
     selected = {row[1] for row in retained}
     result = {}
     for worker, evidence in snapshots.items():
@@ -73,15 +75,17 @@ def choose(snapshots, decisions=None):
             matches = []
             for winner in retained:
                 trial = [deepcopy(winner)]
-                select_summary_reaction(trial, deepcopy(candidate), paths)
+                select_summary_reaction(trial, deepcopy(candidate), paths, saddles)
                 if all(r[1] != candidate[1] for r in trial):
                     matches.append(winner[1])
             if not matches:
                 raise ValueError(f'{candidate[1]}: omitted route has no retained replacement.')
             result[worker]['omitted'][candidate[1]] = dict(
-                retained=sorted(matches), reason='outer_pes_lowest_l2_pathway',
+                retained=sorted(matches), reason=('superseded_homolysis' if 'hom_sci' in candidate[1]
+                                                else 'duplicate_saddle_geometry_and_mode'),
                 energy_hartree=candidate[3])
-    return dict(schema=1, status='selected', policy='lowest_l2', workers=result)
+    return dict(schema=1, status='selected', policy='distinct_saddles', workers=result,
+                comparisons=comparisons)
 
 
 def publish(root, phase, workers):

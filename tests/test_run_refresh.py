@@ -125,7 +125,8 @@ def test_refresh_then_completed_worker_rebuilds_pes_complex_artifacts_without_qc
         write_worker(case)  # The owning writer reconstructs from accepted states.
         text = assemble(case)
         assert missing.is_file() and text.count('Core PhaseSpaceTheory') == 1
-        assert text.count('ImaginaryFrequency') == 1
+        assert text.count('ImaginaryFrequency') == 2
+        assert 'saddle equivalence unresolved' in text
         assert scientific_files(t.root) == before and t.jobs == jobs
         assert case.parent.reac_ts_done == [-1, -1]
     assert run_refresh.refresh_when_idle(t.root, apply=True, wait_idle=30) == result

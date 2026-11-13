@@ -22,7 +22,8 @@ def route(name, left, right, keys, path='ordinary'):
 
 
 def network(*blocks, root='r'):
-    return f'Reactant {root}\nMicroRateOutput micro.out\nModel\n' + ''.join(blocks) + 'End ! end kinetics\n'
+    from tests.saddle_fixtures import add_saddle_evidence
+    return add_saddle_evidence(f'Reactant {root}\nMicroRateOutput micro.out\nModel\n' + ''.join(blocks) + 'End ! end kinetics\n')
 
 
 def independent_wells():

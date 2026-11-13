@@ -135,6 +135,8 @@ def _supersede_capture_placeholders(barriers):
 
 
 def _reflect(block):
+    from kinbot.saddle_identity import reflect
+    block = reflect(block)
     lines = []
     for line in block.splitlines(True):
         match = _XYZ.match(line.rstrip('\n'))
@@ -274,14 +276,8 @@ def _reuse_mirror_populations(blocks):
 
 
 def _reuse_mirror_routes(blocks):
-    """Apply the same lowest-model choice to both sides of a mirror orbit.
-
-    Completion by endpoint/path alone cannot reconcile independent searches
-    that found different saddles in the *same* path class. Keep the established
-    lowest-barrier policy, reflect its entire statistical model, and retain
-    the replaced route's name/provenance. Do not sum those alternatives as if
-    they were distinct classified pathways. Unclassified routes are untouched.
-    """
+    """Reconcile only proven mirror copies of the same dividing surface."""
+    from kinbot.saddle_identity import same_blocks
     groups = {}
     population_names = {_POP.search(b)[1]: _HEADER.search(b)[2].split()[0]
                         for b in blocks if _HEADER.search(b)[1] != 'Barrier' and _POP.search(b)}
@@ -302,27 +298,33 @@ def _reuse_mirror_routes(blocks):
         if len(entries) < 2:
             continue
         capture = all(_CAPTURE.search(blocks[i]) for _, i in entries)
-        _, selected = min(entries, key=lambda entry: (
-            entry[0], 'mirrored lowest model from' in blocks[entry[1]],
-            'derived by global reflection from' in blocks[entry[1]],
-            _HEADER.search(blocks[entry[1]])[2].split()[0]))
-        source = blocks[selected]; source_name = _HEADER.search(source)[2].split()[0]
-        left, ml, right, mr = _EDGE.search(source).groups()
-        for _, index in entries:
-            if index == selected:
+        used = set()
+        for _, selected in sorted(entries, key=lambda entry: (
+                entry[0], 'mirrored lowest model from' in blocks[entry[1]],
+                'derived by global reflection from' in blocks[entry[1]],
+                _HEADER.search(blocks[entry[1]])[2].split()[0])):
+            if selected in used:
                 continue
-            target = blocks[index]; edge = _EDGE.search(target)
-            if frozenset((edge[1], edge[3])) != frozenset((ml, mr)):
-                continue
-            if (f'! mirrored lowest model from {source_name};' in target
-                    or f'! derived by global reflection from {source_name};' in target):
-                continue
-            target_name = _HEADER.search(target)[2].split()[0]
-            old_header = _HEADER.search(target)[2].strip()
-            reflected = _HEADER.sub(lambda m: f'  Barrier {target_name} {population_names[ml]} {population_names[mr]}\n',
-                                    _reflect(source), count=1)
-            result[index] = _insert(reflected,
-                f'! mirrored lowest model from {source_name}; previous route: {old_header}')
+            source = blocks[selected]; source_name = _HEADER.search(source)[2].split()[0]
+            left, ml, right, mr = _EDGE.search(source).groups()
+            for _, index in entries:
+                if index == selected or index in used:
+                    continue
+                target = blocks[index]; edge = _EDGE.search(target)
+                if frozenset((edge[1], edge[3])) != frozenset((ml, mr)):
+                    continue
+                if not capture and not same_blocks(source, target, mirror=True):
+                    continue
+                used.add(index)
+                if (f'! mirrored lowest model from {source_name};' in target
+                        or f'! derived by global reflection from {source_name};' in target):
+                    continue
+                target_name = _HEADER.search(target)[2].split()[0]
+                old_header = _HEADER.search(target)[2].strip()
+                reflected = _HEADER.sub(lambda m: f'  Barrier {target_name} {population_names[ml]} {population_names[mr]}\n',
+                                        _reflect(source), count=1)
+                result[index] = _insert(reflected,
+                    f'! mirrored lowest model from {source_name}; previous route: {old_header}')
     return result
 
 
@@ -385,9 +387,8 @@ def _share_self_mirror_surfaces(barriers):
 def complete_mirror_channels(contents):
     """Complete missing classified mirror routes, then combine parallel paths.
 
-    The endpoint-pair/path key retains ordinary lowest-barrier selection while
-    preserving each demonstrated pathway, including a partly explored mirror
-    side. No independent fragment racemates are invented.
+    Each independently established saddle receives its mirror counterpart.
+    No independent fragment racemates are invented.
     """
     from kinbot.mess import union_stereochemical_barriers
     body, separator, tail = contents.rpartition('End ! end kinetics')
@@ -398,6 +399,11 @@ def complete_mirror_channels(contents):
         return contents
     prefix, blocks, ending = split_model(contents)
     blocks = [route for block in blocks for route in _separate_routes(block)]
+    from kinbot.saddle_identity import annotate, block_evidence
+    blocks = [annotate(b, dict(origin=hashlib.sha256(b.encode()).hexdigest(),
+                              source='legacy MESS observation; native mode unavailable'))
+              if _HEADER.search(b)[1] == 'Barrier' and _PATH.search(b)
+              and block_evidence(b) is None else b for b in blocks]
     from kinbot.mess_racemates import fold_racemic_network
     prefix, blocks = fold_racemic_network(prefix, blocks)
     blocks = _reuse_mirror_populations(blocks)
@@ -412,7 +418,8 @@ def complete_mirror_channels(contents):
     if (not any(m[1] != m[2] or m[3] != m[4] for m in _EDGE.finditer(contents))
             and not any(m[1] != m[2] for m in _POP.finditer(contents))):
         return finish()
-    populations, edges, templates, names = {}, set(), [], set()
+    populations, edges, templates, names = {}, {}, [], set()
+    from kinbot.saddle_identity import same_blocks
     def route_id(block):
         labels = _PATH.findall(block)
         if len(labels) > 1:
@@ -424,7 +431,7 @@ def complete_mirror_channels(contents):
         names.add(words[0])
         if header[1] == 'Barrier':
             if len(words) >= 3:
-                edges.add((frozenset(words[1:3]), route_id(block)))
+                edges.setdefault((frozenset(words[1:3]), route_id(block)), []).append(block)
             if _EDGE.search(block):
                 templates.append(block)
         else:
@@ -462,7 +469,15 @@ def complete_mirror_channels(contents):
                        for key in (ml, mr)):
                 continue
             endpoints = frozenset(populations[key][0] for key in (ml, mr) if key in populations)
-            if ml in populations and mr in populations and (endpoints, route_id(block)) in edges:
+            source_name = _HEADER.search(block)[2].split()[0]
+            candidates = edges.get((endpoints, route_id(block)), [])
+            if ml in populations and mr in populations and any(
+                    same_blocks(_reflect(block), candidate)
+                    or route_id(block) is None
+                    or (_CAPTURE.search(block) and _CAPTURE.search(candidate))
+                    or f'! derived by global reflection from {source_name};' in candidate
+                    or (frozenset((left, right)) == frozenset((ml, mr)) and candidate == block)
+                    for candidate in candidates):
                 continue
             for own, mirror in ((left, ml), (right, mr)):
                 if mirror in populations:
@@ -481,6 +496,6 @@ def complete_mirror_channels(contents):
             derived = _HEADER.sub(lambda m: f'  Barrier {name} {populations[ml][0]} {populations[mr][0]}\n', _reflect(block), count=1)
             derived = _insert(derived, f'! derived by global reflection from {source_name}; one specified channel')
             blocks.append(derived)
-            edges.add((endpoints, route_id(block)))
+            edges.setdefault((endpoints, route_id(block)), []).append(derived)
             changed = True
     return finish()

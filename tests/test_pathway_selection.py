@@ -48,27 +48,28 @@ def test_pes_retains_both_stereochemical_classes_in_every_order():
         reactions = []
         for row in order:
             select_summary_reaction(reactions, row, paths)
-        assert sorted(row[1] for row in reactions) == ['saddle_H10', 'saddle_H11']
+        assert sorted(row[1] for row in reactions) == ['saddle_H10', 'saddle_H10_higher', 'saddle_H11']
 
 
-def test_ordinary_minimum_reverse_direction_and_complex_tie():
+def test_unverified_same_class_reverse_routes_and_complexes_are_retained():
     reactions = [['R', 'higher', ['P'], 35.]]
     candidate = ['P', 'lower', ['R'], 30.]
     paths = dict.fromkeys(('higher', 'lower', 'equal_with_complex', 'equal_without_complex'), 'ordinary')
     select_summary_reaction(reactions, candidate, paths)
-    assert reactions == [candidate]
+    assert len(reactions) == 2 and candidate in reactions
     complex_route = ['P', 'equal_with_complex', ['R'], 30., '12', 'vdW_IRC_F_prod']
     select_summary_reaction(reactions, complex_route, paths)
-    assert reactions == [complex_route]
+    assert complex_route in reactions
     select_summary_reaction(reactions, ['R', 'equal_without_complex', ['P'], 30.], paths)
-    assert reactions == [complex_route]
+    assert complex_route in reactions
 
 
 def test_rejected_complex_cleanup_removes_exact_name_not_last_well():
     old = ['R', 'high', ['P', 'H'], 35., '10', 'vdW_IRC_F_prod']
     new = ['R', 'low', ['P', 'H'], 30.]
     reactions = [old]
-    discarded = select_summary_reaction(reactions, new, {'high': 'ordinary', 'low': 'ordinary'})
+    discarded = [old]
+    reactions = [new]
     wells = ['R', 'high_IRC_F_prod', 'unrelated']
     flags = [False, True, False]
     parents = {'R': 'R', 'high_IRC_F_prod': 'R', 'H_P': 'high_IRC_F_prod', 'unrelated': 'R'}
@@ -134,7 +135,7 @@ def test_examined_ordinary_and_stereo_keep_classes_in_every_order(ordinary_energ
         selected = []
         for row in order:
             select_summary_reaction(selected, row, paths)
-        assert sorted(row[1] for row in selected) == ['ordinary', 'relay']
+        assert sorted(row[1] for row in selected) == ['ordinary', 'ordinary_higher', 'relay']
     with pytest.raises(ValueError):
         compare_pathways('ordinary', 'ordinary', ordinary_energy, 'unclassified', None, 0.)
 

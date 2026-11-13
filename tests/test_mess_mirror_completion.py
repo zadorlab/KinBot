@@ -143,7 +143,8 @@ def test_explicit_mirror_channel_is_not_added_twice():
 
 
 def mirror_path_fixture():
-    return """Model
+    from tests.saddle_fixtures import add_saddle_evidence
+    return add_saddle_evidence("""Model
  Well a
 ! kinbot_population A A
  ZeroEnergy[kcal/mol] 0
@@ -179,7 +180,7 @@ def mirror_path_fixture():
  ZeroEnergy[kcal/mol] 30
  End
 End ! end kinetics
-"""
+""")
 
 
 def test_partly_searched_mirror_side_keeps_every_path_once():
@@ -205,14 +206,15 @@ def test_independent_mirror_energy_does_not_prevent_complete_model_reuse():
     assert complete_mirror_channels(result).split() == result.split()
 
 
-def test_independently_found_lower_mirror_saddle_replaces_complete_model():
+def test_geometrically_different_lower_mirror_saddle_is_an_added_path():
+    from tests.saddle_fixtures import add_saddle_evidence
     text = mirror_path_fixture().replace(
         'S R\n RRHO\n ZeroEnergy[kcal/mol] 30',
         'S R\n RRHO\n Geometry[angstrom] 1\n C 2.0 3.0 4.0\n'
         ' Frequencies[1/cm] 1\n 123\n ZeroEnergy[kcal/mol] 25')
-    result = complete_mirror_channels(text)
+    result = complete_mirror_channels(add_saddle_evidence(text))
     assert result.count('ZeroEnergy[kcal/mol] 25') == 2
-    assert 'ZeroEnergy[kcal/mol] 30' not in result
+    assert result.count('ZeroEnergy[kcal/mol] 30') == 2
     assert result.count('123') == 2
     assert 'C -2.000000000000 3.0 4.0' in result
     assert result.count('ZeroEnergy[kcal/mol] 32') == 2  # Different class stays.

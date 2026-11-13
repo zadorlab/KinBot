@@ -39,6 +39,14 @@ def directory(base, name):
 
 
 def aligned_permutation(symbols_x, px, symbols_y, py, tolerance):
+    return next(aligned_permutations(symbols_x, px, symbols_y, py, tolerance), None)
+
+
+class MappingLimitReached(RuntimeError):
+    """The bounded atom-permutation search has additional candidates."""
+
+
+def aligned_permutations(symbols_x, px, symbols_y, py, tolerance, *, report_limit=False):
     """Element/distance graph mapping, followed by a proper-rotation RMSD.
 
     Distance matching alone would merge enantiomers. The final determinant +1
@@ -47,7 +55,7 @@ def aligned_permutation(symbols_x, px, symbols_y, py, tolerance):
     """
     import networkx as nx
     if sorted(symbols_x) != sorted(symbols_y):
-        return None
+        return
     cutoff = 2 * np.sqrt(len(px)) * tolerance + 1.e-12
     def graph(symbols, positions):
         g = nx.Graph()
@@ -59,14 +67,17 @@ def aligned_permutation(symbols_x, px, symbols_y, py, tolerance):
         graph(symbols_x,px), graph(symbols_y,py),
         node_match=lambda a,b:a['element']==b['element'],
         edge_match=lambda a,b:abs(a['distance']-b['distance'])<=cutoff)
-    for mapping in islice(matcher.isomorphisms_iter(), 10000):
+    for index, mapping in enumerate(islice(matcher.isomorphisms_iter(), 10001)):
+        if index == 10000:
+            if report_limit:
+                raise MappingLimitReached('Atom-mapping enumeration exceeded 10000 candidates.')
+            break
         permutation = [mapping[i] for i in range(len(px))]
         target = py[permutation]
         from kinbot.spatial import proper_alignment
         rmsd = proper_alignment(px, target).rmsd
         if rmsd <= tolerance:
-            return rmsd, permutation
-    return None
+            yield rmsd, permutation
 
 
 def equivalent(plan, left, right, limits, *, stationary_point='transition_state'):

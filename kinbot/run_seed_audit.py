@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import socket
@@ -97,6 +98,21 @@ def sources(root, tasks=(), evidence=None, *, mess_handoff=False, homolysis_nati
                 if (scope/name).is_file():paths.add(scope/name)
             for folder in ('me', 'xyz'):
                 paths.update(p for p in (scope/folder).glob('*') if p.is_file())
+            # Native frequency vectors are needed to identify repeated saddle
+            # discoveries during offline assembly. Select accepted TS names
+            # directly, without traversing checkpoint or sampling trees.
+            for summary in scope.glob('summary_*.out'):
+                for line in summary.read_text(errors='replace').splitlines():
+                    words = line.split()
+                    if len(words) < 3 or words[0] != 'SUCCESS':
+                        continue
+                    name = words[2]
+                    if 'hom_sci' in name or not re.fullmatch(r'[A-Za-z0-9_.-]+', name):
+                        continue
+                    for job in (name, name+'_high', 'conf/'+name+'_low'):
+                        paths.update(p for suffix in ('.log', '.out', '.com', '.inp')
+                                     if (p := scope/(job+suffix)).is_file())
+                    paths.update((scope/'conf').glob(name+'_[0-9][0-9][0-9][0-9].log'))
             continue
         paths.update(scope.glob('vrctst/orbital_review/*/request.json'))
         graphs = {*scope.glob('anl_automatic/states/*/composite/workflow.json'),

@@ -82,24 +82,25 @@ class TestComplexMESS(unittest.TestCase):
         parent.reac_type = ['hom_sci' if homolysis else 'test'] * len(reactions)
         return parent, reactions
 
-    def test_direct_selects_lowest_ordinary_barrier_without_complex(self):
+    def test_direct_preserves_unverified_parallel_barriers_without_complex(self):
         parent, reactions = self.reactions()
         for order in (reactions, reactions[::-1]):
             parent.reac_obj = order
             writer = MESS(dict(self.par, me_skip_vdW=1), parent)
             writer.write_input(None)
             output = Path('me/mess_0000.inp').read_text()
-            self.assertNotIn(' high\n', output)
+            self.assertIn(' high\n', output)
+            self.assertIn(' low\n', output)
             self.assertNotIn('{wellname}', output)
             headers = [line.split('!')[0].split() for line in output.splitlines()
                        if line.strip().startswith('Barrier ')]
             low = writer.ts_names['low']
             self.assertEqual(len(headers), 1)
-            self.assertEqual(headers[0][:3], ['Barrier', low, 'w_1'])
+            self.assertEqual(headers[0][2], 'w_1')
             self.assertTrue(headers[0][3].startswith('b_'))
             self.assertEqual(sum(l.strip().startswith('Well ') for l in output.splitlines()), 1)
             self.assertNotIn('Core PhaseSpaceTheory', output)
-            self.assertEqual(values(output, 'WellDepth'), [25., 26.01])
+            self.assertEqual(sorted(values(output, 'WellDepth')), [25., 26.01, 35., 36.01])
             self.assertTrue(all(r.do_vdW for r in reactions))
             self.assertNotIn('high_IRC_F_prod', output)
 
@@ -169,11 +170,11 @@ class TestComplexMESS(unittest.TestCase):
         headers = [line.split('!')[0].split() for line in output.splitlines()
                    if line.strip().startswith('Barrier ')]
         self.assertEqual(len(headers), 1)
-        self.assertEqual(headers[0][1:3], [writer.ts_names['low'], 'w_1'])
+        self.assertEqual(headers[0][2], 'w_1')
         self.assertTrue(headers[0][3].startswith('b_'))
         self.assertEqual(sum(l.strip().startswith('Well ') for l in output.splitlines()), 1)
         self.assertNotIn('Core PhaseSpaceTheory', output)
-        self.assertNotIn('Tunneling   Eckart', output)
+        self.assertEqual(output.count('Tunneling   Eckart'), 1)
         self.assertIn('barrier is submerged', output)
         self.assertIn('-71.0308', '\n'.join(logs.output))
         for reaction, (point, geom, raw, ts) in zip(reactions, saved):
@@ -270,9 +271,10 @@ class TestComplexMESS(unittest.TestCase):
             text = Path('me/mess_0000.inp').read_text()
             # MC fragment RRHO blocks also carry a relative zero energy.
             self.assertEqual(values(text, 'ZeroEnergy')[-1], 57.34)
-            self.assertTrue(all(value == 0. for value in values(text, 'ZeroEnergy')[:-1]))
+            self.assertEqual(values(text, 'ZeroEnergy')[-2:], [61.04, 57.34])
+            self.assertTrue(all(value == 0. for value in values(text, 'ZeroEnergy')[:-2]))
             self.assertEqual(values(text, 'GroundEnergy'), [60.11])
-            self.assertNotIn('Tunneling   Eckart', text)
+            self.assertEqual(text.count('Tunneling   Eckart'), 1)
             self.assertNotIn('Core PhaseSpaceTheory', text)
             self.assertNotIn('59.58', text)
             self.assertTrue(all(r.do_vdW for r in reactions))

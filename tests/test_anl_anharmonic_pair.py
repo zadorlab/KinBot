@@ -42,7 +42,8 @@ def test_native_pair_is_same_correction_expression_in_both_recipes(tmp_path,tier
         anharmonic.component(graph,state_id='state-A')
 
 
-def test_each_basis_matches_its_own_vectors_at_its_own_geometry(tmp_path):
+@pytest.mark.parametrize('prefix,l2_is_upper',[('',False),('aug-',True)])
+def test_each_basis_matches_its_own_vectors_at_its_own_geometry(tmp_path,prefix,l2_is_upper):
     p=point(); atoms=read(FIX/'minimum.l2.xyz'); p.geom=atoms.positions
     p.anl_thermal_model['l2_geometry_sha256']=array_fingerprint(p.geom)
     lower_native=FIX/'minimum.gaussian_modes.txt'
@@ -52,14 +53,18 @@ def test_each_basis_matches_its_own_vectors_at_its_own_geometry(tmp_path):
         return dict(harmonic_fundamentals_cm_inverse=f[order],
             anharmonic_fundamentals_cm_inverse=(f+shifts)[order],
             method='B2PLYP',basis=basis,dispersion='GD3BJ')
-    thermal.attach_vpt2(p,parsed([2,1,0],'cc-pVTZ',lower_shift),lower_native,atoms)
     upper_atoms=atoms.copy(); upper_atoms.positions*=1.002
     text=lower_native.read_text()
     rows=re.compile(r'(?m)^\s*(\d+)\s+(\d+)\s+0\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s*$')
     text=rows.sub(lambda m:f'{int(m[1]):7d}{int(m[2]):11d}           0 '+
                   ' '.join(f'{x:12.6f}' for x in upper_atoms.positions[int(m[1])-1]),text)
     upper_native=tmp_path/'qz.log';upper_native.write_text(text)
-    result=thermal.attach_vpt2_upper(p,parsed([1,2,0],'cc-pVQZ',upper_shift),upper_native,
+    if l2_is_upper:
+        p.geom=upper_atoms.positions.copy()
+        p.anl_thermal_model['l2_geometry_sha256']=array_fingerprint(p.geom)
+    thermal.attach_vpt2(p,parsed([2,1,0],prefix+'cc-pVTZ',lower_shift),lower_native,atoms,
+                        require_l2=not l2_is_upper)
+    result=thermal.attach_vpt2_upper(p,parsed([1,2,0],prefix+'cc-pVQZ',upper_shift),upper_native,
         upper_atoms,power=3.7,evidence={'source_sha256':'qz-native'})
     expected=upper_shift+extrapolation_coefficient(4,power=3.7)*(upper_shift-lower_shift)
     assert result==pytest.approx(np.asarray(p.freq)+expected,abs=.01)
@@ -70,7 +75,7 @@ def test_each_basis_matches_its_own_vectors_at_its_own_geometry(tmp_path):
     thermal.update_model(p)
     assert p.anl_thermochemistry_frequencies==pytest.approx(result)
     # A wrong method is not a CBS pair just because the vectors overlap.
-    wrong=parsed([1,2,0],'cc-pVQZ',upper_shift);wrong['method']='B3LYP'
+    wrong=parsed([1,2,0],prefix+'cc-pVQZ',upper_shift);wrong['method']='B3LYP'
     with pytest.raises(ValueError,match='methods'):
         thermal.attach_vpt2_upper(p,wrong,upper_native,upper_atoms,power=3.7,evidence={})
 

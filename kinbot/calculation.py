@@ -74,6 +74,8 @@ def load_calculation_record(species, qc, job):
         species.requested_source_job = job
     else:
         species.__dict__.pop('requested_source_job', None)
+    from kinbot.anl.basis_reuse import remember
+    remember(species, qc, row)
     return job
 
 
@@ -127,4 +129,9 @@ def publish_optimization_result(optimization):
         target = f'conf/{optimization.name}_low'
     else:
         target = optimization.log_name(0)
+    from kinbot.anl.basis_reuse import exported
+    basis_records = exported(point)
+    if basis_records and source.data.get('anl_basis_reuse') != basis_records:
+        optimization.qc.db.update(source.id, data={**source.data, 'anl_basis_reuse': basis_records})
+        source = optimization.qc.db.get(id=source.id)
     optimization.qc.publish_result(source, target)

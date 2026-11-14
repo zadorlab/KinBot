@@ -7,6 +7,9 @@ import hashlib
 import math
 import re
 from dataclasses import replace
+from pathlib import Path
+
+import numpy as np
 
 from ase.data import atomic_numbers
 
@@ -395,20 +398,27 @@ def attach_task_vpt2_frequencies(species, run_dir, task_id, *,
                                     read(native.parent/'geometry.xyz'), run=run_dir)
     if (getattr(species, 'anl_thermal_model', None) or {}).get('harmonic'):
         from kinbot.anl.thermal import attach_vpt2
-        frequencies = attach_vpt2(species, parsed, native,
-            read(native.parent/'geometry.xyz'), **match_options)
         if paired:
-            # The scalar verifier also proves both basis-matched optimized
-            # geometries and rejects either unreviewed native VPT2 result.
+            # Prove both native corrections and basis-specific minima before
+            # importing either set of shifts (the main task may be QZ).
             anharmonic.component(run_dir, state_id='thermochemistry-frequency-handoff')
-            upper_id = spec['intent']['anharmonic_basis_extension']['upper_task']
-            _, _, upper_task, upper_execution, upper_native, upper_parsed = _verified_task_result(run_dir, upper_id)
+            config = spec['intent']['anharmonic_basis_extension']
+            lower_id, upper_id = config['lower_task'], config['upper_task']
+            _, _, lower_task, lower_execution, lower_native, lower_parsed = _verified_task_result(run_dir, lower_id)
+            frequencies = attach_vpt2(species, lower_parsed, lower_native,
+                read(lower_native.parent/'geometry.xyz'), require_l2=False, **match_options)
             from kinbot.anl.thermal import attach_vpt2_upper
+            _, _, upper_task, upper_execution, upper_native, upper_parsed = _verified_task_result(run_dir, upper_id)
             frequencies = attach_vpt2_upper(species, upper_parsed, upper_native,
-                read(upper_native.parent/'geometry.xyz'),
-                power=spec['intent']['anharmonic_basis_extension']['extrapolation_power'],
+                read(upper_native.parent/'geometry.xyz'), power=config['extrapolation_power'],
                 evidence=dict(task_id=upper_id, native_output=str(upper_native),
                     source_sha256=upper_execution['artifacts'][upper_task['result_parser']['file']]))
+            # The record below describes the lower shifts, not whichever basis
+            # supplied the L2 harmonic reference.
+            task_id, task, execution, native = lower_id, lower_task, lower_execution, lower_native
+        else:
+            frequencies = attach_vpt2(species, parsed, native,
+                read(native.parent/'geometry.xyz'), **match_options)
     else:
         frequencies = attach_anharmonic_frequencies(
             species, parsed, **match_options)
@@ -683,9 +693,27 @@ def _verified_optimized_geometry(run_dir, tasks, state, task, component, *,
             _, specification, _ = _load(run_dir)
             spec_source = specification['molecule']['source']
             theory = spec_source['l2_theory']
+            expected_positions = specification['molecule']['positions']
+            if 'geometry_record' in task:
+                from kinbot.anl.basis_reuse import validate
+                spec_source = validate(task['geometry_record'], specification['molecule'])
+                theory = spec_source['theory']
+                expected_positions = spec_source['positions']
+            # ASE XYZ serialization rounds Cartesian coordinates to 8 places.
+            # Verify that representation, not hash equality to unrounded DB
+            # doubles; the staged file itself is independently hash checked.
+            from ase.io import read
+            from kinbot.anl.basis_reuse import geometry_hash
+            staged = read(Path(run_dir)/'tasks'/task['id']/'geometry.xyz')
+            geometry_matches = (
+                spec_source.get('geometry_sha256') == geometry_hash(
+                    specification['molecule']['symbols'], expected_positions)
+                and staged.get_chemical_symbols() == specification['molecule']['symbols']
+                and np.allclose(staged.positions, expected_positions, atol=5.1e-9, rtol=0))
         except (KeyError, TypeError):
             spec_source = None
             theory = None
+            geometry_matches = False
         method = expected_method or component.method.removesuffix('-D3BJ')
         basis = expected_basis or component.basis
         if (not isinstance(spec_source, dict)
@@ -695,14 +723,18 @@ def _verified_optimized_geometry(run_dir, tasks, state, task, component, *,
                 or theory.get('calculator') != 'gaussian'
                 or theory.get('method', '').casefold() != method.casefold()
                 or theory.get('basis', '').casefold() != basis.casefold()
-                or spec_source.get('geometry_sha256') !=
-                   component.geometry_sha256):
+                or (component.quantity == 'correction' and
+                    theory.get('dispersion', '') != component.settings.get('dispersion', ''))
+                or not geometry_matches):
             raise ValueError(
                 f"{task['id']}: accepted L2 geometry provenance differs.")
         return {
-            'task_id': 'initial',
+            'task_id': ('accepted:' + spec_source['record_sha256']
+                        if 'geometry_record' in task else 'initial'),
             'geometry_sha256': component.geometry_sha256,
             'record_sha256': spec_source.get('record_sha256'),
+            'source_job': spec_source.get('source_job'),
+            'source_row_id': spec_source.get('source_row_id'),
         }
     source_task = tasks.get(source_id)
     if source_task is None or source_task.get('kind') != 'ase_optimize':

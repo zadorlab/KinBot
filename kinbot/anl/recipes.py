@@ -72,6 +72,7 @@ def _required(key, quantity, method, basis, role='l3',
 
 def _legacy_recipe(name: str, *, vpt2_method: str | None = None,
            vpt2_cbs: bool = False, multiplicity: int = 1,
+           vpt2_basis: str = 'cc-pVTZ', vpt2_bases=None,
            atomic: bool = False,
            f12_augmented: bool = False,
            rank_exact_higher_order: bool = False,
@@ -256,7 +257,17 @@ def _legacy_recipe(name: str, *, vpt2_method: str | None = None,
         vpt2_settings.update(extrapolation_power=ORIGINAL_ANL_POWER,
                              upper_cardinal=4,
                              geometry_mode='basis_optimized')
-    vpt2_basis = ('CBS(cc-pVTZ,cc-pVQZ)' if vpt2_cbs else 'cc-pVTZ')
+    from kinbot.anl.basis_reuse import canonical_basis, basis_pair
+    vpt2_basis = canonical_basis(vpt2_basis)
+    if vpt2_basis is None:
+        raise ValueError('Unsupported VPT2 basis.')
+    if vpt2_cbs:
+        pair = list(vpt2_bases) if vpt2_bases is not None else basis_pair(vpt2_basis)
+        if len(pair) != 2 or pair != basis_pair(pair[0]):
+            raise ValueError('Anharmonic CBS bases must be a matching TZ/QZ pair.')
+        vpt2_basis = 'CBS(' + ','.join(pair) + ')'
+    if vpt2_basis not in ('cc-pVTZ', 'CBS(cc-pVTZ,cc-pVQZ)') and not harmonic_only:
+        label += ':VPT2-' + vpt2_basis
     vpt2_backends = ('composite',) if vpt2_cbs else ('gaussian',)
     common = [
         reference,

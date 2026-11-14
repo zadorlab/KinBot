@@ -246,10 +246,11 @@ def _vpt2_vectors(point, parsed, native, staged_geometry, *, mode_map=None,
         method=parsed['method'], basis=parsed['basis'], dispersion=parsed['dispersion'])
 
 
-def attach_vpt2(point, parsed, native, staged_geometry, *, mode_map=None, match_tolerance_cm_inverse=100.):
+def attach_vpt2(point, parsed, native, staged_geometry, *, mode_map=None, match_tolerance_cm_inverse=100., require_l2=True):
     """Retain the L2 shift source; match by mass-weighted vector overlap."""
     point.anl_thermal_model['vpt2'] = _vpt2_vectors(point, parsed, native,
-        staged_geometry, mode_map=mode_map, match_tolerance_cm_inverse=match_tolerance_cm_inverse)
+        staged_geometry, mode_map=mode_map, match_tolerance_cm_inverse=match_tolerance_cm_inverse,
+        require_l2=require_l2)
     update_model(point)
     return point.anl_thermochemistry_frequencies
 
@@ -285,8 +286,9 @@ def attach_vpt2_upper(point, parsed, native, staged_geometry, *, power, evidence
     lower = point.anl_thermal_model['vpt2']
     upper = _vpt2_vectors(point, parsed, native, staged_geometry, require_l2=False,
         match_tolerance_cm_inverse=lower['match_tolerance_cm_inverse'])
-    if (lower['method'], lower['dispersion'], lower['basis'], upper['basis']) != (
-            upper['method'], upper['dispersion'], 'cc-pVTZ', 'cc-pVQZ'):
+    from kinbot.anl.basis_reuse import basis_pair
+    if ((lower['method'], lower['dispersion']) != (upper['method'], upper['dispersion'])
+            or [lower['basis'], upper['basis']] != basis_pair(lower['basis'])):
         raise ValueError('Anharmonic TZ/QZ methods, dispersion or basis order differ.')
     lower.update(upper=upper, extrapolation_power=power, upper_evidence=evidence)
     update_model(point)

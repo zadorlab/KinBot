@@ -66,6 +66,10 @@ def _tasks(spec, task):
     replacement['vpt2_geometry_refinement'] = dict(schema=1, geometry_task=geom,
         harmonic_task=harmonic, original_geometry_from=source, fmax=fmax,
         scf_convergence=convergence, maximum_geometry_refinements=1)
+    if 'geometry_record' in task:
+        optimization['geometry_record'] = deepcopy(task['geometry_record'])
+        hessian.pop('geometry_record', None)
+        replacement.pop('geometry_record', None)
     if 'manual_fallback' in replacement:
         from kinbot.manual_fallback import logical_task, digest
         logical_task(task)

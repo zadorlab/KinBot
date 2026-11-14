@@ -319,6 +319,8 @@ class Optimize:
                     # do the high level calculations
                     if self.par['high_level'] == 1 or self.restart > 0:
                         if self.shigh == -1:
+                            from kinbot.anl.basis_reuse import seed
+                            seed(self.species, self.qc, self.log_name(0))
                             if not self.par['high_level']:
                                 # A low HIR point is constrained, not yet a new
                                 # stationary conformer. Refine it at L1 too.
@@ -364,6 +366,9 @@ class Optimize:
                                                        ext=f'{str(conindx).zfill(4)}',
                                                        )
                                      logger.info('\tStarting AIE optimization(s) of {}'.format(name))
+                            from kinbot.anl.basis_reuse import bind_seed
+                            bind_seed(self.species, self.qc,
+                                      getattr(self, '_hir_refinement_job', None) or self.log_name(1))
                             logger.info('\tStarting high level optimization(s) of {}'.format(name))
                             self.shigh = 0  # set the high status to running
                         if self.shigh == 0:

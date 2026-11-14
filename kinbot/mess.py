@@ -566,6 +566,10 @@ class MESS:
                 symbols=symbols, positions=species.geom)),
         }
         identity = species.smiles
+        from kinbot.anl.basis_reuse import exported
+        basis_records = exported(species)
+        if basis_records:
+            source['anl_basis_reuse'] = basis_records
         requested = self.par.get('smiles')
         if self.par.get('thermochemistry_model_output') and requested:
             from kinbot.reference_identity import reference_smiles_match

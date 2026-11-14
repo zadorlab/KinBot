@@ -266,12 +266,13 @@ def _resolved_l2_theory(parameters):
         raise ValueError('Automatic CBH/ANL requires a resolved L2 profile.') \
             from error
     method = profile.method.upper()
-    basis = profile.basis
+    from kinbot.anl.basis_reuse import canonical_basis
+    basis = canonical_basis(profile.basis)
     if (profile.calculator != 'gaussian' or method not in ('B3LYP', 'B2PLYP')
-            or basis.casefold() != 'cc-pvtz'):
+            or basis is None or (method == 'B3LYP' and basis != 'cc-pVTZ')):
         raise ValueError(
             'Automatic ANL production requires Gaussian B3LYP/cc-pVTZ '
-            'or B2PLYP-D3(BJ)/cc-pVTZ at L2.')
+            'or B2PLYP-D3(BJ) with cc-pV(T,Q)Z / aug-cc-pV(T,Q)Z at L2.')
     kwargs = {str(key).casefold(): str(value).upper()
               for key, value in profile.calculator_kwargs.items()}
     dispersion = kwargs.get('empiricaldispersion', '')
@@ -283,10 +284,10 @@ def _resolved_l2_theory(parameters):
             'The automatic B3LYP ANL surface must not add dispersion.')
     composite_method = ('B2PLYP-D3BJ' if method == 'B2PLYP' else 'B3LYP')
     return {
-        'calculator': 'gaussian', 'method': method, 'basis': 'cc-pVTZ',
+        'calculator': 'gaussian', 'method': method, 'basis': basis,
         'dispersion': dispersion, 'composite_method': composite_method,
         'label': profile.label or (
-            'B2PLYP-D3(BJ)/cc-pVTZ' if method == 'B2PLYP'
+            f'B2PLYP-D3(BJ)/{basis}' if method == 'B2PLYP'
             else 'B3LYP/cc-pVTZ'),
     }
 
@@ -330,6 +331,10 @@ def _l2_species_record(species, l2_theory, *, identity_smiles=None,
         'source_row_id': getattr(species, 'source_row_id', None),
         'l2_theory': dict(l2_theory),
     }
+    from kinbot.anl.basis_reuse import exported
+    basis_records = exported(species)
+    if basis_records:
+        payload['anl_basis_reuse'] = basis_records
     payload['record_sha256'] = _sha256_json(payload)
     if getattr(species, 'spin_orbit_correction', None) is not None:
         payload['spin_orbit_correction'] = dict(species.spin_orbit_correction)
@@ -346,6 +351,8 @@ def _l2_species_record(species, l2_theory, *, identity_smiles=None,
         'source_row_id': payload['source_row_id'],
         'l2_theory': dict(l2_theory),
     }
+    if basis_records:
+        molecule['source']['anl_basis_reuse'] = deepcopy(basis_records)
     payload['molecule'] = molecule
     return payload
 
@@ -883,7 +890,7 @@ def assemble_available_profiles(run_dir, source_record, destination, *,
     if (not isinstance(theory, dict)
             or theory.get('composite_method') not in ('B3LYP',
                                                        'B2PLYP-D3BJ')
-            or theory.get('basis') != 'cc-pVTZ'):
+            or theory.get('basis') not in ('cc-pVTZ', 'cc-pVQZ', 'aug-cc-pVTZ', 'aug-cc-pVQZ')):
         raise ValueError('Automatic L2 theory provenance is incomplete.')
     l2_method = theory['composite_method']
     l2_label = theory['label']
@@ -1264,6 +1271,8 @@ def _model_record(model_path, entry, l2_theory):
             'l2_theory': dict(l2_theory),
         },
     }
+    if source.get('anl_basis_reuse'):
+        molecule['source']['anl_basis_reuse'] = deepcopy(source['anl_basis_reuse'])
     record = {
         'schema': 1, 'provider': 'automatic-kinbot-reference-l2',
         'routing_name': model.get('name', _safe_state_directory(

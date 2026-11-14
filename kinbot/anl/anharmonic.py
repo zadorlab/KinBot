@@ -26,47 +26,71 @@ def extend(spec):
     source = by_id.get('gaussian_vpt2')
     if source is None:
         return result
-    if VPT2 in by_id:
+    if intent.get('anharmonic_basis_extension') or VPT2 in by_id:
         return result
     from kinbot.anl.vpt2_refinement import _tasks
     from kinbot.manual_fallback import logical_task
     original = deepcopy(logical_task(source))
     parser = original['result_parser']
-    if (parser.get('method') != 'B2PLYP' or parser.get('basis') != 'cc-pVTZ'
+    from kinbot.anl.basis_reuse import canonical_basis, basis_pair, select
+    main_basis = canonical_basis(parser.get('basis'))
+    if (parser.get('method') != 'B2PLYP' or main_basis is None
             or parser.get('dispersion') != 'GD3BJ'):
-        return result  # A custom lower-level model is not this declared pair.
-    # Use the declared L2 method, not an incidental recovery or resource edit.
+        return result
+    bases = basis_pair(main_basis)
+    missing_basis = next(b for b in bases if b != main_basis)
+    upper_missing = missing_basis == bases[1]
+    ident = VPT2 if upper_missing else 'gaussian_vpt2_tz'
+    geometry_id = GEOMETRY if upper_missing else 'l3_vpt2_tz_geometry'
+    harmonic_id = HARMONIC if upper_missing else 'l3_vpt2_tz_harmonic'
     original.pop('manual_fallback', None)
-    original['id'] = VPT2
+    original['id'] = ident
     original['geometry_from'] = 'initial'
+    original.pop('geometry_record', None)
     original.pop('depends_on', None)
-    original['result_parser']['basis'] = 'cc-pVQZ'
-    original['input_template'] = original['input_template'].replace('cc-pVTZ', 'cc-pVQZ')
-    geometry, harmonic, vpt2 = _tasks(result, original)
-    rename = {geometry['id']: GEOMETRY, harmonic['id']: HARMONIC}
-    for task in (geometry, harmonic, vpt2):
-        task['id'] = rename.get(task['id'], task['id'])
-        task['geometry_from'] = rename.get(task['geometry_from'], task['geometry_from'])
-        if 'depends_on' in task:
-            task['depends_on'] = [rename.get(n, n) for n in task['depends_on']]
+    original['input_template'] = original['input_template'].replace(parser['basis'], missing_basis)
+    original['result_parser']['basis'] = missing_basis
+    point = select(result['molecule'], missing_basis)
+    if point is not None:
+        original['geometry_record'] = point
+        additions = [original]
+    else:
+        geometry, harmonic, vpt2 = _tasks(result, original)
+        rename = {geometry['id']: geometry_id, harmonic['id']: harmonic_id}
+        additions = [geometry, harmonic, vpt2]
+        for task in additions:
+            task['id'] = rename.get(task['id'], task['id'])
+            task['geometry_from'] = rename.get(task['geometry_from'], task['geometry_from'])
+            if 'depends_on' in task:
+                task['depends_on'] = [rename.get(n, n) for n in task['depends_on']]
+        vpt2.pop('vpt2_geometry_refinement', None)
+    for task in additions:
         task['anharmonic_basis_extension'] = True
-    # This is the requested basis extension, not an exhausted-recovery attempt.
-    vpt2.pop('vpt2_geometry_refinement', None)
-    result['tasks'].extend((geometry, harmonic, vpt2))
-    intent['anharmonic_basis_extension'] = dict(schema=1, owner='L3',
-        method='B2PLYP', dispersion=source['result_parser'].get('dispersion', ''),
-        bases=['cc-pVTZ', 'cc-pVQZ'], lower_task='gaussian_vpt2', upper_task=VPT2,
-        geometry_task=GEOMETRY, harmonic_task=HARMONIC,
+    result['tasks'].extend(additions)
+    config = dict(schema=2, owner='L3', method='B2PLYP', dispersion='GD3BJ',
+        bases=bases, lower_task='gaussian_vpt2' if upper_missing else ident,
+        upper_task=ident if upper_missing else 'gaussian_vpt2',
+        extension_tasks=[t['id'] for t in additions],
+        required_tasks=['gaussian_vpt2', *[t['id'] for t in additions]],
         upper_cardinal=4, extrapolation_power=ORIGINAL_ANL_POWER,
         hindered_rotors='accepted L2 only')
+    if point is None:
+        config.update(geometry_task=geometry_id, harmonic_task=harmonic_id)
+    else:
+        config['reused_geometry_sha256'] = point['record_sha256']
+    intent['anharmonic_basis_extension'] = config
     return result
 
 
 def available(spec, state):
     from kinbot.anl.protocol import omitted
     config = spec.get('intent', {}).get('anharmonic_basis_extension')
-    return bool(config and all(config[key] not in omitted(spec) and state['tasks'].get(config[key], {}).get('status') == 'complete'
-                               for key in ('lower_task', 'upper_task', 'geometry_task', 'harmonic_task')))
+    if not config:
+        return False
+    required = config.get('required_tasks') or [config[k] for k in
+        ('lower_task', 'upper_task', 'geometry_task', 'harmonic_task')]
+    return all(n not in omitted(spec) and state['tasks'].get(n, {}).get('status') == 'complete'
+               for n in required)
 
 
 def component(run, *, state_id, requirement=None):
@@ -80,7 +104,7 @@ def component(run, *, state_id, requirement=None):
     config = spec['intent']['anharmonic_basis_extension']
     if requirement is None:
         requirement = next(r for r in recipe('ANL1', vpt2_method='B2PLYP-D3BJ',
-                                             vpt2_cbs=True).requirements
+                                             vpt2_cbs=True, vpt2_bases=config['bases']).requirements
                            if r.key == 'vpt2_correction')
     requirement = replace(requirement, settings={**requirement.settings,
         'extrapolation_power': config['extrapolation_power']})

@@ -949,8 +949,11 @@ def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
         molecule, max_nodes=max_nodes, partition=partition,
         mrcc_command=mrcc_command, anl0_only=not anl1_requested,
         stationary_point=stationary_point)
+    from kinbot.anl.basis_reuse import canonical_basis
+    vpt2_basis = canonical_basis(vpt2_basis)
     if (vpt2_method not in ('B3LYP', 'B2PLYP')
-            or vpt2_basis.casefold() != 'cc-pvtz'
+            or vpt2_basis is None
+            or (vpt2_method == 'B3LYP' and vpt2_basis != 'cc-pVTZ')
             or vpt2_dispersion not in ('', 'GD3BJ')
             or (vpt2_method == 'B2PLYP') != (vpt2_dispersion == 'GD3BJ')):
         raise ValueError('Unsupported automatic L2/VPT2 profile.')
@@ -1802,8 +1805,12 @@ def _assemble_profiled_anl(
     rank_exact = _rank_exact_higher_order(molecule)
     from kinbot.anl import anharmonic
     vpt2_cbs = not harmonic_only and anharmonic.available(interface_spec, interface_state)
+    vpt2_basis = next((t.get('result_parser', {}).get('basis', 'cc-pVTZ')
+                       for t in interface_spec['tasks'] if t['id'] == 'gaussian_vpt2'), 'cc-pVTZ')
+    vpt2_bases = interface_spec.get('intent', {}).get('anharmonic_basis_extension', {}).get('bases')
     equation = versioned_recipe(
         recipe_name, vpt2_method=vpt2_method, vpt2_cbs=vpt2_cbs,
+        vpt2_basis=vpt2_basis, vpt2_bases=vpt2_bases,
         component_version=component_version, augmented=augmented,
         cv_f12_auxiliary=base_spec.get('intent', {}).get('cv_f12_auxiliary'),
         multiplicity=multiplicity, atomic=atomic,
@@ -1968,6 +1975,7 @@ def _assemble_profiled_anl(
         record['reduced_recipe'] = {
             'parent_recipe': versioned_recipe(
                 recipe_name, vpt2_method=vpt2_method, vpt2_cbs=vpt2_cbs,
+                vpt2_basis=vpt2_basis, vpt2_bases=vpt2_bases,
                 component_version=component_version, augmented=augmented,
                 multiplicity=multiplicity, atomic=atomic,
                 f12_augmented=f12_augmented,

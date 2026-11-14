@@ -466,6 +466,11 @@ def validate_spec(spec, *, allow_obsolete=False):
     by_id = dict(zip(ids, tasks))
     for task in tasks:
         _validate_task(task, by_id, limits, allow_obsolete=allow_obsolete)
+        if 'geometry_record' in task:
+            from kinbot.anl.basis_reuse import validate
+            if task.get('geometry_from', 'initial') != 'initial' or task.get('geometry_fallback'):
+                raise ValueError('Accepted basis geometry cannot also use a task geometry source.')
+            validate(task['geometry_record'], spec['molecule'])
         source = task.get('geometry_from', 'initial')
         if source != 'initial' and not by_id[source].get('geometry_output'):
             raise ValueError(f"{task['id']}: geometry source has no geometry output.")
@@ -525,6 +530,11 @@ def validate_spec(spec, *, allow_obsolete=False):
             imported_source = spec.get('molecule', {}).get('source', {})
             imported_profile = (imported_source.get('l2_theory', {})
                                 if isinstance(imported_source, dict) else {})
+            imported_atoms = atoms
+            if 'geometry_record' in task:
+                imported_source = task['geometry_record']  # validated above
+                imported_profile = imported_source['theory']
+                imported_atoms = _atoms({**spec['molecule'], 'positions': imported_source['positions']})
             imported_source_matches = (
                 source == 'initial'
                 and isinstance(imported_profile, dict)
@@ -533,7 +543,7 @@ def validate_spec(spec, *, allow_obsolete=False):
                 and re.fullmatch(r'[0-9a-f]{64}', str(
                     imported_source.get('record_sha256', '')))
                 and imported_source.get('geometry_sha256')
-                == _geometry_hash(atoms)
+                == _geometry_hash(imported_atoms)
                 and imported_profile.get('calculator', '').lower()
                 in ('gaussian', 'gauss')
                 and imported_profile.get('method', '').casefold()
@@ -762,7 +772,12 @@ def _stage_task(run_dir, spec, state, task):
         raise RuntimeError(f'{ident}: existing task directory needs manual review.')
     source = _geometry_source(task, state)
     if source == 'initial':
-        atoms = _atoms(spec['molecule'])
+        if 'geometry_record' in task:
+            from kinbot.anl.basis_reuse import validate
+            point = validate(task['geometry_record'], spec['molecule'])
+            atoms = _atoms({**spec['molecule'], 'positions': point['positions']})
+        else:
+            atoms = _atoms(spec['molecule'])
     else:
         source_entry = state['tasks'][source]
         source_file = run_dir / 'tasks' / source / next(

@@ -70,11 +70,14 @@ entire scouting panel now.
   missing VPT2 components at the accepted basis-specific minima, then
   extrapolate the anharmonic differences using the declared protocol. Do not
   add two harmonic ZPEs or count rotor contributions twice.
-- Current `automatic_composite_spec` accepts a cc-pVTZ L2/VPT2 profile, and
-  `anl.anharmonic.extend` builds an unaugmented cc-pVTZ/cc-pVQZ pair. The new
-  L1=aTZ, L2=aQZ request requires a general basis-pair/provenance extension and
-  tests of adoption from both levels before the R9 input is executable. The
-  augmented ANL flag alone does not implement this change.
+- Implemented: automatic L2/VPT2 supports both cc-pV(T,Q)Z and
+  aug-cc-pV(T,Q)Z. Accepted L1=aTZ to L2=aQZ minimum lineage carries both
+  geometries and harmonic evidence into ANL; only missing VPT2 work is
+  staged at each basis's own minimum. Restart/export/atom mapping preserve
+  this provenance. See `docs/anl_basis_reuse.md` for the contracts and
+  extrapolation convention. Local simulated-site tests passed; no native
+  R9 calculation is claimed by this implementation. The augmented ANL flag
+  alone still does not select the L2/VPT2 basis family.
 - B2PLYP electronic energies cannot replace CCSD(T)-F12 components. Reuse native
   coupled-cluster calculations only when their complete method/basis/state/
   geometry contracts match the requested ANL or VRC component.

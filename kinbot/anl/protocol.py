@@ -289,7 +289,9 @@ def replacement(spec, options):
     for family in chosen.get('omit_components', []):
         explicit.update(n for n in tasks if n.startswith(FAMILIES[family]))
     if not chosen.get('anharmonic_qz', True):
-        explicit.update({anharmonic.GEOMETRY, anharmonic.HARMONIC, anharmonic.VPT2} & tasks.keys())
+        config = result.get('intent', {}).get('anharmonic_basis_extension', {})
+        explicit.update(set(config.get('extension_tasks',
+            [anharmonic.GEOMETRY, anharmonic.HARMONIC, anharmonic.VPT2])) & tasks.keys())
     # Removing a prerequisite also removes its consumers. A retained task
     # must never wait forever for a deliberately disabled native calculation.
     from kinbot.anl.salvage import descendants

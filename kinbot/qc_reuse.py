@@ -558,6 +558,10 @@ def _adopt(qc, job, receipt, entry, root):
             atoms = atoms[permutation]
             if data.get('hess') is not None:
                 data['hess'] = permute_hessian(data['hess'], permutation)
+            if data.get('anl_basis_reuse'):
+                from kinbot.anl.basis_reuse import remap
+                data['anl_basis_reuse'] = remap(data['anl_basis_reuse'], permutation,
+                    atoms.get_chemical_symbols(), atoms.positions)
             data['shared_qc_native'] = dict(root=str(root), bundle=entry['bundle'],
                 hashes=entry['hashes'], permutation=permutation, job=entry['job'])
         data.update(shared_qc_token=entry['token'], shared_qc_source=str(_inside(root, entry['source'])),

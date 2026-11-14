@@ -1,5 +1,10 @@
 # Lean R9 review stage
 
+The [14 November requirements](REQUIREMENTS_20261114.md) supersede the older
+draft's theory profile and record the pending connection/reuse work. The scope
+and readiness descriptions below are the earlier staging snapshot, not a new
+submission approval.
+
 Prepared on 2026-11-10 from the selected lean R8 models, including CH3 + S.
 The native-review update of 2026-11-12 is recorded in
 `../../ch3ss_anl1_f12/orbital_reviews/r9_completion_20261112/REVIEW.md`.

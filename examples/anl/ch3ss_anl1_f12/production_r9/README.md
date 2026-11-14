@@ -1,5 +1,9 @@
 # Lean CH3SS R9 review stage
 
+The [14 November requirements](../../ch3s_anl1_f12/production_r9/REQUIREMENTS_20261114.md)
+apply to both PESs and supersede the older draft's theory profile. The scope
+below remains subject to the ongoing L2 connection and paper reconciliation.
+
 The requested native archive was reviewed on 2026-11-12. The current decisions,
 single follow-up campaign and text-report command are in
 `../orbital_reviews/r9_completion_20261112/REVIEW.md` and its `README.md`.

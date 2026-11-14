@@ -1,0 +1,24 @@
+{
+  "status": "locally_tested_native_execution_pending",
+  "parent_commit": "72e34962c34d2b7b34badd12a78f01c0d279cb10",
+  "tests": {
+    "passed": 183,
+    "command": ".venv/bin/python -m pytest -q tests/test_r8_validation_panel.py tests/test_saddle_recheck.py tests/test_vpt2_refinement.py tests/test_anl_dispatch.py tests/test_anl_results.py",
+    "clean_release_replay": "Repeated against git HEAD kinbot source plus only the results.py patch; excludes unrelated working-tree changes."
+  },
+  "source_pairs_staged_and_hash_verified": 44,
+  "workflow_groups": 69,
+  "workflow_tasks": 220,
+  "remaining_reused_saddles": 44,
+  "maximum_irc_and_endpoint_jobs_for_reused_saddles": 176,
+  "native_gaussian_or_molpro_executed_locally": false,
+  "mess_executed": false,
+  "scientific_approval": false,
+  "sha256": {
+    "campaign.py": "ea12f396fc8943d45060ad176ad910b32b24a475ed998cc109f3b9112e055b6c",
+    "collect.py": "7a2bf2b4c75f21657830b14663bd5a42504c313b35a525e0b3991f98c397b445",
+    "evidence.json": "dde38ce32774ba6372110f9df6b4a91b485ef644f7a89858a7dac74581cf08bf",
+    "remaining_l2.json": "afca0e3ba61fb1aa61bea0639bf2a2426a8ac185433dcf2367d44c253a965f6c",
+    "run_blodgett.sh": "89fb146bd03494a85126d0b5c856f87c8cf274f5fec3fbeba3b5bb25a18c670d"
+  }
+}

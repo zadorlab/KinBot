@@ -1164,8 +1164,11 @@ def _gaussian_fundamental_bands(output):
     return [row[1] for row in modes], harmonic, anharmonic
 
 
-def parse_gaussian_harmonic(output, *, method, basis, dispersion='', natoms):
-    """Validate the separate minimum Hessian used by VPT2 geometry recovery."""
+def parse_gaussian_harmonic(output, *, method, basis, dispersion='', natoms,
+                            stationary_point='minimum'):
+    """Validate a native minimum or first-order saddle harmonic spectrum."""
+    if stationary_point not in ('minimum', 'transition_state'):
+        raise ValueError('stationary_point must be minimum or transition_state.')
     from kinbot.gaussian_input import has_anharmonic_frequency
     route = _gaussian_route(output)
     if (not output.strip() or not output.strip().splitlines()[-1].lstrip().startswith('Normal termination of Gaussian')
@@ -1178,13 +1181,22 @@ def parse_gaussian_harmonic(output, *, method, basis, dispersion='', natoms):
         raise ValueError('Gaussian harmonic dispersion differs from the requested level.')
     frequencies = [float(v.replace('D', 'E')) for line in re.findall(
         r'^\s*Frequencies\s+--\s*(.*)$', output, re.M) for v in line.split()]
-    if len(frequencies) not in {3*natoms-6, 3*natoms-5} or any(not math.isfinite(v) or v <= 0 for v in frequencies):
+    if (len(frequencies) not in {3*natoms-6, 3*natoms-5}
+            or any(not math.isfinite(v) or v == 0 for v in frequencies)):
+        raise ValueError('Gaussian requires a complete finite harmonic spectrum.')
+    negative = [v for v in frequencies if v < 0]
+    if stationary_point == 'minimum' and negative:
         raise ValueError('Refined L2 minimum requires a complete positive harmonic spectrum.')
+    if stationary_point == 'transition_state' and (len(negative) != 1 or negative[0] >= -1.):
+        raise ValueError('Gaussian transition state requires exactly one imaginary mode below -1 cm^-1.')
     zpe = _one_number(output, rf'Zero-point correction=\s*({_NUMBER})', 'Gaussian harmonic ZPE')
-    if abs(zpe-sum(frequencies)*.5*invcm/Hartree) > 2.e-6:
+    if abs(zpe-sum(v for v in frequencies if v > 0)*.5*invcm/Hartree) > 2.e-6:
         raise ValueError('Gaussian harmonic ZPE and frequencies disagree.')
-    return dict(kind='gaussian_harmonic', method=method, basis=basis, dispersion=dispersion,
-                frequencies_cm_inverse=frequencies, zpe={'hartree': zpe}, review_required=False)
+    result = dict(kind='gaussian_harmonic', method=method, basis=basis, dispersion=dispersion,
+                  frequencies_cm_inverse=frequencies, zpe={'hartree': zpe}, review_required=False)
+    if stationary_point != 'minimum':
+        result['stationary_point'] = stationary_point
+    return result
 
 
 def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
@@ -1501,9 +1513,12 @@ def validate_result_parser(request, *, backend, template, outputs,
         from kinbot.gaussian_input import has_anharmonic_frequency
         declaration = dict(request)
         natoms = declaration.pop('natoms', None)
+        stationary_point = declaration.pop('stationary_point', 'minimum')
         valid = (set(declaration) in ({'kind', 'file', 'method', 'basis'},
                                   {'kind', 'file', 'method', 'basis', 'dispersion'})
                  and backend == 'gaussian'
+                 and stationary_point in ('minimum', 'transition_state')
+                 and (kind == 'gaussian_harmonic' or 'stationary_point' not in request)
                  and isinstance(request.get('method'), str)
                  and isinstance(request.get('basis'), str)
                  and bool(request['method']) and bool(request['basis'])
@@ -1612,7 +1627,8 @@ def parse_result(output, request):
                                    dispersion=request.get('dispersion', ''))
     if kind == 'gaussian_harmonic':
         return parse_gaussian_harmonic(output, method=request['method'], basis=request['basis'],
-                                      dispersion=request.get('dispersion', ''), natoms=request['natoms'])
+                                      dispersion=request.get('dispersion', ''), natoms=request['natoms'],
+                                      stationary_point=request.get('stationary_point', 'minimum'))
     raise ValueError(f'Unsupported result parser {kind!r}.')
 
 

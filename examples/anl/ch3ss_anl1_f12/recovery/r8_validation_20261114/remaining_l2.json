@@ -1,0 +1,4414 @@
+{
+  "schema": 1,
+  "parameters": {
+    "title": "Direct target-level saddle checks",
+    "l1_profile": {
+      "calculator": "gaussian",
+      "method": "B2PLYP",
+      "basis": "cc-pVTZ",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "scf": "xqc,conver=8",
+        "integral": "UltraFine"
+      },
+      "optimizer": "sella",
+      "frequency_mode": "native_hessian",
+      "command": "g16"
+    },
+    "l2_profile": {
+      "calculator": "gaussian",
+      "method": "B2PLYP",
+      "basis": "cc-pVTZ",
+      "calculator_kwargs": {
+        "EmpiricalDispersion": "GD3BJ",
+        "Symm": "None",
+        "scf": "xqc,conver=8",
+        "integral": "UltraFine"
+      },
+      "optimizer": "sella",
+      "frequency_mode": "native_hessian",
+      "command": "g16"
+    },
+    "method": "B2PLYP",
+    "basis": "cc-pVTZ",
+    "scan_method": "B2PLYP",
+    "scan_basis": "cc-pVTZ",
+    "barrier_threshold": 150,
+    "high_level": 0,
+    "conformer_search": 0,
+    "rotor_scan": 0,
+    "me": 0,
+    "run_me": 0,
+    "run_messpf": 0,
+    "composite_method": "",
+    "L3_calc": 0,
+    "rotdpy_run": 0,
+    "queuing": "slurm",
+    "queue_name": "month-long-cpu",
+    "ppn": 8,
+    "queue_exclusive": 1,
+    "queue_job_limit": 20,
+    "sella_steps": 250,
+    "sella_fmax": 0.0005,
+    "sella_kwargs": {
+      "gamma": 0.0,
+      "internal": true
+    },
+    "sella_irc_steps": 300,
+    "sella_irc_dx": 0.05,
+    "qc_checkpoint_interval": 600,
+    "qc_checkpoint_max_mb": 16384,
+    "qc_checkpoint_generations": 2
+  },
+  "cases": [
+    {
+      "name": "ch3s_rxn_4_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.2346711003380395,
+            -0.43855814908968244,
+            0.694883941731824
+          ],
+          [
+            0.23277165536209515,
+            0.6751382520006196,
+            -0.5841967165828621
+          ],
+          [
+            1.0328723415184748,
+            1.1215857671916274,
+            -1.5857243776151142
+          ],
+          [
+            0.9767381267446923,
+            1.2218340463481598,
+            0.45297558113622066
+          ],
+          [
+            2.13554769646693,
+            -0.6591162844930522,
+            0.08896456033768621
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 234,
+        "source_job": "ch3s/471030810040000000002/471030810040000000002_intra_H_migration_2_4_high",
+        "data": {
+          "energy": -11912.087557232891,
+          "zpe": 0.025822,
+          "status": "normal",
+          "frequencies": [
+            -1076.9356,
+            323.2117,
+            436.2101,
+            632.3585,
+            1009.552,
+            1094.4233,
+            2329.3294,
+            2564.3292,
+            2944.977
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_intra_H_migration_2_4_high.com",
+            "sha256": "182b81ff37fe67178ce98fd56f56937dde85264e6db8203cefcee32fd1fb415e"
+          },
+          ".log": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_intra_H_migration_2_4_high.log",
+            "sha256": "85e0f1a6d49ec4cff22757cb059848add8a4473e2b7c8f7bebd482e399634526"
+          }
+        }
+      },
+      "accepted_connection": "rxn_4 w_2 w_3 ! 471030810040000000002_intra_H_migration_2_4   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3s_rxn_4_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.8551805544497046,
+            -0.15180721191211635,
+            0.7508294709363867
+          ],
+          [
+            1.0466749038279206,
+            1.1152307457438444,
+            -0.8085783826033662
+          ],
+          [
+            0.29208987359833727,
+            0.40391152707088457,
+            -1.6621018653388187
+          ],
+          [
+            1.4916217568584802,
+            0.4873501814440321,
+            1.4062670139832245
+          ],
+          [
+            1.9270338316957936,
+            0.06619838961103078,
+            -0.619513247969671
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 257,
+        "source_job": "ch3s/471030810040000000002/471030810040000000002_intra_H_migration_2_5_high",
+        "data": {
+          "energy": -11912.119990715464,
+          "zpe": 0.026659,
+          "status": "normal",
+          "frequencies": [
+            -965.2128,
+            335.7186,
+            498.9256,
+            671.7764,
+            1101.177,
+            1151.8987,
+            2370.4563,
+            2693.7322,
+            2878.1511
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_intra_H_migration_2_5_high.com",
+            "sha256": "af3a1547ee121a1966dad8183357eb8c3e402c7018b026cc6c69c507dfc7e3d4"
+          },
+          ".log": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_intra_H_migration_2_5_high.log",
+            "sha256": "d6a449bf7933c71d39017f199c4d4bc3c6799d019b2b1b76c47ebde0b0fa6f9a"
+          }
+        }
+      },
+      "accepted_connection": "rxn_4 w_2 w_3 ! 471030810040000000002_intra_H_migration_2_4   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3s_rxn_6_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.8585843514336315,
+            -0.31813883930109543,
+            -0.11735836796373729
+          ],
+          [
+            0.36776054515656315,
+            1.309248427845131,
+            -0.5444453160389239
+          ],
+          [
+            0.3515016269666968,
+            1.0737995412160921,
+            -1.8707580723593131
+          ],
+          [
+            1.9081056318951568,
+            0.21357631647955932,
+            1.0685299798798946
+          ],
+          [
+            2.126648764978192,
+            -0.3576018142820104,
+            0.5309347654898308
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 392,
+        "source_job": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_4_1_5_high",
+        "data": {
+          "energy": -11911.718406938237,
+          "zpe": 0.022501,
+          "status": "normal",
+          "frequencies": [
+            -1145.6452,
+            291.3151,
+            434.6656,
+            632.6327,
+            709.8463,
+            899.6538,
+            1016.1585,
+            2639.7686,
+            3252.8636
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_4_1_5_high.com",
+            "sha256": "92cff332bb66c128ceee9be0de4638d20599de3b09bb40d3d2ab5ca0dae5465e"
+          },
+          ".log": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_4_1_5_high.log",
+            "sha256": "83a187d5363ca55b21c50e1dbd06f9a0ecff659c81902494ee9409526904d6b4"
+          }
+        }
+      },
+      "accepted_connection": "rxn_6 w_2 pr_3 ! 471030810040000000002_r12_insertion_R_4_1_5   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3s_rxn_6_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9234401219053501,
+            0.9858001345232325,
+            0.84287033799395
+          ],
+          [
+            0.60061320268289,
+            1.5979332913657405,
+            -0.6430613644971584
+          ],
+          [
+            0.21428509610228236,
+            0.5881283378810456,
+            -1.4928919527176494
+          ],
+          [
+            0.7678943308657287,
+            -0.09748102675638012,
+            0.8650545424853693
+          ],
+          [
+            3.1063681688739857,
+            -1.153497105055965,
+            -0.5050685742567597
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 401,
+        "source_job": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_5_1_2_high",
+        "data": {
+          "energy": -11911.897335989908,
+          "zpe": 0.021622,
+          "status": "normal",
+          "frequencies": [
+            -68.796,
+            50.4927,
+            117.8532,
+            790.6314,
+            947.42,
+            964.9835,
+            1139.7289,
+            2411.3295,
+            3068.387
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_5_1_2_high.com",
+            "sha256": "0ba87b33f724049e7ce3ab038f078a62b69a7d889bfb6d971a1b57dd4d50b73a"
+          },
+          ".log": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_5_1_2_high.log",
+            "sha256": "d19a42c648817307cb4f75c7b4cae2b38fcd1e31c0c44ea8d92b5d35ede3677c"
+          }
+        }
+      },
+      "accepted_connection": "rxn_6 w_2 pr_3 ! 471030810040000000002_r12_insertion_R_4_1_5   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3s_rxn_6_3",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.2933645363730473,
+            0.5526073309557863,
+            0.32609263731722976
+          ],
+          [
+            1.0774239879129952,
+            1.1520102566449626,
+            -1.009341222015559
+          ],
+          [
+            0.059373788011591926,
+            1.1558028190124052,
+            -1.9006944048782828
+          ],
+          [
+            1.0936970206907253,
+            0.5327400260410778,
+            1.084347647418056
+          ],
+          [
+            3.0887415874418798,
+            -1.4722768006965559,
+            0.5664983311663129
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 399,
+        "source_job": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_5_1_4_high",
+        "data": {
+          "energy": -11911.949894707182,
+          "zpe": 0.022223,
+          "status": "normal",
+          "frequencies": [
+            -57.8537,
+            50.8463,
+            109.9723,
+            876.6472,
+            953.8999,
+            988.1478,
+            1183.292,
+            2593.5188,
+            2998.3866
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_5_1_4_high.com",
+            "sha256": "dd6dd896f6ca4473c7dc00c93be63411298d48540d2a5b1feea255b2068b7d44"
+          },
+          ".log": {
+            "path": "ch3s/471030810040000000002/471030810040000000002_r12_insertion_R_5_1_4_high.log",
+            "sha256": "58dcb236a2c51dfecf043b4f55f0b3c318660676161d6870ca4f97292192dd13"
+          }
+        }
+      },
+      "accepted_connection": "rxn_6 w_2 pr_3 ! 471030810040000000002_r12_insertion_R_4_1_5   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3s_rxn_10_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.1811872806459771,
+            0.7111087296712952,
+            0.9486931763476063
+          ],
+          [
+            1.0296162162029092,
+            1.1677284461224169,
+            -0.6240934988374279
+          ],
+          [
+            -0.21158825587934532,
+            -0.057137185805448756,
+            -1.8503555499292808
+          ],
+          [
+            2.0368824563572634,
+            0.040007728088758965,
+            1.0766125827476858
+          ],
+          [
+            2.0258518801896988,
+            0.6128818513395349,
+            -1.3930271082901267
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 338,
+        "source_job": "ch3s/471230610040000000002/471230610040000000002_R_Addition_MultipleBond_1_2_3_high",
+        "data": {
+          "energy": -11911.818944588216,
+          "zpe": 0.022729,
+          "status": "normal",
+          "frequencies": [
+            -611.9891,
+            232.343,
+            404.0807,
+            781.9607,
+            926.4307,
+            975.7384,
+            1169.1572,
+            2419.417,
+            3067.5457
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3s/471230610040000000002/471230610040000000002_R_Addition_MultipleBond_1_2_3_high.com",
+            "sha256": "a3606db3a6853416a05dba95bf0aea0119076c1fd3505e4d6136d46163de9ba9"
+          },
+          ".log": {
+            "path": "ch3s/471230610040000000002/471230610040000000002_R_Addition_MultipleBond_1_2_3_high.log",
+            "sha256": "2caf7a9f9787eb62aca9de8829082133c3bc8137d976ef069a5cdbc365107503"
+          }
+        }
+      },
+      "accepted_connection": "rxn_10 w_3 pr_5 ! 471230610040000000002_R_Addition_MultipleBond_1_2_3   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_1_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.2778906252798243,
+            -0.3096813083410478,
+            0.09029371882074468
+          ],
+          [
+            0.9886667036912582,
+            0.8758254742908262,
+            1.4056872138103629
+          ],
+          [
+            0.2312996698065118,
+            -0.003722195737623782,
+            2.987055938617606
+          ],
+          [
+            0.12424935316160224,
+            0.803822834961851,
+            0.23098948996192759
+          ],
+          [
+            0.8674082193389603,
+            -1.2973454373652697,
+            0.22367985471128124
+          ],
+          [
+            2.019452418543249,
+            -0.054500058698779524,
+            -0.6504395810543424
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 349,
+        "source_job": "ch3ss/791471490990000000002/791471490990000000002_intra_H_migration_2_4_high",
+        "data": {
+          "energy": -22746.6388062401,
+          "zpe": 0.031788,
+          "status": "normal",
+          "frequencies": [
+            -1711.2398,
+            249.4564,
+            277.6162,
+            481.0464,
+            588.9896,
+            722.8674,
+            881.8887,
+            916.7534,
+            1349.1924,
+            2017.8875,
+            3153.7656,
+            3313.9086
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791471490990000000002/791471490990000000002_intra_H_migration_2_4_high.com",
+            "sha256": "e3d8c52f5f07d2372747e5dba1520b2c04d8fe1c709adfd71dd06ea272f372df"
+          },
+          ".log": {
+            "path": "ch3ss/791471490990000000002/791471490990000000002_intra_H_migration_2_4_high.log",
+            "sha256": "702d33526068cb517f7d66540ed82088b87b4939c31fe3f48b652610b7989ea6"
+          }
+        }
+      },
+      "accepted_connection": "rxn_1 w_1 w_2 ! 791471490990000000002_intra_H_migration_2_4   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_4_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.37958705068475956,
+            -0.8887442284639174,
+            0.3606772837704321
+          ],
+          [
+            2.0755876519150234,
+            0.8381167745243451,
+            1.5753679425056526
+          ],
+          [
+            0.2837157198774767,
+            -0.17066342173602544,
+            2.0046354451951527
+          ],
+          [
+            -0.5559383469553332,
+            0.85482465343284,
+            1.7506717293845366
+          ],
+          [
+            0.8269392798589864,
+            -1.8717683873549722,
+            0.5841469287862467
+          ],
+          [
+            1.653873693271619,
+            0.2948203215738758,
+            0.27546817887699654
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 598,
+        "source_job": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_6_high",
+        "data": {
+          "energy": -22745.278906042102,
+          "zpe": 0.029325,
+          "status": "normal",
+          "frequencies": [
+            -975.188,
+            345.5222,
+            411.4946,
+            551.0287,
+            620.7794,
+            737.5856,
+            843.5191,
+            864.8926,
+            1172.156,
+            1718.2473,
+            2614.7135,
+            2992.3427
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_6_high.com",
+            "sha256": "9fa16e53c8178debf25ae49bd9a7f1ea3d2557915c20eb6c1381d6ab5111922f"
+          },
+          ".log": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_6_high.log",
+            "sha256": "e9f4f8996319c918ad2b7b427d1ab4848f6b66fced94d2c81f28dcd544baadf5"
+          }
+        }
+      },
+      "accepted_connection": "rxn_4 w_2 w_4",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_4_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.04452173907935551,
+            -1.1192397316317626,
+            0.7855630486215299
+          ],
+          [
+            2.259565025863356,
+            0.6590121255439965,
+            2.6250643065162476
+          ],
+          [
+            0.6235710758806454,
+            -0.06957777027722396,
+            1.8533106140954563
+          ],
+          [
+            -0.45342431815768397,
+            0.526570610741986,
+            2.3933405653315187
+          ],
+          [
+            0.8646206208356473,
+            -1.651687289967706,
+            0.2945607617835473
+          ],
+          [
+            1.3249109051512087,
+            0.711507767566856,
+            -1.400871787829285
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 917,
+        "source_job": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_6_1_3_high",
+        "data": {
+          "energy": -22743.461541060868,
+          "zpe": 0.02523,
+          "status": "normal",
+          "frequencies": [
+            -50.1073,
+            66.4126,
+            142.9354,
+            294.4054,
+            332.5594,
+            582.7298,
+            875.2091,
+            889.7743,
+            998.5823,
+            1134.6255,
+            2652.1732,
+            3105.2396
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_6_1_3_high.com",
+            "sha256": "d1b94b4d88f516b915f89558acb79493a39adbc26a15cb58f6096aa83a73765a"
+          },
+          ".log": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_6_1_3_high.log",
+            "sha256": "bfbc502ff86950e5819e120339bf319865f9ed59cc09c2a6cf2aa22326eeedcd"
+          }
+        }
+      },
+      "accepted_connection": "rxn_4 w_2 w_4",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_4_3",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            -0.2521565394981474,
+            -0.6304188222476251,
+            0.5417381013007276
+          ],
+          [
+            1.3750742135918308,
+            1.498451689622218,
+            2.608726579235165
+          ],
+          [
+            0.49755952822414984,
+            -0.06638858005215795,
+            1.8444120907590122
+          ],
+          [
+            0.5272468901129189,
+            -1.0902592588399493,
+            2.714895680124686
+          ],
+          [
+            -0.31793960551982015,
+            0.14797333743831384,
+            -0.2243854719527526
+          ],
+          [
+            2.500517275433361,
+            -0.3551445779817385,
+            -0.9126430368598543
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 1033,
+        "source_job": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_dissociation_saddle_2_6_high",
+        "data": {
+          "energy": -22743.461541016786,
+          "zpe": 0.02523,
+          "status": "normal",
+          "frequencies": [
+            -50.0846,
+            66.4672,
+            142.7813,
+            294.4128,
+            332.5733,
+            582.7286,
+            875.2465,
+            889.8099,
+            998.587,
+            1134.6339,
+            2652.203,
+            3105.1535
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_dissociation_saddle_2_6_high.com",
+            "sha256": "07d044742a6b2f11e19210f398daa76eb2f38f555a82cf17c86969542b4f08bc"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_dissociation_saddle_2_6_high.log",
+            "sha256": "e86d2b276beb1a32ab26ed93e377210d6b1c305b3266834108159efdda37b94b"
+          }
+        }
+      },
+      "accepted_connection": "rxn_4 w_2 w_4",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_5_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.08669735224956725,
+            -0.0093518223025241,
+            -0.005356459844157254
+          ],
+          [
+            2.3983631296099723,
+            0.7864688489099277,
+            2.4256115740541246
+          ],
+          [
+            0.9038542315041745,
+            -0.1107771577704608,
+            1.530662118471046
+          ],
+          [
+            -0.15387406912440096,
+            -0.08761959376046048,
+            2.3665909798495224
+          ],
+          [
+            0.5482478997363313,
+            -1.396200571399824,
+            0.9891593006149507
+          ],
+          [
+            0.8804765046768929,
+            -0.12593399170051606,
+            -0.7557000046264685
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 561,
+        "source_job": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_5_high",
+        "data": {
+          "energy": -22743.643574488684,
+          "zpe": 0.030527,
+          "status": "normal",
+          "frequencies": [
+            -1362.6483,
+            232.3907,
+            390.0829,
+            549.1799,
+            620.8187,
+            755.0101,
+            918.1569,
+            1036.9001,
+            1162.6502,
+            2079.4328,
+            2605.3321,
+            3049.8114
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_5_high.com",
+            "sha256": "8ce376957e55d1d8010cf51d59c5054c94a05a344b5981c4ea4189a78a24ad9a"
+          },
+          ".log": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_5_high.log",
+            "sha256": "b7e874fd8b474e4c5bbdd876e8185809b322cfcaa8f8d788f7cd1a7ba13ff79b"
+          }
+        }
+      },
+      "accepted_connection": "rxn_5 w_2 w_5",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_6_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.6499239261147877,
+            -0.7972169578809369,
+            0.35429779784275184
+          ],
+          [
+            1.8459225979821654,
+            1.4102612871125935,
+            2.2238576150972063
+          ],
+          [
+            0.8479508910321628,
+            -0.4459294268163013,
+            1.9878612733326357
+          ],
+          [
+            0.10534092404136934,
+            0.7503899443739777,
+            2.2686921579590007
+          ],
+          [
+            0.4464765139370683,
+            -1.8272687280066229,
+            0.11201380608443119
+          ],
+          [
+            0.7681501955449821,
+            -0.033650406806563775,
+            -0.3957551417970109
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 567,
+        "source_job": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_2_4_high",
+        "data": {
+          "energy": -22746.71414261812,
+          "zpe": 0.031353,
+          "status": "normal",
+          "frequencies": [
+            -772.6718,
+            215.8888,
+            245.2645,
+            456.6856,
+            507.5438,
+            646.5975,
+            828.5187,
+            941.8705,
+            1401.5571,
+            2030.474,
+            3174.3868,
+            3313.4348
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_2_4_high.com",
+            "sha256": "3bd9a2bde6d48a1b5099c3a25e21f44fe0d9e23fcf5bfa04baafd513e73f6b02"
+          },
+          ".log": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_2_4_high.log",
+            "sha256": "a8cba6ee6c92d7342ee6bfe3eaa1defbb60362e39d559fabee095d95e1c2c66d"
+          }
+        }
+      },
+      "accepted_connection": "rxn_6 w_2 w_3",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_6_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.1952943952295136,
+            -0.4799661460334337,
+            0.4150825422969223
+          ],
+          [
+            2.116482029053563,
+            0.5097299731414199,
+            2.1940782354132873
+          ],
+          [
+            0.24160441295801588,
+            -0.18039436568680822,
+            2.245095708026264
+          ],
+          [
+            -0.47466292509404945,
+            0.8505848856805803,
+            1.7403454070564979
+          ],
+          [
+            1.5168244622000613,
+            -1.5164452657977407,
+            0.34088982456553746
+          ],
+          [
+            0.8928635535871655,
+            0.01191464318514051,
+            -0.5157103754057513
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 830,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_3_2_1_high",
+        "data": {
+          "energy": -22745.990962317093,
+          "zpe": 0.033317,
+          "status": "normal",
+          "frequencies": [
+            -1927.9382,
+            341.1318,
+            481.2122,
+            585.6869,
+            617.0385,
+            729.1182,
+            829.7464,
+            897.6162,
+            1370.2874,
+            2579.2265,
+            3003.6605,
+            3189.7789
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_3_2_1_high.com",
+            "sha256": "76d0c002a2eb953f11f9fc711fe08bd36e62c44a641fc0639448970ad34596ab"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_3_2_1_high.log",
+            "sha256": "d635fa6e705d92f8f4f1c5113c8f34940e6c0d0c5c14b9f1b9bc08b35dd5ad49"
+          }
+        }
+      },
+      "accepted_connection": "rxn_6 w_2 w_3",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_7_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.1175487585173969,
+            -0.5530463216752584,
+            0.5837019716421725
+          ],
+          [
+            1.9839121717691526,
+            0.4544821998148875,
+            2.384750149721776
+          ],
+          [
+            -0.015187666469942301,
+            -0.21055908543984936,
+            1.9570305869497995
+          ],
+          [
+            -0.6408061668825867,
+            0.8801942671729769,
+            1.4614262271723775
+          ],
+          [
+            1.2397998243263193,
+            -1.6133220486643007,
+            0.4265033644346619
+          ],
+          [
+            0.978498127392193,
+            0.09883670076768944,
+            -0.2624447914017766
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 628,
+        "source_job": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_R_migration_2_1_high",
+        "data": {
+          "energy": -22746.502628364346,
+          "zpe": 0.034124,
+          "status": "normal",
+          "frequencies": [
+            -1633.8635,
+            275.1303,
+            418.8883,
+            580.4666,
+            672.197,
+            752.0797,
+            803.9567,
+            1046.8892,
+            1382.3168,
+            2601.2906,
+            3150.6843,
+            3294.6385
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_R_migration_2_1_high.com",
+            "sha256": "a6a84b9c79b34133448cad5bf5cf063e6dd39581777d185741d3d96a577c00a8"
+          },
+          ".log": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_intra_R_migration_2_1_high.log",
+            "sha256": "388b4edfae4f0d82285879820a13b7f96a04bf93490daef5123d9a1101df5d45"
+          }
+        }
+      },
+      "accepted_connection": "rxn_7 w_2 w_6",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_9_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.010109570989201273,
+            0.09008109320136304,
+            0.33719354284336045
+          ],
+          [
+            2.2309867640479415,
+            0.5544104669218426,
+            2.5530563519536016
+          ],
+          [
+            0.473384264333917,
+            -0.19628576496941327,
+            2.0287831247926382
+          ],
+          [
+            -0.5411449530483665,
+            0.7226391129256704,
+            2.2038894380110285
+          ],
+          [
+            1.5665883840590813,
+            -1.0849899579460462,
+            -0.07385093975384743
+          ],
+          [
+            0.9238410182707611,
+            -1.0292692381572706,
+            -0.49810400932777005
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 887,
+        "source_job": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_5_1_6_high",
+        "data": {
+          "energy": -22743.05123863882,
+          "zpe": 0.024445,
+          "status": "normal",
+          "frequencies": [
+            -501.8099,
+            145.56,
+            220.7977,
+            254.2509,
+            428.6489,
+            549.6912,
+            608.505,
+            637.9451,
+            744.6369,
+            872.9815,
+            2386.4064,
+            3880.829
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_5_1_6_high.com",
+            "sha256": "eea90cbad6f5ca8c8a44a3c79de786a851d7e3251f8d2cc7c103c5e87823c1b5"
+          },
+          ".log": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_5_1_6_high.log",
+            "sha256": "70cb5b781f09636e0345c4acbc299d7fb70059bd3326fd5309d89137a9fa782a"
+          }
+        }
+      },
+      "accepted_connection": "rxn_9 w_2 pr_4",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_10_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9636861729851642,
+            0.03528791718929778,
+            -0.0665891161567271
+          ],
+          [
+            1.778119779547024,
+            -0.16679283398534053,
+            1.6425454486799682
+          ],
+          [
+            0.099079889389607,
+            0.1537403004653923,
+            2.842524382172351
+          ],
+          [
+            -0.6235568045386558,
+            0.5155823018556385,
+            1.759097819298796
+          ],
+          [
+            1.3731012794432302,
+            -1.2860294365368086,
+            0.9050341576811164
+          ],
+          [
+            1.8979756111079014,
+            -0.056364524499023363,
+            -0.6628313497227386
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 559,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_2_5_high",
+        "data": {
+          "energy": -22744.81672583343,
+          "zpe": 0.028158,
+          "status": "normal",
+          "frequencies": [
+            -1176.1356,
+            231.8225,
+            254.7082,
+            395.7414,
+            460.0678,
+            483.0586,
+            830.259,
+            858.6273,
+            1062.4674,
+            2264.332,
+            2611.0509,
+            2907.6407
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_2_5_high.com",
+            "sha256": "3b19d945efbb6f52ede31a7288f0f5bae0257d4fc2a06e02a0817ff833984cc1"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_2_5_high.log",
+            "sha256": "2de5f58f4622f234cab38f274b695bffabfb725ae525f746cb657d8205ebd3ac"
+          }
+        }
+      },
+      "accepted_connection": "rxn_10 w_3 w_7 ! 791671450790040000002_intra_H_migration_2_5   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_11_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9514268247487441,
+            -0.7785601785082438,
+            -0.4241600980062916
+          ],
+          [
+            0.9043535962101446,
+            0.41483616281051405,
+            0.7837463003814006
+          ],
+          [
+            0.2308779346755727,
+            -0.069355465274555,
+            2.9047834857921595
+          ],
+          [
+            -0.20498171382489,
+            1.188728421333087,
+            3.084609838343113
+          ],
+          [
+            1.4264043927896726,
+            -1.7256110666906057,
+            -0.16100745393184873
+          ],
+          [
+            2.180324893335031,
+            0.16538585081896084,
+            0.23180926937423352
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 476,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_2_6_high",
+        "data": {
+          "energy": -22745.030459020356,
+          "zpe": 0.03498,
+          "status": "normal",
+          "frequencies": [
+            -748.1615,
+            198.3389,
+            210.7285,
+            300.9185,
+            429.5646,
+            654.4126,
+            814.3585,
+            911.8965,
+            2152.435,
+            2698.6657,
+            2983.7035,
+            3999.4776
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_2_6_high.com",
+            "sha256": "6927437ad93e3d9fae23479220818d092e2d2b0a5805ee1f1c13578881749393"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_intra_H_migration_2_6_high.log",
+            "sha256": "a155534419ecc031d5e48de3aee65bfaedce5cd44956b8bab2d3f14df520e8fe"
+          }
+        }
+      },
+      "accepted_connection": "rxn_11 w_3 w_8 ! 791671450790040000002_intra_H_migration_2_6   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_11_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.034752544338516,
+            -0.745112142082528,
+            -0.4138766607380555
+          ],
+          [
+            0.9302881625807471,
+            0.05741482735856254,
+            0.9370942651871571
+          ],
+          [
+            -0.8531411548527643,
+            -0.40578198145772093,
+            2.253257620702648
+          ],
+          [
+            -0.4649491267703746,
+            0.4875910074615476,
+            3.1784126689272743
+          ],
+          [
+            0.2825181574202191,
+            -1.4799428483574217,
+            -0.6874370253177545
+          ],
+          [
+            2.52412328360441,
+            1.0726105036476805,
+            0.6864713753598168
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 693,
+        "source_job": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_R_Addition_MultipleBond_1_2_6_high",
+        "data": {
+          "energy": -22744.816224840244,
+          "zpe": 0.02384,
+          "status": "normal",
+          "frequencies": [
+            -850.9602,
+            70.695,
+            186.0752,
+            196.1866,
+            339.5244,
+            392.84,
+            698.0027,
+            783.5464,
+            813.2522,
+            1119.1174,
+            2698.5929,
+            3166.6313
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_R_Addition_MultipleBond_1_2_6_high.com",
+            "sha256": "f646fd1532c23c8bb7364f99854229b511ba8e2489b455cb978ae157274d617b"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_R_Addition_MultipleBond_1_2_6_high.log",
+            "sha256": "f0423445a3f9e826947c7f805b9f1a4ee40de11bf3943a95b049a27726be20c2"
+          }
+        }
+      },
+      "accepted_connection": "rxn_11 w_3 w_8 ! 791671450790040000002_intra_H_migration_2_6   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_17_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.6919674687791865,
+            -0.40341390531598675,
+            0.0966551497360261
+          ],
+          [
+            1.5091057969631267,
+            0.28525260870466507,
+            1.4362921850265162
+          ],
+          [
+            0.049363405856523636,
+            0.05340563591903611,
+            2.9584670322108217
+          ],
+          [
+            -0.5803387226587444,
+            1.21774185322578,
+            2.7317041209783497
+          ],
+          [
+            1.2283412478298799,
+            -1.596887971599146,
+            -0.3832169291275752
+          ],
+          [
+            1.9988163449031253,
+            -1.297683541045085,
+            -0.3777501262357278
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 795,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_h2_elim_5_6_high",
+        "data": {
+          "energy": -22744.415160784985,
+          "zpe": 0.024221,
+          "status": "normal",
+          "frequencies": [
+            -1256.6286,
+            218.4607,
+            224.468,
+            246.728,
+            415.4201,
+            462.0725,
+            641.9428,
+            723.7263,
+            854.0472,
+            1071.2279,
+            2694.5084,
+            3079.3406
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_h2_elim_5_6_high.com",
+            "sha256": "a702d84a19ac30e3d4fd969aeeabcc2e10be6b2c380619ce7eec9fc2dc95c01c"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_h2_elim_5_6_high.log",
+            "sha256": "faf6977ea2435888b28437d2208cdc0f10e7b0fe5d5a4a109827b8b6fd6d2388"
+          }
+        }
+      },
+      "accepted_connection": "rxn_17 w_3 pr_10 ! 791671450790040000002_h2_elim_5_6   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_18_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.8628831463855118,
+            -0.9887975174403747,
+            -0.08445294079914273
+          ],
+          [
+            0.8970249137362779,
+            0.10717330140654209,
+            1.1290119632111228
+          ],
+          [
+            0.12547381186395978,
+            0.41741155098848076,
+            3.0698289105265477
+          ],
+          [
+            0.2123923373343636,
+            1.3635340543701397,
+            1.3199509756067869
+          ],
+          [
+            -0.12040909749020957,
+            -1.4638420806717813,
+            -0.13799109304335058
+          ],
+          [
+            2.16468586481116,
+            0.5499938974306441,
+            1.1719086813448212
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 588,
+        "source_job": "ch3ss/791871710370000000002/791871710370000000002_r12_insertion_R_3_2_4_high",
+        "data": {
+          "energy": -22743.493129058737,
+          "zpe": 0.029519,
+          "status": "normal",
+          "frequencies": [
+            -815.5017,
+            213.5958,
+            407.8957,
+            430.9422,
+            580.8866,
+            750.495,
+            869.4406,
+            940.5713,
+            1125.3083,
+            1880.3858,
+            2648.2627,
+            3109.6129
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871710370000000002/791871710370000000002_r12_insertion_R_3_2_4_high.com",
+            "sha256": "7ec1dcbf43e5a49e3299d2ad20b3400730065b8e247059b94022ed2f6cb67897"
+          },
+          ".log": {
+            "path": "ch3ss/791871710370000000002/791871710370000000002_r12_insertion_R_3_2_4_high.log",
+            "sha256": "8ec088f2969d02935c8b3d7925de69e137788731b5053602caafa30778da6baa"
+          }
+        }
+      },
+      "accepted_connection": "rxn_18 w_5 w_8 ! 791871710370000000002_r12_insertion_R_3_2_4   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_19_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.7000162456687645,
+            -0.9199115937456789,
+            0.024298023679996603
+          ],
+          [
+            0.8614736815472768,
+            -0.05743014368502493,
+            1.3873892678471242
+          ],
+          [
+            0.0021932910451971117,
+            0.22770828992357503,
+            3.117168163775246
+          ],
+          [
+            0.7258143031426116,
+            1.8072320776819102,
+            0.523237040894685
+          ],
+          [
+            -0.315510006610731,
+            -1.3258115672925945,
+            -0.02941492671031531
+          ],
+          [
+            2.1680634618479395,
+            0.2536861432014639,
+            1.44557892736005
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 592,
+        "source_job": "ch3ss/791871710370000000002/791871710370000000002_r12_insertion_R_4_2_6_high",
+        "data": {
+          "energy": -22743.26886015784,
+          "zpe": 0.02644,
+          "status": "normal",
+          "frequencies": [
+            -865.8501,
+            256.2293,
+            316.221,
+            367.2678,
+            531.1761,
+            573.0109,
+            849.9678,
+            877.5243,
+            972.4601,
+            1120.3112,
+            2644.7361,
+            3096.9489
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871710370000000002/791871710370000000002_r12_insertion_R_4_2_6_high.com",
+            "sha256": "dc5424755575cf4cf60809449e481560d4e6aa02f1aa40b21cf9bf9b27d3610b"
+          },
+          ".log": {
+            "path": "ch3ss/791871710370000000002/791871710370000000002_r12_insertion_R_4_2_6_high.log",
+            "sha256": "b1b13913af30725d6371ac8ba769bba6da3afb5a1b4a45d073b97cb29cc602c6"
+          }
+        }
+      },
+      "accepted_connection": "rxn_19 w_5 w_4 ! 791871710370000000002_r12_insertion_R_4_2_6   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_20_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.8568884365929594,
+            0.5077780531795925,
+            0.11509462589538852
+          ],
+          [
+            0.4751928495493466,
+            0.9078434252064677,
+            1.0171280276608614
+          ],
+          [
+            -0.21341368042352496,
+            -0.29249791294901945,
+            2.8322171443669464
+          ],
+          [
+            0.24972496704620517,
+            0.6395518355311968,
+            -0.3524161499355769
+          ],
+          [
+            0.1275529904996039,
+            -1.4619482509167032,
+            2.26814771114287
+          ],
+          [
+            1.9871500345725246,
+            -0.5299978842132029,
+            -0.19506277528295035
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 580,
+        "source_job": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_intra_H_migration_1_4_high",
+        "data": {
+          "energy": -22745.0616096137,
+          "zpe": 0.045392,
+          "status": "normal",
+          "frequencies": [
+            -740.126,
+            201.8281,
+            229.3135,
+            291.8784,
+            417.3762,
+            702.5543,
+            813.0034,
+            902.0837,
+            2182.6675,
+            2703.5028,
+            3035.6868,
+            8444.9847
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_intra_H_migration_1_4_high.com",
+            "sha256": "5e7f7341832ace28666682d7fd7d56957d9643885f2f469cf806b6e240e508f6"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_intra_H_migration_1_4_high.log",
+            "sha256": "1f447f1cdf33f93afa390a3971f1a84c702b11390fada3f83e928594d607afca"
+          }
+        }
+      },
+      "accepted_connection": "rxn_20 w_4 w_3 ! 791871560500020000002-sb6e34ded5baaf03b_intra_H_migration_1_4   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_20_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            -0.013114774639395706,
+            -1.3703902625678186,
+            1.2505389090652002
+          ],
+          [
+            2.318089624580147,
+            1.2243498327455944,
+            1.6272865601030269
+          ],
+          [
+            0.35993941116450423,
+            0.11021266682553153,
+            1.9931371777986149
+          ],
+          [
+            -0.8112455075921465,
+            0.10591718804932465,
+            1.2014303063778162
+          ],
+          [
+            0.13957243958227764,
+            -1.4598731949556907,
+            0.17404730585207978
+          ],
+          [
+            2.337060569248907,
+            0.8939975578421145,
+            0.3263036834102616
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 506,
+        "source_job": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_intra_H_migration_1_4_high",
+        "data": {
+          "energy": -22745.061609455326,
+          "zpe": 0.045427,
+          "status": "normal",
+          "frequencies": [
+            -740.1189,
+            201.8191,
+            229.3129,
+            291.7713,
+            417.4419,
+            702.58,
+            813.0666,
+            902.1061,
+            2182.645,
+            2703.4976,
+            3035.6687,
+            8460.0599
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_intra_H_migration_1_4_high.com",
+            "sha256": "7a8a16625f91daeb49406a248dcdbb4889da03663fecf5f8821d724d4162b49f"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_intra_H_migration_1_4_high.log",
+            "sha256": "7511f8dffa625d58547fe3bf60a87091909d034cbc8a282dcc22761208bfb511"
+          }
+        }
+      },
+      "accepted_connection": "rxn_20 w_4 w_3 ! 791871560500020000002-sb6e34ded5baaf03b_intra_H_migration_1_4   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_21_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.839225854523913,
+            0.20845656732313628,
+            0.014827382167276497
+          ],
+          [
+            0.8923097584246403,
+            0.8493027141207877,
+            1.070501066269387
+          ],
+          [
+            -0.1486977565330137,
+            -0.39164751549855403,
+            2.666135101724191
+          ],
+          [
+            -0.8911677710934082,
+            1.413800379266559,
+            0.15801004840139418
+          ],
+          [
+            0.2998098269440333,
+            -1.542472242667753,
+            2.1411778776851085
+          ],
+          [
+            2.136468129636393,
+            -0.8233528258429033,
+            -0.12285221150202476
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 714,
+        "source_job": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1_high",
+        "data": {
+          "energy": -22744.899657189566,
+          "zpe": 0.023717,
+          "status": "normal",
+          "frequencies": [
+            -720.8489,
+            104.1366,
+            209.6097,
+            227.4032,
+            285.371,
+            354.1347,
+            674.4153,
+            732.9716,
+            747.6162,
+            1162.2477,
+            2707.8318,
+            3204.9282
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1_high.com",
+            "sha256": "51123638d8669b24a21bb532a8bb8d6797b60c81fa519a1c1d30b3d6cc0e039e"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1_high.log",
+            "sha256": "870205a53c25d0854a7699fc1ceadef673f0e7c034b5b06ee50d5ca781e187b0"
+          }
+        }
+      },
+      "accepted_connection": "rxn_21 w_4 pr_9 ! 791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_23_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.6233074614514447,
+            0.223134312438717,
+            0.2838445676965528
+          ],
+          [
+            1.5256794936861446,
+            1.9610623470892696,
+            0.41423638656944384
+          ],
+          [
+            0.5633565133408779,
+            -0.6169649359345751,
+            -0.8841373373621226
+          ],
+          [
+            2.566546616060554,
+            2.1166620885163754,
+            1.2501312286426651
+          ],
+          [
+            2.01031282123941,
+            -0.40321293487605014,
+            -0.9653054857437583
+          ],
+          [
+            2.0448398718621066,
+            -0.343712050187951,
+            1.1004987079188173
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 307,
+        "source_job": "ch3ss/791472110370000000002/791472110370000000002_intra_H_migration_3_5_high",
+        "data": {
+          "energy": -22747.377921547286,
+          "zpe": 0.030477,
+          "status": "normal",
+          "frequencies": [
+            -1531.9145,
+            253.1654,
+            274.7166,
+            472.6688,
+            668.3824,
+            700.0132,
+            856.3118,
+            967.3368,
+            1203.9259,
+            2101.4445,
+            2687.857,
+            3192.2374
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_intra_H_migration_3_5_high.com",
+            "sha256": "f58d5c2bfd80f21e6669f5725241ee051f25e5e4439b42c01ac3e3e9c4f8c051"
+          },
+          ".log": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_intra_H_migration_3_5_high.log",
+            "sha256": "b94784f8592433d37ee37857fc259454432df67ac42c0a585a00453e9b756f3c"
+          }
+        }
+      },
+      "accepted_connection": "rxn_23 w_6 w_13 ! 791472110370000000002_intra_H_migration_3_5   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_23_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.4590154857952307,
+            -0.4232088705489808,
+            0.5185917417199819
+          ],
+          [
+            1.7626378049439875,
+            2.751222237307016,
+            0.9050786731963842
+          ],
+          [
+            0.7427053075544324,
+            -0.568149600468732,
+            -0.9474690806790829
+          ],
+          [
+            1.3935410303571685,
+            1.722227489680094,
+            1.691093999078754
+          ],
+          [
+            1.660398433649857,
+            -1.0234395195312953,
+            -1.8623259716182872
+          ],
+          [
+            2.512230892243071,
+            -0.7148812194643284,
+            0.4794552142055671
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 528,
+        "source_job": "ch3ss/791671560700020000002-s893815ff03c7331d/791671560700020000002-s893815ff03c7331d_r12_insertion_R_1_2_4_high",
+        "data": {
+          "energy": -22745.820368083027,
+          "zpe": 0.02866,
+          "status": "normal",
+          "frequencies": [
+            -219.0272,
+            36.9593,
+            66.4344,
+            171.8973,
+            200.1326,
+            807.4494,
+            951.9294,
+            969.7938,
+            1185.6189,
+            2429.5982,
+            2677.1592,
+            3083.3465
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671560700020000002-s893815ff03c7331d/791671560700020000002-s893815ff03c7331d_r12_insertion_R_1_2_4_high.com",
+            "sha256": "53174430a4101caf9ea6ae96c45eb41f906e6ca5aee8cf56b7f7e69498001f6d"
+          },
+          ".log": {
+            "path": "ch3ss/791671560700020000002-s893815ff03c7331d/791671560700020000002-s893815ff03c7331d_r12_insertion_R_1_2_4_high.log",
+            "sha256": "465aac69328a62c9b19be1c3f87fbafe40e64b7feb4ab3704d7b11fc7228e485"
+          }
+        }
+      },
+      "accepted_connection": "rxn_23 w_6 w_13 ! 791472110370000000002_intra_H_migration_3_5   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_26_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.7304173181162725,
+            0.28955509485449776,
+            0.21728855414326934
+          ],
+          [
+            1.322518232817318,
+            1.8602492226890661,
+            1.0242665846351084
+          ],
+          [
+            0.30874248134052323,
+            0.042521547140448916,
+            -0.7185848602607763
+          ],
+          [
+            2.6785385821609164,
+            1.1528202245911554,
+            -0.1837587914619844
+          ],
+          [
+            2.741666561902444,
+            0.39214668133977826,
+            -0.6583669197843396
+          ],
+          [
+            2.2045228027493673,
+            -0.48577695437556095,
+            0.8082715298333802
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 552,
+        "source_job": "ch3ss/791472110370000000002/791472110370000000002_h2_elim_4_5_high",
+        "data": {
+          "energy": -22745.763011375526,
+          "zpe": 0.031208,
+          "status": "normal",
+          "frequencies": [
+            -1361.7078,
+            264.1962,
+            499.1662,
+            711.2076,
+            742.7628,
+            816.6448,
+            860.5684,
+            1119.1223,
+            1416.458,
+            1567.4877,
+            2556.0792,
+            3145.0291
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_h2_elim_4_5_high.com",
+            "sha256": "a21eb4d7144a377dc92c095f6ff6c18dbb04e27b0923de95e039d613214bdcc8"
+          },
+          ".log": {
+            "path": "ch3ss/791472110370000000002/791472110370000000002_h2_elim_4_5_high.log",
+            "sha256": "7f4b3e2322f7c6512cfe93106bb75ac47b0d8416d06cb5c7a9e6fb32bf7e3db8"
+          }
+        }
+      },
+      "accepted_connection": "rxn_26 w_6 pr_15 ! 791472110370000000002_h2_elim_4_5   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_27_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.791533034749824,
+            -0.5409289051575996,
+            -0.9530572718100679
+          ],
+          [
+            1.0339296860025047,
+            -0.2673078410242626,
+            0.65487740871924
+          ],
+          [
+            0.40154619250374374,
+            0.08293547316151814,
+            3.605548564884987
+          ],
+          [
+            -0.7971408046938175,
+            0.5118342504539575,
+            3.1764300299040586
+          ],
+          [
+            0.04972744889642675,
+            -1.3564816469430736,
+            -0.9558824170938415
+          ],
+          [
+            1.9290029764953867,
+            0.7451536645557187,
+            0.6178043570555665
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 490,
+        "source_job": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_intra_H_migration_2_4_high",
+        "data": {
+          "energy": -22745.80759549762,
+          "zpe": 0.029307,
+          "status": "normal",
+          "frequencies": [
+            -101.1534,
+            65.7314,
+            76.8176,
+            95.7538,
+            295.2563,
+            896.051,
+            937.0925,
+            1013.4641,
+            1165.3266,
+            2604.4736,
+            2709.2214,
+            3005.2555
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_intra_H_migration_2_4_high.com",
+            "sha256": "9d76ba926b755a9c6c43ee28de06204afcf36eabd67c797ca3e7095ea3ad370e"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_intra_H_migration_2_4_high.log",
+            "sha256": "0303d381350ef4c3fbba6ade60e9ca23be227b33a2900b28ed0e379251d36ce9"
+          }
+        }
+      },
+      "accepted_connection": "rxn_27 w_8 w_15 ! 791871560500020000002-s254020c87a151164_intra_H_migration_2_4   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_27_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9556785118338643,
+            -0.9923354566783453,
+            -0.8300108121313788
+          ],
+          [
+            0.9114803330683487,
+            -0.27582533803578047,
+            0.6538033639479721
+          ],
+          [
+            0.0395722256341189,
+            1.4004873353588023,
+            3.0306536149157655
+          ],
+          [
+            -0.6155845678093255,
+            0.302446598990727,
+            3.4424823297054346
+          ],
+          [
+            -0.11118092554080351,
+            -1.066617426148096,
+            -1.0984227071094317
+          ],
+          [
+            2.2286329567678624,
+            -0.19295071844104741,
+            0.9472148823315886
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 694,
+        "source_job": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r12_insertion_R_3_2_6_high",
+        "data": {
+          "energy": -22745.809026439918,
+          "zpe": 0.029348,
+          "status": "normal",
+          "frequencies": [
+            -110.8469,
+            66.8578,
+            76.8724,
+            90.3801,
+            299.5755,
+            904.6433,
+            939.0902,
+            1016.5078,
+            1169.8417,
+            2603.3788,
+            2710.7042,
+            3004.459
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r12_insertion_R_3_2_6_high.com",
+            "sha256": "f3c86dd36d90625b4af3a7c3c75b5bf95ca5d10b29fe7c2fb7a1c68cc231c5e8"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r12_insertion_R_3_2_6_high.log",
+            "sha256": "0d155fc0ba42d1c996dd5819a32c89fbd8937056d89f0fa58a02838eb5e659ae"
+          }
+        }
+      },
+      "accepted_connection": "rxn_27 w_8 w_15 ! 791871560500020000002-s254020c87a151164_intra_H_migration_2_4   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_28_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.035771196228970153,
+            -1.0968219486944948,
+            -0.6779717619949972
+          ],
+          [
+            1.3411505850621979,
+            0.758195900159646,
+            0.8620201438174666
+          ],
+          [
+            -0.061290790934830856,
+            -0.20755473791783202,
+            2.062487371552417
+          ],
+          [
+            -0.8159938298657536,
+            0.8653266181752994,
+            2.3570824738800673
+          ],
+          [
+            0.584610052590479,
+            -1.9666201982014213,
+            -0.23916577641645767
+          ],
+          [
+            2.324351320873008,
+            0.8226793615250478,
+            1.7812682208214476
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 757,
+        "source_job": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5_high",
+        "data": {
+          "energy": -22744.073514319294,
+          "zpe": 0.027314,
+          "status": "normal",
+          "frequencies": [
+            -580.3467,
+            118.7451,
+            162.3417,
+            239.3792,
+            401.7853,
+            518.9187,
+            561.9796,
+            872.8391,
+            913.3195,
+            2649.3696,
+            2677.1285,
+            2873.6395
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5_high.com",
+            "sha256": "f3cd6565003c5e99d85057b32acf903efd2bb3eef9a09a3192f44b429d15c87f"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5_high.log",
+            "sha256": "4d60ab0cf49bb7361b5765f5aca8d704bd945253dec3a6cc2c71c99329180cf6"
+          }
+        }
+      },
+      "accepted_connection": "rxn_28 w_8 w_7 ! 791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_28_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.09769217658514993,
+            0.0042306135902434976,
+            -0.5793430281054878
+          ],
+          [
+            0.8288835095316586,
+            -0.13124360313770675,
+            0.8397837372332355
+          ],
+          [
+            -0.3789570189255518,
+            0.6660729649610176,
+            2.5328883437150833
+          ],
+          [
+            -1.009533289401966,
+            -0.5066434110100362,
+            2.6958133558932813
+          ],
+          [
+            0.23009254250902483,
+            -0.698624024696184,
+            -1.3860913148171785
+          ],
+          [
+            1.6784405829239981,
+            0.9159665353161506,
+            1.063489568637815
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 765,
+        "source_job": "ch3ss/791871560500020000002-sc9062a2d39c6d51a/791871560500020000002-sc9062a2d39c6d51a_R_Addition_MultipleBond_1_2_3_high",
+        "data": {
+          "energy": -22745.418807509224,
+          "zpe": 0.030738,
+          "status": "normal",
+          "frequencies": [
+            -520.931,
+            174.2926,
+            308.4343,
+            466.1609,
+            592.1838,
+            700.8929,
+            781.5426,
+            1035.1078,
+            1068.7713,
+            2403.8168,
+            2713.2715,
+            3247.8374
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-sc9062a2d39c6d51a/791871560500020000002-sc9062a2d39c6d51a_R_Addition_MultipleBond_1_2_3_high.com",
+            "sha256": "70aaa2ef3d8cf98ccd18f1891d7299e104f84b6cce92bf4dc3bb57ecf7e1db61"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-sc9062a2d39c6d51a/791871560500020000002-sc9062a2d39c6d51a_R_Addition_MultipleBond_1_2_3_high.log",
+            "sha256": "ba884d7754dbba2962d2c3d18a6f52b6b9c493c357b8907ee30a90eaaebe2846"
+          }
+        }
+      },
+      "accepted_connection": "rxn_28 w_8 w_7 ! 791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_32_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9402677777233949,
+            0.007418353827693682,
+            1.2160025683905362
+          ],
+          [
+            2.5730192523888054,
+            -0.5300127918217683,
+            1.5111589998215451
+          ],
+          [
+            -0.036594414064478865,
+            0.4674562415953638,
+            2.566269609061283
+          ],
+          [
+            -1.0994215774460117,
+            0.899754046493191,
+            1.8676269700138104
+          ],
+          [
+            2.3654127070497286,
+            -1.8640104319033903,
+            1.5106106050199464
+          ],
+          [
+            0.5322011860289626,
+            0.05196947716523823,
+            0.22031250135748623
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 747,
+        "source_job": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_2_3_4_high",
+        "data": {
+          "energy": -22748.547084148016,
+          "zpe": 0.032065,
+          "status": "normal",
+          "frequencies": [
+            -151.5532,
+            262.934,
+            269.3731,
+            285.8626,
+            691.4719,
+            886.3946,
+            938.2071,
+            981.361,
+            1232.1324,
+            2604.504,
+            2695.7522,
+            3226.8067
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_2_3_4_high.com",
+            "sha256": "d79fc97cee8f800403c97c626f39fe366bab54b07afbf4d16c21773e1d66ca55"
+          },
+          ".log": {
+            "path": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_2_3_4_high.log",
+            "sha256": "4c0924e60ed213fbfea17c6a3732b590e8bd78bc248f7277cc30a224c0d1d7d3"
+          }
+        }
+      },
+      "accepted_connection": "rxn_32 w_7 w_13 ! 791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_2_3_4   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_33_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.6878478637720783,
+            -0.5105636319651019,
+            1.3912601622316867
+          ],
+          [
+            2.2755706549170034,
+            -1.1427132950118393,
+            1.7364250628304438
+          ],
+          [
+            0.016828883680867983,
+            0.8889952403282293,
+            2.1517645465945487
+          ],
+          [
+            1.0847791100628739,
+            1.1854894679675236,
+            2.9076887916825176
+          ],
+          [
+            2.9540686524516406,
+            -0.6036053918640935,
+            0.7006613782872467
+          ],
+          [
+            0.039890138282528485,
+            -0.9986931514504512,
+            0.6811591901984005
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 691,
+        "source_job": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_R_Addition_MultipleBond_2_1_3_high",
+        "data": {
+          "energy": -22748.57153350979,
+          "zpe": 0.032192,
+          "status": "normal",
+          "frequencies": [
+            -140.6206,
+            177.5143,
+            289.0203,
+            409.3888,
+            662.0803,
+            885.9761,
+            951.8923,
+            959.5343,
+            1266.3706,
+            2599.6012,
+            2708.6805,
+            3220.4953
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_R_Addition_MultipleBond_2_1_3_high.com",
+            "sha256": "01a4d891a47300a34d24e5aa1f2ba827f199b4c463d0ddd6eea0df7667bd1abc"
+          },
+          ".log": {
+            "path": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_R_Addition_MultipleBond_2_1_3_high.log",
+            "sha256": "283aee1d8912e70d63b45bacfed322415b6375952c9a99b5841543e2d7929e4f"
+          }
+        }
+      },
+      "accepted_connection": "rxn_33 w_7 w_14 ! 791671560700020000002-sedd8f7729b69b19b_R_Addition_MultipleBond_2_1_3   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_40_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.8924111732634014,
+            -0.6185468037244974,
+            0.3072866561736476
+          ],
+          [
+            2.294448388547659,
+            0.8514022727470552,
+            2.5218311731648635
+          ],
+          [
+            0.8879161347495493,
+            -0.3482233497383658,
+            1.9079591223054282
+          ],
+          [
+            -1.1421790237033473,
+            0.5758846829122204,
+            2.093549835205828
+          ],
+          [
+            0.12194482516267822,
+            -1.2702768950486203,
+            -0.07746517920300658
+          ],
+          [
+            1.6245700529381606,
+            -0.1679071122427278,
+            -0.34542195459021324
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 902,
+        "source_job": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_R_Addition_MultipleBond_1_3_4_high",
+        "data": {
+          "energy": -22746.25411066266,
+          "zpe": 0.02834,
+          "status": "normal",
+          "frequencies": [
+            -560.3487,
+            187.4355,
+            211.256,
+            303.1598,
+            569.0916,
+            599.9659,
+            818.9722,
+            939.7934,
+            945.458,
+            1421.8177,
+            3156.2275,
+            3286.7079
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_R_Addition_MultipleBond_1_3_4_high.com",
+            "sha256": "2a931dfa8c7ad7b22866a25b6958d585b7a59504664fcec9984facd777801db1"
+          },
+          ".log": {
+            "path": "ch3ss/791671580700000000002-s8fc26f5f496eeb4e/791671580700000000002-s8fc26f5f496eeb4e_R_Addition_MultipleBond_1_3_4_high.log",
+            "sha256": "da0b6777dd1645eb3faa39600a115e04e981d3e6c76ca7c36ad143dd4dcf4205"
+          }
+        }
+      },
+      "accepted_connection": "rxn_40 w_10 pr_2 ! 791671580700000000002-s8fc26f5f496eeb4e_R_Addition_MultipleBond_1_3_4   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_44_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.636342132969129,
+            0.20888042731491852,
+            1.6970979631961758
+          ],
+          [
+            2.0631329360707586,
+            1.408086935604491,
+            0.2455580266089623
+          ],
+          [
+            0.3646381703840275,
+            0.17994141484890006,
+            -0.10116606074881526
+          ],
+          [
+            1.4160311285212883,
+            2.492723366461443,
+            0.7128683082585522
+          ],
+          [
+            0.44383833646787607,
+            0.45652851323546595,
+            -1.4609521304891235
+          ],
+          [
+            2.3902786825534035,
+            -0.5657646479141509,
+            1.4576314508645547
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 469,
+        "source_job": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_3_high",
+        "data": {
+          "energy": -22744.63837280544,
+          "zpe": 0.030452,
+          "status": "normal",
+          "frequencies": [
+            -699.3754,
+            374.3187,
+            480.1061,
+            502.1084,
+            657.4855,
+            694.2862,
+            820.4665,
+            884.5906,
+            1130.6621,
+            2224.1943,
+            2651.0485,
+            2947.6968
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_3_high.com",
+            "sha256": "56ece052f000c99a0c90b64f4a3a799612991585dcd46402a408d0a76dde9c75"
+          },
+          ".log": {
+            "path": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_3_high.log",
+            "sha256": "2177416a7ad19219e18f31faf97861a2cf0951c925eeb822cb1ef373271180d8"
+          }
+        }
+      },
+      "accepted_connection": "rxn_44 w_14 w_8 ! 791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_3   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_45_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.6380413121628397,
+            0.16309066564664937,
+            0.9515187855952404
+          ],
+          [
+            2.2176040464420046,
+            1.734736991065111,
+            1.086294747799221
+          ],
+          [
+            0.308795110736699,
+            -0.23558702431960626,
+            0.003737405747809912
+          ],
+          [
+            1.3419052282730612,
+            1.9386760603109574,
+            -0.2733563082592202
+          ],
+          [
+            0.6364560089753636,
+            1.2104915647429413,
+            -0.6734448293534585
+          ],
+          [
+            2.171459680376517,
+            -0.6310122478949832,
+            1.456287756160717
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 479,
+        "source_job": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_4_2_1_high",
+        "data": {
+          "energy": -22747.336758278736,
+          "zpe": 0.029077,
+          "status": "normal",
+          "frequencies": [
+            -745.9185,
+            538.1737,
+            573.8091,
+            812.5196,
+            835.4214,
+            865.5958,
+            985.328,
+            1037.3682,
+            1229.5412,
+            1300.0307,
+            1389.7581,
+            3195.5676
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_4_2_1_high.com",
+            "sha256": "60f88f43ee989e0adfe1f74ff4e24ace587f24e6cee5cbda62ea0c93de052860"
+          },
+          ".log": {
+            "path": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_4_2_1_high.log",
+            "sha256": "7ae420f885572d3f646ca3f325d33c53a727550b7b6b6fc3bd62a1d89764f6a6"
+          }
+        }
+      },
+      "accepted_connection": "rxn_45 w_14 pr_15 ! 791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_4_2_1   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_46_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.340331014230863,
+            0.7603564360114482,
+            0.3502170267566043
+          ],
+          [
+            2.2673753465864888,
+            1.8621584685312447,
+            1.0511331162069477
+          ],
+          [
+            0.6029980961824133,
+            -0.6074448102137676,
+            -0.03723859889836095
+          ],
+          [
+            2.0001380379478997,
+            3.0145763944508617,
+            0.3406780778601223
+          ],
+          [
+            -0.20327901931066483,
+            -0.25484088306742725,
+            -1.1001680450411957
+          ],
+          [
+            2.3066979113294876,
+            -0.5944095961612877,
+            1.9464159808061887
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 480,
+        "source_job": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_6_1_2_high",
+        "data": {
+          "energy": -22744.5682084942,
+          "zpe": 0.024225,
+          "status": "normal",
+          "frequencies": [
+            -267.1545,
+            226.8414,
+            289.4276,
+            349.3536,
+            380.5674,
+            593.9489,
+            719.7978,
+            1003.3547,
+            1009.1897,
+            1380.757,
+            2331.7667,
+            2348.5659
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_6_1_2_high.com",
+            "sha256": "cb4209dad4132c116da58b0f02ed81e4a6ef32e28de516d78a9b143a8c4e0685"
+          },
+          ".log": {
+            "path": "ch3ss/791671560700020000002-sdc19d1516ced03fc/791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_6_1_2_high.log",
+            "sha256": "b262ddc186cfe7939d16a2b3ca6cc83f062371036ba7f66826d078041445cf9f"
+          }
+        }
+      },
+      "accepted_connection": "rxn_46 w_14 pr_18 ! 791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_6_1_2   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_55_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.1190893783927105,
+            0.3938114116408725,
+            -0.3288700276067798
+          ],
+          [
+            1.0254713639254847,
+            0.8985226717336654,
+            1.1354352688058515
+          ],
+          [
+            -0.262276395116171,
+            -0.21239877978008018,
+            2.624037042087538
+          ],
+          [
+            0.06989763317098913,
+            0.6516465600278584,
+            3.5972684168759836
+          ],
+          [
+            0.639946324221424,
+            -0.4541333492925034,
+            -0.8016757853728562
+          ],
+          [
+            2.8962776233398406,
+            -2.0820247898406525,
+            0.1935864271630242
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 831,
+        "source_job": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_6_1_5_high",
+        "data": {
+          "energy": -22745.011218682783,
+          "zpe": 0.023278,
+          "status": "normal",
+          "frequencies": [
+            -42.2541,
+            61.9801,
+            128.199,
+            161.6115,
+            206.8231,
+            354.6003,
+            684.3428,
+            731.8054,
+            788.3591,
+            1193.6279,
+            2701.3904,
+            3205.0821
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_6_1_5_high.com",
+            "sha256": "da10b1bedd13500837563797e4c21373fd7c2d1a47b920d8ed01a8ebe1cb627a"
+          },
+          ".log": {
+            "path": "ch3ss/791671450790040000002/791671450790040000002_r12_insertion_R_6_1_5_high.log",
+            "sha256": "349b1b19a6d9c050e5e582c171e7e21d152878ae059621d9cf3dac31370bd340"
+          }
+        }
+      },
+      "accepted_connection": "rxn_55 w_3 w_11 ! 791671450790040000002_r12_insertion_R_6_1_5   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_56_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.7082135011430684,
+            -0.9453290700597249,
+            0.038167896539322066
+          ],
+          [
+            0.7371253694103042,
+            0.47578049993074567,
+            1.093113950785116
+          ],
+          [
+            0.6817868171596312,
+            -0.8675035605127922,
+            2.566456045665461
+          ],
+          [
+            0.388282739391345,
+            1.6136830339032529,
+            1.899691215423018
+          ],
+          [
+            -0.355428343235338,
+            -1.2268192721990323,
+            0.011699448301314265
+          ],
+          [
+            1.9820708927720494,
+            0.9356615750212001,
+            0.8591279401325599
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 633,
+        "source_job": "ch3ss/791871710370000000002/791871710370000000002_Intra_R_Add_ExoTetCyclic_F_3_1_5_high",
+        "data": {
+          "energy": -22743.40007652471,
+          "zpe": 0.031063,
+          "status": "normal",
+          "frequencies": [
+            -730.8095,
+            465.134,
+            549.8522,
+            651.6085,
+            659.0811,
+            765.2193,
+            777.1342,
+            980.3607,
+            1256.8619,
+            1872.2155,
+            2621.9337,
+            3035.8293
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871710370000000002/791871710370000000002_Intra_R_Add_ExoTetCyclic_F_3_1_5_high.com",
+            "sha256": "e20245ab9d8f92260b3dd926ff2a05473d636656fdd0b04eba60dd42fb4e8f9e"
+          },
+          ".log": {
+            "path": "ch3ss/791871710370000000002/791871710370000000002_Intra_R_Add_ExoTetCyclic_F_3_1_5_high.log",
+            "sha256": "647cc356a27dbec7ad36b3f724272b6e07845430820cdf8ae4c69a5f495119c8"
+          }
+        }
+      },
+      "accepted_connection": "rxn_56 w_5 w_12 ! 791871710370000000002_Intra_R_Add_ExoTetCyclic_F_3_1_5   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_58_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            2.2087057267926036,
+            0.30581513392382154,
+            0.23585724145143003
+          ],
+          [
+            0.7513163694020164,
+            0.9903382619593435,
+            0.7761199353908667
+          ],
+          [
+            -0.15506957806068228,
+            -0.02112120800019177,
+            2.6695383551728002
+          ],
+          [
+            -0.25787282108233167,
+            0.4374466610515581,
+            0.04201425013608799
+          ],
+          [
+            -0.06652546993215276,
+            -1.2531865396641597,
+            2.1421553355779364
+          ],
+          [
+            2.0025413707176645,
+            -0.6885630434320394,
+            -0.18057653388160144
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 759,
+        "source_job": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4_high",
+        "data": {
+          "energy": -22745.484381587263,
+          "zpe": 0.028943,
+          "status": "normal",
+          "frequencies": [
+            -699.7875,
+            116.0369,
+            188.9691,
+            243.1792,
+            615.1887,
+            691.9722,
+            756.8637,
+            805.8922,
+            1077.2037,
+            2475.5074,
+            2702.7787,
+            3030.823
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4_high.com",
+            "sha256": "1e840b04b3c1b0fb856c14abb54cf7b52e1e74a9c3f860c8f5dd719c2ff437d1"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-sb6e34ded5baaf03b/791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4_high.log",
+            "sha256": "c654a94e17b424ae3e85efadeb18a2a50c3c26492572b41cf0086906a3cf56c4"
+          }
+        }
+      },
+      "accepted_connection": "rxn_58 w_4 w_12 ! 791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_58_2",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            -0.759540425660291,
+            -1.6316792513229346,
+            0.212904416798827
+          ],
+          [
+            2.0186075541995123,
+            2.640608106432026,
+            1.7420282464520942
+          ],
+          [
+            -0.19349577798049236,
+            -0.5785334260923843,
+            1.3647602293528907
+          ],
+          [
+            0.110147504308434,
+            0.4929410316970563,
+            0.5993403176765026
+          ],
+          [
+            -1.014595163713464,
+            -2.5255513591424212,
+            0.8061302063681682
+          ],
+          [
+            3.093885419257104,
+            1.864401198942738,
+            1.5204157568205456
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 713,
+        "source_job": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_r12_insertion_R_3_2_6_high",
+        "data": {
+          "energy": -22745.796645686227,
+          "zpe": 0.028668,
+          "status": "normal",
+          "frequencies": [
+            -32.0267,
+            23.4663,
+            30.6769,
+            68.6,
+            135.7985,
+            884.9096,
+            949.9264,
+            993.6107,
+            1183.3097,
+            2611.9986,
+            2705.0568,
+            2996.6407
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_r12_insertion_R_3_2_6_high.com",
+            "sha256": "f5efc78cb1502107c6fdeab121f2f7859eb5f3adffe14cbc2a76271776c20713"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-s1a4d7914034ddafc/791871560500020000002-s1a4d7914034ddafc_r12_insertion_R_3_2_6_high.log",
+            "sha256": "4ca50be7a79a9aca99373cb08a4259a020c2e4556ad6315c58a2fc05006d5d07"
+          }
+        }
+      },
+      "accepted_connection": "rxn_58 w_4 w_12 ! 791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4   !",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_59_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.2037801121765723,
+            -0.5000744998189284,
+            -0.7705823213144982
+          ],
+          [
+            0.9881399900862589,
+            0.40838738208652003,
+            0.5549327211398495
+          ],
+          [
+            -0.5544284236285074,
+            -0.3557135253339436,
+            2.6454583869800348
+          ],
+          [
+            -0.0845872975477459,
+            0.7549899446014833,
+            3.240134807485881
+          ],
+          [
+            0.5529640157126275,
+            -0.5607939181505883,
+            -1.6349689317890441
+          ],
+          [
+            1.2163042118156926,
+            -0.439729328165418,
+            1.6599647351788989
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 792,
+        "source_job": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r13_insertion_RSR_5_1_2_3_high",
+        "data": {
+          "energy": -22745.441345548683,
+          "zpe": 0.028621,
+          "status": "normal",
+          "frequencies": [
+            -1018.0402,
+            155.4019,
+            237.6819,
+            283.9427,
+            479.4642,
+            572.0161,
+            693.8674,
+            955.4611,
+            1137.0599,
+            2171.2131,
+            2693.0003,
+            3183.9062
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r13_insertion_RSR_5_1_2_3_high.com",
+            "sha256": "e31d9c5d79e971d5c87737a0134b7f64b75109edec642a15c8c37c4c20881df1"
+          },
+          ".log": {
+            "path": "ch3ss/791871560500020000002-s254020c87a151164/791871560500020000002-s254020c87a151164_r13_insertion_RSR_5_1_2_3_high.log",
+            "sha256": "cf42de404acad41ee6e4434d18506cb50e9978a56f0f859c821cc6c665d995ea"
+          }
+        }
+      },
+      "accepted_connection": "rxn_59 w_8 w_12 ! 791871560500020000002-s254020c87a151164_r13_insertion_RSR_5_1_2_3   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_60_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.013633988864859288,
+            -0.5031621779887604,
+            0.8789040221883828
+          ],
+          [
+            3.00879318474398,
+            -0.8394295126980966,
+            2.2620403591828873
+          ],
+          [
+            -0.30076307582657963,
+            0.7591602281815985,
+            1.895808280449776
+          ],
+          [
+            0.9216077616961466,
+            0.8722243642610314,
+            2.477808523869152
+          ],
+          [
+            2.5783822867903488,
+            -0.5919942939060358,
+            1.0129187710055085
+          ],
+          [
+            -0.9467692145883589,
+            -0.6642237124934067,
+            0.364501296968884
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 908,
+        "source_job": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_dissociation_saddle_1_2_high",
+        "data": {
+          "energy": -22745.94510827744,
+          "zpe": 0.030133,
+          "status": "normal",
+          "frequencies": [
+            -265.8393,
+            104.5388,
+            165.9994,
+            198.1327,
+            261.3466,
+            948.3691,
+            970.7355,
+            1016.9299,
+            1302.0562,
+            2540.4545,
+            2702.501,
+            3015.969
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_dissociation_saddle_1_2_high.com",
+            "sha256": "85df88807e77a0029f39a116ca8923dae22420c744fb47161dfe08ac5e1664e4"
+          },
+          ".log": {
+            "path": "ch3ss/791671560700020000002-sedd8f7729b69b19b/791671560700020000002-sedd8f7729b69b19b_dissociation_saddle_1_2_high.log",
+            "sha256": "a58027797858a4ff50f4e27c86c5376d17c08a4fdf63e580440949ac9dfe2505"
+          }
+        }
+      },
+      "accepted_connection": "rxn_60 w_7 w_16 ! 791671560700020000002-sedd8f7729b69b19b_dissociation_saddle_1_2   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    },
+    {
+      "name": "ch3ss_rxn_61_1",
+      "mode": "reuse",
+      "seed": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            3.0910219959203378,
+            0.6168885921946792,
+            0.3718957371210844
+          ],
+          [
+            2.175367451571383,
+            1.9713015730263503,
+            0.2343333812975154
+          ],
+          [
+            -0.17986941185016886,
+            -0.9774559342086887,
+            -0.5069285720805814
+          ],
+          [
+            0.9547912524268982,
+            1.755975686220996,
+            0.8279247671797484
+          ],
+          [
+            0.9513599907366753,
+            -1.4611911550377026,
+            -1.0495558174904187
+          ],
+          [
+            2.5378576757386244,
+            -0.16174824522185835,
+            0.9067550798759761
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "native": {
+        "profile": {
+          "basis": "cc-pVTZ",
+          "calculator": "gaussian",
+          "calculator_kwargs": {
+            "EmpiricalDispersion": "GD3BJ",
+            "Symm": "None",
+            "integral": "UltraFine",
+            "scf": "xqc,conver=8"
+          },
+          "command": "g16",
+          "device": "cpu",
+          "frequency_mode": "native_hessian",
+          "method": "B2PLYP",
+          "model_path": "",
+          "optimizer": "sella",
+          "task_name": "omol"
+        },
+        "source_row_id": 530,
+        "source_job": "ch3ss/791671560700020000002-s893815ff03c7331d/791671560700020000002-s893815ff03c7331d_intra_R_migration_2_3_high",
+        "data": {
+          "energy": -22745.758114263204,
+          "zpe": 0.028215,
+          "status": "normal",
+          "frequencies": [
+            -116.3537,
+            37.0884,
+            84.21,
+            94.4066,
+            153.1861,
+            795.5806,
+            949.9587,
+            959.3154,
+            1121.3934,
+            2417.4234,
+            2703.103,
+            3069.3431
+          ]
+        },
+        "files": {
+          ".com": {
+            "path": "ch3ss/791671560700020000002-s893815ff03c7331d/791671560700020000002-s893815ff03c7331d_intra_R_migration_2_3_high.com",
+            "sha256": "2b92189deffde10d704fd46f9517a0cb2a0d805de7d513a2515d650e503ec835"
+          },
+          ".log": {
+            "path": "ch3ss/791671560700020000002-s893815ff03c7331d/791671560700020000002-s893815ff03c7331d_intra_R_migration_2_3_high.log",
+            "sha256": "41e5ba07ed5e4f8efcefc11e9dbe48f1a5ca680bbe5e592aa9fa58e786a0ce48"
+          }
+        }
+      },
+      "accepted_connection": "rxn_61 w_13 w_12 ! 791671560700020000002-s893815ff03c7331d_intra_R_migration_2_3   ! ",
+      "comparison_group": "remaining_retained_connectivity"
+    }
+  ],
+  "purpose": "L2 IRC coverage of remaining retained saddles. No MESS integration or global absence claim.",
+  "source_archive_sha256": "c6878221df7864b92026f0a384d86c27e48dd2440ec71213a18f093d6d64c66e"
+}

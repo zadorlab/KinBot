@@ -37,8 +37,16 @@ def _attempt(root, claim):
     job = str(claim.get('job_id', ''))
     directory = Path(claim.get('directory', '/')).resolve()
     if directory.parent.name != 'tasks':
-        from kinbot.recon_submission import terminal_attempt
-        return terminal_attempt(root, claim)
+        from kinbot.recon_submission import terminal_attempt as recon_attempt
+        from kinbot.qc_submission_evidence import terminal_attempt as qc_attempt
+        for check in (recon_attempt, qc_attempt):
+            try:
+                attempt = check(root, claim)
+                if attempt is not None:
+                    return attempt
+            except (OSError, ValueError, KeyError, TypeError, IndexError):
+                continue
+        return None
     if (not job.isdecimal() or claim.get('status') != 'submitted'
             or not directory.is_relative_to(root) or directory.parent.name != 'tasks'):
         return None

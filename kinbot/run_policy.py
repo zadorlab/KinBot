@@ -511,6 +511,8 @@ def main(argv=None):
     walltime.add_argument('--minimum-walltime', help='Raise future requests up to this time, capped by partition MaxTime.')
     walltime.add_argument('--clear-minimum-walltime', action='store_true')
     show = sub.add_parser('show'); show.add_argument('root', type=Path)
+    reconcile = sub.add_parser('reconcile', help='Retire verified ended allocation reservations; no job changes.')
+    reconcile.add_argument('root', type=Path)
     launch = sub.add_parser('submit'); launch.add_argument('script')
     args = parser.parse_args(argv)
     if args.action == 'set':
@@ -528,6 +530,9 @@ def main(argv=None):
                         allow=[n for v in args.allow for n in v.split(',')])
         print(json.dumps(result, indent=2))
         print('Policy saved. Running and pending jobs were not modified.')
+    elif args.action == 'reconcile':
+        occupied = reconcile_allocations(args.root)
+        print(json.dumps({'occupied_slots': occupied, 'jobs_modified': False}))
     elif args.action == 'show':
         path = find(args.root)
         if not path:

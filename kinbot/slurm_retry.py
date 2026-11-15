@@ -42,6 +42,16 @@ def completion_receipt(identity, job_id, root=None):
     keeps its ID, so only its latest recorded incarnation can prove completion.
     This supplements a missing marker, never the native result validation.
     """
+    evidence = completion_evidence(identity, job_id, root)
+    return (evidence['exit_code'], True) if evidence else None
+
+
+def completion_evidence(identity, job_id, root=None):
+    """Return the same completion proof with its immutable allocation record.
+
+    This is allocation evidence, not acceptance of the chemistry. As for
+    completion_receipt, callers must independently establish scheduler inactivity.
+    """
     if not re.fullmatch(r'[0-9]+', str(job_id)):
         return None
     token = hashlib.sha256(identity.encode()).hexdigest()[:20]
@@ -56,7 +66,8 @@ def completion_receipt(identity, job_id, root=None):
                     return None
                 restarts.append((int(match[1]), child))
             restart, current = max(restarts, key=lambda item: item[0])
-            record = json.loads((current/'execution.json').read_text())
+            source = current/'execution.json'
+            record = json.loads(source.read_text())
             if (record.get('schema') != 1 or record.get('identity') != identity
                     or str(record.get('slurm_job_id')) != str(job_id)
                     or record.get('slurm_restart_count', 0) != restart
@@ -66,9 +77,13 @@ def completion_receipt(identity, job_id, root=None):
             code, failed = last['returncode'], last['failed_result']
             if type(code) is not int or type(failed) is not bool:
                 return None
-            if record['status'] == 'complete':
-                return (0, True) if code == 0 and not failed else None
-            return (code or 1, True) if code or failed else None
+            if record['status'] == 'complete' and (code != 0 or failed):
+                return None
+            if record['status'] == 'failed' and not (code or failed):
+                return None
+            return dict(path=str(source), sha256=file_sha256(source),
+                        status=record['status'], exit_code=code or int(failed),
+                        job_id=str(job_id), restart=restart)
     except (OSError, ValueError, KeyError, IndexError, TypeError):
         return None
 

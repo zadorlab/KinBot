@@ -6,6 +6,7 @@ directory is a scratch fallback. All paths are checked on the executing host.
 from contextlib import contextmanager
 import ctypes
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -304,17 +305,46 @@ def workspace(directory, runtime, *, backend, inputs, outputs=(), label='native'
     work.mkdir()
     runtime['native_work_directory'] = str(work)
     staged = set(inputs)
+    rewritten, imported, audit_files = {}, {}, []
     for name in inputs:
         name = _basename(name)
         path = directory / name
         if path.suffix.lower() in ('.inp', '.com'):
-            staged.update(references(path.read_text(), backend))
+            text = path.read_text()
+            if backend in ('gaussian', 'gauss'):
+                from kinbot.anl.checkpoint_inputs import plan
+                rendered, bindings = plan(directory, name, text)
+                if bindings:
+                    rewritten[name] = rendered
+                    audit = _basename(name+'.native')
+                    if audit in inputs or audit in outputs or (directory/audit).exists():
+                        raise ValueError('Native input audit filename already exists.')
+                    audit_files.append(audit)
+                    from kinbot.execution import file_sha256
+                    runtime.setdefault('checkpoint_inputs', []).append(dict(
+                        input=name, original_sha256=file_sha256(path), executed_input=audit,
+                        executed_sha256=hashlib.sha256(rendered.encode()).hexdigest(),
+                        checkpoints=bindings))
+                    imported.update({b['local']: b for b in bindings})
+                    text = rendered
+            staged.update(references(text, backend))
+    if set(imported) & (set(inputs) | set(outputs)):
+        raise ValueError('Checkpoint import collides with a task input or output.')
     for name in staged:
-        source = directory / _basename(name)
+        source = Path(imported[name]['source']) if name in imported else directory / _basename(name)
         if source.is_file():
             shutil.copy2(source, work / name)
+            if name in imported and file_sha256(work/name) != imported[name]['sha256']:
+                raise ValueError('Dependency checkpoint changed while being copied.')
         elif name in inputs:
             raise FileNotFoundError(source)
+        elif name in imported:
+            raise FileNotFoundError(source)
+    for name, rendered in rewritten.items():
+        (work/name).write_text(rendered)
+        (work/(name+'.native')).write_text(rendered)
+    if rewritten:
+        runtime['checkpoint_input_artifacts'] = sorted([*audit_files, *imported])
     runtime_file = directory / f'{_basename(label)}.runtime.json'
     from kinbot.execution import atomic_json
     atomic_json(runtime_file, runtime)
@@ -356,12 +386,18 @@ def workspace(directory, runtime, *, backend, inputs, outputs=(), label='native'
         if runtime.get('native_checkpoint_error'):
             runtime['retain_scratch'] = True
         try:
-            explicit = set(outputs) | staged
+            for name, binding in imported.items():
+                if file_sha256(work/name) != binding['sha256']:
+                    runtime['retain_scratch'] = True
+                    raise RuntimeError('Imported OLDCHK changed during native execution.')
+            explicit = set(outputs) | staged | set(audit_files)
             suffixes = {'.out', '.log', '.err', '.stdout', '.stderr', '.xml', '.xyz',
                         '.molden', '.wfu', '.chk', '.fchk', '.grad'}
             for path in work.iterdir():
                 if path.is_symlink():
                     raise OSError(f'Refusing to publish a native symlink: {path}')
+                if path.name in rewritten:
+                    continue  # Keep the hash-bound logical deck unchanged.
                 if path.is_file() and (path.name in explicit or path.suffix in suffixes
                                        or path.name.endswith('.wfu.failed')):
                     target = directory / path.name

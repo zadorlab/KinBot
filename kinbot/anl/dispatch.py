@@ -1055,6 +1055,8 @@ def _run_external(directory, record):
     if orbital_report is not None:
         details['orbital_audit'] = orbital_report.name
         details['generated_files'] = [orbital_report.name]
+    if runtime.get('checkpoint_input_artifacts'):
+        details.setdefault('generated_files', []).extend(runtime['checkpoint_input_artifacts'])
     if aliases:
         details['output_aliases'] = aliases
         details.setdefault('generated_files', []).extend(aliases.values())

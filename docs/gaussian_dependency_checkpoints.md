@@ -28,6 +28,19 @@ restaging. There is one repair per task; repeating the command preserves pending
 requests, replacement generations and completed work. Native numerical failures
 are not selected. The live-control root must already be enabled.
 
+Enable controls at the smallest common directory containing the affected
+workflows (for example, the native panel directory). If an ancestor is already
+enabled, use that existing control root; do not create a nested root. Enabling
+an existing root preserves its hold settings unless explicitly changed.
+
+New-root discovery uses directory entries instead of probing every descendant
+for a nonexistent marker. It includes hidden directories, does not follow
+directory symlinks, and stops without enabling controls if discovery exceeds
+10,000 directories, 250,000 entries, or 15 seconds checked between filesystem
+calls. A filesystem error also prevents enabling. A single blocked filesystem
+call can still delay the check. The CLI reports the scope before discovery;
+large checkpoint archives should use a narrower control scope.
+
 The frozen example panel's original owner did not poll live controls. Its new
 `examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/resume.py` does, while
 retaining `campaign.py` and its scientific fingerprints. Its `refresh` command

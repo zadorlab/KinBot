@@ -15,7 +15,7 @@ from kinbot.anl.results import parse_gaussian_harmonic
 
 
 @pytest.fixture
-def graph(tmp_path, monkeypatch):
+def graph(tmp_path, monkeypatch, request):
     panel = load('campaign')
     native = tmp_path/'native'
     native.write_text(f'#!{sys.executable}\n'
@@ -46,7 +46,8 @@ def graph(tmp_path, monkeypatch):
         method='B2PLYP',basis='cc-pVTZ',dispersion='GD3BJ',natoms=3,stationary_point='transition_state')
     atomic_json(p, e)
     dispatch.advance(directory)
-    live_control.configure(root)
+    if getattr(request, 'param', True):
+        live_control.configure(root)
     return directory
 
 
@@ -175,12 +176,29 @@ def resume_panel(graph, monkeypatch):
     return resume, root, graph
 
 
+@pytest.mark.parametrize('graph', [False], indirect=True)
 def test_replacement_owner_applies_requests_and_adopts_allocations(resume_panel, monkeypatch):
     from kinbot.anl import live_control as owner, protocol
-    from kinbot import run_policy
+    from kinbot import run_control, run_policy
     from types import SimpleNamespace
     resume, root, graph = resume_panel
     old_failure(graph)
+    # The handoff enables only the panel, even with an unrelated run tree next
+    # to it. Exercise the actual CLI before queueing owner-driven repairs.
+    unrelated = root.parent/'unrelated-checkpoints'; unrelated.mkdir()
+    (unrelated/'retained').write_text('unrelated live work')
+    scan = live_control.os.scandir
+    visited = []
+    def scoped_scan(path):
+        visited.append(Path(path))
+        assert Path(path).is_relative_to(root)
+        return scan(path)
+    with monkeypatch.context() as patch:
+        patch.setattr(live_control.os, 'scandir', scoped_scan)
+        run_control.main(['enable', str(root)])
+        run_control.main(['enable', str(root)])
+    assert visited
+    assert not (root.parent/live_control.NAME).exists()
     checkpoints.retry_requests(root, apply=True)
     monkeypatch.setattr(owner, 'slurm_job_record', lambda _: {})
     monkeypatch.setattr(protocol, 'preflight_ready', lambda _: True)
@@ -207,6 +225,7 @@ def test_replacement_owner_applies_requests_and_adopts_allocations(resume_panel,
     assert state['tasks']['reverse_10']['job_id'] == '77'
     assert len(submitted) == 1
     assert not json.loads((root/'progress.json').read_text())['scientific_approval']
+    assert (unrelated/'retained').read_text() == 'unrelated live work'
 
 
 @pytest.mark.parametrize('race', ['none','submitting','staging','receipt','archival','unowned_job','scheduler_outage'])

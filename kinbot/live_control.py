@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import threading
+import time
 import uuid
 import hashlib
 
@@ -19,6 +20,9 @@ from kinbot.execution import atomic_json, file_sha256
 
 NAME = '.kinbot_live_control.json'
 _LOCK = threading.RLock()
+_CONTROL_SCAN_DIRECTORIES = 10000
+_CONTROL_SCAN_ENTRIES = 250000
+_CONTROL_SCAN_SECONDS = 15
 
 
 def now():
@@ -51,18 +55,66 @@ def locked(root):
         yield
 
 
+def _check_control_descendants(root):
+    """Prove a new root has no nested controls, or stop without enabling it.
+
+    Scandir avoids probing a nonexistent marker in every checkpoint directory.
+    Include hidden directories, do not follow directory symlinks, and fail
+    closed on incomplete traversal. Time is checked between filesystem calls.
+    """
+    started = time.monotonic()
+    pending = [root]
+    directories, entries = 1, 0
+
+    def budget():
+        if (directories > _CONTROL_SCAN_DIRECTORIES
+                or entries > _CONTROL_SCAN_ENTRIES
+                or time.monotonic() - started >= _CONTROL_SCAN_SECONDS):
+            raise ValueError(
+                f'Live-control discovery limit reached under {root} '
+                f'({directories} directories, {entries} entries). '
+                'No controls changed. Choose a smaller common directory '
+                'for the tasks to control; existing child roots cannot be bypassed.')
+
+    while pending:
+        budget()
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as children:
+                for child in children:
+                    entries += 1
+                    budget()
+                    if child.name == NAME:
+                        raise ValueError(
+                            f'Child live controls already exist at {child.path}; '
+                            'do not split ownership.')
+                    if child.is_dir(follow_symlinks=False):
+                        pending.append(Path(child.path))
+                        directories += 1
+                        budget()
+        except OSError as error:
+            raise ValueError(
+                f'Cannot verify live-control ownership under {directory}: {error}. '
+                'No controls changed; retry after resolving the directory access issue.') from error
+    budget()
+
+
 def configure(root, *, hold_failures=None, hold_task_failures=None):
     root = Path(root).resolve(strict=True)
     existing = find(root)
     if existing and existing.parent != root:
         raise ValueError(f'Use the existing live-control root: {existing.parent}')
-    if not existing and any(root.rglob(NAME)):
-        raise ValueError('Child live controls already exist; do not split ownership.')
     if hold_failures is not None and type(hold_failures) is not bool:
         raise ValueError('hold_failures must be boolean.')
     if hold_task_failures is not None and type(hold_task_failures) is not bool:
         raise ValueError('hold_task_failures must be boolean.')
+    if not existing:
+        _check_control_descendants(root)
     with locked(root):
+        # An ancestor may have been enabled while discovery was in progress.
+        existing = find(root)
+        if existing and existing.parent != root:
+            raise ValueError(f'Use the existing live-control root: {existing.parent}')
         value = read(root) or dict(schema=1, revision=0, hold_failures=False, rules=[])
         if hold_failures is not None:
             value['hold_failures'] = hold_failures

@@ -6,6 +6,7 @@ are applied by their owning drivers; a stopped driver cannot consume requests.
 import argparse
 import json
 from pathlib import Path
+import sys
 
 from kinbot import live_control as control
 from kinbot.execution import atomic_json
@@ -299,6 +300,8 @@ def main(argv=None):
                 allow=[n for v in args.allow for n in v.split(',')],manage_pending=True),
                 drain=pool_drain.pulse(root,force=True))
     elif args.action == 'enable':
+        print(f'Checking live-control scope: {args.root} '
+              '(new-root directory discovery is bounded).', file=sys.stderr, flush=True)
         result = control.configure(args.root, hold_failures=args.hold_failures,
                                    hold_task_failures=args.hold_task_failures)
     elif args.action == 'show':

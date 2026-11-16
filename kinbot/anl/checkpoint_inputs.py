@@ -16,11 +16,17 @@ OLDCHK = re.compile(r'(?im)^(\s*%oldchk\s*=\s*)(\S+)(\s*)$')
 REASON = 'gaussian_dependency_checkpoint_v1: retry verified pre-execution path rejection'
 
 
-def plan(directory, input_name, text):
-    """Return a rewritten execution copy and hash-bound dependency imports."""
+def inspect_dependencies(directory, input_name, text):
+    """Read and verify declared parent checkpoints, without staging a child.
+
+    Finished children retain imported copies as evidence. Their presence does
+    not prevent inspecting the accepted parents for a separate probe. Those
+    copies are neither reused nor removed here; plan() still requires a fresh
+    destination before the worker can import anything.
+    """
     matches = [m for m in OLDCHK.finditer(text) if Path(m[2]).is_absolute()]
     if not matches:
-        return text, []
+        return []
     from kinbot.anl import dispatch
     directory = Path(directory).resolve()
     if directory.parent.name != 'tasks' or not (directory/'task.json').is_file():
@@ -55,15 +61,26 @@ def plan(directory, input_name, text):
         dispatch._verify_execution(graph, parent, entry, outcome)
         digest = outcome['artifacts'][source.name]
         local = 'kinbot_parent_'+hashlib.sha256(str(source).encode()).hexdigest()[:20]+'.chk'
-        if local in text or (directory/local).exists():
-            # A newly staged retry directory is empty of imported files. Do
-            # not silently use a previous workspace's copy.
+        if local in text:
             raise ValueError('Checkpoint import filename already exists.')
         bindings[str(source)] = dict(source=str(source), source_task=parent['id'],
             sha256=digest, source_execution_sha256=file_sha256(execution), local=local)
+    return list(bindings.values())
+
+
+def plan(directory, input_name, text):
+    """Return a rewritten execution copy for a fresh import destination."""
+    imports = inspect_dependencies(directory, input_name, text)
+    for binding in imports:
+        local = Path(directory)/binding['local']
+        if local.exists() or local.is_symlink():
+            # A newly staged retry directory is empty of imported files. Do
+            # not silently reuse or overwrite a previous workspace's copy.
+            raise ValueError('Checkpoint import filename already exists.')
+    bindings = {b['source']: b for b in imports}
     rendered = OLDCHK.sub(lambda m: m[1]+bindings[m[2]]['local']+m[3]
                          if m[2] in bindings else m[0], text)
-    return rendered, list(bindings.values())
+    return rendered, imports
 
 
 def retry_requests(root, *, apply=False):

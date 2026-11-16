@@ -14,6 +14,14 @@ hashes are retained in execution evidence. The parent checkpoint is never opened
 for writing by the child. Normal native success and scientific validation gates
 still apply.
 
+Read-only dependency inspection is separate from planning a fresh worker
+import. `inspect_dependencies()` verifies the same declared producer, accepted
+execution and artifact hashes even when the finished child retains its imported
+checkpoint. It does not reuse or remove that retained copy. `plan()` additionally
+rejects an occupied import destination (including a dangling symlink), so a new
+worker still requires a fresh attempt directory. Supplemental path review uses
+inspection of the source attempt; its separate new task uses normal staging.
+
 For existing failures with exactly the former pre-execution path rejection:
 
 ```bash

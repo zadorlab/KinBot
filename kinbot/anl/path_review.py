@@ -181,7 +181,8 @@ def irc_probe(graph, ident, recipe):
     if len(re.findall(r'(?im)^%chk=', first)) != 1:
         raise ValueError('Probe needs one branch checkpoint.')
     directory = graph/'tasks'/ident
-    _, imports = checkpoint_inputs.plan(directory, task['input_name'], (directory/task['input_name']).read_text())
+    imports = checkpoint_inputs.inspect_dependencies(
+        directory, task['input_name'], (directory/task['input_name']).read_text())
     if len(imports) != 1: raise ValueError('Probe requires one verified dependency Hessian.')
     for binding in imports:
         p = Path(binding['source'])

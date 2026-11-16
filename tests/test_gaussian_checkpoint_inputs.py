@@ -83,6 +83,33 @@ def test_real_worker_executes_local_checkpoint_and_keeps_logical_input(graph):
     assert dispatch.advance(graph) == state
 
 
+def test_dependency_inspection_preserves_published_imports_and_staging_guard(graph):
+    directory = graph/'tasks/forward_10'
+    text = (directory/'forward_10.com').read_text()
+    expected = checkpoints.inspect_dependencies(directory, 'forward_10.com', text)
+    dispatch.run_task(directory/'task.json')
+    before = {p: file_sha256(p) for p in directory.iterdir() if p.is_file()}
+    assert checkpoints.inspect_dependencies(directory, 'forward_10.com', text) == expected
+    with pytest.raises(ValueError, match='filename already exists'):
+        checkpoints.plan(directory, 'forward_10.com', text)
+    assert before == {p: file_sha256(p) for p in directory.iterdir() if p.is_file()}
+    parent = graph/'tasks/hessian/hessian.chk'
+    parent.write_text('changed accepted parent')
+    with pytest.raises(RuntimeError, match='artifact hessian.chk changed'):
+        checkpoints.inspect_dependencies(directory, 'forward_10.com', text)
+
+
+def test_dangling_import_destination_is_not_overwritten(graph):
+    directory = graph/'tasks/forward_10'
+    text = (directory/'forward_10.com').read_text()
+    binding, = checkpoints.inspect_dependencies(directory, 'forward_10.com', text)
+    local = directory/binding['local']
+    local.symlink_to(directory/'missing.chk')
+    with pytest.raises(ValueError, match='filename already exists'):
+        checkpoints.plan(directory, 'forward_10.com', text)
+    assert local.is_symlink() and not local.exists()
+
+
 def test_queued_repair_archives_failure_preserves_live_work_and_repeats(graph, monkeypatch):
     from kinbot.anl import live_control as owner
     old_failure(graph)

@@ -127,6 +127,17 @@ decision's hold on unsent IRC grid tasks. Use `resume_reconciliation.sh`.
 
 ## Validation boundary
 
+The first Blodgett handoff of `52e2069f3` stopped during decision preparation
+with `Checkpoint import filename already exists`. It had enabled panel live
+controls but had not refreshed the owner or submitted this diagnostic wave.
+Source attempts correctly retained their imported checkpoints; review
+incorrectly called the fresh-worker staging check. Dependency inspection now
+verifies the accepted parent without treating retained source files as new
+staging destinations. Existing attempt files stay in place, and the worker's
+collision check remains strict. The updated tests first execute failed and
+successful source workers, then exercise decision preparation, owner adoption,
+probe execution, repeated starts and refresh races with those files retained.
+
 Local tests exercise actual staging, dependency-checkpoint imports, archival
 transactions, source/job verification, native-worker receipts, owner decision
 adoption, live-allocation preservation, sampling holds/adoption, repeated starts,
@@ -134,7 +145,7 @@ interrupted publication/preparation and transient refresh races. Scheduler and
 native executables are simulated. Publication is a tested software handoff,
 **not verified Blodgett execution or a successful native convergence remedy**.
 Native pilot results and complete path/mode/energy reconciliation remain to do.
-The targeted suite passed 187 tests both in the working tree and in a clean
-export of base commit `fa8bed91c` with only this update overlaid. The shell
+The targeted suite passed 193 tests both in the working tree and in a clean
+export of base commit `52e2069f3` with only this correction overlaid. The shell
 handoff also passed `bash -n`. See `reconciliation_validation.json` for the
 tested sources and command.

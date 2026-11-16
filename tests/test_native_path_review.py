@@ -60,6 +60,29 @@ def failure(graph, kind='plateau'):
     atomic_json(p, record)
 
 
+def retained_attempt(graph, monkeypatch, status):
+    """Run the source through scratch publication, including imported files."""
+    _, spec, state = dispatch._load(graph)
+    task = next(t for t in spec['tasks'] if t['id'] == 'forward_10')
+    executable = Path(task['command'][0])
+    output = corrector() if status == 'failed' else one_point()
+    executable.write_text(executable.read_text().replace(
+        'print("Normal termination of Gaussian")', f'print({output!r})\nsys.exit({int(status == "failed")})'))
+    state['tasks']['forward_10'].update(status='submitted', job_id='42')
+    state['tasks']['reverse_10'].update(status='submitted', job_id='77')
+    atomic_json(graph/'state.json', state)
+    monkeypatch.setenv('SLURM_JOB_ID', '42')
+    directory = graph/'tasks/forward_10'
+    if status == 'failed':
+        with pytest.raises(RuntimeError, match='exited with status 1'):
+            dispatch.run_task(directory/'task.json')
+    else:
+        assert dispatch.run_task(directory/'task.json')['status'] == 'executed'
+    assert len(list(directory.glob('kinbot_parent_*.chk'))) == 1
+    assert (directory/'forward_10.com.native').is_file()
+    dispatch.advance(graph)
+
+
 def make_plan(resume, root, monkeypatch, recipe='dvv'):
     module = resume.reconciliation
     monkeypatch.setattr(module, 'IRC_PILOTS', (('example','forward_10',recipe),))
@@ -127,10 +150,15 @@ def test_completed_branch_is_retained_as_source_not_reset(graph):
     assert record['status']=='executed'
 
 
-def test_owner_applies_decision_preserves_live_work_and_adopts_probe(resume_panel, monkeypatch):
+@pytest.mark.parametrize('source_status', ['synthetic', 'failed', 'complete'])
+def test_owner_applies_decision_preserves_live_work_and_adopts_probe(resume_panel, monkeypatch, source_status):
     resume, root, graph = resume_panel
-    failure(graph); plan=make_plan(resume,root,monkeypatch)
+    if source_status == 'synthetic': failure(graph)
+    else: retained_attempt(graph, monkeypatch, source_status)
+    source_state = dispatch._load(graph)[2]['tasks']['forward_10']['status']
     preserved={p:file_sha256(p) for p in (graph/'tasks').glob('*/*') if p.is_file()}
+    plan=make_plan(resume,root,monkeypatch)
+    assert preserved=={p:file_sha256(p) for p in preserved}
     monkeypatch.setattr(protocol,'preflight_ready',lambda _:True)
     submitted=[]
     def submit(command, **kwargs):
@@ -142,7 +170,7 @@ def test_owner_applies_decision_preserves_live_work_and_adopts_probe(resume_pane
     with pytest.raises(Tick):resume.run(root)
     ident='forward_10_dvv_v1'; state=dispatch._load(graph)[2]
     assert state['tasks'][ident]['job_id']=='88'
-    assert state['tasks']['forward_10']['status']=='failed'
+    assert state['tasks']['forward_10']['status']==source_state
     assert state['tasks']['reverse_10']['job_id']=='77'
     assert preserved=={p:file_sha256(p) for p in preserved}
     assert len(list((graph/'attempts').glob('live_*')))==1
@@ -163,14 +191,18 @@ def test_owner_applies_decision_preserves_live_work_and_adopts_probe(resume_pane
     assert resume.reconciliation.prepare(root)['sha256']==plan['sha256']
 
 
-def test_real_probe_worker_stages_read_only_parent_checkpoint(graph,monkeypatch):
-    failure(graph)
+@pytest.mark.parametrize('source_status', ['synthetic', 'failed', 'complete'])
+def test_real_probe_worker_stages_read_only_parent_checkpoint(graph,monkeypatch,source_status):
+    executable=Path(dispatch._load(graph)[1]['tasks'][1]['command'][0])
+    program=executable.read_text()
+    if source_status == 'synthetic': failure(graph)
+    else: retained_attempt(graph, monkeypatch, source_status)
+    retained={p:file_sha256(p) for p in (graph/'tasks/forward_10').iterdir() if p.is_file()}
     probe=path_review.irc_probe(graph,'forward_10','dvv')
     _,spec,state=dispatch._load(graph);spec['tasks'].append(probe['task'])
     live_control.commit(graph,spec,state,set(),{})
     dispatch.advance(graph)
-    executable=Path(probe['task']['command'][0])
-    executable.write_text(executable.read_text().replace('IRC=(RCFC,GradientOnly,EulerPC,MassWeighted,Forward','IRC=(RCFC,GradientOnly,DVV,MassWeighted,Forward'))
+    executable.write_text(program.replace('IRC=(RCFC,GradientOnly,EulerPC,MassWeighted,Forward','IRC=(RCFC,GradientOnly,DVV,MassWeighted,Forward'))
     monkeypatch.setenv('SLURM_JOB_ID','88')
     ident=probe['task']['id'];p=graph/'tasks'/ident/'task.json'
     before=file_sha256(graph/'tasks/hessian/hessian.chk')
@@ -178,6 +210,7 @@ def test_real_probe_worker_stages_read_only_parent_checkpoint(graph,monkeypatch)
     assert outcome['status']=='executed'
     assert outcome['details']['checkpoint_inputs'][0]['checkpoints'][0]['sha256']==before
     assert file_sha256(graph/'tasks/hessian/hessian.chk')==before
+    assert retained=={p:file_sha256(p) for p in retained}
 
 
 def test_failed_probe_exhausts_budget_and_held_sampling_does_not_launch(resume_panel,monkeypatch):
@@ -226,7 +259,7 @@ def test_changed_proof_prevents_any_decision_application(resume_panel,monkeypatc
 def test_decision_refresh_checks_before_retiring_controller(resume_panel,monkeypatch,race):
     from contextlib import contextmanager, nullcontext
     import subprocess
-    resume,root,graph=resume_panel;failure(graph);plan=make_plan(resume,root,monkeypatch)
+    resume,root,graph=resume_panel;retained_attempt(graph,monkeypatch,'failed');plan=make_plan(resume,root,monkeypatch)
     if race=='submitting':
         _,_,state=dispatch._load(graph);state['tasks']['reverse_10']['status']='submitting';atomic_json(graph/'state.json',state)
     elif race=='staging':(graph/'tasks/unfinished').mkdir()

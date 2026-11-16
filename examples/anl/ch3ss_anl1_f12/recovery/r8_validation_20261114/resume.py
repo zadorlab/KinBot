@@ -24,6 +24,19 @@ from kinbot.execution import atomic_json, file_sha256
 HERE = Path(__file__).resolve().parent
 MODULE = importlib.util.spec_from_file_location('frozen_panel', HERE/'campaign.py')
 campaign = importlib.util.module_from_spec(MODULE); MODULE.loader.exec_module(campaign)
+MODULE = importlib.util.spec_from_file_location('panel_reconciliation', HERE/'reconcile.py')
+reconciliation = importlib.util.module_from_spec(MODULE); MODULE.loader.exec_module(reconciliation)
+
+
+def code_signature():
+    from kinbot.anl import path_review
+    return reconciliation.path_review.digest({str(p):file_sha256(p) for p in
+        (Path(__file__), HERE/'reconcile.py', Path(path_review.__file__))})
+
+
+def decision_signature(root):
+    plan = reconciliation.load(root)
+    return plan['sha256'] if plan else None
 
 
 def inventory(root):
@@ -58,9 +71,15 @@ def snapshot(root):
         raise ValueError('Frozen panel source fingerprints changed.')
     specs = campaign.graphs(root)
     if list(specs) != stage['workflows']: raise ValueError('Panel graph inventory changed.')
+    plan = reconciliation.load(root)
+    if plan:
+        for proof in reconciliation.proofs(plan): reconciliation.path_review.verify(proof)
+    extra = reconciliation.extra_specs(plan)
+    specs.update(extra)
     owned, hashes = {}, {}
-    for name in stage['workflows']:
+    for name in specs:
         graph = root/name
+        if name in extra and not graph.exists(): continue
         if not all((graph/f).is_file() for f in ('state.json','workflow.json','requested.json')):
             raise run_refresh.RefreshTransientError('Panel preparation is in flight.')
         transaction = graph/'.live_control_transaction.json'
@@ -87,38 +106,73 @@ def snapshot(root):
     jobs = run_cleanup._jobs(root)
     if any(owned.get(j['job_id']) != str(Path(j['directory']).resolve()) for j in jobs):
         raise ValueError('A live allocation lacks matching panel ownership.')
-    return dict(manifests=hashes, retained_jobs=jobs, scientific_approval=False)
+    return dict(manifests=hashes, retained_jobs=jobs, decision=plan['sha256'] if plan else None,
+                scientific_approval=False)
 
 
 def run(root, interval=20):
+    try:
+        return _run(root, interval)
+    except Exception as error:
+        atomic_json(Path(root)/'native_owner.json', dict(pid=os.getpid(), code=file_sha256(__file__),
+            status='error', error=str(error), updated_utc=datetime.now(timezone.utc).isoformat()))
+        raise
+
+
+def _run(root, interval=20):
     root = Path(root).resolve()
     with ExitStack() as stack:
         lock = stack.enter_context((root/'controller.lock').open('a'))
         try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError: return
-        specs = campaign._stage_unlocked(root)
-        for name in specs:
-            lock = stack.enter_context((root/name/'drive.lock').open('a'))
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        atomic_json(root/'native_owner.json', dict(pid=os.getpid(), code=file_sha256(__file__), status='running'))
+        plan = reconciliation.load(root)
+        specs = {**campaign.graphs(root), **reconciliation.extra_specs(plan)}
+        locked = set()
+        def lock_graphs():
+            for name in specs:
+                if name not in locked and (root/name).is_dir():
+                    handle = stack.enter_context((root/name/'drive.lock').open('a'))
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB); locked.add(name)
+                    live_control.resume(root/name)
+        lock_graphs()
+        campaign._stage_unlocked(root)
+        lock_graphs()
+        reconciliation.apply(root, plan)
+        lock_graphs()
+        owner = dict(pid=os.getpid(), code=file_sha256(__file__), signature=code_signature(),
+                     decision=plan['sha256'] if plan else None)
+        def owner_status(status, **fields):
+            atomic_json(root/'native_owner.json', dict(**owner, status=status,
+                updated_utc=datetime.now(timezone.utc).isoformat(), **fields))
+        owner_status('running')
         while True:
-            counts, infrastructure, terminal = {}, {}, True
+            counts, infrastructure, held, terminal = {}, {}, {}, True
             for name in specs:
                 try:
                     live_control.process(root/name)
-                    state = dispatch.advance(root/name, submit=True)
+                    allowed = reconciliation.submit_only(plan, name)
+                    state = dispatch.advance(root/name, submit=True, submit_only=allowed)
                 except dispatch.SchedulerUnavailableError as error:
                     infrastructure[name] = str(error); terminal=False; continue
+                except Exception as error:
+                    owner_status('error', graph=name, error=str(error))
+                    raise
                 spec = dispatch._load(root/name)[1]
                 current = dispatch._summary(spec, state)
                 counts[name] = dict(Counter(current.values()))
-                terminal &= all(s in ('complete','failed','blocked','skipped','unavailable') for s in current.values())
+                held[name] = [n for n,s in current.items() if allowed is not None and n not in allowed
+                              and s not in ('complete','failed','blocked','skipped','unavailable','submitted','submitting')]
+                terminal &= all(s in ('complete','failed','blocked','skipped','unavailable')
+                                or n in held[name] for n,s in current.items())
             atomic_json(root/'progress.json', dict(workflows=counts, infrastructure=infrastructure,
+                held_for_review=held, decision=owner['decision'],
                 execution_finished=terminal, scientific_approval=False))
+            owner_status('running')
             if terminal:
                 atomic_json(root/'completion.json', dict(status='native_attempts_finished_review_required',
-                    workflows=counts, scientific_approval=False, mess_updated=False))
-                atomic_json(root/'native_owner.json', dict(pid=os.getpid(), code=file_sha256(__file__), status='finished'))
+                    workflows=counts, held_for_review=held, decision=owner['decision'],
+                    scientific_approval=False, mess_updated=False))
+                owner_status('finished')
                 return
             time.sleep(interval)
 
@@ -132,14 +186,46 @@ def launch(root):
     return dict(pid=child.pid, log=str(log), jobs_modified=False)
 
 
+def recover_setup(root):
+    """Repair our journalled setup only when there is no live panel owner.
+
+    Worker allocations remain untouched; manifest journals fence their reads.
+    Unowned task directories and ambiguous submissions still fail snapshot().
+    """
+    plan = reconciliation.load(root)
+    if not plan: return
+    specs = {**campaign.graphs(root), **reconciliation.extra_specs(plan)}
+    with ExitStack() as stack:
+        handle = stack.enter_context((root/'controller.lock').open('a'))
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if inventory(root):
+            raise run_refresh.RefreshTransientError('A panel owner appeared during setup recovery.')
+        for name in specs:
+            graph = root/name
+            if not graph.is_dir(): continue
+            handle = stack.enter_context((graph/'drive.lock').open('a'))
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            live_control.resume(graph)
+        for name, spec in reconciliation.extra_specs(plan).items():
+            # Only preparation that was already started needs repair here.
+            # Missing diagnostics are prepared by the replacement owner.
+            if (root/name).exists(): reconciliation.stage_extra(root,name,spec)
+
+
 def refresh(root):
     root = Path(root).resolve(strict=True)
     records = inventory(root)
     receipt = root/'native_owner.json'
     old = json.loads(receipt.read_text()) if receipt.is_file() else {}
-    if records and old.get('pid') == records[0]['pid'] and old.get('code') == file_sha256(__file__):
+    current_code = old.get('signature') == code_signature()
+    # Old no-decision callers retain their idempotent refresh behavior.
+    if old.get('signature') is None and decision_signature(root) is None:
+        current_code = old.get('code') == file_sha256(__file__)
+    if (records and old.get('pid') == records[0]['pid'] and current_code
+            and old.get('decision') == decision_signature(root)):
         return dict(status='already_running', pid=old['pid'], jobs_modified=False)
     with run_refresh._submission_guard(root):
+        if not records: recover_setup(root)
         with run_refresh._freeze(root, records, inventory=inventory) as handles:
             proof = snapshot(root)
             stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')

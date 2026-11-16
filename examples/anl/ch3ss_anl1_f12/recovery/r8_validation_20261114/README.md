@@ -1,5 +1,11 @@
 # R8 connection and literature validation — 14 November 2026
 
+**16 November update:** use [the reconciliation handoff](RECONCILIATION.md) for
+the existing panel. Native evidence corrects the earlier TS5 endpoint inference
+and shows that several apparently completed IRCs stopped after one point.
+The updated owner holds the unsent independent IRC grid while a finite diagnostic
+wave runs. The original launcher below is retained as historical setup guidance.
+
 This independent diagnostic campaign leaves the R8 PES controllers, accepted
 results, rejection history and MESS files unchanged. It does not launch MESS
 or promote a channel. It shares R8's existing 20-node pool, using at most
@@ -32,7 +38,7 @@ Labels are proposed correspondences, never acceptance criteria.
 | TS2, W2 to W1 | Paper seed instead connects W2 conformers; native `rxn_54_1` connects W2 to complex A | Independent IRCs for both; SI-seeded coupled-cluster optimization, frequencies and both QSD paths; T/Q comparison |
 | TS3, W3 to W1 | L2 paper seed connects W2 to complex B, not W3 | Independent L2 integration; SI-seeded coupled-cluster saddle/frequencies and both QSD paths |
 | TS4, W4 to W2 | L2 endpoints match; native `rxn_2_1` duplicates this saddle | Independent L2 integration and T/Q energies, one representative; separately check `rxn_2_2`, which instead leads from W2 to CH2···HSS |
-| TS5, W3 to HC(=S)SH + H | Geometry stays close to SI but the observed path transfers H to sulfur, giving CH(SH)2 | Independent native L2 integration and SI-seeded coupled-cluster saddle/frequencies and both QSD paths |
+| TS5, W3 to HC(=S)SH + H | Geometry stays close to SI; the final optimized endpoint is CH(SH)2. The later native audit shows H separation on the raw IRC followed by recapture during optimization, so that endpoint does not establish a path disagreement | Independent native L2 integration and SI-seeded coupled-cluster saddle/frequencies and both QSD paths |
 | TS6, W2 to W3 | Paper-like saddle and compact `rxn_12_1` both connect W2/W3; the old lower `rxn_12_2` instead connects W2/complex B at L2 | Independent L2 integration of all three; coupled-cluster refinement of the two W2/W3 saddles, T/Q energies and mapped geometry/mode comparison |
 | W1 identity and two vdW arrangements | Complex A and B differ by about 0.90 Å mapped RMSD; both are observed minima | SI W1 coupled-cluster optimization/frequencies and T/Q energies at both observed complexes; retain separate identities unless equivalence is demonstrated |
 | CH2SH H loss | Scale-1.6 seed gives a first-order saddle connecting CH2SH to CH2S···H; scale-1.9 duplicates it | Independent native L2 IRCs and matched T/Q saddle/endpoint energies, one representative |

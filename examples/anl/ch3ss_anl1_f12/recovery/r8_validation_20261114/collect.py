@@ -41,7 +41,15 @@ def selected(root):
         folders.extend(p for p in (root/'remaining_l2').glob('*') if p.is_dir() and not p.is_symlink())
     receipt = root/'native/stage.json'
     if receipt.is_file():
-        for name in json.loads(receipt.read_text())['workflows']:
+        names = list(json.loads(receipt.read_text())['workflows'])
+        decision = root/'native/reconciliation_v1.json'
+        if decision.is_file():
+            # Only explicitly declared supplemental graphs; never recursively
+            # discover attempt archives or checkpoint stores.
+            names.extend(json.loads(decision.read_text()).get('curvature',{}))
+        for name in names:
+            if not isinstance(name,str) or Path(name).name != name:
+                raise ValueError('Invalid graph name in validation manifest.')
             graph = root/'native'/name
             folders.append(graph)
             spec = graph/'workflow.json'

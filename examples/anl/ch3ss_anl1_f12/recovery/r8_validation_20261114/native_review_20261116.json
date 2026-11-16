@@ -1,0 +1,359 @@
+{
+  "schema": 1,
+  "provenance": "Transcribed from user-provided Blodgett read-only reports in this chat, 2026-11-16. Coordinates rounded in native print. Full logs are remote; hashes reported by user, not locally recomputed.",
+  "reference_file": "evidence.json",
+  "records": [
+    {
+      "workflow": "irc_native_ch3ss_rxn_12_2",
+      "task": "forward_10",
+      "job_id": "53245699",
+      "log_sha256_reported_by_user": "9f5bd72efd9eddeae42c4e00dbecf03242d9c7d8daec252c374ea998ee82af2d",
+      "irc_points": 1,
+      "irc_stop": "PES minimum detected",
+      "irc_gradient": 0.0001286,
+      "symbols": [
+        "C",
+        "S",
+        "S",
+        "H",
+        "H",
+        "H"
+      ],
+      "irc_endpoint_angstrom": [
+        [
+          0.060053,
+          -0.287182,
+          -1.567257
+        ],
+        [
+          1.053649,
+          0.59769,
+          -0.643485
+        ],
+        [
+          -1.003874,
+          -0.469874,
+          1.324569
+        ],
+        [
+          -1.717754,
+          0.564187,
+          0.851172
+        ],
+        [
+          -0.012331,
+          -1.363776,
+          -1.463808
+        ],
+        [
+          -0.563982,
+          0.164303,
+          -2.332791
+        ]
+      ],
+      "optimized_endpoint_angstrom": [
+        [
+          -0.070102,
+          -0.306999,
+          -1.675383
+        ],
+        [
+          0.454588,
+          0.607702,
+          -0.325159
+        ],
+        [
+          -0.555976,
+          -0.259394,
+          1.272193
+        ],
+        [
+          -1.732895,
+          0.369402,
+          1.099275
+        ],
+        [
+          -0.399343,
+          -1.325005,
+          -1.555527
+        ],
+        [
+          0.119488,
+          0.119643,
+          -2.647
+        ]
+      ],
+      "positive_final_vibrational_modes": 12,
+      "closest_reference_geometries": [
+        {
+          "reference": "native_ch3ss_rxn_2_2_F",
+          "proper_rotation_element_permuted_rmsd_angstrom": 8.23426092535673e-05
+        },
+        {
+          "reference": "ch3ss_h_loss_scale_1p9_F",
+          "proper_rotation_element_permuted_rmsd_angstrom": 9.059062952226831e-05
+        },
+        {
+          "reference": "paper_ts2_R",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.00010399961695760515
+        },
+        {
+          "reference": "native_ch3ss_rxn_12_1_F",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.0003846535375108899
+        },
+        {
+          "reference": "paper_ts2",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.24705964886554962
+        }
+      ],
+      "scientific_approval": false,
+      "SS_distance_angstrom": {
+        "irc": 3.040777916346572,
+        "optimized": 2.0795741110179264
+      }
+    },
+    {
+      "workflow": "irc_native_ch3ss_rxn_12_2",
+      "task": "reverse_10",
+      "job_id": "53245726",
+      "log_sha256_reported_by_user": "2e739b0403a8461419e745c975fdc433ad6c6deffab07b427cd4ffbf5c996bd4",
+      "irc_points": 1,
+      "irc_stop": "PES minimum detected",
+      "irc_gradient": 0.0001123,
+      "symbols": [
+        "C",
+        "S",
+        "S",
+        "H",
+        "H",
+        "H"
+      ],
+      "irc_endpoint_angstrom": [
+        [
+          0.054432,
+          -0.290879,
+          -1.554999
+        ],
+        [
+          1.057422,
+          0.59962,
+          -0.645099
+        ],
+        [
+          -1.005269,
+          -0.470469,
+          1.320201
+        ],
+        [
+          -1.709452,
+          0.576888,
+          0.861771
+        ],
+        [
+          0.022334,
+          -1.372165,
+          -1.483431
+        ],
+        [
+          -0.615492,
+          0.161427,
+          -2.280151
+        ]
+      ],
+      "optimized_endpoint_angstrom": [
+        [
+          0.037506,
+          -0.320462,
+          -1.474201
+        ],
+        [
+          1.069029,
+          0.579213,
+          -0.588943
+        ],
+        [
+          -1.035197,
+          -0.465776,
+          1.116683
+        ],
+        [
+          -1.633444,
+          0.681316,
+          0.759436
+        ],
+        [
+          0.182604,
+          -1.386036,
+          -1.613568
+        ],
+        [
+          -0.816524,
+          0.116169,
+          -1.981116
+        ]
+      ],
+      "positive_final_vibrational_modes": 12,
+      "closest_reference_geometries": [
+        {
+          "reference": "native_ch3ss_rxn_12_2_R",
+          "proper_rotation_element_permuted_rmsd_angstrom": 6.432957883155639e-05
+        },
+        {
+          "reference": "native_ch3ss_rxn_12_2",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.22150531568823667
+        },
+        {
+          "reference": "native_ch3ss_rxn_12_1",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.32859121804677105
+        },
+        {
+          "reference": "native_ch3ss_rxn_12_1_R",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.3502419779658973
+        },
+        {
+          "reference": "paper_ts6_R",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.35025317908101855
+        }
+      ],
+      "scientific_approval": false,
+      "SS_distance_angstrom": {
+        "irc": 3.043384418604065,
+        "optimized": 2.9032618071873917
+      }
+    },
+    {
+      "workflow": "irc_paper_ts5",
+      "task": "reverse_10",
+      "job_id": "53245723",
+      "log_sha256_reported_by_user": "ec415550d172d10503fc525f3766d140b6aa58a795300770c788de4011cd2bce",
+      "irc_points": 22,
+      "irc_stop": "PES minimum detected",
+      "irc_gradient": 0.0001431,
+      "symbols": [
+        "C",
+        "H",
+        "H",
+        "S",
+        "S",
+        "H"
+      ],
+      "irc_endpoint_angstrom": [
+        [
+          0.013329,
+          0.113917,
+          0.584877
+        ],
+        [
+          0.092543,
+          0.104264,
+          1.669445
+        ],
+        [
+          3.099797,
+          -0.021465,
+          1.125416
+        ],
+        [
+          0.06688,
+          1.50143,
+          -0.259058
+        ],
+        [
+          -0.165146,
+          -1.50963,
+          -0.007309
+        ],
+        [
+          -0.233543,
+          -1.179081,
+          -1.308675
+        ]
+      ],
+      "optimized_endpoint_angstrom": [
+        [
+          -0.032715,
+          0.075805,
+          0.735314
+        ],
+        [
+          -0.80508,
+          0.439373,
+          1.390948
+        ],
+        [
+          2.222018,
+          0.316294,
+          0.179358
+        ],
+        [
+          1.202771,
+          1.191519,
+          0.25429
+        ],
+        [
+          -0.116217,
+          -1.582141,
+          0.238453
+        ],
+        [
+          0.403086,
+          -1.431415,
+          -0.993667
+        ]
+      ],
+      "positive_final_vibrational_modes": 12,
+      "closest_reference_geometries": [
+        {
+          "reference": "paper_ts5_R",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.00011182222025880302
+        },
+        {
+          "reference": "native_ch3ss_rxn_24_1_F",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.6510015138296554
+        },
+        {
+          "reference": "native_ch3ss_rxn_22_1_F",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.7090808369757869
+        },
+        {
+          "reference": "si_TS5",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.7419043732347557
+        },
+        {
+          "reference": "paper_ts5",
+          "proper_rotation_element_permuted_rmsd_angstrom": 0.7419328758117215
+        }
+      ],
+      "scientific_approval": false,
+      "hydrogen_atom_3_distances": {
+        "irc_C1": 3.1363665939218586,
+        "irc_S4": 3.6653189447290946,
+        "optimized_S4": 1.3455474916397412
+      }
+    }
+  ],
+  "cc_native_imaginary_modes_cm_inverse": {
+    "cc_si_TS2": [
+      -428.54,
+      -408.26,
+      -214.84,
+      -152.08,
+      -5.16
+    ],
+    "cc_si_TS3": [
+      -191.15,
+      -38.59
+    ]
+  },
+  "cc_unresolved": {
+    "cc_si_W1": {
+      "T1": 0.04633141,
+      "D1": 0.16271497
+    },
+    "cc_native_ch3ss_rxn_12_1": {
+      "T1": 0.08031048,
+      "D1": 0.34289248
+    }
+  },
+  "scientific_approval": false
+}

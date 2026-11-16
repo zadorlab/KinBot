@@ -5,6 +5,9 @@ the existing panel. Native evidence corrects the earlier TS5 endpoint inference
 and shows that several apparently completed IRCs stopped after one point.
 The updated owner holds the unsent independent IRC grid while a finite diagnostic
 wave runs. The original launcher below is retained as historical setup guidance.
+The second-wave handoff repairs the rejected DVV time steps and separates the
+TS2 CC and TS3 ROHF failures. Use `resume_probe_repairs.sh` for the existing
+failed probes; native convergence remains to be verified.
 
 This independent diagnostic campaign leaves the R8 PES controllers, accepted
 results, rejection history and MESS files unchanged. It does not launch MESS

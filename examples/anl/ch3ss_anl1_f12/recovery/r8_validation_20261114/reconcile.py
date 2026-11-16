@@ -9,12 +9,14 @@ from datetime import datetime, timezone
 import fcntl
 import json
 from pathlib import Path
+import re
 import uuid
 
-from kinbot.anl import dispatch, live_control, path_review
+from kinbot.anl import dispatch, live_control, path_review, probe_recovery
 from kinbot.execution import atomic_json, file_sha256
 
 DECISION = 'reconciliation_v1.json'
+REPAIRS = 'reconciliation_repairs_v2.json'
 IRC_PILOTS = (
     ('irc_native_ch3ss_rxn_12_2', 'forward_10', 'dvv'),
     ('irc_native_ch3ss_rxn_12_2', 'reverse_10', 'dvv'),
@@ -25,8 +27,8 @@ IRC_PILOTS = (
 CC_AUDITS = ('cc_si_TS2', 'cc_si_TS3')
 
 
-def load(root):
-    p = Path(root)/DECISION
+def _load_file(root, filename):
+    p = Path(root)/filename
     if not p.exists(): return None
     result = json.loads(p.read_text()); body = {k:v for k,v in result.items() if k != 'sha256'}
     if result.get('schema') != 1 or result.get('sha256') != path_review.digest(body):
@@ -35,8 +37,62 @@ def load(root):
     return result
 
 
+def load(root):
+    base = _load_file(root, DECISION)
+    repairs = _load_file(root, REPAIRS)
+    if not repairs: return base
+    if base is None or repairs.get('parent_sha256') != base['sha256']:
+        raise ValueError('Probe repairs do not match the immutable original decision.')
+    result = deepcopy(base)
+    result['irc'] += repairs['irc']
+    if set(result['curvature']) & set(repairs['curvature']):
+        raise ValueError('Probe repair graph collides with original evidence.')
+    result['curvature'].update(repairs['curvature'])
+    result['sha256'] = path_review.digest([base['sha256'], repairs['sha256']])
+    return result
+
+
 def proofs(plan):
-    return [x['proof'] for x in plan['irc']] + [x['proof'] for x in plan['curvature'].values()]
+    return ([x['proof'] for x in plan['irc']] +
+            [p for x in plan['curvature'].values() for p in x.get('proofs', [x.get('proof')]) if p])
+
+
+def prepare_repairs(root):
+    """Freeze one additional wave, retaining the original decision verbatim."""
+    root = Path(root).resolve(strict=True)
+    with (root/'.reconciliation_prepare.lock').open('a') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        base = _load_file(root, DECISION)
+        if base is None: raise ValueError('Prepare/apply the original reconciliation first.')
+        if _load_file(root, REPAIRS):
+            result = load(root)
+            for proof in proofs(result): path_review.verify(proof)
+            return result
+        for proof in proofs(base): path_review.verify(proof)
+        repaired = []
+        for entry in base['irc']:
+            task = entry['task']
+            if task.get('native_path_probe', {}).get('recipe') != 'dvv': continue
+            if not re.search(r'\bStepSize=-', task['input_template'], re.I): continue
+            current = next(t for t in dispatch._load(root/entry['graph'])[1]['tasks'] if t['id']==task['id'])
+            current = dict(current, resources=task['resources'])
+            if current != task: raise ValueError('Source DVV probe differs from the original decision.')
+            repaired.append(dict(graph=entry['graph'], **probe_recovery.dvv_step_repair(root/entry['graph'], task['id'])))
+        audits = {}
+        for name, entry in base['curvature'].items():
+            # Reject drift in the diagnostic molecule or electronic definition.
+            saved = deepcopy(dispatch._load(root/name)[1])
+            resources = {t['id']:t['resources'] for t in entry['spec']['tasks']}
+            for task in saved['tasks']: task['resources'] = resources.get(task['id'])
+            if saved != entry['spec']: raise ValueError('Source curvature definition changed.')
+            audits[name+'_electronic_v2'] = probe_recovery.curvature_repair(root/name)
+        if not repaired and not audits: raise ValueError('No applicable unrepaired probes.')
+        result = dict(schema=1, root=str(root), parent_sha256=base['sha256'],
+            irc=repaired, curvature=audits, scientific_approval=False,
+            created_utc=datetime.now(timezone.utc).isoformat())
+        result['sha256'] = path_review.digest(result)
+        atomic_json(root/REPAIRS, result)
+        return load(root)
 
 
 def prepare(root):
@@ -161,11 +217,11 @@ def review(root):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('prepare','review'))
+    parser.add_argument('action', choices=('prepare','repair','review'))
     parser.add_argument('root', type=Path)
     args = parser.parse_args()
-    result = prepare(args.root) if args.action == 'prepare' else review(args.root)
-    if args.action == 'prepare':
+    result = {'prepare':prepare, 'repair':prepare_repairs, 'review':review}[args.action](args.root)
+    if args.action in ('prepare','repair'):
         result = dict(decision=result['sha256'], irc_trials=len(result['irc']),
             curvature_jobs=sum(len(x['spec']['tasks']) for x in result['curvature'].values()),
             status='prepared_for_owner', scientific_approval=False)

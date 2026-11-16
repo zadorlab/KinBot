@@ -12,7 +12,7 @@ import tarfile
 import tempfile
 
 SUFFIXES = {'.json', '.com', '.log', '.inp', '.out', '.xml', '.xyz', '.traj',
-            '.py', '.slurm', '.sh', '.txt', '.err', '.stdout', '.stderr', '.exitcode', '.db'}
+            '.py', '.slurm', '.sh', '.txt', '.err', '.stdout', '.stderr', '.exitcode', '.db', '.molden'}
 DIAGNOSTIC = re.compile(
     r'Normal termination|Error termination|SCF Done|EUMP2|E\(B2PLYP\)|'
     r'Frequencies\s+--|Zero-point correction|S\*\*2|'
@@ -42,11 +42,11 @@ def selected(root):
     receipt = root/'native/stage.json'
     if receipt.is_file():
         names = list(json.loads(receipt.read_text())['workflows'])
-        decision = root/'native/reconciliation_v1.json'
-        if decision.is_file():
+        for filename in ('reconciliation_v1.json', 'reconciliation_repairs_v2.json'):
+            decision = root/'native'/filename
             # Only explicitly declared supplemental graphs; never recursively
             # discover attempt archives or checkpoint stores.
-            names.extend(json.loads(decision.read_text()).get('curvature',{}))
+            if decision.is_file(): names.extend(json.loads(decision.read_text()).get('curvature',{}))
         for name in names:
             if not isinstance(name,str) or Path(name).name != name:
                 raise ValueError('Invalid graph name in validation manifest.')

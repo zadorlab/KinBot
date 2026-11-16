@@ -198,6 +198,10 @@ def irc_probe(graph, ident, recipe):
             raise ValueError('No applicable stagnation or endpoint evidence for a DVV probe.')
         options[lower.index('eulerpc')] = 'DVV'
         options[lower.index('tight')] = 'VeryTight'
+        # DVV interprets this integer as a time step in 0.01 fs, not a
+        # signed mass-weighted spatial increment. Never propagate its sign.
+        index = next(i for i,s in enumerate(lower) if s.startswith('stepsize='))
+        options[index] = 'StepSize='+str(abs(int(lower[index].split('=')[1])))
     else: raise ValueError('Unknown bounded path recipe.')
     new_id = ident+'_'+recipe+'_v1'
     first = first[:match.start(1)]+','.join(options)+first[match.end(1):]
@@ -212,6 +216,8 @@ def irc_probe(graph, ident, recipe):
         failure_markers=[dict(file=new_id+'.log',contains='Error termination')],
         native_path_probe=dict(schema=1, source=ident, recipe=recipe, evidence=digest(proof),
                                budget=1, scientific_approval=False))
+    if recipe == 'dvv':
+        new['native_path_probe']['step_units'] = '0.01 fs (DVV); not spatial path length'
     verify(proof)
     return dict(proof=proof, report=report, task=new)
 

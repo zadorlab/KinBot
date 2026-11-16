@@ -29,9 +29,9 @@ reconciliation = importlib.util.module_from_spec(MODULE); MODULE.loader.exec_mod
 
 
 def code_signature():
-    from kinbot.anl import path_review
+    from kinbot.anl import path_review, probe_recovery
     return reconciliation.path_review.digest({str(p):file_sha256(p) for p in
-        (Path(__file__), HERE/'reconcile.py', Path(path_review.__file__))})
+        (Path(__file__), HERE/'reconcile.py', Path(path_review.__file__), Path(probe_recovery.__file__))})
 
 
 def decision_signature(root):

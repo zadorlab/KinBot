@@ -46,8 +46,11 @@ recapture; it does not assign a chemical channel or fragment electronic state.
 ## Finite native checks in this update
 
 Five raw Gaussian path probes use the original accepted parent checkpoint,
-charge, spin, B2PLYP-D3(BJ)/cc-pVTZ, grid, SCF settings, step size and path-length
-budget. They have new task IDs, preserve the original tasks, and omit the
+charge, spin, B2PLYP-D3(BJ)/cc-pVTZ, grid and SCF settings. **Correction:** DVV
+uses time steps, so the earlier claim of preserving spatial step/path length
+was incorrect. The original DVV inputs carried negative EulerPC spatial steps
+and were rejected before propagation. The repaired time-step budget is described
+below. The probes have new task IDs, preserve the original tasks, and omit the
 unconstrained endpoint optimization:
 
 | Source branch | One additional calculation | Reason |
@@ -93,16 +96,67 @@ held for review (24 were staged in the supplied snapshot); existing allocations
 are polled and adopted. The five probes and six curvature jobs share the existing
 admission limits. No result is promoted to MESS or a validated PES edge.
 
+## Observed probe failures and bounded second wave
+
+The Blodgett owner did resume after the checkpoint-inspection fix. The user's
+native output identifies three causes; launcher segmentation/MPI abort messages
+alone had obscured them. These failed probes supply no new connectivity or
+curvature result and cannot justify a disagreement with the paper.
+
+* Jobs 53245741–53245744: Gaussian 16 B.01 read the accepted Hessian but rejected
+  `StepSize=-5/-10` as negative **0.05/0.10 fs** DVV time steps, before the first
+  propagated point. This was our input-generation defect. New task IDs ending
+  `_positive_dt_v2` use `StepSize=5/10` (positive time), retaining the direction,
+  VeryTight criterion and other controls. Maximum steps remain 1200/600; these
+  are finite integration budgets, not equal spatial path lengths. The helper
+  requires the explicit native invalid-step message and absence of propagated
+  points, and re-verifies the accepted parent checkpoint. It cannot retry a
+  subsequently failed positive-time task. Fresh DVV generation is also fixed.
+* Jobs 53245756–53245758 (TS2): the tighter initial CC solve reached iteration
+  39 before any derivative. The printed summed amplitude variances decrease
+  from 3.1e-13 at iteration 30 to 1.87e-14 at 39. Printed energy changes round
+  to zero but do not demonstrate the 1e-11 energy criterion. One retry uses the
+  shared CC MAXIT procedure with a 100-iteration cap, gated on a small,
+  contracting final native history in **each** failed audit output. This is a
+  bounded test of continuing convergence; it does not declare it converged.
+* Jobs 53245759–53245761 (TS3): default ROHF oscillated through 60 iterations,
+  with density changes around 3.9e-5, and CC correctly refused the orbitals.
+  One trial applies `{rhf,maxit=60;shift,-1.0,-0.5}`. It changes the convergence
+  algorithm without increasing its limit, importing unverified orbitals or
+  changing charge, spin, basis, geometry or method. This is Molpro's documented
+  level-shift remedy for difficult conventional ROHF. The existing SO/SO-SCI
+  reconnaissance strategies were reviewed; this finite trial uses the
+  version-independent conventional solver. Root identity still requires
+  comparison of the native orbitals and energies, even if it converges.
+
+See the Molpro [SCF convergence guidance](https://www.molpro.net/manual/doku.php?id=the_scf_program)
+and [CC convergence definitions](https://www.molpro.net/manual/doku.php?id=the_closed_shell_ccsd_program).
+Neither `NOCHECK`, `IGNORE_ERROR` nor relaxed thresholds is used.
+
+Each new curvature graph first runs an `electronic` calculation at the same
+rejected saved geometry and exports a Molden file. Only successful electronic
+execution releases the three fixed-geometry derivative tasks. Every solve
+continues to enforce convergence. Each new task is attempted once; no automatic
+cycle escalation is enabled. A successful gate is execution evidence, not
+proof of orbital continuity or scientific acceptance.
+
+`reconciliation_v1.json` remains byte-for-byte unchanged. A separate checksum-
+bound `reconciliation_repairs_v2.json` records all ten failed source jobs and
+their native evidence. The owner appends the four repaired DVV tasks through
+the archival journal and stages two new electronic/derivative graphs. Old
+attempts and the original scientific holds stay intact. The live TS1 pc150,
+TS5 forward/reverse and screening allocations are polled/adopted unchanged.
+
 ## Update, resume, and inspect
 
 Use the published commit specified in the chat, then run from `~/KinBot`:
 
 ```bash
-bash examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/resume_reconciliation.sh
+bash examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/resume_probe_repairs.sh
 ```
 
-The script enables controls only at the native panel, prepares a hash-bound
-decision from the current native attempts, and refreshes only the verified
+The script prepares the hash-bound repair decision from the failed native
+attempts and refreshes only the verified
 panel controller. It neither cancels QC jobs nor resets old attempts. The owning
 driver applies append-only graph changes through the existing archival journal.
 A different source generation or ambiguous/live source allocation blocks the
@@ -123,9 +177,21 @@ Detailed raw-path/curvature review, also read-only:
 ```
 
 Do not use the old `campaign.py run` launcher for this wave: it predates the
-decision's hold on unsent IRC grid tasks. Use `resume_reconciliation.sh`.
+decision's hold on unsent IRC grid tasks. Use `resume_probe_repairs.sh` for this
+second wave. `resume_reconciliation.sh` remains the first-wave entry point.
 
 ## Validation boundary
+
+The second-wave regression tests reproduce the negative-time rejection through
+the real worker, then execute/adopt the repaired positive-time task with a
+simulated Gaussian. They also test failed electronic gates blocking all
+derivatives, successful gate execution releasing derivatives through the owner,
+unchanged source files, repeated decisions/refreshes, source drift, held work,
+and submission/staging/archive/scheduler races. The updated watcher prints
+compact native causes and includes both decisions; collection includes the
+new graphs and Molden evidence. The recorded test count is in
+`reconciliation_validation.json`. Native convergence of the second wave remains
+unverified until Blodgett executes it.
 
 The first Blodgett handoff of `52e2069f3` stopped during decision preparation
 with `Checkpoint import filename already exists`. It had enabled panel live

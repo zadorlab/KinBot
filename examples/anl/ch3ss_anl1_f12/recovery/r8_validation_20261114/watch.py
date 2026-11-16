@@ -15,6 +15,23 @@ def read(path):
     except (OSError, ValueError): return {}
 
 
+def native_reason(directory, ident):
+    """Compact native cause, rather than the launcher's abort traceback."""
+    text = ''
+    for suffix in ('.log', '.out'):
+        p = directory/(ident+suffix)
+        if not p.is_file(): continue
+        with p.open('rb') as stream:
+            stream.seek(max(0,p.stat().st_size-16000))
+            text += stream.read().decode(errors='replace')
+    for marker, reason in [('RxnCyc: Invalid step size found!', 'invalid_DVV_time_step'),
+                           ('RHF not converged', 'ROHF_not_converged'),
+                           ('The problem occurs in ccsd', 'CC_not_converged'),
+                           ('Maximum number of corrector steps', 'IRC_corrector_limit')]:
+        if marker in text: return reason
+    return 'inspect_native_output'
+
+
 def snapshot(root):
     root = Path(root).resolve()
     print(datetime.now(timezone.utc).isoformat(), socket.gethostname())
@@ -44,7 +61,10 @@ def snapshot(root):
     except (OSError,subprocess.SubprocessError) as error:
         print('QUEUE unavailable:', error)
     names = read(root/'stage.json').get('workflows',[])
-    plan = read(root/'reconciliation_v1.json'); extra = plan.get('curvature',{})
+    plan = read(root/'reconciliation_v1.json')
+    repair = read(root/'reconciliation_repairs_v2.json')
+    plan['irc'] = plan.get('irc',[]) + repair.get('irc',[])
+    extra = {**plan.get('curvature',{}), **repair.get('curvature',{})}
     pilots = {(p['graph'],p['task']['id']) for p in plan.get('irc',[])}
     counts = Counter()
     for name in [*names, *extra]:
@@ -58,6 +78,8 @@ def snapshot(root):
             scheduler = jobs.get(job,['absent from queue' if available else 'unknown'])[0]
             print(name,ident,'state='+str(entry.get('status')), 'job='+job,
                   'queue='+scheduler,'native='+str(native))
+            if native == 'failed':
+                print('  cause='+native_reason(root/name/'tasks'/ident,ident))
     print('IRC task states',dict(counts))
     if available:
         # The native directory is under RUN/validation_DATE/native.

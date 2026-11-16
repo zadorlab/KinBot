@@ -117,7 +117,8 @@ def test_contraction_is_required_before_a_cycle_extension(graph):
     text = probe['task']['input_template']
     assert 'GradientOnly,DVV,MassWeighted' in text and ',VeryTight,' in text
     assert '--Link1--' not in text and 'Opt=' not in text and 'MaxCycle=100' in text
-    assert 'StepSize=-10,MaxPoints=600' in text
+    assert 'StepSize=10,MaxPoints=600' in text
+    assert 'fs' in probe['task']['native_path_probe']['step_units']
     assert probe['task']['depends_on'] == ['hessian']
     failure(graph, 'contracting')
     probe = path_review.irc_probe(graph, 'forward_10', 'pc150')
@@ -393,13 +394,15 @@ def test_read_only_watch_and_export_include_supplemental_evidence(tmp_path,monke
     root=tmp_path/'run'/'validation'/'native';root.mkdir(parents=True)
     atomic_json(root/'stage.json',dict(workflows=['irc_example']))
     atomic_json(root/'reconciliation_v1.json',dict(irc=[dict(graph='irc_example',task=dict(id='probe'))],curvature={'audit':{}}))
+    atomic_json(root/'reconciliation_repairs_v2.json',dict(irc=[],curvature={'audit_repaired':{}}))
     atomic_json(root/'native_owner.json',dict(pid=0,status='running'))
     atomic_json(root/'progress.json',dict(execution_finished=False,held_for_review={'irc_example':['old']}))
-    for name,ident,job in [('irc_example','probe','88'),('audit','hessian_005','89')]:
+    for name,ident,job in [('irc_example','probe','88'),('audit','hessian_005','89'),('audit_repaired','electronic','90')]:
         graph=root/name;(graph/'tasks'/ident).mkdir(parents=True)
         atomic_json(graph/'workflow.json',dict(tasks=[dict(id=ident)]))
         atomic_json(graph/'state.json',dict(tasks={ident:dict(status='submitted',job_id=job)}))
         (graph/'tasks'/ident/(ident+'.out')).write_text('native output')
+    (root/'audit_repaired/tasks/electronic/electronic.molden').write_text('[Molden Format]')
     before={p:p.read_bytes() for p in root.rglob('*') if p.is_file()}
     monkeypatch.setattr(watcher.subprocess,'run',lambda *a,**k:SimpleNamespace(stdout=f'88|RUNNING|1:02|{root}/irc_example/tasks/probe\n77|RUNNING|2:01|{root.parent.parent}/ch3s/ordinary\n'))
     watcher.snapshot(root)
@@ -408,5 +411,7 @@ def test_read_only_watch_and_export_include_supplemental_evidence(tmp_path,monke
     assert 'hessian_005' in output and 'HELD unsubmitted tasks 1' in output
     selected=collector.selected(root.parent)
     assert root/'audit/tasks/hessian_005/hessian_005.out' in selected
+    assert root/'audit_repaired/tasks/electronic/electronic.molden' in selected
+    assert 'audit_repaired electronic' in output
     assert before=={p:p.read_bytes() for p in before}
     assert set(before)=={p for p in root.rglob('*') if p.is_file()}

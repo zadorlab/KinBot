@@ -12,13 +12,14 @@ from pathlib import Path
 import re
 import uuid
 
-from kinbot.anl import dispatch, live_control, path_review, probe_recovery
+from kinbot.anl import dispatch, live_control, path_review, probe_recovery, staged_path_review
 from kinbot.execution import atomic_json, file_sha256
 
 DECISION = 'reconciliation_v1.json'
 REPAIRS = 'reconciliation_repairs_v2.json'
 ELECTRONIC = 'reconciliation_electronic_v3.json'
 DEPARTURE = 'reconciliation_departure_v3.json'
+RELEASE = 'reconciliation_sampling_v4.json'
 DEPARTURE_PILOT = ('irc_native_ch3ss_rxn_12_2', 'forward_10_dvv_v1_positive_dt_v2')
 IRC_PILOTS = (
     ('irc_native_ch3ss_rxn_12_2', 'forward_10', 'dvv'),
@@ -42,7 +43,7 @@ def _load_file(root, filename):
 
 def load(root):
     result = _load_file(root, DECISION)
-    for filename in (REPAIRS, ELECTRONIC, DEPARTURE):
+    for filename in (REPAIRS, ELECTRONIC, DEPARTURE, RELEASE):
         addition = _load_file(root, filename)
         if not addition: continue
         if result is None or addition.get('parent_sha256') != result['sha256']:
@@ -52,13 +53,73 @@ def load(root):
         if set(result['curvature']) & set(addition['curvature']):
             raise ValueError('Probe repair graph collides with original evidence.')
         result['curvature'].update(addition['curvature'])
+        if addition.get('released'):
+            result.setdefault('released', []).extend(addition['released'])
+        if 'sampling_review' in addition:
+            result['sampling_review'] = addition['sampling_review']
         result['sha256'] = path_review.digest([result['sha256'], addition['sha256']])
     return result
 
 
 def proofs(plan):
     return ([x['proof'] for x in plan['irc']] +
+            [p for x in plan.get('released', []) for p in x['proofs']] +
             [p for x in plan['curvature'].values() for p in x.get('proofs', [x.get('proof')]) if p])
+
+
+def verify_releases(plan):
+    for release in (plan or {}).get('released', []): staged_path_review.verify(release)
+
+
+def sampling_capacity(root):
+    from kinbot import run_capacity
+    plan = load(root)
+    if not plan or not plan.get('released'):
+        raise ValueError('No reviewed sampling tasks are ready for capacity expansion.')
+    verify_releases(plan)
+    resources = [x['definition']['resources'] for x in plan['released']]
+    partitions = {r['partition'] for r in resources}
+    if len(partitions) != 1:
+        raise ValueError('Review capacity separately for a panel spanning multiple partitions.')
+    result = run_capacity.fit(root, partition=partitions.pop(),
+        cores=max(r['cores'] for r in resources),
+        memory_mb=max(r['memory_mb'] for r in resources), apply=True)
+    atomic_json(Path(root)/'sampling_capacity.json', result)
+    return result
+
+
+def prepare_sampling(root):
+    """Review the held original half-step grid; release applicable tasks only."""
+    root = Path(root).resolve(strict=True)
+    with (root/'.reconciliation_prepare.lock').open('a') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        plan = load(root)
+        if not _load_file(root, DEPARTURE):
+            raise ValueError('Prepare the current departure/electronic decision chain first.')
+        for proof in proofs(plan): path_review.verify(proof)
+        if _load_file(root, RELEASE):
+            verify_releases(plan)
+            return plan
+        released, review = [], {}
+        for name in plan['held_irc_graphs']:
+            graph, spec, state = dispatch._load(root/name)
+            ids = {t['id'] for t in spec['tasks']}
+            for direction in ('forward', 'reverse'):
+                ident, source = direction+'_5', direction+'_10'
+                if ident not in ids or state['tasks'].get(ident, {}).get('status') != 'staged': continue
+                try:
+                    release = staged_path_review.prepare(graph, source, ident)
+                except staged_path_review.Inapplicable as error:
+                    review[name+'/'+ident] = dict(status='held', reason=str(error))
+                else:
+                    released.append(release)
+                    review[name+'/'+ident] = dict(status='released', reason=release['reason'])
+        result = dict(schema=1, root=str(root), parent_sha256=plan['sha256'], irc=[], curvature={},
+            released=released, sampling_review=review, scientific_approval=False,
+            created_utc=datetime.now(timezone.utc).isoformat())
+        result['sha256'] = path_review.digest(result)
+        atomic_json(root/RELEASE, result)
+        return load(root)
 
 
 def prepare_repairs(root):
@@ -212,6 +273,7 @@ def apply(root, plan):
     if stage['sources'] != plan['frozen_sources']:
         raise ValueError('Frozen source definitions differ from reconciliation decision.')
     for proof in proofs(plan): path_review.verify(proof)
+    verify_releases(plan)
     grouped = {}
     for probe in plan['irc']: grouped.setdefault(probe['graph'], []).append(probe['task'])
     # Preflight all graphs before committing any. Per-graph journals then make
@@ -236,7 +298,8 @@ def apply(root, plan):
 
 def submit_only(plan, name):
     if plan and name in plan['held_irc_graphs']:
-        return {x['task']['id'] for x in plan['irc'] if x['graph'] == name}
+        return ({x['task']['id'] for x in plan['irc'] if x['graph'] == name} |
+                {x['task'] for x in plan.get('released', []) if Path(x['graph']).name == name})
     return None
 
 
@@ -273,14 +336,18 @@ def review(root):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('prepare','repair','quadratic','departure','review'))
+    parser.add_argument('action', choices=('prepare','repair','quadratic','departure','sampling','capacity','review'))
     parser.add_argument('root', type=Path)
     args = parser.parse_args()
+    if args.action == 'capacity':
+        print(json.dumps(sampling_capacity(args.root), indent=2))
+        return
     result = {'prepare':prepare, 'repair':prepare_repairs, 'quadratic':prepare_quadratic,
-              'departure':prepare_departure, 'review':review}[args.action](args.root)
+              'departure':prepare_departure, 'sampling':prepare_sampling, 'review':review}[args.action](args.root)
     if args.action != 'review':
         result = dict(decision=result['sha256'], irc_trials=len(result['irc']),
             curvature_jobs=sum(len(x['spec']['tasks']) for x in result['curvature'].values()),
+            released_sampling=len(result.get('released', [])), sampling_review=result.get('sampling_review', {}),
             status='prepared_for_owner', scientific_approval=False)
     print(json.dumps(result, indent=2))
 

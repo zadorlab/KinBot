@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "source": "User-pasted read-only Blodgett inventory following the 2026-11-17T01:12:12Z watch; no direct remote access",
+  "policy": {
+    "revision": 2,
+    "max_jobs": 20,
+    "excluded_nodes": [
+      "node1",
+      "node10",
+      "node13",
+      "node14",
+      "node16",
+      "node20",
+      "node21",
+      "node22",
+      "node23",
+      "node24",
+      "node29",
+      "node30",
+      "node33",
+      "node34",
+      "node9"
+    ]
+  },
+  "eligible_nodes": [
+    "node2",
+    "node3",
+    "node4",
+    "node5",
+    "node6",
+    "node7",
+    "node8",
+    "node11",
+    "node12",
+    "node15",
+    "node17",
+    "node18",
+    "node19",
+    "node25",
+    "node26",
+    "node27",
+    "node28",
+    "node31",
+    "node32",
+    "node35",
+    "node36"
+  ],
+  "idle_eligible_nodes": [
+    "node2",
+    "node3",
+    "node4",
+    "node5",
+    "node6",
+    "node7",
+    "node8",
+    "node15",
+    "node25",
+    "node26",
+    "node27",
+    "node28",
+    "node35",
+    "node36"
+  ],
+  "node_resources": {
+    "cores": 96,
+    "memory_mb": 126000
+  },
+  "held": {
+    "irc_ch3s_h_loss_scale_1p6": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_native_ch3s_rxn_1_2": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_native_ch3ss_rxn_12_1": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_native_ch3ss_rxn_12_2": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_native_ch3ss_rxn_2_2": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_native_ch3ss_rxn_54_1": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_native_reverse_ts1": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_paper_ts4": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_paper_ts5": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_paper_ts6": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_reverse_26b8db7c": [
+      "forward_5",
+      "reverse_5"
+    ],
+    "irc_reverse_b18dcbc8": [
+      "forward_5",
+      "reverse_5"
+    ]
+  },
+  "review": {
+    "candidate_half_step_tasks": 22,
+    "retain_two_early_gradient_holds": "irc_native_ch3ss_rxn_12_2",
+    "release_gate": "Finished same-direction coarse attempt: native 100-cycle corrector limit, or a multi-point raw endpoint with later fragment recapture; same accepted Hessian and unchanged scientific task definition",
+    "stationarity": "The numerical-frequency force tail is not treated as an independent stationary-gradient certificate.",
+    "scientific_approval": false
+  },
+  "native_release_and_capacity_handoff_verified": false
+}

@@ -1,8 +1,42 @@
 # Native reconciliation update — 16 November 2026
 
-**Current handoff:** `resume_followup_probes.sh`. The follow-up section below
+**Current handoff:** `resume_sampling.sh`. The sampling section below
 supersedes the earlier launch instructions. Prior waves remain documented for
 attempt provenance.
+
+## Reviewed sampling and pool utilization
+
+The supplied inventory shows a 20-job shared ceiling, 15 excluded nodes, and
+21 eligible physical nodes (14 idle, six allocated, one mixed). The duplicated
+partition rows refer to the same hardware. One tracked submission belongs to
+the current live TS3 probe; it is retained by normal admission reconciliation.
+
+The original blanket IRC hold is the main source of idle capacity. All 24 held
+tasks are original, unattempted `forward_5`/`reverse_5` branches. Their parent
+harmonic spectra each contain one imaginary vibrational mode. The policy for
+this wave is explicit:
+
+| Evidence in the same-direction step-10 log | Decision for staged step-5 |
+|---|---|
+| Failed at the native 100-cycle corrector limit | One half-step test, same spatial extent and convergence settings |
+| Multi-point path followed by fragment recapture during endpoint optimization | One step-sensitivity test; inspect raw path separately from optimized endpoint |
+| One-point gradient stop (both rxn_12_2 directions) | Retain hold; use the running departure investigation |
+| Another failure, live source, changed evidence, repeated settings or altered task | Hold or refuse preparation with the specific reason |
+
+This permits up to 22 new tasks, subject to the complete native logs on Blodgett.
+The decision binds the source attempts, accepted Hessian, candidate input,
+geometry and task definition. It changes admission only. The owning driver
+retains all existing jobs and backfills free slots, up to the shared ceiling.
+`kinbot.run_capacity` derives that ceiling from unique healthy nodes that meet
+the staged jobs' cores/memory after exclusions. Its atomic policy update
+preserves exclusions and retry controls, and refuses a concurrent policy change.
+`sampling_capacity.json` records the applied inventory; the existing policy
+history records the before/after values. A repeated handoff is idempotent.
+
+The half-step tests retain MaxCycle=100 and the original L2 model. Numerical
+frequency force tails are not used as independent stationary-gradient evidence.
+Path connectivity, stationary-point identity, CC benchmarks and MESS publication
+remain subject to the existing scientific review.
 
 ## Follow-up after the positive-time probes
 

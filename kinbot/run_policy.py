@@ -160,7 +160,8 @@ def _validate_timeout(value):
 def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
            timeout_retries=None, timeout_walltime_factor=None, manage_pending=None,
            optimization_step_retries=None, orbital_review_reserve=None, fair_submission=None,
-           allocation_retries=None, allocation_retry_delay=None, allocation_retry_max_delay=None):
+           allocation_retries=None, allocation_retry_delay=None, allocation_retry_max_delay=None,
+           expected_policy=None):
     root = Path(root).resolve(strict=True)
     path = root/NAME
     ancestor = find(root.parent)
@@ -176,6 +177,8 @@ def update(root, *, max_jobs=None, exclude=(), allow=(), minimum_walltime=None,
         raise ValueError('A node cannot be excluded and allowed in the same update.')
     with _locked(path):
         previous = _read(path) if path.exists() else None
+        if expected_policy is not None and previous != expected_policy:
+            raise RuntimeError('Shared policy changed during capacity review; repeat the inventory.')
         if previous is None:
             if max_jobs is None:
                 raise ValueError('Specify --max-jobs when enabling a shared pool.')

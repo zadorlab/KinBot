@@ -124,6 +124,25 @@ first be reconciled against the above evidence; MESS remains paused as requested
 
 ## Run on Blodgett
 
+For the already-running reconciliation owner, use the reviewed sampling wave:
+
+```bash
+bash examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/resume_sampling.sh
+```
+
+This appends `reconciliation_sampling_v4.json`, releases applicable unattempted
+half-step branches through the existing owner, and fits shared admission to the
+unique healthy nodes that meet the staged jobs' resources after exclusions.
+The November 16 inventory gives 21 eligible nodes, 14 idle; the earlier ceiling
+was 20. The native log check admits corrector-limit failures and multi-point
+endpoint sensitivity checks, while retaining the two one-point `rxn_12_2`
+holds. The existing departure probe investigates that stopping behavior.
+Running allocations, source attempts, the exclusion list and scientific gates
+are preserved. Repeated invocation reuses the decision and current policy.
+`watch.py` includes released branches and specific remaining hold reasons.
+See `sampling_validation.json` for the tested update and
+`native_sampling_inventory_20261116.json` for the supplied site evidence.
+
 From the updated `composite` checkout:
 
 ```bash

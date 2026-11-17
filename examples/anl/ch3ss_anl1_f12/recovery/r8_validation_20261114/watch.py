@@ -50,6 +50,13 @@ def snapshot(root):
         p = read(progress)
         print('PROGRESS age_seconds', round(time.time()-progress.stat().st_mtime),
               'finished', p.get('execution_finished'), 'infrastructure', p.get('infrastructure',{}))
+    from kinbot import run_policy
+    try:
+        policy = run_policy.read(root)
+        if policy:
+            print('POOL max_jobs', policy['max_jobs'], 'excluded_nodes', len(policy['excluded_nodes']))
+    except (OSError, ValueError, RuntimeError) as error:
+        print('POOL unavailable:', error)
     jobs = {}; available = False
     try:
         query = subprocess.run(['squeue','-h','-u',getpass.getuser(),'-o','%i|%T|%M|%Z'],
@@ -68,6 +75,8 @@ def snapshot(root):
         plan['irc'] = plan.get('irc',[]) + repair.get('irc',[])
         extra.update(repair.get('curvature',{}))
     pilots = {(p['graph'],p['task']['id']) for p in plan.get('irc',[])}
+    sampling = read(root/'reconciliation_sampling_v4.json')
+    pilots.update((Path(p['graph']).name, p['task']) for p in sampling.get('released', []))
     counts = Counter()
     for name in [*names, *extra]:
         state = read(root/name/'state.json')
@@ -91,6 +100,8 @@ def snapshot(root):
         for row in running: print('JOB',*row)
     held = sum(len(x) for x in read(progress).get('held_for_review',{}).values())
     print('HELD unsubmitted tasks',held,'scientific approval: false')
+    for task, review in sampling.get('sampling_review', {}).items():
+        if review['status'] == 'held': print('HOLD', task, review['reason'])
 
 
 def main():

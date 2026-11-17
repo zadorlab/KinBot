@@ -1,5 +1,75 @@
 # Native reconciliation update — 16 November 2026
 
+**Current handoff:** `resume_followup_probes.sh`. The follow-up section below
+supersedes the earlier launch instructions. Prior waves remain documented for
+attempt provenance.
+
+## Follow-up after the positive-time probes
+
+The supplied native evidence is recorded in `native_followup_20261116.json`.
+
+| Observation | Scientific interpretation | Next bounded action |
+|---|---|---|
+| All four positive-time DVV jobs executed, each stopping at one point; reaction coordinate 0.002–0.004 | The input error is fixed; these traces still do not establish connectivity | One rxn_12_2 forward departure diagnostic, capped at 64 points |
+| TS2 tight central gradient: maximum component 0.027348837, norm 0.043571151 Eh/bohr; original frequency gradient norm 0.043580 | The rejected CC geometry is nonstationary; its five imaginary modes cannot establish a higher-order stationary point | Preserve the two running Hessian checks; jointly review their step dependence and the original optimization stop before selecting a geometry refinement |
+| TS2 original QSD ended at iteration 21, final printed GRADMAX 0.03042668; requested tolerance 1e-5 | `END OF GEOMETRY OPTIMIZATION` did not mean convergence | Shared harmonic parsing now rejects the native final-frequency nonzero-gradient warning |
+| TS3 shifted ROHF stagnated at 60 iterations; native executable is Molpro 2024.1 | A second unsuccessful electronic solve supplies no curvature result | One electronic-only quadratic ROHF trial, reusing the established orbital-reconnaissance determinant renderer |
+
+Gaussian's [Overlay 1 controls](https://gaussian.com/overlay1/#iop_(1/108))
+document a separate DVV gradient stopping test. The new departure task retains
+the accepted parent Hessian, direction, 0.10 fs time step, electronic settings
+and force–velocity angle test; `IOp(1/108=-1)` disables the gradient stopping test
+for this **64-point diagnostic only**. It exports a raw log/checkpoint for review,
+without endpoint optimization or scientific acceptance. Reaching the point cap
+is not proof of a minimum. Its trace must demonstrate departure from the TS
+region before longer paths or additional branches are selected. This explicitly
+changes a stopping test, rather than tightening VeryTight again or extending the
+corrector iteration ceiling.
+
+The TS3 trial uses `rhf,so,maxit=60,energy=1.d-12` with explicit electron/spin
+counts and C1 occupations matching the failed source: `wf,41,1,1;occ,21;closed,20`.
+The existing ROHF-UCCSD(T)-F12b(T*) model, basis, geometry and thresholds remain.
+Molpro's [SCF documentation](https://www.molpro.net/manual/doku.php?id=the_scf_program)
+supports this solver for the observed version. The task exports orbitals and
+electronic energies for comparison against the intended reference. It has no
+derivative children: convergence alone cannot identify the intended orbital
+solution. This recipe requires native version/occupation evidence and both
+exhausted default/shifted attempts; it cannot apply recursively.
+
+Two immutable additions, `reconciliation_electronic_v3.json` and
+`reconciliation_departure_v3.json`, bind the new tasks to prior decisions and
+source hashes. The existing owner applies them under its lock. The running TS1
+pc150, TS2 Hessians, TS5 paths and any other allocated work continue to be
+polled/adopted; unsent original IRC grid tasks remain held. Repeating the handoff
+reuses the same decisions and task IDs. No new paper–R8 qualitative disagreement
+has been validated by these outputs.
+
+After pulling the published commit, run:
+
+```bash
+bash examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/resume_followup_probes.sh
+```
+
+Read-only status and evidence review:
+
+```bash
+.venv/bin/python -B examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/watch.py \
+  "$HOME/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8/validation_20261114/native" --interval 60
+```
+
+```bash
+.venv/bin/python -B examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/reconcile.py review \
+  "$HOME/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8/validation_20261114/native"
+```
+
+`followup_validation.json` records local tests and the separate verification
+pass. Simulated-site tests cover the complete combined decision/owner/worker
+handoff, positive and failed native receipts, retained source hashes and live
+jobs, held and already-allocated sampling, repeated invocation, wrong ancestry,
+changed geometry/state, and transient submission/staging/archive/scheduler
+races. These tests validate orchestration; the new native probes must still run
+on Blodgett.
+
 The objective remains a defensible comparison of the retained R8 connections,
 barrier ordering and exclusions against the paper. Finishing jobs is not that
 comparison. This update adds a finite diagnostic wave and leaves scientific

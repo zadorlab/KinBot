@@ -246,7 +246,9 @@ def curvature_probe(graph, ident):
     from kinbot.anl.tasks import MOLPRO_HEADER, molpro_task
     spec, task, outcome, proof = source(graph, ident, ['optimized.xyz', ident+'.out'])
     if (task.get('backend') != 'molpro'
-            or outcome.get('error') != 'Molpro transition state must contain exactly one imaginary mode.'):
+            or outcome.get('error') not in (
+                'Molpro transition state must contain exactly one imaginary mode.',
+                'Molpro harmonic geometry is nonstationary: native gradient norm is not zero.')):
         raise ValueError('Curvature probe requires a native harmonic saddle rejection.')
     text = task['input_template']
     # Accept only the generated, explicitly defined single-reference method.

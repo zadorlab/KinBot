@@ -17,6 +17,9 @@ from kinbot.execution import atomic_json, file_sha256
 
 DECISION = 'reconciliation_v1.json'
 REPAIRS = 'reconciliation_repairs_v2.json'
+ELECTRONIC = 'reconciliation_electronic_v3.json'
+DEPARTURE = 'reconciliation_departure_v3.json'
+DEPARTURE_PILOT = ('irc_native_ch3ss_rxn_12_2', 'forward_10_dvv_v1_positive_dt_v2')
 IRC_PILOTS = (
     ('irc_native_ch3ss_rxn_12_2', 'forward_10', 'dvv'),
     ('irc_native_ch3ss_rxn_12_2', 'reverse_10', 'dvv'),
@@ -38,17 +41,18 @@ def _load_file(root, filename):
 
 
 def load(root):
-    base = _load_file(root, DECISION)
-    repairs = _load_file(root, REPAIRS)
-    if not repairs: return base
-    if base is None or repairs.get('parent_sha256') != base['sha256']:
-        raise ValueError('Probe repairs do not match the immutable original decision.')
-    result = deepcopy(base)
-    result['irc'] += repairs['irc']
-    if set(result['curvature']) & set(repairs['curvature']):
-        raise ValueError('Probe repair graph collides with original evidence.')
-    result['curvature'].update(repairs['curvature'])
-    result['sha256'] = path_review.digest([base['sha256'], repairs['sha256']])
+    result = _load_file(root, DECISION)
+    for filename in (REPAIRS, ELECTRONIC, DEPARTURE):
+        addition = _load_file(root, filename)
+        if not addition: continue
+        if result is None or addition.get('parent_sha256') != result['sha256']:
+            raise ValueError('Probe repairs do not match the immutable parent decision.')
+        result = deepcopy(result)
+        result['irc'] += addition['irc']
+        if set(result['curvature']) & set(addition['curvature']):
+            raise ValueError('Probe repair graph collides with original evidence.')
+        result['curvature'].update(addition['curvature'])
+        result['sha256'] = path_review.digest([result['sha256'], addition['sha256']])
     return result
 
 
@@ -120,6 +124,58 @@ def prepare(root):
         if existing: return existing
         atomic_json(root/DECISION, result)
     return result
+
+
+def prepare_quadratic(root):
+    """Append only an electronic SO audit after the failed shifted ROHF gate."""
+    root = Path(root).resolve(strict=True)
+    with (root/'.reconciliation_prepare.lock').open('a') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        plan = load(root)
+        if not _load_file(root, REPAIRS):
+            raise ValueError('The electronic recovery wave must be applied first.')
+        for proof in proofs(plan): path_review.verify(proof)
+        if _load_file(root, ELECTRONIC): return plan
+        audits = {}
+        for name, entry in plan['curvature'].items():
+            if entry['spec'].get('intent', {}).get('native_probe_repair') != 'rohf_level_shift': continue
+            saved = deepcopy(dispatch._load(root/name)[1])
+            resources = {t['id']:t['resources'] for t in entry['spec']['tasks']}
+            for task in saved['tasks']: task['resources'] = resources.get(task['id'])
+            if saved != entry['spec']: raise ValueError('Source electronic definition changed.')
+            trial = probe_recovery.quadratic_rohf_probe(root/name)
+            audits[trial['spec']['name']] = trial
+        if not audits: raise ValueError('No exhausted level-shift ROHF gate supports a quadratic trial.')
+        result = dict(schema=1, root=str(root), parent_sha256=plan['sha256'],
+            irc=[], curvature=audits, scientific_approval=False,
+            created_utc=datetime.now(timezone.utc).isoformat())
+        result['sha256'] = path_review.digest(result)
+        atomic_json(root/ELECTRONIC, result)
+        return load(root)
+
+
+def prepare_departure(root):
+    """One short rxn_12_2 pilot; compare its raw trace before any expansion."""
+    root = Path(root).resolve(strict=True)
+    with (root/'.reconciliation_prepare.lock').open('a') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        plan = load(root)
+        if not _load_file(root, ELECTRONIC):
+            raise ValueError('Prepare the electronic follow-up decision first.')
+        for proof in proofs(plan): path_review.verify(proof)
+        if _load_file(root, DEPARTURE): return plan
+        name, ident = DEPARTURE_PILOT
+        entry = next((x for x in plan['irc'] if x['graph'] == name and x['task']['id'] == ident), None)
+        if entry is None: raise ValueError('The departure source is absent from the immutable decisions.')
+        saved = deepcopy(next(t for t in dispatch._load(root/name)[1]['tasks'] if t['id'] == ident))
+        saved['resources'] = entry['task']['resources']
+        if saved != entry['task']: raise ValueError('Source DVV definition changed.')
+        trial = dict(graph=name, **probe_recovery.dvv_departure_probe(root/name, ident))
+        result = dict(schema=1, root=str(root), parent_sha256=plan['sha256'], irc=[trial],
+            curvature={}, scientific_approval=False, created_utc=datetime.now(timezone.utc).isoformat())
+        result['sha256'] = path_review.digest(result)
+        atomic_json(root/DEPARTURE, result)
+        return load(root)
 
 
 def extra_specs(plan):
@@ -217,11 +273,12 @@ def review(root):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('prepare','repair','review'))
+    parser.add_argument('action', choices=('prepare','repair','quadratic','departure','review'))
     parser.add_argument('root', type=Path)
     args = parser.parse_args()
-    result = {'prepare':prepare, 'repair':prepare_repairs, 'review':review}[args.action](args.root)
-    if args.action in ('prepare','repair'):
+    result = {'prepare':prepare, 'repair':prepare_repairs, 'quadratic':prepare_quadratic,
+              'departure':prepare_departure, 'review':review}[args.action](args.root)
+    if args.action != 'review':
         result = dict(decision=result['sha256'], irc_trials=len(result['irc']),
             curvature_jobs=sum(len(x['spec']['tasks']) for x in result['curvature'].values()),
             status='prepared_for_owner', scientific_approval=False)

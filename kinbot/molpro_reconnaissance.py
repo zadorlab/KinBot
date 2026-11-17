@@ -33,7 +33,7 @@ from kinbot.molpro import (validate_vrc_state_model, automatic_vrc_state_model,
                            vrc_multireference_energy_contract, validate_mr_correlation_options)
 from kinbot.theory import fortran_threshold
 from kinbot.molpro_solver import (apply_solver_options, validate_solver_options,
-                                 validate_casscf_iterations)
+                                 validate_casscf_iterations, rhf_determinant as _recon_rhf)
 from kinbot.execution import atomic_json, file_sha256, slurm_job_record, SLURM_TERMINAL_STATES
 from kinbot.anl.runtime import (qc_runtime_environment, cleanup_qc_runtime,
                                MolproScratchError, molpro_io_failure)
@@ -707,20 +707,6 @@ def _validate_cc_check_energies(output, labels, values):
     if any(not np.isfinite(values[i]) or abs(values[i] - total) > 1e-7
            for i, total in zip(indices, native)):
         raise ValueError('Single-reference marker differs from the native F12b plus (T) energy.')
-
-
-def _recon_rhf(command, electrons, spin, record):
-    """Specify the C1 determinant independently of inherited AVAS/MULTI state.
-
-    Restart files retain global SPIN as well as orbital occupations. Supply
-    both global and local spin, and the matching determinant partition.
-    Local WF cards in subsequent MULTI/CI blocks retain precedence.
-    """
-    if spin < 0 or electrons < spin or (electrons - spin) % 2:
-        raise ValueError('Incompatible RHF electron count and spin.')
-    return (f'set,spin={spin}\n{{{command};wf,{electrons},1,{spin};'
-            f'occ,{(electrons + spin) // 2};closed,{(electrons - spin) // 2};'
-            f'orbital,{record}}}\n')
 
 
 def _deck(data, basis, anchor, stem, previous=None):

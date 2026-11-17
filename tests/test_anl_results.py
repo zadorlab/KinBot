@@ -965,6 +965,22 @@ def test_molpro_harmonic_accepts_exactly_one_transition_state_mode():
         parse_molpro_harmonic(saddle, basis='cc-pVTZ', reference='RHF')
 
 
+@pytest.mark.parametrize('stationary', ['minimum', 'transition_state'])
+def test_molpro_harmonic_rejects_native_nonstationary_warning_even_with_valid_modes(stationary):
+    native = _MOLPRO_HARMONIC
+    if stationary == 'transition_state':
+        native = native.replace('1             1343.29', '1              500.00i').replace(
+            '0.04479801 [H]     9832.03 [1/CM]      117.62 [KJ/MOL]',
+            '0.0417377851 [H]     9160.385 [1/CM]      109.58 [KJ/MOL]')
+    warning = 'Gradient norm at reference geometry: 0.43580D-01\n?WARNING: GRADIENT NORM NOT ZERO!\n'
+    # The historical optimization may have had a nonstationary Hessian.
+    parse_molpro_harmonic(warning+native, basis='cc-pVTZ', reference='RHF', stationary_point=stationary)
+    # Appending inside the sole frequency section reproduces the native warning
+    # without changing the positive/imaginary mode tables or normal termination.
+    with pytest.raises(ValueError, match='geometry is nonstationary'):
+        parse_molpro_harmonic(native+'\n'+warning, basis='cc-pVTZ', reference='RHF', stationary_point=stationary)
+
+
 def test_gaussian_vpt2_named_zpe_and_warnings():
     result = parse_gaussian_vpt2(_GAUSSIAN_VPT2, method='B3LYP',
                                  basis='cc-pVTZ')

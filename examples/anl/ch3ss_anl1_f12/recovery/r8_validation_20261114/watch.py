@@ -62,9 +62,11 @@ def snapshot(root):
         print('QUEUE unavailable:', error)
     names = read(root/'stage.json').get('workflows',[])
     plan = read(root/'reconciliation_v1.json')
-    repair = read(root/'reconciliation_repairs_v2.json')
-    plan['irc'] = plan.get('irc',[]) + repair.get('irc',[])
-    extra = {**plan.get('curvature',{}), **repair.get('curvature',{})}
+    extra = dict(plan.get('curvature',{}))
+    for filename in ('reconciliation_repairs_v2.json', 'reconciliation_electronic_v3.json', 'reconciliation_departure_v3.json'):
+        repair = read(root/filename)
+        plan['irc'] = plan.get('irc',[]) + repair.get('irc',[])
+        extra.update(repair.get('curvature',{}))
     pilots = {(p['graph'],p['task']['id']) for p in plan.get('irc',[])}
     counts = Counter()
     for name in [*names, *extra]:

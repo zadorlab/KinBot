@@ -348,7 +348,10 @@ def test_native_imaginary_modes_are_not_parser_artifacts():
     assert path_review.molpro_modes(text)==[942.71,1006.92,-428.54,-408.26,-214.84,-152.08,-5.16]
 
 
-def test_curvature_audit_uses_failed_geometry_without_promoting_it(tmp_path,monkeypatch):
+@pytest.mark.parametrize('rejection', [
+    'Molpro transition state must contain exactly one imaginary mode.',
+    'Molpro harmonic geometry is nonstationary: native gradient norm is not zero.'])
+def test_curvature_audit_uses_failed_geometry_without_promoting_it(tmp_path,monkeypatch,rejection):
     campaign=load('campaign');point=dict(symbols=['O','H','H'],positions=[[0.,0,0],[1.,0,0],[0,1.,0]],charge=1,multiplicity=2)
     spec=campaign.cc_refinement('example',point,True,True);site(spec)
     monkeypatch.setattr(dispatch,'assign_partitions',lambda _:None)
@@ -360,7 +363,7 @@ def test_curvature_audit_uses_failed_geometry_without_promoting_it(tmp_path,monk
     (directory/'refine.out').write_text('Normal Modes\nWavenumbers [cm-1] 1000\nNormal Modes of imaginary frequencies\nWavenumbers [cm-1] 191.15 38.59\n')
     _,_,state=dispatch._load(graph);state['tasks']['refine'].update(status='failed',job_id='22');atomic_json(graph/'state.json',state)
     atomic_json(directory/'execution.json',dict(schema=1,task_id='refine',slurm_job_id='22',status='failed',
-        geometry_sha256=state['tasks']['refine']['geometry_sha256'],error='Molpro transition state must contain exactly one imaginary mode.'))
+        geometry_sha256=state['tasks']['refine']['geometry_sha256'],error=rejection))
     probe=path_review.curvature_probe(graph,'refine');new=probe['spec']
     assert new['molecule']['positions'][1][0]==.9
     assert spec['molecule']['positions'][1][0]==1.
@@ -395,9 +398,10 @@ def test_read_only_watch_and_export_include_supplemental_evidence(tmp_path,monke
     atomic_json(root/'stage.json',dict(workflows=['irc_example']))
     atomic_json(root/'reconciliation_v1.json',dict(irc=[dict(graph='irc_example',task=dict(id='probe'))],curvature={'audit':{}}))
     atomic_json(root/'reconciliation_repairs_v2.json',dict(irc=[],curvature={'audit_repaired':{}}))
+    atomic_json(root/'reconciliation_electronic_v3.json',dict(irc=[],curvature={'audit_quadratic':{}}))
     atomic_json(root/'native_owner.json',dict(pid=0,status='running'))
     atomic_json(root/'progress.json',dict(execution_finished=False,held_for_review={'irc_example':['old']}))
-    for name,ident,job in [('irc_example','probe','88'),('audit','hessian_005','89'),('audit_repaired','electronic','90')]:
+    for name,ident,job in [('irc_example','probe','88'),('audit','hessian_005','89'),('audit_repaired','electronic','90'),('audit_quadratic','electronic','91')]:
         graph=root/name;(graph/'tasks'/ident).mkdir(parents=True)
         atomic_json(graph/'workflow.json',dict(tasks=[dict(id=ident)]))
         atomic_json(graph/'state.json',dict(tasks={ident:dict(status='submitted',job_id=job)}))
@@ -413,5 +417,7 @@ def test_read_only_watch_and_export_include_supplemental_evidence(tmp_path,monke
     assert root/'audit/tasks/hessian_005/hessian_005.out' in selected
     assert root/'audit_repaired/tasks/electronic/electronic.molden' in selected
     assert 'audit_repaired electronic' in output
+    assert 'audit_quadratic electronic' in output
+    assert root/'audit_quadratic/tasks/electronic/electronic.out' in selected
     assert before=={p:p.read_bytes() for p in before}
     assert set(before)=={p for p in root.rglob('*') if p.is_file()}

@@ -927,6 +927,12 @@ def parse_molpro_harmonic(output, *, basis, reference=None, method='CCSD(T)',
             or frequency_sections[0].upper() not in allowed_headings:
         raise ValueError(f'Expected one {expected_method} Molpro frequency section.')
     section = output.split('PROGRAM * FREQUENCIES', 1)[1]
+    # Normal termination and the desired mode count do not establish
+    # stationarity. Molpro can evaluate a Hessian after QSD stops away from
+    # a stationary point. Restrict this check to the final frequency section,
+    # so an earlier optimization warning does not reject a later valid result.
+    if re.search(r'\bWARNING:\s*GRADIENT NORM NOT ZERO\s*!', section, re.I):
+        raise ValueError('Molpro harmonic geometry is nonstationary: native gradient norm is not zero.')
     low_heading = re.search(r'^\s*Low Vibration\s+Wavenumber\s*$', section,
                             re.IGNORECASE | re.MULTILINE)
     low_modes = []

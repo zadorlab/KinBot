@@ -1,0 +1,405 @@
+{
+  "schema": 1,
+  "evidence_kind": "User-supplied Blodgett terminal extracts; full native files remain remote",
+  "attachment_sha256": "95673f0ba113d4d4e5f619f32b198e01f41da7290bc25b381901337c1e5b9a39",
+  "source_review": {
+    "scientific_approval": false,
+    "decision": "f0a0c81382fd6f2e05e7453f18a8e53eccac8b37a9dccf6a6900ef2f2533c082",
+    "branches": {
+      "irc_paper_ts2/forward_5_dvv_v1_positive_dt_v2": {
+        "state": "complete",
+        "job_id": "53245765",
+        "points": 1,
+        "stop": "gradient_minimum",
+        "scientific_approval": false,
+        "irc_geometry": [
+          [
+            6,
+            0.967525,
+            0.833985,
+            1.311079
+          ],
+          [
+            1,
+            1.219375,
+            1.632805,
+            2.000415
+          ],
+          [
+            1,
+            1.782206,
+            0.256377,
+            0.887686
+          ],
+          [
+            16,
+            -0.564314,
+            0.516792,
+            0.915342
+          ],
+          [
+            16,
+            0.098142,
+            -0.899808,
+            -1.437141
+          ],
+          [
+            1,
+            0.267018,
+            0.331448,
+            -1.945427
+          ]
+        ],
+        "coordinate": 0.002,
+        "gradient": 4.5e-06,
+        "irc_termination": "normal",
+        "classification": "early_gradient_stop",
+        "last_corrector": [
+          {
+            "point": 1,
+            "iteration": 1,
+            "limit": 100
+          }
+        ],
+        "log_sha256": "49b1b1721fc972cba6b9578cbaeeabf87f32ac8d6044820faecaf5b9b48694ea"
+      },
+      "irc_paper_ts5/reverse_10_dvv_v1_positive_dt_v2": {
+        "state": "complete",
+        "job_id": "53245766",
+        "points": 1,
+        "stop": "gradient_minimum",
+        "scientific_approval": false,
+        "irc_geometry": [
+          [
+            6,
+            0.098568,
+            0.104936,
+            0.59349
+          ],
+          [
+            1,
+            0.109529,
+            0.102023,
+            1.680089
+          ],
+          [
+            1,
+            2.024845,
+            0.093618,
+            0.917365
+          ],
+          [
+            16,
+            0.070099,
+            1.504655,
+            -0.257489
+          ],
+          [
+            16,
+            -0.167194,
+            -1.513424,
+            -0.006072
+          ],
+          [
+            1,
+            -0.22781,
+            -1.166884,
+            -1.302871
+          ]
+        ],
+        "coordinate": 0.004,
+        "gradient": 0.0001403,
+        "irc_termination": "normal",
+        "classification": "early_gradient_stop",
+        "last_corrector": [
+          {
+            "point": 1,
+            "iteration": 1,
+            "limit": 100
+          }
+        ],
+        "log_sha256": "7e3440096584fcfdc9798b78104b49f2a3591db95ee5568ad2e276938454afa2"
+      },
+      "irc_native_ch3ss_rxn_12_2/forward_10_dvv_v1_positive_dt_v2": {
+        "state": "complete",
+        "job_id": "53245767",
+        "points": 1,
+        "stop": "gradient_minimum",
+        "scientific_approval": false,
+        "irc_geometry": [
+          [
+            6,
+            0.057392,
+            -0.288949,
+            -1.561455
+          ],
+          [
+            16,
+            1.05547,
+            0.598615,
+            -0.644268
+          ],
+          [
+            16,
+            -1.004566,
+            -0.470158,
+            1.32252
+          ],
+          [
+            1,
+            -1.713941,
+            0.570222,
+            0.856234
+          ],
+          [
+            1,
+            0.00473,
+            -1.368114,
+            -1.473255
+          ],
+          [
+            1,
+            -0.589023,
+            0.16322,
+            -2.30775
+          ]
+        ],
+        "coordinate": 0.004,
+        "gradient": 9.3e-06,
+        "irc_termination": "normal",
+        "classification": "early_gradient_stop",
+        "last_corrector": [
+          {
+            "point": 1,
+            "iteration": 1,
+            "limit": 100
+          }
+        ],
+        "log_sha256": "57f1ccd23c208f1778ce6fda1bc39102fe5aaa4f3b9a59c00042a68369891eab"
+      },
+      "irc_native_ch3ss_rxn_12_2/reverse_10_dvv_v1_positive_dt_v2": {
+        "state": "complete",
+        "job_id": "53245768",
+        "points": 1,
+        "stop": "gradient_minimum",
+        "scientific_approval": false,
+        "irc_geometry": [
+          [
+            6,
+            0.057166,
+            -0.289096,
+            -1.560962
+          ],
+          [
+            16,
+            1.055622,
+            0.598692,
+            -0.644333
+          ],
+          [
+            16,
+            -1.004622,
+            -0.470182,
+            1.322345
+          ],
+          [
+            1,
+            -1.713619,
+            0.57072,
+            0.856651
+          ],
+          [
+            1,
+            0.006114,
+            -1.368448,
+            -1.474038
+          ],
+          [
+            1,
+            -0.591087,
+            0.163106,
+            -2.305641
+          ]
+        ],
+        "coordinate": 0.004,
+        "gradient": 8.9e-06,
+        "irc_termination": "normal",
+        "classification": "early_gradient_stop",
+        "last_corrector": [
+          {
+            "point": 1,
+            "iteration": 1,
+            "limit": 100
+          }
+        ],
+        "log_sha256": "11bb3b201de29a39fcdbd3b212b6c21f0746f468dc765649570eab5ae0af6c29"
+      }
+    },
+    "curvature": {
+      "cc_si_TS2_curvature_v1_electronic_v2": {
+        "tasks": {
+          "electronic": {
+            "execution": "executed",
+            "geometry_from": "initial",
+            "geometry_sha256": "acd376c093910ac4ad7620d76548e6cadadd41a4872331eb3c7dda1a90a7268d",
+            "input_sha256": "9d882366b0e11769ac26280dcc97bb75bd19c955192ce506670c8d61cbb764d8",
+            "job_id": "53245769",
+            "job_sha256": "973bb9ef8e23c0d13cca5cbf2b5987286082a77bead8f78ee5dd71a8e2694a20",
+            "status": "complete",
+            "submission_started_utc": "2026-11-16T23:21:01.832013+00:00",
+            "task_sha256": "3b68e18299692aa65a6b32bb2eca88e9ec0aaeafb3c764ef23a61f7111dfbc69"
+          },
+          "gradient": {
+            "execution": "executed",
+            "geometry_from": "initial",
+            "geometry_sha256": "acd376c093910ac4ad7620d76548e6cadadd41a4872331eb3c7dda1a90a7268d",
+            "input_sha256": "fe8a8585daa4cc1d90a4692b7f2cea684052b4eca1c28405394c97bdd35c5fe7",
+            "job_id": "53245772",
+            "job_sha256": "117d9e5ddf61c3a94d37866bc71ef02c96e8080c85828c7ae12718eb0a87d4e1",
+            "status": "complete",
+            "submission_started_utc": "2026-11-16T23:23:51.799088+00:00",
+            "task_sha256": "22327d551c167c461d35b6a14b6d2eccbd11a429be75571558b194a450e5b650"
+          },
+          "hessian_005": {
+            "geometry_from": "initial",
+            "geometry_sha256": "acd376c093910ac4ad7620d76548e6cadadd41a4872331eb3c7dda1a90a7268d",
+            "input_sha256": "b5e26639259e4764de5992a75079703f5184bc00ed841d413b10ff761c5c9159",
+            "job_id": "53245774",
+            "job_sha256": "daa6ab3b235d3f728921a4f8b639809849cb371ffbb8fac7f7bdc5a44ea4e6db",
+            "status": "submitted",
+            "submission_started_utc": "2026-11-16T23:23:51.876730+00:00",
+            "task_sha256": "0a09de644c16e9fcaadeade23ccda9639ed378e5e59fe41c49661a35da4ff742"
+          },
+          "hessian_010": {
+            "geometry_from": "initial",
+            "geometry_sha256": "acd376c093910ac4ad7620d76548e6cadadd41a4872331eb3c7dda1a90a7268d",
+            "input_sha256": "351305f1a8077e7c63939c0093040187592daf54cb74b5d3d3abd93fb6dbba57",
+            "job_id": "53245773",
+            "job_sha256": "fc22dd8b34ff6cbf2ff6f734ae72e8353261e5885e88ae872bea124b275f44ba",
+            "status": "submitted",
+            "submission_started_utc": "2026-11-16T23:23:51.842723+00:00",
+            "task_sha256": "c368e29e2ffcc6af214d899a36e2b9544ff7703d5de2b9717836838886c7f21a"
+          }
+        },
+        "electronic": {
+          "modes": [],
+          "output_sha256": "6eb8d682d32f31ed07cd9f3867c7cec078006881fb9c6740490bffcda9c07c59"
+        },
+        "gradient": {
+          "modes": [],
+          "output_sha256": "7d7e329fa1a30e5cd8e5c0270630c5406c78e8c603f154d87c928fed49fa73a0"
+        }
+      },
+      "cc_si_TS3_curvature_v1_electronic_v2": {
+        "tasks": {
+          "electronic": {
+            "execution": "failed",
+            "geometry_from": "initial",
+            "geometry_sha256": "0200d874b544a322ef9ee7ed14a42b2475b3039320798d2610ca6d343b38c699",
+            "input_sha256": "3c4cbfc990a9e3688015ada26af77f18ad87f66a1ba04fbaa7c1968945e5dd37",
+            "job_id": "53245770",
+            "job_sha256": "78a4daa818de7af43639779f18d690a67b02bbc26d2a3d29148f02e0e2b7710b",
+            "status": "failed",
+            "submission_started_utc": "2026-11-16T23:21:01.892353+00:00",
+            "task_sha256": "e694edd942eafc48a952adff7a5f92967dabed204da083a01dc3e56856b95470"
+          },
+          "gradient": {
+            "blocked_by": [
+              "electronic"
+            ],
+            "geometry_from": "initial",
+            "status": "blocked"
+          },
+          "hessian_005": {
+            "blocked_by": [
+              "electronic"
+            ],
+            "geometry_from": "initial",
+            "status": "blocked"
+          },
+          "hessian_010": {
+            "blocked_by": [
+              "electronic"
+            ],
+            "geometry_from": "initial",
+            "status": "blocked"
+          }
+        },
+        "electronic": {
+          "modes": [],
+          "output_sha256": "0f645ffb74d71c216279c7d6c771da84e2a1232818107a6f9529a4916c45fb55"
+        }
+      }
+    }
+  },
+  "ts2_gradient": {
+    "cartesian_Eh_per_bohr": [
+      [
+        -0.012469221,
+        -0.00092248,
+        1.4288e-05
+      ],
+      [
+        -0.007238255,
+        0.000497832,
+        -0.011507778
+      ],
+      [
+        -0.007521117,
+        0.001480284,
+        -0.001802089
+      ],
+      [
+        0.027348837,
+        7.8329e-05,
+        0.014696613
+      ],
+      [
+        -0.002158037,
+        0.011751455,
+        -0.011120692
+      ],
+      [
+        0.002037793,
+        -0.012885419,
+        0.009719658
+      ]
+    ],
+    "max_abs": 0.027348837,
+    "rms": 0.01026981871764215,
+    "norm": 0.043571150740807786,
+    "original_frequency_norm": 0.04358,
+    "original_qsd_last_iteration": 21,
+    "original_qsd_last_gradmax": 0.03042668,
+    "original_qsd_last_gradnorm": 0.04634862,
+    "requested_optimization_gradient": 1e-05,
+    "original_warning": "?WARNING: GRADIENT NORM NOT ZERO!",
+    "original_details_source": "Subsequent user-supplied refine.inp/refine.out excerpt in chat; not independently downloaded"
+  },
+  "ts3": {
+    "native_version": "2024.1",
+    "version_evidence": "Subsequent user-supplied electronic.out header",
+    "final_alpha": 21,
+    "final_beta": 20,
+    "failed_recipe": "rhf,maxit=60;shift,-1.0,-0.5",
+    "next_recipe": "rhf,so,maxit=60,energy=1.d-12",
+    "next_scope": "one electronic-only trial; review orbitals before derivatives"
+  },
+  "dvv_departure": {
+    "graph": "irc_native_ch3ss_rxn_12_2",
+    "source": "forward_10_dvv_v1_positive_dt_v2",
+    "max_points": 64,
+    "time_step_fs": 0.1,
+    "controls_added": [
+      "IOp(1/108=-1)"
+    ],
+    "scope": "raw TS-departure diagnostic; no endpoint acceptance"
+  },
+  "scientific_approval": false,
+  "conclusions": [
+    "Positive-time DVV execution is fixed but connectivity remains unresolved.",
+    "TS2 saved CC geometry is nonstationary; imaginary modes there do not establish a higher-order saddle.",
+    "TS3 electronic convergence and reference identity remain unresolved.",
+    "No new qualitative paper-PES disagreement is established by these outputs."
+  ]
+}

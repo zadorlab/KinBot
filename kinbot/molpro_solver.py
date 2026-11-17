@@ -12,6 +12,15 @@ from kinbot.theory import fortran_threshold, convergence_exponent
 MOLPRO_CASSCF_MAX_ITERATIONS = 999
 
 
+def rhf_determinant(command, electrons, spin, record):
+    """Render a C1 RHF/ROHF determinant without inherited spin/occupations."""
+    if spin < 0 or electrons < spin or (electrons - spin) % 2:
+        raise ValueError('Incompatible RHF electron count and spin.')
+    return (f'set,spin={spin}\n{{{command};wf,{electrons},1,{spin};'
+            f'occ,{(electrons + spin) // 2};closed,{(electrons - spin) // 2};'
+            f'orbital,{record}}}\n')
+
+
 def validate_casscf_iterations(value, key='casscf_options.max_iterations'):
     """MULTI rejects MAXIT above 999 at input parsing, before optimization."""
     if type(value) is not int or not 1 <= value <= MOLPRO_CASSCF_MAX_ITERATIONS:

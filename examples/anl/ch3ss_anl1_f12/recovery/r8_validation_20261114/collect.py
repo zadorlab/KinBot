@@ -42,7 +42,7 @@ def selected(root):
     receipt = root/'native/stage.json'
     if receipt.is_file():
         names = list(json.loads(receipt.read_text())['workflows'])
-        for filename in ('reconciliation_v1.json', 'reconciliation_repairs_v2.json'):
+        for filename in ('reconciliation_v1.json', 'reconciliation_repairs_v2.json', 'reconciliation_electronic_v3.json', 'reconciliation_departure_v3.json'):
             decision = root/'native'/filename
             # Only explicitly declared supplemental graphs; never recursively
             # discover attempt archives or checkpoint stores.

@@ -1,7 +1,7 @@
 """Finite repairs of failed native diagnostic probes, never PES acceptance.
 
 Return new tasks/graphs with hashed native provenance. The owner applies them;
-failed attempts remain intact. No repair may recursively repair its own trial.
+failed attempts remain intact. Each recipe has one trial and explicit ancestry.
 """
 from copy import deepcopy
 import json
@@ -62,6 +62,74 @@ def dvv_step_repair(graph, ident):
             time_step_fs=abs(int(steps[0]))/100, spatial_path_length='not specified'))
     path_review.verify(proof)
     return dict(task=new, proof=proof, report=dict(failure='invalid_dvv_time_step'))
+
+
+def dvv_departure_probe(graph, ident):
+    """Bounded raw path after DVV declares a minimum at its first TS step.
+
+    Gaussian Overlay 1 documents IOp(1/108=-1) as disabling only the DVV
+    gradient-magnitude stopping test. Keep the force/velocity-angle test and
+    integration controls; impose 64 points, with no endpoint optimization.
+    This is a departure diagnostic, never a minimum or connection acceptance.
+    """
+    graph = Path(graph).resolve()
+    _, task, outcome, proof = path_review.source(graph, ident, [ident+'.log'])
+    text = task['input_template']
+    route = re.search(r'IRC=\(([^()]*)\)', text, re.I)
+    metadata = task.get('native_probe_repair', {})
+    if (task.get('backend') != 'gaussian' or metadata.get('recipe') != 'dvv_positive_time'
+            or outcome.get('status') != 'executed' or not route
+            or '--Link1--' in text or re.search(r'\biop\s*\(', text, re.I)
+            or any(k in task for k in ('result_parser','geometry_output','manual_fallback'))):
+        raise ValueError('Departure probe requires an executed positive-time raw DVV repair.')
+    options = route[1].lower().split(',')
+    required = {'rcfc','gradientonly','dvv','massweighted','verytight','report=cartesians','maxcycle=100'}
+    steps = re.findall(r'\bstepsize=([1-9]\d*)\b', route[1], re.I)
+    bounds = re.findall(r'\bmaxpoints=([1-9]\d*)\b', route[1], re.I)
+    if (len(options) != 10 or not required <= set(options) or len(steps) != 1
+            or len(bounds) != 1 or int(bounds[0]) < 64
+            or ('forward' in options) == ('reverse' in options)):
+        raise ValueError('Unrecognized or exhausted DVV departure settings.')
+    directory = graph/'tasks'/ident
+    native = (directory/(ident+'.log')).read_text(errors='replace')
+    report = path_review.gaussian_path(native.splitlines())
+    dt = re.search(r'Step size\s*=\s*('+path_review.NUMBER+r')\s+fs', native)
+    if (report['classification'] != 'early_gradient_stop' or report['points'] != 1
+            or not 0 < report.get('coordinate', 0) <= .01
+            or not 0 < report.get('gradient', 0) < .0015
+            or not re.search(r'Integration scheme\s*=\s*DVV', native)
+            or 'Current Structure is TS' not in native or not dt
+            or abs(path_review._number(dt[1])-int(steps[0])/100) > 1.e-7):
+        raise ValueError('Native evidence does not establish a first-step DVV gradient stop near the TS.')
+    # Bind this successful input to the previously reviewed sign-only repair.
+    ancestry = dvv_step_repair(graph, metadata['source'])
+    saved = deepcopy(task); saved['resources'] = ancestry['task']['resources']
+    if saved != ancestry['task']:
+        raise ValueError('Positive-time source differs from its recorded sign repair.')
+    bindings = checkpoint_inputs.inspect_dependencies(directory, task['input_name'],
+                                                       (directory/task['input_name']).read_text())
+    if len(bindings) != 1: raise ValueError('Departure probe requires one verified parent Hessian.')
+    for binding in bindings:
+        parent = Path(binding['source'])
+        proof['files'][str(parent.relative_to(graph))] = binding['sha256']
+        proof['files'][str((parent.parent/'execution.json').relative_to(graph))] = binding['source_execution_sha256']
+    new_id = ident+'_departure_v3'
+    replacement = re.sub(r'\bMaxPoints=[1-9]\d*\b', 'MaxPoints=64', text, count=1, flags=re.I)
+    replacement = re.sub(r'(?im)^%chk=.*$', '%chk='+new_id+'.chk', replacement)
+    replacement = replacement.rstrip()+' IOp(1/108=-1)\n\n'
+    new = deepcopy(task)
+    new.update(id=new_id, input_name=new_id+'.com', stdin=new_id+'.com',
+        stdout=new_id+'.log', stderr=new_id+'.err', input_template=replacement,
+        required_outputs=[new_id+'.log',new_id+'.chk'],
+        success_marker=dict(file=new_id+'.log', contains='Normal termination of Gaussian'),
+        failure_markers=[dict(file=new_id+'.log', contains='Error termination')],
+        native_probe_repair=dict(recipe='dvv_departure', source=ident, budget=1,
+            evidence=path_review.digest(proof), ancestor_evidence=path_review.digest(ancestry['proof']),
+            scientific_approval=False, max_points=64, endpoint_acceptance=False,
+            gradient_stop='disabled for bounded departure diagnostic',
+            documentation='https://gaussian.com/overlay1/#iop_(1/108)'))
+    path_review.verify(proof); path_review.verify(ancestry['proof'])
+    return dict(task=new, proof=proof, report=report)
 
 
 def electronic_failure(text):
@@ -199,3 +267,83 @@ def curvature_repair(graph):
     dispatch.validate_spec(result)
     for proof in proofs: path_review.verify(proof)
     return dict(spec=result, proofs=proofs, reports=reports)
+
+
+def quadratic_rohf_probe(graph):
+    """One electronic-only SO trial after default and shifted ROHF stagnate.
+
+    Reuse the reconnaissance determinant renderer. No derivatives are released:
+    converged orbitals/energies still need comparison with the target reference.
+    Native version, occupations and both exhausted inputs are evidence-bound.
+    """
+    from ase.data import atomic_numbers
+    from ase.io import read
+    import numpy as np
+    from kinbot.anl import dispatch
+    from kinbot.molpro_solver import rhf_determinant
+
+    graph, spec, state = dispatch._load(graph)
+    intent = spec.get('intent', {})
+    parents = intent.get('source_proofs', [])
+    if (intent.get('integration') != 'none' or intent.get('scientific_approval') is not False
+            or intent.get('native_probe_repair') != 'rohf_level_shift'
+            or {t['id'] for t in spec['tasks']} != {'electronic', *DERIVATIVES}
+            or len(parents) != 3 or len({p['graph'] for p in parents}) != 1):
+        raise ValueError('Quadratic trial requires the exhausted default/shifted ROHF audit.')
+    for proof in parents: path_review.verify(proof)
+    original = curvature_repair(parents[0]['graph'])
+    expected = original['spec']
+    normalized = deepcopy(spec)
+    resources = {t['id']: t['resources'] for t in expected['tasks']}
+    for task in normalized['tasks']: task['resources'] = resources[task['id']]
+    if normalized != expected:
+        raise ValueError('Shifted audit differs from its recorded recovery procedure.')
+    for ident in DERIVATIVES:
+        entry = state['tasks'].get(ident, {})
+        if (entry.get('job_id') or entry.get('status', 'waiting') not in ('waiting', 'staged', 'blocked')
+                or (graph/'tasks'/ident/'execution.json').exists()):
+            raise ValueError('A derivative already started; review its evidence separately.')
+    _, task, outcome, proof = path_review.source(graph, 'electronic', ['electronic.out'])
+    if outcome.get('status') != 'failed' or outcome.get('failure_phase') != 'execution':
+        raise ValueError('Expected a failed electronic gate.')
+    directory = graph/'tasks/electronic'
+    native = (directory/'electronic.out').read_text(errors='replace')
+    report = electronic_failure(native)
+    if report['recipe'] != 'rohf_level_shift':
+        raise ValueError('Shifted ROHF did not show the required stagnation.')
+    version = re.search(r'\bVersion\s+(\d{4})\.(\d+)', native, re.I)
+    if not version or int(version[1]) < 2021:
+        raise ValueError('Native evidence must identify Molpro 2021 or later for RHF,SO.')
+    molecule = spec['molecule']; atoms = read(directory/'geometry.xyz')
+    record = json.loads((directory/'task.json').read_text())
+    definition = dict(symbols=molecule['symbols'], charge=molecule.get('charge', 0),
+                      multiplicity=molecule.get('multiplicity', 1))
+    if (record['molecule'] != definition or atoms.get_chemical_symbols() != molecule['symbols']
+            or not np.allclose(atoms.positions, molecule['positions'], rtol=0, atol=5.1e-9)):
+        raise ValueError('Electronic trial geometry/state differs from its native source.')
+    electrons = sum(atomic_numbers[s] for s in molecule['symbols']) - definition['charge']
+    spin = definition['multiplicity'] - 1
+    alpha = re.findall(r'Final alpha occupancy:\s*(\d+)\s*$', native, re.M)
+    beta = re.findall(r'Final beta\s+occupancy:\s*(\d+)\s*$', native, re.M)
+    if (len(alpha) != 1 or len(beta) != 1
+            or int(alpha[0]) + int(beta[0]) != electrons
+            or int(alpha[0]) - int(beta[0]) != spin):
+        raise ValueError('Native ROHF occupations do not establish the requested determinant counts.')
+    old = '{rhf,maxit=60;shift,-1.0,-0.5}\n'
+    if task['input_template'].count(old) != 1:
+        raise ValueError('No unique exhausted level-shift input.')
+    new = deepcopy(task)
+    new['input_template'] = task['input_template'].replace(old,
+        rhf_determinant('rhf,so,maxit=60,energy=1.d-12', electrons, spin, '2100.2'))
+    sources = [*original['proofs'], proof]
+    new['native_probe_repair'] = dict(recipe='rohf_quadratic', budget=1,
+        scientific_approval=False, evidence=path_review.digest(sources))
+    result = deepcopy(spec)
+    result.update(name=spec['name']+'_quadratic_v3', tasks=[new])
+    result['intent'] = dict(purpose='Quadratic ROHF electronic reference audit after DIIS and shift stagnation.',
+        source_proofs=sources, native_probe_repair='rohf_quadratic', integration='none',
+        scientific_approval=False, derivative_release='requires_reference_review')
+    dispatch.validate_spec(result)
+    for item in sources: path_review.verify(item)
+    return dict(spec=result, proofs=sources, reports=[dict(report, recipe='rohf_quadratic',
+        molpro_version=version[0], alpha=int(alpha[0]), beta=int(beta[0]), max_iterations=60)])

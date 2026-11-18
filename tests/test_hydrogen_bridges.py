@@ -81,6 +81,22 @@ def test_symmetric_bridged_ions_have_two_external_rotations(name):
         assert len(set(torsion)) == 4
 
 
+def test_methanium_is_outside_the_carbon_hydrogen_carbon_bridge_model():
+    from kinbot.stereo_identity import require_supported_identity, UnsupportedStereochemistry
+
+    # ATcT, Methanium, B2PLYP-D3/aug-cc-pVTZ
+    # https://atct.anl.gov/Thermochemical%20Data/version%201.124/xyz/CH5+.xyz
+    geom = [[-.075345, -.007652, 0.], [-.184031, 1.093287, 0.],
+            [-.463537, -.393953, -.937377], [-.463537, -.393953, .937377],
+            [1.049953, .375591, 0.], [.958271, -.589856, 0.]]
+    species = StationaryPoint('methanium', 1, 1, atom=['C'] + ['H']*5,
+                              geom=np.array(geom))
+    species.characterize()
+    assert species.hydrogen_bridges == []
+    with pytest.raises(UnsupportedStereochemistry, match='coordination'):
+        require_supported_identity(species)
+
+
 def test_ethyl_bridge_prevents_false_carbon_carbon_rotation():
     species = point('ethyl')
     assert species.cycle_chain == []
@@ -257,6 +273,20 @@ def test_pes_creates_the_input_well_directory_before_qc(tmp_path, monkeypatch):
         pes._main()
 
 
+def test_migration_of_a_bridging_h_requires_a_new_acceptor(tmp_path):
+    species = point('2butyl')
+    path = tmp_path / 'input.json'
+    path.write_text(json.dumps(dict(barrier_threshold=100., families=['intra_H_migration'])))
+    finder = ReactionFinder(species, Parameters(str(path), show_warnings=False).par, None)
+    finder.find_reactions()
+    first, hydrogen, second = species.hydrogen_bridges[0]
+    migrations = finder.reactions['intra_H_migration']
+    acceptors = {instance[0] for instance in migrations if instance[-1] == hydrogen}
+    assert acceptors
+    assert not acceptors.intersection((first, second))
+    assert any(instance[-1] != hydrogen for instance in migrations)
+
+
 def classical_attachment(species):
     requested = copy.deepcopy(species)
     requested.hydrogen_bridges = []
@@ -268,13 +298,16 @@ def classical_attachment(species):
 
 
 @pytest.mark.parametrize('name', ['vinyl', 'ethyl', 'protonated_ethane'])
-def test_declared_homolytic_cuts_really_separate_bridged_ions(name, tmp_path):
+def test_homolytic_cuts_really_separate_bridged_ions(name, tmp_path, caplog):
     species = point(name)
     path = tmp_path/'input.json'
     path.write_text(json.dumps(dict(barrier_threshold=100., families=['hom_sci'])))
     parameters = Parameters(str(path), show_warnings=False).par
     finder = ReactionFinder(species, parameters, None)
-    finder.find_reactions()
+    with caplog.at_level('INFO', logger='KinBot'):
+        finder.find_reactions()
+    if name == 'ethyl':
+        assert 'the bridged ion would remain connected' in caplog.text
     for reaction in species.reac_obj:
         product = reaction.get_barrierless_product()
         fragments, _ = product.start_multi_molecular(bond_mx=product.bond)

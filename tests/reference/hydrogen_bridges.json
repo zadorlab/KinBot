@@ -16,6 +16,18 @@
     "kind": "locally calculated B3LYP/6-31G(d) minimum",
     "reference": "Ethyl cation geometry; literature structure doi:10.1002/anie.200704163"
   },
+  "edge_protonated_cyclopropane": {
+    "atom": ["C", "C", "C", "H", "H", "H", "H", "H", "H", "H"],
+    "geom": [
+      [-0.9245, 0, 0], [0, 1.20148, 0], [0.9245, 0, 0],
+      [-1.58349, 0, -0.87451], [-1.58349, 0, 0.87451],
+      [0, 1.82496, -0.89042], [0, 1.82496, 0.89042],
+      [1.58349, 0, -0.87451], [1.58349, 0, 0.87451], [0, -0.93516, 0]
+    ],
+    "charge": 1, "mult": 1, "expected_bridges": 1,
+    "kind": "Constructed from published C2v edge distances, with approximate terminal H positions",
+    "reference": "10.1021/ja00757a001, Table V, structure VI. C-H bridge contacts 1.315 A, carbon edge 1.849 A, other two C-C distances 1.516 A. The authors report instability towards a hydride shift when they relax the symmetry."
+  },
   "vinyl": {
     "atom": ["H", "C", "C", "H", "H"],
     "geom": [

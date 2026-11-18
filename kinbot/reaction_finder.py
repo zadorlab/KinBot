@@ -2172,8 +2172,15 @@ class ReactionFinder:
             from kinbot.hydrogen_bridges import rotation_axis
             # A bridge can leave an alternate connection after a nominal
             # cleavage. Such a cut is not a two-fragment dissociation.
-            rxns = [instance for instance in rxns
-                    if rotation_axis(self.species, *instance)]
+            cuts = []
+            for instance in rxns:
+                if rotation_axis(self.species, *instance):
+                    cuts.append(instance)
+                else:
+                    logger.info('Skipping hom_sci between atoms %s and %s because '
+                                'the bridged ion would remain connected.',
+                                instance[0] + 1, instance[1] + 1)
+            rxns = cuts
                 
 
         self.new_reaction(rxns, name, a=0, b=1, cross=True, aid=True)
@@ -2452,6 +2459,13 @@ class ReactionFinder:
         # H endpoints identify their donors in these two families. Heavy-atom
         # migration can break different bonds for the same endpoint pair.
         duplicates = self._short_path_duplicates.get(name, ())
+        if (getattr(self.species, 'hydrogen_bridges', ())
+                and name in ('intra_H_migration', 'intra_H_migration_suprafacial', 'cpd_H_migration')):
+            # The last atom is the H transferred between the first and
+            # penultimate atoms. Moving a bridge H between its two carbon
+            # contacts would reproduce the same connectivity.
+            bridges = {(h, frozenset((c1, c2))) for c1, h, c2 in self.species.hydrogen_bridges}
+            rxns = [inst for inst in rxns if (inst[-1], frozenset((inst[0], inst[-2]))) not in bridges]
         for inst in rxns:
             if self.par['cluster'] and not any(
                     inst[pos] in self.par['solute']

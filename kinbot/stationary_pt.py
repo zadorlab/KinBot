@@ -922,12 +922,13 @@ class StationaryPoint:
 
         # this list contains a list of each set of equivalent atoms
         self.atom_eqv = []
+        graph = nx.from_numpy_array(self.bond)
         for atomi in range(self.natom):
             new_list = 1
             for list in self.atom_eqv:
                 for atomj in list:
                     if self.atomid[atomi] == self.atomid[atomj] and not atomi in list:
-                        if self.rigid_along_path(atomi,atomj):
+                        if self.rigid_along_path(atomi, atomj, graph):
                             break
                         else:
                             list.append(atomi)
@@ -939,7 +940,7 @@ class StationaryPoint:
         
         return 0
 
-    def rigid_along_path(self, atomi, atomj):
+    def rigid_along_path(self, atomi, atomj, graph=None):
         """
         Method finds the shortest path between two atoms and checks if any atom along that
         pathway is rigid. An atom is rigid if it is in a cycle or is doubly bonded to another atom
@@ -954,25 +955,21 @@ class StationaryPoint:
             else:
                 return 0
         
-        for chain_length in range(3, self.natom):
-            motif = ['X' for i in range(chain_length)]
-            instances = find_motif.start_motif(motif, self.natom, self.bond, self.atom, -1, [[k] for k in range(self.natom)])
-            if len(instances) == 0:
-                break
-            for ins in instances:
-                if (ins[0] == atomi and ins[-1] == atomj) or (ins[0] == atomj and ins[-1] == atomi):
-                    for at in ins[1:-1]:
-                        if self.cycle[at] == 1:
-                            return 1
-                        elif 2 in self.bond[at]:
-                            double_neigh = [i for i, x in enumerate(self.bond[at]) if x == 2]
-                            for neigh in double_neigh:
-                                if sum(self.bond[neigh]) > 2:  # atom has at least one other neighbor
-                                    return 1
-                    return 0
-
+        # The motif search visited the lower-indexed endpoint first, then
+        # neighbors in atom order. The same breadth-first order selects the
+        # same path when two routes have equal length.
+        source, target = sorted((atomi, atomj))
+        if graph is None:
+            graph = nx.from_numpy_array(self.bond)
+        paths = nx.single_source_shortest_path(graph, source, cutoff=self.natom - 2)
+        for atom in paths.get(target, ())[1:-1]:
+            if self.cycle[atom]:
+                return 1
+            for neighbour in np.flatnonzero(self.bond[atom] == 2):
+                if sum(self.bond[neighbour]) > 2:
+                    return 1
         return 0
-    
+
     def calc_chiral(self):
         """
         Calculate self.chiral. 0 if non-chiral, +1 or -1 if chiral. Each atom gets a label like this.

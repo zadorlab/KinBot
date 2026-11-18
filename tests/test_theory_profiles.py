@@ -815,7 +815,8 @@ def test_pes_logs_the_selected_profile(workspace, monkeypatch, caplog, high_leve
     monkeypatch.setattr(QuantumChemistry, '__init__',
                         Mock(side_effect=AssertionError('created a calculator')))
     monkeypatch.setattr(pes, 'logger', logging.getLogger('KinBot'), raising=False)
-    monkeypatch.setattr(pes, 'get_energy', Mock(return_value=(-1., .01)))
+    monkeypatch.setattr(pes, 'get_energy', lambda *a, **kw: (-1., .01, (0, -1.))
+                        if kw.get('with_l3') else (-1., .01))
     monkeypatch.setattr(pes, 'get_l3energy', Mock(return_value=(0, -1.)))
     for name in ('copy_from_kinbot', 'create_pesviewer_input', 'create_rotdpy_inputs', 't1_analysis'):
         monkeypatch.setattr(pes, name, Mock())

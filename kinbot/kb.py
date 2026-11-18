@@ -21,13 +21,14 @@ from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
 from kinbot.run_format import ensure_current_run
 from kinbot.stereo_identity import require_supported_identity, log_input_stereochemistry, UnsupportedStereochemistry
+from kinbot.fairchem_utils import SavedHydrogenError
 from kinbot.stereo_routing import StereoRoutingError
 
 
 def main():
     try:
         return _main()
-    except (StereoRoutingError, UnsupportedStereochemistry) as error:
+    except (StereoRoutingError, UnsupportedStereochemistry, SavedHydrogenError) as error:
         logging.getLogger('KinBot').error('KinBot stopped: %s', error)
         raise SystemExit(1) from None
 
@@ -117,20 +118,25 @@ def _main():
         err, well0.geom = qc.get_qc_geom(routing_name(well0) + '_well',
                                          well0.natom, wait=1)
         logger.debug(f'Initial well opt error {err}.')
+        if err < 0:
+            logger.error('Error with initial structure optimization.')
+            return
         err, well0.freq = qc.get_qc_freq(routing_name(well0) + '_well',
                                          well0.natom, wait=1)
         logger.debug(f'Initial well freq error {err}, frequencies are {well0.freq}.')
         if err < 0:
-            logger.error('Error with initial structure optimization.')
+            logger.error('Error with initial structure frequencies.')
             return
-        if well0.freq[0] <= 0:
+        minimum_frequency = min(well0.freq, default=0.)
+        if len(well0.freq) and well0.freq[0] <= 0:
             logger.warning(f'First frequency is {well0.freq[0]} for initial structure.')
             well0.freq[0] *= -1.
-        if well0.freq[1] <= 0:
+        if len(well0.freq) > 1 and well0.freq[1] <= 0:
             logger.error(f'Second frequency is {well0.freq[1]} for initial structure.')
             return
 
         # characterize again and look for differences
+        input_well = well0
         initial_frequencies = list(well0.freq)
         starting_reference = getattr(well0, 'optical_reference', None)
         well0 = StationaryPoint('well0',
@@ -140,8 +146,19 @@ def _main():
                                 geom=copy.deepcopy(well0.geom))
         # Rebuilding connectivity must not discard the checked QC frequencies.
         well0.freq = initial_frequencies
+        for field in ('isotopes', 'formal_charges'):
+            if hasattr(input_well, field):
+                setattr(well0, field, copy.deepcopy(getattr(input_well, field)))
         well0.short_name = 'w1'
         well0.characterize()
+        if well0.chemid != input_well.chemid and not par['cluster']:
+            raise StereoRoutingError(
+                f'The first well changed connectivity during optimization. Inspect {start_name}_well '
+                'in kinbot.db. To search from that structure, use its optimized coordinates '
+                'in a new directory.')
+        if well0.hydrogen_bridges and minimum_frequency < -par['imagfreq_threshold']:
+            raise StereoRoutingError(f'The optimized bridged ion has an imaginary frequency of '
+                                     f'{minimum_frequency:.1f} cm-1 and cannot serve as the initial minimum.')
         apply_input_reference(well0, dict(par, stereo_reference=starting_reference))
         if par['cluster']:
             well0.make_hbonds()

@@ -12,6 +12,11 @@ than the defaults set by Gaussian or other Quantum Chemistry programs
 # 320000000000000000001 = S
 
 
+def is_proton(atoms, charge, multiplicity):
+    """An isolated H nucleus has no electrons or vibrational modes."""
+    return len(atoms) == 1 and atoms[0] == 'H' and charge == 1 and multiplicity == 1
+
+
 def get_spin(chemid, spin):  # spin as defined in molpro = 2S
     if chemid == '320320000000000000001':
         spin = 2

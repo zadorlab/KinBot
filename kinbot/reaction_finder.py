@@ -48,6 +48,7 @@ from kinbot.reactions.reac_Intra_disproportionation_F import IntraDisproportiona
 from kinbot.reactions.reac_r14_birad_scission import R14BiradScission
 from kinbot.reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 from kinbot.reactions.reac_h2_elim import H2Elim
+from kinbot.reactions.reac_h2_elim_barrierless import H2ElimBarrierless
 from kinbot.reactions.reac_bimol_disproportionation_R import BimolDisproportionationR
 from kinbot.reactions.reac_homolytic_scission import HS
 from kinbot.reactions.reac_combinatorial import Combinatorial
@@ -195,6 +196,7 @@ class ReactionFinder:
                           'r13_insertion_RSR': self.search_r13_insertion_RSR, 
                           'beta_delta': self.search_beta_delta, 
                           'h2_elim': self.search_h2_elim,
+                          'h2_elim_barrierless': self.search_h2_elim_barrierless,
                           'hom_sci': self.search_hom_sci,
                           'Intra_disproportionation_F': self.search_Intra_disproportionation_F, 
                           'Intra_disproportionation_R': self.search_Intra_disproportionation_R, 
@@ -209,6 +211,8 @@ class ReactionFinder:
         
         for i, bond in enumerate(self.species.bonds):  # for all resonance structures
             rad = self.species.rads[i]
+            if getattr(self.species, 'hydrogen_bridges', ()):
+                self._bridge_current_bond = bond
             
             if self.one_reaction_comb:
                 # search for just one reaction, given by the list of bonds to be 
@@ -2123,6 +2127,20 @@ class ReactionFinder:
         return 0
 
 
+    def search_h2_elim_barrierless(self, natom, atom, bond, rad):
+        """Find same-carbon H2 losses with one charge to place on the products."""
+        name = 'h2_elim_barrierless'
+        if self.species.charge > 1 and name not in self.reactions:
+            logger.warning('Skipping %s for charge +%d: the product search can put one '
+                           'charge on either fragment, but cannot compare charge splitting.',
+                           name, self.species.charge)
+        self.reactions.setdefault(name, [])
+        if self.species.charge != 1:
+            return
+        instances = self._start_motif(['H', 'C', 'H'], natom, bond, atom,
+                                      -1, self._reaction_atom_eqv())
+        self.new_reaction(instances, name, a=0, b=-1, cross=True)
+
     def search_hom_sci(self, natom, atom, bond, rad):
         ''' 
         This is not an RMG class.
@@ -2150,6 +2168,19 @@ class ReactionFinder:
                 rxns = configured_selection(self.par['homolytic_bonds'], self.species, [])
             except KeyError:
                 pass
+        if getattr(self.species, 'hydrogen_bridges', ()):
+            from kinbot.hydrogen_bridges import rotation_axis
+            # A bridge can leave an alternate connection after a nominal
+            # cleavage. Such a cut is not a two-fragment dissociation.
+            cuts = []
+            for instance in rxns:
+                if rotation_axis(self.species, *instance):
+                    cuts.append(instance)
+                else:
+                    logger.info('Skipping hom_sci between atoms %s and %s because '
+                                'the bridged ion would remain connected.',
+                                instance[0] + 1, instance[1] + 1)
+            rxns = cuts
                 
 
         self.new_reaction(rxns, name, a=0, b=1, cross=True, aid=True)
@@ -2363,6 +2394,12 @@ class ReactionFinder:
                 name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(HS(self.species, self.qc, self.par, reac_list[i], name))
+            elif reac_id == 'h2_elim_barrierless':
+                name = (routing_name(self.species) + '_' + reac_id + '_'
+                        + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1))
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(H2ElimBarrierless(
+                    self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'bimol_disproportionation_R':
                 name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
@@ -2373,6 +2410,12 @@ class ReactionFinder:
                 self.species.reac_obj.append(Combinatorial(self.species, self.qc, self.par, reac_list[i], name))
             else:
                 self.species.reac_name.append(0)
+            if (getattr(self.species, 'hydrogen_bridges', ())
+                    and all(isinstance(atom, (int, np.integer)) for atom in reac_list[i])):
+                source = getattr(self, '_bridge_reaction_bonds', {}).get(
+                    (reac_id, tuple(map(int, reac_list[i]))))
+                if source is not None:
+                    self.species.reac_obj[-1].reactant_bond = source.copy()
         return 0
 
 
@@ -2416,6 +2459,13 @@ class ReactionFinder:
         # H endpoints identify their donors in these two families. Heavy-atom
         # migration can break different bonds for the same endpoint pair.
         duplicates = self._short_path_duplicates.get(name, ())
+        if (getattr(self.species, 'hydrogen_bridges', ())
+                and name in ('intra_H_migration', 'intra_H_migration_suprafacial', 'cpd_H_migration')):
+            # The last atom is the H transferred between the first and
+            # penultimate atoms. Moving a bridge H between its two carbon
+            # contacts would reproduce the same connectivity.
+            bridges = {(h, frozenset((c1, c2))) for c1, h, c2 in self.species.hydrogen_bridges}
+            rxns = [inst for inst in rxns if (inst[-1], frozenset((inst[0], inst[-2]))) not in bridges]
         for inst in rxns:
             if self.par['cluster'] and not any(
                     inst[pos] in self.par['solute']
@@ -2499,6 +2549,13 @@ class ReactionFinder:
                 continue
             if new:
                 self.reactions[name].append(inst)
+                if getattr(self.species, 'hydrogen_bridges', ()):
+                    # A bridge's H belongs to one carbon in each valence view.
+                    # Constraints must use the view that generated this motif.
+                    if not hasattr(self, '_bridge_reaction_bonds'):
+                        self._bridge_reaction_bonds = {}
+                    self._bridge_reaction_bonds[(name, tuple(map(int, inst)))] = (
+                        getattr(self, '_bridge_current_bond', self.species.bonds[0]).copy())
         return 0
 
 def main():

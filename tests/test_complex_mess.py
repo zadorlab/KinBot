@@ -16,7 +16,7 @@ from ase.build import molecule
 from kinbot import constants, pes, symmetry
 from kinbot.mess import MESS, apply_conformer_shifts
 from kinbot.conformer_counting import representative_record
-from test_mess_conformers import values
+from tests.test_mess_conformers import values
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.species_routing import routing_name
@@ -410,7 +410,7 @@ class TestComplexMESS(unittest.TestCase):
         self.assertNotIn('Tunneling', output)
         self.assertNotIn('{blessname}', output)
 
-    def test_mc_phase_space_uses_product_combinations_and_parent_normalization(self):
+    def test_mc_phase_space_uses_the_symmetry_of_each_fragment_conformer(self):
         parent, reactions = self.reactions(True)
         fragment = reactions[0].products[0]
         base = representative_record(fragment)
@@ -442,7 +442,7 @@ class TestComplexMESS(unittest.TestCase):
             self.assertIn('Union ! product conformer combinations', barrier)
             self.assertEqual(values(barrier, 'ZeroEnergy'),
                              [round(expected_parent-1., 2), round(expected_parent+2., 2)])
-            self.assertEqual(values(barrier, 'SymmetryFactor'), [1., .25])
+            self.assertEqual(values(barrier, 'SymmetryFactor'), [6., 1.5])
             self.assertIn('20.0', barrier)
             self.assertNotIn('-20.0', barrier)
             self.assertEqual(values(text, 'GroundEnergy'), [round(expected_parent-1., 2)])
@@ -469,7 +469,7 @@ class TestComplexMESS(unittest.TestCase):
         for output in (direct, deferred):
             self.assertEqual(output.count('Core PhaseSpaceTheory'), 4)
             self.assertEqual(values(output, 'ZeroEnergy'), [50., 53., 52., 55.])
-            self.assertEqual(values(output, 'SymmetryFactor'), [1., 1./3., .5, 1./6.])
+            self.assertEqual(values(output, 'SymmetryFactor'), [6., 2., 3., 1.])
             self.assertEqual(values(output, 'Frequencies'), [9.]*4)
 
     def test_pes_complex_choice_does_not_depend_on_discovery_order(self):

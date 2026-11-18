@@ -27,10 +27,12 @@ from ase.db import connect
 from kinbot.run_format import ensure_current_run
 from kinbot.profiled_qc import validate_theory_restart
 from kinbot.stereo_identity import log_input_stereochemistry, UnsupportedStereochemistry
+from kinbot.fairchem_utils import SavedHydrogenError
 from kinbot.stereo_routing import StereoRoutingError
 from ase.atoms import Atoms
 
 from kinbot import kb_path
+from kinbot.exceptions import is_proton
 from kinbot import constants
 from kinbot import license_message
 from kinbot import pp_settings
@@ -38,11 +40,15 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
 from kinbot.mess import MESS, finalize_mc_mess
-from kinbot.reaction_path import read_summary_paths, compare_pathways
+from kinbot.reaction_path import read_summary_paths, compare_pathways, is_barrierless
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
 from kinbot.utils import queue_command
 from kinbot.vrc_tst_surfaces import VRC_TST_Surface 
+
+
+class PESInputError(ValueError):
+    """A required well calculation or MESS input is incomplete or incompatible."""
 
 
 def select_summary_reaction(reactions, candidate, stereopaths):
@@ -50,7 +56,7 @@ def select_summary_reaction(reactions, candidate, stereopaths):
     replace = []
     keep_candidate = True
     reactant, name, products, energy = candidate[:4]
-    if 'hom_sci' not in name and not stereopaths.get(name):
+    if not is_barrierless(name) and not stereopaths.get(name):
         raise ValueError(f'Missing reaction-path metadata for calculated saddle {name}.')
     for index, previous in enumerate(reactions):
         same_endpoints = ((reactant == previous[0] and sorted(products) == sorted(previous[2]))
@@ -102,7 +108,7 @@ def remove_unused_complexes(discarded, reactions, wells, do_vdW, parent):
 def main():
     try:
         return _main()
-    except (StereoRoutingError, UnsupportedStereochemistry) as error:
+    except (StereoRoutingError, UnsupportedStereochemistry, SavedHydrogenError, PESInputError) as error:
         logging.getLogger('KinBot').error('KinBot stopped: %s', error)
         raise SystemExit(1) from None
 
@@ -319,6 +325,12 @@ def _main():
     if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
 
+    if not jobs:
+        raise PESInputError('No wells remain after applying the requested species selection.')
+    first = jobs[0]
+    if not os.path.isfile(f'{first}/summary_{first}.out'):
+        raise PESInputError(f'KinBot did not complete the first well {first}. '
+                            f'Inspect {first}/kinbot.log before rerunning PES.')
     postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
@@ -381,10 +393,10 @@ def postprocess(par, jobs, task, names, mass):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
-    base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                       conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
-    # L3 energies
-    status, base_l3energy = get_l3energy(jobs[0], par)
+    base_energy, base_zpe, (status, base_l3energy) = get_energy(
+        jobs, jobs[0], 0, par['high_level'], conf=par['conformer_search'],
+        rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'),
+        par=par, with_l3=True)
     if not status:
         l3done = 0
     # list of lists with four elements
@@ -446,17 +458,23 @@ def postprocess(par, jobs, task, names, mass):
                        and not par['high_level'] \
                        and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
-                                              mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
+                                              mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par)
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
-                #Different treatment between homolytic scission and normal reaction
-                if "hom_sci" in line:
-                    barrier = float(ts_energy)
+                if is_barrierless(reaction_name):
+                    # Summary thresholds are already in kcal/mol and relative
+                    # to their own parent. Rebuild the global PES threshold.
+                    barrier = -(base_energy + base_zpe)
+                    for product in products:
+                        energy, zpe = get_energy(jobs, product, 0, par['high_level'],
+                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'],
+                            optical_population=par.get('optical_population', 'specified'), par=par)
+                        barrier += energy + zpe
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
                     ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
-                                               conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
+                                               conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par)
                     barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
                 if reactant not in wells:
@@ -510,10 +528,9 @@ def postprocess(par, jobs, task, names, mass):
     well_energies = {}
     well_l3energies = {}
     for index, well in enumerate(wells):
-        energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
-                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))  # from the db
+        energy, zpe, (status, l3energy) = get_energy(wells, well, do_vdW[index], par['high_level'],
+                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par, with_l3=True)
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
-        status, l3energy = get_l3energy(well, par)
         if not status:
             l3done = 0  # not all L3 calculations are done
             batch_submit += f'{cmd} {well}.{ext}\n'
@@ -527,10 +544,9 @@ def postprocess(par, jobs, task, names, mass):
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
-            pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
-                                           conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
+            pr_energy, pr_zpe, (status, l3e) = get_energy(jobs, pr, 0, par['high_level'],
+                                           conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par, with_l3=True)
             energy += pr_energy + pr_zpe
-            status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
                 batch_submit += f'{cmd} {pr}.{ext}\n'
@@ -543,7 +559,7 @@ def postprocess(par, jobs, task, names, mass):
 
     ts_l3energies = {}
     for reac in reactions:
-        if "hom_sci" not in reac[1]:  # meaning homolytic scission
+        if not is_barrierless(reac[1]):
             if len(reac) > 4:#vdW 
                 vdW_well = f"{reac[1]}{reac[5].split('vdW')[1]}"
                 reac[4] = well_energies[vdW_well]
@@ -573,8 +589,10 @@ def postprocess(par, jobs, task, names, mass):
         well_energies = well_l3energies
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
-            if 'hom_sci' not in reac[1]:
+            if not is_barrierless(reac[1]):
                 reac[3] = ts_l3energies[reac[1]]
+            else:
+                reac[3] = prod_l3energies['_'.join(sorted(reac[2]))]
             if len(reac) > 4: #vdW 
                 vdW_well = f"{reac[1]}{reac[5].split('vdW')[1]}"
                 reac[4] = well_l3energies[vdW_well]
@@ -602,7 +620,7 @@ def postprocess(par, jobs, task, names, mass):
     vdW = []
     rxns = []
     for rxn in reactions:
-        if 'hom_sci' in rxn[1]:
+        if is_barrierless(rxn[1]):
             # in rxn: [reactant, reaction_name, products, barrier]
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
         elif len(rxn) > 4:  # vdW for now, find better condition latter?
@@ -1058,6 +1076,21 @@ def create_short_names(wells, products, reactions, barrierless, vdW):
     return well_short, pr_short, fr_short, ts_short, nobar_short
 
 
+def read_phase_space_block(file, well):
+    """Check each saved capture term before PES uses its symmetry number."""
+    block = file.read()
+    for core in block.split('Core PhaseSpaceTheory')[1:]:
+        # Older KinBot blocks omitted EJ and used a different symmetry number.
+        # A saved Union may also omit the selected fragment's optical weight.
+        if not any(line.split('!', 1)[0].split() == ['TSTLevel', 'EJ']
+                   for line in core.partition('End ! Core')[0].splitlines()):
+            raise PESInputError(
+                f'{file.name} contains a phase-space barrier from an older KinBot run. '
+                f'In {well}, run kinbot {well}.json to rewrite the .mess files from '
+                'the saved calculations. Then rerun PES.')
+    return block
+
+
 def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                       well_energies, prod_energies, parent, mass, l3done, warnings=()):
     """When calculating a full pes, the files from the separate wells
@@ -1188,8 +1221,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                         continue
                     linked_bless_wells.append(bl[0])
                     with open(bl[0] + '/' + mess_filename(prod, uq_iter)) as f:
+                        block = read_phase_space_block(f, bl[0])
                         if bless == 0:
-                            s.append(f.read().format(name=name,
+                            s.append(block.format(name=name,
                                                      blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
                                                      wellname=well_short[bl[0]],
                                                      prodname=pr_short[prod],
@@ -1197,7 +1231,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      **fr_names))
                             bless = 1
                         else:
-                            stemp = (f.read().format(name=name,
+                            stemp = (block.format(name=name,
                                                      blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
                                                      wellname=well_short[bl[0]],
                                                      prodname=pr_short[prod],
@@ -1213,8 +1247,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                         continue
                     linked_bless_wells.append(min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"])
                     with open(vdw[0] + '/' + mess_filename(prod, uq_iter)) as f:
+                        block = read_phase_space_block(f, vdw[0])
                         if bless == 0:
-                            s.append(f.read().format(name=name,
+                            s.append(block.format(name=name,
                                                      blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
                                                      wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
                                                      prodname=pr_short[prod],
@@ -1222,7 +1257,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      **fr_names))
                             bless = 1
                         else:
-                            stemp = (f.read().format(name=name,
+                            stemp = (block.format(name=name,
                                                      blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
                                                      wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
                                                      prodname=pr_short[prod],
@@ -1630,8 +1665,8 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
 
 
 def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
-               rotor_scan=None, optical_population=None):
-    
+               rotor_scan=None, optical_population=None, par=None, with_l3=False):
+    """Read the selected energy and ZPE, optionally with its L3 electronic energy."""
     if ts:
         j = job
         wells = [job.split('_')[0]]
@@ -1646,6 +1681,8 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
     energy = np.inf
     zpe = np.inf
     reference_identity = None
+    hydrogen_charge = None
+    proton = False
     for well in wells:
         if "IRC" in well:
             well = well.split("_")[0]
@@ -1664,16 +1701,59 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
                 break
             if new_zpe is None:
                 break
+            row_proton = False
             if not ts:
                 # Check every candidate before comparing energies. Separate
                 # workers cannot reuse one shortened name for different IDs.
                 atoms = row.toatoms()
-                st_pt = StationaryPoint.from_ase_atoms(atoms)
+                symbols = list(row.symbols)
+                reference = next(db.select(name='stereochemistry/'+j,
+                                           sort='-id', limit=1), None)
+                if reference is None:
+                    reference = next(db.select(name='stereochemistry/'+job+'_well',
+                                               sort='-id', limit=1), None)
+                if symbols in (['H'], ['H', 'H']):
+                    from kinbot.fairchem_utils import saved_hydrogen_state, check_h2_cation_cache
+                    charge, mult = saved_hydrogen_state(db, row, j, well)
+                    if symbols == ['H'] and mult == 1 and charge is None:
+                        raise PESInputError(f'{well}/{j}: singlet hydrogen has no saved charge '
+                                            'to distinguish H+ from H-. Use a fresh directory.')
+                    st_pt = StationaryPoint.from_ase_atoms(atoms, charge=charge, mult=mult)
+                    row_proton = is_proton(symbols, charge, mult)
+                    gas_phase = True
+                    if par is not None:
+                        from types import SimpleNamespace
+                        from kinbot.theory import resolve_profiles
+                        from kinbot.profiled_qc import _backend_parameters
+                        profiles = resolve_profiles(par)
+                        settings = (_backend_parameters(par, profiles['l2' if high_level else 'l1'])
+                                    if profiles else par)
+                        if settings['qc'].lower() == 'fc':
+                            gas_phase = settings.get('fc_task_name') == 'omol'
+                            check_h2_cation_cache(SimpleNamespace(par=settings, db=db), j, well,
+                                                 row=row, state=(charge, mult))
+                    if row_proton and gas_phase:
+                        new_energy = new_zpe = 0.
+                else:
+                    st_pt = StationaryPoint.from_ase_atoms(atoms)
+                    charge = (reference.data.get('input_charge', 0) if reference is not None
+                              else row.data.get('charge', getattr(row, 'calculator_parameters', {}).get('charge', 0)))
+                if symbols in (['H'], ['H', 'H']) or charge > 0:
+                    # Restore fixed atom labels and the input state for bond assignment.
+                    from kinbot.stereo_routing import _row_species
+                    st_pt = _row_species(st_pt, row, j, reference)
                 st_pt.characterize()
                 chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
                 identity = configured_result_identity(db, job, row, optical_population)
                 if chemid_wo_mult != connectivity_name(job)[:-1] or identity is None:
                     break
+                if list(row.symbols) == ['H'] and st_pt.mult == 1:
+                    # Singlet H+ and H- have the same KinBot species number.
+                    if hydrogen_charge is not None and st_pt.charge != hydrogen_charge:
+                        raise PESInputError(f'{job}: the same singlet hydrogen name has charges '
+                                            f'{hydrogen_charge:+d} and {st_pt.charge:+d} '
+                                            'in different PES workers.')
+                    hydrogen_charge = st_pt.charge
                 if reference_identity is not None and identity != reference_identity:
                     raise ValueError(f'{job}: different complete stereoisomer identities '
                                      'share one calculation name across PES workers.')
@@ -1681,10 +1761,14 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 energy = new_energy
                 zpe = new_zpe
+                proton = row_proton
             break
     if np.isinf(energy) or np.isinf(zpe):
-        raise ValueError(f'Unable to find an energy for {j}.')
+        raise PESInputError(f'Unable to find an energy for {j}.')
 
+    if with_l3:
+        single_point = (1, 0.) if proton else get_l3energy(job, par)
+        return energy, zpe, single_point
     return energy, zpe
 
 
@@ -1696,8 +1780,6 @@ def get_l3energy(job, par):
 
     key = par['single_point_key']
 
-    if job == '10000000000000000001':  # proton
-        return 1, 0.0
     if par['single_point_qc'] == 'molpro':
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:

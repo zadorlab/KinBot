@@ -55,6 +55,16 @@ def recover_hir_model(species, qc, par, *, allow_qc=False, wait=0):
     hir = getattr(species, 'hir', None)
     if hir is None or par.get('multi_conf_tst') or not par.get('rotor_scan'):
         return False
+    if species.natom <= 2:
+        # Earlier runs projected even a diatomic's sole stretch and could
+        # combine Gaussian's checkpoint axes with the input bond direction.
+        modes = frequencies.thermochemical_frequencies(
+            species.freq, species.wellorts, par.get('imagfreq_threshold', 50.))
+        species.kinbot_freqs = list(modes)
+        species.reduced_freqs = modes
+        species.hir = None
+        species.rotor_projection = None
+        return True
     reference = geometry_reference(species)
     fallback_reference = (reference, species.dihed)
     if (getattr(hir, '_harmonic_fallback_reference', None) == fallback_reference

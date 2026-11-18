@@ -30,6 +30,7 @@ def _molecules(species, geom, tagged_atom=None):
     from rdkit import Chem
     from rdkit.Geometry import Point3D
     from kinbot.molecular_symmetry import chemical_graph
+    from kinbot.hydrogen_bridges import bridge_edges
 
     n = len(species.atom)
     bonds = list(getattr(species, 'bonds', []))
@@ -44,6 +45,7 @@ def _molecules(species, geom, tagged_atom=None):
     if tagged_atom is not None:
         isotopes[tagged_atom] = max(isotopes + [1000]) + 1
     result = []
+    shared_contacts = bridge_edges(species)
     for matrix in bonds:
         mol = Chem.RWMol()
         for i, element in enumerate(species.atom):
@@ -59,7 +61,11 @@ def _molecules(species, geom, tagged_atom=None):
         for i in range(n):
             for j in range(i):
                 order = int(matrix[i][j])
-                if order:
+                if frozenset((i, j)) in shared_contacts:
+                    # Zero-order edges retain the three-centre connection in
+                    # identity without assigning two ordinary C--H bonds.
+                    mol.AddBond(i, j, Chem.BondType.ZERO)
+                elif order:
                     mol.AddBond(i, j, {1: Chem.BondType.SINGLE,
                                      2: Chem.BondType.DOUBLE,
                                      3: Chem.BondType.TRIPLE}[order])

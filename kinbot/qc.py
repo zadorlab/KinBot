@@ -95,6 +95,32 @@ class QuantumChemistry:
             species.optical_population = getattr(self, 'par', {}).get('optical_population', 'specified')
             optical_scope(species, species.optical_population)
 
+    def _guard_hydrogen_fragment(self, species, geom, job):
+        # Proton and hydride have the same connectivity number and multiplicity.
+        # Conformer and VRC names therefore need the same charge check as wells.
+        if len(species.atom) == 1 and species.atom[0] == 'H' and species.mult == 1:
+            from kinbot.stereo_routing import guard_well_job
+            guard_well_job(self, species, geom, job)
+
+    def _save_proton(self, job, atoms, geom, charge, mult):
+        if not exceptions.is_proton(atoms, charge, mult):
+            return False
+        if self.qc == 'fc' and self.par['fc_task_name'] != 'omol':
+            return False
+        if self.theory_level is not None:
+            self.record_reference_level(job)
+        row = next(self.db.select(name=job, sort='-id', limit=1), None)
+        if row is not None and row.data.get('proton_reference'):
+            return True
+        # A calculation submitted by an older driver can still finish.
+        if job in self.job_ids and self.check_qc(job) == 'running':
+            return True
+        self.db.write(Atoms(atoms, positions=geom), name=job,
+                      data=dict(status='normal', proton_reference=True, charge=charge,
+                                multiplicity=mult, energy=0., zpe=0.,
+                                frequencies=[], hess=np.zeros((3, 3))))
+        return True
+
     def for_level(self, level):
         """Legacy inputs use the same backend at every calculation level."""
         return self
@@ -128,11 +154,11 @@ class QuantumChemistry:
         '''
 
         if self.qc == 'gauss':
-            # arguments for Gaussian
+            nproc = max(1, min(nel, self.ppn))
             kwargs = {
                 'method': self.method,
                 'basis': self.basis,
-                'nprocshared': min(nel, self.ppn),
+                'nprocshared': nproc,
                 'mem': '700MW',
                 # ASE runs Gaussian in the label's directory (e.g. conf/).
                 # Use a filename so moving the run does not break checkpoint reads.
@@ -243,7 +269,7 @@ class QuantumChemistry:
                 kwargs = {
                     'method': 'cbs-qb3',
                     'basis': None,
-                    'nprocshared': min(nel, self.ppn),
+                    'nprocshared': nproc,
                     'mem': '700MW',
                     'label': job,
                     'Symm': 'None',
@@ -574,6 +600,10 @@ class QuantumChemistry:
 
         self._prepare_stereochemistry(species)
 
+        self._guard_hydrogen_fragment(species, geom, job)
+        if self._save_proton(job, species.atom, geom, species.charge, species.mult):
+            return 0
+
         if species.wellorts:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
                                            ts=1, step=1, max_step=1)
@@ -653,6 +683,9 @@ class QuantumChemistry:
         Native jobs can lack a checkpoint or printed Hessian. Keep their
         records intact and use a separate, same-level frequency calculation.
         """
+        self._guard_hydrogen_fragment(species, species.geom, source_job)
+        if self._save_proton(source_job, species.atom, species.geom, species.charge, species.mult):
+            return source_job
         if ((self.use_sella and self.frequency_mode != 'native_hessian')
                 or self.qc not in ('gauss', 'qchem')):
             raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
@@ -701,35 +734,26 @@ class QuantumChemistry:
         qc: 'gauss', 'qchem', 'orca' or 'fc'
         index: the index of the conformer as in conf search
         '''
+        if exceptions.is_proton(species.atom, species.charge, species.mult):
+            logger.info('Skipping ionization of H+: it has no electron to remove.')
+            return 0
         self._prepare_stereochemistry(species)
         job0 = f'aie/{routing_name(species)}_AIE0_{ext}'  # neutral
         job1 = f'aie/{routing_name(species)}_AIE1_{ext}'  # cation
-        kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, species.nel, aie=1)
-        if species.mult == 1: m1 = 2
-        elif species.mult == 2: m1 = 1
-        elif species.mult == 3: m1 = 2
-        kwargs1 = self.get_qc_arguments(job1, m1, species.charge + 1, species.nel - 1, aie=1)
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
-        template = open(template_file, 'r').read()
-        t0 = template.format(label=job0,
-                             kwargs=kwargs0,
-                             atom=plain_symbols(species.atom),
-                             geom=plain_geometry(geom),
-                             ppn=min(species.nel, self.ppn),
-                             qc_command=self.qc_command,
-                             working_dir=os.getcwd())
-        t1 = template.format(label=job1,
-                             kwargs=kwargs1,
-                             atom=plain_symbols(species.atom),
-                             geom=plain_geometry(geom),
-                             ppn=min(species.nel-1, self.ppn),
-                             qc_command=self.qc_command,
-                             working_dir=os.getcwd())
-        
-        for job, template, electrons in ((job0, t0, species.nel),
-                                         (job1, t1, species.nel - 1)):
-            with open(f'{job}.py', 'w') as f:
-                f.write(template)
+        ion_mult = {1: 2, 2: 1, 3: 2}[species.mult]
+        states = ((job0, species.charge, species.mult, species.nel),
+                  (job1, species.charge + 1, ion_mult, species.nel - 1))
+        for job, charge, mult, electrons in states:
+            if self._save_proton(job, species.atom, geom, charge, mult):
+                continue
+            kwargs = self.get_qc_arguments(job, mult, charge, electrons, aie=1)
+            with open(f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py') as handle:
+                template = handle.read().format(label=job, kwargs=kwargs,
+                    atom=plain_symbols(species.atom), geom=plain_geometry(geom),
+                    ppn=min(electrons, self.ppn), qc_command=self.qc_command,
+                    working_dir=os.getcwd())
+            with open(f'{job}.py', 'w') as handle:
+                handle.write(template)
             self.submit_qc(job, min(electrons, self.ppn))
 
         return 0
@@ -762,6 +786,9 @@ class QuantumChemistry:
         if not do_vdW and not getattr(species, 'wellorts', 0):
             from kinbot.stereo_routing import guard_well_job
             guard_well_job(self, species, geom, job, initial_product=initial_product)
+
+        if self._save_proton(job, species.atom, geom, species.charge, species.mult):
+            return 0
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -914,6 +941,9 @@ class QuantumChemistry:
 
         job = f'vrctst/{routing_name(frag)}_vts'
         self._prepare_stereochemistry(frag)
+        self._guard_hydrogen_fragment(frag, frag.geom, job)
+        if self._save_proton(job, frag.atom, frag.geom, frag.charge, frag.mult):
+            return job
         mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
         kwargs = self.get_qc_arguments(job, mult, frag.charge, frag.nel, vts=1)
         # Add chk to fragments only
@@ -1073,7 +1103,12 @@ class QuantumChemistry:
         if self.check_qc(target) == 'running':
             raise ValueError(f'Cannot publish over a running calculation: {target}')
         os.makedirs(os.path.dirname(target) or '.', exist_ok=True)
-        marker = self.db.write(source.toatoms(), name=target, data={
+        from uuid import uuid4
+        record = copy.copy(source)
+        # ASE requires a different identifier for every database row. Copy
+        # calculator metadata, but do not reuse the source row's identifier.
+        record.unique_id = uuid4().hex
+        marker = self.db.write(record, name=target, data={
             'status': 0, 'reason': RESULT_PUBLICATION_PENDING})
         self._archive_outputs(target, marker)
         for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
@@ -1089,7 +1124,8 @@ class QuantumChemistry:
             data['nconf'] = previous[-1]
         data.update(copied_from_job=source.name, copied_from_row_id=source.id)
         keys = dict(source.key_value_pairs, name=target)
-        result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)
+        record.unique_id = uuid4().hex
+        result = self.db.write(record, key_value_pairs=keys, data=data)
         self.job_ids.pop(target, None)
         return result
 
@@ -1184,7 +1220,8 @@ class QuantumChemistry:
         err = err.decode()
         try:
             if self.queuing == 'pbs':
-                pid = out.split('\n')[0].split('.')[0]
+                # Keep an array ID (17[] or 17[2]); qstat also prints the server suffix.
+                pid = out.splitlines()[0].strip().partition('.')[0]
             elif self.queuing == 'slurm':
                 pid = out.split('\n')[0].split()[3]
         except:
@@ -1406,8 +1443,8 @@ class QuantumChemistry:
             return []
 
         rows = list(self.db.select(name=job))
-        if (not (self.qc == 'qchem' and not self.use_sella)
-                and rows and rows[-1].data.get('hess') is not None):
+        if rows and rows[-1].data.get('hess') is not None and (
+                rows[-1].data.get('proton_reference') or self.qc != 'qchem' or self.use_sella):
             return np.asarray(rows[-1].data['hess'])
 
         if (self.use_sella and self.frequency_mode != 'native_hessian') or self.qc == 'fc':
@@ -1526,6 +1563,9 @@ class QuantumChemistry:
     def check_qc(self, job):
         """Read job status, allowing 60 s for a submitted job's final files."""
         status = QuantumChemistry._check_qc(self, job)
+        if status == 'normal' and self.qc == 'fc':
+            from kinbot.fairchem_utils import check_h2_cation_cache
+            check_h2_cation_cache(self, job)
         if self.queuing not in ('slurm', 'pbs') or job not in self.job_ids:
             return status
 
@@ -1557,6 +1597,33 @@ class QuantumChemistry:
                            '60 s after the job left the queue.')
         return status
 
+    @staticmethod
+    def _pbs_job_in_queue(job_id):
+        """Return whether qstat lists this ID, or None if qstat failed."""
+        try:
+            output = subprocess.check_output(['qstat', '-f'], text=True, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError):
+            return None
+        # qsub stores the ID before the server suffix, including array indices.
+        ids = re.findall(r'^Job Id:[ \t]*([^\s.]+)(?:\.\S+)?[ \t]*$', output, re.MULTILINE)
+        return job_id in ids
+
+    def submitted_job_has_ended(self, job):
+        """Confirm absence only after check_qc's wait for a missing result."""
+        job_id = self.job_ids.get(job)
+        if not job_id or self.queuing not in ('slurm', 'pbs'):
+            return False
+        # A failed queue query also looks like an empty queue to the ordinary
+        # status check. Require a successful listing before rejecting a search.
+        if self.queuing == 'pbs':
+            return self._pbs_job_in_queue(job_id) is False
+        try:
+            output = subprocess.check_output(['squeue', '-h', '-o', '%i'],
+                                             text=True, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError):
+            return False
+        return job_id not in output.split()
+
     def _check_qc(self, job):
         '''
         Checks the status of the qc job.
@@ -1568,6 +1635,11 @@ class QuantumChemistry:
             ==> this one resets the step number to 0
         '''
 
+        last = next(self.db.select(name=job, sort='-id', limit=1), None)
+        # A worker from an older run may still have left a pickle or a log.
+        # Its result cannot supersede the exact isolated-proton reference.
+        if last is not None and last.get('data', {}).get('proton_reference'):
+            return last.data['status']
         loaded_data = self.ingest_pkl(job)
         if loaded_data is not None:
             mol = Atoms(symbols=loaded_data['sym'], positions=loaded_data['pos'])
@@ -1591,12 +1663,12 @@ class QuantumChemistry:
                 os.remove(f'{job}.pkl')
             except FileNotFoundError:
                 pass
+            last = next(self.db.select(name=job, sort='-id', limit=1), None)
 
         logger.debug('Checking job {}'.format(job))
-        devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
-            command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
-            if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
+            job_id = self.job_ids.get(job)
+            if job_id and self._pbs_job_in_queue(job_id):
                 logger.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
@@ -1621,11 +1693,9 @@ class QuantumChemistry:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logger.error('Exiting')
             sys.exit()
-        # if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-        #     return 'running'
 
         logger.debug('Checking for job {} in db'.format(job))
-        if self.is_in_database(job):
+        if last is not None:
             logger.debug('{} is in db'.format(job))
             for i in range(1):
                 if self.qc == 'gauss':

@@ -28,7 +28,7 @@ class TestHIRRestartCache(unittest.TestCase):
         process = Mock()
         process.communicate.return_value = (b'123.server\n', b'')
         # No live scheduler/job is contacted. Actual status and submit methods run.
-        with patch('kinbot.qc.subprocess.call', return_value=1), \
+        with patch('kinbot.qc.subprocess.check_output', return_value=''), \
              patch('kinbot.qc.subprocess.Popen', return_value=process), \
              patch('kinbot.qc.time.sleep'):
             for backend, suffix in (('gauss', '.log'), ('qchem', '.out'),
@@ -39,7 +39,8 @@ class TestHIRRestartCache(unittest.TestCase):
                         job = f'hir/{backend}_hir_0_00' if scan else f'{backend}_well_high'
                         old = self.qc.db.write(self.atoms, name=job, data={
                             'energy': -1., 'zpe': .01, 'frequencies': [100.],
-                            'hess': np.eye(6), 'status': 'normal'})
+                            'hess': np.eye(6), 'status': 'normal',
+                            'charge': 0, 'multiplicity': 1})
                         if suffix:
                             Path(job + suffix).write_text('old normal output\ndone\n')
                         Path(job + '.fchk').write_text('old Hessian')
@@ -58,7 +59,8 @@ class TestHIRRestartCache(unittest.TestCase):
                         # A new completed calculation supersedes the invalidation marker.
                         self.qc.db.write(self.atoms, name=job, data={
                             'energy': -2., 'zpe': .02, 'frequencies': [200.],
-                            'hess': np.eye(6) * 2, 'status': 'normal'})
+                            'hess': np.eye(6) * 2, 'status': 'normal',
+                            'charge': 0, 'multiplicity': 1})
                         if backend == 'qchem':
                             with open(job + '_freq.out', 'w') as handle:
                                 handle.write(' Mass-Weighted Hessian Matrix\n')

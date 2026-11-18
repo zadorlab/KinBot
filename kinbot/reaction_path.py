@@ -18,6 +18,11 @@ from kinbot.stereochemistry import (refine_equivalence_group, virtually_labelled
                                     configuration_erased_graph)
 
 
+def is_barrierless(name):
+    """Recognize declared product-based exits that do not require a saddle."""
+    return 'hom_sci' in name or 'h2_elim_barrierless' in name
+
+
 def endpoint_snapshot(species):
     """Retain the IRC graph/order before product reuse or optimization changes it."""
     from kinbot.stationary_pt import StationaryPoint
@@ -25,7 +30,7 @@ def endpoint_snapshot(species):
         atom=copy.deepcopy(species.atom), geom=copy.deepcopy(species.geom))
     # Copy the IRC atom order and graphs without live QC/reaction handles.
     names = ('bond', 'bond01', 'bonds', 'rads', 'atom_eqv', 'atomid',
-             'isotopes', 'formal_charges')
+             'isotopes', 'formal_charges', 'hydrogen_bridges')
     for name in names:
         if hasattr(species, name):
             setattr(snapshot, name, copy.deepcopy(getattr(species, name)))
@@ -219,7 +224,7 @@ def path_geometry_allowed(species, geom, population=None):
 def reaction_path_id(reaction):
     ts = reaction.ts
     if not hasattr(ts, 'stereopath_metadata'):
-        if 'hom_sci' in reaction.instance_name:
+        if is_barrierless(reaction.instance_name):
             return None
         raise ValueError(f'Missing reaction-path metadata for {reaction.instance_name}.')
     if not path_geometry_allowed(ts, ts.geom):
@@ -249,7 +254,7 @@ def reject_invalid_pathway(species, index, par=None):
                 raise ValueError('Independent racemic fragments are not the two correlated '
                                  'product configurations of a global mirror pair; this product '
                                  'population is not represented by the current writer')
-        if species.reac_type[index] != 'hom_sci':
+        if not is_barrierless(species.reac_type[index]):
             reaction_path_id(reaction)
     except ValueError as error:
         logging.getLogger('KinBot').warning(
@@ -266,12 +271,12 @@ def compare_pathways(existing_name, existing_path, existing_energy,
                      candidate_complex=False):
     """Select barriers with matching endpoints: replace, keep, or distinct.
 
-    A homolytic-scission placeholder is superseded by an optimized saddle,
+    A declared barrierless exit is superseded by an optimized saddle,
     before comparing stereochemical saddle classes. Within an actual class,
     retain the lowest barrier; PES can retain its equal-energy complex tie rule.
     """
-    existing_hom = 'hom_sci' in existing_name
-    candidate_hom = 'hom_sci' in candidate_name
+    existing_hom = is_barrierless(existing_name)
+    candidate_hom = is_barrierless(candidate_name)
     if existing_hom or candidate_hom:
         return 'replace' if existing_hom and not candidate_hom else 'keep'
     if existing_path is None or candidate_path is None:
@@ -310,6 +315,6 @@ def read_summary_paths(lines):
         fields = line.split()
         if fields and fields[0] == 'SUCCESS' and len(fields) >= 3:
             name = fields[2]
-            if 'hom_sci' not in name and name not in paths:
+            if not is_barrierless(name) and name not in paths:
                 raise ValueError(f'Missing reaction-path metadata for {name}.')
     return paths

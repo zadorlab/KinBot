@@ -63,8 +63,9 @@ def accept_product(qc, par, initial, family, copies, monkeypatch):
     return reaction, submissions
 
 
-@pytest.mark.parametrize('family', ['hom_sci', 'intra_H_migration'])
-@pytest.mark.parametrize('copies', [1, 2])
+@pytest.mark.parametrize(('family', 'copies'), [
+    ('hom_sci', 1), ('hom_sci', 2), ('intra_H_migration', 1),
+    ('intra_H_migration', 2), ('h2_elim_barrierless', 1)])
 def test_first_product_optimization_identifies_final_structure(tmp_path, monkeypatch, family, copies):
     monkeypatch.chdir(tmp_path)
     (tmp_path/'input.json').write_text(json.dumps({'barrier_threshold': 100.}))

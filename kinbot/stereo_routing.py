@@ -33,6 +33,7 @@ def _chemical_context(species):
     """Keep supplied labels/graphs even when canonical assignment is unsupported."""
     return _json_value({key: getattr(species, key, None) for key in (
         'isotopes', 'formal_charges', 'bond', 'bond01', 'bonds', 'rads',
+        'hydrogen_bridges',
         'optical_reference', 'optical_population', 'optical_counting_scope')})
 
 
@@ -155,6 +156,8 @@ def _row_species(species, row, job, input_reference=None):
                 value = np.asarray(value)
             elif key in ('bonds', 'rads'):
                 value = [np.asarray(item) for item in value]
+            elif key == 'hydrogen_bridges':
+                value = [tuple(item) for item in value]
             setattr(point, key, copy.deepcopy(value))
     point.source_job, point.source_row_id = job, row.id
     energy = row.data.get('energy')

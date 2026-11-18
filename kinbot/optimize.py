@@ -9,6 +9,7 @@ import rmsd
 import numpy as np
 
 from kinbot import frequencies
+from kinbot.exceptions import is_proton
 from kinbot import geometry
 from kinbot import symmetry
 from kinbot.conformer_records import update_member, hessian_record, ConformerDataError, finite_energy
@@ -164,7 +165,19 @@ class Optimize:
             self.shigh = -999
             return 0
 
+    def _refinement_status(self, job):
+        status = self.qc.check_qc(job)
+        if status == 0 and self.qc.for_job(job).submitted_job_has_ended(job):
+            logger.warning('%s: the submitted optimization left the queue '
+                           'without a complete result.', job)
+            return 'error'
+        return status
+
     def _do_optimization(self):
+        # An atom has no vibrational mode and a diatomic has only its stretch.
+        # A rotor scan cannot remove either molecule's internal vibrations.
+        scan_rotors = (self.par['rotor_scan'] and not self.par['multi_conf_tst']
+                       and self.species.natom > 2)
         while 1:
             # do the conformational search
             if self.par['conformer_search'] == 1:
@@ -372,7 +385,7 @@ class Optimize:
                             # high level calculation is running
                             # check if finished
                             job = getattr(self, '_hir_refinement_job', None) or self.log_name(1)
-                            status = self.qc.check_qc(job)
+                            status = self._refinement_status(job)
                             if status == 'error':
                                 # found an error
                                 logger.warning('High level optimization failed for {}'.format(self.name))
@@ -387,7 +400,7 @@ class Optimize:
                                     # log_name would resolve it to the parent.
                                     stati[ci] = 1
                                     continue
-                                status = self.qc.check_qc(self.log_name(1, conf=conindx))
+                                status = self._refinement_status(self.log_name(1, conf=conindx))
                                 if status == 'error':
                                     stati[ci] = 1
                                     update_member(self.species, conindx, accepted=False,
@@ -410,7 +423,7 @@ class Optimize:
                         self.shigh = 1
                     if self.shigh == 1:
                         # do the HIR calculation
-                        if self.par['rotor_scan'] == 1 and self.par['multi_conf_tst'] != 1:
+                        if scan_rotors:
                             if (not self.just_high
                                     and not self._ensure_selected_hessian()):
                                 break
@@ -495,9 +508,7 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                if (self.par['multi_conf_tst'] == 0
-                        and self.par['rotor_scan']
-                        and not self.just_high
+                if (scan_rotors and not self.just_high
                         and not getattr(self, '_projection_failure', None)):
                     recovered = recover_hir_model(self.species, self.qc, self.par,
                                                   allow_qc=True, wait=self.wait)
@@ -529,7 +540,9 @@ class Optimize:
 
                 # write the L3 input and read the L3 energy, if available
                 if self.par['L3_calc'] == 1:
-                    if self.par['single_point_qc'] == 'molpro':
+                    if is_proton(self.species.atom, self.species.charge, self.species.mult):
+                        self.species.l3energy = 0.
+                    elif self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)
                         key = self.par['single_point_key']
                         molp.create_molpro_input(do_vdW=self.just_high)
@@ -575,7 +588,7 @@ class Optimize:
             names.append(self.name + '_IRC_F_prod')
             names.append(self.name + '_IRC_R_prod')
 
-            if self.par['high_level'] == 1:
+            if self.par['high_level'] == 1 and self.species.hir is not None:
                 for count in range(self.species.hir.nrotation):
                     for rot_num in range(self.par['nrotation']):
                         names.append('hir/' + self.name + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))
@@ -588,8 +601,8 @@ class Optimize:
         else:
             names.append(self.name + '_well')
             names.append(self.name + '_well_high')
-            if self.par['high_level'] == 1 and \
-               'prod' not in self.species.name:
+            if (self.par['high_level'] == 1 and self.species.hir is not None
+                    and 'prod' not in self.species.name):
                 for count in range(self.species.hir.nrotation):
                     for rot_num in range(self.par['nrotation']):
                         names.append('hir/' + self.name + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))
@@ -648,6 +661,8 @@ class Optimize:
                                 self.species.mult,
                                 atom=self.species.atom,
                                 geom=new_geom)
+        from kinbot.hydrogen_bridges import copy_ts_bridges
+        copy_ts_bridges(self.species, dummy)
         dummy.bond_mx()
         dummy.calc_chemid()
 

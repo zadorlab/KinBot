@@ -1,4 +1,4 @@
-from kinbot.species_routing import routing_key, routing_name, mess_filename
+from kinbot.species_routing import routing_key, routing_name, mess_filename, same_species
 import os
 import re
 import shlex
@@ -11,7 +11,8 @@ from itertools import product
 from kinbot import kb_path
 from kinbot import constants
 from kinbot import frequencies
-from kinbot.reaction_path import reaction_path_id, compare_pathways, reject_invalid_pathway
+from kinbot.reaction_path import (reaction_path_id, compare_pathways,
+                                  reject_invalid_pathway, is_barrierless)
 from kinbot.product_complex import reassess_product_complex
 from kinbot.uncertaintyAnalysis import UQ
 
@@ -120,6 +121,15 @@ def finalize_mc_mess(contents, correct_submerged=False):
     Keep that shape convention, adjusting depths only when the barrier itself
     is raised, and omit tunneling at/below the actual connected-well ground.
     """
+    # MESS's default 1.4-bohr minimum rejects a normal 0.740-A H2 bond.
+    # Inspect actual H2 geometries so the allowance survives replacement of
+    # declared PST by a saddle and assembly from cached PES fragment blocks.
+    if (re.search(r'^[ \t]*(?:Fragment)?Geometry\[angstrom\][ \t]+2[ \t]*\n'
+                  r'[ \t]*H[ \t]+[^\n]+\n[ \t]*H[ \t]+[^\n]+',
+                  contents, re.MULTILINE)
+            and not re.search(r'^[ \t]*AtomDistanceMin\[', contents, re.MULTILINE)):
+        contents = ('! Allow the physical bond in an H2 fragment.\n'
+                    'AtomDistanceMin[angstrom] 0.5\n' + contents)
     contents = apply_conformer_shifts(contents)
     validate_mess_populations(contents)
     starts = list(re.finditer(r'^\s*(Well|Bimolecular|Barrier)\s+(\S+)[^\n]*',
@@ -385,7 +395,7 @@ class MESS:
             for reaction in self.species.reac_obj:
                 if reaction.instance_name in ts_all:
                     states.extend(opt.species for opt in getattr(reaction, 'prod_opt', ()))
-                    if 'hom_sci' not in reaction.instance_name:
+                    if not is_barrierless(reaction.instance_name):
                         states.append(reaction.ts)
                     if self._include_complex(reaction):
                         states.append(self._product_complex(reaction))
@@ -425,12 +435,12 @@ class MESS:
                                                  uq.calc_factor('freq', uq_iter))
             
             for index, reaction in enumerate(self.species.reac_obj):
-                # A homolytic scission has no optimized saddle. Its barrier is
+                # A declared dissociation has no optimized saddle. Its barrier is
                 # the existing product-based phase-space model below; never
                 # interpret the copied parent as a TS (including its optics).
                 if (reaction.instance_name in ts_all
                         and (self.par['pes'] or reaction.instance_name in ts_unique)
-                        and self.species.reac_type[index] != 'hom_sci'):
+                        and not is_barrierless(self.species.reac_type[index])):
                     barrier_add = uq.calc_factor('barrier', uq_iter)
                     freq_factor = uq.calc_factor('freq', uq_iter)
                     imagfreq_factor = uq.calc_factor('imagfreq', uq_iter)
@@ -473,7 +483,7 @@ class MESS:
 
                 # Only write products once, stops duplicate product writing
                 if reaction.instance_name in ts_unique:
-                    if self.species.reac_type[index] != 'hom_sci':
+                    if not is_barrierless(self.species.reac_type[index]):
                         ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                     if reaction.do_vdW:
                         st_pt = self._product_complex(reaction)
@@ -517,7 +527,7 @@ class MESS:
                             continue
                         energy_add = uq.calc_factor('energy', uq_iter)
                         freq_factor = uq.calc_factor('freq', uq_iter)
-                        if 'hom_sci' not in reaction.instance_name:
+                        if not is_barrierless(reaction.instance_name):
                             bless = 0
                             pstsymm_factor = 1
                         else:
@@ -603,7 +613,7 @@ class MESS:
         for index, reaction in enumerate(self.species.reac_obj):
             if (reaction.instance_name in ts_all
                     and (self.par['pes'] or reaction.instance_name in ts_unique)
-                    and self.species.reac_type[index] != 'hom_sci'):
+                    and not is_barrierless(self.species.reac_type[index])):
                 self._set_barrier_population(reaction)
                 states.append(reaction.ts)
             if reaction.instance_name in ts_unique:
@@ -737,6 +747,13 @@ class MESS:
         logger.warning(message)
         return '! ' + message + '\n'
 
+    def _fragment_symmetry(self, species):
+        if species.natom == 1:
+            return 1.
+        if species.chemid == 170170000000000000002:  # OH spin-orbit fragment
+            return float(species.sigma_ext) / species.nopt
+        return self._parent_symmetry(species)
+
     def _mc_product_identities(self, products):
         identities = [require_supported_identity(product) for product in products]
         if (self.par.get('optical_population', 'specified') == 'racemic'
@@ -777,7 +794,7 @@ class MESS:
                                                            smi=species.smiles,
                                                            natom=species.natom,
                                                            geom=self.rotor_geom(species),
-                                                           symm=float(species.sigma_ext) / float(species.nopt),
+                                                           symm=self._fragment_symmetry(species),
                                                            rotconst=self.rotor_core_line(species),
                                                            freq=self.make_freq(species.reduced_freqs, freq_factor, 0))
                 elif members:
@@ -793,7 +810,7 @@ class MESS:
                                                          smi=species.smiles,
                                                          natom=species.natom,
                                                          geom=self.rotor_geom(species),
-                                                         symm=self._parent_symmetry(species),
+                                                         symm=self._fragment_symmetry(species),
                                                          rotconst=self.rotor_core_line(species),
                                                          nfreq=len(species.reduced_freqs),
                                                          freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
@@ -862,14 +879,41 @@ class MESS:
 
     def _phase_space_models(self, products, stoich, ground_energy, reference_shift,
                             freq_factor, symmetry_factor):
-        """Sum the same product conformers used by the separated fragments.
+        """Count fragment rotations and conformers on the loose dividing surface.
 
-        The capture potential, total electronic spin and parent-product
-        symmetry normalization remain KinBot's existing phase-space model.
-        MC terms carry relative rotational/optical divisors with respect to
-        those parent products; this is not an absolute PST symmetry correction.
-        No saddle geometry is involved.
+        Each fragment carries the same rotational symmetry and optical weight as
+        in its separated partition function. For identical fragments, exchanging
+        their positions also describes the same encounter (Klippenstein and
+        Marcus, J. Phys. Chem. 92, 5412–5417, eq. 3).
         """
+        if len(products) != 2:
+            raise ValueError('The PST capture model requires exactly two fragments; '
+                             f'got {len(products)}. A different rate model is required.')
+        potential_prefactor, potential_power = '0.6', '6.'
+        potential_note = ''
+        ion = None
+        for hydrogen, other in (products, products[::-1]):
+            if (hydrogen.natom == 2 and all(atom == 'H' for atom in hydrogen.atom)
+                    and hydrogen.charge == 0 and hydrogen.mult == 1
+                    and hydrogen.bond[0, 1] > 0 and other.charge > 0):
+                ion = other
+                break
+        if ion is not None:
+            # V(R) = -alpha*q^2/(2*R^4), in atomic units. The isotropic H2
+            # polarizability 5.437 a.u. is used in ion-H2 capture studies:
+            # https://doi.org/10.1080/00268976.2016.1269964
+            potential_prefactor = f'{.5 * 5.437 * ion.charge ** 2:.12g}'
+            potential_power = '4.'
+            potential_note = ('! Cation + neutral H2: isotropic ion-induced-dipole capture; '
+                f'alpha(H2)=5.437 a.u., ion charge={ion.charge}.\n'
+                '! H2 quadrupole, anisotropy and rotational-state capture effects are omitted.\n')
+        elif any(point.natom == 2 and all(atom == 'H' for atom in point.atom)
+                 and point.bond[0, 1] > 0 and point.charge > 0 for point in products):
+            # When H2 carries the charge, the neutral partner sets the induction coefficient.
+            message = ('Charged H2 product: retaining generic -0.6/R6 PST; '
+                       'ion-induced-dipole capture requires the polarizability of the neutral partner.')
+            logger.warning(message)
+            potential_note = '! WARNING: ' + message + '\n'
         choices = []
         for species in products:
             # OH uses the existing single-geometry spin-orbit fragment model;
@@ -882,23 +926,23 @@ class MESS:
                 choices.append([representative_record(species, self.par.get('optical_population', 'specified'))])
             else:
                 choices.append(list(members.values()) or [None])
+        exchange = 2 if same_species(*products) else 1
         models = []
         for combination in product(*choices):
             geometries, modes, rotors = [], [], []
             offset = 0.
-            divisor = symmetry_factor
+            divisor = symmetry_factor * exchange
             for species, record in zip(products, combination):
                 if record is None:
+                    divisor *= self._fragment_symmetry(species)
                     geom, freq = species.geom, species.reduced_freqs
                     rotors.append(self.make_rotors(species, freq_factor, bless=True))
                 else:
                     geom = record.geometry
                     freq = frequencies.thermochemical_frequencies(
                         record.frequencies_cm1, False, self.par.get('imagfreq_threshold', 50.))
-                    sigma = record.sigma_ext / record.remaining_optical_weight
+                    divisor *= record.sigma_ext / record.remaining_optical_weight
                     offset += (record.zero_energy_hartree - species.energy - species.zpe) * constants.AUtoKCAL
-                if record is not None:
-                    divisor *= sigma / self._parent_symmetry(species)
                 modes.extend(freq)
                 geometries.append(self.pstfragmenttpl.format(chemid=routing_name(species),
                     smi=species.smiles, natom=species.natom,
@@ -906,6 +950,7 @@ class MESS:
             zero = ('{ground_energy}' + (f' ! {offset}' if offset else '') if self.par['pes']
                     else round(float(ground_energy) - reference_shift + offset, 2))
             models.append(self.pstrrhotpl.format(stoich=stoich,
+                potential_prefactor=potential_prefactor, potential_power=potential_power,
                 frag1=geometries[0], frag2=geometries[1], pstsymm=divisor,
                 nfreq=len(modes), freq=self.make_freq(modes, freq_factor, 0),
                 hinderedrotor='\n'.join(rotors), mult=self.species.mult, zeroenergy=zero))
@@ -914,10 +959,7 @@ class MESS:
         else:
             model = ('    Union ! product conformer combinations\n' + ''.join(models)
                      + '    End ! product conformer combinations\n')
-        if self.par['multi_conf_tst']:
-            model = ('! MC phase-space weights are relative to the selected product structures.\n'
-                     '! The existing absolute capture normalization is retained.\n' + model)
-        return model
+        return potential_note + model
 
 
     def write_well(self, species, well_add, freq_factor, uq_iter):

@@ -14,6 +14,7 @@ from ase.units import invcm, Hartree, kcal, mol, kB
 from ase.thermochemistry import IdealGasThermo
 import rmsd
 
+from kinbot.exceptions import is_proton
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
@@ -231,6 +232,8 @@ class Conformers:
                                        self.species.mult,
                                        atom=self.species.atom,
                                        geom=geom)
+                from kinbot.hydrogen_bridges import copy_ts_bridges
+                copy_ts_bridges(self.species, dummy)
                 dummy.bond_mx()
                 dummy.calc_chemid()
                 if geometry.equal_geom(self.species, dummy, 0.10):
@@ -398,6 +401,8 @@ class Conformers:
                                     self.species.mult,
                                     atom=self.species.atom,
                                     geom=geom)
+            from kinbot.hydrogen_bridges import copy_ts_bridges
+            copy_ts_bridges(self.species, dummy)
             dummy.bond_mx()
             dummy.calc_chemid()
             if geometry.equal_geom(self.species, dummy, 0.10):
@@ -457,15 +462,11 @@ class Conformers:
                     if not parent_allowed:
                         from kinbot.stereo_routing import StereoRoutingError
                         raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
+                    # The selected record must retain charge, spin and any
+                    # corrected H2+ reference, not only thermochemistry.
+                    row_id = self.qc.publish_result(last_row, f'conf/{name}_low')
+                    self.db.update(row_id, data={'nconf': self.conf})
                     self.copy_low_log(lowest_job)
-                    mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
-                    data = {'energy': last_row.data.get('energy'),
-                            'frequencies': last_row.data.get('frequencies'),
-                            'zpe': last_row.data.get('zpe'),
-                            'status': last_row.data.get('status'),
-                            'nconf': self.conf}
-                    self.db.write(mol, name='conf/{}_low'.format(name), 
-                                  data=data)
                     #logger.warning(f'All conformer optimizations failed for {name}.')
 
                     self.selected_job = lowest_job
@@ -611,32 +612,10 @@ class Conformers:
                     # only totenergies and the comparison above include ZPE.
                     lowest_energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
                 
-                low_row = None
-                low_rows = self.db.select(name='conf/{}_low'.format(name))
-                for lrow in low_rows:
-                    low_row = lrow
-                try:
-                    self.copy_low_log(lowest_job)
-                    rows = self.db.select(name='{}'.format(lowest_job))
-                    logger.debug(f'Looking at {name} in conformers')
-                    for row in rows:
-                        row_last = row
-                    mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
-                    data = {'energy': row_last.data.get('energy'),
-                            'frequencies': row_last.data.get('frequencies'),
-                            'zpe': row_last.data.get('zpe'),
-                            'status': row_last.data.get('status'),
-                            'nconf': self.conf}
-                    if low_row and hasattr(low_row, 'data') \
-                            and low_row.data.get('nconf') == self.conf \
-                            and all((np.all(data.get(k) == v) 
-                                     for k, v in low_row.data.items())):
-                        pass
-                    else:
-                        self.db.write(mol, name='conf/{}_low'.format(name), 
-                                      data=data)
-                except UnboundLocalError:
-                    pass
+                row = next(self.db.select(name=lowest_job, sort='-id', limit=1))
+                row_id = self.qc.publish_result(row, f'conf/{name}_low')
+                self.db.update(row_id, data={'nconf': self.conf})
+                self.copy_low_log(lowest_job)
 
                 self.selected_job = lowest_job
                 self.selected_conf = lowest_conf
@@ -877,7 +856,11 @@ class Conformers:
         failed here instead of hiding the conformers after it.
         """
         if not os.path.exists(self.low_log()):
-            return 0
+            if not is_proton(self.species.atom, self.species.charge, self.species.mult):
+                return 0
+            low = next(self.db.select(name=f'conf/{self.get_name()}_low', sort='-id', limit=1), None)
+            if low is None or not low.data.get('proton_reference'):
+                return 0
         add = 'semi_emp_' if self.semi_emp else ''
         # conf/<name>_low belongs to the L1 search; its count does not apply
         # to the L0 (_semi_emp_) search, which is found by name instead.
@@ -912,6 +895,11 @@ class Conformers:
         source = lowest_job + self.log_ext(lowest_job)
         if os.path.isfile(source):
             copyfile(source, self.low_log())
+        elif is_proton(self.species.atom, self.species.charge, self.species.mult):
+            # The gas-phase proton has no worker log to copy.
+            low = next(self.db.select(name=lowest_job, sort='-id', limit=1), None)
+            if low is not None and low.data.get('proton_reference'):
+                return
         else:
             logger.warning('%s is missing; %s not written, so a restart will '
                            'check every conformer again.', source, self.low_log())

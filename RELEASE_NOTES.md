@@ -2,6 +2,115 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## 1,1-H2 loss from singly charged cations
+
+KinBot can remove two H atoms bonded to the same carbon, optimize the two
+products and estimate a phase-space theory (PST) rate. Select
+`h2_elim_barrierless` explicitly or through `families: ["all"]`. To turn it
+off, use `skip_families`. As for homolytic scission, the dissociation energy
+must fall below `barrier_threshold + hom_sci_threshold_add` in kcal/mol.
+
+KinBot compares product charge and spin assignments compatible with the parent
+and selects the lowest sum of electronic energy and ZPE. A fragment can
+rearrange during optimization. If one state fails or breaks into several
+fragments, the summary names the affected calculation and KinBot continues
+with the remaining states. Multiply charged parents require a comparison
+that includes charges on both fragments, so this family skips those parents.
+An optimized saddle connecting the same species takes precedence over the
+PST estimate. Assigning a PST rate alone does not establish a barrierless path.
+
+For a positive ion and neutral singlet H2, capture uses ion-induced-dipole
+attraction. With separation R and ion charge q, the potential is -C4/R^4,
+where C4 = 5.437*q^2/2 in atomic units and 5.437 is the fixed static
+polarizability of neutral H2 in bohr cubed. Other pairs retain -0.6/R^6. For
+H2+ plus a neutral molecule KinBot warns about the approximate potential.
+The potential omits H2 quadrupole and rotational-state effects. MESS output
+containing H2 permits a 0.5-A atom separation unless the input sets a limit,
+including when H2 forms through a saddle.
+
+All phase-space theory barriers now use MESS's `TSTLevel EJ`, which conserves
+energy and angular momentum. KinBot gives each fragment the same rotational
+symmetry number and optical weight on the capture surface as in its separated
+partition function, including each conformer in a multi-conformer calculation.
+For two identical fragments, exchanging their positions counts the same pair
+twice. KinBot divides the capture state count by two in that case. These changes
+also affect homolytic scission and dissociation of van der Waals complexes.
+For ethane dissociating to two methyl radicals the divisor is now 72
+(6 × 6 × 2), compared with 1 previously. Before reusing a PES calculation
+that includes an older phase-space barrier, rerun KinBot in the indicated
+well directory to regenerate its MESS files from the saved calculations.
+
+Only isolated doublet H2+ receives a 1.3-A bond-assignment cutoff. UMA molecular
+task minima use a 1.058-A bond and a 2321.7-cm^-1 stretch; energy plus ZPE is
+referenced to neutral H2 from the same UMA model plus its measured 15.42593-eV
+ionization energy. Gaussian/ORCA energies and larger UMA systems are unchanged.
+Old H2 results that could be uncorrected UMA H2+ require fresh calculations.
+The check uses saved model and charge/spin information, even if a local
+checkpoint was moved or deleted. Corrected results, verified neutral H2 and
+recorded non-UMA results remain reusable. Complete selected-conformer records
+now preserve charge, spin, Hessian and correction data for every calculator.
+The first restart can write a complete selected-conformer record using the
+original calculation. For neutral H2, KinBot can also recover the spin from
+the original calculation name. FairChem well and conformer workers record the
+model family and electronic state. Atomic-energy failures produce an error
+record that the driver can read.
+
+With `rotor_scan: 1`, KinBot and MESS use the selected diatomic calculation's
+single harmonic stretch. Earlier Gaussian runs could project a checkpoint
+Hessian onto coordinates in a different orientation and report an erroneous
+H2 or OH frequency. Before using `pes ... no-kinbot` on those calculations,
+rerun the affected KinBot wells from their saved Gaussian results to rewrite
+the fragment data, including wells with only saddle-point exits.
+For isolated gas-phase H+ (one H nucleus, charge +1, multiplicity 1), KinBot
+uses zero electronic energy, zero ZPE and no vibrational frequencies at every
+gas-phase electronic structure level, including the FairChem OMol models.
+A proton calculation needs no worker. H atoms, hydride ions and molecular
+ions such as H2+ retain their own electronic energies. Older FairChem workers
+assigned zero to H− when its filename matched H+. If KinBot detects that
+value for a hydride, recalculate it in a fresh directory. During PES
+postprocessing, an older selected conformer can take its charge and spin from
+the original calculation or the well input. PES uses the exact gas-phase
+proton energy and stops if it cannot distinguish H+ from H−.
+
+If a submitted PBS or Slurm refinement leaves the queue without writing a
+result, KinBot allows 60 seconds for the worker's files to appear. After a
+successful queue check confirms the job is gone, KinBot reports the failed
+refinement and can finish the other reactions.
+
+## C-H-C bridges in positive ions
+
+Keep both carbon contacts of a bridging H in positive-ion wells while
+assigning ordinary bond orders with H attached to one carbon at a time.
+Geometric and valence checks distinguish these bridges from ordinary C-H
+bonds and longer secondary contacts. Bridges across rings and between
+fragments are supported; their C-H-C triangles are excluded from ring
+puckering and free-rotor searches. External symmetry uses proper rotations
+of the full bridged geometry. Transition states retain only bridges confirmed
+at both endpoints.
+
+PES creates the worker directory from the input structure. If the initial
+optimization changes the connectivity, KinBot stops and identifies the
+calculation containing the optimized coordinates. To search from that
+structure, supply those coordinates in a fresh directory. A saved run from
+before bridge recognition can have a different species identity; use a
+fresh directory when KinBot reports this mismatch.
+
+H₂ loss involving the bridging H retains its electron pair in the remaining
+C–C bond. KinBot skips H migrations to a carbon that already holds that
+bridging H and reports homolytic cuts that would leave the ion connected.
+CH₅⁺ has a different three-centre interaction between one carbon and two
+hydrogens. Its reaction pathways are outside the scope of the C–H–C rule.
+
+## Homolytic-scission energy references
+
+PES now calculates homolytic-scission thresholds from product energies
+relative to the molecule that started the PES search. Previously, PES
+converted a summary value already in kcal/mol a second time and failed to
+include the energy difference between the reacting molecule and that starting
+molecule. This affected reaction filtering and path selection; retained MESS
+PST energies were calculated separately. Summaries and PES also use the
+corresponding reactant and product energies when L3 results are available.
+
 ## Conformer restart shortcut for every QC code
 
 A finished conformer search is recognised on restart by the output file
@@ -161,12 +270,6 @@ scans and MC conformer searches, including in specified mode. The geometric
 optical check still determines whether the chosen treatment includes the mirror.
 KinBot does not distinguish fixed atropisomers of biaryls; molecules with a high
 barrier to this rotation use the same rotor approximation.
-
-The existing absolute phase-space symmetry convention for `hom_sci` is unchanged.
-For a chiral parent that forms one chiral fragment, it can give different
-specified and racemic rate ratios even when the complete mirror reactions
-should have equal rates. Axial identity support does not correct that separate
-normalization limit.
 
 ### Reproducible stereoisomer names from SMILES
 

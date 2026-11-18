@@ -8,6 +8,7 @@ after restarting KinBot.
 
 from __future__ import annotations
 
+from functools import partial
 from copy import deepcopy
 import copy
 import hashlib
@@ -274,6 +275,7 @@ class ProfiledQuantumChemistry:
                                      'its recorded theory level.')
                 return _check(job)
 
+            backend.record_reference_level = partial(self._record, level=level)
             backend.check_qc = check
 
             def tracked(job, nproc, singlejob=1, jobtype=None, *,

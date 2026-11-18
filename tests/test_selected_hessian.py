@@ -14,7 +14,7 @@ from ase.build import molecule
 from kinbot import constants, frequencies
 from kinbot.calculation import load_calculation_record
 from kinbot.conformer_records import hessian_record
-from kinbot.hindered_rotors import HIR
+from kinbot.hindered_rotors import HIR, recover_hir_model
 from kinbot.mess import MESS
 from kinbot.optimize import Optimize
 from kinbot.parameters import Parameters
@@ -123,6 +123,41 @@ class TestSelectedHessian(unittest.TestCase):
                 counts = [int(line.split()[1]) for line in block.splitlines()
                           if line.strip().startswith('Frequencies[1/cm]')]
                 self.assertEqual(counts, [6, 6])
+
+    def test_rotor_scan_preserves_the_calculated_diatomic_stretches(self):
+        self.par.update(pes=1, high_level=0, conformer_search=0, multi_conf_tst=0)
+        products = []
+        for formula, symbols, mult, stretch, length in [
+                ('H2', 'HH', 1, 4453.4816, .74), ('OH', 'OH', 2, 3644.8, .97)]:
+            atoms = Atoms(symbols, positions=[[0., 0., 0.], [length, 0., 0.]])
+            point = StationaryPoint(formula, 0, mult,
+                atom=atoms.get_chemical_symbols(), geom=atoms.positions)
+            point.characterize()
+            opt = Optimize(point, self.par, self.qc)
+            job = opt.log_name(0)
+            self.qc.db.write(atoms, name=job, data=dict(
+                energy=-30., zpe=.01, frequencies=[stretch], status='normal'))
+            with patch.object(self.qc, 'read_qc_hess') as hessian:
+                opt.do_optimization()
+                hessian.assert_not_called()
+            self.assertIsNone(point.hir)
+            self.assertEqual(point.reduced_freqs, [stretch])
+            # An older optimizer could leave a wrong projected frequency.
+            point.hir = HIR(point, self.qc, self.par)
+            point.reduced_freqs = [25.8]
+            self.assertTrue(recover_hir_model(point, self.qc, self.par))
+            self.assertEqual(point.kinbot_freqs, [stretch])
+            self.assertEqual(point.reduced_freqs, [stretch])
+            products.append(point)
+        text = MESS(self.par, self.species).write_bimol(products, 0., 1., 1., 0, bless=1)
+        for stretch in (4453.5, 3644.8):
+            self.assertGreaterEqual(text.count(str(stretch)), 2)
+
+        # Optional cleanup after an L3 calculation must also handle no scans.
+        self.par.update(high_level=1, delete_intermediate_files=1)
+        for wellorts in (0, 1):
+            point.wellorts = wellorts
+            opt.delete_files()
 
     def test_conformers_drop_gaussian_checkpoints_but_keep_qchem_hessian_printing(self):
         for backend in ('gauss', 'qchem'):

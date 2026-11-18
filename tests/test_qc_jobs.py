@@ -9,10 +9,84 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 import numpy as np
+import pytest
 
 from kinbot.qc import QuantumChemistry
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
+
+
+@pytest.mark.parametrize('calculator', ['gauss', 'qchem', 'orca', 'fc'])
+def test_isolated_proton_needs_no_worker_at_any_geometry_level(tmp_path, monkeypatch, calculator):
+    monkeypatch.chdir(tmp_path)
+    Path('input.json').write_text(json.dumps({'qc': calculator, 'queuing': 'local',
+                                              'barrier_threshold': 100., 'ppn': 8, 'fc_model_path': 'uma-s-1p1'}))
+    qc = QuantumChemistry(Parameters('input.json').par)
+    qc.submit_qc = Mock(side_effect=AssertionError('submitted a proton calculation'))
+    proton = StationaryPoint('proton', 1, 1, atom=['H'], geom=np.array([[1., 2., 3.]]))
+    proton.characterize()
+    name = str(proton.chemid)
+    for level, suffix in ((0, '_product'), (1, '_well_high')):
+        job = name + suffix
+        for restart in range(2):
+            qc.qc_opt(proton, proton.geom, initial_product=not level, high_level=level)
+            assert qc.get_qc_energy(job) == (0, 0.)
+        assert qc.db.count(name=job) == 1
+        assert qc.get_qc_zpe(job) == (0, 0.)
+        assert qc.get_qc_freq(job, 1) == (0, [])
+        np.testing.assert_equal(qc.get_qc_geom(job, 1)[1], proton.geom)
+        np.testing.assert_equal(qc.read_qc_hess(job, 1), np.zeros((3, 3)))
+        assert not Path(job + '.py').exists()
+    qc.qc_conf(proton, proton.geom, 0, semi_emp=1)
+    assert qc.get_qc_energy(f'conf/{name}_semi_emp_0000') == (0, 0.)
+    qc.qc_opt(proton, proton.geom, ext='_custom')
+    assert qc.check_qc(name + '_custom') == 'normal'
+    qc.submit_qc.assert_not_called()
+
+
+def test_proton_result_survives_older_worker_and_rejects_hydride(tmp_path, monkeypatch):
+    import pickle
+    from kinbot.stereo_routing import StereoRoutingError
+
+    monkeypatch.chdir(tmp_path)
+    Path('input.json').write_text(json.dumps({'qc': 'fc', 'queuing': 'local',
+                                              'barrier_threshold': 100., 'fc_model_path': 'uma-s-1p1'}))
+    qc = QuantumChemistry(Parameters('input.json').par)
+    qc.submit_qc = Mock(side_effect=AssertionError('unexpected calculation'))
+    proton = StationaryPoint('proton', 1, 1, atom=['H'], geom=np.zeros((1, 3)))
+    proton.characterize()
+    hydride = StationaryPoint('hydride', -1, 1, atom=['H'], geom=proton.geom)
+    hydride.characterize()
+    assert proton.chemid == hydride.chemid
+    job = f'conf/{proton.chemid}_0000'
+    Path('conf').mkdir()
+    Path(job + '.pkl').write_bytes(pickle.dumps(dict(sym=['H'], pos=proton.geom,
+        name=job, data={'status': 'error'})))
+    qc.qc_conf(proton, proton.geom, 0)
+    assert qc.get_qc_energy(job) == (0, 0.)
+    assert qc.qc_freq(proton, job) == job
+    for call in (lambda: qc.qc_conf(hydride, hydride.geom, 0),
+                 lambda: qc.qc_freq(hydride, job)):
+        with pytest.raises(StereoRoutingError, match='charge or multiplicity'):
+            call()
+    assert qc.db.count(name=job) == 1
+    qc.submit_qc.assert_not_called()
+
+
+def test_hydrogen_ionization_submits_only_the_neutral_atom(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    Path('aie').mkdir()
+    Path('input.json').write_text(json.dumps({'qc': 'gauss', 'queuing': 'local',
+                                              'barrier_threshold': 100.}))
+    qc = QuantumChemistry(Parameters('input.json').par)
+    qc.submit_qc = Mock()
+    atom = StationaryPoint('hydrogen', 0, 2, atom=['H'], geom=np.zeros((1, 3)))
+    atom.characterize()
+    qc.qc_aie(atom, atom.geom, '0000')
+    base = f'aie/{atom.chemid}_AIE'
+    qc.submit_qc.assert_called_once_with(base + '0_0000', 1)
+    assert qc.get_qc_energy(base + '1_0000') == (0, 0.)
+    assert not Path(base + '1_0000.py').exists()
 
 
 class TestSchedulerJobs(unittest.TestCase):

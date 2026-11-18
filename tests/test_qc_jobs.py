@@ -56,6 +56,20 @@ class TestSchedulerJobs(unittest.TestCase):
             self.assertIn(f"'method': '{method}'", script)
             self.assertIn(f"'basis': '{basis}'", script)
 
+    def test_gaussian_input_for_a_proton_uses_one_processor(self):
+        Path('input.json').write_text(json.dumps({'barrier_threshold': 100., 'ppn': 8}))
+        qc = QuantumChemistry(Parameters('input.json').par)
+        qc.submit_qc = Mock()
+        proton = StationaryPoint('proton', 1, 1, atom=['H'], geom=np.zeros((1, 3)))
+        proton.characterize()
+        qc.qc_opt(proton, proton.geom, initial_product=True)
+        job = str(proton.chemid) + '_product'
+        script = Path(job + '.py').read_text()
+        self.assertIn("'nprocshared': 1", script)
+        self.assertIn("'charge': 1", script)
+        self.assertIn("'mult': 1", script)
+        self.assertEqual(qc.get_qc_arguments('aie', 1, 1, 0, aie=1)['nprocshared'], 1)
+
     def test_pbs_uses_requested_processors_and_records_job_id(self):
         for requested, expected in ((4, 4), (0, 1)):
             with self.subTest(requested=requested):

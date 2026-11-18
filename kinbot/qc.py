@@ -128,11 +128,12 @@ class QuantumChemistry:
         '''
 
         if self.qc == 'gauss':
-            # arguments for Gaussian
+            # A proton has zero electrons, but Gaussian still needs a processor.
+            nproc = max(1, min(nel, self.ppn))
             kwargs = {
                 'method': self.method,
                 'basis': self.basis,
-                'nprocshared': min(nel, self.ppn),
+                'nprocshared': nproc,
                 'mem': '700MW',
                 # ASE runs Gaussian in the label's directory (e.g. conf/).
                 # Use a filename so moving the run does not break checkpoint reads.
@@ -243,7 +244,7 @@ class QuantumChemistry:
                 kwargs = {
                     'method': 'cbs-qb3',
                     'basis': None,
-                    'nprocshared': min(nel, self.ppn),
+                    'nprocshared': nproc,
                     'mem': '700MW',
                     'label': job,
                     'Symm': 'None',

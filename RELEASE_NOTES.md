@@ -67,7 +67,10 @@ gas-phase electronic structure level, including the FairChem OMol models.
 A proton calculation needs no worker. H atoms, hydride ions and molecular
 ions such as H2+ retain their own electronic energies. Older FairChem workers
 assigned zero to H− when its filename matched H+. If KinBot detects that
-value for a hydride, recalculate it in a fresh directory.
+value for a hydride, recalculate it in a fresh directory. During PES
+postprocessing, an older selected conformer can take its charge and spin from
+the original calculation or the well input. PES uses the exact gas-phase
+proton energy and stops if it cannot distinguish H+ from H−.
 
 If a submitted PBS or Slurm refinement leaves the queue without writing a
 result, KinBot allows 60 seconds for the worker's files to appear. After a

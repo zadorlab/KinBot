@@ -1,6 +1,8 @@
 """Load FairChem models with KinBot's compilation setting."""
 
+import ast
 import os
+import re
 
 
 def load_predictor(model, device, *, compile_model=False):
@@ -98,44 +100,63 @@ def h2_cation_reference(mol, label, model, fmax, steps):
                                     'neutral_h2_zpe_hartree': zpe}}
 
 
-class UncorrectedH2Result(ValueError):
+class SavedHydrogenError(ValueError):
+    """The saved electronic state or energy cannot be used for this hydrogen fragment."""
+
+
+class UncorrectedH2Result(SavedHydrogenError):
     """A saved FairChem calculation may contain an obsolete H2+ energy."""
 
 
-def check_h2_cation_cache(qc, job, directory='.'):
-    """Check saved hydrogen energies affected by earlier FairChem workers."""
-    if qc.par.get('fc_task_name') != 'omol':
-        return
-    # Check the saved record even when its model weights are unavailable.
-    # A missing checkpoint cannot establish that an old H2+ result is non-UMA.
-    row = next(qc.db.select(name=job, sort='-id', limit=1), None)
-    if row is None:
-        return
-    # Older FairChem workers assigned zero to a singlet H filename used
-    # by both proton and hydride. A hydride must have a calculated energy.
-    atomic_zero = (list(row.symbols) == ['H'] and row.data.get('energy') == 0.
-                   and not row.data.get('atomic_energy_evaluated')
-                   and not row.data.get('proton_reference'))
-    if not atomic_zero and (list(row.symbols) != ['H', 'H'] or row.data.get('h2_cation_reference')
-            or row.data.get('uma_model') is False):
-        return
-    state = dict(row.data)
-    charge = state.get('charge', state.get('input_charge'))
-    mult = state.get('multiplicity', state.get('input_multiplicity'))
+def saved_hydrogen_state(db, row, job, directory='.'):
+    """Recover charge and multiplicity without guessing a charge from a species number."""
     sources = [job]
     if row.data.get('copied_from_job'):
         sources.append(row.data['copied_from_job'])
-    for source in sources:
-        if charge is not None and mult is not None:
+    # Old selected conformers often omit both charge and spin. Their ordinary
+    # well has the same electronic state, even if no conformer worker survives.
+    name_spin = None
+    for source in tuple(sources):
+        match = re.fullmatch(r'((?:1000000000000000000|2002000000000000000)([1-9])(?:-s[0-9a-f]{16})?)'
+                             r'_(?:low|well(?:_high|_mp2)?|product|(?:semi_emp_)?[0-9]+(?:_high)?)',
+                             os.path.basename(source))
+        if match:
+            name_spin = int(match[2])
+            sources.append(match[1] + '_well')
             break
-        reference = next(qc.db.select(name='stereochemistry/' + source, sort='-id', limit=1), None)
+    sources = list(dict.fromkeys(sources))
+    result_rows = [row]
+    copied = row.data.get('copied_from_job')
+    if copied:
+        selector = {'name': copied}
+        if row.data.get('copied_from_row_id') is not None:
+            selector['id'] = row.data['copied_from_row_id']
+        original = next(db.select(**selector, sort='-id', limit=1), None)
+        if original is not None:
+            result_rows.append(original)
+    records = []
+    for result in result_rows:
+        records.extend((result.data, result.data.get('identity', {}),
+                        getattr(result, 'calculator_parameters', {}) or {}))
+        if result.data.get('proton_reference'):
+            records.append({'charge': 1, 'mult': 1})
+
+    def recorded_value(fields):
+        values = {int(record[key]) for record in records for key in fields if record.get(key) is not None}
+        if len(values) > 1:
+            raise SavedHydrogenError(f'{os.path.join(directory, job)}: conflicting saved {fields[0]} '
+                                     f'values {sorted(values)} for hydrogen. Use a fresh directory.')
+        return next(iter(values), None)
+
+    charge_fields = ('charge', 'input_charge')
+    spin_fields = ('multiplicity', 'mult', 'input_multiplicity')
+    need_worker = recorded_value(charge_fields) is None or recorded_value(spin_fields) is None
+    for source in sources:
+        reference = next(db.select(name='stereochemistry/' + source, sort='-id', limit=1), None)
         if reference is not None:
-            charge = reference.data.get('input_charge') if charge is None else charge
-            mult = reference.data.get('input_multiplicity') if mult is None else mult
-        # Old conformer rows lack state metadata. Read the literal worker
-        # input, including the source of a published _low result, without
-        # executing it; its filename does not encode charge.
-        import ast
+            records.append(reference.data)
+        if not need_worker:
+            continue
         try:
             with open(os.path.join(directory, source + '.py')) as handle:
                 nodes = ast.parse(handle.read()).body
@@ -144,28 +165,52 @@ def check_h2_cation_cache(qc, job, directory='.'):
                         and any(isinstance(target, ast.Name) and target.id == 'kwargs'
                                 for target in node.targets)):
                     kwargs = ast.literal_eval(node.value)
-                    charge = kwargs.get('charge') if charge is None else charge
-                    mult = kwargs.get('mult') if mult is None else mult
+                    if isinstance(kwargs, dict):
+                        records.append(kwargs)
                     break
         except (OSError, SyntaxError, ValueError, TypeError):
-            pass
+            continue
+    charge = recorded_value(charge_fields)
+    mult = recorded_value(spin_fields)
+    if list(row.symbols) == ['H']:
+        if charge is None:
+            # ASE can store an explicit initial charge without a calculator.
+            # An absent array supplies no information about H+ versus H-.
+            for result in result_rows:
+                initial = result.get('initial_charges')
+                if initial is not None and float(initial[0]).is_integer():
+                    records.append({'charge': initial[0]})
+            charge = recorded_value(charge_fields)
+        if name_spin is not None and mult is not None and name_spin != mult:
+            raise SavedHydrogenError(f'{os.path.join(directory, job)}: saved hydrogen multiplicity {mult} '
+                                     f'differs from {name_spin} in the job name. Use a fresh directory.')
+    return charge, name_spin if mult is None else mult
+
+
+def check_h2_cation_cache(qc, job, directory='.', *, row=None, state=None):
+    """Check saved hydrogen energies affected by earlier FairChem workers."""
+    if qc.par.get('fc_task_name') != 'omol':
+        return
+    # Check the saved record even when its model weights are unavailable.
+    if row is None:
+        row = next(qc.db.select(name=job, sort='-id', limit=1), None)
+    if row is None:
+        return
+    atomic_zero = (list(row.symbols) == ['H'] and row.data.get('energy') == 0.
+                   and not row.data.get('atomic_energy_evaluated')
+                   and not row.data.get('proton_reference'))
+    if not atomic_zero and (list(row.symbols) != ['H', 'H'] or row.data.get('h2_cation_reference')
+                            or row.data.get('uma_model') is False):
+        return
+    charge, mult = state if state is not None else saved_hydrogen_state(qc.db, row, job, directory)
     if atomic_zero:
         if charge == -1:
-            raise ValueError(f'{os.path.join(directory, job)}: saved FairChem hydride (H-) '
-                             'has the old zero proton energy. Recalculate in a fresh directory.')
+            raise SavedHydrogenError(f'{os.path.join(directory, job)}: saved FairChem hydride (H-) '
+                                     'has the old zero proton energy. Recalculate in a fresh directory.')
+        if charge is None and mult == 1:
+            raise SavedHydrogenError(f'{os.path.join(directory, job)}: singlet hydrogen has no saved '
+                                     'charge to distinguish H+ from H-. Use a fresh directory.')
         return
-    if mult is None:
-        # The last digit of KinBot's species number is its multiplicity.
-        # Limit the fallback to isolated H2 species jobs: a reaction name
-        # starts with the parent species number, which can have another spin.
-        import re
-        for source in sources:
-            match = re.fullmatch(r'(2002000000000000000[1-9])(?:-s[0-9a-f]{16})?'
-                                 r'_(?:low|well(?:_high|_mp2)?|product|(?:semi_emp_)?[0-9]+(?:_high)?)',
-                                 os.path.basename(source))
-            if match:
-                mult = int(match[1][-1])
-                break
     if ((charge is not None and charge != 1)
             or (mult is not None and mult != 2)):
         return

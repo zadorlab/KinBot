@@ -277,6 +277,96 @@ def test_saved_fairchem_hydride_with_old_proton_energy_requires_recalculation(tm
     check_h2_cation_cache(qc, job)
 
 
+@pytest.mark.parametrize('source', ['result', 'well', 'worker', 'copied_row', 'calculator', 'ase_charge'])
+@pytest.mark.parametrize('charge', [-1, 1])
+def test_pes_reads_saved_hydrogen_charge_before_using_legacy_energy(tmp_path, monkeypatch, source, charge):
+    from ase.calculators.singlepoint import SinglePointCalculator
+    from ase.db import connect
+    from kinbot import pes
+    from kinbot.run_format import ensure_current_run
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pes, 'logger', logging.getLogger('KinBot'), raising=False)
+    worker = tmp_path / 'parent'
+    (worker / 'conf').mkdir(parents=True)
+    ensure_current_run(str(worker), create=True)
+    name = '10000000000000000001'
+    job = f'conf/{name}_low'
+    db = connect(str(worker / 'kinbot.db'))
+    mol = Atoms('H')
+    data = dict(status='normal', energy=0. if charge == -1 else 1., zpe=.01)
+    if source == 'result':
+        data.update(charge=charge, multiplicity=1)
+    elif source == 'well':
+        db.write(mol, name=f'stereochemistry/{name}_well',
+                 data=dict(input_charge=charge, input_multiplicity=1))
+    elif source == 'worker':
+        data['copied_from_job'] = f'conf/{name}_0000'
+        (worker / (data['copied_from_job'] + '.py')).write_text(f"kwargs = {{'charge': {charge}, 'mult': 1}}\n")
+    elif source == 'copied_row':
+        original = f'conf/{name}_0000'
+        data['copied_from_job'] = original
+        data['copied_from_row_id'] = db.write(mol, name=original, data={'charge': charge, 'multiplicity': 1})
+    elif source == 'ase_charge':
+        mol.set_initial_charges([charge])
+    else:
+        mol.calc = SinglePointCalculator(mol, energy=data['energy'])
+        mol.calc.parameters.update(charge=charge, mult=1)
+    db.write(mol, name=job, data=data)
+    par = dict(qc='fc', fc_task_name='omol', single_point_qc='molpro', single_point_key='ENERGY')
+
+    def read():
+        return pes.get_energy(['parent'], name, 0, 0, conf=1, par=par, with_l3=True)
+
+    if charge == 1:
+        assert read() == (0., 0., (1, 0.))
+        par['fc_task_name'] = 'omat'
+        energy, zpe, single_point = read()
+        assert (energy, zpe) == pytest.approx((constants.EVtoHARTREE, .01))
+        assert single_point == (1, 0.)
+    else:
+        with pytest.raises(ValueError, match='hydride'):
+            read()
+        monkeypatch.setattr(pes, '_main', read)
+        with pytest.raises(SystemExit) as stopped:
+            pes.main()
+        assert stopped.value.code == 1
+
+
+@pytest.mark.parametrize('case,reason', [
+    ('unknown_charge', 'no saved charge'), ('well_conflict', 'conflicting saved charge'),
+    ('worker_conflict', 'conflicting saved charge'), ('wrong_spin', 'saved hydrogen multiplicity'),
+])
+def test_pes_refuses_ambiguous_atomic_hydrogen(tmp_path, monkeypatch, case, reason):
+    from ase.db import connect
+    from kinbot import pes
+    from kinbot.fairchem_utils import SavedHydrogenError
+    from kinbot.run_format import ensure_current_run
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pes, 'logger', logging.getLogger('KinBot'), raising=False)
+    (tmp_path / 'parent/conf').mkdir(parents=True)
+    ensure_current_run('parent', create=True)
+    name = '10000000000000000001'
+    job = f'conf/{name}_low'
+    db = connect('parent/kinbot.db')
+    data = dict(status='normal', energy=0., zpe=0.)
+    if case in ('well_conflict', 'worker_conflict'):
+        db.write(Atoms('H'), name=f'stereochemistry/{name}_well',
+                 data=dict(input_charge=-1, input_multiplicity=1))
+        if case == 'well_conflict':
+            data.update(charge=1, multiplicity=1)
+        else:
+            data['copied_from_job'] = f'conf/{name}_0000'
+            (tmp_path / 'parent' / (data['copied_from_job'] + '.py')).write_text(
+                "kwargs = {'charge': 1, 'mult': 1}\n")
+    elif case == 'wrong_spin':
+        data.update(charge=0, multiplicity=2)
+    db.write(Atoms('H'), name=job, data=data)
+    with pytest.raises((SavedHydrogenError, pes.PESInputError), match=reason):
+        pes.get_energy(['parent'], name, 0, 0, conf=1, par={'qc': 'fc', 'fc_task_name': 'omol'})
+
+
 @pytest.mark.parametrize('high_level', [0, 1])
 @pytest.mark.parametrize('conformers', [0, 1])
 @pytest.mark.parametrize('model', ['uma-m-1p1', 'missing_weights.pt'])

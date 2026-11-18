@@ -27,7 +27,7 @@ from ase.db import connect
 from kinbot.run_format import ensure_current_run
 from kinbot.profiled_qc import validate_theory_restart
 from kinbot.stereo_identity import log_input_stereochemistry, UnsupportedStereochemistry
-from kinbot.fairchem_utils import UncorrectedH2Result
+from kinbot.fairchem_utils import SavedHydrogenError
 from kinbot.stereo_routing import StereoRoutingError
 from ase.atoms import Atoms
 
@@ -108,7 +108,7 @@ def remove_unused_complexes(discarded, reactions, wells, do_vdW, parent):
 def main():
     try:
         return _main()
-    except (StereoRoutingError, UnsupportedStereochemistry, UncorrectedH2Result, PESInputError) as error:
+    except (StereoRoutingError, UnsupportedStereochemistry, SavedHydrogenError, PESInputError) as error:
         logging.getLogger('KinBot').error('KinBot stopped: %s', error)
         raise SystemExit(1) from None
 
@@ -1694,18 +1694,6 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
         db = connect(well + '/kinbot.db')
         rows = list(db.select(name=j))
         for row in reversed(list(rows)):  # only take the last one and ignore others
-            if par is not None and not ts and list(row.symbols) in (['H'], ['H', 'H']):
-                # PES reads rows directly, so apply the same H2+ reference
-                # check as worker polling at the level supplying this energy.
-                from types import SimpleNamespace
-                from kinbot.theory import resolve_profiles
-                from kinbot.profiled_qc import _backend_parameters
-                from kinbot.fairchem_utils import check_h2_cation_cache
-                profiles = resolve_profiles(par)
-                settings = (_backend_parameters(par, profiles['l2' if high_level else 'l1'])
-                            if profiles else par)
-                if settings['qc'].lower() == 'fc':
-                    check_h2_cation_cache(SimpleNamespace(par=settings, db=db), j, well)
             try:
                 new_energy = row.data.get('energy') * constants.EVtoHARTREE
                 new_zpe = row.data.get('zpe')
@@ -1713,21 +1701,45 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
                 break
             if new_zpe is None:
                 break
+            row_proton = False
             if not ts:
                 # Check every candidate before comparing energies. Separate
                 # workers cannot reuse one shortened name for different IDs.
                 atoms = row.toatoms()
-                st_pt = StationaryPoint.from_ase_atoms(atoms)
+                symbols = list(row.symbols)
                 reference = next(db.select(name='stereochemistry/'+j,
                                            sort='-id', limit=1), None)
                 if reference is None:
                     reference = next(db.select(name='stereochemistry/'+job+'_well',
                                                sort='-id', limit=1), None)
-                charge = (reference.data.get('input_charge', 0) if reference is not None
-                          else row.data.get('charge', getattr(row, 'calculator_parameters', {}).get('charge', 0)))
-                if list(row.symbols) in (['H'], ['H', 'H']) or charge > 0:
-                    # ASE atoms from force workers need not report charge.
-                    # Restore it before recognizing H2+ or C-H-C bridges.
+                if symbols in (['H'], ['H', 'H']):
+                    from kinbot.fairchem_utils import saved_hydrogen_state, check_h2_cation_cache
+                    charge, mult = saved_hydrogen_state(db, row, j, well)
+                    if symbols == ['H'] and mult == 1 and charge is None:
+                        raise PESInputError(f'{well}/{j}: singlet hydrogen has no saved charge '
+                                            'to distinguish H+ from H-. Use a fresh directory.')
+                    st_pt = StationaryPoint.from_ase_atoms(atoms, charge=charge, mult=mult)
+                    row_proton = is_proton(symbols, charge, mult)
+                    gas_phase = True
+                    if par is not None:
+                        from types import SimpleNamespace
+                        from kinbot.theory import resolve_profiles
+                        from kinbot.profiled_qc import _backend_parameters
+                        profiles = resolve_profiles(par)
+                        settings = (_backend_parameters(par, profiles['l2' if high_level else 'l1'])
+                                    if profiles else par)
+                        if settings['qc'].lower() == 'fc':
+                            gas_phase = settings.get('fc_task_name') == 'omol'
+                            check_h2_cation_cache(SimpleNamespace(par=settings, db=db), j, well,
+                                                 row=row, state=(charge, mult))
+                    if row_proton and gas_phase:
+                        new_energy = new_zpe = 0.
+                else:
+                    st_pt = StationaryPoint.from_ase_atoms(atoms)
+                    charge = (reference.data.get('input_charge', 0) if reference is not None
+                              else row.data.get('charge', getattr(row, 'calculator_parameters', {}).get('charge', 0)))
+                if symbols in (['H'], ['H', 'H']) or charge > 0:
+                    # Restore fixed atom labels and the input state for bond assignment.
                     from kinbot.stereo_routing import _row_species
                     st_pt = _row_species(st_pt, row, j, reference)
                 st_pt.characterize()
@@ -1749,7 +1761,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 energy = new_energy
                 zpe = new_zpe
-                proton = not ts and is_proton(st_pt.atom, st_pt.charge, st_pt.mult)
+                proton = row_proton
             break
     if np.isinf(energy) or np.isinf(zpe):
         raise PESInputError(f'Unable to find an energy for {j}.')

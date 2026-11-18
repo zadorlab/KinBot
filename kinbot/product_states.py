@@ -10,6 +10,10 @@ from kinbot.species_routing import routing_name
 from kinbot.stereo_identity import require_supported_identity
 
 
+class InvalidDissociation(ValueError):
+    """The proposed fragments cannot carry the required bonds, charge or spin."""
+
+
 def spin_allowed(multiplicities, total):
     """Add integer 2S values, including all couplings of three or more spins."""
     spins = {0}
@@ -90,7 +94,7 @@ def fragment_state_combinations(endpoint):
             and spin_allowed([states[i].mult for i in comb], endpoint.mult)]
         if combinations:
             return states, list(slots), combinations, excite
-    raise ValueError('No tested fragment multiplicity combination can carry '
+    raise InvalidDissociation('No tested fragment multiplicity combination can carry '
                      f'total multiplicity {endpoint.mult} and charge {endpoint.charge}.')
 
 

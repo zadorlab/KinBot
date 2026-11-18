@@ -23,7 +23,7 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import (canonical_identity, require_supported_identity,
                                    UnsupportedStereochemistry)
 from kinbot.reaction_path import prepare_stereopath, endpoint_snapshot, is_barrierless
-from kinbot.product_states import participating_fragment_states, spin_allowed
+from kinbot.product_states import InvalidDissociation, participating_fragment_states, spin_allowed
 from kinbot.stereo_routing import require_same_configuration, StereoRoutingError
 from kinbot.profiled_qc import MissingL1Result
 from kinbot.molpro import Molpro
@@ -288,7 +288,7 @@ class ReactionGenerator:
                             obj.irc_product_reference = endpoint_snapshot(obj.irc_prod)
                             # identify bimolecular products and wells from IRC - do it once
                             if self.species.reac_type[index] == 'h2_elim_barrierless':
-                                # Declared H2 loss must carry the parent spin as
+                                # H2 loss must carry the parent spin as
                                 # well as its charge; ordinary parity defaults
                                 # alone would let a triplet produce two singlets.
                                 obj.products = participating_fragment_states(obj.irc_prod)
@@ -368,6 +368,13 @@ class ReactionGenerator:
                             if e < 0:
                                 logger.info(f'\tProduct optimization failed for {obj.instance_name}, product {frag.chemid}')
                                 if self.species.reac_type[index] == 'h2_elim_barrierless':
+                                    formula = Atoms(symbols=requested_fragment.atom).get_chemical_formula()
+                                    warning = (f'{obj.instance_name}: optimization of {formula} '
+                                               f'(charge {frag.charge:+d}, multiplicity {frag.mult}) '
+                                               f'failed in {source_job}. KinBot ranks the remaining '
+                                               'complete product combinations.')
+                                    logger.warning(warning)
+                                    obj.product_warnings = getattr(obj, 'product_warnings', []) + [warning]
                                     obj.valid_prod[fragii] = False
                                 else:
                                     self.species.reac_ts_done[index] = -999
@@ -392,7 +399,7 @@ class ReactionGenerator:
                                         # rearranged. More than one component in
                                         # its assigned graph cannot define the
                                         # single molecular partner of H2 PST.
-                                        newfrags = participating_fragment_states(frag)
+                                        newfrags, _ = endpoint_snapshot(frag).start_multi_molecular()
                                         if len(newfrags) > 1:
                                             formulas = sorted({Atoms(symbols=p.atom).get_chemical_formula()
                                                                for p in newfrags})
@@ -761,6 +768,11 @@ class ReactionGenerator:
                             if not self.species.reac_obj[index].instance_name in deleted:
                                 self.delete_files(self.species.reac_obj[index].instance_name)
                                 deleted.append(self.species.reac_obj[index].instance_name)
+                except InvalidDissociation as error:
+                    warning = f'{obj.instance_name}: skipped this dissociation. {error}'
+                    logger.warning(warning)
+                    obj.product_warnings = getattr(obj, 'product_warnings', []) + [warning]
+                    self.species.reac_ts_done[index] = -999
                 except MissingL1Result as error:
                     logger.warning('%s: skipped reaction: %s. Calculation files retained; '
                                    'other reactions can continue.', obj.instance_name, error)

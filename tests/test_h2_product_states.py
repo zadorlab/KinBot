@@ -132,6 +132,11 @@ def test_failed_candidate_leaves_other_compatible_charge_placement(tmp_path, mon
     assert sorted((point.natom, point.charge, point.mult) for point in reaction.products) == [
         (2, 1, 2), (5, 0, 2)]
     assert spin_allowed([point.mult for point in reaction.products], parent.mult)
+    from kinbot import postprocess
+    postprocess.create_summary_file(parent, SimpleNamespace(qc='fc'), dict(high_level=0))
+    summary = (tmp_path/('summary_'+routing_name(parent)+'.out')).read_text()
+    assert f'# WARNING: {reaction.instance_name}: optimization of C2H3 (charge +1,' in summary
+    assert 'KinBot ranks the remaining complete product combinations' in summary
 
 
 def test_no_valid_optimized_combination_rejects_the_channel(tmp_path, monkeypatch, caplog):

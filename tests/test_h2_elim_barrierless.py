@@ -118,3 +118,45 @@ def test_controller_starts_product_optimization_without_a_saddle(tmp_path, monke
     assert point.reac_ts_done == [2]
     assert point.reac_obj[0].ts is None
     assert isinstance(point.reac_obj[0], H2ElimBarrierless)
+
+
+def test_dication_skips_h2_family_before_any_product_job(tmp_path, caplog):
+    parent = benzenium(2)
+    parent.mult = 2
+    parent.calc_chemid()
+    find(parent, tmp_path)
+    assert parent.reac_inst == []
+    assert caplog.text.count('cannot compare charge splitting') == 1
+
+
+def test_bridge_with_double_bond_rejects_one_h_pair_and_continues(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.chdir(tmp_path)
+    coordinates = json.loads((Path(__file__).parent/'reference/hydrogen_bridges.json').read_text())['ethyl']
+    parent = StationaryPoint('bridged ethyl', 1, 1, atom=coordinates['atom'],
+                             geom=np.array(coordinates['geom']))
+    parent.characterize()
+    par = find(parent, tmp_path)
+    a, h, b = parent.hydrogen_bridges[0]
+    # Reproduce the reported unsupported bonding after the ordinary finder
+    # identified the two distinct H pairs in bridged ethyl.
+    for matrix in parent.bonds:
+        matrix[a, b] = matrix[b, a] = 2
+    bridge, terminal = parent.reac_obj
+    assert h in bridge.instance and h not in terminal.instance
+    qc = QuantumChemistry(par)
+    qc.check_qc = lambda job: 0
+
+    class OtherPairReached(Exception):
+        pass
+
+    def submit(*args, **kwargs):
+        raise OtherPairReached
+
+    qc.qc_opt = submit
+    with pytest.raises(OtherPairReached):
+        ReactionGenerator(parent, par, qc, 'input.json').generate()
+    assert parent.reac_ts_done == [-999, 2]
+    assert bridge.instance_name in bridge.product_warnings[0]
+    assert 'No localized carbon bonding' in bridge.product_warnings[0]

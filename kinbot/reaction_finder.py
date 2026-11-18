@@ -2128,10 +2128,14 @@ class ReactionFinder:
 
 
     def search_h2_elim_barrierless(self, natom, atom, bond, rad):
-        """Declare same-carbon H2-loss exits for cations, without a TS search."""
+        """Find same-carbon H2 losses with one charge to place on the products."""
         name = 'h2_elim_barrierless'
+        if self.species.charge > 1 and name not in self.reactions:
+            logger.warning('Skipping %s for charge +%d: the product search can put one '
+                           'charge on either fragment, but cannot compare charge splitting.',
+                           name, self.species.charge)
         self.reactions.setdefault(name, [])
-        if self.species.charge <= 0:
+        if self.species.charge != 1:
             return
         instances = self._start_motif(['H', 'C', 'H'], natom, bond, atom,
                                       -1, self._reaction_atom_eqv())

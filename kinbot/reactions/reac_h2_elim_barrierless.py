@@ -1,7 +1,8 @@
-"""Declared 1,1-H2 elimination using ordinary dissociation product handling."""
+"""Cation 1,1-H2 elimination using ordinary dissociation product handling."""
 
 import numpy as np
 
+from kinbot.product_states import InvalidDissociation
 from kinbot.reactions.reac_homolytic_scission import HS
 
 
@@ -12,21 +13,35 @@ class H2ElimBarrierless(HS):
         first, carbon, second = self.instance
         return [(first, carbon, 0), (carbon, second, 0), (first, second, 1)]
 
+    def edit_product_bonds(self, product):
+        bridges = getattr(self.species, 'hydrogen_bridges', ())
+        if not bridges:
+            return super().edit_product_bonds(product)
+        first, carbon, second = self.instance
+        # Only localized bond assignments with both H attached to this carbon
+        # can lose this H2. Removing a bridge returns its electron pair to C–C.
+        carbons = np.asarray(product.atom) == 'C'
+        bonds = []
+        for original in self.species.bonds:
+            if not original[first, carbon] or not original[carbon, second]:
+                continue
+            matrix = original.copy()
+            for a, b, order in self.product_bond_changes():
+                matrix[a, b] = matrix[b, a] = order
+            for a, hydrogen, b in bridges:
+                if hydrogen in (first, second):
+                    matrix[a, b] += 1
+                    matrix[b, a] += 1
+            if all(matrix[carbons].sum(axis=1) <= 4):
+                bonds.append(matrix)
+        if not bonds:
+            raise InvalidDissociation('No localized carbon bonding permits loss of this H pair.')
+        product.bonds = bonds
+        product.bond = np.maximum.reduce(bonds)
+
     def get_barrierless_product(self):
         product = super().get_barrierless_product()
         first, _, second = self.instance
-        for carbon1, hydrogen, carbon2 in getattr(self.species, 'hydrogen_bridges', ()):
-            if hydrogen in (first, second):
-                # Removing a shared proton in H2 leaves the three-centre
-                # electron pair on C--C. Without this edit, protonated ethane
-                # incorrectly becomes CH2 + CH3 + H2 instead of C2H5 + H2.
-                for matrix in (product.bond, *product.bonds):
-                    matrix[carbon1, carbon2] += 1
-                    matrix[carbon2, carbon1] += 1
-        if getattr(self.species, 'hydrogen_bridges', ()):
-            if any(np.sum(matrix[i]) > 4 for matrix in product.bonds
-                   for i, element in enumerate(product.atom) if element == 'C'):
-                raise ValueError('H2 loss from this bridge exceeds carbon valence.')
         # The parent H-H distance is unsuitable for an isolated H2 minimum
         # calculation. Only the separated fragments will be optimized.
         axis = product.geom[second] - product.geom[first]

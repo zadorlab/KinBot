@@ -238,11 +238,43 @@ def test_initial_ethyl_cation_must_keep_its_input_connectivity(tmp_path, monkeyp
                         lambda qc, species, geom: calls.append(routing_name(species)))
     monkeypatch.setattr(QuantumChemistry, 'get_qc_geom', lambda *a, **k: (0, observed.geom))
     monkeypatch.setattr(QuantumChemistry, 'get_qc_freq', lambda *a, **k: (0, [100.] * 15))
-    kb._main()
+    with pytest.raises(SystemExit) as stop:
+        kb.main()
+    assert stop.value.code == 1
     assert len(calls) == 1
     assert calls[0] != routing_name(observed)
     assert "changed connectivity" in caplog.text
     assert calls[0] + "_well in kinbot.db" in caplog.text
+
+
+@pytest.mark.parametrize('postprocess_only', [False, True])
+def test_pes_reports_incomplete_initial_well_before_export(tmp_path, monkeypatch, caplog, postprocess_only):
+    import logging
+    import sys
+    from kinbot import pes
+    from kinbot.run_format import ensure_current_run
+
+    monkeypatch.chdir(tmp_path)
+    path = Path('input.json')
+    path.write_text(json.dumps(dict(smiles='[CH2+]C', charge=1, mult=1,
+                                    high_level=0, barrier_threshold=100.)))
+    first = StationaryPoint('ethyl', 1, 1, smiles='[CH2+]C')
+    first.characterize()
+    name = routing_name(first)
+    ensure_current_run('.', create=True)
+    Path(name).mkdir()
+    ensure_current_run(name, create=True)
+    args = ['pes', str(path)] + (['no-kinbot'] if postprocess_only else [])
+    monkeypatch.setattr(sys, 'argv', args)
+    monkeypatch.setattr(pes, 'config_log', lambda *a, **k: logging.getLogger('KinBot'))
+    monkeypatch.setattr(pes, 'submit_job', lambda *a: 0)
+    monkeypatch.setattr(pes, 'check_status', lambda *a: False)
+    monkeypatch.setattr(pes.time, 'sleep', lambda seconds: None)
+    monkeypatch.setattr(pes, 'postprocess', lambda *a: pytest.fail('exported an incomplete first well'))
+    with pytest.raises(SystemExit) as stop:
+        pes.main()
+    assert stop.value.code == 1
+    assert f'{name}/kinbot.log' in caplog.text
 
 
 def test_pes_creates_the_input_well_directory_before_qc(tmp_path, monkeypatch):

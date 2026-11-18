@@ -223,7 +223,7 @@ def test_charged_h2_does_not_receive_neutral_h2_polarizability(tmp_path, monkeyp
     assert re.search(r'Core PhaseSpaceTheory[\s\S]*?SymmetryFactor\s+4(?:\.0)?\s', text)
     assert '! Cation + neutral H2:' not in text
     message = ('Charged H2 product: retaining generic -0.6/R6 PST; '
-               'ion-induced-dipole capture requires the neutral residue polarizability.')
+               'ion-induced-dipole capture requires the polarizability of the neutral partner.')
     assert '! WARNING: ' + message in text
     assert message in caplog.text
 
@@ -325,15 +325,19 @@ def test_neutral_homolysis_counts_fragment_rotations_and_exchange(
     np.testing.assert_allclose(rates, expected, rtol=.005)
 
 
-def test_pes_refuses_a_mixture_of_old_and_current_capture_terms(tmp_path):
+def test_pes_refuses_a_mixture_of_old_and_current_capture_terms(tmp_path, monkeypatch, caplog):
     path = tmp_path / 'products_0000.mess'
     model = 'Core PhaseSpaceTheory\n  TSTLevel EJ\n  SymmetryFactor 4\nEnd ! Core\n'
     path.write_text(model + model)
     with path.open() as file:
         assert pes.read_phase_space_block(file, '123') == model + model
     path.write_text(model + model.replace('  TSTLevel EJ\n', ''))
-    with path.open() as file, pytest.raises(ValueError, match='kinbot 123.json'):
-        pes.read_phase_space_block(file, '123')
+    with path.open() as file:
+        monkeypatch.setattr(pes, '_main', lambda: pes.read_phase_space_block(file, '123'))
+        with pytest.raises(SystemExit) as stop:
+            pes.main()
+    assert stop.value.code == 1
+    assert 'kinbot 123.json' in caplog.text
 
 
 def test_mirror_stereoisomers_are_distinct_fragments_for_exchange(tmp_path):

@@ -152,14 +152,13 @@ def _main():
         well0.short_name = 'w1'
         well0.characterize()
         if well0.chemid != input_well.chemid and not par['cluster']:
-            logger.error('The first well changed connectivity during optimization. '
-                         'Inspect %s_well in kinbot.db. To search from that '
-                         'structure, use its optimized coordinates in a new directory.', start_name)
-            return
+            raise StereoRoutingError(
+                f'The first well changed connectivity during optimization. Inspect {start_name}_well '
+                'in kinbot.db. To search from that structure, use its optimized coordinates '
+                'in a new directory.')
         if well0.hydrogen_bridges and minimum_frequency < -par['imagfreq_threshold']:
-            logger.error('The optimized bridged ion has an imaginary frequency of '
-                         '%.1f cm-1 and cannot serve as the initial minimum.', minimum_frequency)
-            return
+            raise StereoRoutingError(f'The optimized bridged ion has an imaginary frequency of '
+                                     f'{minimum_frequency:.1f} cm-1 and cannot serve as the initial minimum.')
         apply_input_reference(well0, dict(par, stereo_reference=starting_reference))
         if par['cluster']:
             well0.make_hbonds()

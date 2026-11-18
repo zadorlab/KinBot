@@ -909,11 +909,9 @@ class MESS:
                 '! H2 quadrupole, anisotropy and rotational-state capture effects are omitted.\n')
         elif any(point.natom == 2 and all(atom == 'H' for atom in point.atom)
                  and point.bond[0, 1] > 0 and point.charge > 0 for point in products):
-            # This charge placement occurred for benzenium in the UMA test.
-            # Its induction coefficient needs the neutral residue's
-            # polarizability, not the neutral-H2 value used above.
+            # When H2 carries the charge, the neutral partner sets the induction coefficient.
             message = ('Charged H2 product: retaining generic -0.6/R6 PST; '
-                       'ion-induced-dipole capture requires the neutral residue polarizability.')
+                       'ion-induced-dipole capture requires the polarizability of the neutral partner.')
             logger.warning(message)
             potential_note = '! WARNING: ' + message + '\n'
         choices = []

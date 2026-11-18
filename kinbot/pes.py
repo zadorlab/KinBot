@@ -46,6 +46,10 @@ from kinbot.utils import queue_command
 from kinbot.vrc_tst_surfaces import VRC_TST_Surface 
 
 
+class PESInputError(ValueError):
+    """A required well calculation or MESS input is incomplete or incompatible."""
+
+
 def select_summary_reaction(reactions, candidate, stereopaths):
     """Keep the preferred route in each endpoint/path class; return discarded rows."""
     replace = []
@@ -103,7 +107,7 @@ def remove_unused_complexes(discarded, reactions, wells, do_vdW, parent):
 def main():
     try:
         return _main()
-    except (StereoRoutingError, UnsupportedStereochemistry, UncorrectedH2Result) as error:
+    except (StereoRoutingError, UnsupportedStereochemistry, UncorrectedH2Result, PESInputError) as error:
         logging.getLogger('KinBot').error('KinBot stopped: %s', error)
         raise SystemExit(1) from None
 
@@ -320,6 +324,12 @@ def _main():
     if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
 
+    if not jobs:
+        raise PESInputError('No wells remain after applying the requested species selection.')
+    first = jobs[0]
+    if not os.path.isfile(f'{first}/summary_{first}.out'):
+        raise PESInputError(f'KinBot did not complete the first well {first}. '
+                            f'Inspect {first}/kinbot.log before rerunning PES.')
     postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
@@ -382,8 +392,10 @@ def postprocess(par, jobs, task, names, mass):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
-    base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                       conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par)
+    base_energy, base_zpe = get_energy(
+        jobs, jobs[0], 0, par['high_level'], conf=par['conformer_search'],
+        rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'),
+        par=par)
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
@@ -1075,7 +1087,7 @@ def read_phase_space_block(file, well):
         # A saved Union may also omit the selected fragment's optical weight.
         if not any(line.split('!', 1)[0].split() == ['TSTLevel', 'EJ']
                    for line in core.partition('End ! Core')[0].splitlines()):
-            raise ValueError(
+            raise PESInputError(
                 f'{file.name} contains a phase-space barrier from an older KinBot run. '
                 f'In {well}, run kinbot {well}.json to rewrite the .mess files from '
                 'the saved calculations. Then rerun PES.')
@@ -1733,7 +1745,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
                 zpe = new_zpe
             break
     if np.isinf(energy) or np.isinf(zpe):
-        raise ValueError(f'Unable to find an energy for {j}.')
+        raise PESInputError(f'Unable to find an energy for {j}.')
 
     return energy, zpe
 

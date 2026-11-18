@@ -165,6 +165,10 @@ class Optimize:
             return 0
 
     def _do_optimization(self):
+        # An atom has no vibrational mode and a diatomic has only its stretch.
+        # A rotor scan cannot remove either molecule's internal vibrations.
+        scan_rotors = (self.par['rotor_scan'] and not self.par['multi_conf_tst']
+                       and self.species.natom > 2)
         while 1:
             # do the conformational search
             if self.par['conformer_search'] == 1:
@@ -410,7 +414,7 @@ class Optimize:
                         self.shigh = 1
                     if self.shigh == 1:
                         # do the HIR calculation
-                        if self.par['rotor_scan'] == 1 and self.par['multi_conf_tst'] != 1:
+                        if scan_rotors:
                             if (not self.just_high
                                     and not self._ensure_selected_hessian()):
                                 break
@@ -495,9 +499,7 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                if (self.par['multi_conf_tst'] == 0
-                        and self.par['rotor_scan']
-                        and not self.just_high
+                if (scan_rotors and not self.just_high
                         and not getattr(self, '_projection_failure', None)):
                     recovered = recover_hir_model(self.species, self.qc, self.par,
                                                   allow_qc=True, wait=self.wait)
@@ -575,7 +577,7 @@ class Optimize:
             names.append(self.name + '_IRC_F_prod')
             names.append(self.name + '_IRC_R_prod')
 
-            if self.par['high_level'] == 1:
+            if self.par['high_level'] == 1 and self.species.hir is not None:
                 for count in range(self.species.hir.nrotation):
                     for rot_num in range(self.par['nrotation']):
                         names.append('hir/' + self.name + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))
@@ -588,8 +590,8 @@ class Optimize:
         else:
             names.append(self.name + '_well')
             names.append(self.name + '_well_high')
-            if self.par['high_level'] == 1 and \
-               'prod' not in self.species.name:
+            if (self.par['high_level'] == 1 and self.species.hir is not None
+                    and 'prod' not in self.species.name):
                 for count in range(self.species.hir.nrotation):
                     for rot_num in range(self.par['nrotation']):
                         names.append('hir/' + self.name + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))

@@ -117,6 +117,9 @@ def test_local_uma_checkpoint_is_identified_by_its_backbone():
         model=SimpleNamespace(module=SimpleNamespace(backbone=backbone))))
     assert uma_model('/models/checkpoint.pt', calc)
     assert not uma_model('/models/checkpoint.pt')
+    assert not uma_model('/models/uma-custom.pt')
+    calc.predictor.model.module.backbone = object()
+    assert not uma_model('uma-s-1p1', calc)
 
 
 def test_failed_neutral_reference_is_not_reported_as_corrected_energy(tmp_path, monkeypatch):

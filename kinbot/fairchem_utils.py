@@ -26,12 +26,15 @@ def load_predictor(model, device, *, compile_model=False):
 
 def uma_model(model, calculator=None):
     """Recognize named UMA models and local checkpoints by their backbone."""
-    if os.path.basename(str(model)).lower().startswith('uma-'):
-        return True
     predictor = getattr(calculator, 'predictor', None)
     module = getattr(getattr(predictor, 'model', None), 'module', None)
     backbone = getattr(module, 'backbone', None)
-    return type(backbone).__module__.startswith('fairchem.core.models.uma.')
+    if backbone is not None:
+        return type(backbone).__module__.startswith('fairchem.core.models.uma.')
+    # Only names passed to the pretrained-model registry identify the model
+    # family. Users can give a local checkpoint any filename.
+    return (not os.path.isfile(model) and os.path.basename(str(model)) == str(model)
+            and str(model).lower().startswith('uma-'))
 
 
 def h2_cation_reference(mol, label, model, fmax, steps):

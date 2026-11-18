@@ -113,6 +113,7 @@ def test_public_mess_ion_h2_capture_matches_langevin(
     text = Path('me/mess_0000.inp').read_text()
     assert text.count('AtomDistanceMin[angstrom] 0.5') == 1
     assert 'PotentialPowerExponent 4.' in text
+    assert 'TSTLevel EJ' in text
     assert re.search(r'SymmetryFactor\s+4(?:\.0)?\s', text)
     result = subprocess.run([shutil.which('mess'), 'mess_0000.inp'], cwd='me',
         capture_output=True, text=True, timeout=30)
@@ -132,7 +133,7 @@ def test_ion_h2_minimum_distance_finalization_preserves_explicit_setting():
     formatted = finalize_mc_mess(ordinary + geometry)
     assert formatted.count('AtomDistanceMin[angstrom] 0.5') == 1
     assert finalize_mc_mess(formatted) == formatted
-    for explicit in ('AtomDistanceMin[angstrom] 0.6\n', 'AtomDistanceMin[au] 1.0\n'):
+    for explicit in ('AtomDistanceMin[angstrom] 0.6\n', 'AtomDistanceMin[bohr] 1.0\n'):
         assert finalize_mc_mess(explicit + ordinary + geometry) == explicit + ordinary + geometry
 
 
@@ -219,7 +220,7 @@ def test_charged_h2_does_not_receive_neutral_h2_polarizability(tmp_path, monkeyp
     text = Path('me/mess_0000.inp').read_text()
     assert 'PotentialPrefactor[au] 0.6' in text
     assert 'PotentialPowerExponent 6.' in text
-    assert re.search(r'Core PhaseSpaceTheory[\s\S]*?SymmetryFactor\s+1(?:\.0)?\s', text)
+    assert re.search(r'Core PhaseSpaceTheory[\s\S]*?SymmetryFactor\s+4(?:\.0)?\s', text)
     assert '! Cation + neutral H2:' not in text
     message = ('Charged H2 product: retaining generic -0.6/R6 PST; '
                'ion-induced-dipole capture requires the neutral residue polarizability.')
@@ -274,3 +275,79 @@ def test_pst_cannot_silently_drop_a_third_fragment():
     with pytest.raises(ValueError, match='exactly two fragments; got 3'):
         writer._phase_space_models(reaction.products+[reaction.products[1]],
                                    'CH4', 0., 0., 1., 1.)
+
+
+@pytest.mark.parametrize('parent_formula,fragment,divisor', [
+    ('CH4', 'H', 6), ('C2H6', 'CH3', 72),
+])
+def test_neutral_homolysis_counts_fragment_rotations_and_exchange(
+        tmp_path, monkeypatch, parent_formula, fragment, divisor):
+    from tests.test_complex_mess import species
+
+    parent = species(parent_formula)
+    methyl, other = species('CH3', 2), species(fragment, 2)
+    methyl.energy = other.energy = parent.energy / 2
+    name = routing_name(parent) + '_hom_sci_1_2'
+    reaction = SimpleNamespace(instance_name=name, products=[methyl, other],
+        prod_opt=[SimpleNamespace(species=p) for p in (methyl, other)],
+        ts=copy.deepcopy(parent), do_vdW=False, mp2=0)
+    parent.reac_obj, parent.reac_ts_done = [reaction], [-1]
+    parent.reac_type, parent.reac_inst, parent.reac_name = ['hom_sci'], [[0, 1]], [name]
+    par = parameters(tmp_path, parent, 0, 0)
+    monkeypatch.chdir(tmp_path)
+    Path('me').mkdir()
+    writer = MESS(par, parent)
+    writer.write_input(None)
+    text = Path('me/mess_0000.inp').read_text()
+    barrier = text.split('Core PhaseSpaceTheory', 1)[1]
+    assert 'TSTLevel EJ' in barrier
+    assert re.search(rf'SymmetryFactor\s+{divisor}(?:\.0)?\s', barrier)
+
+    if shutil.which('mess') is None:
+        pytest.skip('Public MESS is not installed')
+    writer.par['run_me'] = 1
+    writer.run()
+    rates = capture_rates(Path('me/mess_0000.out').read_text())
+
+    # Integrating the capture cross section for -C6/R^6 over relative
+    # velocities gives k(T) proportional to T^(1/6). Only one of the four
+    # spin states feeds the singlet well. The rate of ethane formation
+    # counts each pair of identical methyl radicals once.
+    from math import gamma, pi
+    mu = methyl.mass * other.mass / (methyl.mass + other.mass)
+    mu *= atomic_mass / physical_constants['electron mass'][0]
+    kT = np.array(par['TemperatureList']) * physical_constants['Boltzmann constant in eV/K'][0]
+    kT /= physical_constants['Hartree energy in eV'][0]
+    expected = 1.5 * pi * (2 * 0.6)**(1/3) * np.sqrt(8/(pi*mu)) * gamma(5/3) * kT**(1/6)
+    expected *= (physical_constants['Bohr radius'][0]**3 * 1e6
+                 / physical_constants['atomic unit of time'][0])
+    expected /= 8 if fragment == 'CH3' else 4
+    np.testing.assert_allclose(rates, expected, rtol=.005)
+
+
+def test_pes_refuses_a_mixture_of_old_and_current_capture_terms(tmp_path):
+    path = tmp_path / 'products_0000.mess'
+    model = 'Core PhaseSpaceTheory\n  TSTLevel EJ\n  SymmetryFactor 4\nEnd ! Core\n'
+    path.write_text(model + model)
+    with path.open() as file:
+        assert pes.read_phase_space_block(file, '123') == model + model
+    path.write_text(model + model.replace('  TSTLevel EJ\n', ''))
+    with path.open() as file, pytest.raises(ValueError, match='kinbot 123.json'):
+        pes.read_phase_space_block(file, '123')
+
+
+def test_mirror_stereoisomers_are_distinct_fragments_for_exchange(tmp_path):
+    parent, _ = ion_h2_system(1)
+    pair = []
+    for smiles in ('C[C@H](O)CC', 'C[C@@H](O)CC'):
+        fragment = StationaryPoint('butanol', 0, 1, smiles=smiles)
+        fragment.characterize()
+        symmetry.calculate_symmetry(fragment)
+        fragment.energy, fragment.zpe = -1., 0.
+        fragment.freq = fragment.reduced_freqs = [500.] * (3 * fragment.natom - 6)
+        pair.append(fragment)
+    writer = MESS(parameters(tmp_path, parent, 0, 0), parent)
+    assert pair[0].chemid == pair[1].chemid
+    for fragments, exchange in ((pair, 1), ([pair[0], pair[0]], 2)):
+        block = writer._phase_space_models(fragments, 'C8H20O2', 0., 0., 1., 1.)
+        assert re.search(rf'SymmetryFactor\s+{exchange}(?:\.0)?\s', block)

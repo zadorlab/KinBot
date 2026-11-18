@@ -1117,6 +1117,21 @@ def create_short_names(wells, products, reactions, barrierless, vdW):
     return well_short, pr_short, fr_short, ts_short, nobar_short
 
 
+def read_phase_space_block(file, well):
+    """Check each saved capture term before PES uses its symmetry number."""
+    block = file.read()
+    for core in block.split('Core PhaseSpaceTheory')[1:]:
+        # Older KinBot blocks omitted EJ and used a different symmetry number.
+        # A saved Union may also omit the selected fragment's optical weight.
+        if not any(line.split('!', 1)[0].split() == ['TSTLevel', 'EJ']
+                   for line in core.partition('End ! Core')[0].splitlines()):
+            raise ValueError(
+                f'{file.name} contains a phase-space barrier from an older KinBot run. '
+                f'In {well}, run kinbot {well}.json to rewrite the .mess files from '
+                'the saved calculations. Then rerun PES.')
+    return block
+
+
 def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                       well_energies, prod_energies, parent, mass, l3done, warnings=()):
     """When calculating a full pes, the files from the separate wells
@@ -1247,8 +1262,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                         continue
                     linked_bless_wells.append(bl[0])
                     with open(bl[0] + '/' + mess_filename(prod, uq_iter)) as f:
+                        block = read_phase_space_block(f, bl[0])
                         if bless == 0:
-                            s.append(f.read().format(name=name,
+                            s.append(block.format(name=name,
                                                      blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
                                                      wellname=well_short[bl[0]],
                                                      prodname=pr_short[prod],
@@ -1256,7 +1272,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      **fr_names))
                             bless = 1
                         else:
-                            stemp = (f.read().format(name=name,
+                            stemp = (block.format(name=name,
                                                      blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
                                                      wellname=well_short[bl[0]],
                                                      prodname=pr_short[prod],
@@ -1272,8 +1288,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                         continue
                     linked_bless_wells.append(min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"])
                     with open(vdw[0] + '/' + mess_filename(prod, uq_iter)) as f:
+                        block = read_phase_space_block(f, vdw[0])
                         if bless == 0:
-                            s.append(f.read().format(name=name,
+                            s.append(block.format(name=name,
                                                      blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
                                                      wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
                                                      prodname=pr_short[prod],
@@ -1281,7 +1298,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      **fr_names))
                             bless = 1
                         else:
-                            stemp = (f.read().format(name=name,
+                            stemp = (block.format(name=name,
                                                      blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
                                                      wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
                                                      prodname=pr_short[prod],

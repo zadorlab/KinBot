@@ -17,12 +17,23 @@ declared exit. The declaration does not prove that the surface is barrierless.
 
 For a positive ion and neutral singlet H2, capture uses ion-induced-dipole
 attraction. With separation R and ion charge q, the potential is -C4/R^4,
-where C4 = 5.437*q^2/2 in atomic units. Product rotational and optical divisors
-are included consistently in direct, PES and multi-conformer output. Other
-pairs retain -0.6/R^6; H2+ plus a neutral molecule remains allowed with a
-warning about the approximate potential. H2 quadrupole and rotational-state
-capture effects are omitted. MESS output containing H2 permits a 0.5-A atom
-separation unless an explicit limit is present, including saddle-point output.
+where C4 = 5.437*q^2/2 in atomic units. Other pairs retain -0.6/R^6. For
+H2+ plus a neutral molecule KinBot warns about the approximate potential.
+The potential omits H2 quadrupole and rotational-state effects. MESS output
+containing H2 permits a 0.5-A atom separation unless the input sets a limit,
+including when H2 forms through a saddle.
+
+All phase-space theory barriers now use MESS's `TSTLevel EJ`, which conserves
+energy and angular momentum. KinBot gives each fragment the same rotational
+symmetry number and optical weight on the capture surface as in its separated
+partition function, including each conformer in a multi-conformer calculation.
+For two identical fragments, exchanging their positions counts the same pair
+twice. KinBot divides the capture state count by two in that case. These changes
+also affect homolytic scission and dissociation of van der Waals complexes.
+For ethane dissociating to two methyl radicals the divisor is now 72
+(6 × 6 × 2), compared with 1 previously. Before reusing a PES calculation
+that includes an older phase-space barrier, rerun KinBot in the indicated
+well directory to regenerate its MESS files from the saved calculations.
 
 Only isolated doublet H2+ receives a 1.3-A bond-assignment cutoff. UMA molecular
 task minima use a 1.058-A bond and a 2321.7-cm^-1 stretch; energy plus ZPE is
@@ -224,12 +235,6 @@ scans and MC conformer searches, including in specified mode. The geometric
 optical check still determines whether the chosen treatment includes the mirror.
 KinBot does not distinguish fixed atropisomers of biaryls; molecules with a high
 barrier to this rotation use the same rotor approximation.
-
-The existing absolute phase-space symmetry convention for `hom_sci` is unchanged.
-For a chiral parent that forms one chiral fragment, it can give different
-specified and racemic rate ratios even when the complete mirror reactions
-should have equal rates. Axial identity support does not correct that separate
-normalization limit.
 
 ### Reproducible stereoisomer names from SMILES
 

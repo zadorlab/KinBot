@@ -1,4 +1,4 @@
-from kinbot.species_routing import routing_key, routing_name, mess_filename
+from kinbot.species_routing import routing_key, routing_name, mess_filename, same_species
 import os
 import re
 import shlex
@@ -747,6 +747,13 @@ class MESS:
         logger.warning(message)
         return '! ' + message + '\n'
 
+    def _fragment_symmetry(self, species):
+        if species.natom == 1:
+            return 1.
+        if species.chemid == 170170000000000000002:  # OH spin-orbit fragment
+            return float(species.sigma_ext) / species.nopt
+        return self._parent_symmetry(species)
+
     def _mc_product_identities(self, products):
         identities = [require_supported_identity(product) for product in products]
         if (self.par.get('optical_population', 'specified') == 'racemic'
@@ -787,7 +794,7 @@ class MESS:
                                                            smi=species.smiles,
                                                            natom=species.natom,
                                                            geom=self.rotor_geom(species),
-                                                           symm=float(species.sigma_ext) / float(species.nopt),
+                                                           symm=self._fragment_symmetry(species),
                                                            rotconst=self.rotor_core_line(species),
                                                            freq=self.make_freq(species.reduced_freqs, freq_factor, 0))
                 elif members:
@@ -803,7 +810,7 @@ class MESS:
                                                          smi=species.smiles,
                                                          natom=species.natom,
                                                          geom=self.rotor_geom(species),
-                                                         symm=self._parent_symmetry(species),
+                                                         symm=self._fragment_symmetry(species),
                                                          rotconst=self.rotor_core_line(species),
                                                          nfreq=len(species.reduced_freqs),
                                                          freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
@@ -872,14 +879,12 @@ class MESS:
 
     def _phase_space_models(self, products, stoich, ground_energy, reference_shift,
                             freq_factor, symmetry_factor):
-        """Sum the same product conformers used by the separated fragments.
+        """Count fragment rotations and conformers on the loose dividing surface.
 
-        Cation + neutral H2 uses isotropic ion-induced-dipole attraction.
-        Other products retain KinBot's existing capture potential and counting.
-        Ion-H2 capture includes the product rotational/optical divisors so
-        the capture rate agrees with the Langevin limit. MC terms carry the
-        corresponding member divisors. Other PST counting remains unchanged.
-        No saddle geometry is involved.
+        Each fragment carries the same rotational symmetry and optical weight as
+        in its separated partition function. For identical fragments, exchanging
+        their positions also describes the same encounter (Klippenstein and
+        Marcus, J. Phys. Chem. 92, 5412–5417, eq. 3).
         """
         if len(products) != 2:
             raise ValueError('The PST capture model requires exactly two fragments; '
@@ -887,23 +892,18 @@ class MESS:
         potential_prefactor, potential_power = '0.6', '6.'
         potential_note = ''
         ion = None
-        if len(products) == 2:
-            for hydrogen, other in (products, products[::-1]):
-                if (hydrogen.natom == 2 and all(atom == 'H' for atom in hydrogen.atom)
-                        and hydrogen.charge == 0 and hydrogen.mult == 1
-                        and hydrogen.bond[0, 1] > 0 and other.charge > 0):
-                    ion = other
-                    break
+        for hydrogen, other in (products, products[::-1]):
+            if (hydrogen.natom == 2 and all(atom == 'H' for atom in hydrogen.atom)
+                    and hydrogen.charge == 0 and hydrogen.mult == 1
+                    and hydrogen.bond[0, 1] > 0 and other.charge > 0):
+                ion = other
+                break
         if ion is not None:
             # V(R) = -alpha*q^2/(2*R^4), in atomic units. The isotropic H2
             # polarizability 5.437 a.u. is used in ion-H2 capture studies:
             # https://doi.org/10.1080/00268976.2016.1269964
             potential_prefactor = f'{.5 * 5.437 * ion.charge ** 2:.12g}'
             potential_power = '4.'
-            # MESS infers rotational constants from geometry but does not
-            # divide by fragment symmetries. Match the separated products;
-            # omitting H2's divisor alone doubles the Langevin capture rate.
-            symmetry_factor *= np.prod([self._parent_symmetry(point) for point in products])
             potential_note = ('! Cation + neutral H2: isotropic ion-induced-dipole capture; '
                 f'alpha(H2)=5.437 a.u., ion charge={ion.charge}.\n'
                 '! H2 quadrupole, anisotropy and rotational-state capture effects are omitted.\n')
@@ -928,23 +928,23 @@ class MESS:
                 choices.append([representative_record(species, self.par.get('optical_population', 'specified'))])
             else:
                 choices.append(list(members.values()) or [None])
+        exchange = 2 if same_species(*products) else 1
         models = []
         for combination in product(*choices):
             geometries, modes, rotors = [], [], []
             offset = 0.
-            divisor = symmetry_factor
+            divisor = symmetry_factor * exchange
             for species, record in zip(products, combination):
                 if record is None:
+                    divisor *= self._fragment_symmetry(species)
                     geom, freq = species.geom, species.reduced_freqs
                     rotors.append(self.make_rotors(species, freq_factor, bless=True))
                 else:
                     geom = record.geometry
                     freq = frequencies.thermochemical_frequencies(
                         record.frequencies_cm1, False, self.par.get('imagfreq_threshold', 50.))
-                    sigma = record.sigma_ext / record.remaining_optical_weight
+                    divisor *= record.sigma_ext / record.remaining_optical_weight
                     offset += (record.zero_energy_hartree - species.energy - species.zpe) * constants.AUtoKCAL
-                if record is not None:
-                    divisor *= sigma / self._parent_symmetry(species)
                 modes.extend(freq)
                 geometries.append(self.pstfragmenttpl.format(chemid=routing_name(species),
                     smi=species.smiles, natom=species.natom,
@@ -961,11 +961,6 @@ class MESS:
         else:
             model = ('    Union ! product conformer combinations\n' + ''.join(models)
                      + '    End ! product conformer combinations\n')
-        if self.par['multi_conf_tst']:
-            normalization = ('! Product rotational/optical divisors are included in ion-H2 capture.\n'
-                if ion is not None else '! The existing absolute capture normalization is retained.\n')
-            model = ('! MC phase-space weights are relative to the selected product structures.\n'
-                     + normalization + model)
         return potential_note + model
 
 

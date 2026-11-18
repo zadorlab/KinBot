@@ -1,6 +1,7 @@
     RRHO
       Stoichiometry {stoich}
         Core PhaseSpaceTheory
+          TSTLevel EJ
 {frag1}
 {frag2}
           SymmetryFactor         {pstsymm}

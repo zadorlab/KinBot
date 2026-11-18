@@ -24,7 +24,7 @@ from kinbot.stereo_identity import canonical_identity, optical_scope
 from kinbot.stereo_routing import StereoRoutingError
 from kinbot.conformer_counting import representative_record
 from kinbot.symmetry import calculate_symmetry
-from test_molecular_symmetry import methoxy
+from tests.test_molecular_symmetry import methoxy
 from tests.conformer_fixtures import record_conformers
 
 

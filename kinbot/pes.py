@@ -450,9 +450,15 @@ def postprocess(par, jobs, task, names, mass):
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
-                #Different treatment between homolytic scission and normal reaction
-                if "hom_sci" in line:
-                    barrier = float(ts_energy)
+                if 'hom_sci' in reaction_name:
+                    # Summary thresholds are already in kcal/mol and relative
+                    # to their own parent. Rebuild the global PES threshold.
+                    barrier = -(base_energy + base_zpe)
+                    for product in products:
+                        energy, zpe = get_energy(jobs, product, 0, par['high_level'],
+                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'],
+                            optical_population=par.get('optical_population', 'specified'))
+                        barrier += energy + zpe
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
                     ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
@@ -575,6 +581,8 @@ def postprocess(par, jobs, task, names, mass):
         for reac in reactions:  # swap out the barrier
             if 'hom_sci' not in reac[1]:
                 reac[3] = ts_l3energies[reac[1]]
+            else:
+                reac[3] = prod_l3energies['_'.join(sorted(reac[2]))]
             if len(reac) > 4: #vdW 
                 vdW_well = f"{reac[1]}{reac[5].split('vdW')[1]}"
                 reac[4] = well_l3energies[vdW_well]

@@ -2,6 +2,16 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## Homolytic-scission energy references
+
+PES now calculates homolytic-scission thresholds from product energies
+relative to the molecule that started the PES search. Previously, PES
+converted a summary value already in kcal/mol a second time and failed to
+include the energy difference between the reacting molecule and that starting
+molecule. This affected reaction filtering and path selection; retained MESS
+PST energies were calculated separately. Summaries and PES also use the
+corresponding reactant and product energies when L3 results are available.
+
 ## Conformer restart shortcut for every QC code
 
 A finished conformer search is recognised on restart by the output file

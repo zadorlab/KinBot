@@ -426,3 +426,23 @@ def test_atomic_fairchem_failure_is_a_completed_error_record(tmp_path, monkeypat
         assert row.data['zpe'] == 0.
         assert len(row.data['frequencies']) == 0
     assert Path(job+'_sella.log').read_text().endswith('done\n')
+
+
+@pytest.mark.parametrize('charge', [0, 1])
+@pytest.mark.parametrize('pattern', ['conf/{}_low', '{}_0000_high'])
+def test_master_h2_row_with_only_species_number(tmp_path, charge, pattern):
+    from ase.db import connect
+    from kinbot.fairchem_utils import check_h2_cation_cache, UncorrectedH2Result
+    from kinbot.species_routing import routing_name
+
+    point = hydrogen(1.058 if charge else .74, charge=charge, mult=charge+1)
+    job = pattern.format(routing_name(point))
+    db = connect(str(tmp_path/'kinbot.db'))
+    db.write(Atoms('H2', positions=point.geom), name=job, data={'status': 'normal'})
+    qc = SimpleNamespace(db=db, par={'fc_task_name': 'omol'})
+    if charge:
+        with pytest.raises(UncorrectedH2Result, match='fresh directory'):
+            check_h2_cation_cache(qc, job, str(tmp_path))
+    else:
+        check_h2_cation_cache(qc, job, str(tmp_path))
+    assert db.count(name=job) == 1

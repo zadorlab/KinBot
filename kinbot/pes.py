@@ -27,6 +27,7 @@ from ase.db import connect
 from kinbot.run_format import ensure_current_run
 from kinbot.profiled_qc import validate_theory_restart
 from kinbot.stereo_identity import log_input_stereochemistry, UnsupportedStereochemistry
+from kinbot.fairchem_utils import UncorrectedH2Result
 from kinbot.stereo_routing import StereoRoutingError
 from ase.atoms import Atoms
 
@@ -102,7 +103,7 @@ def remove_unused_complexes(discarded, reactions, wells, do_vdW, parent):
 def main():
     try:
         return _main()
-    except (StereoRoutingError, UnsupportedStereochemistry) as error:
+    except (StereoRoutingError, UnsupportedStereochemistry, UncorrectedH2Result) as error:
         logging.getLogger('KinBot').error('KinBot stopped: %s', error)
         raise SystemExit(1) from None
 

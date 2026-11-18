@@ -21,13 +21,14 @@ from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
 from kinbot.run_format import ensure_current_run
 from kinbot.stereo_identity import require_supported_identity, log_input_stereochemistry, UnsupportedStereochemistry
+from kinbot.fairchem_utils import UncorrectedH2Result
 from kinbot.stereo_routing import StereoRoutingError
 
 
 def main():
     try:
         return _main()
-    except (StereoRoutingError, UnsupportedStereochemistry) as error:
+    except (StereoRoutingError, UnsupportedStereochemistry, UncorrectedH2Result) as error:
         logging.getLogger('KinBot').error('KinBot stopped: %s', error)
         raise SystemExit(1) from None
 

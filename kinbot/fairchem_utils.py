@@ -95,6 +95,10 @@ def h2_cation_reference(mol, label, model, fmax, steps):
                                     'neutral_h2_zpe_hartree': zpe}}
 
 
+class UncorrectedH2Result(ValueError):
+    """A saved FairChem calculation may contain an obsolete H2+ energy."""
+
+
 def check_h2_cation_cache(qc, job, directory='.'):
     """Do not reuse the old, uncorrected UMA H2+ minimum on restart."""
     if qc.par.get('fc_task_name') != 'omol':
@@ -136,9 +140,21 @@ def check_h2_cation_cache(qc, job, directory='.'):
                     break
         except (OSError, SyntaxError, ValueError, TypeError):
             pass
+    if mult is None:
+        # The last digit of KinBot's species number is its multiplicity.
+        # Limit the fallback to isolated H2 species jobs: a reaction name
+        # starts with the parent species number, which can have another spin.
+        import re
+        for source in sources:
+            match = re.fullmatch(r'(2002000000000000000[1-9])(?:-s[0-9a-f]{16})?'
+                                 r'_(?:low|well(?:_high|_mp2)?|product|(?:semi_emp_)?[0-9]+(?:_high)?)',
+                                 os.path.basename(source))
+            if match:
+                mult = int(match[1][-1])
+                break
     if ((charge is not None and charge != 1)
             or (mult is not None and mult != 2)):
         return
-    raise ValueError(f'{os.path.join(directory, job)}: saved FairChem H2 result lacks the corrected UMA H2+ '
+    raise UncorrectedH2Result(f'{os.path.join(directory, job)}: saved FairChem H2 result lacks the corrected UMA H2+ '
                      'reference (or its model/charge/spin cannot be verified). Start in '
                      'a fresh directory; the existing calculations were preserved.')

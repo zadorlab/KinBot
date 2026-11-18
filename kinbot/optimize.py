@@ -164,6 +164,14 @@ class Optimize:
             self.shigh = -999
             return 0
 
+    def _refinement_status(self, job):
+        status = self.qc.check_qc(job)
+        if status == 0 and self.qc.for_job(job).submitted_job_has_ended(job):
+            logger.warning('%s: the submitted optimization left the queue '
+                           'without a complete result.', job)
+            return 'error'
+        return status
+
     def _do_optimization(self):
         # An atom has no vibrational mode and a diatomic has only its stretch.
         # A rotor scan cannot remove either molecule's internal vibrations.
@@ -376,7 +384,7 @@ class Optimize:
                             # high level calculation is running
                             # check if finished
                             job = getattr(self, '_hir_refinement_job', None) or self.log_name(1)
-                            status = self.qc.check_qc(job)
+                            status = self._refinement_status(job)
                             if status == 'error':
                                 # found an error
                                 logger.warning('High level optimization failed for {}'.format(self.name))
@@ -391,7 +399,7 @@ class Optimize:
                                     # log_name would resolve it to the parent.
                                     stati[ci] = 1
                                     continue
-                                status = self.qc.check_qc(self.log_name(1, conf=conindx))
+                                status = self._refinement_status(self.log_name(1, conf=conindx))
                                 if status == 'error':
                                     stati[ci] = 1
                                     update_member(self.species, conindx, accepted=False,

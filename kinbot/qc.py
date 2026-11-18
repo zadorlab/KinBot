@@ -1191,7 +1191,8 @@ class QuantumChemistry:
         err = err.decode()
         try:
             if self.queuing == 'pbs':
-                pid = out.split('\n')[0].split('.')[0]
+                # Keep an array ID (17[] or 17[2]); qstat also prints the server suffix.
+                pid = out.splitlines()[0].strip().partition('.')[0]
             elif self.queuing == 'slurm':
                 pid = out.split('\n')[0].split()[3]
         except:
@@ -1567,6 +1568,33 @@ class QuantumChemistry:
                            '60 s after the job left the queue.')
         return status
 
+    @staticmethod
+    def _pbs_job_in_queue(job_id):
+        """Return whether qstat lists this ID, or None if qstat failed."""
+        try:
+            output = subprocess.check_output(['qstat', '-f'], text=True, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError):
+            return None
+        # qsub stores the ID before the server suffix, including array indices.
+        ids = re.findall(r'^Job Id:[ \t]*([^\s.]+)(?:\.\S+)?[ \t]*$', output, re.MULTILINE)
+        return job_id in ids
+
+    def submitted_job_has_ended(self, job):
+        """Confirm absence only after check_qc's wait for a missing result."""
+        job_id = self.job_ids.get(job)
+        if not job_id or self.queuing not in ('slurm', 'pbs'):
+            return False
+        # A failed queue query also looks like an empty queue to the ordinary
+        # status check. Require a successful listing before rejecting a search.
+        if self.queuing == 'pbs':
+            return self._pbs_job_in_queue(job_id) is False
+        try:
+            output = subprocess.check_output(['squeue', '-h', '-o', '%i'],
+                                             text=True, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError):
+            return False
+        return job_id not in output.split()
+
     def _check_qc(self, job):
         '''
         Checks the status of the qc job.
@@ -1603,10 +1631,9 @@ class QuantumChemistry:
                 pass
 
         logger.debug('Checking job {}'.format(job))
-        devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
-            command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
-            if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
+            job_id = self.job_ids.get(job)
+            if job_id and self._pbs_job_in_queue(job_id):
                 logger.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
@@ -1631,8 +1658,6 @@ class QuantumChemistry:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logger.error('Exiting')
             sys.exit()
-        # if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-        #     return 'running'
 
         logger.debug('Checking for job {} in db'.format(job))
         if self.is_in_database(job):

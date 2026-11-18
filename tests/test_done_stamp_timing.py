@@ -19,6 +19,7 @@ from ase import Atoms
 from ase.db import connect
 
 from kinbot.qc import QuantumChemistry
+from kinbot.optimize import Optimize
 
 
 JOB = '611491631250510000002_intra_H_migration_2_7'
@@ -82,6 +83,82 @@ class TestDoneStampTiming(unittest.TestCase):
         self.assertEqual(self.qc.check_qc(JOB), 'running')
         self.drop_pkl(14)
         self.assertEqual(self.qc.check_qc(JOB), 'normal')
+
+    def test_only_a_submitted_vanished_refinement_fails(self):
+        self.qc.job_ids.clear()
+        self.qc.queue_job_limit, self.qc.queue_name, self.qc.slurm_feature = 0, 'test', ''
+        self.qc.par['queue_template'] = ''
+        opt = Optimize.__new__(Optimize)
+        opt.qc = self.qc
+        self.stamp_done()
+        queued = False
+
+        def scheduler(command, **kwargs):
+            process = Mock()
+            if isinstance(command, list) and command[0] == 'sbatch':
+                message = b'Submitted batch job 7\n'
+            else:
+                message = b'JOBID NAME\n' + (b'7 refinement\n' if queued else b'')
+            process.communicate.return_value = (message, b'')
+            return process
+
+        with patch('kinbot.qc.subprocess.Popen', side_effect=scheduler), \
+                patch('kinbot.qc.time.monotonic') as clock, \
+                patch('kinbot.qc.subprocess.check_output') as confirm:
+            # A new submission under this name must produce its own result.
+            self.assertEqual(self.qc.submit_qc(JOB, 1, singlejob=0), 1)
+            queued = True
+            clock.return_value = 0.
+            self.assertEqual(opt._refinement_status(JOB), 'running')
+            queued = False
+            clock.return_value = 10.
+            self.assertEqual(opt._refinement_status(JOB), 'running')
+            clock.return_value = 69.
+            self.assertEqual(opt._refinement_status(JOB), 'running')
+            confirm.assert_not_called()
+            clock.return_value = 71.
+            confirm.side_effect = subprocess.CalledProcessError(1, 'squeue')
+            self.assertEqual(opt._refinement_status(JOB), 0)
+            confirm.side_effect = None
+            confirm.return_value = '7\n'
+            self.assertEqual(opt._refinement_status(JOB), 0)
+            confirm.return_value = ''
+            self.assertEqual(opt._refinement_status(JOB), 'error')
+            # Missing data are not written as a permanent error on disk.
+            self.drop_pkl(14)
+            self.assertEqual(opt._refinement_status(JOB), 'normal')
+            self.assertEqual(opt._refinement_status('unsubmitted'), 0)
+
+    def test_pbs_refinement_distinguishes_neighboring_job_and_array_ids(self):
+        self.qc.queuing = 'pbs'
+        self.qc.queue_job_limit, self.qc.queue_name = 0, 'test'
+        self.qc.par['queue_template'] = ''
+        opt = Optimize.__new__(Optimize)
+        opt.qc = self.qc
+        self.stamp_done()
+        # PBS appends the server name to both the qsub and qstat job IDs.
+        for identifier, neighbor in [('17', '170'), ('17[2]', '17[20]'),
+                                     ('17[]', '170[]')]:
+            with self.subTest(identifier=identifier):
+                self.qc.job_ids.clear()
+                submitted = Mock()
+                submitted.communicate.return_value = (f'{identifier}.server\n'.encode(), b'')
+                with patch('kinbot.qc.subprocess.Popen', return_value=submitted), \
+                        patch('kinbot.qc.subprocess.check_output') as qstat, \
+                        patch('kinbot.qc.time.monotonic') as clock:
+                    self.assertEqual(self.qc.submit_qc(JOB, 1, singlejob=0), 1)
+                    self.assertEqual(self.qc.job_ids[JOB], identifier)
+                    qstat.return_value = f'Job Id: {identifier}.server\n'
+                    self.assertEqual(self.qc._check_qc(JOB), 'running')
+                    qstat.return_value = f'Job Id: {neighbor}.server\n'
+                    self.assertEqual(self.qc._check_qc(JOB), 0)
+                    clock.return_value = 0.
+                    self.assertEqual(opt._refinement_status(JOB), 'running')
+                    clock.return_value = 61.
+                    qstat.side_effect = subprocess.CalledProcessError(1, 'qstat')
+                    self.assertEqual(opt._refinement_status(JOB), 0)
+                    qstat.side_effect = None
+                    self.assertEqual(opt._refinement_status(JOB), 'error')
 
     def test_restart_without_submission_record_trusts_the_database(self):
         self.stamp_done()

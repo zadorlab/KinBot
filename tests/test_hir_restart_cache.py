@@ -28,7 +28,7 @@ class TestHIRRestartCache(unittest.TestCase):
         process = Mock()
         process.communicate.return_value = (b'123.server\n', b'')
         # No live scheduler/job is contacted. Actual status and submit methods run.
-        with patch('kinbot.qc.subprocess.call', return_value=1), \
+        with patch('kinbot.qc.subprocess.check_output', return_value=''), \
              patch('kinbot.qc.subprocess.Popen', return_value=process), \
              patch('kinbot.qc.time.sleep'):
             for backend, suffix in (('gauss', '.log'), ('qchem', '.out'),

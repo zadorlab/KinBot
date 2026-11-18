@@ -97,34 +97,3 @@ def rotational_symmetry(species):
 
     return sum(proper_rmsd(species.geom, species.geom[order]) <= .05
                for order in spatial_mappings(species, species.geom, species.geom))
-
-
-def bridge_formation_allowed(requested, observed, imagfreq_threshold=50.):
-    """Allow only localized input -> shared-H minimum, with fixed spectators.
-
-    This accepts the classical ethyl drawing relaxing into its bridged minimum.
-    It does not identify the two optimized minima as the same well, permit
-    other bond changes, or erase specified stereochemistry.
-    """
-    if (getattr(requested, 'hydrogen_bridges', ())
-            or not getattr(observed, 'hydrogen_bridges', ())
-            or requested.charge != observed.charge or requested.mult != observed.mult
-            or list(requested.atom) != list(observed.atom)):
-        return False
-    frequencies = np.asarray(getattr(observed, 'freq', ()))
-    if not frequencies.size or not np.isfinite(frequencies).all() or min(frequencies) < -imagfreq_threshold:
-        return False
-    for field in ('isotopes', 'formal_charges'):
-        if not np.array_equal(getattr(requested, field, [0]*requested.natom),
-                              getattr(observed, field, [0]*observed.natom)):
-            return False
-    if not any(np.array_equal(before, after)
-               for before in requested.bonds for after in observed.bonds):
-        return False
-    from kinbot.stereo_identity import require_supported_identity
-    before = require_supported_identity(requested)
-    after = require_supported_identity(requested, observed.geom)
-    allowed = {before['id']}
-    if getattr(requested, 'optical_population', 'specified') == 'racemic':
-        allowed.add(before['mirror_id'])
-    return after['id'] in allowed

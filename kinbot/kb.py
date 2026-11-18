@@ -100,6 +100,7 @@ def _main():
                     break
 #        well0.characterize()
         well0.name = routing_name(well0)
+        start_name = well0.name
         if matches_name(well0.name, par['skip_chemids']):
             logger.info('This chemid is skipped, nothing to do here')
             logger.info('Finished KinBot at {}'.format(datetime.datetime.now()))
@@ -113,10 +114,53 @@ def _main():
 
         # start the initial optimization of the reactant
         logger.info('Starting optimization of initial well...')
-        from kinbot.species_routing import optimize_initial_well
-        well0 = optimize_initial_well(qc, well0, par)
-        if well0 is None:
+        qc.qc_opt(well0, well0.geom)
+        err, well0.geom = qc.get_qc_geom(routing_name(well0) + '_well',
+                                         well0.natom, wait=1)
+        logger.debug(f'Initial well opt error {err}.')
+        if err < 0:
+            logger.error('Error with initial structure optimization.')
             return
+        err, well0.freq = qc.get_qc_freq(routing_name(well0) + '_well',
+                                         well0.natom, wait=1)
+        logger.debug(f'Initial well freq error {err}, frequencies are {well0.freq}.')
+        if err < 0:
+            logger.error('Error with initial structure frequencies.')
+            return
+        minimum_frequency = min(well0.freq, default=0.)
+        if len(well0.freq) and well0.freq[0] <= 0:
+            logger.warning(f'First frequency is {well0.freq[0]} for initial structure.')
+            well0.freq[0] *= -1.
+        if len(well0.freq) > 1 and well0.freq[1] <= 0:
+            logger.error(f'Second frequency is {well0.freq[1]} for initial structure.')
+            return
+
+        # characterize again and look for differences
+        input_well = well0
+        initial_frequencies = list(well0.freq)
+        starting_reference = getattr(well0, 'optical_reference', None)
+        well0 = StationaryPoint('well0',
+                                par['charge'],
+                                par['mult'],
+                                atom=copy.deepcopy(well0.atom),
+                                geom=copy.deepcopy(well0.geom))
+        # Rebuilding connectivity must not discard the checked QC frequencies.
+        well0.freq = initial_frequencies
+        for field in ('isotopes', 'formal_charges'):
+            if hasattr(input_well, field):
+                setattr(well0, field, copy.deepcopy(getattr(input_well, field)))
+        well0.short_name = 'w1'
+        well0.characterize()
+        if well0.chemid != input_well.chemid and not par['cluster']:
+            logger.error('The first well changed connectivity during optimization. '
+                         'Inspect %s_well in kinbot.db. To search from that '
+                         'structure, use its optimized coordinates in a new directory.', start_name)
+            return
+        if well0.hydrogen_bridges and minimum_frequency < -par['imagfreq_threshold']:
+            logger.error('The optimized bridged ion has an imaginary frequency of '
+                         '%.1f cm-1 and cannot serve as the initial minimum.', minimum_frequency)
+            return
+        apply_input_reference(well0, dict(par, stereo_reference=starting_reference))
         if par['cluster']:
             well0.make_hbonds()
             while 1:
@@ -127,6 +171,9 @@ def _main():
                     break
 #        well0.characterize()
         well0.name = routing_name(well0)
+        if well0.name != start_name and not par['cluster']:
+            logger.error('The first well optimized to a structure different from the input.')
+            return
 
         # do an MP2 optimization of the reactant,
         # to compare some scan barrier heigths to

@@ -735,7 +735,7 @@ class QuantumChemistry:
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, ext=None, 
-               fdir=None, do_vdW=False, initial_product=False, initial_well=False):
+               fdir=None, do_vdW=False, initial_product=False):
         '''
         Creates a geometry optimization input and runs it.
         '''
@@ -761,8 +761,7 @@ class QuantumChemistry:
 
         if not do_vdW and not getattr(species, 'wellorts', 0):
             from kinbot.stereo_routing import guard_well_job
-            guard_well_job(self, species, geom, job, initial_product=initial_product,
-                           allow_bridge_formation=initial_well and not (high_level or mp2 or ext or fdir))
+            guard_well_job(self, species, geom, job, initial_product=initial_product)
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -1057,20 +1056,19 @@ class QuantumChemistry:
             if os.path.isfile(path):
                 os.replace(path, f'{path}.restart_{marker}')
 
-    def publish_result(self, source, target, chemical_context=None, source_directory=None):
+    def publish_result(self, source, target, chemical_context=None):
         """Copy an accepted result and its native outputs to a conventional name.
 
         The normal database row is written last. An interrupted copy leaves an
         incomplete result, rather than pairing new properties with old files.
         Original calculations and earlier conventional outputs are preserved.
         """
-        if source.name == target and source_directory is None:
+        if source.name == target:
             return source.id
         rows = list(self.db.select(name=target))
         if (rows and rows[-1].data.get('status') == 'normal'
                 and rows[-1].data.get('copied_from_job') == source.name
-                and rows[-1].data.get('copied_from_row_id') == source.id
-                and rows[-1].data.get('copied_from_directory') == source_directory):
+                and rows[-1].data.get('copied_from_row_id') == source.id):
             return rows[-1].id
         if self.check_qc(target) == 'running':
             raise ValueError(f'Cannot publish over a running calculation: {target}')
@@ -1084,9 +1082,8 @@ class QuantumChemistry:
             'status': 0, 'reason': RESULT_PUBLICATION_PENDING})
         self._archive_outputs(target, marker)
         for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
-            original = os.path.join(source_directory or '.', source.name + suffix)
-            if os.path.isfile(original):
-                copyfile(original, target + suffix)
+            if os.path.isfile(source.name + suffix):
+                copyfile(source.name + suffix, target + suffix)
         data = dict(source.data)
         if chemical_context is not None:
             data['chemical_context'] = chemical_context
@@ -1096,10 +1093,6 @@ class QuantumChemistry:
         if previous and 'nconf' not in data:
             data['nconf'] = previous[-1]
         data.update(copied_from_job=source.name, copied_from_row_id=source.id)
-        if source_directory is not None:
-            data['copied_from_directory'] = source_directory
-        else:
-            data.pop('copied_from_directory', None)
         keys = dict(source.key_value_pairs, name=target)
         record.unique_id = uuid4().hex
         result = self.db.write(record, key_value_pairs=keys, data=data)

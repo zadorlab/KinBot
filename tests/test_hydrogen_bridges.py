@@ -13,12 +13,11 @@ import pytest
 from ase import Atoms
 
 from kinbot import constants, symmetry
-from kinbot.hydrogen_bridges import bridge_formation_allowed
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
 from kinbot.reaction_finder import ReactionFinder
 from kinbot.reaction_path import endpoint_snapshot
-from kinbot.species_routing import routing_name, register_optimized_product
+from kinbot.species_routing import routing_name
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import canonical_identity
 from kinbot.stereo_routing import guard_well_job, StereoRoutingError, _chemical_context
@@ -201,38 +200,61 @@ def test_declared_h2_loss_from_the_shared_hydrogen_preserves_the_residue(name, r
     assert found
 
 
-def test_classical_parent_relaxation_publishes_the_complete_bridged_result(tmp_path, monkeypatch):
+def test_initial_ethyl_cation_must_keep_its_input_connectivity(tmp_path, monkeypatch, caplog):
+    import logging
+    import sys
+    from kinbot import kb
+
     monkeypatch.chdir(tmp_path)
-    (tmp_path/'input.json').write_text(json.dumps(dict(barrier_threshold=100., high_level=0)))
-    qc = QuantumChemistry(Parameters('input.json', show_warnings=False).par)
     observed = point('ethyl')
-    # One localized attachment is the classical CH3--CH2+ input graph.
-    requested = copy.deepcopy(observed)
-    requested.hydrogen_bridges = []
-    requested.bond = requested.bonds[0].copy()
-    requested.bonds, requested.rads = [requested.bond], [requested.rads[0]]
-    requested.bond01 = (requested.bond > 0).astype(int)
-    requested.calc_chemid()
-    source_job = routing_name(requested)+'_well'
-    guard_well_job(qc, requested, requested.geom, source_job, allow_bridge_formation=True)
-    data = dict(status='normal', energy=-100./constants.EVtoHARTREE, zpe=.02,
-                frequencies=[100.]*15, hess=np.eye(21), charge=1, multiplicity=1)
-    qc.db.write(Atoms(observed.atom, positions=observed.geom), name=source_job, data=data)
-    Path(source_job+'.log').write_text('done\n')
-    observed.freq = data['frequencies']
-    assert bridge_formation_allowed(requested, observed)
-    guard_well_job(qc, requested, requested.geom, source_job, allow_bridge_formation=True)
-    published = register_optimized_product(qc, requested, observed, source_job)
-    target = routing_name(published)+'_well'
-    assert target != source_job
-    row = next(qc.db.select(name=target, sort='-id', limit=1))
-    assert row.data['copied_from_job'] == source_job
-    assert row.data['hess'].shape == (21,21)
-    assert row.data['chemical_context']['hydrogen_bridges']
-    assert qc.db.get(name=source_job).data['energy'] == data['energy']
-    assert not bridge_formation_allowed(observed, requested)
-    observed.freq[0] = -500.
-    assert not bridge_formation_allowed(requested, observed)
+    donor, hydrogen, _ = observed.hydrogen_bridges[0]
+    geom = observed.geom.copy()
+    # Select a classical C-H bond with the other carbon beyond the bridge range.
+    geom[hydrogen] = geom[donor] + [0., 0., 1.09]
+    structure = [value for atom, position in zip(observed.atom, geom)
+                 for value in (str(atom), *position.tolist())]
+    Path('input.json').write_text(json.dumps(dict(structure=structure, charge=1, mult=1,
+                                                  high_level=0, barrier_threshold=100)))
+    monkeypatch.setattr(sys, 'argv', ['kinbot', 'input.json'])
+    monkeypatch.setattr(kb, 'config_log', lambda *a, **k: logging.getLogger('KinBot'))
+    calls = []
+    monkeypatch.setattr(QuantumChemistry, 'qc_opt',
+                        lambda qc, species, geom: calls.append(routing_name(species)))
+    monkeypatch.setattr(QuantumChemistry, 'get_qc_geom', lambda *a, **k: (0, observed.geom))
+    monkeypatch.setattr(QuantumChemistry, 'get_qc_freq', lambda *a, **k: (0, [100.] * 15))
+    kb._main()
+    assert len(calls) == 1
+    assert calls[0] != routing_name(observed)
+    assert "changed connectivity" in caplog.text
+    assert calls[0] + "_well in kinbot.db" in caplog.text
+
+
+def test_pes_creates_the_input_well_directory_before_qc(tmp_path, monkeypatch):
+    import logging
+    import sys
+    from kinbot import pes
+
+    monkeypatch.chdir(tmp_path)
+    Path('input.json').write_text(json.dumps(dict(smiles='[CH2+]C', charge=1, mult=1,
+                                                  high_level=0, barrier_threshold=100)))
+    monkeypatch.setattr(sys, 'argv', ['pes', 'input.json'])
+    monkeypatch.setattr(pes, 'config_log', lambda *a, **k: logging.getLogger('KinBot'))
+    monkeypatch.setattr(QuantumChemistry, 'qc_opt', lambda *a, **k: pytest.fail('PES ran QC'))
+    write_input = pes.write_input
+
+    class InputWritten(Exception):
+        pass
+
+    def check_input(path, species, *args):
+        write_input(path, species, *args)
+        name = routing_name(species)
+        assert Path(name, name + '.json').exists()
+        assert not Path('kinbot.db').exists()
+        raise InputWritten
+
+    monkeypatch.setattr(pes, 'write_input', check_input)
+    with pytest.raises(InputWritten):
+        pes._main()
 
 
 def classical_attachment(species):
@@ -243,30 +265,6 @@ def classical_attachment(species):
     requested.bond01 = (requested.bond > 0).astype(int)
     requested.calc_chemid()
     return requested
-
-
-def test_initial_bridge_acceptance_preserves_a_remote_stereocentre():
-    bridge = point('ethyl')
-    # A separated chiral spectator isolates the configuration check from the
-    # C-H-C change. Inverting it must not be excused by bridge formation.
-    atom = list(bridge.atom)+['C', 'F', 'Cl', 'Br', 'H']
-    centre = np.array([10., 0., 0.])
-    directions = np.array([[1,1,1], [1,-1,-1], [-1,1,-1], [-1,-1,1]])/np.sqrt(3.)
-    spectator = np.vstack([centre, centre+directions*np.array([1.35,1.77,1.94,1.09])[:,None]])
-    observed = StationaryPoint('bridge and chiral spectator', 1, 1, atom=atom,
-                               geom=np.vstack([bridge.geom, spectator]))
-    observed.characterize()
-    observed.freq = [100.]*max(1,3*observed.natom-6)
-    requested = classical_attachment(observed)
-    assert canonical_identity(requested)['has_configured_stereo']
-    assert bridge_formation_allowed(requested, observed)
-    changed = copy.deepcopy(observed)
-    changed.geom[-5:,0] = 2*centre[0]-changed.geom[-5:,0]
-    assert not bridge_formation_allowed(requested, changed)
-    changed = copy.deepcopy(observed)
-    changed.isotopes = [0]*changed.natom
-    changed.isotopes[0] = 13
-    assert not bridge_formation_allowed(requested, changed)
 
 
 @pytest.mark.parametrize('name', ['vinyl', 'ethyl', 'protonated_ethane'])
@@ -299,90 +297,7 @@ def test_ordinary_and_high_level_cache_checks_do_not_accept_bridge_formation(tmp
         with pytest.raises(StereoRoutingError):
             guard_well_job(qc, requested, requested.geom, job)
     with pytest.raises(StereoRoutingError):
-        qc.qc_opt(requested, requested.geom, high_level=1, initial_well=True)
-
-
-@pytest.mark.parametrize('profiled', [False, True])
-def test_pes_names_the_worker_after_bridge_formation_and_reuses_all_properties(tmp_path, monkeypatch, profiled):
-    from ase.calculators.singlepoint import SinglePointCalculator
-    from kinbot.pes import prepare_initial_well, get_wells
-    from kinbot.species_routing import optimize_initial_well
-    from kinbot.run_format import ensure_current_run
-
-    monkeypatch.chdir(tmp_path)
-    settings = dict(barrier_threshold=100., high_level=0, families=['h2_elim_barrierless'],
-                    charge=1, mult=1)
-    if profiled:
-        settings['l1_profile'] = dict(calculator='gaussian', method='B3LYP', basis='6-31G(d)',
-                                     optimizer='native', frequency_mode='native_hessian')
-    path = tmp_path/'input.json'
-    path.write_text(json.dumps(settings))
-    par = Parameters(str(path), show_warnings=False).par
-    qc = QuantumChemistry(par)
-    observed = point('ethyl')
-    requested = classical_attachment(observed)
-    source_job = routing_name(requested)+'_well'
-    guard_well_job(qc, requested, requested.geom, source_job, allow_bridge_formation=True)
-    atoms = Atoms(observed.atom, positions=observed.geom)
-    atoms.calc = SinglePointCalculator(atoms, energy=-100./constants.EVtoHARTREE)
-    atoms.calc.parameters.update(charge=1, mult=1)
-    data = dict(status='normal', energy=-100./constants.EVtoHARTREE, zpe=.02,
-                frequencies=[100.]*15, hess=np.eye(21), charge=1, multiplicity=1)
-    qc.db.write(atoms, name=source_job, data=data)
-    Path(source_job+'.log').write_text('completed calculation\ndone\n')
-
-    def no_submission(backend, job, *args, **kwargs):
-        assert backend.check_qc(job) == 'normal', 'an existing initial calculation must be reused'
-        return 0
-
-    monkeypatch.setattr(QuantumChemistry, 'submit_qc', no_submission)
-    accepted = prepare_initial_well(str(path), requested, par)
-    accepted_name = routing_name(accepted)
-    assert accepted_name != routing_name(requested)
-    assert (tmp_path/accepted_name).is_dir()
-    assert not (tmp_path/routing_name(requested)).exists()
-    child_input = json.loads((tmp_path/accepted_name/(accepted_name+'.json')).read_text())
-    assert child_input['title'] == accepted_name
-    child_species = StationaryPoint('PES child', 1, 1, structure=child_input['structure'])
-    child_species.characterize()
-    assert routing_name(child_species) == accepted_name
-    monkeypatch.chdir(tmp_path/accepted_name)
-    child_qc = QuantumChemistry(Parameters(accepted_name+'.json', show_warnings=False).par)
-    child_result = next(child_qc.db.select(name=accepted_name+'_well', sort='-id', limit=1))
-    assert child_result.data['status'] == 'normal'
-    assert child_result.data['energy'] == data['energy']
-    assert child_result.data['zpe'] == data['zpe']
-    np.testing.assert_array_equal(child_result.data['hess'], data['hess'])
-    assert child_result.calculator_parameters == dict(charge=1, mult=1)
-    assert (Path(accepted_name+'_well.log')).read_text() == 'completed calculation\ndone\n'
-    assert optimize_initial_well(child_qc, child_species, child_qc.par) is not None
-    # PES must find the child summary using the actual bridged name.
-    Path('summary_'+accepted_name+'.out').write_text('HOMOLYTIC_SCISSION 0 reaction 123456\n')
-    monkeypatch.chdir(tmp_path)
-    Path('chemids').write_text(accepted_name+'\n')
-    get_wells(accepted_name)
-    assert '123456' in Path('chemids').read_text()
-    # Postprocessing repeats neither optimization nor submission.
-    monkeypatch.setattr(QuantumChemistry, 'qc_opt', lambda *args, **kwargs: pytest.fail('no-kinbot optimized'))
-    assert routing_name(prepare_initial_well(str(path), requested, par, no_kinbot=True)) == accepted_name
-    # A separately optimized classical well can still occupy its own directory.
-    ensure_current_run(routing_name(requested), create=True)
-    assert (tmp_path/routing_name(requested)).is_dir()
-
-
-@pytest.mark.parametrize('selection', ['skip', 'keep'])
-def test_pes_respects_skip_and_keep_before_initial_cation_optimization(tmp_path, monkeypatch, selection):
-    from kinbot.pes import prepare_initial_well
-    monkeypatch.chdir(tmp_path)
-    species = classical_attachment(point('ethyl'))
-    settings = dict(barrier_threshold=100., high_level=0, charge=1, mult=1)
-    settings['skip_chemids' if selection == 'skip' else 'keep_chemids'] = [routing_name(species)]
-    path = tmp_path/'input.json'
-    path.write_text(json.dumps(settings))
-    par = Parameters(str(path), show_warnings=False).par
-    monkeypatch.setattr(QuantumChemistry, 'qc_opt', lambda *args, **kwargs: pytest.fail('excluded input optimized'))
-    assert prepare_initial_well(str(path), species, par) is species
-    assert not Path('kinbot.db').exists()
+        qc.qc_opt(requested, requested.geom, high_level=1)
 
 
 @pytest.mark.parametrize('high, conf', [(0, 0), (0, 1), (1, 0)])
@@ -407,23 +322,6 @@ def test_pes_reads_bridged_force_worker_energies_without_calculator_charge(tmp_p
     db.write(Atoms(species.atom, positions=species.geom), name=job, data=dict(
         status='normal', energy=-100./constants.EVtoHARTREE, zpe=.02, frequencies=[100.]*15))
     assert pes.get_energy([well], well, False, high, conf=conf) == pytest.approx((-100., .02))
-
-
-def test_initial_bridge_with_a_significant_imaginary_frequency_is_not_a_well(tmp_path, monkeypatch):
-    from kinbot.species_routing import optimize_initial_well
-    monkeypatch.chdir(tmp_path)
-    path = tmp_path/'input.json'
-    path.write_text(json.dumps(dict(barrier_threshold=100., high_level=0)))
-    par = Parameters(str(path), show_warnings=False).par
-    species = point('ethyl')
-    qc = QuantumChemistry(par)
-    job = routing_name(species)+'_well'
-    guard_well_job(qc, species, species.geom, job)
-    qc.db.write(Atoms(species.atom, positions=species.geom), name=job, data=dict(
-        status='normal', energy=-100./constants.EVtoHARTREE, zpe=.02,
-        frequencies=[-500.]+[100.]*14, charge=1, multiplicity=1))
-    Path(job+'.log').write_text('done\n')
-    assert optimize_initial_well(qc, species, par, reuse_only=True) is None
 
 
 @pytest.mark.parametrize('name', ['2butyl', 'protonated_ethane', 'cage'])

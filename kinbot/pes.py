@@ -174,7 +174,9 @@ def _main():
     well0.characterize()
     apply_input_reference(well0, par)
     log_input_stereochemistry(well0, par, logger)
-    well0 = prepare_initial_well(input_file, well0, par, no_kinbot)
+    if no_kinbot:
+        ensure_current_run(routing_name(well0))
+    write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
@@ -334,58 +336,6 @@ def _main():
         print('PES search done!')
     except OSError:
         pass
-
-
-def prepare_initial_well(input_file, species, par, no_kinbot=False):
-    """Choose a cation's directory after its initial minimum is identified.
-
-    A classical input can optimize into a C-H-C bridge with a different name.
-    Do that existing optimization before creating the worker, then give the
-    worker its complete result so the optimization is not repeated. Other
-    molecules keep the ordinary PES startup sequence.
-    """
-    from kinbot.qc import QuantumChemistry
-    from kinbot.species_routing import optimize_initial_well
-    from kinbot.stereo_routing import _chemical_context, guard_well_job
-    from kinbot.utils import make_dirs
-
-    root = os.getcwd()
-    source = None
-    job = routing_name(species) + '_well'
-    candidate = (species.charge > 0 and list(species.atom).count('C') >= 2
-                 and 'H' in species.atom and not species.hydrogen_bridges
-                 and not par['cluster'] and 'none' in par['keep_chemids']
-                 and not matches_name(routing_name(species), par['skip_chemids']))
-    # Existing ordinary cation runs need no new calculation for no-kinbot.
-    saved = (os.path.isfile('kinbot.db') and next(connect('kinbot.db').select(
-             name=job, sort='-id', limit=1), None))
-    if candidate and (not no_kinbot or saved and saved.data.get('status') == 'normal'):
-        make_dirs(par)
-        qc = QuantumChemistry(par)
-        species = optimize_initial_well(qc, species, par, reuse_only=no_kinbot)
-        if species is None:
-            raise StereoRoutingError('The initial cation did not yield an accepted minimum.')
-        job = routing_name(species) + '_well'
-        source = next(qc.db.select(name=job, sort='-id', limit=1))
-    if no_kinbot:
-        ensure_current_run(routing_name(species))
-    write_input(input_file, species, par['barrier_threshold'], par['barrier_threshold_L2'],
-                root, par['me'])
-    if source is not None:
-        try:
-            os.chdir(routing_name(species))
-            child_par = Parameters(routing_name(species) + '.json').par
-            child_qc = QuantumChemistry(child_par)
-            result = next(child_qc.db.select(name=job, sort='-id', limit=1), None)
-            if result is None or result.data.get('status') != 'normal':
-                if no_kinbot:
-                    raise StereoRoutingError(f'{job}: the PES worker has no completed initial minimum.')
-                child_qc.publish_result(source, job, chemical_context=_chemical_context(species),
-                                        source_directory=root)
-            guard_well_job(child_qc, species, species.geom, job)
-        finally:
-            os.chdir(root)
-    return species
 
 
 def get_wells(job):

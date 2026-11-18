@@ -32,6 +32,7 @@ from kinbot.stereo_routing import StereoRoutingError
 from ase.atoms import Atoms
 
 from kinbot import kb_path
+from kinbot.exceptions import is_proton
 from kinbot import constants
 from kinbot import license_message
 from kinbot import pp_settings
@@ -392,12 +393,10 @@ def postprocess(par, jobs, task, names, mass):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
-    base_energy, base_zpe = get_energy(
+    base_energy, base_zpe, (status, base_l3energy) = get_energy(
         jobs, jobs[0], 0, par['high_level'], conf=par['conformer_search'],
         rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'),
-        par=par)
-    # L3 energies
-    status, base_l3energy = get_l3energy(jobs[0], par)
+        par=par, with_l3=True)
     if not status:
         l3done = 0
     # list of lists with four elements
@@ -529,10 +528,9 @@ def postprocess(par, jobs, task, names, mass):
     well_energies = {}
     well_l3energies = {}
     for index, well in enumerate(wells):
-        energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
-                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par)  # from the db
+        energy, zpe, (status, l3energy) = get_energy(wells, well, do_vdW[index], par['high_level'],
+                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par, with_l3=True)
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
-        status, l3energy = get_l3energy(well, par)
         if not status:
             l3done = 0  # not all L3 calculations are done
             batch_submit += f'{cmd} {well}.{ext}\n'
@@ -546,10 +544,9 @@ def postprocess(par, jobs, task, names, mass):
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
-            pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
-                                           conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par)
+            pr_energy, pr_zpe, (status, l3e) = get_energy(jobs, pr, 0, par['high_level'],
+                                           conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'), par=par, with_l3=True)
             energy += pr_energy + pr_zpe
-            status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
                 batch_submit += f'{cmd} {pr}.{ext}\n'
@@ -1668,8 +1665,8 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
 
 
 def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
-               rotor_scan=None, optical_population=None, par=None):
-    
+               rotor_scan=None, optical_population=None, par=None, with_l3=False):
+    """Read the selected energy and ZPE, optionally with its L3 electronic energy."""
     if ts:
         j = job
         wells = [job.split('_')[0]]
@@ -1684,6 +1681,8 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
     energy = np.inf
     zpe = np.inf
     reference_identity = None
+    hydrogen_charge = None
+    proton = False
     for well in wells:
         if "IRC" in well:
             well = well.split("_")[0]
@@ -1695,7 +1694,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
         db = connect(well + '/kinbot.db')
         rows = list(db.select(name=j))
         for row in reversed(list(rows)):  # only take the last one and ignore others
-            if par is not None and not ts and list(row.symbols) == ['H', 'H']:
+            if par is not None and not ts and list(row.symbols) in (['H'], ['H', 'H']):
                 # PES reads rows directly, so apply the same H2+ reference
                 # check as worker polling at the level supplying this energy.
                 from types import SimpleNamespace
@@ -1726,7 +1725,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
                                                sort='-id', limit=1), None)
                 charge = (reference.data.get('input_charge', 0) if reference is not None
                           else row.data.get('charge', getattr(row, 'calculator_parameters', {}).get('charge', 0)))
-                if list(row.symbols) == ['H', 'H'] or charge > 0:
+                if list(row.symbols) in (['H'], ['H', 'H']) or charge > 0:
                     # ASE atoms from force workers need not report charge.
                     # Restore it before recognizing H2+ or C-H-C bridges.
                     from kinbot.stereo_routing import _row_species
@@ -1736,6 +1735,13 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
                 identity = configured_result_identity(db, job, row, optical_population)
                 if chemid_wo_mult != connectivity_name(job)[:-1] or identity is None:
                     break
+                if list(row.symbols) == ['H'] and st_pt.mult == 1:
+                    # Singlet H+ and H- have the same KinBot species number.
+                    if hydrogen_charge is not None and st_pt.charge != hydrogen_charge:
+                        raise PESInputError(f'{job}: the same singlet hydrogen name has charges '
+                                            f'{hydrogen_charge:+d} and {st_pt.charge:+d} '
+                                            'in different PES workers.')
+                    hydrogen_charge = st_pt.charge
                 if reference_identity is not None and identity != reference_identity:
                     raise ValueError(f'{job}: different complete stereoisomer identities '
                                      'share one calculation name across PES workers.')
@@ -1743,10 +1749,14 @@ def get_energy(wells, job, ts, high_level, mp2=0, conf=0,
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 energy = new_energy
                 zpe = new_zpe
+                proton = not ts and is_proton(st_pt.atom, st_pt.charge, st_pt.mult)
             break
     if np.isinf(energy) or np.isinf(zpe):
         raise PESInputError(f'Unable to find an energy for {j}.')
 
+    if with_l3:
+        single_point = (1, 0.) if proton else get_l3energy(job, par)
+        return energy, zpe, single_point
     return energy, zpe
 
 
@@ -1758,8 +1768,6 @@ def get_l3energy(job, par):
 
     key = par['single_point_key']
 
-    if job == '10000000000000000001':  # proton
-        return 1, 0.0
     if par['single_point_qc'] == 'molpro':
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:

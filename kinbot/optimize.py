@@ -9,6 +9,7 @@ import rmsd
 import numpy as np
 
 from kinbot import frequencies
+from kinbot.exceptions import is_proton
 from kinbot import geometry
 from kinbot import symmetry
 from kinbot.conformer_records import update_member, hessian_record, ConformerDataError, finite_energy
@@ -539,7 +540,9 @@ class Optimize:
 
                 # write the L3 input and read the L3 energy, if available
                 if self.par['L3_calc'] == 1:
-                    if self.par['single_point_qc'] == 'molpro':
+                    if is_proton(self.species.atom, self.species.charge, self.species.mult):
+                        self.species.l3energy = 0.
+                    elif self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)
                         key = self.par['single_point_key']
                         molp.create_molpro_input(do_vdW=self.just_high)

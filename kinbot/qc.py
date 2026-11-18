@@ -95,6 +95,32 @@ class QuantumChemistry:
             species.optical_population = getattr(self, 'par', {}).get('optical_population', 'specified')
             optical_scope(species, species.optical_population)
 
+    def _guard_hydrogen_fragment(self, species, geom, job):
+        # Proton and hydride have the same connectivity number and multiplicity.
+        # Conformer and VRC names therefore need the same charge check as wells.
+        if len(species.atom) == 1 and species.atom[0] == 'H' and species.mult == 1:
+            from kinbot.stereo_routing import guard_well_job
+            guard_well_job(self, species, geom, job)
+
+    def _save_proton(self, job, atoms, geom, charge, mult):
+        if not exceptions.is_proton(atoms, charge, mult):
+            return False
+        if self.qc == 'fc' and self.par['fc_task_name'] != 'omol':
+            return False
+        if self.theory_level is not None:
+            self.record_reference_level(job)
+        row = next(self.db.select(name=job, sort='-id', limit=1), None)
+        if row is not None and row.data.get('proton_reference'):
+            return True
+        # A calculation submitted by an older driver can still finish.
+        if job in self.job_ids and self.check_qc(job) == 'running':
+            return True
+        self.db.write(Atoms(atoms, positions=geom), name=job,
+                      data=dict(status='normal', proton_reference=True, charge=charge,
+                                multiplicity=mult, energy=0., zpe=0.,
+                                frequencies=[], hess=np.zeros((3, 3))))
+        return True
+
     def for_level(self, level):
         """Legacy inputs use the same backend at every calculation level."""
         return self
@@ -128,7 +154,6 @@ class QuantumChemistry:
         '''
 
         if self.qc == 'gauss':
-            # A proton has zero electrons, but Gaussian still needs a processor.
             nproc = max(1, min(nel, self.ppn))
             kwargs = {
                 'method': self.method,
@@ -575,6 +600,10 @@ class QuantumChemistry:
 
         self._prepare_stereochemistry(species)
 
+        self._guard_hydrogen_fragment(species, geom, job)
+        if self._save_proton(job, species.atom, geom, species.charge, species.mult):
+            return 0
+
         if species.wellorts:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
                                            ts=1, step=1, max_step=1)
@@ -654,6 +683,9 @@ class QuantumChemistry:
         Native jobs can lack a checkpoint or printed Hessian. Keep their
         records intact and use a separate, same-level frequency calculation.
         """
+        self._guard_hydrogen_fragment(species, species.geom, source_job)
+        if self._save_proton(source_job, species.atom, species.geom, species.charge, species.mult):
+            return source_job
         if ((self.use_sella and self.frequency_mode != 'native_hessian')
                 or self.qc not in ('gauss', 'qchem')):
             raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
@@ -702,35 +734,26 @@ class QuantumChemistry:
         qc: 'gauss', 'qchem', 'orca' or 'fc'
         index: the index of the conformer as in conf search
         '''
+        if exceptions.is_proton(species.atom, species.charge, species.mult):
+            logger.info('Skipping ionization of H+: it has no electron to remove.')
+            return 0
         self._prepare_stereochemistry(species)
         job0 = f'aie/{routing_name(species)}_AIE0_{ext}'  # neutral
         job1 = f'aie/{routing_name(species)}_AIE1_{ext}'  # cation
-        kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, species.nel, aie=1)
-        if species.mult == 1: m1 = 2
-        elif species.mult == 2: m1 = 1
-        elif species.mult == 3: m1 = 2
-        kwargs1 = self.get_qc_arguments(job1, m1, species.charge + 1, species.nel - 1, aie=1)
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
-        template = open(template_file, 'r').read()
-        t0 = template.format(label=job0,
-                             kwargs=kwargs0,
-                             atom=plain_symbols(species.atom),
-                             geom=plain_geometry(geom),
-                             ppn=min(species.nel, self.ppn),
-                             qc_command=self.qc_command,
-                             working_dir=os.getcwd())
-        t1 = template.format(label=job1,
-                             kwargs=kwargs1,
-                             atom=plain_symbols(species.atom),
-                             geom=plain_geometry(geom),
-                             ppn=min(species.nel-1, self.ppn),
-                             qc_command=self.qc_command,
-                             working_dir=os.getcwd())
-        
-        for job, template, electrons in ((job0, t0, species.nel),
-                                         (job1, t1, species.nel - 1)):
-            with open(f'{job}.py', 'w') as f:
-                f.write(template)
+        ion_mult = {1: 2, 2: 1, 3: 2}[species.mult]
+        states = ((job0, species.charge, species.mult, species.nel),
+                  (job1, species.charge + 1, ion_mult, species.nel - 1))
+        for job, charge, mult, electrons in states:
+            if self._save_proton(job, species.atom, geom, charge, mult):
+                continue
+            kwargs = self.get_qc_arguments(job, mult, charge, electrons, aie=1)
+            with open(f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py') as handle:
+                template = handle.read().format(label=job, kwargs=kwargs,
+                    atom=plain_symbols(species.atom), geom=plain_geometry(geom),
+                    ppn=min(electrons, self.ppn), qc_command=self.qc_command,
+                    working_dir=os.getcwd())
+            with open(f'{job}.py', 'w') as handle:
+                handle.write(template)
             self.submit_qc(job, min(electrons, self.ppn))
 
         return 0
@@ -763,6 +786,9 @@ class QuantumChemistry:
         if not do_vdW and not getattr(species, 'wellorts', 0):
             from kinbot.stereo_routing import guard_well_job
             guard_well_job(self, species, geom, job, initial_product=initial_product)
+
+        if self._save_proton(job, species.atom, geom, species.charge, species.mult):
+            return 0
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -915,6 +941,9 @@ class QuantumChemistry:
 
         job = f'vrctst/{routing_name(frag)}_vts'
         self._prepare_stereochemistry(frag)
+        self._guard_hydrogen_fragment(frag, frag.geom, job)
+        if self._save_proton(job, frag.atom, frag.geom, frag.charge, frag.mult):
+            return job
         mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
         kwargs = self.get_qc_arguments(job, mult, frag.charge, frag.nel, vts=1)
         # Add chk to fragments only
@@ -1414,8 +1443,8 @@ class QuantumChemistry:
             return []
 
         rows = list(self.db.select(name=job))
-        if (not (self.qc == 'qchem' and not self.use_sella)
-                and rows and rows[-1].data.get('hess') is not None):
+        if rows and rows[-1].data.get('hess') is not None and (
+                rows[-1].data.get('proton_reference') or self.qc != 'qchem' or self.use_sella):
             return np.asarray(rows[-1].data['hess'])
 
         if (self.use_sella and self.frequency_mode != 'native_hessian') or self.qc == 'fc':
@@ -1606,6 +1635,11 @@ class QuantumChemistry:
             ==> this one resets the step number to 0
         '''
 
+        last = next(self.db.select(name=job, sort='-id', limit=1), None)
+        # A worker from an older run may still have left a pickle or a log.
+        # Its result cannot supersede the exact isolated-proton reference.
+        if last is not None and last.get('data', {}).get('proton_reference'):
+            return last.data['status']
         loaded_data = self.ingest_pkl(job)
         if loaded_data is not None:
             mol = Atoms(symbols=loaded_data['sym'], positions=loaded_data['pos'])
@@ -1629,6 +1663,7 @@ class QuantumChemistry:
                 os.remove(f'{job}.pkl')
             except FileNotFoundError:
                 pass
+            last = next(self.db.select(name=job, sort='-id', limit=1), None)
 
         logger.debug('Checking job {}'.format(job))
         if self.queuing == 'pbs':
@@ -1660,7 +1695,7 @@ class QuantumChemistry:
             sys.exit()
 
         logger.debug('Checking for job {} in db'.format(job))
-        if self.is_in_database(job):
+        if last is not None:
             logger.debug('{} is in db'.format(job))
             for i in range(1):
                 if self.qc == 'gauss':

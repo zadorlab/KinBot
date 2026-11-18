@@ -236,6 +236,47 @@ def test_corrected_or_unaffected_results_remain_reusable(tmp_path, case, model):
     check_h2_cation_cache(qc, 'job')
 
 
+def test_pes_distinguishes_proton_and_hydride_energies(tmp_path, monkeypatch):
+    from ase.db import connect
+    from kinbot import pes
+
+    monkeypatch.chdir(tmp_path)
+    name = '10000000000000000001'
+    job = name + '_well'
+    par = {'qc': 'gauss', 'single_point_qc': 'molpro', 'single_point_key': 'ENERGY'}
+    monkeypatch.setattr(pes, 'logger', logging.getLogger('KinBot'), raising=False)
+    monkeypatch.setattr(pes, 'ensure_current_run', lambda directory: None)
+    for well, charge, energy in (('proton', 1, 0.), ('hydride', -1, -14.)):
+        (tmp_path/well).mkdir()
+        db = connect(str(tmp_path/well/'kinbot.db'))
+        db.write(Atoms('H'), name=job, data=dict(charge=charge, multiplicity=1,
+                                                energy=energy, zpe=0., status='normal'))
+    (tmp_path/'molpro').mkdir()
+    (tmp_path/'molpro'/f'{name}.out').write_text(' SETTING ENERGY = -0.525\n')
+    # The same Molpro filename can correspond to a hydride; a proton has an exact energy.
+    assert pes.get_energy(['hydride'], name, 0, 0, par=par, with_l3=True)[2] == (1, -.525)
+    assert pes.get_energy(['proton'], name, 0, 0, par=par, with_l3=True)[2] == (1, 0.)
+    for order in (['hydride', 'proton'], ['proton', 'hydride']):
+        with pytest.raises(pes.PESInputError, match='singlet hydrogen name has charges'):
+            pes.get_energy(order, name, 0, 0)
+
+
+def test_saved_fairchem_hydride_with_old_proton_energy_requires_recalculation(tmp_path):
+    from ase.db import connect
+    from kinbot.fairchem_utils import check_h2_cation_cache
+
+    db = connect(str(tmp_path/'kinbot.db'))
+    qc = SimpleNamespace(db=db, par={'fc_task_name': 'omol'})
+    job = '10000000000000000001_well'
+    db.write(Atoms('H'), name='stereochemistry/' + job,
+             data={'input_charge': -1, 'input_multiplicity': 1})
+    db.write(Atoms('H'), name=job, data={'energy': 0., 'status': 'normal'})
+    with pytest.raises(ValueError, match='hydride'):
+        check_h2_cation_cache(qc, job)
+    db.write(Atoms('H'), name=job, data={'energy': -14., 'status': 'normal'})
+    check_h2_cation_cache(qc, job)
+
+
 @pytest.mark.parametrize('high_level', [0, 1])
 @pytest.mark.parametrize('conformers', [0, 1])
 @pytest.mark.parametrize('model', ['uma-m-1p1', 'missing_weights.pt'])

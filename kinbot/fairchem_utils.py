@@ -103,14 +103,20 @@ class UncorrectedH2Result(ValueError):
 
 
 def check_h2_cation_cache(qc, job, directory='.'):
-    """Do not reuse the old, uncorrected UMA H2+ minimum on restart."""
+    """Check saved hydrogen energies affected by earlier FairChem workers."""
     if qc.par.get('fc_task_name') != 'omol':
         return
     # Check the saved record even when its model weights are unavailable.
     # A missing checkpoint cannot establish that an old H2+ result is non-UMA.
     row = next(qc.db.select(name=job, sort='-id', limit=1), None)
-    if (row is None or list(row.symbols) != ['H', 'H']
-            or row.data.get('h2_cation_reference')
+    if row is None:
+        return
+    # Older FairChem workers assigned zero to a singlet H filename used
+    # by both proton and hydride. A hydride must have a calculated energy.
+    atomic_zero = (list(row.symbols) == ['H'] and row.data.get('energy') == 0.
+                   and not row.data.get('atomic_energy_evaluated')
+                   and not row.data.get('proton_reference'))
+    if not atomic_zero and (list(row.symbols) != ['H', 'H'] or row.data.get('h2_cation_reference')
             or row.data.get('uma_model') is False):
         return
     state = dict(row.data)
@@ -143,6 +149,11 @@ def check_h2_cation_cache(qc, job, directory='.'):
                     break
         except (OSError, SyntaxError, ValueError, TypeError):
             pass
+    if atomic_zero:
+        if charge == -1:
+            raise ValueError(f'{os.path.join(directory, job)}: saved FairChem hydride (H-) '
+                             'has the old zero proton energy. Recalculate in a fresh directory.')
+        return
     if mult is None:
         # The last digit of KinBot's species number is its multiplicity.
         # Limit the fallback to isolated H2 species jobs: a reaction name

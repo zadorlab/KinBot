@@ -166,6 +166,8 @@ def test_pes_saved_declared_exit_uses_product_threshold_at_the_selected_level(
     def energy_reader(jobs, job, ts, *args, **kwargs):
         requested_jobs.append((job, ts))
         assert not ts, 'Declared H2 loss must never request a saddle energy.'
+        if kwargs.get('with_l3'):
+            return (*energies[job], (l3, l3energies[job]))
         return energies[job]
 
     captured = {}

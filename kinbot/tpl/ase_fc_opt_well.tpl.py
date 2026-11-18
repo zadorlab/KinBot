@@ -57,12 +57,11 @@ if {order} == 0:
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
     try:
-        if '{label}'.split('_')[0] == '10000000000000000001':
-            e = 0.0
-        else:
-            e = mol.get_potential_energy()
-            del mol.calc.results['forces']
+        e = mol.get_potential_energy()
+        del mol.calc.results['forces']
         data={{'energy': e,
+               'charge': kwargs['charge'], 'multiplicity': kwargs['mult'],
+               'atomic_energy_evaluated': True,
                'frequencies': np.array([]),
                'zpe': 0.0,
                'hess': np.zeros([3, 3]),

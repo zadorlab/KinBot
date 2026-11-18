@@ -61,8 +61,13 @@ Hessian onto coordinates in a different orientation and report an erroneous
 H2 or OH frequency. Before using `pes ... no-kinbot` on those calculations,
 rerun the affected KinBot wells from their saved Gaussian results to rewrite
 the fragment data, including wells with only saddle-point exits.
-An atom has no vibrations. For a bare proton, KinBot now
-requests one Gaussian processor even though the ion has no electrons.
+For isolated gas-phase H+ (one H nucleus, charge +1, multiplicity 1), KinBot
+uses zero electronic energy, zero ZPE and no vibrational frequencies at every
+gas-phase electronic structure level, including the FairChem OMol models.
+A proton calculation needs no worker. H atoms, hydride ions and molecular
+ions such as H2+ retain their own electronic energies. Older FairChem workers
+assigned zero to H− when its filename matched H+. If KinBot detects that
+value for a hydride, recalculate it in a fresh directory.
 
 If a submitted PBS or Slurm refinement leaves the queue without writing a
 result, KinBot allows 60 seconds for the worker's files to appear. After a

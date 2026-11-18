@@ -14,6 +14,7 @@ from ase.units import invcm, Hartree, kcal, mol, kB
 from ase.thermochemistry import IdealGasThermo
 import rmsd
 
+from kinbot.exceptions import is_proton
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
@@ -855,7 +856,11 @@ class Conformers:
         failed here instead of hiding the conformers after it.
         """
         if not os.path.exists(self.low_log()):
-            return 0
+            if not is_proton(self.species.atom, self.species.charge, self.species.mult):
+                return 0
+            low = next(self.db.select(name=f'conf/{self.get_name()}_low', sort='-id', limit=1), None)
+            if low is None or not low.data.get('proton_reference'):
+                return 0
         add = 'semi_emp_' if self.semi_emp else ''
         # conf/<name>_low belongs to the L1 search; its count does not apply
         # to the L0 (_semi_emp_) search, which is found by name instead.
@@ -890,6 +895,11 @@ class Conformers:
         source = lowest_job + self.log_ext(lowest_job)
         if os.path.isfile(source):
             copyfile(source, self.low_log())
+        elif is_proton(self.species.atom, self.species.charge, self.species.mult):
+            # The gas-phase proton has no worker log to copy.
+            low = next(self.db.select(name=lowest_job, sort='-id', limit=1), None)
+            if low is not None and low.data.get('proton_reference'):
+                return
         else:
             logger.warning('%s is missing; %s not written, so a restart will '
                            'check every conformer again.', source, self.low_log())

@@ -2126,8 +2126,12 @@ def test_preflight_refreshes_a_stale_generated_mrcc_site_setup():
             },
             'limits': {'max_nodes': 1}, 'tasks': [task],
         }
-        with patch.dict(os.environ, {
-                'PATH': '/usr/bin:/bin', 'LOADEDMODULES': ''}, clear=True):
+        # Model an actually unavailable initial installation, independently
+        # of any conventional MRCC installation on the test host.
+        with patch('kinbot.anl.site._discover_backend',
+                   side_effect=lambda backend, programs: (None, dict.fromkeys(programs))), \
+                patch.dict(os.environ, {
+                    'PATH': '/usr/bin:/bin', 'LOADEDMODULES': ''}, clear=True):
             run_dir = prepare(spec, root / 'run')
         assert str(install) not in (run_dir / 'site_setup.sh').read_text()
 

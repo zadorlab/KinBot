@@ -5,11 +5,71 @@ CC calculation is not, by itself, a reason to spend another allocation.
 This ledger supersedes the earlier recommendation to finish TS2/TS3 CC
 refinement and all independent native paths before making those judgments.
 
-**Current new-QC list: empty.** No CC retries, duplicate Gaussian IRCs, fresh
-Hessians, new active-space screens, or whole-panel restart are selected. The
-remaining R9 gaps below are real, but their existence does not yet define a
-necessary, nonduplicating calculation. This does not approve R9 or declare the
-remaining 44-case campaign finished.
+**Selected additional work: five initial allocations.** The exact retained-channel
+review now admits four B2PLYP relaxed scans and the single missing reverse path
+for `ch3ss_rxn_1_1`. No failed CC diagnostic is restarted. The user's current
+Blodgett queue/process check returned no output; the owners still reconcile
+live allocations if the site changes before launch.
+
+## Exact admitted calculations
+
+All new scans use B2PLYP-D3(BJ)/cc-pVTZ, the preserved neutral-doublet states,
+UltraFine integration and SCF XQC/Conver=8. Each constrained optimization has a
+150-cycle ceiling. The dispatcher retains input hashes, job identities and
+native outcomes. The existing shared 20-job policy and node exclusions apply.
+
+| Job | Missing evidence and reuse check | Bounded calculation | Decision affected |
+|---|---|---|---|
+| `w3_cs_out/scan` | Paper-seeded TS3 and native `12_2` connect W2 to encounters, not W3. The old W3 C–S(H) scan is L1 and drops abruptly after its maximum | Start at accepted W3; extend C–S(H) from 1.830805 to 4.230805 Å in 24 increments | Resolve the W3 β-scission inner branch and identify a possible saddle seed |
+| `complex_a_cs_in/scan` | Valid B2PLYP encounter A exists, but its W3 approach is untraced | Contract its C···S(H) distance from 3.873747 to 1.85 Å in 21 increments | Identify whether A reaches W3, W2, or another branch |
+| `complex_b_cs_in/scan` | Valid B2PLYP encounter B exists; the paper-seeded path instead reaches W2 | Contract C···S(H) from 2.808133 to 1.85 Å in 10 increments | Resolve the independent B-side approach and hysteresis/branch switching |
+| `w4_ch_out/scan` | Direct CH3SS H loss is retained; its old L1 scan/guessed saddles do not settle the B2PLYP bottleneck | Extend C–H from 1.087994 to 5.087994 Å in 40 increments | Test direct CH3SS → CH2SS + H without borrowing TS5 from another parent |
+| `ch3ss_rxn_1_1/saddle_IRC_R` | Retained source `791471490990000000002_intra_H_migration_2_4`; B2PLYP saddle is 70.730 kcal/mol above W4. F already converged in 95 steps; R has no allocation/result | Existing Sella owner, original frozen settings, this case only; stop after path/endpoint optimization | Resolve the other side of this retained competing H-migration route |
+
+The two encounter-start scans are different initial branches, not repeated
+forward paths from W3. The old L1 W3 trace falls from −836.2571703 to
+−836.2802785 Eh between 2.930805 and 3.030805 Å. Following both encounter
+approaches makes the potential branch change observable. Source coordinates,
+atom maps, hashes and old scan points are frozen in
+[paper_closure_inputs.json](../paper_closure_inputs.json).
+
+## Closure decisions after these results
+
+| Observation | Required next action | Acceptance evidence |
+|---|---|---|
+| Continuous scan maximum on the intended branch | Refine that geometry as an unconstrained B2PLYP saddle, then run its two path directions through the existing owner | Small stationary gradient, one reaction-mode imaginary frequency, both atom-mapped connections |
+| Scan changes H attachments or electronic branch | Identify the first switch and compare the opposing trace before selecting a local constrained follow-up | A continuous intended branch; an energy jump is not a transition-state energy |
+| Monotonic intended branch reaches the existing outer domain | Match the inner/outer geometry, states and asymptote before assigning the retained bottleneck treatment | Continuous sampled path and an applicable outer VRC surface; monotonic finite sampling alone is not a universal barrierlessness proof |
+| Missing reverse IRC finishes | Map both endpoints to the existing spectrum/geometry library | Reuse matching spectra; calculate a frequency only for a genuinely new retained endpoint |
+| Any task fails or exhausts its bound | Diagnose the native output and exact attempt before admitting another job | A retry must address an evidenced failure class and still change a consequential decision |
+
+These are the initial jobs whose inputs can be fixed from current evidence.
+A saddle geometry or branch-specific follow-up cannot be selected honestly
+before its supporting scan exists. The owners preserve all results for that
+next decision; they do not automatically promote a constrained maximum into MESS.
+
+## Reused TS5 and fragment threshold ledger
+
+Seven retained well/fragment records were independently matched to native
+Gaussian inputs/outputs: theory, charge/multiplicity, correlated B2PLYP energy,
+ZPE, frequencies, normal termination, and geometry distance matrices. Maximum
+geometry discrepancy is below 0.000001 Å. See
+[reused_fragment_verification.json](reused_fragment_verification.json).
+
+| Quantity | kcal/mol relative to W4 |
+|---|---:|
+| W3 | 21.022629 |
+| HC(=S)SH singlet + H doublet | 60.080360 |
+| Paper-like B2PLYP TS5 | 64.916106 |
+| CH2SS singlet + H doublet | 73.003054 |
+| CH2S singlet + SH doublet | 43.875989 |
+
+Convention: B2PLYP-D3(BJ)/cc-pVTZ electronic energies plus unscaled harmonic
+ZPE, with the recorded spin-free states. TS5 lies **4.835746 kcal/mol above**
+HC(=S)SH + H in this convention. Existing separate fragments supply that
+threshold; the recaptured optimized IRC endpoint is not used for it. No new
+fragment QC or CC path is selected. This ledger does not silently apply a
+spin–orbit, rotor or anharmonic correction.
 
 ## Paper comparison: decisions available now
 
@@ -63,7 +123,7 @@ energy ledger rather than inferred from this diagnostic task's failure.
 |---|---|---|
 | W3 → CH2S + SH inner route | Map all existing B2PLYP saddles/scans to W3 and encounter arrangements; the nominal TS3 search and `12_2` both lead elsewhere | If this direct route is retained and the inner path remains unsupported, a targeted B2PLYP parent-to-encounter investigation is needed. Outer CAS/VRC evidence cannot substitute for it |
 | Direct CH3SS → CH2SS + H | Review retained parent-bound dissociation evidence; prior guessed saddles gave other chemistry or failed | If retained, establish its bottleneck at the production geometry level. Failed TS searches do not authorize PST |
-| TS5 product threshold | Match existing isolated HC(=S)SH and H states, geometries and energy convention; do not use recaptured/loose complexes as separated products | Only a missing or invalid required fragment reference warrants a new calculation |
+| TS5 product threshold | Matched native isolated HC(=S)SH and H records; threshold 60.080360 kcal/mol above W4 in the stated B2PLYP convention | Resolved by reuse; zero new fragment calculations |
 | Other PST candidates | Bind all retained entries in the 105-edge inventory to their actual inner/outer evidence | Calculate only a demonstrated missing bottleneck in the selected scope; a PST label is not an admission rule |
 | Remaining 44 L2 cases | Reconcile the 13 completed directions, reuse identical validated endpoint spectra, map each candidate to retained edges | Only a missing retained direction or genuinely new endpoint spectrum; the 75 missing direction records are not automatically 75 required jobs |
 | 24 L1 energy exclusions | Preserve 14 usable L2 energies; reconcile ten unresolved saddle refinements with retained scope and actual energy range | Only an exclusion needed for the final scope and unsupported by another valid bound. Do not repeat all ten failed searches automatically |
@@ -91,22 +151,16 @@ a complete 105-edge inventory is not independent validation of every edge.
 - Energy-exclusion audit: 14 usable L2 decisions span 151.24–170.98 kcal/mol;
   ten attempted saddle refinements remain unresolved. The 151.24 case is not
   a robust exclusion across a 140–155 kcal/mol study interval.
-- The native owner has a finished receipt. The separate L2 owner's saved
-  running record and empty log do not establish current process/queue state.
+- The user reports no current jobs or matching validation owners from the
+  requested queue/process check. The stale saved L2 owner record is superseded.
+  A replay of the captured `1_1` case with the actual QC status reader requests
+  only `saddle_IRC_R`, reusing its forward result.
 - MESS remains paused. Corrected R9 launch inputs have not passed acceptance.
 
 ## Commands for this decision
 
-There is **no QC staging or retry command selected by this review**. In
-particular, do not use a whole-panel launcher or the optional TS1-F CC retry as
-a finalization step. The justified immediate operation is the consolidated
-read-only capture in [RECOVERY_HANDOFF.md](RECOVERY_HANDOFF.md), after updating
-the checkout. Its output resolves the remaining owner/queue uncertainty and
-allows completed work to be adopted before selecting any missing jobs.
-
-For any future proposed task, record all five items before adding it to a
-staging command: exact retained channel; decision affected; evidence missing;
-existing-result reuse check; bounded calculation with unchanged accepted
-geometry level and electronic-state definitions. Current approved task IDs:
-`[]`. This ledger has no controller-consumed approval field and cannot release
-held work by itself.
+Use [RECOVERY_HANDOFF.md](RECOVERY_HANDOFF.md). It stages the four frozen scans
+and starts their existing dispatcher plus the selected Sella owner. The other
+43 L2 cases and all failed CC records remain preserved. MESS remains paused.
+The five initial allocations are deliberately scoped to missing consequential
+evidence; a blanket restart would add work without a corresponding decision.

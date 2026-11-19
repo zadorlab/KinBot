@@ -171,7 +171,7 @@ def observation(qc, job, seed):
     return result
 
 
-def tick(case, qc, parameters):
+def tick(case, qc, parameters, *, endpoint_frequencies=True):
     state_path = Path('recheck.json')
     state = json.loads(state_path.read_text()) if state_path.exists() else dict(schema=1, step=0)
     if state.get('complete'):
@@ -240,6 +240,11 @@ def tick(case, qc, parameters):
                          and all(statuses[d]=='normal' and state['irc_paths'].get(d,{}).get('converged') for d in statuses))
                 if not valid:
                     state.update(complete=True, outcome='irc_incomplete')
+                elif not endpoint_frequencies:
+                    # This is a deliberate stop for connectivity review. Keep
+                    # the full case incomplete so a later ordinary owner can
+                    # still perform its endpoint validation if needed.
+                    state.update(complete=False, outcome='irc_paths_available')
                 else:
                     jobs = {}
                     for direction, endpoint in state['endpoints'].items():
@@ -257,9 +262,23 @@ def tick(case, qc, parameters):
     return state
 
 
-def run(root, interval=10):
+def select_cases(manifest, only=None):
+    """Restrict execution without changing frozen scientific definitions."""
+    cases = manifest['cases']
+    if only is None:
+        return cases
+    requested = set(only)
+    known = {case['name'] for case in cases}
+    if not requested or requested - known:
+        raise ValueError(f'Unknown or empty case selection: {sorted(requested - known)}')
+    return [case for case in cases if case['name'] in requested]
+
+
+def run(root, interval=10, *, only=None, paths_only=False):
     root = Path(root).resolve()
     manifest = validate(json.loads((root/'campaign.json').read_text()))
+    selected = select_cases(manifest, only)
+    restricted = only is not None or paths_only
     with (root/'controller.lock').open('a') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -269,7 +288,7 @@ def run(root, interval=10):
         from kinbot.driver_status import run_recorded
         def execute():
             contexts = {}
-            for case in manifest['cases']:
+            for case in selected:
                 with in_directory(root/case['name']):
                     if json.loads(Path('case.json').read_text()) != case:
                         raise ValueError('Seed definition changed after staging.')
@@ -281,16 +300,28 @@ def run(root, interval=10):
                     parameters = Parameters('input.json',show_warnings=False).par
                     contexts[case['name']] = (QuantumChemistry(parameters), parameters)
             while True:
-                results = {}
-                for case in manifest['cases']:
+                path = root/'results.json'
+                results = json.loads(path.read_text()) if path.exists() else {}
+                current = {}
+                for case in selected:
                     with in_directory(root/case['name']):
-                        results[case['name']] = tick(case, *contexts[case['name']])
+                        current[case['name']] = tick(case, *contexts[case['name']],
+                            endpoint_frequencies=not paths_only)
+                results.update(current)
                 atomic_json(root/'results.json', results)
-                if all(r.get('complete') for r in results.values()):
+                if all(r.get('complete') or (paths_only and
+                       r.get('outcome') == 'irc_paths_available') for r in current.values()):
                     return 0
                 time.sleep(interval)
         with in_directory(root):
-            return run_recorded(execute, 'controller.json')
+            if restricted:
+                # A selected execution is not completion of the whole panel.
+                # Use a separate receipt while retaining the same owner lock.
+                atomic_json(root/'selected_execution.json', dict(schema=1,
+                    cases=[case['name'] for case in selected], paths_only=paths_only,
+                    campaign_complete=False, scientific_approval=False))
+            return run_recorded(execute,
+                'controller.selected.json' if restricted else 'controller.json')
 
 
 def main(argv=None):
@@ -305,11 +336,16 @@ def main(argv=None):
         child.add_argument('root',type=Path)
         if name=='status':
             child.add_argument('--details',action='store_true')
+        else:
+            child.add_argument('--only', action='append', metavar='CASE',
+                help='Run only this frozen case; repeat to select several.')
+            child.add_argument('--paths-only', action='store_true',
+                help='Stop after path/endpoint optimization; do not request endpoint frequencies.')
     args=parser.parse_args(argv)
     if args.action=='stage':
         print(stage(args.manifest,args.root,args.source_root))
     elif args.action=='run':
-        run(args.root)
+        run(args.root, only=args.only, paths_only=args.paths_only)
     else:
         manifest=validate(json.loads((args.root/'campaign.json').read_text()))
         for case in manifest['cases']:

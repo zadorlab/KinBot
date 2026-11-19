@@ -3,7 +3,8 @@
 **19 November superseding decision:** use [the necessity ledger](review_20261119/CALCULATION_DECISIONS.md)
 and [current handoff](review_20261119/RECOVERY_HANDOFF.md). Earlier launch, sampling
 and CC follow-up instructions below are historical. The existing B2PLYP results
-already support the listed connectivity judgments; no new QC task is selected.
+already support the listed connectivity judgments. Five additional allocations
+are now selected for specific missing inner-path/retained-direction evidence.
 
 **16 November update:** use [the reconciliation handoff](RECONCILIATION.md) for
 the existing panel. Native evidence corrects the earlier TS5 endpoint inference

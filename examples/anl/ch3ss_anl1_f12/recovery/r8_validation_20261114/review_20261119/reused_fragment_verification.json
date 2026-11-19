@@ -1,0 +1,96 @@
+{
+  "checks": [
+    {
+      "point": "W3",
+      "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/791472110370000000002_well_high.log",
+      "sha256": "7e080b5145b59275161ff0012cab5c1a83577fed71c2537c5d3e8ef12fae8e07",
+      "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/791472110370000000002_well_high.com",
+      "input_sha256": "f8394c9236a35f4458d87edf92d917af585a658af45bff7393cf208bb247aca2",
+      "energy_hartree": -836.00846138951,
+      "charge": 0,
+      "multiplicity": 2,
+      "normal_termination": true,
+      "frequencies_match": true,
+      "geometry_distance_error_angstrom": 9.446830708803589e-07
+    },
+    {
+      "point": "W4",
+      "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/791471490990000000002_well_high.log",
+      "sha256": "6601efa0dbadaa8e4b83c61e40dbc404ffd54a7236af08e52630d8ae80e34641",
+      "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/791471490990000000002_well_high.com",
+      "input_sha256": "d60f4e33bc138f034308ab285c0acef53a59e337c4a91336fd4be82c05775584",
+      "energy_hartree": -836.04387408136,
+      "charge": 0,
+      "multiplicity": 2,
+      "normal_termination": true,
+      "frequencies_match": true,
+      "geometry_distance_error_angstrom": 7.925339899905737e-07
+    },
+    {
+      "point": "HCSSH",
+      "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/781341430350000000001_well_high.log",
+      "sha256": "09d3b3123811b128263da6a93c063bd3e23429592bf421bd088aae74041cc879",
+      "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/781341430350000000001_well_high.com",
+      "input_sha256": "7188a4e0307917520e9334cbcec96b80b240192bdeec93d6c6ad1451f9b63f39",
+      "energy_hartree": -835.43624374996,
+      "charge": 0,
+      "multiplicity": 1,
+      "normal_termination": true,
+      "frequencies_match": true,
+      "geometry_distance_error_angstrom": 5.397729043732369e-07
+    },
+    {
+      "point": "H",
+      "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/10000000000000000002_well_high.log",
+      "sha256": "ff8ab2042f0e62d7ffd5f7b3420eb260e4c5afd52eaaf763c97279cedaa8a2cc",
+      "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/10000000000000000002_well_high.com",
+      "input_sha256": "096c6775fd043afdaad0a941f1a2624d2bb68150c1a8b7a70528d7760bc584b4",
+      "energy_hartree": -0.49861418307151,
+      "charge": 0,
+      "multiplicity": 2,
+      "normal_termination": true,
+      "frequencies_match": true,
+      "geometry_distance_error_angstrom": 0.0
+    },
+    {
+      "point": "CH2SS",
+      "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/781341120660000000001_well_high.log",
+      "sha256": "630f32c1e306fef60b547e0444f53a8843739538bd3611dac081a733059ddcae",
+      "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/781341120660000000001_well_high.com",
+      "input_sha256": "5965d04ca8428b3b1a7943f125641929a1fb33a8e016b52d0890d7665e581477",
+      "energy_hartree": -835.41702812655,
+      "charge": 0,
+      "multiplicity": 1,
+      "normal_termination": true,
+      "frequencies_match": true,
+      "geometry_distance_error_angstrom": 6.790242921272949e-07
+    },
+    {
+      "point": "CH2S",
+      "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/460700680000000000001_well_high.log",
+      "sha256": "8544476a99facf71b0bce6118844da6a320ca2e905a41aa7293ecb6daee0033d",
+      "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/460700680000000000001_well_high.com",
+      "input_sha256": "87e5d95d2bd5ed4582c5a7bbfaad3b50c3408750a5f61a065f26f78791d19ed1",
+      "energy_hartree": -437.33264740779,
+      "charge": 0,
+      "multiplicity": 1,
+      "normal_termination": true,
+      "frequencies_match": true,
+      "geometry_distance_error_angstrom": 3.8439969518577755e-07
+    },
+    {
+      "point": "SH",
+      "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/330330000000000000002_well_high.log",
+      "sha256": "6dde5988d5c5c3e3ed4750a8730adb96fe0c017714ce3c1e2a7c3e13c787d43f",
+      "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/330330000000000000002_well_high.com",
+      "input_sha256": "37fa1dcc16e450b3c7439f7342383a97e6d98dbbe2acb6bcac0f2fb3216baf28",
+      "energy_hartree": -398.63289983414,
+      "charge": 0,
+      "multiplicity": 2,
+      "normal_termination": true,
+      "frequencies_match": true,
+      "geometry_distance_error_angstrom": 2.041783779827e-07
+    }
+  ],
+  "new_fragment_calculations": 0
+}

@@ -16,7 +16,7 @@
 | Full scouting network | 105 connections: CH3S 5 PST + 5 RRHO/union; CH3SS 42 PST + 53 RRHO/union |
 | L1 energy-exclusion audit | All 24 recorded decisions inspected: 14 have usable L2 energies; 10 have unresolved saddle refinements |
 
-The archive has no embedded source manifest. Its checksum identifies the received snapshot; execution receipts independently verify captured output files. The native panel's `completion.json` explicitly says `native_attempts_finished_review_required`, with scientific approval false. The separate `remaining_l2/controller.json` still says running; that saved status does not establish whether its process is currently alive. The exported L2 owner log is empty.
+The archive has no embedded source manifest. Its checksum identifies the received snapshot; execution receipts independently verify captured output files. The native panel's `completion.json` explicitly says `native_attempts_finished_review_required`, with scientific approval false. The separate `remaining_l2/controller.json` still says running and its exported owner log is empty. The user's subsequent `squeue` and matching-process checks returned no output, superseding that stale operational receipt.
 
 Local raw evidence is under `local_runs/r8_validation_review_20261119/evidence/`. Below, `native/...` and `remaining_l2/...` are relative to that directory. Compact, reviewable data are in [review_20261119](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/). The full [task inventory](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/task_inventory.tsv) and [network inventory](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/full_network_inventory.tsv) retain the individual identities.
 
@@ -32,7 +32,7 @@ The earlier direct-L2 source (SHA256 `2af5e4050709a976e21d6b483dcd621b65de482fcd
 | TS2: W2 ↔ W1 | Paper-seeded B2PLYP search instead gives W2 arrangements (158/119 steps, positive spectra). Native `54_1` gives W2 ↔ complex A (158/50 steps). The nominal paper-seeded saddle is not the expected B2PLYP connection; a native B2PLYP route supplies that connectivity | None to report this B2PLYP result. CC optimization/frequencies would answer a separate method-specific question |
 | TS3: W3 ↔ W1 | Paper-seeded B2PLYP search gives W2 ↔ complex B (208/91 steps, positive spectra). The paper W3 connection was not recovered by this search | None to report non-recovery at B2PLYP. The missing W3 inner route is a separate R9 model decision, not justification to keep repairing CC |
 | TS4: W4 ↔ W2 | Sella paths converge in 149/129 steps with positive endpoint spectra; native `2_1` supplies the same connection | None. Reuse one mapped representative; no duplicate Gaussian/CC path required |
-| TS5: W3 → HC(=S)SH + H | B2PLYP parent-side evidence reaches W3; two native Gaussian product-side paths show H departure followed by recapture in unconstrained optimization. An inner H-loss saddle is supported; the recaptured minimum is not the separated product reference | None to reject a barrierless-only representation. Quantitative product-threshold/outer treatment requires the existing fragment energy and state ledger first; no CC path retry |
+| TS5: W3 → HC(=S)SH + H | B2PLYP parent-side evidence reaches W3; two native Gaussian product-side paths show H departure followed by recapture in unconstrained optimization. An inner H-loss saddle is supported; the recaptured minimum is not the separated product reference | None to reject a barrierless-only representation. The matched isolated HC(=S)SH + H threshold is 60.080360 kcal/mol relative to W4; B2PLYP TS5 is 64.916106 in the same harmonic-ZPE convention. Reuse these records; no CC path retry |
 | TS6: W2 ↔ W3 | Paper-like B2PLYP path converges in 142/117 steps. Compact `12_1` also connects W2/W3 (131/129). Paper-like CC stationary-point evidence is additionally available | None for B2PLYP connectivity. Preserve distinct mapped saddles; stop failed compact-CC refinement retries |
 | Lower native `12_2` | Earlier Sella paths converge in 146/107 steps with positive endpoint spectra and connect W2 ↔ complex B. Latest independent Gaussian attempts remain short or point-limited | Correct its B2PLYP assignment now; remove it from the W2–W3 barrier competition. No extra departure trial required solely for this reassignment |
 | CH2SH H loss | `scale_1p6` connects CH2SH ↔ CH2S···H (80/123 steps); `scale_1p9` duplicates the result | Reuse the inner saddle; no new CC or duplicate IRC for its existence |
@@ -80,8 +80,8 @@ The following table covers all 16 PST entries in the historical lean/broader can
 | CH3SS `nobar_3` | CH3SS → CH3S + S | Existing CAS(7,5) S–S subspace is distinct from the C–S subspace; bind exact state/path assets |
 | CH3SS `nobar_4,24` | Two CH2SSH configurations → triplet CH2 + HSS | Preserve configuration/atom mapping; reconcile donor-space controls and inner versus outer path coverage |
 | CH3SS `nobar_6,26` | Two CH2SSH configurations → CH2SH + S | Reconcile CAS(5,4)/CAS(7,5) historical selections using saved controls; establish any inner bottleneck |
-| CH3SS `nobar_13` | HSCH2S → CH2S + SH | Paper-seeded TS3 does not supply this B2PLYP connection. Review existing parent-bound path evidence or record a scoped missing-inner-route requirement; outer CAS approval does not fill it |
-| CH3SS `nobar_15` | HSCH2S → HC(=S)SH + H | Preserve the B2PLYP TS5 inner H-loss saddle; bind the existing fragment energies before any targeted missing-asymptote work |
+| CH3SS `nobar_13` | HSCH2S → CH2S + SH | Paper-seeded TS3 does not supply this B2PLYP connection. Four B2PLYP scans now address the missing W3/encounter and direct CH3SS H-loss branches; outer CAS approval does not fill an inner-path gap |
+| CH3SS `nobar_15` | HSCH2S → HC(=S)SH + H | Preserve the B2PLYP TS5 inner H-loss saddle; reuse the now native-verified isolated HC(=S)SH and H threshold |
 | CH3SS `nobar_23,29,31` | Three CH(SH)2 configurations → HC(=S)SH + H | Each exact configuration needs an inner-bottleneck decision. Common fragments do not license a shared barrierless surface |
 | CH3SS `nobar_39` | CH2S···SH → CH2S + SH | Outer-exit candidate; bind the exact encounter arrangement and outer-domain orbital evidence |
 | CH3SS `nobar_42` | HCS···H2S → HCS + H2S | Outer-exit candidate; reuse the reviewed HCS π/SOMO/π* space with exact endpoint/state mapping |
@@ -105,6 +105,27 @@ The following independently recomputed values use **ROHF-UCCSD(T*)-F12b T/Q sing
 Energies are kcal/mol. W2/W3/W4 have no imaginary modes; TS5 has 955.56i and TS6 856.40i cm⁻¹. These valid stationary-point results should be retained. Similar relative energies do not independently validate the connecting paths. Exact energies, ZPEs and permutations are in [cc_comparison.json](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/cc_comparison.json).
 
 Compact native `12_1` has T/Q T1 diagnostics approximately 0.0543/0.0513 and D1 0.228/0.215; its attempted refinement reached T1 0.0803 and D1 0.343 before failure. These distinguish its reliability problem from the paper-like TS6 calculation. Do not use unconverged energies, `NOCHECK`, or `IGNORE_ERROR` to complete an accepted correction. The W1 refinement and TS1-forward QZ output end without enough native termination evidence to determine their final failure mechanism; their incomplete tails do not establish an out-of-memory or CC-iteration diagnosis.
+
+### B2PLYP thresholds recovered without additional QC
+
+Seven existing well/fragment records were independently matched against their
+native Gaussian inputs and outputs: theory, charge, multiplicity, correlated
+energy, harmonic ZPE, frequencies, normal termination and geometry. The largest
+pair-distance discrepancy is below 0.000001 Å. Hashes and exact sources are in
+[reused_fragment_verification.json](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/reused_fragment_verification.json).
+
+| Point or separated threshold | B2PLYP + unscaled harmonic ZPE, kcal/mol relative to W4 |
+|---|---:|
+| W3 | 21.022629 |
+| HC(=S)SH singlet + H doublet | 60.080360 |
+| Paper-like TS5 | 64.916106 |
+| CH2SS singlet + H doublet | 73.003054 |
+| CH2S singlet + SH doublet | 43.875989 |
+
+TS5 is 4.835746 kcal/mol above its separated products in this explicitly
+spin-free harmonic convention. No new fragment energy is needed for that
+comparison. Quantitative comparison with the paper still requires its stated
+rotor/ZPE and spin conventions; the two conventions are not silently combined.
 
 ### A new inconsistency inside the supplied paper SI
 
@@ -133,7 +154,7 @@ Paper reproduction must distinguish **literal SI input** from an **energy-consis
 
 These descriptions report atom attachments, not inferred bond orders or independently established electronic localization. Close matches to prior CH2SH geometries are at 0.00003–0.00016 Å RMSD. New endpoint structures require their own identity and frequency validation. Distances, complete coordinates and database row IDs are in [remaining_l2_database_audit.json](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/remaining_l2_database_audit.json).
 
-Endpoint minimization runs inside the parent IRC allocation. Absence of a separate `_prod.exitcode` is therefore not evidence of failure. The 13 captured paths have successful parent receipts and optimized-endpoint database rows, while saved recheck summaries remain stale. Preserve and adopt those results. Submission admission can wait inside the current sequential controller loop, but this export has no live process stack or scheduler snapshot that proves the reason for the incomplete campaign.
+Endpoint minimization runs inside the parent IRC allocation. Absence of a separate `_prod.exitcode` is therefore not evidence of failure. The 13 captured paths have successful parent receipts and optimized-endpoint database rows, while saved recheck summaries remain stale. Preserve and adopt those results. Submission admission can wait inside the sequential controller loop, but the export does not prove the reason it stopped. The user subsequently confirmed no queued work or matching owner. A replay on a copy of the captured `ch3ss_rxn_1_1` case, with the actual QC status reader, adopts F and requests exactly R. Its retained H-migration saddle is 70.730 kcal/mol above W4; resolving that one missing connection is admitted. The other 43 cases are not restarted.
 
 ## Reassessment of the 24 energy exclusions
 
@@ -186,17 +207,31 @@ The full [calculation decision ledger](../examples/anl/ch3ss_anl1_f12/recovery/r
 | Order | Action | Calculation decision |
 |---|---|---|
 | 1 | Apply the B2PLYP paper/connectivity judgments above | Analysis and model mapping; zero new QC |
-| 2 | Reconcile the 13 completed remaining-L2 directions and the current owner | Read existing outputs and current queue; zero new QC for the inventory |
+| 2 | Reconcile the 13 completed remaining-L2 directions and the current owner | Reuse captured results; empty live queue/process check supplied. Resume only `ch3ss_rxn_1_1` to obtain its missing R path |
 | 3 | Bind each retained R9 edge to exact B2PLYP evidence | Reuse valid paths and matching endpoint spectra; select a missing direction/frequency only if that edge is retained and no equivalent valid evidence exists |
-| 4 | Resolve retained direct W3 β-scission and CH3SS H-loss treatment | Existing evidence does not authorize barrierless PST. A missing inner-path calculation is justified only after exact retained-channel and existing-scan review; no blanket CC substitute |
+| 4 | Resolve retained direct W3 β-scission and CH3SS H-loss treatment | Four frozen B2PLYP scans: W3 outward, encounter A/B inward, W4 C–H outward. Review continuous maxima/branch switches before selecting any unconstrained saddle/path follow-up |
 | 5 | Freeze the same-convention energy and paper SI ledgers | Reuse completed energies. Optional higher-level benchmarks remain optional; literal versus energy-consistent SI Eckart comparison requires no QC |
 | 6 | Correct topology/counting/energy distribution, then reassess kinetics and scope | MESS remains paused; historical pruning percentages are not transferred to the changed model |
 | 7 | Bind human-reviewed orbital assets and verify generated R9 inputs | Reuse exact channel/state/basis assets. Additional orbital work requires a demonstrated applicability gap |
 
-**Current additional-QC admission: zero.** This is a statement about what has passed necessity review, not a claim that every R9 model gap is closed. No existing failed CC attempt, redundant independent IRC, or whole 44-case campaign is authorized for restart by this review. A new job requires an exact retained question, missing evidence, reuse check, bounded procedure and decision it can change. The available snapshot does not yet establish that complete minimal job list for the unresolved model edges.
+**Current additional-QC admission: five initial allocations**, detailed in the
+[calculation decision ledger](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/CALCULATION_DECISIONS.md)
+and [tested launch handoff](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/RECOVERY_HANDOFF.md).
+The old W3 C–S(H) L1 scan drops by about 0.0231 Eh immediately after its apparent
+maximum. The new parent/encounter traces distinguish a smooth inner branch from
+rearrangement. Direct W4 H loss has only unresolved L1/guessed-saddle evidence.
+These gaps justify the four target-level scans; they do not justify repeating
+accepted B2PLYP connections or optional CC diagnostics.
+
+A scan is a constrained path, not an accepted transition state. A smooth maximum
+on the intended branch must be refined and verified with one reaction-mode
+imaginary frequency and two connections. A discontinuity is reviewed before
+selecting another calculation. A monotonic finite trace must be joined to the
+applicable outer domain before choosing a rate treatment. These follow-up inputs
+depend on the new geometries and cannot be fixed from the current snapshot.
 
 ## Verification record and remaining access requirement
 
 A separate verification pass, performed without additional agents, checked native termination/gradient/error lines against the derived verdicts; recomputed energies and SI well depths; compared raw and optimized coordinates; and opened the remaining-campaign SQLite databases read-only. It specifically caught the TS5 QSD iteration-limit message hidden by the complete task status. All 24 exclusion decisions and all 105 serialized network edges are enumerated, including unresolved entries.
 
-The export does not supply the current Blodgett process/queue state for the unfinished 44-case campaign, or missing native termination records for the truncated W1 and TS1-forward QZ attempts. Those are the operational evidence gaps. Scientific closure requires the model-relevant connections and decisions listed above; successful CC refinement of every diagnostic candidate is not a launch criterion. The audit is therefore a completed review of the supplied snapshot, with explicit open findings; it is not a claim that all chemical uncertainty has been eliminated or that R9 has passed its launch gates.
+The user has supplied an empty live Blodgett queue/process check. Native termination records for the truncated optional W1 and TS1-forward QZ attempts remain absent; their success is not required for the current B2PLYP judgments. The newly admitted scan/path jobs have local orchestration validation but have not yet been observed running natively. Scientific closure requires the model-relevant connections and decisions listed above; successful CC refinement of every diagnostic candidate is not a launch criterion. The audit is therefore a completed review of the supplied snapshot, with explicit open findings; it is not a claim that all chemical uncertainty has been eliminated or that R9 has passed its launch gates.

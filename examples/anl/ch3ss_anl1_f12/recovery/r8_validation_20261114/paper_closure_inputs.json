@@ -1,0 +1,2937 @@
+{
+  "schema": 1,
+  "theory": "B2PLYP-D3(BJ)/cc-pVTZ",
+  "scans": [
+    {
+      "name": "w3_cs_out",
+      "molecule": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.8122620969232963,
+            0.0029854342340380233,
+            0.0010600693772988916
+          ],
+          [
+            2.232175674129323,
+            1.7849823878926279,
+            0.0036455093070242844
+          ],
+          [
+            0.018071319340445185,
+            0.008560309461623786,
+            0.0025740907044339645
+          ],
+          [
+            1.7932658950989675,
+            2.0266996784983444,
+            1.247959064969614
+          ],
+          [
+            2.230755984470735,
+            -0.39552378790181264,
+            -0.9183256932204736
+          ],
+          [
+            2.2475118076777734,
+            -0.4907351951390339,
+            0.8623550265837009
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "seed_evidence": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.8122620969232963,
+            0.0029854342340380233,
+            0.0010600693772988916
+          ],
+          [
+            2.232175674129323,
+            1.7849823878926279,
+            0.0036455093070242844
+          ],
+          [
+            0.018071319340445185,
+            0.008560309461623786,
+            0.0025740907044339645
+          ],
+          [
+            1.7932658950989675,
+            2.0266996784983444,
+            1.247959064969614
+          ],
+          [
+            2.230755984470735,
+            -0.39552378790181264,
+            -0.9183256932204736
+          ],
+          [
+            2.2475118076777734,
+            -0.4907351951390339,
+            0.8623550265837009
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -836.00846138951,
+        "zpe_hartree": 0.037471,
+        "frequencies_cm1": [
+          196.0756,
+          273.723,
+          673.9331,
+          741.3244,
+          794.3658,
+          975.1338,
+          1136.5243,
+          1205.7846,
+          1474.213,
+          2712.2464,
+          3098.9514,
+          3165.6468
+        ],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "6f05d957f744fb63ddd510595ea063e54c55b03a319a312f9edae798623891ad",
+          "mirror_id": "6f05d957f744fb63ddd510595ea063e54c55b03a319a312f9edae798623891ad",
+          "mirror_family_id": "6f05d957f744fb63ddd510595ea063e54c55b03a319a312f9edae798623891ad",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H][S][C]([H])([H])[S]"
+          ],
+          "charge": 0,
+          "multiplicity": 2,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/kinbot.db",
+          "sha256": "476a684378a6051fd75f5f9f0da523838e59f712912d7a2eba8f9e026e116aca",
+          "row_id": 10,
+          "job": "791472110370000000002_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "42d26cdfd700e6f53e5de00c0aa6dcdce4121deb1c822909da72b184a2e6d742",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/791472110370000000002_well_high.log",
+            "sha256": "7e080b5145b59275161ff0012cab5c1a83577fed71c2537c5d3e8ef12fae8e07",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/791472110370000000002_well_high.com",
+            "input_sha256": "f8394c9236a35f4458d87edf92d917af585a658af45bff7393cf208bb247aca2",
+            "energy_hartree": -836.00846138951,
+            "charge": 0,
+            "multiplicity": 2,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 9.446830708803589e-07
+          }
+        }
+      },
+      "scan": {
+        "atom_index_base": 0,
+        "bond": [
+          0,
+          1
+        ],
+        "steps": 24,
+        "step_angstrom": 0.1,
+        "initial_distance_angstrom": 1.830805079649411
+      },
+      "question": "Does the W3 C-S(H) cleavage reach a CH2S/SH encounter branch, or transfer H/rearrange first? Locate any inner maximum on the B2PLYP surface."
+    },
+    {
+      "name": "complex_a_cs_in",
+      "molecule": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.2255761341149327,
+            -0.9775654787228771,
+            0.05647735878479652
+          ],
+          [
+            0.7286229027879086,
+            -1.768893568793572,
+            1.3717985710348246
+          ],
+          [
+            0.3079151461757178,
+            1.9911408593370454,
+            2.3696124276729256
+          ],
+          [
+            0.343503784693395,
+            0.6407567107253697,
+            2.3128784098663666
+          ],
+          [
+            1.5711419917585678,
+            -1.4990536749570926,
+            -0.8302838939676702
+          ],
+          [
+            1.2344954416757388,
+            0.10793098581165857,
+            0.005005758568646692
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "seed_evidence": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.2255761341149327,
+            -0.9775654787228771,
+            0.05647735878479652
+          ],
+          [
+            0.7286229027879086,
+            -1.768893568793572,
+            1.3717985710348246
+          ],
+          [
+            0.3079151461757178,
+            1.9911408593370454,
+            2.3696124276729256
+          ],
+          [
+            0.343503784693395,
+            0.6407567107253697,
+            2.3128784098663666
+          ],
+          [
+            1.5711419917585678,
+            -1.4990536749570926,
+            -0.8302838939676702
+          ],
+          [
+            1.2344954416757388,
+            0.10793098581165857,
+            0.005005758568646692
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -835.96976406453,
+        "zpe_hartree": 0.032744,
+        "frequencies_cm1": [
+          52.9973,
+          96.5583,
+          148.6642,
+          278.2811,
+          297.7937,
+          1010.0377,
+          1031.0818,
+          1080.8551,
+          1504.2082,
+          2608.0122,
+          3086.4286,
+          3178.056
+        ],
+        "source": {
+          "path": "examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/evidence.json",
+          "sha256": "dde38ce32774ba6372110f9df6b4a91b485ef644f7a89858a7dac74581cf08bf",
+          "point": "native_ch3ss_rxn_54_1_R",
+          "source_export_sha256": "2af5e4050709a976e21d6b483dcd621b65de482fcd67629f00e16301c02548b1"
+        }
+      },
+      "scan": {
+        "atom_index_base": 0,
+        "bond": [
+          0,
+          2
+        ],
+        "steps": 21,
+        "step_angstrom": -0.09636888655222961,
+        "initial_distance_angstrom": 3.873746617596822
+      },
+      "question": "Test the independent encounter-side approach to W3 and distinguish branch switching from a smooth inner maximum."
+    },
+    {
+      "name": "complex_b_cs_in",
+      "molecule": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            0.126435334938006,
+            0.11715986196515955,
+            -0.019873823498199203
+          ],
+          [
+            0.13589919042766607,
+            0.273427039686404,
+            1.0536567795360094
+          ],
+          [
+            1.0926830323090813,
+            0.12175451145767405,
+            -0.5120861511222222
+          ],
+          [
+            -1.2620084829887426,
+            -0.07073149338939945,
+            -0.8529695211260777
+          ],
+          [
+            -0.24565362582069605,
+            -2.6661354725504953,
+            -0.040573835596569775
+          ],
+          [
+            -0.999505266645842,
+            -2.411426901163255,
+            1.040239950322721
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "seed_evidence": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            0.126435334938006,
+            0.11715986196515955,
+            -0.019873823498199203
+          ],
+          [
+            0.13589919042766607,
+            0.273427039686404,
+            1.0536567795360094
+          ],
+          [
+            1.0926830323090813,
+            0.12175451145767405,
+            -0.5120861511222222
+          ],
+          [
+            -1.2620084829887426,
+            -0.07073149338939945,
+            -0.8529695211260777
+          ],
+          [
+            -0.24565362582069605,
+            -2.6661354725504953,
+            -0.040573835596569775
+          ],
+          [
+            -0.999505266645842,
+            -2.411426901163255,
+            1.040239950322721
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -835.9702659727,
+        "zpe_hartree": 0.033615,
+        "frequencies_cm1": [
+          66.2666,
+          164.3671,
+          237.1847,
+          279.9127,
+          415.8385,
+          1003.1093,
+          1012.2109,
+          1063.5219,
+          1496.36,
+          2718.8052,
+          3102.5667,
+          3195.3108
+        ],
+        "source": {
+          "path": "examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/evidence.json",
+          "sha256": "dde38ce32774ba6372110f9df6b4a91b485ef644f7a89858a7dac74581cf08bf",
+          "point": "paper_ts3_R",
+          "source_export_sha256": "2af5e4050709a976e21d6b483dcd621b65de482fcd67629f00e16301c02548b1"
+        }
+      },
+      "scan": {
+        "atom_index_base": 0,
+        "bond": [
+          0,
+          4
+        ],
+        "steps": 10,
+        "step_angstrom": -0.09581331172784484,
+        "initial_distance_angstrom": 2.8081331172784485
+      },
+      "question": "Test the independent encounter-side approach to W3 and distinguish branch switching from a smooth inner maximum."
+    },
+    {
+      "name": "w4_ch_out",
+      "molecule": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9501853684882462,
+            -0.02518824487151772,
+            0.10753561717363937
+          ],
+          [
+            0.3305012890620585,
+            0.8075754996646132,
+            1.6060308628232418
+          ],
+          [
+            1.03697546283233,
+            -0.2358019529001571,
+            3.1191076412460803
+          ],
+          [
+            0.5748102446009035,
+            0.5310832748923903,
+            -0.7488443779889901
+          ],
+          [
+            0.5808440542420732,
+            -1.0457425175203547,
+            0.08661317311136901
+          ],
+          [
+            2.0356505705957963,
+            -0.017526750155019814,
+            0.11682371850223687
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2
+      },
+      "seed_evidence": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9501853684882462,
+            -0.02518824487151772,
+            0.10753561717363937
+          ],
+          [
+            0.3305012890620585,
+            0.8075754996646132,
+            1.6060308628232418
+          ],
+          [
+            1.03697546283233,
+            -0.2358019529001571,
+            3.1191076412460803
+          ],
+          [
+            0.5748102446009035,
+            0.5310832748923903,
+            -0.7488443779889901
+          ],
+          [
+            0.5808440542420732,
+            -1.0457425175203547,
+            0.08661317311136901
+          ],
+          [
+            2.0356505705957963,
+            -0.017526750155019814,
+            0.11682371850223687
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -836.04387408136,
+        "zpe_hartree": 0.039382,
+        "frequencies_cm1": [
+          124.832,
+          256.5844,
+          605.1931,
+          690.9356,
+          940.5934,
+          971.9596,
+          1343.5889,
+          1469.4256,
+          1480.1213,
+          3065.911,
+          3162.8383,
+          3174.6264
+        ],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "a01cff1a3173802af7fa034e6d88efda7af14d0ee42b1b711ec129ae775dfe5c",
+          "mirror_id": "a01cff1a3173802af7fa034e6d88efda7af14d0ee42b1b711ec129ae775dfe5c",
+          "mirror_family_id": "a01cff1a3173802af7fa034e6d88efda7af14d0ee42b1b711ec129ae775dfe5c",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H][C]([H])([H])[S]=[S]",
+            "[H][C]([H])([H])[S][S]"
+          ],
+          "charge": 0,
+          "multiplicity": 2,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791471490990000000002/kinbot.db",
+          "sha256": "1b536753128db710463c52bc886ee4044388ad7a0a5bd09b41fab3245b13d8bf",
+          "row_id": 8,
+          "job": "791471490990000000002_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791471490990000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "28a8ed05f4c2de096548bb2553c0b3e6ea70cff650244d4a8da1d5bac292eff7",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/791471490990000000002_well_high.log",
+            "sha256": "6601efa0dbadaa8e4b83c61e40dbc404ffd54a7236af08e52630d8ae80e34641",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/791471490990000000002_well_high.com",
+            "input_sha256": "d60f4e33bc138f034308ab285c0acef53a59e337c4a91336fd4be82c05775584",
+            "energy_hartree": -836.04387408136,
+            "charge": 0,
+            "multiplicity": 2,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 7.925339899905737e-07
+          }
+        }
+      },
+      "scan": {
+        "atom_index_base": 0,
+        "bond": [
+          0,
+          3
+        ],
+        "steps": 40,
+        "step_angstrom": 0.1,
+        "initial_distance_angstrom": 1.0879941100247883
+      },
+      "question": "Does direct CH3SS C-H cleavage have an inner bottleneck at B2PLYP before CH2SS + H? Parent-start L1 and earlier saddle guesses did not settle the retained direct route."
+    }
+  ],
+  "reused_energy_ledger": {
+    "convention": "B2PLYP-D3(BJ)/cc-pVTZ electronic energy plus unscaled harmonic ZPE; spin-free electronic states as recorded",
+    "relative_to_w4_kcal_mol": {
+      "W3": 21.02262903294994,
+      "HCSSH+H": 60.08036016219605,
+      "CH2SS+H": 73.00305395721016,
+      "CH2S+SH": 43.875989176687796,
+      "TS5": 64.91610587594695
+    },
+    "new_fragment_qc_selected": false,
+    "points": {
+      "W3": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.8122620969232963,
+            0.0029854342340380233,
+            0.0010600693772988916
+          ],
+          [
+            2.232175674129323,
+            1.7849823878926279,
+            0.0036455093070242844
+          ],
+          [
+            0.018071319340445185,
+            0.008560309461623786,
+            0.0025740907044339645
+          ],
+          [
+            1.7932658950989675,
+            2.0266996784983444,
+            1.247959064969614
+          ],
+          [
+            2.230755984470735,
+            -0.39552378790181264,
+            -0.9183256932204736
+          ],
+          [
+            2.2475118076777734,
+            -0.4907351951390339,
+            0.8623550265837009
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -836.00846138951,
+        "zpe_hartree": 0.037471,
+        "frequencies_cm1": [
+          196.0756,
+          273.723,
+          673.9331,
+          741.3244,
+          794.3658,
+          975.1338,
+          1136.5243,
+          1205.7846,
+          1474.213,
+          2712.2464,
+          3098.9514,
+          3165.6468
+        ],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "6f05d957f744fb63ddd510595ea063e54c55b03a319a312f9edae798623891ad",
+          "mirror_id": "6f05d957f744fb63ddd510595ea063e54c55b03a319a312f9edae798623891ad",
+          "mirror_family_id": "6f05d957f744fb63ddd510595ea063e54c55b03a319a312f9edae798623891ad",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H][S][C]([H])([H])[S]"
+          ],
+          "charge": 0,
+          "multiplicity": 2,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/kinbot.db",
+          "sha256": "476a684378a6051fd75f5f9f0da523838e59f712912d7a2eba8f9e026e116aca",
+          "row_id": 10,
+          "job": "791472110370000000002_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "42d26cdfd700e6f53e5de00c0aa6dcdce4121deb1c822909da72b184a2e6d742",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/791472110370000000002_well_high.log",
+            "sha256": "7e080b5145b59275161ff0012cab5c1a83577fed71c2537c5d3e8ef12fae8e07",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/791472110370000000002_well_high.com",
+            "input_sha256": "f8394c9236a35f4458d87edf92d917af585a658af45bff7393cf208bb247aca2",
+            "energy_hartree": -836.00846138951,
+            "charge": 0,
+            "multiplicity": 2,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 9.446830708803589e-07
+          }
+        }
+      },
+      "W4": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            0.9501853684882462,
+            -0.02518824487151772,
+            0.10753561717363937
+          ],
+          [
+            0.3305012890620585,
+            0.8075754996646132,
+            1.6060308628232418
+          ],
+          [
+            1.03697546283233,
+            -0.2358019529001571,
+            3.1191076412460803
+          ],
+          [
+            0.5748102446009035,
+            0.5310832748923903,
+            -0.7488443779889901
+          ],
+          [
+            0.5808440542420732,
+            -1.0457425175203547,
+            0.08661317311136901
+          ],
+          [
+            2.0356505705957963,
+            -0.017526750155019814,
+            0.11682371850223687
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -836.04387408136,
+        "zpe_hartree": 0.039382,
+        "frequencies_cm1": [
+          124.832,
+          256.5844,
+          605.1931,
+          690.9356,
+          940.5934,
+          971.9596,
+          1343.5889,
+          1469.4256,
+          1480.1213,
+          3065.911,
+          3162.8383,
+          3174.6264
+        ],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "a01cff1a3173802af7fa034e6d88efda7af14d0ee42b1b711ec129ae775dfe5c",
+          "mirror_id": "a01cff1a3173802af7fa034e6d88efda7af14d0ee42b1b711ec129ae775dfe5c",
+          "mirror_family_id": "a01cff1a3173802af7fa034e6d88efda7af14d0ee42b1b711ec129ae775dfe5c",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H][C]([H])([H])[S]=[S]",
+            "[H][C]([H])([H])[S][S]"
+          ],
+          "charge": 0,
+          "multiplicity": 2,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791471490990000000002/kinbot.db",
+          "sha256": "1b536753128db710463c52bc886ee4044388ad7a0a5bd09b41fab3245b13d8bf",
+          "row_id": 8,
+          "job": "791471490990000000002_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791471490990000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "28a8ed05f4c2de096548bb2553c0b3e6ea70cff650244d4a8da1d5bac292eff7",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/791471490990000000002_well_high.log",
+            "sha256": "6601efa0dbadaa8e4b83c61e40dbc404ffd54a7236af08e52630d8ae80e34641",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/791471490990000000002_well_high.com",
+            "input_sha256": "d60f4e33bc138f034308ab285c0acef53a59e337c4a91336fd4be82c05775584",
+            "energy_hartree": -836.04387408136,
+            "charge": 0,
+            "multiplicity": 2,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 7.925339899905737e-07
+          }
+        }
+      },
+      "HCSSH": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.073570544851064,
+            0.02045517748000183,
+            -0.0500662887923396
+          ],
+          [
+            1.5194347687257685,
+            1.6629427479859622,
+            -0.4006463598342895
+          ],
+          [
+            1.9609812029662288,
+            -1.3297817084035275,
+            -0.2217510887329925
+          ],
+          [
+            2.764189198649651,
+            1.3843024911113173,
+            -0.8253974418674282
+          ],
+          [
+            0.054202681105608684,
+            -0.012554183921190289,
+            0.3275410034347244
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 1,
+        "energy_hartree": -835.43624374996,
+        "zpe_hartree": 0.02611,
+        "frequencies_cm1": [
+          325.2819,
+          444.1442,
+          691.3673,
+          854.1164,
+          948.5114,
+          1073.4008,
+          1321.8608,
+          2685.9722,
+          3116.3604
+        ],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "06febcdbed7848e9b774949507f34bfcd3e47ee7320d90680274e56b494f156e",
+          "mirror_id": "06febcdbed7848e9b774949507f34bfcd3e47ee7320d90680274e56b494f156e",
+          "mirror_family_id": "06febcdbed7848e9b774949507f34bfcd3e47ee7320d90680274e56b494f156e",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H][S][C]([H])=[S]"
+          ],
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/kinbot.db",
+          "sha256": "476a684378a6051fd75f5f9f0da523838e59f712912d7a2eba8f9e026e116aca",
+          "row_id": 171,
+          "job": "781341430350000000001_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "42d26cdfd700e6f53e5de00c0aa6dcdce4121deb1c822909da72b184a2e6d742",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/781341430350000000001_well_high.log",
+            "sha256": "09d3b3123811b128263da6a93c063bd3e23429592bf421bd088aae74041cc879",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/781341430350000000001_well_high.com",
+            "input_sha256": "7188a4e0307917520e9334cbcec96b80b240192bdeec93d6c6ad1451f9b63f39",
+            "energy_hartree": -835.43624374996,
+            "charge": 0,
+            "multiplicity": 1,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 5.397729043732369e-07
+          }
+        }
+      },
+      "H": {
+        "symbols": [
+          "H"
+        ],
+        "positions": [
+          [
+            2.230755984470735,
+            -0.39552378790181264,
+            -0.9183256932204736
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -0.49861418307151,
+        "zpe_hartree": 0.0,
+        "frequencies_cm1": [],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "528262d3bfea8e4ab21cbe29dd6bd9a3413b1b00f9f7a05af9a8e4d6dd7ef692",
+          "mirror_id": "528262d3bfea8e4ab21cbe29dd6bd9a3413b1b00f9f7a05af9a8e4d6dd7ef692",
+          "mirror_family_id": "528262d3bfea8e4ab21cbe29dd6bd9a3413b1b00f9f7a05af9a8e4d6dd7ef692",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H]"
+          ],
+          "charge": 0,
+          "multiplicity": 2,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/kinbot.db",
+          "sha256": "476a684378a6051fd75f5f9f0da523838e59f712912d7a2eba8f9e026e116aca",
+          "row_id": 190,
+          "job": "10000000000000000002_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "42d26cdfd700e6f53e5de00c0aa6dcdce4121deb1c822909da72b184a2e6d742",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/10000000000000000002_well_high.log",
+            "sha256": "ff8ab2042f0e62d7ffd5f7b3420eb260e4c5afd52eaaf763c97279cedaa8a2cc",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/10000000000000000002_well_high.com",
+            "input_sha256": "096c6775fd043afdaad0a941f1a2624d2bb68150c1a8b7a70528d7760bc584b4",
+            "energy_hartree": -0.49861418307151,
+            "charge": 0,
+            "multiplicity": 2,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 0.0
+          }
+        }
+      },
+      "CH2SS": {
+        "symbols": [
+          "C",
+          "S",
+          "S",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.0028599577667947,
+            -0.2692002775058577,
+            0.333982900544903
+          ],
+          [
+            0.16517042185119388,
+            0.1420236201294266,
+            1.672969330002319
+          ],
+          [
+            1.265609813238802,
+            0.4168490698427403,
+            3.254800240168036
+          ],
+          [
+            0.42324346502839466,
+            -0.42959547783330426,
+            -0.5632198474298863
+          ],
+          [
+            2.077273087335319,
+            -0.37676090041544347,
+            0.33757838957119785
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 1,
+        "energy_hartree": -835.41702812655,
+        "zpe_hartree": 0.027488,
+        "frequencies_cm1": [
+          305.9391,
+          569.351,
+          623.7255,
+          781.5547,
+          937.3896,
+          994.322,
+          1419.2545,
+          3152.3552,
+          3281.8223
+        ],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "4a2ddaf274487e225ba2094e20886e2f3f371affab5fec8de1998e0f447abea5",
+          "mirror_id": "4a2ddaf274487e225ba2094e20886e2f3f371affab5fec8de1998e0f447abea5",
+          "mirror_family_id": "4a2ddaf274487e225ba2094e20886e2f3f371affab5fec8de1998e0f447abea5",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H][C]([H])=[S]=[S]"
+          ],
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791471490990000000002/kinbot.db",
+          "sha256": "1b536753128db710463c52bc886ee4044388ad7a0a5bd09b41fab3245b13d8bf",
+          "row_id": 173,
+          "job": "781341120660000000001_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791471490990000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "28a8ed05f4c2de096548bb2553c0b3e6ea70cff650244d4a8da1d5bac292eff7",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/781341120660000000001_well_high.log",
+            "sha256": "630f32c1e306fef60b547e0444f53a8843739538bd3611dac081a733059ddcae",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791471490990000000002/781341120660000000001_well_high.com",
+            "input_sha256": "5965d04ca8428b3b1a7943f125641929a1fb33a8e016b52d0890d7665e581477",
+            "energy_hartree": -835.41702812655,
+            "charge": 0,
+            "multiplicity": 1,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 6.790242921272949e-07
+          }
+        }
+      },
+      "CH2S": {
+        "symbols": [
+          "C",
+          "S",
+          "H",
+          "H"
+        ],
+        "positions": [
+          [
+            1.69069676360229,
+            -0.24038207995446592,
+            -0.014807308151128405
+          ],
+          [
+            0.10611844989094504,
+            0.06246234563514841,
+            0.009233352153643105
+          ],
+          [
+            2.251194908812905,
+            -0.29998941417558617,
+            -0.9429116970488494
+          ],
+          [
+            2.2605910861061105,
+            -0.39680409085028107,
+            0.896149146491295
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 1,
+        "energy_hartree": -437.33264740779,
+        "zpe_hartree": 0.02481,
+        "frequencies_cm1": [
+          1010.4999,
+          1029.7046,
+          1082.3158,
+          1503.0314,
+          3088.876,
+          3175.9177
+        ],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "fac4d335e19990f67de49877bf962ec0b69b32e90ca2cd97a3889f8dee879150",
+          "mirror_id": "fac4d335e19990f67de49877bf962ec0b69b32e90ca2cd97a3889f8dee879150",
+          "mirror_family_id": "fac4d335e19990f67de49877bf962ec0b69b32e90ca2cd97a3889f8dee879150",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H][C]([H])=[S]"
+          ],
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/kinbot.db",
+          "sha256": "476a684378a6051fd75f5f9f0da523838e59f712912d7a2eba8f9e026e116aca",
+          "row_id": 167,
+          "job": "460700680000000000001_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "42d26cdfd700e6f53e5de00c0aa6dcdce4121deb1c822909da72b184a2e6d742",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/460700680000000000001_well_high.log",
+            "sha256": "8544476a99facf71b0bce6118844da6a320ca2e905a41aa7293ecb6daee0033d",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/460700680000000000001_well_high.com",
+            "input_sha256": "87e5d95d2bd5ed4582c5a7bbfaad3b50c3408750a5f61a065f26f78791d19ed1",
+            "energy_hartree": -437.33264740779,
+            "charge": 0,
+            "multiplicity": 1,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 3.8439969518577755e-07
+          }
+        }
+      },
+      "SH": {
+        "symbols": [
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            2.2326547624979023,
+            1.7847415314983957,
+            0.0023153198130200017
+          ],
+          [
+            1.7927868067303878,
+            2.0269405348925775,
+            1.2492892544636183
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -398.63289983414006,
+        "zpe_hartree": 0.006166,
+        "frequencies_cm1": [
+          2706.5622
+        ],
+        "identity": {
+          "status": "assigned",
+          "schema": "kinbot.stereo.v1",
+          "scope": "tetrahedral and double-bond; provided resonance ensemble",
+          "id": "2951a42d31b32078ce89bfb9ce55ce5b8847b9e5a9f6306ad6b7df89ade83d0b",
+          "mirror_id": "2951a42d31b32078ce89bfb9ce55ce5b8847b9e5a9f6306ad6b7df89ade83d0b",
+          "mirror_family_id": "2951a42d31b32078ce89bfb9ce55ce5b8847b9e5a9f6306ad6b7df89ade83d0b",
+          "is_chiral_configuration": false,
+          "canonical_graphs": [
+            "[H][S]"
+          ],
+          "charge": 0,
+          "multiplicity": 2,
+          "electronic_localization": "not inferred from valence remainders",
+          "formal_charge_localization": "not supplied"
+        },
+        "source": {
+          "path": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/kinbot.db",
+          "sha256": "476a684378a6051fd75f5f9f0da523838e59f712912d7a2eba8f9e026e116aca",
+          "row_id": 168,
+          "job": "330330000000000000002_well_high",
+          "theory_file": "examples/anl/tmp/r8-final-20261113/run/ch3ss/791472110370000000002/.kinbot_theory_jobs.json",
+          "theory_sha256": "42d26cdfd700e6f53e5de00c0aa6dcdce4121deb1c822909da72b184a2e6d742",
+          "profile": {
+            "basis": "cc-pVTZ",
+            "calculator": "gaussian",
+            "calculator_kwargs": {
+              "EmpiricalDispersion": "GD3BJ",
+              "Symm": "None",
+              "integral": "UltraFine",
+              "scf": "xqc,conver=8"
+            },
+            "command": "g16",
+            "device": "cpu",
+            "frequency_mode": "native_hessian",
+            "method": "B2PLYP",
+            "model_path": "",
+            "optimizer": "sella",
+            "task_name": "omol"
+          },
+          "native_confirmation": {
+            "log": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/330330000000000000002_well_high.log",
+            "sha256": "6dde5988d5c5c3e3ed4750a8730adb96fe0c017714ce3c1e2a7c3e13c787d43f",
+            "input": "examples/anl/tmp/r8-qc-decisions.IXLLO8dm/files/ch3ss/791472110370000000002/330330000000000000002_well_high.com",
+            "input_sha256": "37fa1dcc16e450b3c7439f7342383a97e6d98dbbe2acb6bcac0f2fb3216baf28",
+            "energy_hartree": -398.63289983414,
+            "charge": 0,
+            "multiplicity": 2,
+            "normal_termination": true,
+            "frequencies_match": true,
+            "geometry_distance_error_angstrom": 2.041783779827e-07
+          }
+        }
+      },
+      "TS5": {
+        "symbols": [
+          "C",
+          "H",
+          "H",
+          "S",
+          "S",
+          "H"
+        ],
+        "positions": [
+          [
+            -0.00932403893265172,
+            0.0015299413357170812,
+            -0.005757314845245962
+          ],
+          [
+            0.0010591744483085426,
+            -0.0012963354517171299,
+            1.080837243030373
+          ],
+          [
+            1.9148999618805191,
+            -0.009566340109348813,
+            0.31762873887417914
+          ],
+          [
+            -0.03802274793406582,
+            1.4013298125959484,
+            -0.8568379058303852
+          ],
+          [
+            -0.27532461583117496,
+            -1.6167944073761287,
+            -0.6054106283677412
+          ],
+          [
+            -0.33586573363093436,
+            -1.2702096709944708,
+            -1.9021931328611796
+          ]
+        ],
+        "charge": 0,
+        "multiplicity": 2,
+        "energy_hartree": -835.92879768171,
+        "zpe_hartree": 0.027756,
+        "frequencies_cm1": [
+          -970.2117,
+          310.3834,
+          347.0722,
+          383.1699,
+          435.0267,
+          688.5945,
+          920.1678,
+          947.8949,
+          1034.4324,
+          1301.3188,
+          2692.2441,
+          3122.9701
+        ],
+        "source": {
+          "path": "examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/evidence.json",
+          "sha256": "dde38ce32774ba6372110f9df6b4a91b485ef644f7a89858a7dac74581cf08bf",
+          "point": "paper_ts5",
+          "source_export_sha256": "2af5e4050709a976e21d6b483dcd621b65de482fcd67629f00e16301c02548b1"
+        }
+      }
+    },
+    "ts5_above_hcssh_h_kcal_mol": 4.835745713750903
+  },
+  "previous_scans": [
+    {
+      "path": "local_runs/r8_pruning_20261113/assembled/ch3ss/791472110370000000002/791472110370000000002_dissociation_saddle_1_2.dissociation_scan.json",
+      "sha256": "b874241dfb11a801af9a65a9fb6c6a97a3916a76760bfeb1e6a06fecaeb8a8a9",
+      "level": "L1 B3LYP-D3(BJ)/cc-pVDZ",
+      "outcome": "saddle_submitting",
+      "peak_step": 11,
+      "points": [
+        {
+          "distance_angstrom": 1.8308050854166653,
+          "energy_hartree": -836.294248136,
+          "job_id": "52954160",
+          "positions": [
+            [
+              1.8104162854381574,
+              0.006665697571522166,
+              0.0010753226015712874
+            ],
+            [
+              2.240133351333511,
+              1.7863253915519641,
+              -0.0002949646865579354
+            ],
+            [
+              -0.00020606918053734828,
+              0.0005988187918603476,
+              0.000734133752757831
+            ],
+            [
+              1.793525965765226,
+              2.041845359517023,
+              1.2574693875833474
+            ],
+            [
+              2.23668855336206,
+              -0.3981781537308514,
+              -0.9285571459271793
+            ],
+            [
+              2.2534846909221207,
+              -0.5002882866557309,
+              0.8688413343976591
+            ]
+          ],
+          "step": 0
+        },
+        {
+          "distance_angstrom": 1.9308051091994753,
+          "energy_hartree": -836.292678946,
+          "job_id": "52954179",
+          "positions": [
+            [
+              1.7875645271605272,
+              -0.036754721730374085,
+              -0.007171491362950812
+            ],
+            [
+              2.2665863041113243,
+              1.8336086751694523,
+              0.009777563331649464
+            ],
+            [
+              -0.0060501407886240696,
+              0.029023069393707707,
+              -0.01540718196508186
+            ],
+            [
+              1.8245883582285112,
+              2.049842202160478,
+              1.2761060301196088
+            ],
+            [
+              2.2295178302263907,
+              -0.42039850674895246,
+              -0.9373509796327254
+            ],
+            [
+              2.231835898702407,
+              -0.5183518911985239,
+              0.8733141272310985
+            ]
+          ],
+          "step": 1
+        },
+        {
+          "distance_angstrom": 2.030805085380176,
+          "energy_hartree": -836.2877807260002,
+          "job_id": "52954200",
+          "positions": [
+            [
+              1.7617975104280683,
+              -0.08074226635116674,
+              -0.01574102474905665
+            ],
+            [
+              2.2939751297045197,
+              1.8787429628757448,
+              0.021325304834395473
+            ],
+            [
+              -0.01103581312870536,
+              0.06022484980462926,
+              -0.033919917692534336
+            ],
+            [
+              1.8608498753028404,
+              2.057299203457726,
+              1.2965412005974954
+            ],
+            [
+              2.221394855550366,
+              -0.4411821786330568,
+              -0.9457327641141359
+            ],
+            [
+              2.207061219783447,
+              -0.537373744108089,
+              0.8767952688454342
+            ]
+          ],
+          "step": 2
+        },
+        {
+          "distance_angstrom": 2.1308050859034,
+          "energy_hartree": -836.281367872,
+          "job_id": "52954217",
+          "positions": [
+            [
+              1.7326997271158873,
+              -0.1251751678853476,
+              -0.02477315464469086
+            ],
+            [
+              2.3231577273381987,
+              1.9213218747775564,
+              0.034720697619671566
+            ],
+            [
+              -0.013618970359412123,
+              0.09424387231261054,
+              -0.05377541360693531
+            ],
+            [
+              1.9002031811769757,
+              2.0636671389205445,
+              1.318074662357189
+            ],
+            [
+              2.21204317478644,
+              -0.4598699867463385,
+              -0.9537633001024923
+            ],
+            [
+              2.179557937582445,
+              -0.5572189043332374,
+              0.8787845760988557
+            ]
+          ],
+          "step": 3
+        },
+        {
+          "distance_angstrom": 2.230805081973324,
+          "energy_hartree": -836.274790873,
+          "job_id": "52954236",
+          "positions": [
+            [
+              1.7000419379844525,
+              -0.16959980439883343,
+              -0.03449603220747635
+            ],
+            [
+              2.354857684983995,
+              1.9612520629110273,
+              0.05022687391311754
+            ],
+            [
+              -0.012587217880413868,
+              0.13015719981124624,
+              -0.07410885186082977
+            ],
+            [
+              1.9409026019580822,
+              2.0684618077484496,
+              1.3402146743323706
+            ],
+            [
+              2.2012106772379227,
+              -0.47587493656925856,
+              -0.9614695732520188
+            ],
+            [
+              2.149617093356497,
+              -0.5774275024568434,
+              0.878900976796435
+            ]
+          ],
+          "step": 4
+        },
+        {
+          "distance_angstrom": 2.3308050839720797,
+          "energy_hartree": -836.2691068210002,
+          "job_id": "52954253",
+          "positions": [
+            [
+              1.6644046033511153,
+              -0.21299234879123677,
+              -0.04521475513673025
+            ],
+            [
+              2.389962782689457,
+              1.9990992468335516,
+              0.0682243934474521
+            ],
+            [
+              -0.007779812589586577,
+              0.16629364092838905,
+              -0.09418132095026777
+            ],
+            [
+              1.9812965835306613,
+              2.071536505512559,
+              1.3626590866022064
+            ],
+            [
+              2.1885965317000906,
+              -0.48926931756716346,
+              -0.9689478832938481
+            ],
+            [
+              2.117562088958796,
+              -0.5976988998703121,
+              0.876728547052786
+            ]
+          ],
+          "step": 5
+        },
+        {
+          "distance_angstrom": 2.430805080107205,
+          "energy_hartree": -836.264852343,
+          "job_id": "52954263",
+          "positions": [
+            [
+              1.6280377215223827,
+              -0.2538769492188543,
+              -0.057180861456033516
+            ],
+            [
+              2.428506326768089,
+              2.036672043120545,
+              0.08927275981688994
+            ],
+            [
+              -0.0005835880904960435,
+              0.20144951159310734,
+              -0.11365997218083809
+            ],
+            [
+              2.020223050350297,
+              2.073827944665317,
+              1.3856725817824205
+            ],
+            [
+              2.1740208540410113,
+              -0.5018185930349623,
+              -0.9765869750247747
+            ],
+            [
+              2.083838413049249,
+              -0.6192851300793657,
+              0.8717505347839343
+            ]
+          ],
+          "step": 6
+        },
+        {
+          "distance_angstrom": 2.5308050796926214,
+          "energy_hartree": -836.261925975,
+          "job_id": "52954271",
+          "positions": [
+            [
+              1.5937337144589847,
+              -0.2911038769390013,
+              -0.07056408981990436
+            ],
+            [
+              2.4682243825496126,
+              2.0766580068243794,
+              0.11367511506784697
+            ],
+            [
+              0.007580184727042403,
+              0.23619170547247365,
+              -0.1328398636802922
+            ],
+            [
+              2.0578569394562582,
+              2.0766362820076494,
+              1.4102975789214054
+            ],
+            [
+              2.1579160460465947,
+              -0.5166193201561387,
+              -0.9851512998355079
+            ],
+            [
+              2.0487315104020407,
+              -0.6447939701635741,
+              0.8638506270680507
+            ]
+          ],
+          "step": 7
+        },
+        {
+          "distance_angstrom": 2.6308050804404672,
+          "energy_hartree": -836.259999865,
+          "job_id": "52954277",
+          "positions": [
+            [
+              1.5629109439089368,
+              -0.3245450377835827,
+              -0.08547602260369011
+            ],
+            [
+              2.5075534143237537,
+              2.1202620667206444,
+              0.14190954449682827
+            ],
+            [
+              0.016957572315251516,
+              0.2720514035418434,
+              -0.15149635854635857
+            ],
+            [
+              2.0933546945759702,
+              2.080956587221046,
+              1.437045556363457
+            ],
+            [
+              2.1405292945275387,
+              -0.5356819261464574,
+              -0.9955707688280285
+            ],
+            [
+              2.0127368579890828,
+              -0.6760742665077063,
+              0.8528561168393912
+            ]
+          ],
+          "step": 8
+        },
+        {
+          "distance_angstrom": 2.7308050803397843,
+          "energy_hartree": -836.2587240300002,
+          "job_id": "52954281",
+          "positions": [
+            [
+              1.5358818017667946,
+              -0.3548809783317032,
+              -0.10201571338054803
+            ],
+            [
+              2.5441140719602986,
+              2.167916589792909,
+              0.17413009305976565
+            ],
+            [
+              0.029523260824388515,
+              0.311188029268115,
+              -0.16955242461774167
+            ],
+            [
+              2.1263080236276584,
+              2.0863727991134957,
+              1.4664250969992887
+            ],
+            [
+              2.121967693139982,
+              -0.5602967948271194,
+              -1.0084623362945966
+            ],
+            [
+              1.9762479263214108,
+              -0.7133308179699103,
+              0.838743351955431
+            ]
+          ],
+          "step": 9
+        },
+        {
+          "distance_angstrom": 2.8308050831941736,
+          "energy_hartree": -836.2578305520001,
+          "job_id": "52954285",
+          "positions": [
+            [
+              1.5129820700187042,
+              -0.38352279630350816,
+              -0.1202817926089343
+            ],
+            [
+              2.5727361906664017,
+              2.2205855802794443,
+              0.2098669402656561
+            ],
+            [
+              0.04998442495736001,
+              0.3582559480505146,
+              -0.1867323495965986
+            ],
+            [
+              2.1569684576073667,
+              2.0915516072144724,
+              1.4991624968549708
+            ],
+            [
+              2.1021256631860163,
+              -0.5927132221619607,
+              -1.0242790053058377
+            ],
+            [
+              1.9392459712046837,
+              -0.7571882900331749,
+              0.8215317781123426
+            ]
+          ],
+          "step": 10
+        },
+        {
+          "distance_angstrom": 2.9308050828034817,
+          "energy_hartree": -836.2571702910001,
+          "job_id": "52954290",
+          "positions": [
+            [
+              1.4973545035732398,
+              -0.4146842829242664,
+              -0.14048566607921686
+            ],
+            [
+              2.5700603918097906,
+              2.285221114410197,
+              0.24607785544549995
+            ],
+            [
+              0.09865931961386995,
+              0.4345732234251528,
+              -0.20151890549894783
+            ],
+            [
+              2.188871530447782,
+              2.092995221139917,
+              1.538283600082042
+            ],
+            [
+              2.079258747498184,
+              -0.6457304666278714,
+              -1.0441207650504156
+            ],
+            [
+              1.899838284697668,
+              -0.8154059823773416,
+              0.8010319488226376
+            ]
+          ],
+          "step": 11
+        },
+        {
+          "distance_angstrom": 3.030805079804765,
+          "energy_hartree": -836.2802784630001,
+          "job_id": "52954295",
+          "positions": [
+            [
+              1.60074341860419,
+              -0.5700535560451679,
+              -0.2433905275768913
+            ],
+            [
+              2.357429976201947,
+              2.276102452714562,
+              0.47257096518798397
+            ],
+            [
+              0.8366280185821553,
+              0.9631614252781817,
+              -0.2663106665720721
+            ],
+            [
+              1.8722820815144485,
+              2.3707927536223763,
+              1.7410116016497743
+            ],
+            [
+              1.3774009247303118,
+              -1.2581179214249227,
+              -1.061819020930844
+            ],
+            [
+              2.289558358007482,
+              -0.8449163270992417,
+              0.5572057159636482
+            ]
+          ],
+          "step": 12
+        }
+      ]
+    },
+    {
+      "path": "local_runs/r8_pruning_20261113/assembled/ch3ss/791471490990000000002/791471490990000000002_dissociation_saddle_1_4.dissociation_scan.json",
+      "sha256": "6e133147935c0547d9f636b96903abd1c16f244a26ee1fc911f0981ec958e023",
+      "level": "L1 B3LYP-D3(BJ)/cc-pVDZ",
+      "outcome": "saddle_submitting",
+      "peak_step": 26,
+      "points": [
+        {
+          "distance_angstrom": 1.0879970225155866,
+          "energy_hartree": -836.3263795800001,
+          "job_id": "52953531",
+          "positions": [
+            [
+              0.9493718543011267,
+              -0.023984999571242446,
+              0.09995506766587028
+            ],
+            [
+              0.32073644280367897,
+              0.8202597431967875,
+              1.6083876892418598
+            ],
+            [
+              1.0414783325985673,
+              -0.24162927821415997,
+              3.1418785183959743
+            ],
+            [
+              0.5737455755646484,
+              0.5335136813026192,
+              -0.755520028727515
+            ],
+            [
+              0.5758824536360957,
+              -1.056843182521662,
+              0.0805401456422626
+            ],
+            [
+              2.04775233091729,
+              -0.016916655082388432,
+              0.11202524264912489
+            ]
+          ],
+          "step": 0
+        },
+        {
+          "distance_angstrom": 1.1879941190525984,
+          "energy_hartree": -836.3225885940001,
+          "job_id": "52954022",
+          "positions": [
+            [
+              0.9559729178567539,
+              -0.034897483032335835,
+              0.1204961862085749
+            ],
+            [
+              0.32701505279219034,
+              0.8111880106520897,
+              1.6227866632495571
+            ],
+            [
+              1.0508861755357903,
+              -0.25039965594123936,
+              3.1557160732586076
+            ],
+            [
+              0.5427727412650709,
+              0.5724585258957839,
+              -0.8131602384932889
+            ],
+            [
+              0.5783457026943448,
+              -1.0655125036558457,
+              0.08666930232129923
+            ],
+            [
+              2.0539743996772573,
+              -0.018437584808498792,
+              0.11475864832282574
+            ]
+          ],
+          "step": 1
+        },
+        {
+          "distance_angstrom": 1.2879942087963518,
+          "energy_hartree": -836.3115589610001,
+          "job_id": "52954040",
+          "positions": [
+            [
+              0.9629039464957612,
+              -0.04662452716342924,
+              0.1419543131736773
+            ],
+            [
+              0.33243489276210164,
+              0.8013963570495822,
+              1.6367247889469467
+            ],
+            [
+              1.0622452357613308,
+              -0.25817954469175197,
+              3.169120849380744
+            ],
+            [
+              0.5105236863526276,
+              0.6111839854640985,
+              -0.8687727235877477
+            ],
+            [
+              0.5809028775586156,
+              -1.0744715964059999,
+              0.09162186904644441
+            ],
+            [
+              2.0599563508909706,
+              -0.018905365142545646,
+              0.11661753790751068
+            ]
+          ],
+          "step": 2
+        },
+        {
+          "distance_angstrom": 1.3879941106287421,
+          "energy_hartree": -836.2971034760001,
+          "job_id": "52954055",
+          "positions": [
+            [
+              0.9702956116599872,
+              -0.0591076162478995,
+              0.1640044792291662
+            ],
+            [
+              0.3375417808906263,
+              0.791121469753577,
+              1.6503166460277918
+            ],
+            [
+              1.0752689559801802,
+              -0.26520100615121983,
+              3.1822659047956354
+            ],
+            [
+              0.4759666952653719,
+              0.6494599212103153,
+              -0.9223189617480593
+            ],
+            [
+              0.5841286237610966,
+              -1.0839024014300132,
+              0.09598115985958973
+            ],
+            [
+              2.065765322264145,
+              -0.01797105802480547,
+              0.11701740670345019
+            ]
+          ],
+          "step": 3
+        },
+        {
+          "distance_angstrom": 1.4879942263253831,
+          "energy_hartree": -836.2814827700001,
+          "job_id": "52954071",
+          "positions": [
+            [
+              0.9784699423266981,
+              -0.07232224766070025,
+              0.18681501358981165
+            ],
+            [
+              0.3422819396685191,
+              0.7810956993427957,
+              1.662773825767675
+            ],
+            [
+              1.0886562913499693,
+              -0.2717093085556034,
+              3.194157708771865
+            ],
+            [
+              0.4401637487576493,
+              0.6871790045574898,
+              -0.9740084473300127
+            ],
+            [
+              0.587890075094988,
+              -1.09343984845356,
+              0.10040812657132873
+            ],
+            [
+              2.071504992623583,
+              -0.01640399012046701,
+              0.11712040749690518
+            ]
+          ],
+          "step": 4
+        },
+        {
+          "distance_angstrom": 1.5879941127456862,
+          "energy_hartree": -836.2652405400001,
+          "job_id": "52954081",
+          "positions": [
+            [
+              0.987349682833538,
+              -0.08608438696870445,
+              0.21004077456499012
+            ],
+            [
+              0.3466137288141832,
+              0.7714049312705928,
+              1.6742069196397062
+            ],
+            [
+              1.10202691303757,
+              -0.27758118181690516,
+              3.2052373374200407
+            ],
+            [
+              0.4036430864216243,
+              0.7241430778650041,
+              -1.0246832296761683
+            ],
+            [
+              0.5922182725709736,
+              -1.1030236574451233,
+              0.10508435593976417
+            ],
+            [
+              2.077115306143518,
+              -0.014459473794909259,
+              0.11738047697923762
+            ]
+          ],
+          "step": 5
+        },
+        {
+          "distance_angstrom": 1.6879944148126589,
+          "energy_hartree": -836.2492726840001,
+          "job_id": "52954094",
+          "positions": [
+            [
+              0.9968469863105047,
+              -0.10042009332236532,
+              0.2333815162124712
+            ],
+            [
+              0.3500739986124553,
+              0.7617311618642054,
+              1.684727242753339
+            ],
+            [
+              1.1154502272136593,
+              -0.2821682436779514,
+              3.215989944819956
+            ],
+            [
+              0.36690878573867886,
+              0.7605762033020164,
+              -1.0747424783301562
+            ],
+            [
+              0.5969833186765563,
+              -1.112781418301533,
+              0.10965749941129838
+            ],
+            [
+              2.0827036732695516,
+              -0.012538300754417262,
+              0.11825291000066225
+            ]
+          ],
+          "step": 6
+        },
+        {
+          "distance_angstrom": 1.7879941120597498,
+          "energy_hartree": -836.2341172180002,
+          "job_id": "52954102",
+          "positions": [
+            [
+              1.007308375197452,
+              -0.1147829738444742,
+              0.2567681961378954
+            ],
+            [
+              0.35419610883468194,
+              0.7534135340545717,
+              1.694198807595671
+            ],
+            [
+              1.1270032363860387,
+              -0.286931046259916,
+              3.22605154264657
+            ],
+            [
+              0.32911940412623025,
+              0.7955102684884512,
+              -1.12466181556762
+            ],
+            [
+              0.6027930384520063,
+              -1.1224659179472938,
+              0.11579758980369499
+            ],
+            [
+              2.088546826824997,
+              -0.010344555381383935,
+              0.11911231425135813
+            ]
+          ],
+          "step": 7
+        },
+        {
+          "distance_angstrom": 1.8879980352373695,
+          "energy_hartree": -836.219991676,
+          "job_id": "52954112",
+          "positions": [
+            [
+              1.0183221026531524,
+              -0.1293990922523055,
+              0.2801554018953304
+            ],
+            [
+              0.35765955643890956,
+              0.7455495546123311,
+              1.7025589916020119
+            ],
+            [
+              1.1379105497477964,
+              -0.29073762828443184,
+              3.2354866968496627
+            ],
+            [
+              0.291451296262746,
+              0.8296893573136921,
+              -1.1746108191129176
+            ],
+            [
+              0.6092144291880761,
+              -1.1322408783267972,
+              0.12261355195160709
+            ],
+            [
+              2.094409055530726,
+              -0.008462003952534013,
+              0.12106281168187343
+            ]
+          ],
+          "step": 8
+        },
+        {
+          "distance_angstrom": 1.987994180011162,
+          "energy_hartree": -836.20698865,
+          "job_id": "52954125",
+          "positions": [
+            [
+              1.0298650309603092,
+              -0.14413638497393066,
+              0.30351662790418743
+            ],
+            [
+              0.36063176667340285,
+              0.7381883750230452,
+              1.709741311098995
+            ],
+            [
+              1.147923251269739,
+              -0.29369777019790677,
+              3.244541181132097
+            ],
+            [
+              0.25395716879893165,
+              0.863027302230414,
+              -1.2247860765268954
+            ],
+            [
+              0.6162305654348927,
+              -1.1420339632454453,
+              0.13014863690885697
+            ],
+            [
+              2.1003592066841303,
+              -0.006948249726221944,
+              0.1241049543503268
+            ]
+          ],
+          "step": 9
+        },
+        {
+          "distance_angstrom": 2.0879941249368614,
+          "energy_hartree": -836.1957415740001,
+          "job_id": "52954137",
+          "positions": [
+            [
+              1.042293644405581,
+              -0.16042245828127896,
+              0.3265794910709289
+            ],
+            [
+              0.36304283187993125,
+              0.7280261193500898,
+              1.715757056094101
+            ],
+            [
+              1.1569302758326927,
+              -0.2919473357448581,
+              3.2590671996285265
+            ],
+            [
+              0.2173527731980756,
+              0.8968085456519052,
+              -1.273875015969082
+            ],
+            [
+              0.622910370711342,
+              -1.152072115720816,
+              0.13368248055569137
+            ],
+            [
+              2.106437093793783,
+              -0.005993446145087698,
+              0.12605542348740223
+            ]
+          ],
+          "step": 10
+        },
+        {
+          "distance_angstrom": 2.1879941503326434,
+          "energy_hartree": -836.186953865,
+          "job_id": "52954149",
+          "positions": [
+            [
+              1.0560757376597747,
+              -0.1773499875295937,
+              0.34833336379166135
+            ],
+            [
+              0.36728514924049127,
+              0.7175040004190768,
+              1.7214227441608747
+            ],
+            [
+              1.1619694288703466,
+              -0.2880098425735042,
+              3.2776043321382717
+            ],
+            [
+              0.17979671161127994,
+              0.9301966124259906,
+              -1.322832097592756
+            ],
+            [
+              0.6307936122261233,
+              -1.16243248473528,
+              0.13658490448684626
+            ],
+            [
+              2.113046350213391,
+              -0.005508988896735408,
+              0.12615338788266983
+            ]
+          ],
+          "step": 11
+        },
+        {
+          "distance_angstrom": 2.2879973104567224,
+          "energy_hartree": -836.1802038800001,
+          "job_id": "52954156",
+          "positions": [
+            [
+              1.0705374913693815,
+              -0.19406344972329304,
+              0.3687467103004223
+            ],
+            [
+              0.3728191842127372,
+              0.7073059610427003,
+              1.7268763153149718
+            ],
+            [
+              1.1639311080501593,
+              -0.2831003739614532,
+              3.2979567414522597
+            ],
+            [
+              0.14164120223345852,
+              0.9629746733565713,
+              -1.3729037019311863
+            ],
+            [
+              0.6400020288722227,
+              -1.1729985860391248,
+              0.1404882492735435
+            ],
+            [
+              2.120035975083447,
+              -0.005718915565446517,
+              0.12610232045755604
+            ]
+          ],
+          "step": 12
+        },
+        {
+          "distance_angstrom": 2.3879952445251154,
+          "energy_hartree": -836.175036027,
+          "job_id": "52954167",
+          "positions": [
+            [
+              1.0845648094088252,
+              -0.21033015885873893,
+              0.38796418167202845
+            ],
+            [
+              0.3773657936245196,
+              0.6961453351826997,
+              1.7326554129384537
+            ],
+            [
+              1.165887131244675,
+              -0.27639568915069107,
+              3.3191600407660093
+            ],
+            [
+              0.10439305505262424,
+              0.9955470395683914,
+              -1.425222185514309
+            ],
+            [
+              0.6497088802780768,
+              -1.1835474848554006,
+              0.14444626960845167
+            ],
+            [
+              2.127047320212685,
+              -0.007019732776306869,
+              0.1282629153969332
+            ]
+          ],
+          "step": 13
+        },
+        {
+          "distance_angstrom": 2.4879942691328067,
+          "energy_hartree": -836.1710772950001,
+          "job_id": "52954176",
+          "positions": [
+            [
+              1.098970124135504,
+              -0.22631916402498717,
+              0.405867420073396
+            ],
+            [
+              0.3827170770922198,
+              0.6854288264604207,
+              1.7379423328620824
+            ],
+            [
+              1.1653953418356109,
+              -0.2688430947642088,
+              3.340945979214427
+            ],
+            [
+              0.06642131792013552,
+              1.0282392257454729,
+              -1.4782880121236024
+            ],
+            [
+              0.6607403900006517,
+              -1.194697517051109,
+              0.14976739205505793
+            ],
+            [
+              2.1347227388372843,
+              -0.009408967255635108,
+              0.13103152278620636
+            ]
+          ],
+          "step": 14
+        },
+        {
+          "distance_angstrom": 2.5879944471397787,
+          "energy_hartree": -836.1680378920001,
+          "job_id": "52954186",
+          "positions": [
+            [
+              1.1125343042337659,
+              -0.24174302125063038,
+              0.4228974608966158
+            ],
+            [
+              0.38664460963443315,
+              0.6739083369789217,
+              1.7435802940605811
+            ],
+            [
+              1.165686660638489,
+              -0.25998312340100144,
+              3.3624482195036465
+            ],
+            [
+              0.02953356300454112,
+              1.0609856641033242,
+              -1.5335591896017375
+            ],
+            [
+              0.6721222404545445,
+              -1.2060300340439722,
+              0.15555577670013315
+            ],
+            [
+              2.142445611855633,
+              -0.012738513276688094,
+              0.13634407330832818
+            ]
+          ],
+          "step": 15
+        },
+        {
+          "distance_angstrom": 2.687994246574674,
+          "energy_hartree": -836.1656963870001,
+          "job_id": "52954195",
+          "positions": [
+            [
+              1.1262305053247974,
+              -0.25656664405654395,
+              0.4389998296424054
+            ],
+            [
+              0.3911988263856297,
+              0.6634200447648525,
+              1.7487832884606846
+            ],
+            [
+              1.1641001188876754,
+              -0.251201908652743,
+              3.3832981666052815
+            ],
+            [
+              -0.008107042087820007,
+              1.0936955984639352,
+              -1.5896409159239557
+            ],
+            [
+              0.6845921336298871,
+              -1.2178395074648753,
+              0.16314328137186712
+            ],
+            [
+              2.1509524476812385,
+              -0.017108273944671903,
+              0.14268298471128488
+            ]
+          ],
+          "step": 16
+        },
+        {
+          "distance_angstrom": 2.7879950073794135,
+          "energy_hartree": -836.1638847470001,
+          "job_id": "52954204",
+          "positions": [
+            [
+              1.140066956498575,
+              -0.2708995813388734,
+              0.45435685689867
+            ],
+            [
+              0.39603227995760454,
+              0.6539534481041797,
+              1.7533313934131793
+            ],
+            [
+              1.1609507939652175,
+              -0.24243772652513723,
+              3.4030763521900576
+            ],
+            [
+              -0.04647173506105993,
+              1.126583643913462,
+              -1.6461389726003595
+            ],
+            [
+              0.6980351815085223,
+              -1.2301973729273539,
+              0.17243011389076351
+            ],
+            [
+              2.1603535129525486,
+              -0.02260310211632343,
+              0.15021089107525878
+            ]
+          ],
+          "step": 17
+        },
+        {
+          "distance_angstrom": 2.887994188895471,
+          "energy_hartree": -836.1624754230002,
+          "job_id": "52954212",
+          "positions": [
+            [
+              1.1539517280662825,
+              -0.28545246050101564,
+              0.468912809287212
+            ],
+            [
+              0.39999630287095667,
+              0.6447454214867094,
+              1.7565108208874585
+            ],
+            [
+              1.1569795612339806,
+              -0.23223651030458034,
+              3.4213984567980056
+            ],
+            [
+              -0.08546563794206213,
+              1.1609363333912421,
+              -1.7018737958017929
+            ],
+            [
+              0.712725840004196,
+              -1.2438850505621342,
+              0.18285425297426844
+            ],
+            [
+              2.1707791955880533,
+              -0.029708424400268357,
+              0.1594640907224183
+            ]
+          ],
+          "step": 18
+        },
+        {
+          "distance_angstrom": 2.9879941572274373,
+          "energy_hartree": -836.161372063,
+          "job_id": "52954226",
+          "positions": [
+            [
+              1.1682109539917098,
+              -0.3001180330836037,
+              0.4827867702606459
+            ],
+            [
+              0.40374689738150593,
+              0.636361285877081,
+              1.7581698390918186
+            ],
+            [
+              1.151469001236576,
+              -0.22116352432307892,
+              3.438192573109408
+            ],
+            [
+              -0.1255954564292064,
+              1.196398480137619,
+              -1.7565462513409291
+            ],
+            [
+              0.7286139019973727,
+              -1.2586422652555835,
+              0.1945717914780846
+            ],
+            [
+              2.1825216916434487,
+              -0.03843663424248102,
+              0.17009191226854062
+            ]
+          ],
+          "step": 19
+        },
+        {
+          "distance_angstrom": 3.087994124787262,
+          "energy_hartree": -836.160502367,
+          "job_id": "52954235",
+          "positions": [
+            [
+              1.1831483594391106,
+              -0.3155231099561008,
+              0.4958704405246096
+            ],
+            [
+              0.4069198591979929,
+              0.6285684524711881,
+              1.7573547866961998
+            ],
+            [
+              1.1440727961272852,
+              -0.20815297474666244,
+              3.453144970486447
+            ],
+            [
+              -0.16727779352759903,
+              1.233975206540275,
+              -1.8087145301976848
+            ],
+            [
+              0.7461658722310311,
+              -1.2752009893968488,
+              0.2074931931087936
+            ],
+            [
+              2.195937896353586,
+              -0.04926727580189859,
+              0.18211777424920347
+            ]
+          ],
+          "step": 20
+        },
+        {
+          "distance_angstrom": 3.1879941185016976,
+          "energy_hartree": -836.1598121960001,
+          "job_id": "52954240",
+          "positions": [
+            [
+              1.1994324766473827,
+              -0.33222539807271145,
+              0.5080147988264611
+            ],
+            [
+              0.40977211540324743,
+              0.6216366487039374,
+              1.7528368404047772
+            ],
+            [
+              1.1335471947527063,
+              -0.19237182175680165,
+              3.4658905535210573
+            ],
+            [
+              -0.21152431993859727,
+              1.274386699901547,
+              -1.85657924337444
+            ],
+            [
+              0.7659240459736537,
+              -1.2940615207477393,
+              0.2216080848484957
+            ],
+            [
+              2.211815476983013,
+              -0.06296529891827914,
+              0.19549560064121832
+            ]
+          ],
+          "step": 21
+        },
+        {
+          "distance_angstrom": 3.287994150542346,
+          "energy_hartree": -836.159261666,
+          "job_id": "52954246",
+          "positions": [
+            [
+              1.21731459695538,
+              -0.3509636335788871,
+              0.5191351097658996
+            ],
+            [
+              0.41180432146451046,
+              0.6151013259500616,
+              1.7435484965098262
+            ],
+            [
+              1.119488895079754,
+              -0.17241803106404896,
+              3.4759933342076725
+            ],
+            [
+              -0.2584212261534438,
+              1.3186985877177777,
+              -1.8985781447720933
+            ],
+            [
+              0.7885128771654825,
+              -1.316198367778889,
+              0.23707602261385896
+            ],
+            [
+              2.230267525309723,
+              -0.07982057213606115,
+              0.2100918165424065
+            ]
+          ],
+          "step": 22
+        },
+        {
+          "distance_angstrom": 3.3879941304551267,
+          "energy_hartree": -836.1588209050001,
+          "job_id": "52954250",
+          "positions": [
+            [
+              1.2383605379885227,
+              -0.3728015290062645,
+              0.528801554684298
+            ],
+            [
+              0.41369991126557487,
+              0.6096820526091455,
+              1.7266133939576893
+            ],
+            [
+              1.0989061547757548,
+              -0.14633676186204464,
+              3.482282840875483
+            ],
+            [
+              -0.31037320673773766,
+              1.3681473120135126,
+              -1.9306750459151991
+            ],
+            [
+              0.8149553625343842,
+              -1.3424163902787987,
+              0.25371022969542056
+            ],
+            [
+              2.2534182299949075,
+              -0.10187537436559724,
+              0.22653366156987823
+            ]
+          ],
+          "step": 23
+        },
+        {
+          "distance_angstrom": 3.4879941562031997,
+          "energy_hartree": -836.158467833,
+          "job_id": "52954257",
+          "positions": [
+            [
+              1.2647841020978794,
+              -0.40115941813645567,
+              0.5360248493381634
+            ],
+            [
+              0.4142269853796472,
+              0.6047551150979594,
+              1.6952571925736037
+            ],
+            [
+              1.067314303677973,
+              -0.10750435357809197,
+              3.4814545623807005
+            ],
+            [
+              -0.37003916547005905,
+              1.4279129334961131,
+              -1.9434812405957707
+            ],
+            [
+              0.8490296246652369,
+              -1.3774275085722065,
+              0.2729896734078184
+            ],
+            [
+              2.28365113947073,
+              -0.13217745919736518,
+              0.24502159776305574
+            ]
+          ],
+          "step": 24
+        },
+        {
+          "distance_angstrom": 3.587997786338486,
+          "energy_hartree": -836.1581870300001,
+          "job_id": "52954262",
+          "positions": [
+            [
+              1.3030978072083872,
+              -0.44663220264756215,
+              0.53763306473945
+            ],
+            [
+              0.4089831746226506,
+              0.5975363219461457,
+              1.6280272444141621
+            ],
+            [
+              1.0109736706545487,
+              -0.03473305821838307,
+              3.461824010315194
+            ],
+            [
+              -0.4447419763312775,
+              1.5138442076819585,
+              -1.9068129768796669
+            ],
+            [
+              0.9028129016902138,
+              -1.4359241855764022,
+              0.3005431702876936
+            ],
+            [
+              2.327841411976884,
+              -0.17969177407580378,
+              0.2660521219907373
+            ]
+          ],
+          "step": 25
+        },
+        {
+          "distance_angstrom": 3.6879963713672854,
+          "energy_hartree": -836.1579762430001,
+          "job_id": "52954265",
+          "positions": [
+            [
+              1.3731625262134577,
+              -0.5214466048848944,
+              0.5283110219363334
+            ],
+            [
+              0.41166887438813027,
+              0.5979733847275626,
+              1.4777083981899808
+            ],
+            [
+              0.8861785240296156,
+              0.1009997153829186,
+              3.3890746154292004
+            ],
+            [
+              -0.5626117020169338,
+              1.6360542678347614,
+              -1.7518831269797674
+            ],
+            [
+              0.9857857343249403,
+              -1.525603014383301,
+              0.3365454769292732
+            ],
+            [
+              2.414783032882197,
+              -0.27357843956709393,
+              0.30751024936254767
+            ]
+          ],
+          "step": 26
+        },
+        {
+          "distance_angstrom": 3.787994112810094,
+          "energy_hartree": -836.1609362570001,
+          "job_id": "52954272",
+          "positions": [
+            [
+              1.7142575010519168,
+              -0.7319366054753493,
+              0.586463608777864
+            ],
+            [
+              0.8573588696693729,
+              0.7945909982337874,
+              0.722673837637118
+            ],
+            [
+              -0.07469262003379286,
+              0.5620048772076365,
+              2.5116754135878776
+            ],
+            [
+              -0.931239391856589,
+              1.7519513587466984,
+              -0.5000658061429767
+            ],
+            [
+              1.1630427133795587,
+              -1.6741233600945111,
+              0.616279193273682
+            ],
+            [
+              2.780239917610942,
+              -0.6880879595083088,
+              0.3502403877340022
+            ]
+          ],
+          "step": 27
+        }
+      ]
+    }
+  ],
+  "selected_remaining_case": "ch3ss_rxn_1_1",
+  "selected_missing_job": "saddle_IRC_R",
+  "scientific_approval": false,
+  "mess_updated": false
+}

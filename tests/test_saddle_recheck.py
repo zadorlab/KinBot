@@ -171,3 +171,102 @@ def test_second_controller_preserves_live_owner(tmp_path,monkeypatch):
         fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
         assert checks.run(root)==0
     assert (root/'controller.json').read_bytes()==before
+
+
+def test_selected_path_run_adopts_forward_and_preserves_other_cases(tmp_path,monkeypatch):
+    data=manifest()
+    other=deepcopy(data['cases'][0]);other['name']='other'
+    data['cases'].append(other)
+    root,_=stage(tmp_path,data)
+    atomic_json(root/'results.json',{'other':{'stage':'irc','irc_statuses':{'F':'running'}}})
+    atomic_json(root/'controller.json',{'status':'running','pid':123})
+    atoms=Atoms('OHH',positions=[[0,0,0],[1,0,0],[0,1,0]])
+    with checks.in_directory(root/'seed'):
+        db=QuantumChemistry(checks.Parameters('input.json').par).db
+    db.write(atoms,name='saddle',data=dict(status='normal',energy=-1.,frequencies=[-100.,100.,200.]))
+    db.write(atoms,name='saddle_IRC_F',data=dict(status='normal',energy=-1.1))
+    db.write(atoms,name='saddle_IRC_F_prod',data=dict(status='normal',energy=-1.1))
+    atomic_json(root/'seed/saddle_IRC_F.irc_path.json',dict(converged=True,moved=True))
+    before={p:p.read_bytes() for p in (root/'other').rglob('*') if p.is_file()}
+    full_owner=(root/'controller.json').read_bytes()
+    allocations={};submitted=[];polls={}
+    def submit(qc,job,nproc,**kwargs):
+        assert Path.cwd()==root/'seed'
+        assert job=='saddle_IRC_R' and job not in allocations
+        allocations[job]='42';submitted.append(job);qc.job_ids[job]='42'
+        return 1
+    def status(qc,job,**kwargs):
+        if qc.db.count(name=job):return 'normal'
+        if job not in allocations:return 0
+        polls[job]=polls.get(job,0)+1
+        if polls[job]<3:return 'running'
+        qc.db.write(atoms,name=job,data=dict(status='normal',energy=-1.1))
+        qc.db.write(atoms,name=job+'_prod',data=dict(status='normal',energy=-1.1))
+        atomic_json(job+'.irc_path.json',dict(converged=True,moved=True))
+        return 'normal'
+    monkeypatch.setattr(QuantumChemistry,'submit_qc',submit)
+    monkeypatch.setattr(QuantumChemistry,'check_qc',status)
+    monkeypatch.setattr(QuantumChemistry,'qc_freq',lambda *a,**kw:pytest.fail('Unrequested frequency'))
+    class Interrupted(Exception):pass
+    monkeypatch.setattr(checks.time,'sleep',lambda _:(_ for _ in ()).throw(Interrupted()))
+    with pytest.raises(Interrupted):
+        checks.main(['run',str(root),'--only','seed','--paths-only'])
+    assert submitted==['saddle_IRC_R']
+    assert json.loads((root/'results.json').read_text())['seed']['irc_statuses']['R']=='running'
+    worker=(root/'seed/saddle_IRC_R.py').read_bytes()
+    monkeypatch.setattr(checks.time,'sleep',lambda _:None)
+    checks.main(['run',str(root),'--only','seed','--paths-only'])
+    assert submitted==['saddle_IRC_R']
+    assert (root/'seed/saddle_IRC_R.py').read_bytes()==worker
+    result=json.loads((root/'results.json').read_text())
+    assert result['other']=={'stage':'irc','irc_statuses':{'F':'running'}}
+    assert result['seed']['outcome']=='irc_paths_available'
+    assert result['seed']['complete'] is False
+    assert (root/'controller.json').read_bytes()==full_owner
+    assert all(p.read_bytes()==content for p,content in before.items())
+    assert json.loads((root/'controller.selected.json').read_text())['status']=='complete'
+    assert json.loads((root/'selected_execution.json').read_text())==dict(schema=1,
+        cases=['seed'],paths_only=True,campaign_complete=False,scientific_approval=False)
+    checks.run(root,only=['seed'],paths_only=True)
+    assert submitted==['saddle_IRC_R']
+
+
+@pytest.mark.parametrize('only',[[],['missing'],['seed','missing']])
+def test_unknown_selection_fails_before_writing_or_submitting(tmp_path,monkeypatch,only):
+    root,_=stage(tmp_path)
+    before={p:p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    monkeypatch.setattr(checks,'QuantumChemistry',lambda *a:pytest.fail('QC initialized'))
+    with pytest.raises(ValueError,match='selection'):
+        checks.run(root,only=only,paths_only=True)
+    assert {p:p.read_bytes() for p in root.rglob('*') if p.is_file()}==before
+
+
+def test_selected_run_respects_existing_owner_lock(tmp_path,monkeypatch):
+    import fcntl
+    root,_=stage(tmp_path)
+    monkeypatch.setattr(checks,'QuantumChemistry',lambda *a:pytest.fail('QC initialized'))
+    with (root/'controller.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        assert checks.run(root,only=['seed'],paths_only=True)==0
+    assert not (root/'selected_execution.json').exists()
+
+
+def test_paths_only_receipt_can_later_continue_frequency_validation(tmp_path,monkeypatch):
+    root,_=stage(tmp_path)
+    monkeypatch.chdir(root/'seed')
+    atomic_json('recheck.json',dict(schema=1,complete=False,outcome='irc_paths_available'))
+    par=checks.Parameters('input.json').par
+    qc=QuantumChemistry(par)
+    seen=[]
+    monkeypatch.setattr(qc,'check_qc',lambda job:'normal')
+    monkeypatch.setattr(checks.IRC,'do_irc_calculations',lambda self:None)
+    monkeypatch.setattr(qc,'qc_freq',lambda species,job,**kw:seen.append(job) or job+'_freq')
+    def observation(qc,job,seed):
+        return dict(job=job,symbols=['O','H','H'],positions=[[0,0,0],[1,0,0],[0,1,0]],
+            data=dict(status='normal',frequencies=[-100.,100.,200.] if job=='saddle' else [100.,200.,300.]))
+    monkeypatch.setattr(checks,'observation',observation)
+    for direction in ('F','R'):
+        atomic_json(f'saddle_IRC_{direction}.irc_path.json',dict(converged=True,moved=True))
+    result=checks.tick(manifest()['cases'][0],qc,par)
+    assert seen==['saddle_IRC_F_prod','saddle_IRC_R_prod']
+    assert result['complete'] and result['outcome']=='irc_endpoints_available'

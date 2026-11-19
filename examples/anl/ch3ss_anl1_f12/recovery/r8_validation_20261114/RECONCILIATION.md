@@ -1,8 +1,9 @@
 # Native reconciliation update — 16 November 2026
 
 **19 November necessity revision:** [current decisions](review_20261119/CALCULATION_DECISIONS.md)
-select zero new QC tasks. Failed optional CC checks do not block the available
-B2PLYP judgments. Earlier retry/release commands below are historical.
+select four B2PLYP inner-path scans and one missing retained reverse IRC.
+Failed optional CC checks do not block the available B2PLYP judgments. Earlier
+retry/release commands below are historical.
 
 **Current status, 19 November:** the native panel is finished and reviewed;
 scientific closure remains open. Follow the

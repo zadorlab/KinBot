@@ -16,8 +16,8 @@ remaining scientific and operational findings are explicit in that review.
 judgments even when an optional CC or redundant Gaussian check fails. No further
 CC optimization/path campaign is required to make those judgments. The current
 [new-calculation admission](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/CALCULATION_DECISIONS.md)
-is empty; missing jobs must be selected only after retained-channel and reuse
-review. R9 model closure is not the same as completing every diagnostic.
+now contains four B2PLYP inner-path scans and one missing retained reverse
+IRC, following exact channel/reuse review. R9 model closure is not the same as completing every diagnostic.
 
 This section supersedes earlier readiness implications and unconditional
 "PST → VRC" treatment recommendations in the scouting scope documents. The

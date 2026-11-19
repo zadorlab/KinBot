@@ -32,6 +32,17 @@ def selected(root):
     """Known panel directories only; never traverse QC checkpoint/scratch stores."""
     root = root.resolve(); files = set()
     folders = [root, root/'remaining_l2', root/'native']
+    # Fixed, explicitly reviewed follow-up panel. Do not discover arbitrary
+    # directories, attempt archives or scratch trees by recursion.
+    closure = root/'paper_closure_20261119'
+    plan = closure/'plan.json'
+    if plan.is_file() and not closure.is_symlink():
+        folders.append(closure)
+        for case in json.loads(plan.read_text())['scans']:
+            name = case['name']
+            if not isinstance(name, str) or Path(name).name != name or name in ('.', '..'):
+                raise ValueError('Invalid closure graph name.')
+            folders.extend((closure/name, closure/name/'tasks/scan'))
     manifest = root/'remaining_l2/campaign.json'
     if manifest.is_file():
         for case in json.loads(manifest.read_text())['cases']:

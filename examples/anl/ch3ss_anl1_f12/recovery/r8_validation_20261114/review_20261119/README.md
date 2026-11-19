@@ -6,6 +6,8 @@ and [operational handoff](RECOVERY_HANDOFF.md).
 | Artifact | Contents |
 |---|---|
 | `CALCULATION_DECISIONS.md` | Current B2PLYP judgments, retired retries and necessity gates |
+| `reused_fragment_verification.json` | Native input/output, state, energy, spectrum and geometry checks for seven reused well/fragment records |
+| `../paper_closure_inputs.json` | Four frozen scans, original L1 traces and matched B2PLYP threshold ledger |
 | `prior_l2_connectivity.json` | Earlier converged Sella path and endpoint-frequency receipts for reuse |
 | `task_inventory.tsv` | All 245 native tasks, status, job ID and native cause classes |
 | `full_network_inventory.json`, `.tsv` | All 105 preserved full-network connections, exact endpoint identities and representations |

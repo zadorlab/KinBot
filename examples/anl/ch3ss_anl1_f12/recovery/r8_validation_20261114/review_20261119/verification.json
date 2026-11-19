@@ -1,0 +1,112 @@
+{
+  "date": "2026-11-19",
+  "reviewer": "same assistant, separate verification pass; no subagents",
+  "archive": {
+    "path": "examples/anl/tmp/validation-evidence_nov19.tar.gz",
+    "bytes": 97337964,
+    "sha256": "e3cbefcd55ce9bf01d5e9dc67f59b98e47281fb2bfa5dd5b4c9681903de6a8ac",
+    "source_manifest_present": false
+  },
+  "artifact_hash_counts": {
+    "verified": 548,
+    "missing": 61,
+    "mismatches": 0
+  },
+  "checks": [
+    {
+      "check": "TS2 nonzero gradient 005",
+      "result": "verified",
+      "source": "evidence/native/cc_si_TS2_curvature_v1_electronic_v2/tasks/hessian_005/hessian_005.out"
+    },
+    {
+      "check": "TS2 nonzero gradient 010",
+      "result": "verified",
+      "source": "evidence/native/cc_si_TS2_curvature_v1_electronic_v2/tasks/hessian_010/hessian_010.out"
+    },
+    {
+      "check": "TS5 QSD iteration ceiling",
+      "result": "verified",
+      "source": "evidence/native/cc_si_TS5/tasks/forward/forward.out"
+    },
+    {
+      "check": "TS3 converged ROHF precedes CC iteration failure",
+      "result": "verified",
+      "source": "evidence/native/cc_si_TS3_curvature_v1_electronic_v2_quadratic_v3/tasks/electronic/electronic.out"
+    },
+    {
+      "check": "12_2 bounded departure",
+      "result": "verified",
+      "source": "evidence/native/irc_native_ch3ss_rxn_12_2/tasks/forward_10_dvv_v1_positive_dt_v2_departure_v3/forward_10_dvv_v1_positive_dt_v2_departure_v3.log"
+    },
+    {
+      "check": "All 24 exclusions retained",
+      "result": "verified",
+      "source": "screening_energy_audit.json"
+    },
+    {
+      "check": "All 105 model edges retained including 47 PST",
+      "result": "verified",
+      "source": "full_network_inventory.json"
+    },
+    {
+      "check": "All SI Eckart blocks checked; exactly two -3 kcal residuals",
+      "result": "verified",
+      "source": "paper_si_checks.json"
+    },
+    {
+      "check": "Received archive unchanged",
+      "result": "verified",
+      "source": "examples/anl/tmp/validation-evidence_nov19.tar.gz"
+    }
+  ],
+  "regression": {
+    "passed": 266,
+    "seconds": 29.91,
+    "scope": "CC recovery, dispatcher, live controls, native panel, path/probe decisions and sampling",
+    "native_retry_verified": false
+  },
+  "scientific_approval": false,
+  "mess_run": false,
+  "artifact_sha256": {
+    "CALCULATION_DECISIONS.md": "4ac0b43abc81fdcb7c076b4e2f4f0505d586898bcff1e8451cc9a484ec640447",
+    "README.md": "33fe66e0deb87354912eac6e9163b9817595574cccba9e1951ea905c96270aa1",
+    "RECOVERY_HANDOFF.md": "c813cb1208bf023b256936f2ae6cd5a12edefa737c9ecea29f3cf485ea6de33a",
+    "cc_comparison.json": "84457a4de2e9e1553cb86ac69b4d514a58dce03436f6de7044db6e2183e98840",
+    "evidence_summary.png": "9983f36cfebe47654727cbc71c8616a1318bb7ccf27033e5f8eb9c2859ba705c",
+    "full_network_inventory.json": "2cc6bc8b0d5859a2483cb2311e964e65bd4efcee121cbe185fad427cf2209105",
+    "full_network_inventory.tsv": "7d12274fef87cd9608a8385f213006b0d7fea8ce56f66514020c89cb23b8a1fb",
+    "paper_si_checks.json": "ee954210a900541240f424011595fb155124ace8a80b2a9273426bbbc7dabc3e",
+    "path_geometry_checks.json": "00c815c968cca2dd960c49f1a7c318a9a62574d0718485027e6edbe28e8da85c",
+    "prior_l2_connectivity.json": "29477935efb5b60fdb3063410661001f2120171696019f32a704c18419d3d015",
+    "remaining_endpoint_matches.json": "a6bb6fdb4fcc4094fa8d103329645ea9c1f3d0116dcfb3d0a11aa06adf976db7",
+    "remaining_l2_database_audit.json": "389672c095ff08b770abbef03c1a3b33d3b3767804e6e070c36b1e85eb63b641",
+    "screening_energy_audit.json": "c07bda3ab96e31650b0f54cb0f3ffeb399f29ec046b4d66ba87ecbb6b733fd28",
+    "task_inventory.tsv": "792e89fb3d796dc974ecd59e3f03f7eb5203d469c0176a61945e6d4bff754299"
+  },
+  "read_only_snapshot_validation": "Simulated scheduler capture against the archive; all evidence file sizes and modification times unchanged.",
+  "necessity_revision": {
+    "source": "prior_l2_connectivity.json",
+    "separately_checked_cases": [
+      "paper_ts1",
+      "paper_ts2",
+      "paper_ts3",
+      "paper_ts4",
+      "paper_ts6",
+      "native_ch3ss_rxn_12_2",
+      "native_ch3ss_rxn_54_1",
+      "native_ch3ss_rxn_12_1",
+      "ch3s_h_loss_scale_1p6",
+      "native_ch3ss_rxn_2_2"
+    ],
+    "checks": [
+      "source SHA256 matches frozen prior export",
+      "one negative saddle mode",
+      "both converged path receipts with exact step counts",
+      "positive endpoint spectra and native hashes",
+      "all report artifact links resolve"
+    ],
+    "new_qc_selected": 0,
+    "cc_retry_selected": false,
+    "reason": "Use available B2PLYP judgments; optional CC and duplicate native-path success are not prerequisites."
+  }
+}

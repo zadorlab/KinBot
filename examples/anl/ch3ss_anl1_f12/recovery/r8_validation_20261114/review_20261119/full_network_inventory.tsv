@@ -1,0 +1,106 @@
+PES	label	endpoints	treatment	source_reaction	source_line	scientific_status
+ch3s	nobar_4	w_2 <-> pr_1	PST	471030810040000000002_hom_sci_2_3	364	requires_native_bottleneck_binding
+ch3s	nobar_1	w_1 <-> pr_2	PST	470831050000000000002_hom_sci_1_2	401	requires_native_bottleneck_binding
+ch3s	nobar_2	w_2 <-> pr_4	PST	471030810040000000002_hom_sci_1_2	438	requires_native_bottleneck_binding
+ch3s	nobar_3	w_2 <-> pr_5	PST	471030810040000000002_hom_sci_1_4	474	requires_native_bottleneck_binding
+ch3s	nobar_5	w_3 <-> pr_6	PST	471230610040000000002_hom_sci_1_2	511	requires_native_bottleneck_binding
+ch3s	rxn_1	w_1 <-> w_2	RRHO/union	470831050000000000002_intra_H_migration_2_3	551	requires_stationary_point_and_path_binding
+ch3s	rxn_3	w_1 <-> pr_1	RRHO/union	470831050000000000002_r12_insertion_R_3_1_4	627	requires_stationary_point_and_path_binding
+ch3s	rxn_4	w_2 <-> w_3	RRHO/union	471030810040000000002_intra_H_migration_2_4	663	requires_stationary_point_and_path_binding
+ch3s	rxn_6	w_2 <-> pr_3	RRHO/union	471030810040000000002_r12_insertion_R_4_1_5	738	requires_stationary_point_and_path_binding
+ch3s	rxn_10	w_3 <-> pr_5	RRHO/union	471230610040000000002_R_Addition_MultipleBond_1_2_3	849	requires_stationary_point_and_path_binding
+ch3ss	nobar_1	w_1 <-> pr_1	PST	791471490990000000002_hom_sci_1_2	1513	requires_native_bottleneck_binding
+ch3ss	nobar_2	w_1 <-> pr_2	PST	791471490990000000002_hom_sci_1_4	1552	requires_native_bottleneck_binding
+ch3ss	nobar_9	w_3 <-> pr_2	PST	791671450790040000002_hom_sci_3_4	1590	requires_native_bottleneck_binding
+ch3ss	nobar_3	w_1 <-> pr_3	PST	791471490990000000002_hom_sci_2_3	1630	requires_native_bottleneck_binding
+ch3ss	nobar_4	w_2 <-> pr_5	PST	791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_3	1670	requires_native_bottleneck_binding
+ch3ss	nobar_8	w_3 <-> pr_5	PST	791671450790040000002_hom_sci_1_2	1710	requires_native_bottleneck_binding
+ch3ss	nobar_24	w_10 <-> pr_5	PST	791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_3	1747	requires_native_bottleneck_binding
+ch3ss	nobar_5	w_2 <-> pr_6	PST	791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_5	1786	requires_native_bottleneck_binding
+ch3ss	nobar_6	w_2 <-> pr_7	PST	791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3	1831	requires_native_bottleneck_binding
+ch3ss	nobar_15	w_6 <-> pr_7	PST	791472110370000000002_hom_sci_1_3	1885	requires_native_bottleneck_binding
+ch3ss	nobar_26	w_10 <-> pr_7	PST	791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3	1936	requires_native_bottleneck_binding
+ch3ss	nobar_14	w_6 <-> pr_8	PST	791472110370000000002_hom_sci_1_2	1989	requires_native_bottleneck_binding
+ch3ss	nobar_39	w_9 <-> pr_8	PST		2026	requires_native_bottleneck_binding
+ch3ss	nobar_20	w_8 <-> pr_9	PST	791871560500020000002-s254020c87a151164_hom_sci_2_6	2064	requires_native_bottleneck_binding
+ch3ss	nobar_34	w_15 <-> pr_9	PST	791871560500020000002-s254020c87a151164_hom_sci_2_6	2115	requires_native_bottleneck_binding
+ch3ss	nobar_40	w_11 <-> pr_9	PST		2167	requires_native_bottleneck_binding
+ch3ss	nobar_41	w_12 <-> pr_11	PST		2219	requires_native_bottleneck_binding
+ch3ss	nobar_10	w_5 <-> pr_12	PST	791871710370000000002_hom_sci_1_5	2257	requires_native_bottleneck_binding
+ch3ss	nobar_13	w_4 <-> pr_12	PST	791871560500020000002-sb6e34ded5baaf03b_hom_sci_3_5	2295	requires_native_bottleneck_binding
+ch3ss	nobar_21	w_8 <-> pr_12	PST	791871560500020000002-s254020c87a151164_hom_sci_3_4	2333	requires_native_bottleneck_binding
+ch3ss	nobar_35	w_15 <-> pr_12	PST	791871560500020000002-s254020c87a151164_hom_sci_3_4	2371	requires_native_bottleneck_binding
+ch3ss	nobar_38	w_17 <-> pr_12	PST	791871560500020000002-sb6e34ded5baaf03b_hom_sci_3_5	2410	requires_native_bottleneck_binding
+ch3ss	nobar_11	w_4 <-> pr_13	PST	791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_2	2449	requires_native_bottleneck_binding
+ch3ss	nobar_18	w_8 <-> pr_13	PST	791871560500020000002-s254020c87a151164_hom_sci_1_2	2499	requires_native_bottleneck_binding
+ch3ss	nobar_32	w_15 <-> pr_13	PST	791871560500020000002-s254020c87a151164_hom_sci_1_2	2549	requires_native_bottleneck_binding
+ch3ss	nobar_36	w_17 <-> pr_13	PST	791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_2	2600	requires_native_bottleneck_binding
+ch3ss	nobar_12	w_4 <-> pr_14	PST	791871560500020000002-sb6e34ded5baaf03b_hom_sci_2_3	2651	requires_native_bottleneck_binding
+ch3ss	nobar_19	w_8 <-> pr_14	PST	791871560500020000002-s254020c87a151164_hom_sci_2_3	2688	requires_native_bottleneck_binding
+ch3ss	nobar_27	w_13 <-> pr_14	PST	791671560700020000002-s893815ff03c7331d_hom_sci_1_2	2725	requires_native_bottleneck_binding
+ch3ss	nobar_30	w_14 <-> pr_14	PST	791671560700020000002-sdc19d1516ced03fc_hom_sci_1_2	2762	requires_native_bottleneck_binding
+ch3ss	nobar_33	w_15 <-> pr_14	PST	791871560500020000002-s254020c87a151164_hom_sci_2_3	2799	requires_native_bottleneck_binding
+ch3ss	nobar_37	w_17 <-> pr_14	PST	791871560500020000002-sb6e34ded5baaf03b_hom_sci_2_3	2837	requires_native_bottleneck_binding
+ch3ss	nobar_45	w_16 <-> pr_14	PST		2875	requires_native_bottleneck_binding
+ch3ss	nobar_16	w_6 <-> pr_16	PST	791472110370000000002_hom_sci_1_5	2913	requires_native_bottleneck_binding
+ch3ss	nobar_23	w_7 <-> pr_16	PST	791671560700020000002-sedd8f7729b69b19b_hom_sci_2_5	2964	requires_native_bottleneck_binding
+ch3ss	nobar_29	w_13 <-> pr_16	PST	791671560700020000002-s893815ff03c7331d_hom_sci_2_4	3015	requires_native_bottleneck_binding
+ch3ss	nobar_31	w_14 <-> pr_16	PST	791671560700020000002-sdc19d1516ced03fc_hom_sci_2_4	3066	requires_native_bottleneck_binding
+ch3ss	nobar_17	w_6 <-> pr_17	PST	791472110370000000002_hom_sci_2_4	3119	requires_native_bottleneck_binding
+ch3ss	nobar_22	w_7 <-> pr_18	PST	791671560700020000002-sedd8f7729b69b19b_hom_sci_1_6	3159	requires_native_bottleneck_binding
+ch3ss	nobar_28	w_13 <-> pr_18	PST	791671560700020000002-s893815ff03c7331d_hom_sci_1_6	3225	requires_native_bottleneck_binding
+ch3ss	nobar_25	w_10 <-> pr_19	PST	791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_5	3293	requires_native_bottleneck_binding
+ch3ss	rxn_1	w_1 <-> w_2	RRHO/union	791471490990000000002_intra_H_migration_2_4	3337	requires_stationary_point_and_path_binding
+ch3ss	rxn_2	w_1 <-> w_3	RRHO/union	791471490990000000002_intra_H_migration_3_4	3375	requires_stationary_point_and_path_binding
+ch3ss	rxn_4	w_2 <-> w_4	RRHO/union		3454	requires_stationary_point_and_path_binding
+ch3ss	rxn_5	w_2 <-> w_5	RRHO/union		3574	requires_stationary_point_and_path_binding
+ch3ss	rxn_6	w_2 <-> w_3	RRHO/union		3613	requires_stationary_point_and_path_binding
+ch3ss	rxn_7	w_2 <-> w_6	RRHO/union		3702	requires_stationary_point_and_path_binding
+ch3ss	rxn_9	w_2 <-> pr_4	RRHO/union		3741	requires_stationary_point_and_path_binding
+ch3ss	rxn_10	w_3 <-> w_7	RRHO/union	791671450790040000002_intra_H_migration_2_5	3780	requires_stationary_point_and_path_binding
+ch3ss	rxn_11	w_3 <-> w_8	RRHO/union	791671450790040000002_intra_H_migration_2_6	3818	requires_stationary_point_and_path_binding
+ch3ss	rxn_12	w_3 <-> w_6	RRHO/union	791671450790040000002_intra_R_migration_3_1	3899	requires_stationary_point_and_path_binding
+ch3ss	rxn_16	w_3 <-> w_10	RRHO/union	791671450790040000002_r12_insertion_R_3_2_1	4016	requires_stationary_point_and_path_binding
+ch3ss	rxn_17	w_3 <-> pr_10	RRHO/union	791671450790040000002_h2_elim_5_6	4103	requires_stationary_point_and_path_binding
+ch3ss	rxn_18	w_5 <-> w_8	RRHO/union	791871710370000000002_r12_insertion_R_3_2_4	4141	requires_stationary_point_and_path_binding
+ch3ss	rxn_19	w_5 <-> w_4	RRHO/union	791871710370000000002_r12_insertion_R_4_2_6	4179	requires_stationary_point_and_path_binding
+ch3ss	rxn_20	w_4 <-> w_3	RRHO/union	791871560500020000002-sb6e34ded5baaf03b_intra_H_migration_1_4	4217	requires_stationary_point_and_path_binding
+ch3ss	rxn_21	w_4 <-> pr_9	RRHO/union	791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1	4297	requires_stationary_point_and_path_binding
+ch3ss	rxn_22	w_6 <-> w_7	RRHO/union	791472110370000000002_intra_H_migration_2_5	4335	requires_stationary_point_and_path_binding
+ch3ss	rxn_23	w_6 <-> w_13	RRHO/union	791472110370000000002_intra_H_migration_3_5	4414	requires_stationary_point_and_path_binding
+ch3ss	rxn_24	w_6 <-> w_14	RRHO/union	791472110370000000002_r12_insertion_R_5_1_3	4493	requires_stationary_point_and_path_binding
+ch3ss	rxn_26	w_6 <-> pr_15	RRHO/union	791472110370000000002_h2_elim_4_5	4531	requires_stationary_point_and_path_binding
+ch3ss	rxn_27	w_8 <-> w_15	RRHO/union	791871560500020000002-s254020c87a151164_intra_H_migration_2_4	4569	requires_stationary_point_and_path_binding
+ch3ss	rxn_28	w_8 <-> w_7	RRHO/union	791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5	4648	requires_stationary_point_and_path_binding
+ch3ss	rxn_32	w_7 <-> w_13	RRHO/union	791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_2_3_4	4728	requires_stationary_point_and_path_binding
+ch3ss	rxn_33	w_7 <-> w_14	RRHO/union	791671560700020000002-sedd8f7729b69b19b_R_Addition_MultipleBond_2_1_3	4767	requires_stationary_point_and_path_binding
+ch3ss	rxn_35	w_10 <-> w_5	RRHO/union	791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_5	4806	requires_stationary_point_and_path_binding
+ch3ss	rxn_36	w_10 <-> w_17	RRHO/union	791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_6	4844	requires_stationary_point_and_path_binding
+ch3ss	rxn_37	w_10 <-> w_6	RRHO/union	791671580700000000002-s8fc26f5f496eeb4e_intra_R_migration_2_1	4961	requires_stationary_point_and_path_binding
+ch3ss	rxn_38	w_10 <-> pr_4	RRHO/union	791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_5_1_6	4999	requires_stationary_point_and_path_binding
+ch3ss	rxn_40	w_10 <-> pr_2	RRHO/union	791671580700000000002-s8fc26f5f496eeb4e_R_Addition_MultipleBond_1_3_4	5037	requires_stationary_point_and_path_binding
+ch3ss	rxn_41	w_1 <-> w_10	RRHO/union		5075	requires_stationary_point_and_path_binding
+ch3ss	rxn_44	w_14 <-> w_8	RRHO/union	791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_3	5114	requires_stationary_point_and_path_binding
+ch3ss	rxn_45	w_14 <-> pr_15	RRHO/union	791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_4_2_1	5152	requires_stationary_point_and_path_binding
+ch3ss	rxn_46	w_14 <-> pr_18	RRHO/union	791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_6_1_2	5191	requires_stationary_point_and_path_binding
+ch3ss	rxn_49	w_15 <-> w_7	RRHO/union		5231	requires_stationary_point_and_path_binding
+ch3ss	rxn_51	w_17 <-> w_3	RRHO/union	791871560500020000002-s1a4d7914034ddafc_intra_H_migration_1_4	5311	requires_stationary_point_and_path_binding
+ch3ss	rxn_52	w_17 <-> pr_9	RRHO/union		5391	requires_stationary_point_and_path_binding
+ch3ss	rxn_54	w_3 <-> w_9	RRHO/union	791671450790040000002_intra_H_migration_suprafacial_1_4	5430	requires_stationary_point_and_path_binding
+ch3ss	rxn_55	w_3 <-> w_11	RRHO/union	791671450790040000002_r12_insertion_R_6_1_5	5464	requires_stationary_point_and_path_binding
+ch3ss	rxn_56	w_5 <-> w_12	RRHO/union	791871710370000000002_Intra_R_Add_ExoTetCyclic_F_3_1_5	5510	requires_stationary_point_and_path_binding
+ch3ss	rxn_58	w_4 <-> w_12	RRHO/union	791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4	5548	requires_stationary_point_and_path_binding
+ch3ss	rxn_59	w_8 <-> w_12	RRHO/union	791871560500020000002-s254020c87a151164_r13_insertion_RSR_5_1_2_3	5628	requires_stationary_point_and_path_binding
+ch3ss	rxn_60	w_7 <-> w_16	RRHO/union	791671560700020000002-sedd8f7729b69b19b_dissociation_saddle_1_2	5666	requires_stationary_point_and_path_binding
+ch3ss	rxn_61	w_13 <-> w_12	RRHO/union	791671560700020000002-s893815ff03c7331d_intra_R_migration_2_3	5700	requires_stationary_point_and_path_binding
+ch3ss	rxn_62	w_17 <-> w_12	RRHO/union	791871560500020000002-s1a4d7914034ddafc_r12_insertion_R_3_2_6	5738	requires_stationary_point_and_path_binding
+ch3ss	ts_mirror_d0f30d131761a727	w_3 <-> w_15	RRHO/union		5818	requires_stationary_point_and_path_binding
+ch3ss	ts_mirror_e031f86d645f5d97	w_5 <-> w_15	RRHO/union		5901	requires_stationary_point_and_path_binding
+ch3ss	ts_mirror_299945c2cf582433	w_5 <-> w_17	RRHO/union		5940	requires_stationary_point_and_path_binding
+ch3ss	ts_mirror_131800ba32f33704	w_2 <-> pr_2	RRHO/union		5979	requires_stationary_point_and_path_binding
+ch3ss	ts_mirror_9d12d159b6bd4747	w_14 <-> w_15	RRHO/union		6018	requires_stationary_point_and_path_binding
+ch3ss	ts_mirror_c769b1c6dbef62c4	w_15 <-> w_12	RRHO/union		6057	requires_stationary_point_and_path_binding
+ch3ss	rxn_reverse_93359f49	w_9 <-> w_12	RRHO/union	330330000000000000002_460700680000000000001_abstraction_1_5_3	6096	requires_stationary_point_and_path_binding
+ch3ss	rxn_reverse_26b8db7c	w_3 <-> pr_4	RRHO/union	20020000000000000001_771210770330000000002_abstraction_3_1_2	6133	requires_stationary_point_and_path_binding
+ch3ss	pst_reverse_b18dcbc8_1	w_18 <-> pr_20	PST		6170	requires_native_bottleneck_binding
+ch3ss	rxn_reverse_b18dcbc8	w_16 <-> w_18	RRHO/union	330330000000000000002_460900460020000000001_abstraction_1_6_3	6205	requires_stationary_point_and_path_binding

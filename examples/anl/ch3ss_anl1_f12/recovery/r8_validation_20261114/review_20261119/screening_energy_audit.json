@@ -1,0 +1,511 @@
+{
+  "reference": {
+    "ch3s": -437.8885966256,
+    "ch3ss": -836.0044920844798
+  },
+  "points": {
+    "screen_4157f7ee193b": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_4157f7ee193b/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "product_461100280000000000001": {
+      "task": "minimum",
+      "status": "executed",
+      "total_hartree": -437.117544,
+      "imaginary_cm1": [],
+      "native": "evidence/native/product_461100280000000000001/tasks/minimum/minimum.log",
+      "normal_termination": true
+    },
+    "product_10000000000000000002": {
+      "task": "minimum",
+      "status": "executed",
+      "total_hartree": -0.4986142,
+      "imaginary_cm1": [],
+      "native": "evidence/native/product_10000000000000000002/tasks/minimum/minimum.log",
+      "normal_termination": true
+    },
+    "screen_2bb06fd3e9e5": {
+      "task": "hessian",
+      "status": "executed",
+      "total_hartree": -437.616341,
+      "imaginary_cm1": [
+        -96.9009
+      ],
+      "native": "evidence/native/screen_2bb06fd3e9e5/tasks/hessian/hessian.log",
+      "normal_termination": true
+    },
+    "screen_21b6f24311f7": {
+      "task": "hessian",
+      "status": "executed",
+      "total_hartree": -835.754982,
+      "imaginary_cm1": [
+        -650.848
+      ],
+      "native": "evidence/native/screen_21b6f24311f7/tasks/hessian/hessian.log",
+      "normal_termination": true
+    },
+    "screen_d8802b38edb6": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_d8802b38edb6/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "product_781741230150000000001-s4f33601e4c31f57f": {
+      "task": "minimum",
+      "status": "executed",
+      "total_hartree": -835.233403,
+      "imaginary_cm1": [],
+      "native": "evidence/native/product_781741230150000000001-s4f33601e4c31f57f/tasks/minimum/minimum.log",
+      "normal_termination": true
+    },
+    "screen_9603535f0aae": {
+      "task": "hessian",
+      "status": "executed",
+      "total_hartree": -835.733918,
+      "imaginary_cm1": [
+        -837.5345
+      ],
+      "native": "evidence/native/screen_9603535f0aae/tasks/hessian/hessian.log",
+      "normal_termination": true
+    },
+    "screen_b74944f1c6cb": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_b74944f1c6cb/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "screen_5fb18a7f75eb": {
+      "task": "hessian",
+      "status": "executed",
+      "total_hartree": -835.73527,
+      "imaginary_cm1": [
+        -848.2556
+      ],
+      "native": "evidence/native/screen_5fb18a7f75eb/tasks/hessian/hessian.log",
+      "normal_termination": true
+    },
+    "screen_25c4db68a96b": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_25c4db68a96b/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "screen_33321c763280": {
+      "task": "hessian",
+      "status": "executed",
+      "total_hartree": -835.733921,
+      "imaginary_cm1": [
+        -837.4339
+      ],
+      "native": "evidence/native/screen_33321c763280/tasks/hessian/hessian.log",
+      "normal_termination": true
+    },
+    "screen_3871adc806dc": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_3871adc806dc/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "screen_6a820c6cdfec": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_6a820c6cdfec/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "screen_6eb4b3bfebc9": {
+      "task": "hessian",
+      "status": "executed",
+      "total_hartree": -835.735271,
+      "imaginary_cm1": [
+        -848.3152
+      ],
+      "native": "evidence/native/screen_6eb4b3bfebc9/tasks/hessian/hessian.log",
+      "normal_termination": true
+    },
+    "screen_3d85be098edc": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_3d85be098edc/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "screen_458cd7676c01": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_458cd7676c01/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "screen_b9074f65732b": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_b9074f65732b/tasks/hessian/hessian.log",
+      "normal_termination": false
+    },
+    "product_130130000000000000002": {
+      "task": "minimum",
+      "status": "executed",
+      "total_hartree": -38.45071,
+      "imaginary_cm1": [],
+      "native": "evidence/native/product_130130000000000000002/tasks/minimum/minimum.log",
+      "normal_termination": true
+    },
+    "product_661300680000000000001": {
+      "task": "minimum",
+      "status": "executed",
+      "total_hartree": -797.30199,
+      "imaginary_cm1": [],
+      "native": "evidence/native/product_661300680000000000001/tasks/minimum/minimum.log",
+      "normal_termination": true
+    },
+    "product_471230610040000000002": {
+      "task": "minimum",
+      "status": "executed",
+      "total_hartree": -437.759315,
+      "imaginary_cm1": [],
+      "native": "evidence/native/product_471230610040000000002/tasks/minimum/minimum.log",
+      "normal_termination": true
+    },
+    "product_320000000000000000003": {
+      "task": "minimum",
+      "status": "executed",
+      "total_hartree": -397.9973408,
+      "imaginary_cm1": [],
+      "native": "evidence/native/product_320000000000000000003/tasks/minimum/minimum.log",
+      "normal_termination": true
+    },
+    "screen_ecda1394bcd4": {
+      "task": "hessian",
+      "status": "executed",
+      "total_hartree": -835.763477,
+      "imaginary_cm1": [
+        -816.7022
+      ],
+      "native": "evidence/native/screen_ecda1394bcd4/tasks/hessian/hessian.log",
+      "normal_termination": true
+    },
+    "screen_d4264ef8af7a": {
+      "task": "hessian",
+      "status": "failed",
+      "total_hartree": null,
+      "imaginary_cm1": [],
+      "native": "evidence/native/screen_d4264ef8af7a/tasks/hessian/hessian.log",
+      "normal_termination": false
+    }
+  },
+  "decisions": [
+    {
+      "case": "ch3s",
+      "reaction": "471230610040000000002_R_Addition_CSm_R_4_1_2",
+      "kind": "barrier",
+      "L1_kcal": 166.00592604825644,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_4157f7ee193b"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3s",
+      "reaction": "471230610040000000002_hom_sci_1_4",
+      "kind": "products",
+      "L1_kcal": 172.31594067588523,
+      "L2_kcal": 170.95769311560738,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "product_461100280000000000001",
+        "product_10000000000000000002"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3s",
+      "reaction": "471230610040000000002_r12_insertion_R_4_1_2",
+      "kind": "barrier",
+      "L1_kcal": 171.80157197756702,
+      "L2_kcal": 170.8429843838131,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_2bb06fd3e9e5"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_5_1_3",
+      "kind": "barrier",
+      "L1_kcal": 161.82124678846014,
+      "L2_kcal": 156.56994184211703,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_21b6f24311f7"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-s1a4d7914034ddafc_R_Addition_CSm_R_5_1_3",
+      "kind": "barrier",
+      "L1_kcal": 166.55563350340896,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_d8802b38edb6"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-s1a4d7914034ddafc_hom_sci_1_5",
+      "kind": "products",
+      "L1_kcal": 171.60383886485369,
+      "L2_kcal": 170.98057140814592,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "product_10000000000000000002",
+        "product_781741230150000000001-s4f33601e4c31f57f"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-s1a4d7914034ddafc_intra_H_migration_3_5",
+      "kind": "barrier",
+      "L1_kcal": 166.20873136798062,
+      "L2_kcal": 169.78780140014845,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_9603535f0aae"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-s1a4d7914034ddafc_r12_insertion_R_5_1_3",
+      "kind": "barrier",
+      "L1_kcal": 165.8948995939403,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_b74944f1c6cb"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-s254020c87a151164_hom_sci_1_5",
+      "kind": "products",
+      "L1_kcal": 171.6038401199301,
+      "L2_kcal": 170.98057140814592,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "product_10000000000000000002",
+        "product_781741230150000000001-s4f33601e4c31f57f"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-s254020c87a151164_intra_H_migration_2_5",
+      "kind": "barrier",
+      "L1_kcal": 165.25387951279993,
+      "L2_kcal": 168.93940859145113,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_5fb18a7f75eb"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-s254020c87a151164_r12_insertion_R_5_1_2",
+      "kind": "barrier",
+      "L1_kcal": 166.6444749982297,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_25c4db68a96b"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_6",
+      "kind": "products",
+      "L1_kcal": 171.6038401199301,
+      "L2_kcal": 170.98057140814592,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "product_10000000000000000002",
+        "product_781741230150000000001-s4f33601e4c31f57f"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-sb6e34ded5baaf03b_intra_H_migration_2_6",
+      "kind": "barrier",
+      "L1_kcal": 166.20810197622234,
+      "L2_kcal": 169.78591887173152,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_33321c763280"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_6_1_2",
+      "kind": "barrier",
+      "L1_kcal": 165.8979474059029,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_3871adc806dc"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-sc9062a2d39c6d51a_R_Addition_CSm_R_5_1_2",
+      "kind": "barrier",
+      "L1_kcal": 165.89674635340515,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_6a820c6cdfec"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-sc9062a2d39c6d51a_hom_sci_1_5",
+      "kind": "products",
+      "L1_kcal": 171.6038495325396,
+      "L2_kcal": 170.98057140814592,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "product_10000000000000000002",
+        "product_781741230150000000001-s4f33601e4c31f57f"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-sc9062a2d39c6d51a_intra_H_migration_2_5",
+      "kind": "barrier",
+      "L1_kcal": 165.25388076787635,
+      "L2_kcal": 168.9387810819788,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_6eb4b3bfebc9"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871560500020000002-sc9062a2d39c6d51a_r12_insertion_R_5_1_2",
+      "kind": "barrier",
+      "L1_kcal": 166.65826513997087,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_3d85be098edc"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871710370000000002_R_Addition_CSm_R_5_1_2",
+      "kind": "barrier",
+      "L1_kcal": 216.5509151944021,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_458cd7676c01"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871710370000000002_dissociation_saddle_1_5",
+      "kind": "barrier",
+      "L1_kcal": 216.55028894037056,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_b9074f65732b"
+      ],
+      "verdict": "unresolved_native_failure"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871710370000000002_hom_sci_1_2",
+      "kind": "products",
+      "L1_kcal": 158.98144137739632,
+      "L2_kcal": 158.00191846155664,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "product_130130000000000000002",
+        "product_661300680000000000001"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871710370000000002_hom_sci_2_3",
+      "kind": "products",
+      "L1_kcal": 154.44735816580194,
+      "L2_kcal": 155.5196164846896,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "product_471230610040000000002",
+        "product_320000000000000000003"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871710370000000002_r12_insertion_R_4_2_3",
+      "kind": "barrier",
+      "L1_kcal": 153.26375599634613,
+      "L2_kcal": 151.23924886146938,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_ecda1394bcd4"
+      ],
+      "verdict": "above_original_cutoff_at_L2"
+    },
+    {
+      "case": "ch3ss",
+      "reaction": "791871710370000000002_r12_insertion_R_5_1_2",
+      "kind": "barrier",
+      "L1_kcal": 152.26137659591126,
+      "L2_kcal": null,
+      "L1_limit_kcal": 150.0,
+      "points": [
+        "screen_d4264ef8af7a"
+      ],
+      "verdict": "unresolved_native_failure"
+    }
+  ]
+}

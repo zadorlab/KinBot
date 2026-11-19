@@ -1,0 +1,236 @@
+{
+  "path": "/Users/hrishikeshram/Downloads/SupInfo/Theoretical calculations/CH2S+SH/MESS_input.txt",
+  "sha256": "2c21c3f6905d07ad652a6b56be8f91284ae44154fb890b60d237326d7cbf0863",
+  "blocks": [
+    {
+      "kind": "Well",
+      "label": "W4",
+      "edges": [],
+      "energy": -44.51049694224534,
+      "depths": [],
+      "line": 40
+    },
+    {
+      "kind": "Well",
+      "label": "W2",
+      "edges": [],
+      "energy": -19.946150848188832,
+      "depths": [],
+      "line": 71
+    },
+    {
+      "kind": "Well",
+      "label": "W3",
+      "edges": [],
+      "energy": -24.313792924539044,
+      "depths": [],
+      "line": 114
+    },
+    {
+      "kind": "Well",
+      "label": "W1",
+      "edges": [],
+      "energy": -6.2572387956052875,
+      "depths": [],
+      "line": 149
+    },
+    {
+      "kind": "Bimolecular",
+      "label": "P1",
+      "edges": [],
+      "energy": -1.4882350459443443,
+      "depths": [],
+      "line": 171
+    },
+    {
+      "kind": "Bimolecular",
+      "label": "P3",
+      "edges": [],
+      "energy": 15.10752404010779,
+      "depths": [],
+      "line": 205
+    },
+    {
+      "kind": "Bimolecular",
+      "label": "P4",
+      "edges": [],
+      "energy": 2.0838447635758293,
+      "depths": [],
+      "line": 244
+    },
+    {
+      "kind": "Bimolecular",
+      "label": "P2",
+      "edges": [],
+      "energy": 0.0,
+      "depths": [],
+      "line": 278
+    },
+    {
+      "kind": "Barrier",
+      "label": "TS1",
+      "edges": [
+        "W1",
+        "P2"
+      ],
+      "energy": 5.993591342827201,
+      "depths": [
+        9.250830138432487,
+        5.993591342827201
+      ],
+      "line": 311
+    },
+    {
+      "kind": "Barrier",
+      "label": "TS2",
+      "edges": [
+        "W2",
+        "W1"
+      ],
+      "energy": -5.7147767532142915,
+      "depths": [],
+      "line": 344
+    },
+    {
+      "kind": "Barrier",
+      "label": "TS3",
+      "edges": [
+        "W3",
+        "W1"
+      ],
+      "energy": -1.6605510441241904,
+      "depths": [
+        1.596687751481097,
+        22.653241880414853
+      ],
+      "line": 375
+    },
+    {
+      "kind": "Barrier",
+      "label": "TS4",
+      "edges": [
+        "W4",
+        "W2"
+      ],
+      "energy": 5.894398872792014,
+      "depths": [
+        25.840549720980846,
+        50.40489581503735
+      ],
+      "line": 411
+    },
+    {
+      "kind": "Barrier",
+      "label": "TS5",
+      "edges": [
+        "W3",
+        "P3"
+      ],
+      "energy": 20.132833283412634,
+      "depths": [
+        44.44662620795168,
+        5.025309243304843
+      ],
+      "line": 436
+    },
+    {
+      "kind": "Barrier",
+      "label": "TS6",
+      "edges": [
+        "W2",
+        "W3"
+      ],
+      "energy": 16.71,
+      "depths": [],
+      "line": 472
+    },
+    {
+      "kind": "Barrier",
+      "label": "C1",
+      "edges": [
+        "W1",
+        "P1"
+      ],
+      "energy": -1.4882350459443443,
+      "depths": [],
+      "line": 492
+    },
+    {
+      "kind": "Barrier",
+      "label": "C2",
+      "edges": [
+        "W4",
+        "P4"
+      ],
+      "energy": 2.0838447635758293,
+      "depths": [],
+      "line": 515
+    }
+  ],
+  "eckart": [
+    {
+      "barrier": "TS1",
+      "line": 311,
+      "expected": [
+        5.993591342827201,
+        12.250830138432487
+      ],
+      "recorded": [
+        5.993591342827201,
+        9.250830138432487
+      ],
+      "differences": [
+        0.0,
+        -3.0
+      ]
+    },
+    {
+      "barrier": "TS3",
+      "line": 375,
+      "expected": [
+        4.596687751481097,
+        22.653241880414853
+      ],
+      "recorded": [
+        1.596687751481097,
+        22.653241880414853
+      ],
+      "differences": [
+        -3.0,
+        0.0
+      ]
+    },
+    {
+      "barrier": "TS4",
+      "line": 411,
+      "expected": [
+        25.840549720980846,
+        50.40489581503735
+      ],
+      "recorded": [
+        25.840549720980846,
+        50.40489581503735
+      ],
+      "differences": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "barrier": "TS5",
+      "line": 436,
+      "expected": [
+        5.025309243304843,
+        44.44662620795168
+      ],
+      "recorded": [
+        5.025309243304843,
+        44.44662620795168
+      ],
+      "differences": [
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

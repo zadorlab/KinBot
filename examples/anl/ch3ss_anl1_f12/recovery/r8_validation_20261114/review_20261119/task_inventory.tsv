@@ -1,0 +1,246 @@
+graph	task	state	native_status	job	causes
+cc_native_ch3ss_rxn_12_1	refine	failed	failed	53245598	CC_not_converged
+cc_native_ch3ss_rxn_12_1	tz	blocked			none_recorded
+cc_native_ch3ss_rxn_12_1	qz	blocked			none_recorded
+cc_si_TS2	refine	failed	failed	53245594	nonstationary_frequency_geometry
+cc_si_TS2	tz	blocked			none_recorded
+cc_si_TS2	qz	blocked			none_recorded
+cc_si_TS2	forward	blocked			none_recorded
+cc_si_TS2	forward_minimum	blocked			none_recorded
+cc_si_TS2	reverse	blocked			none_recorded
+cc_si_TS2	reverse_minimum	blocked			none_recorded
+cc_si_TS2_curvature_v1	gradient	failed	failed	53245756	CC_not_converged
+cc_si_TS2_curvature_v1	hessian_010	failed	failed	53245757	CC_not_converged
+cc_si_TS2_curvature_v1	hessian_005	failed	failed	53245758	CC_not_converged
+cc_si_TS2_curvature_v1_electronic_v2	electronic	complete	executed	53245769	none_recorded
+cc_si_TS2_curvature_v1_electronic_v2	gradient	complete	executed	53245772	none_recorded
+cc_si_TS2_curvature_v1_electronic_v2	hessian_010	complete	executed	53245773	nonstationary_frequency_geometry
+cc_si_TS2_curvature_v1_electronic_v2	hessian_005	complete	executed	53245774	nonstationary_frequency_geometry
+cc_si_TS3	refine	failed	failed	53245595	nonstationary_frequency_geometry
+cc_si_TS3	tz	blocked			none_recorded
+cc_si_TS3	qz	blocked			none_recorded
+cc_si_TS3	forward	blocked			none_recorded
+cc_si_TS3	forward_minimum	blocked			none_recorded
+cc_si_TS3	reverse	blocked			none_recorded
+cc_si_TS3	reverse_minimum	blocked			none_recorded
+cc_si_TS3_curvature_v1	gradient	failed	failed	53245759	ROHF_not_converged
+cc_si_TS3_curvature_v1	hessian_010	failed	failed	53245760	ROHF_not_converged
+cc_si_TS3_curvature_v1	hessian_005	failed	failed	53245761	ROHF_not_converged
+cc_si_TS3_curvature_v1_electronic_v2	electronic	failed	failed	53245770	ROHF_not_converged
+cc_si_TS3_curvature_v1_electronic_v2	gradient	blocked			none_recorded
+cc_si_TS3_curvature_v1_electronic_v2	hessian_010	blocked			none_recorded
+cc_si_TS3_curvature_v1_electronic_v2	hessian_005	blocked			none_recorded
+cc_si_TS3_curvature_v1_electronic_v2_quadratic_v3	electronic	failed	failed	53245777	CC_not_converged
+cc_si_TS5	refine	complete	executed	53245596	none_recorded
+cc_si_TS5	tz	complete	executed	53245708	none_recorded
+cc_si_TS5	qz	complete	executed	53245735	none_recorded
+cc_si_TS5	forward	complete	executed	53245745	none_recorded
+cc_si_TS5	forward_minimum	complete	executed	53245800	none_recorded
+cc_si_TS5	reverse	failed	failed	53245746	ROHF_not_converged
+cc_si_TS5	reverse_minimum	blocked			none_recorded
+cc_si_TS6	refine	complete	executed	53245597	none_recorded
+cc_si_TS6	tz	complete	executed	53245709	none_recorded
+cc_si_TS6	qz	complete	executed	53245736	none_recorded
+cc_si_W1	refine	failed	failed	53245599	none_recorded
+cc_si_W1	tz	blocked			none_recorded
+cc_si_W1	qz	blocked			none_recorded
+cc_si_W2	refine	complete	executed	53245600	none_recorded
+cc_si_W2	tz	complete	executed	53245710	none_recorded
+cc_si_W2	qz	complete	executed	53245737	none_recorded
+cc_si_W3	refine	complete	executed	53245601	none_recorded
+cc_si_W3	tz	complete	executed	53245711	none_recorded
+cc_si_W3	qz	complete	executed	53245738	none_recorded
+cc_si_W4	refine	complete	executed	53245602	none_recorded
+cc_si_W4	tz	complete	executed	53245712	none_recorded
+cc_si_W4	qz	complete	executed	53245747	none_recorded
+h_loss_product_1p5	hessian	failed	failed	53245622	wrong_TS_curvature
+h_loss_product_1p5	forward_10	blocked			none_recorded
+h_loss_product_1p5	reverse_10	blocked			none_recorded
+h_loss_product_1p5	forward_5	blocked			none_recorded
+h_loss_product_1p5	reverse_5	blocked			none_recorded
+h_loss_product_1p8	hessian	failed	failed	53245623	wrong_TS_curvature
+h_loss_product_1p8	forward_10	blocked			none_recorded
+h_loss_product_1p8	reverse_10	blocked			none_recorded
+h_loss_product_1p8	forward_5	blocked			none_recorded
+h_loss_product_1p8	reverse_5	blocked			none_recorded
+irc_ch3s_h_loss_scale_1p6	hessian	complete	executed	53245591	none_recorded
+irc_ch3s_h_loss_scale_1p6	forward_10	failed	failed	53245704	IRC_corrector_limit
+irc_ch3s_h_loss_scale_1p6	reverse_10	failed	failed	53245731	IRC_corrector_limit
+irc_ch3s_h_loss_scale_1p6	forward_5	failed	failed	53245794	IRC_corrector_limit
+irc_ch3s_h_loss_scale_1p6	reverse_5	failed	failed	53245797	IRC_corrector_limit
+irc_native_ch3s_rxn_1_2	hessian	complete	executed	53245589	none_recorded
+irc_native_ch3s_rxn_1_2	forward_10	failed	failed	53245702	IRC_corrector_limit
+irc_native_ch3s_rxn_1_2	reverse_10	failed	failed	53245729	IRC_corrector_limit
+irc_native_ch3s_rxn_1_2	forward_5	failed	failed	53245790	IRC_corrector_limit
+irc_native_ch3s_rxn_1_2	reverse_5	failed	failed	53245791	IRC_corrector_limit
+irc_native_ch3ss_rxn_12_1	hessian	complete	executed	53245585	none_recorded
+irc_native_ch3ss_rxn_12_1	forward_10	failed	failed	53245698	IRC_corrector_limit
+irc_native_ch3ss_rxn_12_1	reverse_10	failed	failed	53245725	IRC_corrector_limit
+irc_native_ch3ss_rxn_12_1	forward_5	failed	failed	53245784	IRC_corrector_limit
+irc_native_ch3ss_rxn_12_1	reverse_5	failed	failed	53245785	IRC_corrector_limit
+irc_native_ch3ss_rxn_12_2	hessian	complete	executed	53245586	none_recorded
+irc_native_ch3ss_rxn_12_2	forward_10	complete	executed	53245699	none_recorded
+irc_native_ch3ss_rxn_12_2	reverse_10	complete	executed	53245726	none_recorded
+irc_native_ch3ss_rxn_12_2	forward_5	staged			none_recorded
+irc_native_ch3ss_rxn_12_2	reverse_5	staged			none_recorded
+irc_native_ch3ss_rxn_12_2	forward_10_dvv_v1	failed	failed	53245743	invalid_DVV_time_step
+irc_native_ch3ss_rxn_12_2	reverse_10_dvv_v1	failed	failed	53245744	invalid_DVV_time_step
+irc_native_ch3ss_rxn_12_2	forward_10_dvv_v1_positive_dt_v2	complete	executed	53245767	none_recorded
+irc_native_ch3ss_rxn_12_2	reverse_10_dvv_v1_positive_dt_v2	complete	executed	53245768	none_recorded
+irc_native_ch3ss_rxn_12_2	forward_10_dvv_v1_positive_dt_v2_departure_v3	complete	executed	53245776	none_recorded
+irc_native_ch3ss_rxn_2_2	hessian	complete	executed	53245588	none_recorded
+irc_native_ch3ss_rxn_2_2	forward_10	failed	failed	53245701	IRC_corrector_limit
+irc_native_ch3ss_rxn_2_2	reverse_10	failed	failed	53245728	IRC_corrector_limit
+irc_native_ch3ss_rxn_2_2	forward_5	complete	executed	53245788	none_recorded
+irc_native_ch3ss_rxn_2_2	reverse_5	complete	executed	53245789	none_recorded
+irc_native_ch3ss_rxn_54_1	hessian	complete	executed	53245587	none_recorded
+irc_native_ch3ss_rxn_54_1	forward_10	failed	failed	53245700	IRC_corrector_limit
+irc_native_ch3ss_rxn_54_1	reverse_10	failed	failed	53245727	IRC_corrector_limit
+irc_native_ch3ss_rxn_54_1	forward_5	failed	failed	53245786	IRC_corrector_limit
+irc_native_ch3ss_rxn_54_1	reverse_5	failed	failed	53245787	IRC_corrector_limit
+irc_native_reverse_ts1	hessian	complete	executed	53245590	none_recorded
+irc_native_reverse_ts1	forward_10	failed	failed	53245703	IRC_corrector_limit
+irc_native_reverse_ts1	reverse_10	failed	failed	53245730	IRC_corrector_limit
+irc_native_reverse_ts1	forward_5	failed	failed	53245792	IRC_corrector_limit
+irc_native_reverse_ts1	reverse_5	failed	failed	53245793	IRC_corrector_limit
+irc_paper_ts1	hessian	complete	executed	53245579	none_recorded
+irc_paper_ts1	forward_10	failed	failed	53245682	IRC_corrector_limit
+irc_paper_ts1	reverse_10	failed	failed	53245683	IRC_corrector_limit
+irc_paper_ts1	forward_5	failed	failed	53245684	IRC_corrector_limit
+irc_paper_ts1	reverse_5	failed	failed	53245685	IRC_corrector_limit
+irc_paper_ts1	forward_5_pc150_v1	failed	failed	53245740	IRC_corrector_limit
+irc_paper_ts2	hessian	complete	executed	53245580	none_recorded
+irc_paper_ts2	forward_10	failed	failed	53245686	IRC_corrector_limit
+irc_paper_ts2	reverse_10	failed	failed	53245687	IRC_corrector_limit
+irc_paper_ts2	forward_5	failed	failed	53245688	IRC_corrector_limit
+irc_paper_ts2	reverse_5	failed	failed	53245689	IRC_corrector_limit
+irc_paper_ts2	forward_5_dvv_v1	failed	failed	53245741	invalid_DVV_time_step
+irc_paper_ts2	forward_5_dvv_v1_positive_dt_v2	complete	executed	53245765	none_recorded
+irc_paper_ts3	hessian	complete	executed	53245581	none_recorded
+irc_paper_ts3	forward_10	failed	failed	53245690	IRC_corrector_limit
+irc_paper_ts3	reverse_10	complete	executed	53245691	none_recorded
+irc_paper_ts3	forward_5	failed	failed	53245692	IRC_corrector_limit
+irc_paper_ts3	reverse_5	complete	executed	53245694	none_recorded
+irc_paper_ts4	hessian	complete	executed	53245582	none_recorded
+irc_paper_ts4	forward_10	failed	failed	53245695	IRC_corrector_limit
+irc_paper_ts4	reverse_10	failed	failed	53245722	IRC_corrector_limit
+irc_paper_ts4	forward_5	failed	failed	53245778	IRC_corrector_limit
+irc_paper_ts4	reverse_5	failed	failed	53245779	IRC_corrector_limit
+irc_paper_ts5	hessian	complete	executed	53245583	none_recorded
+irc_paper_ts5	forward_10	failed	failed	53245696	IRC_corrector_limit
+irc_paper_ts5	reverse_10	complete	executed	53245723	none_recorded
+irc_paper_ts5	forward_5	failed	failed	53245780	IRC_corrector_limit
+irc_paper_ts5	reverse_5	complete	executed	53245781	none_recorded
+irc_paper_ts5	reverse_10_dvv_v1	failed	failed	53245742	invalid_DVV_time_step
+irc_paper_ts5	reverse_10_dvv_v1_positive_dt_v2	complete	executed	53245766	none_recorded
+irc_paper_ts6	hessian	complete	executed	53245584	none_recorded
+irc_paper_ts6	forward_10	failed	failed	53245697	IRC_corrector_limit
+irc_paper_ts6	reverse_10	failed	failed	53245724	IRC_corrector_limit
+irc_paper_ts6	forward_5	failed	failed	53245782	IRC_corrector_limit
+irc_paper_ts6	reverse_5	failed	failed	53245783	IRC_corrector_limit
+irc_reverse_26b8db7c	hessian	complete	executed	53245592	none_recorded
+irc_reverse_26b8db7c	forward_10	failed	failed	53245706	IRC_corrector_limit
+irc_reverse_26b8db7c	reverse_10	failed	failed	53245733	IRC_corrector_limit
+irc_reverse_26b8db7c	forward_5	failed	failed	53245795	IRC_corrector_limit
+irc_reverse_26b8db7c	reverse_5	failed	failed	53245798	IRC_corrector_limit
+irc_reverse_b18dcbc8	hessian	complete	executed	53245593	none_recorded
+irc_reverse_b18dcbc8	forward_10	failed	failed	53245707	IRC_corrector_limit
+irc_reverse_b18dcbc8	reverse_10	failed	failed	53245734	IRC_corrector_limit
+irc_reverse_b18dcbc8	forward_5	failed	failed	53245796	IRC_corrector_limit
+irc_reverse_b18dcbc8	reverse_5	failed	failed	53245799	IRC_corrector_limit
+product_10000000000000000002	minimum	complete	executed	53245626	none_recorded
+product_130130000000000000002	minimum	complete	executed	53245642	none_recorded
+product_320000000000000000003	minimum	complete	executed	53245645	none_recorded
+product_461100280000000000001	minimum	complete	executed	53245625	none_recorded
+product_471230610040000000002	minimum	complete	executed	53245644	none_recorded
+product_661300680000000000001	minimum	complete	executed	53245643	none_recorded
+product_781741230150000000001-s4f33601e4c31f57f	minimum	complete	executed	53245630	none_recorded
+screen_21b6f24311f7	hessian	complete	executed	53245628	none_recorded
+screen_21b6f24311f7	forward_10	failed	failed	53245716	IRC_corrector_limit
+screen_21b6f24311f7	reverse_10	failed	failed	53245750	IRC_corrector_limit
+screen_25c4db68a96b	hessian	failed	failed	53245634	wrong_TS_curvature
+screen_25c4db68a96b	forward_10	blocked			none_recorded
+screen_25c4db68a96b	reverse_10	blocked			none_recorded
+screen_2bb06fd3e9e5	hessian	complete	executed	53245627	none_recorded
+screen_2bb06fd3e9e5	forward_10	failed	failed	53245715	IRC_corrector_limit
+screen_2bb06fd3e9e5	reverse_10	failed	failed	53245749	internal_coordinate_failure
+screen_33321c763280	hessian	complete	executed	53245635	none_recorded
+screen_33321c763280	forward_10	failed	failed	53245719	IRC_corrector_limit
+screen_33321c763280	reverse_10	failed	failed	53245753	IRC_corrector_limit
+screen_3871adc806dc	hessian	failed	failed	53245636	wrong_TS_curvature
+screen_3871adc806dc	forward_10	blocked			none_recorded
+screen_3871adc806dc	reverse_10	blocked			none_recorded
+screen_3d85be098edc	hessian	failed	failed	53245639	wrong_TS_curvature
+screen_3d85be098edc	forward_10	blocked			none_recorded
+screen_3d85be098edc	reverse_10	blocked			none_recorded
+screen_4157f7ee193b	hessian	failed	failed	53245624	wrong_TS_curvature
+screen_4157f7ee193b	forward_10	blocked			none_recorded
+screen_4157f7ee193b	reverse_10	blocked			none_recorded
+screen_458cd7676c01	hessian	failed	failed	53245640	wrong_TS_curvature
+screen_458cd7676c01	forward_10	blocked			none_recorded
+screen_458cd7676c01	reverse_10	blocked			none_recorded
+screen_5fb18a7f75eb	hessian	complete	executed	53245633	none_recorded
+screen_5fb18a7f75eb	forward_10	failed	failed	53245718	IRC_corrector_limit
+screen_5fb18a7f75eb	reverse_10	failed	failed	53245752	IRC_corrector_limit
+screen_6a820c6cdfec	hessian	failed	failed	53245637	wrong_TS_curvature
+screen_6a820c6cdfec	forward_10	blocked			none_recorded
+screen_6a820c6cdfec	reverse_10	blocked			none_recorded
+screen_6eb4b3bfebc9	hessian	complete	executed	53245638	none_recorded
+screen_6eb4b3bfebc9	forward_10	failed	failed	53245720	IRC_corrector_limit
+screen_6eb4b3bfebc9	reverse_10	failed	failed	53245754	IRC_corrector_limit
+screen_9603535f0aae	hessian	complete	executed	53245631	none_recorded
+screen_9603535f0aae	forward_10	failed	failed	53245717	IRC_corrector_limit
+screen_9603535f0aae	reverse_10	failed	failed	53245751	IRC_corrector_limit
+screen_b74944f1c6cb	hessian	failed	failed	53245632	wrong_TS_curvature
+screen_b74944f1c6cb	forward_10	blocked			none_recorded
+screen_b74944f1c6cb	reverse_10	blocked			none_recorded
+screen_b9074f65732b	hessian	failed	failed	53245641	wrong_TS_curvature
+screen_b9074f65732b	forward_10	blocked			none_recorded
+screen_b9074f65732b	reverse_10	blocked			none_recorded
+screen_d4264ef8af7a	hessian	failed	failed	53245647	wrong_TS_curvature
+screen_d4264ef8af7a	forward_10	blocked			none_recorded
+screen_d4264ef8af7a	reverse_10	blocked			none_recorded
+screen_d8802b38edb6	hessian	failed	failed	53245629	wrong_TS_curvature
+screen_d8802b38edb6	forward_10	blocked			none_recorded
+screen_d8802b38edb6	reverse_10	blocked			none_recorded
+screen_ecda1394bcd4	hessian	complete	executed	53245646	none_recorded
+screen_ecda1394bcd4	forward_10	failed	failed	53245721	IRC_corrector_limit
+screen_ecda1394bcd4	reverse_10	failed	failed	53245755	IRC_corrector_limit
+sp_ch3s_h_loss_scale_1p6	tz	complete	executed	53245612	none_recorded
+sp_ch3s_h_loss_scale_1p6	qz	complete	executed	53245673	none_recorded
+sp_ch3s_h_loss_scale_1p6_F	tz	complete	executed	53245619	none_recorded
+sp_ch3s_h_loss_scale_1p6_F	qz	complete	executed	53245680	none_recorded
+sp_ch3s_h_loss_scale_1p6_R	tz	complete	executed	53245620	none_recorded
+sp_ch3s_h_loss_scale_1p6_R	qz	complete	executed	53245681	none_recorded
+sp_native_ch3s_rxn_1_1_R	tz	complete	executed	53245621	none_recorded
+sp_native_ch3s_rxn_1_1_R	qz	complete	executed	53245714	none_recorded
+sp_native_ch3ss_rxn_12_1	tz	complete	executed	53245609	none_recorded
+sp_native_ch3ss_rxn_12_1	qz	complete	executed	53245670	none_recorded
+sp_native_ch3ss_rxn_12_2	tz	complete	executed	53245610	none_recorded
+sp_native_ch3ss_rxn_12_2	qz	complete	executed	53245671	none_recorded
+sp_native_ch3ss_rxn_54_1	tz	failed	failed	53245611	ROHF_not_converged
+sp_native_ch3ss_rxn_54_1	qz	failed	failed	53245672	ROHF_not_converged
+sp_native_reverse_ts1	tz	complete	executed	53245613	none_recorded
+sp_native_reverse_ts1	qz	complete	executed	53245674	none_recorded
+sp_paper_ts1	tz	complete	executed	53245603	none_recorded
+sp_paper_ts1	qz	complete	executed	53245664	none_recorded
+sp_paper_ts1_F	tz	failed	failed	53245713	invalid_CC_MAXIT_directive
+sp_paper_ts1_F	qz	failed	failed	53245748	none_recorded
+sp_paper_ts1_R	tz	complete	executed	53245615	none_recorded
+sp_paper_ts1_R	qz	complete	executed	53245676	none_recorded
+sp_paper_ts2	tz	complete	executed	53245604	none_recorded
+sp_paper_ts2	qz	complete	executed	53245665	none_recorded
+sp_paper_ts3	tz	complete	executed	53245605	none_recorded
+sp_paper_ts3	qz	complete	executed	53245666	none_recorded
+sp_paper_ts3_R	tz	complete	executed	53245616	none_recorded
+sp_paper_ts3_R	qz	complete	executed	53245677	none_recorded
+sp_paper_ts4	tz	complete	executed	53245606	none_recorded
+sp_paper_ts4	qz	complete	executed	53245667	none_recorded
+sp_paper_ts5	tz	complete	executed	53245607	none_recorded
+sp_paper_ts5	qz	complete	executed	53245668	none_recorded
+sp_paper_ts5_F	tz	complete	executed	53245617	none_recorded
+sp_paper_ts5_F	qz	complete	executed	53245678	none_recorded
+sp_paper_ts5_R	tz	complete	executed	53245618	none_recorded
+sp_paper_ts5_R	qz	complete	executed	53245679	none_recorded
+sp_paper_ts6	tz	complete	executed	53245608	none_recorded
+sp_paper_ts6	qz	complete	executed	53245669	none_recorded

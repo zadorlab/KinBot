@@ -1,5 +1,10 @@
 # R8 connection and literature validation — 14 November 2026
 
+**19 November superseding decision:** use [the necessity ledger](review_20261119/CALCULATION_DECISIONS.md)
+and [current handoff](review_20261119/RECOVERY_HANDOFF.md). Earlier launch, sampling
+and CC follow-up instructions below are historical. The existing B2PLYP results
+already support the listed connectivity judgments; no new QC task is selected.
+
 **16 November update:** use [the reconciliation handoff](RECONCILIATION.md) for
 the existing panel. Native evidence corrects the earlier TS5 endpoint inference
 and shows that several apparently completed IRCs stopped after one point.

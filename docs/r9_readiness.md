@@ -1,5 +1,75 @@
 # R9 readiness work ledger
 
+## Current acceptance criteria — 19 November 2026
+
+The objective is to resolve the paper–KinBot agreements and disagreements from
+native evidence, then define a scientifically justified `_r9` calculation and
+kinetics model. Completion of the Blodgett validation jobs is the start of the
+final evidence review. `_r9` is not ready until the gates below close.
+The 19 November export has now been reviewed: see the
+[full evidence review and closure sequence](R8_FINAL_EVIDENCE_REVIEW_20261119.md).
+It covers all 245 native task records, the separate 44-case L2 campaign,
+24 energy-exclusion decisions and 105 serialized network connections. The
+remaining scientific and operational findings are explicit in that review.
+
+**Necessity rule:** existing converged B2PLYP paths support B2PLYP connectivity
+judgments even when an optional CC or redundant Gaussian check fails. No further
+CC optimization/path campaign is required to make those judgments. The current
+[new-calculation admission](../examples/anl/ch3ss_anl1_f12/recovery/r8_validation_20261114/review_20261119/CALCULATION_DECISIONS.md)
+is empty; missing jobs must be selected only after retained-channel and reuse
+review. R9 model closure is not the same as completing every diagnostic.
+
+This section supersedes earlier readiness implications and unconditional
+"PST → VRC" treatment recommendations in the scouting scope documents. The
+historical scope tables remain inventories of the model that was calculated;
+their channel labels and branching fractions are not approval of that model.
+
+- [ ] **Paper comparison ledger:** for each disputed connection, record the
+  paper claim, atom-mapped species/fragment states, native saddle and path
+  evidence, matched energy reference/theory convention, and an explicit verdict:
+  supported agreement, supported disagreement, or unresolved. Distinguish a
+  method-dependent result from a failed calculation, incomplete path, or parser
+  error. Bind each verdict to source files and attempt hashes.
+- [ ] **Mechanism and bottleneck audit for every retained/candidate exit:**
+  explicitly review beta scission and H loss as well as other dissociations.
+  Resolve whether the evidence supports an inner conventional saddle, an outer
+  loose-fragment separation, or a path containing both. A `nobar`, `hom_sci`,
+  beta-scission, or PST label, a disconnected optimized endpoint, and failure to
+  locate a saddle do not establish a barrierless path. Retain inner barriers
+  where supported; assign PST/VRC only to an evidenced applicable outer/loose
+  bottleneck. Replacing PST with VRC alone does not resolve a misclassified inner
+  reaction. Record the evidence needed wherever classification remains open.
+- [ ] **Stationary points and paths:** verify native geometry convergence,
+  imaginary-mode character, continuous path progress and stopping criteria,
+  both endpoint identities, and relevant step sensitivity. Keep raw IRC
+  endpoints separate from subsequent optimization and fragment recapture.
+- [ ] **Electronic/thermochemical consistency:** verify reference/state
+  continuity, convergence, diagnostics, fragment multiplicities, ZPE, basis and
+  triples conventions, and matched well/TS/asymptote energy references before
+  comparing barriers or accepting high-level corrections.
+- [ ] **Reassess the R9 scope:** after correcting topology or rate treatment,
+  recompute the affected scouting/sensitivity comparisons before reusing their
+  pruning recommendation. Include paper-relevant competing channels explicitly;
+  previous lean/broader percentages alone cannot settle the corrected scope.
+- [ ] **Exact retained-channel model map:** assign each justified bottleneck its
+  thermochemistry and kinetics treatment. For selected multireference VRC work,
+  bind the human-selected active space, orbital/state evidence, atom mapping,
+  basis-specific assets and spin treatment to the exact channel. Reuse prior
+  evidence only after checking applicability.
+- [ ] **Generated kinetics input audit:** trace every retained MESS edge back
+  to its accepted channel, inner/outer bottleneck and numerical inputs; verify
+  energy references, degeneracy/symmetry/spin factors and reversible-pair
+  consistency, and remove duplicate representations of the same pathway.
+- [ ] **Independent verification pass and launch package:** perform a separate
+  source-to-conclusion check without additional agents. Deliver the paper
+  comparison ledger, corrected network, accepted/excluded/unresolved channel
+  ledger, exact R9 inputs/reuse plan, and checks of the generated workflow and
+  kinetics inputs. Keep each unresolved issue visible with its consequence and
+  next evidence requirement; readiness requires closing issues that affect the
+  selected R9 scope.
+
+## Historical work ledger and scope evolution
+
 R7 is retired and remains immutable. The user has now authorized staging all remaining necessary orbital checks
 after examining the all-channel native export. Submission is a separate action;
 no new diagnostic or production job was submitted locally.

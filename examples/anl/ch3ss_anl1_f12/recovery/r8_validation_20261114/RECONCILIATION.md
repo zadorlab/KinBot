@@ -1,8 +1,30 @@
 # Native reconciliation update — 16 November 2026
 
-**Current handoff:** `resume_sampling.sh`. The sampling section below
-supersedes the earlier launch instructions. Prior waves remain documented for
-attempt provenance.
+**19 November necessity revision:** [current decisions](review_20261119/CALCULATION_DECISIONS.md)
+select zero new QC tasks. Failed optional CC checks do not block the available
+B2PLYP judgments. Earlier retry/release commands below are historical.
+
+**Current status, 19 November:** the native panel is finished and reviewed;
+scientific closure remains open. Follow the
+[evidence review and closure sequence](../../../../../docs/R8_FINAL_EVIDENCE_REVIEW_20261119.md).
+The sampling/refresh commands below document earlier waves, not a new launch
+recommendation. Preserve their decisions and attempt history.
+
+## Finalization objective — 19 November 2026
+
+The completed panel must resolve the paper agreements/disagreements and justify
+the `_r9` model, following the current
+[R9 acceptance criteria](../../../../../docs/r9_readiness.md). Native completion
+and collection do not close that review. The latest export has been reviewed;
+the separate 44-case L2 campaign remains incomplete in the captured evidence.
+
+In particular, audit every candidate dissociation's actual bottlenecks before
+carrying its scouting PST classification into R9. Beta-scission connectivity,
+an optimized fragment endpoint, or an inherited `nobar` label cannot establish
+a barrierless treatment. Resolve conventional inner saddles and loose outer
+exits separately, then reassess affected branching/pruning and the generated
+MESS network. The final deliverables are the evidence-linked paper verdicts,
+corrected network, exact R9 channel/treatment/reuse plan and remaining blockers.
 
 ## Reviewed sampling and pool utilization
 

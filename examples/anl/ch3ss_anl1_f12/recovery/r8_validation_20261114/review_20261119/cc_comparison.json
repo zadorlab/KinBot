@@ -1,0 +1,104 @@
+{
+  "convention": "ROHF-UCCSD(T*)-F12b, T/Q SP at DZ-F12 geometry plus DZ harmonic ZPE; no CBS extrapolation",
+  "points": [
+    {
+      "label": "W2",
+      "zpe_hartree": 0.0337157,
+      "imaginary_cm1": [],
+      "SI_rmsd_angstrom": 0.04215894528987289,
+      "SI_atom_map": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "tz_hartree": -835.321550366259,
+      "qz_hartree": -835.328458898559,
+      "SI_relative_W4_kcal": 24.564346094056507,
+      "tz_plus_DZ_ZPE_relative_W4_kcal": 24.468333055604234,
+      "qz_plus_DZ_ZPE_relative_W4_kcal": 24.509930570717987
+    },
+    {
+      "label": "W3",
+      "zpe_hartree": 0.03736776,
+      "imaginary_cm1": [],
+      "SI_rmsd_angstrom": 0.04475560102243215,
+      "SI_atom_map": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "tz_hartree": -835.330935663926,
+      "qz_hartree": -835.337560126528,
+      "SI_relative_W4_kcal": 20.196704017706296,
+      "tz_plus_DZ_ZPE_relative_W4_kcal": 20.870672102531906,
+      "qz_plus_DZ_ZPE_relative_W4_kcal": 21.090526044406467
+    },
+    {
+      "label": "W4",
+      "zpe_hartree": 0.03930392,
+      "imaginary_cm1": [],
+      "SI_rmsd_angstrom": 0.02505154628989792,
+      "SI_atom_map": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "tz_hartree": -835.366131356993,
+      "qz_hartree": -835.373106179153,
+      "SI_relative_W4_kcal": 0.0,
+      "tz_plus_DZ_ZPE_relative_W4_kcal": -3.006590059144239e-11,
+      "qz_plus_DZ_ZPE_relative_W4_kcal": -3.006590059144239e-11
+    },
+    {
+      "label": "TS5",
+      "zpe_hartree": 0.02765216,
+      "imaginary_cm1": [
+        -955.56
+      ],
+      "SI_rmsd_angstrom": 0.019773680482385664,
+      "SI_atom_map": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "tz_hartree": -835.252175982114,
+      "qz_hartree": -835.258461905471,
+      "SI_relative_W4_kcal": 64.64333022565798,
+      "tz_plus_DZ_ZPE_relative_W4_kcal": 64.19648756752889,
+      "qz_plus_DZ_ZPE_relative_W4_kcal": 64.62877809300537
+    },
+    {
+      "label": "TS6",
+      "zpe_hartree": 0.0337461,
+      "imaginary_cm1": [
+        -856.4
+      ],
+      "SI_rmsd_angstrom": 0.0018860857574714183,
+      "SI_atom_map": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "tz_hartree": -835.265063448496,
+      "qz_hartree": -835.271776676869,
+      "SI_relative_W4_kcal": 61.22049694224534,
+      "tz_plus_DZ_ZPE_relative_W4_kcal": 59.93348540051886,
+      "qz_plus_DZ_ZPE_relative_W4_kcal": 60.0976379801829
+    }
+  ]
+}

@@ -1,0 +1,236 @@
+[
+  {
+    "case": "ch3s_rxn_4_1",
+    "direction": "F",
+    "matches": [
+      [
+        0.856829223623253,
+        "ch3s_h_loss_scale_1p3"
+      ],
+      [
+        0.8573241141979202,
+        "ch3s_h_loss_scale_1p3_R"
+      ],
+      [
+        0.8675893393883205,
+        "ch3s_h_loss_scale_1p9_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_4_1",
+    "direction": "R",
+    "matches": [
+      [
+        3.310649679457053e-05,
+        "ch3s_h_loss_scale_1p3_R"
+      ],
+      [
+        0.02416520206003058,
+        "ch3s_h_loss_scale_1p9_F"
+      ],
+      [
+        0.02426277372845287,
+        "ch3s_h_loss_scale_1p6_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_4_2",
+    "direction": "F",
+    "matches": [
+      [
+        5.933694615989057e-05,
+        "ch3s_h_loss_scale_1p9_F"
+      ],
+      [
+        0.00015629100747954088,
+        "ch3s_h_loss_scale_1p6_F"
+      ],
+      [
+        0.0001606667460677646,
+        "ch3s_h_loss_scale_1p3_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_4_2",
+    "direction": "R",
+    "matches": [
+      [
+        0.8568339560901079,
+        "ch3s_h_loss_scale_1p3"
+      ],
+      [
+        0.8572019392994238,
+        "native_ch3s_rxn_1_1_F"
+      ],
+      [
+        0.8572303308284125,
+        "ch3s_h_loss_scale_1p3_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_6_1",
+    "direction": "F",
+    "matches": [
+      [
+        4.931709061627494e-05,
+        "ch3s_h_loss_scale_1p6_F"
+      ],
+      [
+        5.081333323640314e-05,
+        "ch3s_h_loss_scale_1p9_F"
+      ],
+      [
+        5.37967213833872e-05,
+        "ch3s_h_loss_scale_1p3_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_6_1",
+    "direction": "R",
+    "matches": [
+      [
+        1.4376235398564918,
+        "ch3s_h_loss_scale_1p6"
+      ],
+      [
+        1.4376427807709296,
+        "ch3s_h_loss_scale_1p9"
+      ],
+      [
+        1.4731088079182255,
+        "ch3s_h_loss_scale_1p9_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_6_2",
+    "direction": "F",
+    "matches": [
+      [
+        0.7811105521470565,
+        "ch3s_h_loss_scale_1p3_R"
+      ],
+      [
+        0.7811146673429917,
+        "ch3s_h_loss_scale_1p9_F"
+      ],
+      [
+        0.781117137015219,
+        "ch3s_h_loss_scale_1p6_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_6_2",
+    "direction": "R",
+    "matches": [
+      [
+        0.00010921261895586568,
+        "ch3s_h_loss_scale_1p3_R"
+      ],
+      [
+        0.024241344355045238,
+        "ch3s_h_loss_scale_1p9_F"
+      ],
+      [
+        0.024338919435986397,
+        "ch3s_h_loss_scale_1p6_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_6_3",
+    "direction": "F",
+    "matches": [
+      [
+        0.7777250486641343,
+        "ch3s_h_loss_scale_1p3"
+      ],
+      [
+        0.880588193097188,
+        "native_ch3s_rxn_1_2_F"
+      ],
+      [
+        0.8806198026179797,
+        "native_ch3s_rxn_3_1_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_6_3",
+    "direction": "R",
+    "matches": [
+      [
+        0.8155838396362113,
+        "native_ch3s_rxn_3_1_R"
+      ],
+      [
+        0.8155889991254522,
+        "native_ch3s_rxn_1_2_R"
+      ],
+      [
+        0.8156056938613432,
+        "ch3s_h_loss_scale_1p6_R"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_10_1",
+    "direction": "F",
+    "matches": [
+      [
+        0.8441645433005287,
+        "ch3s_h_loss_scale_1p6"
+      ],
+      [
+        0.844170858227179,
+        "ch3s_h_loss_scale_1p9"
+      ],
+      [
+        0.9451255215477987,
+        "native_ch3s_rxn_3_1_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3s_rxn_10_1",
+    "direction": "R",
+    "matches": [
+      [
+        0.8568443403746182,
+        "ch3s_h_loss_scale_1p3"
+      ],
+      [
+        0.8572030067046165,
+        "native_ch3s_rxn_1_1_F"
+      ],
+      [
+        0.8572313978659057,
+        "ch3s_h_loss_scale_1p3_F"
+      ]
+    ]
+  },
+  {
+    "case": "ch3ss_rxn_1_1",
+    "direction": "F",
+    "matches": [
+      [
+        0.7543496940428368,
+        "si_W4"
+      ],
+      [
+        0.7548399953030144,
+        "ch3ss_h_loss_scale_1p9_R"
+      ],
+      [
+        0.754840410264812,
+        "native_ch3ss_rxn_2_1_F"
+      ]
+    ]
+  }
+]

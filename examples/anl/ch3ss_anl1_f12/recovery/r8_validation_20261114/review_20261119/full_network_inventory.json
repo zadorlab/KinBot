@@ -1,0 +1,2882 @@
+{
+  "inputs": [
+    {
+      "case": "ch3s",
+      "path": "local_runs/r8_pruning_20261113/provisional_scout/ch3s/mess.inp",
+      "sha256": "2c7c5bd95580615ef01da24ae242c240af22f79afaccbaa84ea7680db660b83d",
+      "populations": {
+        "w_1": {
+          "kind": "Well",
+          "identity": "470831050000000000002",
+          "energies": [
+            0.0
+          ],
+          "eckart_reference": 0.0
+        },
+        "w_2": {
+          "kind": "Well",
+          "identity": "471030810040000000002",
+          "energies": [
+            9.29454063
+          ],
+          "eckart_reference": 9.29454063
+        },
+        "w_3": {
+          "kind": "Well",
+          "identity": "471230610040000000002",
+          "energies": [
+            81.49454063
+          ],
+          "eckart_reference": 81.49454063
+        },
+        "pr_1": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_460700680000000000001",
+          "energies": [
+            51.91454063
+          ],
+          "eckart_reference": 51.91454063
+        },
+        "pr_2": {
+          "kind": "Bimolecular",
+          "identity": "150390060000000000002_320000000000000000003",
+          "energies": [
+            68.81484607
+          ],
+          "eckart_reference": 68.81484607
+        },
+        "pr_3": {
+          "kind": "Bimolecular",
+          "identity": "20020000000000000001_450770130000000000002",
+          "energies": [
+            79.66454063
+          ],
+          "eckart_reference": 79.66454063
+        },
+        "pr_4": {
+          "kind": "Bimolecular",
+          "identity": "140260020000000000003_330330000000000000002",
+          "energies": [
+            95.8558282
+          ],
+          "eckart_reference": 95.8558282
+        },
+        "pr_5": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_460900460020000000001",
+          "energies": [
+            98.23454063
+          ],
+          "eckart_reference": 98.23454063
+        },
+        "pr_6": {
+          "kind": "Bimolecular",
+          "identity": "130130000000000000002_340660020000000000001",
+          "energies": [
+            108.88430285
+          ],
+          "eckart_reference": 108.88430285
+        }
+      },
+      "barrier_count": 10
+    },
+    {
+      "case": "ch3ss",
+      "path": "local_runs/r8_pruning_20261113/provisional_scout/provisional/mess.inp",
+      "sha256": "33adc32d3aff63ba66857c583522c5fda6711c32b621c146d13fe66e71faeed9",
+      "populations": {
+        "w_1": {
+          "kind": "Well",
+          "identity": "791471490990000000002",
+          "energies": [
+            0.0
+          ],
+          "eckart_reference": 0.0
+        },
+        "w_2": {
+          "kind": "Well",
+          "identity": "791671580700000000002-s36f1e2b924862f12",
+          "energies": [
+            54.89
+          ],
+          "eckart_reference": 54.89
+        },
+        "w_3": {
+          "kind": "Well",
+          "identity": "791671450790040000002",
+          "energies": [
+            25.84
+          ],
+          "eckart_reference": 25.84
+        },
+        "w_4": {
+          "kind": "Well",
+          "identity": "791871560500020000002-sb6e34ded5baaf03b",
+          "energies": [
+            85.53
+          ],
+          "eckart_reference": 85.53
+        },
+        "w_5": {
+          "kind": "Well",
+          "identity": "791871710370000000002",
+          "energies": [
+            125.81
+          ],
+          "eckart_reference": 125.81
+        },
+        "w_6": {
+          "kind": "Well",
+          "identity": "791472110370000000002",
+          "energies": [
+            21.02
+          ],
+          "eckart_reference": 21.02
+        },
+        "w_7": {
+          "kind": "Well",
+          "identity": "791671560700020000002-sedd8f7729b69b19b",
+          "energies": [
+            26.03
+          ],
+          "eckart_reference": 26.03
+        },
+        "w_8": {
+          "kind": "Well",
+          "identity": "791871560500020000002-s254020c87a151164",
+          "energies": [
+            85.25
+          ],
+          "eckart_reference": 85.25
+        },
+        "w_9": {
+          "kind": "Well",
+          "identity": "791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c",
+          "energies": [
+            42.34
+          ],
+          "eckart_reference": 42.34
+        },
+        "w_10": {
+          "kind": "Well",
+          "identity": "791671580700000000002-s8fc26f5f496eeb4e",
+          "energies": [
+            54.89
+          ],
+          "eckart_reference": 54.89
+        },
+        "w_11": {
+          "kind": "Well",
+          "identity": "791541100460020000002-g60b36c41c75b41fb3ea9744ff25af7afee84db14bf9a5ab0c6e4be7741643907",
+          "energies": [
+            102.82
+          ],
+          "eckart_reference": 102.82
+        },
+        "w_12": {
+          "kind": "Well",
+          "identity": "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595",
+          "energies": [
+            43.98
+          ],
+          "eckart_reference": 43.98
+        },
+        "w_13": {
+          "kind": "Well",
+          "identity": "791671560700020000002-s893815ff03c7331d",
+          "energies": [
+            26.68
+          ],
+          "eckart_reference": 26.68
+        },
+        "w_14": {
+          "kind": "Well",
+          "identity": "791671560700020000002-sdc19d1516ced03fc",
+          "energies": [
+            25.69
+          ],
+          "eckart_reference": 25.69
+        },
+        "w_15": {
+          "kind": "Well",
+          "identity": "791871560500020000002-sc9062a2d39c6d51a",
+          "energies": [
+            85.25
+          ],
+          "eckart_reference": 85.25
+        },
+        "w_16": {
+          "kind": "Well",
+          "identity": "791230460020000000002-g94549b3d8ea0a69aefbea3a5cf547df9d94b869e70cd353d5ca2cb6e842b3ec4",
+          "energies": [
+            83.36220745
+          ],
+          "eckart_reference": 83.36220745
+        },
+        "w_17": {
+          "kind": "Well",
+          "identity": "791871560500020000002-s1a4d7914034ddafc",
+          "energies": [
+            85.53
+          ],
+          "eckart_reference": 85.53
+        },
+        "pr_1": {
+          "kind": "Bimolecular",
+          "identity": "150390060000000000002_640640000000000000003",
+          "energies": [
+            43.59
+          ],
+          "eckart_reference": 43.59
+        },
+        "pr_2": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_781341120660000000001",
+          "energies": [
+            73.0
+          ],
+          "eckart_reference": 73.0
+        },
+        "pr_3": {
+          "kind": "Bimolecular",
+          "identity": "320000000000000000003_470831050000000000002",
+          "energies": [
+            73.46576481
+          ],
+          "eckart_reference": 73.46576481
+        },
+        "pr_4": {
+          "kind": "Bimolecular",
+          "identity": "20020000000000000001_771210770330000000002-secdd6e507413ce13",
+          "energies": [
+            82.28
+          ],
+          "eckart_reference": 82.28
+        },
+        "pr_5": {
+          "kind": "Bimolecular",
+          "identity": "140260020000000000003_650970330000000000002",
+          "energies": [
+            99.09
+          ],
+          "eckart_reference": 99.09
+        },
+        "pr_6": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_781982641140020000001-s9a200399f8a91b32",
+          "energies": [
+            127.67
+          ],
+          "eckart_reference": 127.67
+        },
+        "pr_7": {
+          "kind": "Bimolecular",
+          "identity": "320000000000000000003_471030810040000000002",
+          "energies": [
+            82.75030544
+          ],
+          "eckart_reference": 82.75030544
+        },
+        "pr_8": {
+          "kind": "Bimolecular",
+          "identity": "330330000000000000002_460700680000000000001",
+          "energies": [
+            43.34128757
+          ],
+          "eckart_reference": 43.34128757
+        },
+        "pr_9": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_781541100460020000001",
+          "energies": [
+            102.95
+          ],
+          "eckart_reference": 102.95
+        },
+        "pr_10": {
+          "kind": "Bimolecular",
+          "identity": "20020000000000000001_771210770330000000002-sabaf6c97fba7ab60",
+          "energies": [
+            43.71
+          ],
+          "eckart_reference": 43.71
+        },
+        "pr_11": {
+          "kind": "Bimolecular",
+          "identity": "340660020000000000001_450570330000000000002",
+          "energies": [
+            45.25
+          ],
+          "eckart_reference": 45.25
+        },
+        "pr_12": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_781541230350000000001",
+          "energies": [
+            139.95
+          ],
+          "eckart_reference": 139.95
+        },
+        "pr_13": {
+          "kind": "Bimolecular",
+          "identity": "130130000000000000002_661300660020000000001",
+          "energies": [
+            129.32976222
+          ],
+          "eckart_reference": 129.32976222
+        },
+        "pr_14": {
+          "kind": "Bimolecular",
+          "identity": "330330000000000000002_460900460020000000001",
+          "energies": [
+            88.85128757
+          ],
+          "eckart_reference": 88.85128757
+        },
+        "pr_15": {
+          "kind": "Bimolecular",
+          "identity": "20020000000000000001_771011300000000000002",
+          "energies": [
+            38.39
+          ],
+          "eckart_reference": 38.39
+        },
+        "pr_16": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_781341430350000000001",
+          "energies": [
+            60.08
+          ],
+          "eckart_reference": 60.08
+        },
+        "pr_17": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_781782861320000000001",
+          "energies": [
+            65.11
+          ],
+          "eckart_reference": 65.11
+        },
+        "pr_18": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_781540900660020000001",
+          "energies": [
+            96.05
+          ],
+          "eckart_reference": 96.05
+        },
+        "pr_19": {
+          "kind": "Bimolecular",
+          "identity": "10000000000000000002_781982641140020000001-sa85e62c5ca1a6046",
+          "energies": [
+            127.67
+          ],
+          "eckart_reference": 127.67
+        },
+        "w_18": {
+          "kind": "Well",
+          "identity": "791430150000000000002-ga121da27d170aa29cb8ace36290f6e6d84ca5c91631dfca735c4968d811fb661",
+          "energies": [
+            84.38424796
+          ],
+          "eckart_reference": 84.38424796
+        },
+        "pr_20": {
+          "kind": "Bimolecular",
+          "identity": "340660020000000000001_450770130000000000002",
+          "energies": [
+            86.09485752
+          ],
+          "eckart_reference": 86.09485752
+        }
+      },
+      "barrier_count": 95
+    }
+  ],
+  "edges": [
+    {
+      "case": "ch3s",
+      "label": "nobar_4",
+      "endpoints": [
+        "w_2",
+        "pr_1"
+      ],
+      "identities": [
+        "471030810040000000002",
+        "10000000000000000002_460700680000000000001"
+      ],
+      "source_reaction": "471030810040000000002_hom_sci_2_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        51.91
+      ],
+      "eckart_depths_kcal": [],
+      "line": 364,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3s",
+      "label": "nobar_1",
+      "endpoints": [
+        "w_1",
+        "pr_2"
+      ],
+      "identities": [
+        "470831050000000000002",
+        "150390060000000000002_320000000000000000003"
+      ],
+      "source_reaction": "470831050000000000002_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        68.81
+      ],
+      "eckart_depths_kcal": [],
+      "line": 401,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3s",
+      "label": "nobar_2",
+      "endpoints": [
+        "w_2",
+        "pr_4"
+      ],
+      "identities": [
+        "471030810040000000002",
+        "140260020000000000003_330330000000000000002"
+      ],
+      "source_reaction": "471030810040000000002_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        95.86
+      ],
+      "eckart_depths_kcal": [],
+      "line": 438,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3s",
+      "label": "nobar_3",
+      "endpoints": [
+        "w_2",
+        "pr_5"
+      ],
+      "identities": [
+        "471030810040000000002",
+        "10000000000000000002_460900460020000000001"
+      ],
+      "source_reaction": "471030810040000000002_hom_sci_1_4",
+      "treatment": "PST",
+      "energies_kcal": [
+        98.23
+      ],
+      "eckart_depths_kcal": [],
+      "line": 474,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3s",
+      "label": "nobar_5",
+      "endpoints": [
+        "w_3",
+        "pr_6"
+      ],
+      "identities": [
+        "471230610040000000002",
+        "130130000000000000002_340660020000000000001"
+      ],
+      "source_reaction": "471230610040000000002_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        108.88
+      ],
+      "eckart_depths_kcal": [],
+      "line": 511,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3s",
+      "label": "rxn_1",
+      "endpoints": [
+        "w_1",
+        "w_2"
+      ],
+      "identities": [
+        "470831050000000000002",
+        "471030810040000000002"
+      ],
+      "source_reaction": "470831050000000000002_intra_H_migration_2_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        37.93,
+        51.95
+      ],
+      "eckart_depths_kcal": [
+        37.93,
+        28.64,
+        51.95,
+        42.66
+      ],
+      "line": 551,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3s",
+      "label": "rxn_3",
+      "endpoints": [
+        "w_1",
+        "pr_1"
+      ],
+      "identities": [
+        "470831050000000000002",
+        "10000000000000000002_460700680000000000001"
+      ],
+      "source_reaction": "470831050000000000002_r12_insertion_R_3_1_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        51.95
+      ],
+      "eckart_depths_kcal": [
+        51.95,
+        0.04
+      ],
+      "line": 627,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.004540629999994793,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3s",
+      "label": "rxn_4",
+      "endpoints": [
+        "w_2",
+        "w_3"
+      ],
+      "identities": [
+        "471030810040000000002",
+        "471230610040000000002"
+      ],
+      "source_reaction": "471030810040000000002_intra_H_migration_2_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        96.54,
+        96.32
+      ],
+      "eckart_depths_kcal": [
+        87.25,
+        15.05,
+        87.03,
+        14.83
+      ],
+      "line": 663,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3s",
+      "label": "rxn_6",
+      "endpoints": [
+        "w_2",
+        "pr_3"
+      ],
+      "identities": [
+        "471030810040000000002",
+        "20020000000000000001_450770130000000000002"
+      ],
+      "source_reaction": "471030810040000000002_r12_insertion_R_4_1_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        102.97,
+        98.29,
+        97.46
+      ],
+      "eckart_depths_kcal": [
+        93.68,
+        23.31,
+        89.0,
+        18.63,
+        88.17,
+        17.8
+      ],
+      "line": 738,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3s",
+      "label": "rxn_10",
+      "endpoints": [
+        "w_3",
+        "pr_5"
+      ],
+      "identities": [
+        "471230610040000000002",
+        "10000000000000000002_460900460020000000001"
+      ],
+      "source_reaction": "471230610040000000002_R_Addition_MultipleBond_1_2_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        100.79
+      ],
+      "eckart_depths_kcal": [
+        19.31,
+        2.56
+      ],
+      "line": 849,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.004540629999991719,
+        0.014540629999995502
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_1",
+      "endpoints": [
+        "w_1",
+        "pr_1"
+      ],
+      "identities": [
+        "791471490990000000002",
+        "150390060000000000002_640640000000000000003"
+      ],
+      "source_reaction": "791471490990000000002_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        43.59
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1513,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_2",
+      "endpoints": [
+        "w_1",
+        "pr_2"
+      ],
+      "identities": [
+        "791471490990000000002",
+        "10000000000000000002_781341120660000000001"
+      ],
+      "source_reaction": "791471490990000000002_hom_sci_1_4",
+      "treatment": "PST",
+      "energies_kcal": [
+        73.0
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1552,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_9",
+      "endpoints": [
+        "w_3",
+        "pr_2"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "10000000000000000002_781341120660000000001"
+      ],
+      "source_reaction": "791671450790040000002_hom_sci_3_4",
+      "treatment": "PST",
+      "energies_kcal": [
+        73.0
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1590,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_3",
+      "endpoints": [
+        "w_1",
+        "pr_3"
+      ],
+      "identities": [
+        "791471490990000000002",
+        "320000000000000000003_470831050000000000002"
+      ],
+      "source_reaction": "791471490990000000002_hom_sci_2_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        73.47
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1630,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_4",
+      "endpoints": [
+        "w_2",
+        "pr_5"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "140260020000000000003_650970330000000000002"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        99.09
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1670,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_8",
+      "endpoints": [
+        "w_3",
+        "pr_5"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "140260020000000000003_650970330000000000002"
+      ],
+      "source_reaction": "791671450790040000002_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        99.09
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1710,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_24",
+      "endpoints": [
+        "w_10",
+        "pr_5"
+      ],
+      "identities": [
+        "791671580700000000002-s8fc26f5f496eeb4e",
+        "140260020000000000003_650970330000000000002"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        99.09
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1747,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_5",
+      "endpoints": [
+        "w_2",
+        "pr_6"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "10000000000000000002_781982641140020000001-s9a200399f8a91b32"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_5",
+      "treatment": "PST",
+      "energies_kcal": [
+        127.67
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1786,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_6",
+      "endpoints": [
+        "w_2",
+        "pr_7"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "320000000000000000003_471030810040000000002"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        82.75
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1831,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_15",
+      "endpoints": [
+        "w_6",
+        "pr_7"
+      ],
+      "identities": [
+        "791472110370000000002",
+        "320000000000000000003_471030810040000000002"
+      ],
+      "source_reaction": "791472110370000000002_hom_sci_1_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        82.75
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1885,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_26",
+      "endpoints": [
+        "w_10",
+        "pr_7"
+      ],
+      "identities": [
+        "791671580700000000002-s8fc26f5f496eeb4e",
+        "320000000000000000003_471030810040000000002"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        82.75
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1936,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_14",
+      "endpoints": [
+        "w_6",
+        "pr_8"
+      ],
+      "identities": [
+        "791472110370000000002",
+        "330330000000000000002_460700680000000000001"
+      ],
+      "source_reaction": "791472110370000000002_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        43.34
+      ],
+      "eckart_depths_kcal": [],
+      "line": 1989,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_39",
+      "endpoints": [
+        "w_9",
+        "pr_8"
+      ],
+      "identities": [
+        "791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c",
+        "330330000000000000002_460700680000000000001"
+      ],
+      "source_reaction": null,
+      "treatment": "PST",
+      "energies_kcal": [
+        43.34
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2026,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_20",
+      "endpoints": [
+        "w_8",
+        "pr_9"
+      ],
+      "identities": [
+        "791871560500020000002-s254020c87a151164",
+        "10000000000000000002_781541100460020000001"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_hom_sci_2_6",
+      "treatment": "PST",
+      "energies_kcal": [
+        102.95
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2064,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_34",
+      "endpoints": [
+        "w_15",
+        "pr_9"
+      ],
+      "identities": [
+        "791871560500020000002-sc9062a2d39c6d51a",
+        "10000000000000000002_781541100460020000001"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_hom_sci_2_6",
+      "treatment": "PST",
+      "energies_kcal": [
+        102.95
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2115,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_40",
+      "endpoints": [
+        "w_11",
+        "pr_9"
+      ],
+      "identities": [
+        "791541100460020000002-g60b36c41c75b41fb3ea9744ff25af7afee84db14bf9a5ab0c6e4be7741643907",
+        "10000000000000000002_781541100460020000001"
+      ],
+      "source_reaction": null,
+      "treatment": "PST",
+      "energies_kcal": [
+        102.95
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2167,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_41",
+      "endpoints": [
+        "w_12",
+        "pr_11"
+      ],
+      "identities": [
+        "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595",
+        "340660020000000000001_450570330000000000002"
+      ],
+      "source_reaction": null,
+      "treatment": "PST",
+      "energies_kcal": [
+        45.25
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2219,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_10",
+      "endpoints": [
+        "w_5",
+        "pr_12"
+      ],
+      "identities": [
+        "791871710370000000002",
+        "10000000000000000002_781541230350000000001"
+      ],
+      "source_reaction": "791871710370000000002_hom_sci_1_5",
+      "treatment": "PST",
+      "energies_kcal": [
+        139.95
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2257,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_13",
+      "endpoints": [
+        "w_4",
+        "pr_12"
+      ],
+      "identities": [
+        "791871560500020000002-sb6e34ded5baaf03b",
+        "10000000000000000002_781541230350000000001"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_3_5",
+      "treatment": "PST",
+      "energies_kcal": [
+        139.95
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2295,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_21",
+      "endpoints": [
+        "w_8",
+        "pr_12"
+      ],
+      "identities": [
+        "791871560500020000002-s254020c87a151164",
+        "10000000000000000002_781541230350000000001"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_hom_sci_3_4",
+      "treatment": "PST",
+      "energies_kcal": [
+        139.95
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2333,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_35",
+      "endpoints": [
+        "w_15",
+        "pr_12"
+      ],
+      "identities": [
+        "791871560500020000002-sc9062a2d39c6d51a",
+        "10000000000000000002_781541230350000000001"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_hom_sci_3_4",
+      "treatment": "PST",
+      "energies_kcal": [
+        139.95
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2371,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_38",
+      "endpoints": [
+        "w_17",
+        "pr_12"
+      ],
+      "identities": [
+        "791871560500020000002-s1a4d7914034ddafc",
+        "10000000000000000002_781541230350000000001"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_3_5",
+      "treatment": "PST",
+      "energies_kcal": [
+        139.95
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2410,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_11",
+      "endpoints": [
+        "w_4",
+        "pr_13"
+      ],
+      "identities": [
+        "791871560500020000002-sb6e34ded5baaf03b",
+        "130130000000000000002_661300660020000000001"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        129.33
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2449,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_18",
+      "endpoints": [
+        "w_8",
+        "pr_13"
+      ],
+      "identities": [
+        "791871560500020000002-s254020c87a151164",
+        "130130000000000000002_661300660020000000001"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        129.33
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2499,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_32",
+      "endpoints": [
+        "w_15",
+        "pr_13"
+      ],
+      "identities": [
+        "791871560500020000002-sc9062a2d39c6d51a",
+        "130130000000000000002_661300660020000000001"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        129.33
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2549,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_36",
+      "endpoints": [
+        "w_17",
+        "pr_13"
+      ],
+      "identities": [
+        "791871560500020000002-s1a4d7914034ddafc",
+        "130130000000000000002_661300660020000000001"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        129.33
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2600,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_12",
+      "endpoints": [
+        "w_4",
+        "pr_14"
+      ],
+      "identities": [
+        "791871560500020000002-sb6e34ded5baaf03b",
+        "330330000000000000002_460900460020000000001"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_2_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        88.85
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2651,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_19",
+      "endpoints": [
+        "w_8",
+        "pr_14"
+      ],
+      "identities": [
+        "791871560500020000002-s254020c87a151164",
+        "330330000000000000002_460900460020000000001"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_hom_sci_2_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        88.85
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2688,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_27",
+      "endpoints": [
+        "w_13",
+        "pr_14"
+      ],
+      "identities": [
+        "791671560700020000002-s893815ff03c7331d",
+        "330330000000000000002_460900460020000000001"
+      ],
+      "source_reaction": "791671560700020000002-s893815ff03c7331d_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        88.85
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2725,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_30",
+      "endpoints": [
+        "w_14",
+        "pr_14"
+      ],
+      "identities": [
+        "791671560700020000002-sdc19d1516ced03fc",
+        "330330000000000000002_460900460020000000001"
+      ],
+      "source_reaction": "791671560700020000002-sdc19d1516ced03fc_hom_sci_1_2",
+      "treatment": "PST",
+      "energies_kcal": [
+        88.85
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2762,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_33",
+      "endpoints": [
+        "w_15",
+        "pr_14"
+      ],
+      "identities": [
+        "791871560500020000002-sc9062a2d39c6d51a",
+        "330330000000000000002_460900460020000000001"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_hom_sci_2_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        88.85
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2799,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_37",
+      "endpoints": [
+        "w_17",
+        "pr_14"
+      ],
+      "identities": [
+        "791871560500020000002-s1a4d7914034ddafc",
+        "330330000000000000002_460900460020000000001"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_hom_sci_2_3",
+      "treatment": "PST",
+      "energies_kcal": [
+        88.85
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2837,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_45",
+      "endpoints": [
+        "w_16",
+        "pr_14"
+      ],
+      "identities": [
+        "791230460020000000002-g94549b3d8ea0a69aefbea3a5cf547df9d94b869e70cd353d5ca2cb6e842b3ec4",
+        "330330000000000000002_460900460020000000001"
+      ],
+      "source_reaction": null,
+      "treatment": "PST",
+      "energies_kcal": [
+        88.85
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2875,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_16",
+      "endpoints": [
+        "w_6",
+        "pr_16"
+      ],
+      "identities": [
+        "791472110370000000002",
+        "10000000000000000002_781341430350000000001"
+      ],
+      "source_reaction": "791472110370000000002_hom_sci_1_5",
+      "treatment": "PST",
+      "energies_kcal": [
+        60.08
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2913,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_23",
+      "endpoints": [
+        "w_7",
+        "pr_16"
+      ],
+      "identities": [
+        "791671560700020000002-sedd8f7729b69b19b",
+        "10000000000000000002_781341430350000000001"
+      ],
+      "source_reaction": "791671560700020000002-sedd8f7729b69b19b_hom_sci_2_5",
+      "treatment": "PST",
+      "energies_kcal": [
+        60.08
+      ],
+      "eckart_depths_kcal": [],
+      "line": 2964,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_29",
+      "endpoints": [
+        "w_13",
+        "pr_16"
+      ],
+      "identities": [
+        "791671560700020000002-s893815ff03c7331d",
+        "10000000000000000002_781341430350000000001"
+      ],
+      "source_reaction": "791671560700020000002-s893815ff03c7331d_hom_sci_2_4",
+      "treatment": "PST",
+      "energies_kcal": [
+        60.08
+      ],
+      "eckart_depths_kcal": [],
+      "line": 3015,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_31",
+      "endpoints": [
+        "w_14",
+        "pr_16"
+      ],
+      "identities": [
+        "791671560700020000002-sdc19d1516ced03fc",
+        "10000000000000000002_781341430350000000001"
+      ],
+      "source_reaction": "791671560700020000002-sdc19d1516ced03fc_hom_sci_2_4",
+      "treatment": "PST",
+      "energies_kcal": [
+        60.08
+      ],
+      "eckart_depths_kcal": [],
+      "line": 3066,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_17",
+      "endpoints": [
+        "w_6",
+        "pr_17"
+      ],
+      "identities": [
+        "791472110370000000002",
+        "10000000000000000002_781782861320000000001"
+      ],
+      "source_reaction": "791472110370000000002_hom_sci_2_4",
+      "treatment": "PST",
+      "energies_kcal": [
+        65.11
+      ],
+      "eckart_depths_kcal": [],
+      "line": 3119,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_22",
+      "endpoints": [
+        "w_7",
+        "pr_18"
+      ],
+      "identities": [
+        "791671560700020000002-sedd8f7729b69b19b",
+        "10000000000000000002_781540900660020000001"
+      ],
+      "source_reaction": "791671560700020000002-sedd8f7729b69b19b_hom_sci_1_6",
+      "treatment": "PST",
+      "energies_kcal": [
+        96.05
+      ],
+      "eckart_depths_kcal": [],
+      "line": 3159,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_28",
+      "endpoints": [
+        "w_13",
+        "pr_18"
+      ],
+      "identities": [
+        "791671560700020000002-s893815ff03c7331d",
+        "10000000000000000002_781540900660020000001"
+      ],
+      "source_reaction": "791671560700020000002-s893815ff03c7331d_hom_sci_1_6",
+      "treatment": "PST",
+      "energies_kcal": [
+        96.05
+      ],
+      "eckart_depths_kcal": [],
+      "line": 3225,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "nobar_25",
+      "endpoints": [
+        "w_10",
+        "pr_19"
+      ],
+      "identities": [
+        "791671580700000000002-s8fc26f5f496eeb4e",
+        "10000000000000000002_781982641140020000001-sa85e62c5ca1a6046"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_5",
+      "treatment": "PST",
+      "energies_kcal": [
+        127.67
+      ],
+      "eckart_depths_kcal": [],
+      "line": 3293,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_1",
+      "endpoints": [
+        "w_1",
+        "w_2"
+      ],
+      "identities": [
+        "791471490990000000002",
+        "791671580700000000002-s36f1e2b924862f12"
+      ],
+      "source_reaction": "791471490990000000002_intra_H_migration_2_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        70.73
+      ],
+      "eckart_depths_kcal": [
+        70.73,
+        15.84
+      ],
+      "line": 3337,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -3.552713678800501e-15,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_2",
+      "endpoints": [
+        "w_1",
+        "w_3"
+      ],
+      "identities": [
+        "791471490990000000002",
+        "791671450790040000002"
+      ],
+      "source_reaction": "791471490990000000002_intra_H_migration_3_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        51.51,
+        98.31
+      ],
+      "eckart_depths_kcal": [
+        51.51,
+        25.66,
+        72.46,
+        98.31
+      ],
+      "line": 3375,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_4",
+      "endpoints": [
+        "w_2",
+        "w_4"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "791871560500020000002-sb6e34ded5baaf03b"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        100.54,
+        139.88,
+        139.88
+      ],
+      "eckart_depths_kcal": [
+        45.65,
+        15.02,
+        84.99,
+        54.36,
+        54.36,
+        84.99
+      ],
+      "line": 3454,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_5",
+      "endpoints": [
+        "w_2",
+        "w_5"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "791871710370000000002"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        139.01
+      ],
+      "eckart_depths_kcal": [
+        84.12,
+        13.2
+      ],
+      "line": 3574,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        1.0658141036401503e-14,
+        1.4210854715202004e-14
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_6",
+      "endpoints": [
+        "w_2",
+        "w_3"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "791671450790040000002"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        68.72,
+        86.63
+      ],
+      "eckart_depths_kcal": [
+        13.83,
+        42.88,
+        60.79,
+        31.74
+      ],
+      "line": 3613,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_7",
+      "endpoints": [
+        "w_2",
+        "w_6"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "791472110370000000002"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        75.34
+      ],
+      "eckart_depths_kcal": [
+        20.45,
+        54.31
+      ],
+      "line": 3702,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -3.552713678800501e-15,
+        -0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_9",
+      "endpoints": [
+        "w_2",
+        "pr_4"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "20020000000000000001_771210770330000000002-secdd6e507413ce13"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        148.85
+      ],
+      "eckart_depths_kcal": [
+        93.96,
+        66.58
+      ],
+      "line": 3741,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.010000000000005116,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_10",
+      "endpoints": [
+        "w_3",
+        "w_7"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "791671560700020000002-sedd8f7729b69b19b"
+      ],
+      "source_reaction": "791671450790040000002_intra_H_migration_2_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        110.47
+      ],
+      "eckart_depths_kcal": [
+        84.63,
+        84.44
+      ],
+      "line": 3780,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_11",
+      "endpoints": [
+        "w_3",
+        "w_8"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "791871560500020000002-s254020c87a151164"
+      ],
+      "source_reaction": "791671450790040000002_intra_H_migration_2_6",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        109.82,
+        107.77
+      ],
+      "eckart_depths_kcal": [
+        83.98,
+        24.58,
+        22.53,
+        81.93
+      ],
+      "line": 3818,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_12",
+      "endpoints": [
+        "w_3",
+        "w_6"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "791472110370000000002"
+      ],
+      "source_reaction": "791671450790040000002_intra_R_migration_3_1",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        61.73,
+        42.41,
+        62.04
+      ],
+      "eckart_depths_kcal": [
+        35.88,
+        40.7,
+        16.57,
+        21.39,
+        36.2,
+        41.02
+      ],
+      "line": 3899,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_16",
+      "endpoints": [
+        "w_3",
+        "w_10"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "791671580700000000002-s8fc26f5f496eeb4e"
+      ],
+      "source_reaction": "791671450790040000002_r12_insertion_R_3_2_1",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        86.63,
+        68.72
+      ],
+      "eckart_depths_kcal": [
+        60.79,
+        31.74,
+        13.83,
+        42.88
+      ],
+      "line": 4016,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_17",
+      "endpoints": [
+        "w_3",
+        "pr_10"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "20020000000000000001_771210770330000000002-sabaf6c97fba7ab60"
+      ],
+      "source_reaction": "791671450790040000002_h2_elim_5_6",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        117.26
+      ],
+      "eckart_depths_kcal": [
+        91.42,
+        73.55
+      ],
+      "line": 4103,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -1.4210854715202004e-14,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_18",
+      "endpoints": [
+        "w_5",
+        "w_8"
+      ],
+      "identities": [
+        "791871710370000000002",
+        "791871560500020000002-s254020c87a151164"
+      ],
+      "source_reaction": "791871710370000000002_r12_insertion_R_3_2_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        141.85
+      ],
+      "eckart_depths_kcal": [
+        16.04,
+        56.6
+      ],
+      "line": 4141,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        7.105427357601002e-15,
+        7.105427357601002e-15
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_19",
+      "endpoints": [
+        "w_5",
+        "w_4"
+      ],
+      "identities": [
+        "791871710370000000002",
+        "791871560500020000002-sb6e34ded5baaf03b"
+      ],
+      "source_reaction": "791871710370000000002_r12_insertion_R_4_2_6",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        145.09
+      ],
+      "eckart_depths_kcal": [
+        19.28,
+        59.56
+      ],
+      "line": 4179,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_20",
+      "endpoints": [
+        "w_4",
+        "w_3"
+      ],
+      "identities": [
+        "791871560500020000002-sb6e34ded5baaf03b",
+        "791671450790040000002"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_intra_H_migration_1_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        115.64,
+        115.66
+      ],
+      "eckart_depths_kcal": [
+        30.11,
+        89.8,
+        30.13,
+        89.82
+      ],
+      "line": 4217,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_21",
+      "endpoints": [
+        "w_4",
+        "pr_9"
+      ],
+      "identities": [
+        "791871560500020000002-sb6e34ded5baaf03b",
+        "10000000000000000002_781541100460020000001"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_r12_insertion_R_4_2_1",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        105.77
+      ],
+      "eckart_depths_kcal": [
+        20.25,
+        2.83
+      ],
+      "line": 4297,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.010000000000006892,
+        0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_22",
+      "endpoints": [
+        "w_6",
+        "w_7"
+      ],
+      "identities": [
+        "791472110370000000002",
+        "791671560700020000002-sedd8f7729b69b19b"
+      ],
+      "source_reaction": "791472110370000000002_intra_H_migration_2_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        66.08,
+        52.22
+      ],
+      "eckart_depths_kcal": [
+        45.05,
+        40.05,
+        31.2,
+        26.19
+      ],
+      "line": 4335,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_23",
+      "endpoints": [
+        "w_6",
+        "w_13"
+      ],
+      "identities": [
+        "791472110370000000002",
+        "791671560700020000002-s893815ff03c7331d"
+      ],
+      "source_reaction": "791472110370000000002_intra_H_migration_3_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        52.86,
+        87.64
+      ],
+      "eckart_depths_kcal": [
+        31.84,
+        26.19,
+        60.96,
+        66.62
+      ],
+      "line": 4414,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_24",
+      "endpoints": [
+        "w_6",
+        "w_14"
+      ],
+      "identities": [
+        "791472110370000000002",
+        "791671560700020000002-sdc19d1516ced03fc"
+      ],
+      "source_reaction": "791472110370000000002_r12_insertion_R_5_1_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        64.92
+      ],
+      "eckart_depths_kcal": [
+        43.89,
+        39.23
+      ],
+      "line": 4493,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -7.105427357601002e-15,
+        -0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_26",
+      "endpoints": [
+        "w_6",
+        "pr_15"
+      ],
+      "identities": [
+        "791472110370000000002",
+        "20020000000000000001_771011300000000000002"
+      ],
+      "source_reaction": "791472110370000000002_h2_elim_4_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        90.56
+      ],
+      "eckart_depths_kcal": [
+        69.54,
+        52.17
+      ],
+      "line": 4531,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_27",
+      "endpoints": [
+        "w_8",
+        "w_15"
+      ],
+      "identities": [
+        "791871560500020000002-s254020c87a151164",
+        "791871560500020000002-sc9062a2d39c6d51a"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_intra_H_migration_2_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        88.34,
+        88.33
+      ],
+      "eckart_depths_kcal": [
+        3.1,
+        3.1,
+        3.09,
+        3.1
+      ],
+      "line": 4569,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_28",
+      "endpoints": [
+        "w_8",
+        "w_7"
+      ],
+      "identities": [
+        "791871560500020000002-s254020c87a151164",
+        "791671560700020000002-sedd8f7729b69b19b"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_r12_insertion_R_2_1_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        127.08,
+        98.2
+      ],
+      "eckart_depths_kcal": [
+        41.83,
+        101.05,
+        12.97,
+        72.17
+      ],
+      "line": 4648,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_32",
+      "endpoints": [
+        "w_7",
+        "w_13"
+      ],
+      "identities": [
+        "791671560700020000002-sedd8f7729b69b19b",
+        "791671560700020000002-s893815ff03c7331d"
+      ],
+      "source_reaction": "791671560700020000002-sedd8f7729b69b19b_Intra_R_Add_ExoTetCyclic_F_2_3_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        26.9
+      ],
+      "eckart_depths_kcal": [
+        0.87,
+        0.22
+      ],
+      "line": 4728,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        1.1379786002407855e-15,
+        2.55351295663786e-15
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_33",
+      "endpoints": [
+        "w_7",
+        "w_14"
+      ],
+      "identities": [
+        "791671560700020000002-sedd8f7729b69b19b",
+        "791671560700020000002-sdc19d1516ced03fc"
+      ],
+      "source_reaction": "791671560700020000002-sedd8f7729b69b19b_R_Addition_MultipleBond_2_1_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        26.41
+      ],
+      "eckart_depths_kcal": [
+        0.38,
+        0.73
+      ],
+      "line": 4767,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        9.992007221626409e-16,
+        0.010000000000001119
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_35",
+      "endpoints": [
+        "w_10",
+        "w_5"
+      ],
+      "identities": [
+        "791671580700000000002-s8fc26f5f496eeb4e",
+        "791871710370000000002"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        139.01
+      ],
+      "eckart_depths_kcal": [
+        84.12,
+        13.2
+      ],
+      "line": 4806,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        1.0658141036401503e-14,
+        1.4210854715202004e-14
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_36",
+      "endpoints": [
+        "w_10",
+        "w_17"
+      ],
+      "identities": [
+        "791671580700000000002-s8fc26f5f496eeb4e",
+        "791871560500020000002-s1a4d7914034ddafc"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_intra_H_migration_3_6",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        100.54,
+        139.88,
+        139.88
+      ],
+      "eckart_depths_kcal": [
+        45.65,
+        15.02,
+        84.99,
+        54.36,
+        54.36,
+        84.99
+      ],
+      "line": 4844,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_37",
+      "endpoints": [
+        "w_10",
+        "w_6"
+      ],
+      "identities": [
+        "791671580700000000002-s8fc26f5f496eeb4e",
+        "791472110370000000002"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_intra_R_migration_2_1",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        75.34
+      ],
+      "eckart_depths_kcal": [
+        20.45,
+        54.31
+      ],
+      "line": 4961,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -3.552713678800501e-15,
+        -0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_38",
+      "endpoints": [
+        "w_10",
+        "pr_4"
+      ],
+      "identities": [
+        "791671580700000000002-s8fc26f5f496eeb4e",
+        "20020000000000000001_771210770330000000002-secdd6e507413ce13"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_r12_insertion_R_5_1_6",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        148.85
+      ],
+      "eckart_depths_kcal": [
+        93.96,
+        66.58
+      ],
+      "line": 4999,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.010000000000005116,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_40",
+      "endpoints": [
+        "w_10",
+        "pr_2"
+      ],
+      "identities": [
+        "791671580700000000002-s8fc26f5f496eeb4e",
+        "10000000000000000002_781341120660000000001"
+      ],
+      "source_reaction": "791671580700000000002-s8fc26f5f496eeb4e_R_Addition_MultipleBond_1_3_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        77.44
+      ],
+      "eckart_depths_kcal": [
+        22.55,
+        4.43
+      ],
+      "line": 5037,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -0.00999999999999801,
+        3.552713678800501e-15
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_41",
+      "endpoints": [
+        "w_1",
+        "w_10"
+      ],
+      "identities": [
+        "791471490990000000002",
+        "791671580700000000002-s8fc26f5f496eeb4e"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        70.73
+      ],
+      "eckart_depths_kcal": [
+        70.73,
+        15.84
+      ],
+      "line": 5075,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -3.552713678800501e-15,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_44",
+      "endpoints": [
+        "w_14",
+        "w_8"
+      ],
+      "identities": [
+        "791671560700020000002-sdc19d1516ced03fc",
+        "791871560500020000002-s254020c87a151164"
+      ],
+      "source_reaction": "791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_2_1_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        116.02
+      ],
+      "eckart_depths_kcal": [
+        90.34,
+        30.78
+      ],
+      "line": 5114,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.010000000000005116,
+        0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_45",
+      "endpoints": [
+        "w_14",
+        "pr_15"
+      ],
+      "identities": [
+        "791671560700020000002-sdc19d1516ced03fc",
+        "20020000000000000001_771011300000000000002"
+      ],
+      "source_reaction": "791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_4_2_1",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        52.93
+      ],
+      "eckart_depths_kcal": [
+        27.25,
+        14.54
+      ],
+      "line": 5152,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.0,
+        0.010000000000001563
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_46",
+      "endpoints": [
+        "w_14",
+        "pr_18"
+      ],
+      "identities": [
+        "791671560700020000002-sdc19d1516ced03fc",
+        "10000000000000000002_781540900660020000001"
+      ],
+      "source_reaction": "791671560700020000002-sdc19d1516ced03fc_r12_insertion_R_6_1_2",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        113.73
+      ],
+      "eckart_depths_kcal": [
+        88.05,
+        17.68
+      ],
+      "line": 5191,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -7.105427357601002e-15,
+        0.009999999999990905
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_49",
+      "endpoints": [
+        "w_15",
+        "w_7"
+      ],
+      "identities": [
+        "791871560500020000002-sc9062a2d39c6d51a",
+        "791671560700020000002-sedd8f7729b69b19b"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        127.08,
+        98.2
+      ],
+      "eckart_depths_kcal": [
+        41.83,
+        101.05,
+        12.97,
+        72.17
+      ],
+      "line": 5231,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_51",
+      "endpoints": [
+        "w_17",
+        "w_3"
+      ],
+      "identities": [
+        "791871560500020000002-s1a4d7914034ddafc",
+        "791671450790040000002"
+      ],
+      "source_reaction": "791871560500020000002-s1a4d7914034ddafc_intra_H_migration_1_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        115.66,
+        115.64
+      ],
+      "eckart_depths_kcal": [
+        30.13,
+        89.82,
+        30.11,
+        89.8
+      ],
+      "line": 5311,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_52",
+      "endpoints": [
+        "w_17",
+        "pr_9"
+      ],
+      "identities": [
+        "791871560500020000002-s1a4d7914034ddafc",
+        "10000000000000000002_781541100460020000001"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        105.77
+      ],
+      "eckart_depths_kcal": [
+        20.25,
+        2.83
+      ],
+      "line": 5391,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.010000000000006892,
+        0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_54",
+      "endpoints": [
+        "w_3",
+        "w_9"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c"
+      ],
+      "source_reaction": "791671450790040000002_intra_H_migration_suprafacial_1_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        42.34
+      ],
+      "eckart_depths_kcal": [],
+      "line": 5430,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_55",
+      "endpoints": [
+        "w_3",
+        "w_11"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "791541100460020000002-g60b36c41c75b41fb3ea9744ff25af7afee84db14bf9a5ab0c6e4be7741643907"
+      ],
+      "source_reaction": "791671450790040000002_r12_insertion_R_6_1_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        102.92
+      ],
+      "eckart_depths_kcal": [
+        77.08,
+        0.1
+      ],
+      "line": 5464,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -8.520961713998076e-15,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_56",
+      "endpoints": [
+        "w_5",
+        "w_12"
+      ],
+      "identities": [
+        "791871710370000000002",
+        "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595"
+      ],
+      "source_reaction": "791871710370000000002_Intra_R_Add_ExoTetCyclic_F_3_1_5",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        144.96
+      ],
+      "eckart_depths_kcal": [
+        19.15,
+        100.98
+      ],
+      "line": 5510,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -7.105427357601002e-15,
+        -1.4210854715202004e-14
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_58",
+      "endpoints": [
+        "w_4",
+        "w_12"
+      ],
+      "identities": [
+        "791871560500020000002-sb6e34ded5baaf03b",
+        "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595"
+      ],
+      "source_reaction": "791871560500020000002-sb6e34ded5baaf03b_12_shift_S_F_3_2_4",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        95.57,
+        88.19
+      ],
+      "eckart_depths_kcal": [
+        10.04,
+        51.58,
+        2.67,
+        44.21
+      ],
+      "line": 5548,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_59",
+      "endpoints": [
+        "w_8",
+        "w_12"
+      ],
+      "identities": [
+        "791871560500020000002-s254020c87a151164",
+        "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595"
+      ],
+      "source_reaction": "791871560500020000002-s254020c87a151164_r13_insertion_RSR_5_1_2_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        96.36
+      ],
+      "eckart_depths_kcal": [
+        11.11,
+        52.37
+      ],
+      "line": 5628,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.0,
+        -0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_60",
+      "endpoints": [
+        "w_7",
+        "w_16"
+      ],
+      "identities": [
+        "791671560700020000002-sedd8f7729b69b19b",
+        "791230460020000000002-g94549b3d8ea0a69aefbea3a5cf547df9d94b869e70cd353d5ca2cb6e842b3ec4"
+      ],
+      "source_reaction": "791671560700020000002-sedd8f7729b69b19b_dissociation_saddle_1_2",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        85.85
+      ],
+      "eckart_depths_kcal": [],
+      "line": 5666,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_61",
+      "endpoints": [
+        "w_13",
+        "w_12"
+      ],
+      "identities": [
+        "791671560700020000002-s893815ff03c7331d",
+        "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595"
+      ],
+      "source_reaction": "791671560700020000002-s893815ff03c7331d_intra_R_migration_2_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        88.8
+      ],
+      "eckart_depths_kcal": [
+        62.12,
+        44.81
+      ],
+      "line": 5700,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -0.00999999999999801,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_62",
+      "endpoints": [
+        "w_17",
+        "w_12"
+      ],
+      "identities": [
+        "791871560500020000002-s1a4d7914034ddafc",
+        "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595"
+      ],
+      "source_reaction": "791871560500020000002-s1a4d7914034ddafc_r12_insertion_R_3_2_6",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        88.19,
+        95.57
+      ],
+      "eckart_depths_kcal": [
+        2.67,
+        44.21,
+        10.04,
+        51.58
+      ],
+      "line": 5738,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "ts_mirror_d0f30d131761a727",
+      "endpoints": [
+        "w_3",
+        "w_15"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "791871560500020000002-sc9062a2d39c6d51a"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        109.82,
+        107.77
+      ],
+      "eckart_depths_kcal": [
+        83.98,
+        24.58,
+        22.53,
+        81.93
+      ],
+      "line": 5818,
+      "scientific_status": "requires_stationary_point_and_path_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "ts_mirror_e031f86d645f5d97",
+      "endpoints": [
+        "w_5",
+        "w_15"
+      ],
+      "identities": [
+        "791871710370000000002",
+        "791871560500020000002-sc9062a2d39c6d51a"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        141.85
+      ],
+      "eckart_depths_kcal": [
+        16.04,
+        56.6
+      ],
+      "line": 5901,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        7.105427357601002e-15,
+        7.105427357601002e-15
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "ts_mirror_299945c2cf582433",
+      "endpoints": [
+        "w_5",
+        "w_17"
+      ],
+      "identities": [
+        "791871710370000000002",
+        "791871560500020000002-s1a4d7914034ddafc"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        145.09
+      ],
+      "eckart_depths_kcal": [
+        19.28,
+        59.56
+      ],
+      "line": 5940,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "ts_mirror_131800ba32f33704",
+      "endpoints": [
+        "w_2",
+        "pr_2"
+      ],
+      "identities": [
+        "791671580700000000002-s36f1e2b924862f12",
+        "10000000000000000002_781341120660000000001"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        77.44
+      ],
+      "eckart_depths_kcal": [
+        22.55,
+        4.43
+      ],
+      "line": 5979,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -0.00999999999999801,
+        3.552713678800501e-15
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "ts_mirror_9d12d159b6bd4747",
+      "endpoints": [
+        "w_14",
+        "w_15"
+      ],
+      "identities": [
+        "791671560700020000002-sdc19d1516ced03fc",
+        "791871560500020000002-sc9062a2d39c6d51a"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        116.02
+      ],
+      "eckart_depths_kcal": [
+        90.34,
+        30.78
+      ],
+      "line": 6018,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.010000000000005116,
+        0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "ts_mirror_c769b1c6dbef62c4",
+      "endpoints": [
+        "w_15",
+        "w_12"
+      ],
+      "identities": [
+        "791871560500020000002-sc9062a2d39c6d51a",
+        "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595"
+      ],
+      "source_reaction": null,
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        96.36
+      ],
+      "eckart_depths_kcal": [
+        11.11,
+        52.37
+      ],
+      "line": 6057,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        0.0,
+        -0.010000000000005116
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_reverse_93359f49",
+      "endpoints": [
+        "w_9",
+        "w_12"
+      ],
+      "identities": [
+        "791030680000000000002-g9b4747fad9f1cbffb28223d3d0e3a712300415cf29c7e1d7de1f5627b727c86c",
+        "791230350000000000002-g55999cb548380be6848c04056888fa2acd8ddce0d79159248cdef7df87bc8595"
+      ],
+      "source_reaction": "330330000000000000002_460700680000000000001_abstraction_1_5_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        48.13
+      ],
+      "eckart_depths_kcal": [
+        5.79,
+        4.15
+      ],
+      "line": 6096,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -5.329070518200751e-15,
+        8.881784197001252e-16
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_reverse_26b8db7c",
+      "endpoints": [
+        "w_3",
+        "pr_4"
+      ],
+      "identities": [
+        "791671450790040000002",
+        "20020000000000000001_771210770330000000002-secdd6e507413ce13"
+      ],
+      "source_reaction": "20020000000000000001_771210770330000000002_abstraction_3_1_2",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        88.43
+      ],
+      "eckart_depths_kcal": [
+        62.59,
+        6.15
+      ],
+      "line": 6133,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -5.329070518200751e-15,
+        0.0
+      ]
+    },
+    {
+      "case": "ch3ss",
+      "label": "pst_reverse_b18dcbc8_1",
+      "endpoints": [
+        "w_18",
+        "pr_20"
+      ],
+      "identities": [
+        "791430150000000000002-ga121da27d170aa29cb8ace36290f6e6d84ca5c91631dfca735c4968d811fb661",
+        "340660020000000000001_450770130000000000002"
+      ],
+      "source_reaction": null,
+      "treatment": "PST",
+      "energies_kcal": [
+        86.09
+      ],
+      "eckart_depths_kcal": [],
+      "line": 6170,
+      "scientific_status": "requires_native_bottleneck_binding"
+    },
+    {
+      "case": "ch3ss",
+      "label": "rxn_reverse_b18dcbc8",
+      "endpoints": [
+        "w_16",
+        "w_18"
+      ],
+      "identities": [
+        "791230460020000000002-g94549b3d8ea0a69aefbea3a5cf547df9d94b869e70cd353d5ca2cb6e842b3ec4",
+        "791430150000000000002-ga121da27d170aa29cb8ace36290f6e6d84ca5c91631dfca735c4968d811fb661"
+      ],
+      "source_reaction": "330330000000000000002_460900460020000000001_abstraction_1_6_3",
+      "treatment": "RRHO/union",
+      "energies_kcal": [
+        89.62
+      ],
+      "eckart_depths_kcal": [
+        6.26,
+        5.23
+      ],
+      "line": 6205,
+      "scientific_status": "requires_stationary_point_and_path_binding",
+      "eckart_depth_residuals_kcal": [
+        -0.005752040000007952,
+        0.0022074499999948927
+      ]
+    }
+  ]
+}

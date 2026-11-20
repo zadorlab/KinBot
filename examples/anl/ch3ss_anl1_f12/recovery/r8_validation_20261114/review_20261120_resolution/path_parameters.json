@@ -1,0 +1,61 @@
+{
+  "L3_calc": 0,
+  "barrier_threshold": 150,
+  "basis": "cc-pVTZ",
+  "composite_method": "",
+  "conformer_search": 0,
+  "high_level": 0,
+  "l1_profile": {
+    "basis": "cc-pVTZ",
+    "calculator": "gaussian",
+    "calculator_kwargs": {
+      "EmpiricalDispersion": "GD3BJ",
+      "Symm": "None",
+      "integral": "UltraFine",
+      "scf": "xqc,conver=8"
+    },
+    "command": "g16",
+    "frequency_mode": "native_hessian",
+    "method": "B2PLYP",
+    "optimizer": "sella"
+  },
+  "l2_profile": {
+    "basis": "cc-pVTZ",
+    "calculator": "gaussian",
+    "calculator_kwargs": {
+      "EmpiricalDispersion": "GD3BJ",
+      "Symm": "None",
+      "integral": "UltraFine",
+      "scf": "xqc,conver=8"
+    },
+    "command": "g16",
+    "frequency_mode": "native_hessian",
+    "method": "B2PLYP",
+    "optimizer": "sella"
+  },
+  "me": 0,
+  "method": "B2PLYP",
+  "ppn": 8,
+  "qc_checkpoint_generations": 2,
+  "qc_checkpoint_interval": 600,
+  "qc_checkpoint_max_mb": 16384,
+  "queue_exclusive": 1,
+  "queue_job_limit": 20,
+  "queue_name": "month-long-cpu",
+  "queuing": "slurm",
+  "rotdpy_run": 0,
+  "rotor_scan": 0,
+  "run_me": 0,
+  "run_messpf": 0,
+  "scan_basis": "cc-pVTZ",
+  "scan_method": "B2PLYP",
+  "sella_fmax": 0.0005,
+  "sella_irc_dx": 0.05,
+  "sella_irc_steps": 300,
+  "sella_kwargs": {
+    "gamma": 0.0,
+    "internal": true
+  },
+  "sella_steps": 250,
+  "title": "Direct target-level saddle checks"
+}

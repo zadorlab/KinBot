@@ -125,7 +125,13 @@ def adopt(case, qc, parameters):
     from kinbot.l1_screening import normalized_profile
     native, seed = case['native'], case['seed']
     target = normalized_profile(asdict(resolve_profiles(parameters)['l1']))
-    if normalized_profile(native['profile']) != target:
+    source_profile = normalized_profile(native['profile'])
+    # A completed native Hessian validates the stationary point independently
+    # of the optimizer used to locate it. Reusing that geometry for an IRC may
+    # change the optimizer, but never the electronic Hamiltonian or options.
+    source_profile.pop('optimizer', None)
+    target.pop('optimizer', None)
+    if source_profile != target:
         raise ValueError('Native saddle theory differs from the requested check theory.')
     for suffix, receipt in native['files'].items():
         if file_sha256('source'+suffix) != receipt['sha256']:

@@ -1,0 +1,76 @@
+{
+  "basis": "cc-pVTZ",
+  "dispersion": "GD3BJ",
+  "frequencies_cm_inverse": [
+    -154.989,
+    71.4266,
+    274.1081,
+    324.5331,
+    443.9839,
+    1003.2018,
+    1015.3656,
+    1091.234,
+    1501.8277,
+    2720.3157,
+    3104.4891,
+    3195.4147
+  ],
+  "kind": "gaussian_harmonic",
+  "method": "B2PLYP",
+  "review_required": false,
+  "stationary_point": "transition_state",
+  "zpe": {
+    "hartree": 0.033594
+  },
+  "execution": {
+    "status": "executed",
+    "slurm_job_id": "53245807",
+    "error": null
+  },
+  "geometry_atomic_numbers_and_angstrom": [
+    [
+      6,
+      0.113325,
+      0.084791,
+      -0.021043
+    ],
+    [
+      1,
+      0.127292,
+      0.225837,
+      1.054479
+    ],
+    [
+      1,
+      1.08006,
+      0.085849,
+      -0.512313
+    ],
+    [
+      16,
+      -1.277596,
+      -0.042961,
+      -0.858792
+    ],
+    [
+      16,
+      -0.199894,
+      -2.614399,
+      -0.02393
+    ],
+    [
+      1,
+      -0.995339,
+      -2.37507,
+      1.029993
+    ]
+  ],
+  "source_log_sha256": "5f2c324dfb57601c41aa6744b0b171ca0144fb25c98c216c16a56066177a677f",
+  "evidence_form": "user supplied native read-only extract",
+  "extract_sha256": "5181f8ca1e722f533cd49839cb4fdeb4f8dbd29e23f4318586506109c73b1be3",
+  "stationary_point_status": "converged first-order saddle",
+  "connectivity_status": "two IRC directions required",
+  "level": "B2PLYP-D3BJ/cc-pVTZ",
+  "charge": 0,
+  "multiplicity": 2
+}

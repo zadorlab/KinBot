@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "name": "w3_complex_b_saddle_20261119",
+  "molecule": {
+    "symbols": [
+      "C",
+      "H",
+      "H",
+      "S",
+      "S",
+      "H"
+    ],
+    "positions": [
+      [
+        0.107235,
+        0.081187,
+        -0.025935
+      ],
+      [
+        0.125984,
+        0.208868,
+        1.051185
+      ],
+      [
+        1.073808,
+        0.074727,
+        -0.517803
+      ],
+      [
+        -1.285297,
+        -0.00387,
+        -0.863462
+      ],
+      [
+        -0.170384,
+        -2.616767,
+        -0.000409
+      ],
+      [
+        -1.003497,
+        -2.380098,
+        1.024818
+      ]
+    ],
+    "charge": 0,
+    "multiplicity": 2
+  },
+  "limits": {
+    "max_nodes": 1,
+    "max_cores_per_node": 8
+  },
+  "tasks": [
+    {
+      "id": "saddle",
+      "kind": "external",
+      "backend": "gaussian",
+      "geometry_from": "initial",
+      "resources": {
+        "cores": "auto",
+        "memory_mb": "node",
+        "walltime": "partition_max",
+        "max_cores": 8,
+        "partition": "month-long-cpu"
+      },
+      "input_name": "saddle.com",
+      "input_template": "%mem={{WORK_MEMORY_MB}}MB\n%nprocshared={{CORES}}\n%chk=saddle.chk\n#P B2PLYP/cc-pVTZ EmpiricalDispersion=GD3BJ NoSymm Integral=UltraFine SCF=(XQC,Conver=8) Opt=(TS,CalcFC,Tight,MaxCycle=150) Freq=Numer\n\nW3 complex B inner-path candidate from converged scan point 1\n\n{{CHARGE}} {{MULT}}\n{{CARTESIAN}}\n\n",
+      "command": [
+        "g16"
+      ],
+      "stdin": "saddle.com",
+      "stdout": "saddle.log",
+      "stderr": "saddle.err",
+      "required_outputs": [
+        "saddle.log",
+        "saddle.chk"
+      ],
+      "success_marker": {
+        "file": "saddle.log",
+        "contains": "Normal termination of Gaussian"
+      },
+      "failure_markers": [
+        {
+          "file": "saddle.log",
+          "contains": "Error termination"
+        },
+        {
+          "file": "saddle.log",
+          "contains": "Optimization stopped."
+        }
+      ],
+      "result_parser": {
+        "file": "saddle.log",
+        "kind": "gaussian_harmonic",
+        "method": "B2PLYP",
+        "basis": "cc-pVTZ",
+        "dispersion": "GD3BJ",
+        "natoms": 6,
+        "stationary_point": "transition_state"
+      }
+    }
+  ],
+  "intent": {
+    "scientific_approval": false,
+    "source_log_sha256": "026a0bd535b642678981033694e3db9376929ce8564bf08bb19828d0679bc32d",
+    "source_line": 9812,
+    "source_point": 1,
+    "question": "Does the continuous complex-B to W3 trace contain a first-order inner saddle?",
+    "next_step": "Review converged geometry, unique reactive imaginary mode and electronic state. Only a valid saddle admits two path directions; reuse existing endpoint spectra when matched.",
+    "forbidden_inferences": [
+      "normal termination proves connectivity",
+      "a failed TS optimization establishes a barrierless route"
+    ]
+  }
+}

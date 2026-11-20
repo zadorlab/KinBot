@@ -2770,6 +2770,11 @@ def drive_run(run_dir, *, interval=20., submit_only=None, hold_failures=True):
             raise RuntimeError(
                 'Another driver is already managing this run.') from exc
         scheduler_error = None
+        previous_progress = None
+        progress_time = None
+        print(f'Dispatcher attached: {run_dir}; checking tasks and Slurm. '
+              'Status changes and a 60-second heartbeat follow.',
+              file=sys.stderr, flush=True)
         while True:
             # A live PES review must yield graph ownership even when every
             # task is already submitted (so _submit is never reached). The
@@ -2803,6 +2808,17 @@ def drive_run(run_dir, *, interval=20., submit_only=None, hold_failures=True):
                 scheduler_error = None
             _, spec, _ = _load(run_dir)
             summary = _summary(spec, state)
+            progress = {
+                name: {'status': status,
+                       'job_id': state['tasks'].get(name, {}).get('job_id')}
+                for name, status in summary.items()}
+            now = time.monotonic()
+            if (progress != previous_progress or progress_time is None
+                    or now - progress_time >= 60.):
+                print(json.dumps({
+                    'dispatcher_progress_utc': datetime.now(timezone.utc).isoformat(),
+                    'tasks': progress}, sort_keys=True), file=sys.stderr, flush=True)
+                previous_progress, progress_time = progress, now
             terminal = {
                 'complete', 'failed', 'blocked', 'unavailable', 'skipped'}
             if all(value in terminal for value in summary.values()):

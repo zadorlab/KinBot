@@ -1,0 +1,10 @@
+{
+  "README.md": "c1aa029f6cc723150a9eb2dcc3f243111746579c6d55756e76bed034ee08f883",
+  "binding_decisions.json": "d1829e2bdcf10038c7013e9d758ec1fd7975c60c778184120dabeab508ede615",
+  "ch3ss_provenance_bound.inp.gz": "746d6bff188493a90fdce7e129d076f24978962e33c02cc2d85f7910b9731d2b",
+  "h_loss_fragment_binding.json": "4340ed0ca405672d7456b94e3be97475c0ef4b21cef64da3e28ab4e65be95fb0",
+  "h_loss_model_evidence.json.gz": "a86b1e78296c9341ff76da2ba048222b0a5516f447adbc8497dfdd1d40f66a8d",
+  "independent_verification.json": "9417b17ef5cebc68fa697f671bf074202c697a46ece51327c025b3751662a895",
+  "network_binding_evidence.json.gz": "854f48798aeaa95b84c6f33351cf3ab3b64d29a341d741a652eaf58b8bcd247c",
+  "verify_independent.py": "cbabb42b07ae1a4cdb35f6857667fba562fa4f7d71413986d1001a03630a20ed"
+}

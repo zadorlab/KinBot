@@ -1,0 +1,2985 @@
+{
+  "schema": 1,
+  "date": "2026-11-19",
+  "r9_ready": false,
+  "production_model_changed": false,
+  "decisions": [
+    {
+      "id": "driver_visibility",
+      "status": "implemented_tested",
+      "result": "Attached driver now prints initial attachment, changes including job IDs, and a 60-second heartbeat.",
+      "remaining": "Native queue snapshot needed to distinguish running, pending and staged current B-W3 job; no cancellation or resubmission."
+    },
+    {
+      "id": "reverse_modes",
+      "status": "closed",
+      "result": [
+        {
+          "label": "rxn_reverse_93359f49:1",
+          "imaginary_cm1": -1157.3337,
+          "geometry_max_error": 6.059477010320251e-07,
+          "native_log_sha256": "0c05aa6e93d40100ee14c1aef7404abd7d859b422059370012d3daf7ab3608e4",
+          "source_record_sha256": "83eebca5531347b3a299262a00acbd3f19883f21e1f4b6607b6b111d80617bf4",
+          "endpoints": [
+            "w_9",
+            "w_12"
+          ],
+          "endpoint_matches": {
+            "entrance": [
+              {
+                "population": "w_B",
+                "rmsd": 0.00019377442351517062,
+                "max_error": 0.0003040132115866107,
+                "mapping": [
+                  2,
+                  4,
+                  5,
+                  3,
+                  0,
+                  1
+                ]
+              },
+              {
+                "population": "w_2",
+                "rmsd": 0.6745276118294525,
+                "max_error": 1.000534396329972,
+                "mapping": [
+                  2,
+                  0,
+                  3,
+                  1,
+                  4,
+                  5
+                ]
+              },
+              {
+                "population": "w_6",
+                "rmsd": 0.8264082298946983,
+                "max_error": 1.3221763390862056,
+                "mapping": [
+                  2,
+                  0,
+                  3,
+                  1,
+                  4,
+                  5
+                ]
+              }
+            ],
+            "product_complex_l2": [
+              {
+                "population": "w_12",
+                "rmsd": 0.03309824324040826,
+                "max_error": 0.05223358325027576,
+                "mapping": [
+                  2,
+                  3,
+                  0,
+                  4,
+                  1,
+                  5
+                ]
+              },
+              {
+                "population": "w_9",
+                "rmsd": 0.7709303501284148,
+                "max_error": 1.22516912309611,
+                "mapping": [
+                  2,
+                  3,
+                  0,
+                  1,
+                  5,
+                  4
+                ]
+              },
+              {
+                "population": "w_18",
+                "rmsd": 0.9631658311281728,
+                "max_error": 1.6018237174038301,
+                "mapping": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  5,
+                  4
+                ]
+              }
+            ],
+            "product_endpoint_l1": [
+              {
+                "population": "w_12",
+                "rmsd": 0.23050451584502316,
+                "max_error": 0.34184693857875326,
+                "mapping": [
+                  2,
+                  3,
+                  0,
+                  4,
+                  1,
+                  5
+                ]
+              },
+              {
+                "population": "w_9",
+                "rmsd": 0.8112058114075243,
+                "max_error": 1.187946372604482,
+                "mapping": [
+                  2,
+                  3,
+                  0,
+                  1,
+                  5,
+                  4
+                ]
+              },
+              {
+                "population": "w_18",
+                "rmsd": 1.0214904557764573,
+                "max_error": 1.8238192356550345,
+                "mapping": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  5,
+                  4
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "label": "rxn_reverse_26b8db7c:1",
+          "imaginary_cm1": -1077.8991,
+          "geometry_max_error": 7.07988323424581e-07,
+          "native_log_sha256": "0bd2b40086842869986d2d3db1e87c94f4201b65ec71c61631973d2d6ad1e41a",
+          "source_record_sha256": "00a934c7ee4049e482904511d1d96367c04f379ec8569967c3369dd39418696c",
+          "endpoints": [
+            "w_3",
+            "pr_4"
+          ],
+          "endpoint_matches": {
+            "product_endpoint_l1": [
+              {
+                "population": "w_B",
+                "rmsd": 0.6010284052606419,
+                "max_error": 1.0089242283942028,
+                "mapping": [
+                  2,
+                  5,
+                  0,
+                  3,
+                  4,
+                  1
+                ]
+              },
+              {
+                "population": "w_4",
+                "rmsd": 0.8014417749337636,
+                "max_error": 1.1064158470501373,
+                "mapping": [
+                  2,
+                  3,
+                  4,
+                  0,
+                  1,
+                  5
+                ]
+              },
+              {
+                "population": "w_9",
+                "rmsd": 0.8142093539128697,
+                "max_error": 1.182098888593879,
+                "mapping": [
+                  2,
+                  3,
+                  4,
+                  1,
+                  5,
+                  0
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "label": "rxn_reverse_b18dcbc8:1",
+          "imaginary_cm1": -1287.1405,
+          "geometry_max_error": 4.928614807162203e-07,
+          "native_log_sha256": "50bd4aacfbf65aba50600d5267919e047eeaee9e5c794cdd24a9dda26c9b4af4",
+          "source_record_sha256": "0ec6b9669bc7623d0e9fe4db5779ac9c91dc099ab1d835151201adcc2ddb5950",
+          "endpoints": [
+            "w_16",
+            "w_18"
+          ],
+          "endpoint_matches": {
+            "product_complex_l2": [
+              {
+                "population": "w_18",
+                "rmsd": 4.3890485760830585e-07,
+                "max_error": 7.162688769009476e-07,
+                "mapping": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "population": "w_16",
+                "rmsd": 0.5072238708421073,
+                "max_error": 0.8553716936954224,
+                "mapping": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "population": "w_12",
+                "rmsd": 0.958595966489972,
+                "max_error": 1.6148502266543665,
+                "mapping": [
+                  2,
+                  3,
+                  0,
+                  5,
+                  1,
+                  4
+                ]
+              }
+            ],
+            "product_endpoint_l1": [
+              {
+                "population": "w_18",
+                "rmsd": 0.10052498572803534,
+                "max_error": 0.13784330459039812,
+                "mapping": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "population": "w_16",
+                "rmsd": 0.4285714150311279,
+                "max_error": 0.7818623843641157,
+                "mapping": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "population": "w_12",
+                "rmsd": 0.9646110498231529,
+                "max_error": 1.5971686644527485,
+                "mapping": [
+                  2,
+                  3,
+                  0,
+                  5,
+                  1,
+                  4
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "remaining": null
+    },
+    {
+      "id": "reverse_93359",
+      "status": "conflicting_endpoint_binding",
+      "result": "Stored entrance geometry matches B (0.000194 A RMSD), while serialized edge uses A. Complete forward path reaches HCS...H2S; reverse direct-L2 path is unconverged.",
+      "remaining": "Quarantine A assignment; a B assignment remains provisional. Existing validated paper-TS1 A route is retained. No redundant source-frequency calculation."
+    },
+    {
+      "id": "reverse_26b8_b18",
+      "status": "mode_provenance_closed_connectivity_not_closed",
+      "result": "Native first-order mode provenance recovered. These saved modes alone do not repair incomplete paths.",
+      "remaining": "Review selected-network necessity before any new path calculation; do not promote as independently L2-validated edges."
+    },
+    {
+      "id": "mirror_11",
+      "status": "counting_closed",
+      "result": "Even self-mirror unstable mode overlap 0.999999685; two explicit-population branches already carry weights 0.5 + 0.5. Preserve both.",
+      "remaining": null
+    },
+    {
+      "id": "mirror_4_36",
+      "status": "counting_policy_closed_endpoint_binding_open",
+      "result": "The cross-matches lie on different declared enantiomer populations. Preserve population-aware identity; global geometry-only deletion is invalid. L1 endpoint histories do not independently verify the L2 handed assignments.",
+      "remaining": "Keep those extra paths conditional; no blanket IRC retry. Endpoint or consequential-sensitivity proof is needed before relying on them."
+    },
+    {
+      "id": "mirror_vrc",
+      "status": "canonical_contract_proposed",
+      "result": "Use later stereo_cs CAS(5,4), 1D+1Q; stereo_ss CAS(7,5), 3D+3Q, with only D1 reactive flux, as the canonical proposals for each mirror pair.",
+      "remaining": "Prior other-hand contracts differ (2D+2Q or CAS(5,4)); approval to replace those models remains distinct from orbital evidence. No additional reconnaissance requested."
+    },
+    {
+      "id": "h101",
+      "status": "inner_path_closed_outer_choice_prepared",
+      "result": "CH2SH -> CH2S + H has a validated inner saddle. Existing one-doublet CAS(3,3) outer curves and return checks support a concrete outer candidate; two-doublet CAS(3,3)/CAS(5,5) near energies differ by 5.4726 kcal/mol at aTZ.",
+      "remaining": "Preserve the inner TS and select the outer model explicitly; do not replace the inner route with PST or repeat completed controls."
+    },
+    {
+      "id": "h102",
+      "status": "outer_evidence_bound_inner_physics_open",
+      "result": "Exact CH3SS -> CH2SS + H h102 evidence is bound to its own geometry/state/asymptote. Two-doublet CAS(3,3)/CAS(5,5) near difference is 0.08212 kcal/mol at aTZ. A CAS(5,4) DZ return has min squared subspace overlap 0.723112 despite small energy error.",
+      "remaining": "Direct retained W4 H loss still requires a state-consistent inner path; the contaminated relaxed B2PLYP scan and frozen radial points cannot supply it. No repeat of completed orbital controls."
+    },
+    {
+      "id": "ts5_outer",
+      "status": "old_asset_binding_rejected",
+      "result": "Existing H-exit cases 14/15/16/29 contain chain C-S-S fragments; TS5 target HC(=S)SH has two C-S connections. Exact product mismatch rejects checkpoint reuse.",
+      "remaining": "Keep TS5 inner departure and CH(SH)2 recapture distinct. An exact HC(=S)SH + H outer model is needed if retaining that separated exit; h101/h102 and chain-HCSSH seeds cannot substitute."
+    },
+    {
+      "id": "mess",
+      "status": "native_runs_exist_rates_not_accepted",
+      "result": "Provenance-only bound MESS input has identical physical tokens to the previously executed conditional input. Existing native receipts can be reused; known negative reduced coefficients persist.",
+      "remaining": "Freeze remaining chemical decisions and requested physical observable, then validate that final model and observable. No claim of final corrected production rates."
+    },
+    {
+      "id": "b_w3",
+      "status": "native_job_pending",
+      "result": "Only new selected TS/frequency job; independent of the other decisions.",
+      "remaining": "Review native convergence, one imaginary mode and displacement before deciding whether IRC is needed."
+    }
+  ],
+  "mirror_contracts": [
+    {
+      "channel": "stereo_cs",
+      "source_selection": "examples/anl/ch3ss_anl1_f12/orbital_reviews/closure_20261027/selections/stereo_cs.json",
+      "source_sha256": "75920de21f7e4c37ba55b0d8f472d854dd315f507d5d1da595f2376c6637ab86",
+      "selected_space": {
+        "mode": "selected",
+        "active_electrons": 5,
+        "active_orbitals": 4,
+        "source": "CH2(triplet) + HSS(doublet) inner C-S cleavage: select CAS(5,4), the two CH2 frontier directions, HSS radical and bound-sulfur donor. The CAS(3,3) near solution substitutes sulfur-rich character for one carbon bonding direction. The donor CAS restores its C/S character and changes the near-minus-far D1 energy by -2.9448/-2.9443 kcal/mol. Added occupation is 1.97873 near (DZ) and 2 at separation; the three frontier occupations become 1,1,1 far. Use natural 19-22, one quartet and one doublet with equal total weights; only D1 contributes flux. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+      },
+      "selected_state_model": {
+        "canonical_orbitals": true,
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "state_average": [
+          {
+            "block_weight": 0.5,
+            "multiplicity": 4,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          },
+          {
+            "block_weight": 0.5,
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ],
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "exact_diagonalization": true,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "quasi_newton": true,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "energy_convergence": 1e-08,
+          "coefficient_convergence": 1e-05,
+          "reference_policy": "state_average"
+        }
+      },
+      "reactive_states": [
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "weight": 1.0,
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+        }
+      ],
+      "basis_seeds": {
+        "avdz-f12": {
+          "job": "adz__stereo_cs_r_2",
+          "record": "2140.2",
+          "active_indices": [
+            19,
+            20,
+            21,
+            22
+          ],
+          "wfu_sha256": "4da3da35deb58b958fd81a8aa3f80cf1b3debd0ffce06d75a72c86dd1ac68ab6",
+          "output_sha256": "03bc0c8464a7ad331a37785a02ee74032e80fe7fe401fb261056c03b1aefdad4",
+          "export_wfu": "runs/ch3s_ch3ss_orbital_reviews_20261027/closure/stereo_cs/stereo_cs_donor/adz__stereo_cs_r_2/adz__stereo_cs_r_2.wfu",
+          "export_output": "runs/ch3s_ch3ss_orbital_reviews_20261027/closure/stereo_cs/stereo_cs_donor/adz__stereo_cs_r_2/adz__stereo_cs_r_2.out"
+        },
+        "avtz-f12": {
+          "job": "atz__stereo_cs_r_2",
+          "record": "2140.2",
+          "active_indices": [
+            19,
+            20,
+            21,
+            22
+          ],
+          "wfu_sha256": "66a653a74e576cfed608f372c636c7e1f6ed1c73ef59eddc992913827e46fbd7",
+          "output_sha256": "0f5c6f6e7039e9c2ad8e9af5a6a375ffba917ccff9a43962d3c64ad7fb9b30a0",
+          "export_wfu": "runs/ch3s_ch3ss_orbital_reviews_20261027/closure/stereo_cs/stereo_cs_donor/atz__stereo_cs_r_2/atz__stereo_cs_r_2.wfu",
+          "export_output": "runs/ch3s_ch3ss_orbital_reviews_20261027/closure/stereo_cs/stereo_cs_donor/atz__stereo_cs_r_2/atz__stereo_cs_r_2.out"
+        }
+      },
+      "old_cases": [
+        {
+          "id": 19,
+          "reactions": [
+            "791671580700000000002-s36f1e2b924862f12_hom_sci_1_2"
+          ],
+          "state_model": {
+            "canonical_orbitals": true,
+            "casscf_options": {
+              "energy_convergence": 1e-08,
+              "exact_diagonalization": true,
+              "gradient_convergence": 1e-05,
+              "max_iterations": 999,
+              "quasi_newton": true,
+              "solver": "so_sci"
+            },
+            "correlation_options": {
+              "coefficient_convergence": 1e-05,
+              "energy_convergence": 1e-08,
+              "max_iterations": 2000,
+              "max_reference_iterations": 2000,
+              "max_reference_vectors": 60,
+              "reference_policy": "state_average"
+            },
+            "selected_roots": {
+              "2": 1,
+              "4": 1
+            },
+            "state_average": [
+              {
+                "multiplicity": 4,
+                "roots": 2,
+                "weights": [
+                  0.5,
+                  0.5
+                ]
+              },
+              {
+                "multiplicity": 2,
+                "roots": 2,
+                "weights": [
+                  0.5,
+                  0.5
+                ]
+              }
+            ]
+          },
+          "variants": [
+            {
+              "name": "candidate",
+              "electrons": 5,
+              "indices": {
+                "avdz-f12": [
+                  19,
+                  20,
+                  21,
+                  22
+                ],
+                "avtz-f12": [
+                  19,
+                  20,
+                  21,
+                  22
+                ]
+              },
+              "purpose": "Existing selected active space."
+            },
+            {
+              "name": "sigma_pair",
+              "electrons": 7,
+              "indices": {
+                "avdz-f12": [
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23
+                ],
+                "avtz-f12": [
+                  18,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23
+                ]
+              },
+              "purpose": "Identified molecular C-S occupied/antibonding pair beyond CH2/HSS frontier."
+            }
+          ]
+        },
+        {
+          "id": 21,
+          "reactions": [
+            "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_1_2"
+          ],
+          "state_model": {
+            "canonical_orbitals": true,
+            "selected_roots": {
+              "2": 1,
+              "4": 1
+            },
+            "state_average": [
+              {
+                "block_weight": 0.5,
+                "multiplicity": 4,
+                "roots": 1,
+                "weights": [
+                  1.0
+                ]
+              },
+              {
+                "block_weight": 0.5,
+                "multiplicity": 2,
+                "roots": 1,
+                "weights": [
+                  1.0
+                ]
+              }
+            ],
+            "casscf_options": {
+              "energy_convergence": 1e-08,
+              "exact_diagonalization": true,
+              "gradient_convergence": 1e-05,
+              "max_iterations": 999,
+              "quasi_newton": true,
+              "solver": "so_sci"
+            },
+            "correlation_options": {
+              "max_iterations": 2000,
+              "max_reference_iterations": 2000,
+              "max_reference_vectors": 60,
+              "energy_convergence": 1e-08,
+              "coefficient_convergence": 1e-05,
+              "reference_policy": "state_average"
+            }
+          },
+          "variants": [
+            {
+              "name": "candidate",
+              "electrons": 5,
+              "indices": {
+                "avdz-f12": [
+                  19,
+                  20,
+                  21,
+                  22
+                ],
+                "avtz-f12": [
+                  19,
+                  20,
+                  21,
+                  22
+                ]
+              },
+              "purpose": "CH2(triplet) + HSS(doublet) inner C-S cleavage: select CAS(5,4), the two CH2 frontier directions, HSS radical and bound-sulfur donor. The CAS(3,3) near solution substitutes sulfur-rich character for one carbon bonding direction. The donor CAS restores its C/S character and changes the near-minus-far D1 energy by -2.9448/-2.9443 kcal/mol. Added occupation is 1.97873 near (DZ) and 2 at separation; the three frontier occupations become 1,1,1 far. Use natural 19-22, one quartet and one doublet with equal total weights; only D1 contributes flux. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+            },
+            {
+              "name": "occupied_union",
+              "electrons": 7,
+              "indices": {
+                "avdz-f12": [
+                  18,
+                  19,
+                  20,
+                  21,
+                  22
+                ],
+                "avtz-f12": [
+                  18,
+                  19,
+                  20,
+                  21,
+                  22
+                ]
+              },
+              "purpose": "Test second occupied sulfur direction beyond the already necessary bound-sulfur donor."
+            }
+          ]
+        }
+      ],
+      "decision": "one_canonical_protocol_for_both_enantiomers_proposed_from_later_review",
+      "application": "human_confirmation_required_before_replacing_different_existing_state_space_models",
+      "preserve_separate_populations": true
+    },
+    {
+      "channel": "stereo_ss",
+      "source_selection": "examples/anl/ch3ss_anl1_f12/orbital_reviews/closure_20261027/selections/stereo_ss.json",
+      "source_sha256": "bb9a1a02086d1f6004a2d5761aa3e7200c1f3933d527877351a459727b4d6c43",
+      "selected_space": {
+        "mode": "selected",
+        "active_electrons": 7,
+        "active_orbitals": 5,
+        "source": "CH2SH(doublet) + S(triplet): select CAS(7,5). Retain all three atomic S3 p directions (four electrons), the molecular radical, and the occupied bound-S2 donor that participates in association. Compared with CAS(5,4), the donor changes the relative D1 energy by -3.4508/-2.9842 kcal/mol (DZ/TZ), with CI donor-hole configurations and near donor occupation 1.99050/1.98956. At separation it becomes 2, atomic p occupations are 4/3 each, and the radical is 1; all three doublets and three quartets coincide within 4e-7 Eh. Use natural 18-22, equal spin-block weights and equal roots within each block; only D1 contributes flux. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+      },
+      "selected_state_model": {
+        "canonical_orbitals": true,
+        "selected_roots": {
+          "2": 1,
+          "4": 1
+        },
+        "state_average": [
+          {
+            "block_weight": 0.5,
+            "multiplicity": 4,
+            "roots": 3,
+            "weights": [
+              0.3333333333333333,
+              0.3333333333333333,
+              0.3333333333333333
+            ]
+          },
+          {
+            "block_weight": 0.5,
+            "multiplicity": 2,
+            "roots": 3,
+            "weights": [
+              0.3333333333333333,
+              0.3333333333333333,
+              0.3333333333333333
+            ]
+          }
+        ],
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "exact_diagonalization": true,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "quasi_newton": true,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "energy_convergence": 1e-08,
+          "coefficient_convergence": 1e-05,
+          "reference_policy": "state_average"
+        }
+      },
+      "reactive_states": [
+        {
+          "multiplicity": 2,
+          "root": 1,
+          "weight": 1.0,
+          "energy_offset_cm_inverse": 0.0,
+          "energy_reference_note": "One ground-parent adiabatic doublet path D1 relative to its spin-free ground-fragment asymptote. Other state-averaged roots support orbitals; they are not extra reactive flux."
+        }
+      ],
+      "basis_seeds": {
+        "avdz-f12": {
+          "job": "adz__stereo_ss_r_2",
+          "record": "2140.2",
+          "active_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "wfu_sha256": "9de6db37aee11c2b7749e5498882ea74f840d1f345f86cd0d8a05ec801e92d02",
+          "output_sha256": "0e364408ea75f9be250c9c2591199767c0d8cc51aad9d674dda138609f99f773",
+          "export_wfu": "runs/ch3s_ch3ss_orbital_reviews_20261027/closure/stereo_ss/stereo_ss_donor/adz__stereo_ss_r_2/adz__stereo_ss_r_2.wfu",
+          "export_output": "runs/ch3s_ch3ss_orbital_reviews_20261027/closure/stereo_ss/stereo_ss_donor/adz__stereo_ss_r_2/adz__stereo_ss_r_2.out"
+        },
+        "avtz-f12": {
+          "job": "atz__stereo_ss_r_2",
+          "record": "2140.2",
+          "active_indices": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "wfu_sha256": "90fe96134a76b7714a459f51288c2512601f4962aec12db1cd15fbd9d101dbae",
+          "output_sha256": "afe7fd18ab885893a81f278a7b1180e7227ffed026a448641b00f6ed30fcf6b4",
+          "export_wfu": "runs/ch3s_ch3ss_orbital_reviews_20261027/closure/stereo_ss/stereo_ss_donor/atz__stereo_ss_r_2/atz__stereo_ss_r_2.wfu",
+          "export_output": "runs/ch3s_ch3ss_orbital_reviews_20261027/closure/stereo_ss/stereo_ss_donor/atz__stereo_ss_r_2/atz__stereo_ss_r_2.out"
+        }
+      },
+      "old_cases": [
+        {
+          "id": 20,
+          "reactions": [
+            "791671580700000000002-s36f1e2b924862f12_hom_sci_2_3"
+          ],
+          "state_model": {
+            "canonical_orbitals": true,
+            "casscf_options": {
+              "energy_convergence": 1e-08,
+              "exact_diagonalization": true,
+              "gradient_convergence": 1e-05,
+              "max_iterations": 999,
+              "quasi_newton": true,
+              "solver": "so_sci"
+            },
+            "correlation_options": {
+              "coefficient_convergence": 1e-05,
+              "energy_convergence": 1e-08,
+              "max_iterations": 2000,
+              "max_reference_iterations": 2000,
+              "max_reference_vectors": 60,
+              "reference_policy": "state_average"
+            },
+            "selected_roots": {
+              "2": 1,
+              "4": 1
+            },
+            "state_average": [
+              {
+                "multiplicity": 4,
+                "roots": 3,
+                "weights": [
+                  0.3333333333333333,
+                  0.3333333333333333,
+                  0.3333333333333333
+                ]
+              },
+              {
+                "multiplicity": 2,
+                "roots": 3,
+                "weights": [
+                  0.3333333333333333,
+                  0.3333333333333333,
+                  0.3333333333333333
+                ]
+              }
+            ]
+          },
+          "variants": [
+            {
+              "name": "candidate",
+              "electrons": 5,
+              "indices": {
+                "avdz-f12": [
+                  19,
+                  20,
+                  21,
+                  22
+                ],
+                "avtz-f12": [
+                  19,
+                  20,
+                  21,
+                  22
+                ]
+              },
+              "purpose": "Existing selected active space."
+            },
+            {
+              "name": "donor",
+              "electrons": 7,
+              "indices": {
+                "avdz-f12": [
+                  18,
+                  19,
+                  20,
+                  21,
+                  22
+                ],
+                "avtz-f12": [
+                  18,
+                  19,
+                  20,
+                  21,
+                  22
+                ]
+              },
+              "purpose": "Test bound-sulfur donor while preserving all three departing-atom S p directions."
+            }
+          ]
+        },
+        {
+          "id": 22,
+          "reactions": [
+            "791671580700000000002-s8fc26f5f496eeb4e_hom_sci_2_3"
+          ],
+          "state_model": {
+            "canonical_orbitals": true,
+            "selected_roots": {
+              "2": 1,
+              "4": 1
+            },
+            "state_average": [
+              {
+                "block_weight": 0.5,
+                "multiplicity": 4,
+                "roots": 3,
+                "weights": [
+                  0.3333333333333333,
+                  0.3333333333333333,
+                  0.3333333333333333
+                ]
+              },
+              {
+                "block_weight": 0.5,
+                "multiplicity": 2,
+                "roots": 3,
+                "weights": [
+                  0.3333333333333333,
+                  0.3333333333333333,
+                  0.3333333333333333
+                ]
+              }
+            ],
+            "casscf_options": {
+              "energy_convergence": 1e-08,
+              "exact_diagonalization": true,
+              "gradient_convergence": 1e-05,
+              "max_iterations": 999,
+              "quasi_newton": true,
+              "solver": "so_sci"
+            },
+            "correlation_options": {
+              "max_iterations": 2000,
+              "max_reference_iterations": 2000,
+              "max_reference_vectors": 60,
+              "energy_convergence": 1e-08,
+              "coefficient_convergence": 1e-05,
+              "reference_policy": "state_average"
+            }
+          },
+          "variants": [
+            {
+              "name": "candidate",
+              "electrons": 7,
+              "indices": {
+                "avdz-f12": [
+                  18,
+                  19,
+                  20,
+                  21,
+                  22
+                ],
+                "avtz-f12": [
+                  18,
+                  19,
+                  20,
+                  21,
+                  22
+                ]
+              },
+              "purpose": "CH2SH(doublet) + S(triplet): select CAS(7,5). Retain all three atomic S3 p directions (four electrons), the molecular radical, and the occupied bound-S2 donor that participates in association. Compared with CAS(5,4), the donor changes the relative D1 energy by -3.4508/-2.9842 kcal/mol (DZ/TZ), with CI donor-hole configurations and near donor occupation 1.99050/1.98956. At separation it becomes 2, atomic p occupations are 4/3 each, and the radical is 1; all three doublets and three quartets coincide within 4e-7 Eh. Use natural 18-22, equal spin-block weights and equal roots within each block; only D1 contributes flux. These are evidence-based chemical active-space choices. They do not certify quantitative CASPT2-F12, angular, relaxed-path or plateau convergence. Preserve production orbital/state/connectivity guards. Retain direct CASPT2-F12 avdz/avtz CBS power 3.7, a separate 30 A asymptote, and the existing mapped correction coordinate and COM dividing surfaces. No existing production model is changed here."
+            },
+            {
+              "name": "occupied_union",
+              "electrons": 9,
+              "indices": {
+                "avdz-f12": [
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22
+                ],
+                "avtz-f12": [
+                  17,
+                  18,
+                  19,
+                  20,
+                  21,
+                  22
+                ]
+              },
+              "purpose": "Test the adjacent molecular valence sigma direction; preserve atomic p completeness."
+            }
+          ]
+        }
+      ],
+      "decision": "one_canonical_protocol_for_both_enantiomers_proposed_from_later_review",
+      "application": "human_confirmation_required_before_replacing_different_existing_state_space_models",
+      "preserve_separate_populations": true
+    }
+  ],
+  "h_loss_models": [
+    {
+      "title": "h101_pair_2_0_full_avdz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": 2.5100351477930094e-05,
+        "r6": -0.01594500830847712,
+        "back6": -0.01594500830847712,
+        "back_near": 6.172192853494735,
+        "angle_far_1": 1.2550157904081443e-05,
+        "angle_1": -0.13990317189583207,
+        "angle_far_2": 1.2550157904081443e-05,
+        "angle_2": -0.13217225878954125,
+        "parent": -43.09687246252142,
+        "r30": 0.0,
+        "mid": -0.13064113638630379,
+        "near": 6.172199128591522
+      },
+      "return_max_energy_kcal": 6.275099718557651e-06,
+      "return_min_squared_singular_value": 0.9999999999993068,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "ffa845a60d62029ac7dfeb4b70663a7523a3fa909cc10457670282e898bdc9b6"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "ffa845a60d62029ac7dfeb4b70663a7523a3fa909cc10457670282e898bdc9b6"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "ffa845a60d62029ac7dfeb4b70663a7523a3fa909cc10457670282e898bdc9b6"
+        },
+        "dz__r20": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "ffa845a60d62029ac7dfeb4b70663a7523a3fa909cc10457670282e898bdc9b6"
+        }
+      }
+    },
+    {
+      "title": "h101_pair_2_0_full_avtz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": -6.275061117157117e-06,
+        "r6": -0.015788130960143545,
+        "back6": -0.01578185589902639,
+        "back_near": 6.062836828573549,
+        "angle_far_1": -1.2550157904081443e-05,
+        "angle_1": -0.15312479030330028,
+        "angle_far_2": 0.0,
+        "angle_2": -0.14586450909933113,
+        "parent": -43.45940334158706,
+        "r30": 0.0,
+        "mid": -0.13870462933694347,
+        "near": 6.062836828573549
+      },
+      "return_max_energy_kcal": 6.275064048773778e-06,
+      "return_min_squared_singular_value": 0.9999999999977478,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "dbce9b488ada5f55a8478461dced5b04068421f35ca64215242abcf5572f825a"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "dbce9b488ada5f55a8478461dced5b04068421f35ca64215242abcf5572f825a"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "dbce9b488ada5f55a8478461dced5b04068421f35ca64215242abcf5572f825a"
+        },
+        "tz__r20": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "dbce9b488ada5f55a8478461dced5b04068421f35ca64215242abcf5572f825a"
+        }
+      }
+    },
+    {
+      "title": "h101_pair_2_1_full_avdz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": -6.275096786924326e-06,
+        "r6": -0.016001484108219905,
+        "back6": -0.016001484108219905,
+        "back_near": 6.172136377694993,
+        "angle_far_1": -4.392564183870307e-05,
+        "angle_1": -0.13995964769557484,
+        "angle_far_2": -4.392564183870307e-05,
+        "angle_2": -0.13222873458928402,
+        "parent": -43.096928938321156,
+        "r30": 0.0,
+        "mid": -0.13069133708925965,
+        "near": 6.17214265279178
+      },
+      "return_max_energy_kcal": 6.275099718557651e-06,
+      "return_min_squared_singular_value": 0.999999999999305,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_1_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "8daf9200a566c80396be72b69925b7c80c2262f51c6f724c05a421a187f01832"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_1_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "8daf9200a566c80396be72b69925b7c80c2262f51c6f724c05a421a187f01832"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_1_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "8daf9200a566c80396be72b69925b7c80c2262f51c6f724c05a421a187f01832"
+        },
+        "dz__r20": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_1_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "8daf9200a566c80396be72b69925b7c80c2262f51c6f724c05a421a187f01832"
+        }
+      }
+    },
+    {
+      "title": "h101_pair_2_1_full_avtz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": 3.765054505177875e-05,
+        "r6": -0.015719104966826915,
+        "back6": -0.015712829905709755,
+        "back_near": 6.062905854566866,
+        "angle_far_1": 5.647583541255172e-05,
+        "angle_1": -0.15305576430998366,
+        "angle_far_2": 6.902599331663317e-05,
+        "angle_2": -0.1457954831060145,
+        "parent": -43.459284114855116,
+        "r30": 0.0,
+        "mid": -0.13863560334362682,
+        "near": 6.062905854566866
+      },
+      "return_max_energy_kcal": 6.275064048773778e-06,
+      "return_min_squared_singular_value": 0.9999999999977482,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_1_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "e49f94dadad468141bde9d8ba6851f91375fbcd35f9d1fb03db59e7ef8a532ea"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_1_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "e49f94dadad468141bde9d8ba6851f91375fbcd35f9d1fb03db59e7ef8a532ea"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_1_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "e49f94dadad468141bde9d8ba6851f91375fbcd35f9d1fb03db59e7ef8a532ea"
+        },
+        "tz__r20": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_2_1_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "e49f94dadad468141bde9d8ba6851f91375fbcd35f9d1fb03db59e7ef8a532ea"
+        }
+      }
+    },
+    {
+      "title": "h101_pair_5_0_full_avdz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": 7.53010901035575e-05,
+        "r6": -0.01587598227949072,
+        "back6": -0.01587598227949072,
+        "back_near": 6.172261879523722,
+        "angle_far_1": 8.157618689048182e-05,
+        "angle_1": -0.13983414586684567,
+        "angle_far_2": 8.157618689048182e-05,
+        "angle_2": -0.13210323276055486,
+        "parent": -43.096809711589216,
+        "r30": 0.0,
+        "mid": -0.1305721103573174,
+        "near": 6.172268154620509
+      },
+      "return_max_energy_kcal": 6.275099718557651e-06,
+      "return_min_squared_singular_value": 0.9999999999993063,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_5_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "44147651b6ca46b4bc78c097ddcc4925c68b041710702d5a9a2d7802599ac6b0"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_5_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "44147651b6ca46b4bc78c097ddcc4925c68b041710702d5a9a2d7802599ac6b0"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_5_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "44147651b6ca46b4bc78c097ddcc4925c68b041710702d5a9a2d7802599ac6b0"
+        },
+        "dz__r20": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_5_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "44147651b6ca46b4bc78c097ddcc4925c68b041710702d5a9a2d7802599ac6b0"
+        }
+      }
+    },
+    {
+      "title": "h101_pair_5_0_full_avtz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": 0.0,
+        "r6": -0.015756755511878693,
+        "back6": -0.015750480450761536,
+        "back_near": 6.062868204021814,
+        "angle_far_1": 1.882529036077298e-05,
+        "angle_1": -0.15309341485503544,
+        "angle_far_2": 3.137544826485442e-05,
+        "angle_2": -0.1458331336510663,
+        "parent": -43.459328040496956,
+        "r30": 0.0,
+        "mid": -0.1386732538886786,
+        "near": 6.062868204021814
+      },
+      "return_max_energy_kcal": 6.275064048773778e-06,
+      "return_min_squared_singular_value": 0.9999999999977389,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_5_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "bcc9c59368ac6fd64ebfea2b46ed39bc8a88fac113f5240e39db586cd07695d3"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_5_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "bcc9c59368ac6fd64ebfea2b46ed39bc8a88fac113f5240e39db586cd07695d3"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_5_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "bcc9c59368ac6fd64ebfea2b46ed39bc8a88fac113f5240e39db586cd07695d3"
+        },
+        "tz__r20": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_pair_5_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "bcc9c59368ac6fd64ebfea2b46ed39bc8a88fac113f5240e39db586cd07695d3"
+        }
+      }
+    },
+    {
+      "title": "h101_single_full_avdz_f12",
+      "cas": [
+        1,
+        1
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": -2.5100387147697303e-05,
+        "r6": -0.016616443129631515,
+        "back6": -0.016497216362019486,
+        "back_near": 6.1870585460119365,
+        "angle_far_1": 6.275096786924326e-06,
+        "angle_1": -0.16180324231102133,
+        "angle_far_2": -2.5100387147697303e-05,
+        "angle_2": -0.1490083300926965,
+        "parent": -44.10918909840927,
+        "r30": 0.0,
+        "mid": -0.14225005623931386,
+        "near": 6.187045995818362
+      },
+      "return_max_energy_kcal": 0.00011922682331302763,
+      "return_min_squared_singular_value": 0.9999999999996878,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_single_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "913570eb1382a7a8426a15ee2bb2f94b4127ee81bce504d4b7b3d57b622ceefe"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_single_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "913570eb1382a7a8426a15ee2bb2f94b4127ee81bce504d4b7b3d57b622ceefe"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_single_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "913570eb1382a7a8426a15ee2bb2f94b4127ee81bce504d4b7b3d57b622ceefe"
+        },
+        "dz__r20": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_single_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "913570eb1382a7a8426a15ee2bb2f94b4127ee81bce504d4b7b3d57b622ceefe"
+        }
+      }
+    },
+    {
+      "title": "h101_single_full_avtz_f12",
+      "cas": [
+        1,
+        1
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": -6.275093219947605e-05,
+        "r6": -0.016497216362019486,
+        "back6": -0.016377989630077226,
+        "back_near": 6.067668649247146,
+        "angle_far_1": 1.882525469100577e-05,
+        "angle_1": -0.17596612452313287,
+        "angle_far_2": -1.2550193573848652e-05,
+        "angle_2": -0.1634912419912528,
+        "parent": -44.45918861917896,
+        "r30": 0.0,
+        "mid": -0.15146189101021648,
+        "near": 6.067662374150359
+      },
+      "return_max_energy_kcal": 0.00011922678764324376,
+      "return_min_squared_singular_value": 0.9999999999994664,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_single_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "35b203bbeb7c976e550238fccd83372928df1490827b490dfb147d0b8c55fc01"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_single_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "35b203bbeb7c976e550238fccd83372928df1490827b490dfb147d0b8c55fc01"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_single_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "35b203bbeb7c976e550238fccd83372928df1490827b490dfb147d0b8c55fc01"
+        },
+        "tz__r20": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h101_single_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "35b203bbeb7c976e550238fccd83372928df1490827b490dfb147d0b8c55fc01"
+        }
+      }
+    },
+    {
+      "title": "h101_union_2_full_avdz_f12",
+      "cas": [
+        5,
+        5
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "r20": -8.157618689048182e-05,
+        "r6": -0.015945008272807353,
+        "mid": -0.1290723634023448,
+        "near": 6.11160056703871,
+        "back6": -0.015938733176020427,
+        "back_near": 6.111581741748349,
+        "angle_far_1": -0.00010667653836841191,
+        "angle_1": -0.13557963359826908,
+        "angle_far_2": -0.00011295163515533624,
+        "angle_2": -0.12663135267839867,
+        "parent": -44.3266963306673
+      },
+      "return_max_energy_kcal": 1.8825299155672955e-05,
+      "return_min_squared_singular_value": 0.9999999999250324,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "e9a33f32751854f7bbb54b1dfab4272cf7813b5ad2c092399e64f0d0fc0d4042"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "e9a33f32751854f7bbb54b1dfab4272cf7813b5ad2c092399e64f0d0fc0d4042"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "e9a33f32751854f7bbb54b1dfab4272cf7813b5ad2c092399e64f0d0fc0d4042"
+        },
+        "dz__r30": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "e9a33f32751854f7bbb54b1dfab4272cf7813b5ad2c092399e64f0d0fc0d4042"
+        }
+      }
+    },
+    {
+      "title": "h101_union_2_full_avtz_f12",
+      "cas": [
+        5,
+        5
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "r20": -0.00010040144158148759,
+        "r6": -0.015737930257187685,
+        "mid": -0.1368221017989964,
+        "near": 6.004007842852189,
+        "back6": -0.015719104966826915,
+        "back_near": 6.0039890175974975,
+        "angle_far_1": -0.00013805202230303355,
+        "angle_1": -0.14839964616807183,
+        "angle_far_2": -0.0001317769255161092,
+        "angle_2": -0.13987807150868437,
+        "parent": -44.66752166721115
+      },
+      "return_max_energy_kcal": 1.8825299155672955e-05,
+      "return_min_squared_singular_value": 0.9999999998654028,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "28cd61740d2a05d37f8ce26c249556e24c23e24dc1162a1e1442f0571a6d3247"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "28cd61740d2a05d37f8ce26c249556e24c23e24dc1162a1e1442f0571a6d3247"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "28cd61740d2a05d37f8ce26c249556e24c23e24dc1162a1e1442f0571a6d3247"
+        },
+        "tz__r30": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "28cd61740d2a05d37f8ce26c249556e24c23e24dc1162a1e1442f0571a6d3247"
+        }
+      }
+    },
+    {
+      "title": "h102_pair_5_0_full_avdz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": -6.275096786924326e-06,
+        "r6": -0.017168651183173882,
+        "back6": -0.017005498809392918,
+        "back_near": 8.16784147625431,
+        "angle_far_1": -0.0001004014772512548,
+        "angle_1": -0.21685462276291337,
+        "angle_far_2": -0.0001255018643989521,
+        "angle_2": -0.20250976285099034,
+        "parent": -75.5800797396607,
+        "r30": 0.0,
+        "mid": -0.10688363882031515,
+        "near": 8.16798580333773
+      },
+      "return_max_energy_kcal": 0.00016315245000336344,
+      "return_min_squared_singular_value": 0.9999999998970597,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "f397bf002697a1bf6b663d97afbb83e9989b7bbf2028791eb17a3067e0607736"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "f397bf002697a1bf6b663d97afbb83e9989b7bbf2028791eb17a3067e0607736"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "f397bf002697a1bf6b663d97afbb83e9989b7bbf2028791eb17a3067e0607736"
+        },
+        "dz__r20": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "f397bf002697a1bf6b663d97afbb83e9989b7bbf2028791eb17a3067e0607736"
+        }
+      }
+    },
+    {
+      "title": "h102_pair_5_0_full_avtz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": -3.137541259508721e-05,
+        "r6": -0.015932458043563736,
+        "back6": -0.01579440605693047,
+        "back_near": 8.139421585449622,
+        "angle_far_1": -0.00016942747056788798,
+        "angle_1": -0.21967841403416422,
+        "angle_far_2": -0.00020080288316297519,
+        "angle_2": -0.22466711198475514,
+        "parent": -74.52381236069093,
+        "r30": 0.0,
+        "mid": -0.11474005371966538,
+        "near": 8.139409035327388
+      },
+      "return_max_energy_kcal": 0.00013805205112913283,
+      "return_min_squared_singular_value": 0.9999999999307636,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "e4e0a2d91127241570830cd584c7fd92429aac3fad6a04c72d67ec05adeead83"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "e4e0a2d91127241570830cd584c7fd92429aac3fad6a04c72d67ec05adeead83"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "e4e0a2d91127241570830cd584c7fd92429aac3fad6a04c72d67ec05adeead83"
+        },
+        "tz__r20": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "e4e0a2d91127241570830cd584c7fd92429aac3fad6a04c72d67ec05adeead83"
+        }
+      }
+    },
+    {
+      "title": "h102_pair_5_1_full_avdz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": 5.647579974278451e-05,
+        "r6": -0.017005498809392918,
+        "back6": -0.016842346435611954,
+        "back_near": 8.168017178821664,
+        "angle_far_1": 7.53010901035575e-05,
+        "angle_1": -0.21667892019555857,
+        "angle_far_2": 5.020070295586019e-05,
+        "angle_2": -0.20233406028363551,
+        "parent": -75.5799542377963,
+        "r30": 0.0,
+        "mid": -0.10671421134974726,
+        "near": 8.168161505905084
+      },
+      "return_max_energy_kcal": 0.00016315245000336344,
+      "return_min_squared_singular_value": 0.9999999998966913,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_1_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "e0002c14a41ab5c41d5596f74cb3606b6599ac1b63c854d9560b97a2ab95cced"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_1_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "e0002c14a41ab5c41d5596f74cb3606b6599ac1b63c854d9560b97a2ab95cced"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_1_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "e0002c14a41ab5c41d5596f74cb3606b6599ac1b63c854d9560b97a2ab95cced"
+        },
+        "dz__r20": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_1_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "e0002c14a41ab5c41d5596f74cb3606b6599ac1b63c854d9560b97a2ab95cced"
+        }
+      }
+    },
+    {
+      "title": "h102_pair_5_1_full_avtz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": -4.3925606168935864e-05,
+        "r6": -0.015919907921329423,
+        "back6": -0.015800681153717393,
+        "back_near": 8.139415310424175,
+        "angle_far_1": -0.00016942747056788798,
+        "angle_1": -0.21967841403416422,
+        "angle_far_2": -0.00020080288316297519,
+        "angle_2": -0.22466711198475514,
+        "parent": -74.52381236069093,
+        "r30": 0.0,
+        "mid": -0.11474005371966538,
+        "near": 8.139409035327388
+      },
+      "return_max_energy_kcal": 0.00011922682331302763,
+      "return_min_squared_singular_value": 0.9999999999457445,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_1_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "0e7becec3eeafaac6a3406d2a404c8ffbba739d4cc4811d08ea52a7153ffa956"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_1_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "0e7becec3eeafaac6a3406d2a404c8ffbba739d4cc4811d08ea52a7153ffa956"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_1_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "0e7becec3eeafaac6a3406d2a404c8ffbba739d4cc4811d08ea52a7153ffa956"
+        },
+        "tz__r20": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_5_1_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "0e7becec3eeafaac6a3406d2a404c8ffbba739d4cc4811d08ea52a7153ffa956"
+        }
+      }
+    },
+    {
+      "title": "h102_pair_6_0_full_avdz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": 0.0,
+        "r6": -0.017099625118517713,
+        "back6": -0.01696157313188445,
+        "back_near": 8.167891677028605,
+        "angle_far_1": -5.020070295586019e-05,
+        "angle_1": -0.216804421988618,
+        "angle_far_2": -7.53010901035575e-05,
+        "angle_2": -0.20245956207669494,
+        "parent": -75.5799856132089,
+        "r30": 0.0,
+        "mid": -0.10683971314280669,
+        "near": 8.168036004112025
+      },
+      "return_max_energy_kcal": 0.0001443271508476905,
+      "return_min_squared_singular_value": 0.9999999998969433,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_6_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "7e30ab1b7719446fcf34a10348e6fa8166bd0a4faf3bb8521ab28527eec6a5e0"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_6_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "7e30ab1b7719446fcf34a10348e6fa8166bd0a4faf3bb8521ab28527eec6a5e0"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_6_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "7e30ab1b7719446fcf34a10348e6fa8166bd0a4faf3bb8521ab28527eec6a5e0"
+        },
+        "dz__r20": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_6_0_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "7e30ab1b7719446fcf34a10348e6fa8166bd0a4faf3bb8521ab28527eec6a5e0"
+        }
+      }
+    },
+    {
+      "title": "h102_pair_6_0_full_avtz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": -0.00011295167082510344,
+        "r6": -0.01597638379241174,
+        "back6": -0.01587598231516049,
+        "back_near": 8.139352559384966,
+        "angle_far_1": -0.00023845353522405555,
+        "angle_1": -0.21974744009882038,
+        "angle_far_2": -0.0002761040446060671,
+        "angle_2": -0.2247361380494113,
+        "parent": -74.52389393694915,
+        "r30": 0.0,
+        "mid": -0.11434472297878683,
+        "near": 8.139340009262732
+      },
+      "return_max_energy_kcal": 0.00010040152415735468,
+      "return_min_squared_singular_value": 0.9999999999574514,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_6_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "67414c260c2c0ca438d7d11add97140859c550d12848fc1b1d4ee5d70464f4fb"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_6_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "67414c260c2c0ca438d7d11add97140859c550d12848fc1b1d4ee5d70464f4fb"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_6_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "67414c260c2c0ca438d7d11add97140859c550d12848fc1b1d4ee5d70464f4fb"
+        },
+        "tz__r20": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_pair_6_0_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "67414c260c2c0ca438d7d11add97140859c550d12848fc1b1d4ee5d70464f4fb"
+        }
+      }
+    },
+    {
+      "title": "h102_single_full_avdz_f12",
+      "cas": [
+        1,
+        1
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": 3.137541259508721e-05,
+        "r6": -0.01807226440709564,
+        "back6": -0.018109914987817187,
+        "back_near": 9.529254019652265,
+        "angle_far_1": -3.137548393462163e-05,
+        "angle_1": -0.22983778774216684,
+        "angle_far_2": -1.2550193573848652e-05,
+        "angle_2": -0.2803522767840893,
+        "parent": -76.09668922306354,
+        "r30": 0.0,
+        "mid": -0.1356988603658811,
+        "near": 9.529279120039414
+      },
+      "return_max_energy_kcal": 3.765059831134591e-05,
+      "return_min_squared_singular_value": 0.9999999999991267,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_single_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "21c6a08061019d234b4b21a65f2477b9861d6574482cf625bb6594bead1ed6d3"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_single_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "21c6a08061019d234b4b21a65f2477b9861d6574482cf625bb6594bead1ed6d3"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_single_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "21c6a08061019d234b4b21a65f2477b9861d6574482cf625bb6594bead1ed6d3"
+        },
+        "dz__r20": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_single_avdz_f12/native/dz__r30/dz__r30.wfu",
+          "sha256": "21c6a08061019d234b4b21a65f2477b9861d6574482cf625bb6594bead1ed6d3"
+        }
+      }
+    },
+    {
+      "title": "h102_single_full_avtz_f12",
+      "cas": [
+        1,
+        1
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r20": 3.765050938201154e-05,
+        "r6": -0.016974123325458296,
+        "back6": -0.016923922622502436,
+        "back_near": 9.448079432036211,
+        "angle_far_1": 6.275089652970884e-05,
+        "angle_1": -0.23291258267087606,
+        "angle_far_2": 8.157618689048182e-05,
+        "angle_2": -0.30481885975195394,
+        "parent": -74.94199075393952,
+        "r30": 0.0,
+        "mid": -0.1444777138508534,
+        "near": 9.448085707132998
+      },
+      "return_max_energy_kcal": 5.0200726408893466e-05,
+      "return_min_squared_singular_value": 0.999999999997299,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_single_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "61515219b70968d23db5ee0a1038a42ca427487441d57a2d5ec4579cc2500cbc"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_single_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "61515219b70968d23db5ee0a1038a42ca427487441d57a2d5ec4579cc2500cbc"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_single_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "61515219b70968d23db5ee0a1038a42ca427487441d57a2d5ec4579cc2500cbc"
+        },
+        "tz__r20": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/screen/h102_single_avtz_f12/native/tz__r30/tz__r30.wfu",
+          "sha256": "61515219b70968d23db5ee0a1038a42ca427487441d57a2d5ec4579cc2500cbc"
+        }
+      }
+    },
+    {
+      "title": "h102_union_2_full_avdz_f12",
+      "cas": [
+        5,
+        4
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "r20": 0.0,
+        "r6": -0.045977597631952916,
+        "mid": -0.13789514245781626,
+        "near": 7.328303218254384,
+        "back6": -0.04565129288439099,
+        "back_near": 7.328309493351171,
+        "angle_far_1": -0.027830032134753716,
+        "angle_1": -0.22484281455210994,
+        "angle_far_2": -0.027321749723050053,
+        "angle_2": -0.26412488933421924,
+        "parent": -70.2025958882472
+      },
+      "return_max_energy_kcal": 0.0003263049000067269,
+      "return_min_squared_singular_value": 0.7231120437721992,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        },
+        "dz__r30": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        }
+      }
+    },
+    {
+      "title": "h102_union_2_full_avtz_f12",
+      "cas": [
+        5,
+        4
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "r20": -5.020070295586019e-05,
+        "r6": -0.017319253363380995,
+        "mid": -0.12060098948158296,
+        "near": 7.277305547116566,
+        "back6": -0.017061974609135704,
+        "back_near": 7.277242796148697,
+        "angle_far_1": -0.0001255018643989521,
+        "angle_1": -0.2191826818160344,
+        "angle_far_2": -0.00014432708342019065,
+        "angle_2": -0.25531466043665185,
+        "parent": -68.78080441143427
+      },
+      "return_max_energy_kcal": 0.00025727887444216044,
+      "return_min_squared_singular_value": 0.9999998142419482,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        },
+        "tz__r30": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        }
+      }
+    },
+    {
+      "title": "h102_union_3_full_avdz_f12",
+      "cas": [
+        5,
+        5
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "r20": -0.00013805198663326634,
+        "r6": -0.01741337974384533,
+        "mid": -0.10892304363525628,
+        "near": 9.110830897843005,
+        "back6": -0.01728787795078591,
+        "back_near": 9.110761871849688,
+        "angle_far_1": -0.00018825276092866096,
+        "angle_1": -0.21026577634442883,
+        "angle_far_2": -0.0002070780512894339,
+        "angle_2": -0.20778083994297425,
+        "parent": -75.90002784570956
+      },
+      "return_max_energy_kcal": 0.00012550185169201753,
+      "return_min_squared_singular_value": 0.9999999999430496,
+      "initial_records": {
+        "dz__angle_far_1": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        },
+        "dz__angle_far_2": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        },
+        "dz__parent": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        },
+        "dz__r30": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        }
+      }
+    },
+    {
+      "title": "h102_union_3_full_avtz_f12",
+      "cas": [
+        5,
+        5
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 1,
+            "weights": [
+              1.0
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "r20": -0.00016315237378096363,
+        "r6": -0.01616463648200087,
+        "mid": -0.11635275230979332,
+        "near": 9.0702185036835,
+        "back6": -0.016051684811175766,
+        "back_near": 9.070143202593396,
+        "angle_far_1": -0.00016315237378096363,
+        "angle_1": -0.212581285203976,
+        "angle_far_2": -0.0002698289478191428,
+        "angle_2": -0.23103633022971592,
+        "parent": -74.8908362055247
+      },
+      "return_max_energy_kcal": 0.00011295172359446997,
+      "return_min_squared_singular_value": 0.99999999997617,
+      "initial_records": {
+        "tz__angle_far_1": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        },
+        "tz__angle_far_2": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        },
+        "tz__parent": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        },
+        "tz__r30": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        }
+      }
+    },
+    {
+      "title": "h101_pair_2_1_twoD_avdz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "mid": 0.13007637810351783,
+        "near": 0.8490512972025817
+      },
+      "return_max_energy_kcal": null,
+      "return_min_squared_singular_value": null,
+      "initial_records": {
+        "dz__r30": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "e9a33f32751854f7bbb54b1dfab4272cf7813b5ad2c092399e64f0d0fc0d4042"
+        }
+      }
+    },
+    {
+      "title": "h101_pair_2_1_twoD_avtz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "mid": 0.12176188145975002,
+        "near": 0.17836948466635744
+      },
+      "return_max_energy_kcal": null,
+      "return_min_squared_singular_value": null,
+      "initial_records": {
+        "tz__r30": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "28cd61740d2a05d37f8ce26c249556e24c23e24dc1162a1e1442f0571a6d3247"
+        }
+      }
+    },
+    {
+      "title": "h101_union_2_twoD_avdz_f12",
+      "cas": [
+        5,
+        5
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "mid": 2.685180811062417,
+        "near": 5.827131830008347
+      },
+      "return_max_energy_kcal": null,
+      "return_min_squared_singular_value": null,
+      "initial_records": {
+        "dz__r30": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "e9a33f32751854f7bbb54b1dfab4272cf7813b5ad2c092399e64f0d0fc0d4042"
+        }
+      }
+    },
+    {
+      "title": "h101_union_2_twoD_avtz_f12",
+      "cas": [
+        5,
+        5
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "mid": 2.722354454964929,
+        "near": 5.650964902566382
+      },
+      "return_max_energy_kcal": null,
+      "return_min_squared_singular_value": null,
+      "initial_records": {
+        "tz__r30": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h101_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "28cd61740d2a05d37f8ce26c249556e24c23e24dc1162a1e1442f0571a6d3247"
+        }
+      }
+    },
+    {
+      "title": "h102_pair_6_0_twoD_avdz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "mid": -0.13407361158217934,
+        "near": 7.124425485373938
+      },
+      "return_max_energy_kcal": null,
+      "return_min_squared_singular_value": null,
+      "initial_records": {
+        "dz__r30": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        }
+      }
+    },
+    {
+      "title": "h102_pair_6_0_twoD_avtz_f12",
+      "cas": [
+        3,
+        3
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "mid": -0.1411079895158378,
+        "near": 7.037433887602136
+      },
+      "return_max_energy_kcal": null,
+      "return_min_squared_singular_value": null,
+      "initial_records": {
+        "tz__r30": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        }
+      }
+    },
+    {
+      "title": "h102_union_3_twoD_avdz_f12",
+      "cas": [
+        5,
+        5
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "mid": -0.12874605869045264,
+        "near": 7.2198633566436845
+      },
+      "return_max_energy_kcal": null,
+      "return_min_squared_singular_value": null,
+      "initial_records": {
+        "dz__r30": {
+          "basis": "avdz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/dz__r30/dz__r30.wfu",
+          "sha256": "35a8aa22431f52b2d9fa760f06cca7e724ba7cc54c38c8a473acc64e849377e1"
+        }
+      }
+    },
+    {
+      "title": "h102_union_3_twoD_avtz_f12",
+      "cas": [
+        5,
+        5
+      ],
+      "state_model": {
+        "canonical_orbitals": true,
+        "casscf_options": {
+          "energy_convergence": 1e-08,
+          "gradient_convergence": 1e-05,
+          "max_iterations": 999,
+          "solver": "so_sci"
+        },
+        "correlation_options": {
+          "coefficient_convergence": 1e-05,
+          "energy_convergence": 1e-08,
+          "max_iterations": 2000,
+          "max_reference_iterations": 2000,
+          "max_reference_vectors": 60,
+          "reference_policy": "state_average"
+        },
+        "selected_roots": {
+          "2": 1
+        },
+        "state_average": [
+          {
+            "multiplicity": 2,
+            "roots": 2,
+            "weights": [
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      "energies_from_own_r30_kcal": {
+        "r30": 0.0,
+        "mid": -0.1358933882235967,
+        "near": 7.119549739022832
+      },
+      "return_max_energy_kcal": null,
+      "return_min_squared_singular_value": null,
+      "initial_records": {
+        "tz__r30": {
+          "basis": "avtz-f12",
+          "path": "/home/hram/kinbot-runs/ch3s_ch3ss_orbital_reviews_20261027/r9_completion_20261112/initial/h102_reference/native/tz__r30/tz__r30.wfu",
+          "sha256": "e1683195e09f40299b51aa5641f7e581ea084db29b6d3646a13831cc4444c377"
+        }
+      }
+    }
+  ],
+  "evidence_files": {
+    "network_binding_evidence.json.gz": "cdc47bd6fbee9cf3249fb96e848d8b8e4f66b08a692f78344a6844e9ebe4a727",
+    "h_loss_model_evidence.json.gz": "56ae0d5eb11cc43d5974dba9aeecfa34bf4d9f31202c99e0b12c345e5c664897"
+  },
+  "input_equivalence": {
+    "original": "local_runs/r8_closure_audit_20261119/mess/ch3ss_mapped_v2/mess.inp",
+    "original_sha256": "c9cf46887326a2b6d30ab3ced4e75028860079ab0ddbab0451c2d3bf6b5e76b2",
+    "bound_sha256": "e0ceee9e630ac8a95613a334421f3a0c8d056a9949ae65df54759727987ccabb",
+    "physical_tokens_identical": true
+  },
+  "new_native_QC_requested": [
+    "B-W3 saddle/frequency only"
+  ]
+}

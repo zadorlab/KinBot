@@ -1,0 +1,11 @@
+{
+  "raw_orbital_export_sha256": "3b03f3f99db112d75aa0e2628de9a97bbecdc8bdd7539fc4d46965df7a1036e5",
+  "native_points": 578,
+  "recomputed_relative_energies": 288,
+  "reverse_native_logs_verified": 3,
+  "fragment_comparisons_verified": 8,
+  "physical_MESS_tokens_identical": true,
+  "prior_native_receipt": "local_runs/r8_closure_audit_20261119/mess/ch3ss_mapped_v2/execution.json",
+  "prior_native_receipt_sha256": "c0d17e8eb694873ac52697d57002740c740766cae813b61b76052cc4070d78ea",
+  "production_acceptance": false
+}

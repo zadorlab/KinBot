@@ -30,6 +30,17 @@ The owning dispatcher inherits the run's resource policy and excluded nodes,
 retains attempt history, and adopts a saved/live task on repeated invocation.
 The drive stays attached until the selected task reaches a terminal state.
 An incomplete pre-existing stage is preserved for inspection.
+The updated driver prints attachment, task/job changes, and a 60-second
+heartbeat. Older running drivers remain silent until completion. In a second
+terminal, inspect the cached status and the queue without restarting the owner:
+
+```bash
+cd "$HOME/KinBot" || exit
+KB_CLOSURE="$HOME/kinbot-runs/ch3s_ch3ss_l1_l2_scout_r8/validation_20261114/w3_complex_b_saddle_20261119"
+.venv/bin/python -B -m kinbot.anl.dispatch status "$KB_CLOSURE" --cached
+cat "$KB_CLOSURE/state.json"
+squeue --me -h -o '%i|%T|%R|%j|%Z'
+```
 
 Local simulated-site validation covers staging and theory/geometry preservation,
 deferred admission, live-result adoption, repeated invocation, and rejection of

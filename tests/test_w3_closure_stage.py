@@ -32,7 +32,7 @@ def test_single_task_preserves_theory_geometry_and_staging(staged,monkeypatch):
     assert not task.get('depends_on') and len(spec['tasks'])==1
     for _ in range(2):dispatch._verify_stage_files(root,task,state['tasks']['saddle'])
 
-def test_deferred_admission_live_receipt_and_repeated_drive(staged,monkeypatch):
+def test_deferred_admission_live_receipt_and_repeated_drive(staged,monkeypatch,capsys):
     root=staged;attempts=[];active=set()
     def submit(*args,**kwargs):
         attempts.append('admission')
@@ -56,6 +56,29 @@ def test_deferred_admission_live_receipt_and_repeated_drive(staged,monkeypatch):
     assert dispatch.main(['drive',str(root),'--interval','1'])==0
     assert dispatch._load(root)[2]['tasks']['saddle']['status']=='complete'
     assert len(attempts)==2
+    output=capsys.readouterr()
+    assert output.err.count('Dispatcher attached:')==2
+    events=[json.loads(line) for line in output.err.splitlines() if line.startswith('{')]
+    assert [e['tasks']['saddle']['status'] for e in events]==[
+        'staged','submitted','complete','complete']
+    assert events[1]['tasks']['saddle']['job_id']=='800001'
+    assert all(json.loads(line)=={'saddle':'complete'} for line in output.out.splitlines())
+
+def test_unchanged_driver_emits_heartbeat_without_resubmitting(staged,monkeypatch,capsys):
+    root=staged;clock=[0.];polls=[]
+    _,spec,state=dispatch._load(root)
+    state['tasks']['saddle'].update(status='submitted',job_id='800002')
+    def advance(*args,**kwargs):
+        polls.append(clock[0])
+        if clock[0]>=80.:state['tasks']['saddle']['status']='complete'
+        return state
+    monkeypatch.setattr(dispatch,'advance',advance)
+    monkeypatch.setattr(dispatch.time,'monotonic',lambda:clock[0])
+    monkeypatch.setattr(dispatch.time,'sleep',lambda seconds:clock.__setitem__(0,clock[0]+seconds))
+    assert dispatch.drive_run(root,interval=20.)== (0,{'saddle':'complete'})
+    events=[json.loads(line) for line in capsys.readouterr().err.splitlines() if line.startswith('{')]
+    assert polls==[0.,20.,40.,60.,80.]
+    assert [e['tasks']['saddle']['status'] for e in events]==['submitted','submitted','complete']
 
 def test_spectrum_gate_does_not_accept_minimum_or_higher_order_saddle():
     request=deepcopy(json.loads(SPEC.read_text())['tasks'][0]['result_parser']);request.pop('file')
